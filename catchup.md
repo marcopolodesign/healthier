@@ -1,15 +1,41 @@
-# Healthier — Catchup Log
+# Catchup — Implementation Log
+
+Reverse-chronological record of completed implementations. Updated after every successful feature/fix.
+
+---
+
+## 2026-04-14: Responsive patient dashboard — Google Maps floating panel
+
+On desktop (≥640px), the `Dashboard.jsx` bottom sheet is replaced by a frosted-glass floating panel anchored to the bottom-left of the map — same pattern as Google Maps. The panel is `absolute left-4 bottom-[96px] w-[360px] rounded-[28px]` with a frosted-glass style, scrollable body, and all content (vitals, AI triage, specialty grid, SOS, veterinary) always visible. Mobile keeps the original drag-to-expand bottom sheet exactly as-is. An `isDesktop` state (with resize listener) drives the switch.
+
+**Files modified:**
+- `src/pages/patient/Dashboard.jsx` — extracted shared content into reusable JSX blocks (`vitalsRow`, `aiTriageBar`, `specialtyGrid`, `sosAndVet`); added `isDesktop` state; rendered two separate layout branches inside `!isDesktop && ...` / `isDesktop && ...` guards
+
+**Source:** Claude Code — Macbook Pro
+
+---
+
+## 2026-04-14: Phone-frame mock removed — fully responsive layout
+
+`PatientMobileLayout` no longer wraps the patient UI in an iPhone phone-frame (430×932 box, Dynamic Island element, black border). The layout now fills the real browser viewport with `h-dvh`. All Dynamic Island padding offsets (`pt-16`, `top-14`) across the four patient pages were replaced with responsive Tailwind values (`pt-6 sm:pt-8`, `top-4 sm:top-6`). Bottom nav is centered with `max-w-lg mx-auto` so it doesn't span 100% on wide screens.
+
+**Files modified:**
+- `src/layouts/PatientMobileLayout.jsx` — removed phone-frame chrome; root is now `h-dvh bg-[#F8FAFC] relative overflow-hidden`
+- `src/pages/patient/Dashboard.jsx` — location header `top-14` → `top-4 sm:top-6`; map-pro close button `top-14` → `top-4`
+- `src/pages/patient/Consultations.jsx` — root `pt-16` → `pt-6 sm:pt-8`
+- `src/pages/patient/Documents.jsx` — main view `pt-16` → `pt-6 sm:pt-8`; category detail header `pt-14` → `pt-6 sm:pt-8`
+- `src/pages/patient/Profile.jsx` — main view + sub-screens `pt-16`/`pt-14` → `pt-6 sm:pt-8`
+
+**Source:** Claude Code — Macbook Pro
 
 ---
 
 ## 2026-04-14: Client Design System Integration — Patient Mobile Redesign
 
-**Branch:** `feat/client-design-patient`
-
-**Change:** Integrated the client's single-file React mockup into the existing Healthier codebase. Patient experience fully replaced with a mobile-first phone-frame UI (430×932 iPhone shell). Professional/admin/super-admin dashboards unchanged.
+Integrated the client's single-file React mockup into the existing Healthier codebase. Patient experience fully replaced with a mobile-first UI. Professional/admin/super-admin dashboards unchanged.
 
 **Files created:**
-- `src/layouts/PatientMobileLayout.jsx` — phone-frame wrapper + bottom nav; replaces AppLayout for all `/paciente/*` routes
+- `src/layouts/PatientMobileLayout.jsx` — bottom nav; replaces AppLayout for all `/paciente/*` routes
 - `src/components/patient/InteractiveMap.jsx` — drag-to-pan map with professional markers, ambulance radar, route animation
 - `src/components/patient/TopDownAmbulance.jsx` — flat SVG top-down ambulance vector
 - `src/components/patient/useBottomSheet.js` — drag-to-expand bottom sheet hook
@@ -27,11 +53,11 @@
 
 **Files modified:**
 - `src/App.jsx` — patient routes now use `PatientMobileLayout`; new routes `/paciente/ondemand/:vertical`, `/paciente/sos`, `/paciente/videollamada/:id`
-- `src/index.css` — brand re-themed from teal (#0F7173) → blue (#2563EB) across all tokens; new `--color-danger` (#DC2626) for emergencies; specialist vertical color tokens added; `animate-slide-up-spring`, `animate-dash-move`, `scrollbar-hide` utilities added
+- `src/index.css` — brand re-themed from teal (#0F7173) → blue (#2563EB); new `--color-danger` (#DC2626); specialist vertical color tokens; `animate-slide-up-spring`, `animate-dash-move`, `scrollbar-hide` added
 - `package.json` / `package-lock.json` — added `lucide-react`
 
 **Key implementation notes:**
-- Dual icon library: `lucide-react` for patient area, `@heroicons/react` retained for pro/admin; acceptable during migration
+- Dual icon library: `lucide-react` for patient area, `@heroicons/react` retained for pro/admin
 - AI triage + S.O.S are UI-only mocks with realistic delays — wire real backends in a follow-up pass
 - Familiares, tarjetas, food/workout logs live in local state only — persistence needs new Supabase tables (deferred)
 - Consultations booking modal calls real `consultationsService.create()` — actual DB rows are created
@@ -42,13 +68,14 @@
 - `supabase/migrations/NNN_patient_extras.sql`: `food_logs`, `workout_logs`, `familiares`, `payment_methods`, `documents.category`
 - Geolocation: OSM reverse-geocode rate-limit handling
 - Video call: replace mock UI with actual WebRTC / Daily.co / Agora integration
-- Baseline git commit on `main` already created; branch is `feat/client-design-patient`
+
+**Source:** Claude Code — Macbook Pro
 
 ---
 
 ## 2026-03-26: Figma Screens Push + Bug Fixes + Sitewide Sidecart
 
-**Change:** Pushed all 18 Healthier app screens into Figma (`NnHInsYlpesMmLU1cTnPz2`), fixed critical auth/DB bugs, made IndexSidecart sitewide, and created test users.
+Pushed all 18 Healthier app screens into Figma (`NnHInsYlpesMmLU1cTnPz2`), fixed critical auth/DB bugs, made IndexSidecart sitewide, and created test users.
 
 **Figma — Design system foundations created:**
 - Variable collections: `Color` (23 semantic variables, Light mode), `Spacing` (14 spacing/radius tokens)
@@ -64,11 +91,11 @@
 - Screens/Super Admin (3): Dashboard, Admins, Configuración (dark navy sidebar)
 
 **Files modified (code):**
-- `src/App.jsx` — Lifted `sidecartOpen` state here; added floating `#` FAB button (fixed bottom-right) for sitewide access on public pages; renders `<IndexSidecart>` inside `<Router>`
+- `src/App.jsx` — Lifted `sidecartOpen` state here; added floating `#` FAB button (fixed bottom-right); renders `<IndexSidecart>` inside `<Router>`
 - `src/layouts/AppLayout.jsx` — Removed own IndexSidecart state; receives `onOpenSidecart` prop from App.jsx
 - `src/components/Header.jsx` — Added `onLogoClick` prop; mobile logo → `<button>`, visible on all screen sizes
 - `src/services/authService.js` — Fixed null localStorage crash: null guard on JSON.parse + only store profile if non-null
-- `src/services/consultationsService.js` — Fixed all FK join errors: uses PostgREST aliased joins `professional:profiles!professional_id(..., professional_profiles(specialty))`
+- `src/services/consultationsService.js` — Fixed all FK join errors: uses PostgREST aliased joins `professional:profiles!professional_id(...)`
 - `src/pages/patient/Consultations.jsx` — Updated field access for camelCase join shape
 - `src/pages/patient/Dashboard.jsx` — Updated field access for camelCase join shape
 - `src/pages/professional/ConsultationDetail.jsx` — Updated field access for patient/professional
@@ -76,7 +103,7 @@
 
 **Supabase changes:**
 - Created test users: `paciente@healthier.app` / `paciente` and `profesional@healthier.app` / `profesional`
-- Fixed RLS infinite recursion (`42P17`) on `profiles` table: created `SECURITY DEFINER` function `get_my_role()` to break the recursive policy
+- Fixed RLS infinite recursion (`42P17`) on `profiles` table: created `SECURITY DEFINER` function `get_my_role()`
 
 **Key gotchas:**
 - Plus Jakarta Sans uses `SemiBold` (no space) in Figma; Inter uses `Semi Bold` (with space)
@@ -84,11 +111,13 @@
 - `setSharedPluginData` is not available on variable collection objects
 - PostgREST FK aliases: use `professional:profiles!professional_id` not direct `professional_profiles` join from `consultations`
 
+**Source:** Claude Code — Macbook Pro
+
 ---
 
 ## 2026-03-25: Index Sidecart — Page Navigator Drawer
 
-**Change:** Added a developer/design tool: clicking the Healthier logo in the sidebar opens a full-height drawer panel ("sidecart") showing all platform pages in two views.
+Added a developer/design tool: clicking the Healthier logo in the sidebar opens a full-height drawer panel ("sidecart") showing all platform pages in two views.
 
 **Files created:**
 - `src/components/IndexSidecart.jsx` — Full-height fixed drawer (480px wide, z-50). Has two tabs: "Lista" (grouped page list with route badges) and "Flujo" (interactive Mermaid flowchart). Clicking any page in list view navigates + closes. Mermaid flow uses `securityLevel: 'loose'` + `window._healthierNav` for click-to-navigate on nodes.
@@ -97,8 +126,7 @@
 - `src/components/Sidebar.jsx` — Added `onLogoClick` prop; wrapped logo `<div>` in `<button>` with hover styles
 - `src/layouts/AppLayout.jsx` — Added `sidecartOpen` state, imported and rendered `<IndexSidecart>`, passed `onLogoClick` to `<Sidebar>`
 
-**Package installed:**
-- `mermaid` — for SVG flowchart rendering in the Flujo tab
+**Package installed:** `mermaid` — for SVG flowchart rendering in the Flujo tab
 
 **Key notes:**
 - Mermaid must be initialized with `startOnLoad: false` and `securityLevel: 'loose'` for click callbacks
@@ -106,11 +134,13 @@
 - Routes with `:id` params are shown non-clickable in list view
 - Sidecart z-index is 50 (above sidebar at z-30 and mobile overlay at z-20)
 
+**Source:** Claude Code — Macbook Pro
+
 ---
 
 ## 2026-03-19: Full MVP Scaffold — Sprint 1–4
 
-**Change:** Built the entire Healthier health-services marketplace MVP from scratch. Stack is React 19 + Vite 7 + Tailwind CSS 4 + Supabase, emulating TAG-admin patterns. Covers all 4 user roles (patient, professional, admin, super_admin) with full routing, auth, services, and UI in Spanish.
+Built the entire Healthier health-services marketplace MVP from scratch. Stack is React 19 + Vite 7 + Tailwind CSS 4 + Supabase, emulating TAG-admin patterns. Covers all 4 user roles (patient, professional, admin, super_admin) with full routing, auth, services, and UI in Spanish.
 
 **Supabase setup:**
 - Project `healthier-mvp` created in `sa-east-1` (ID: `aixjejdoofervrkggbkd`)
@@ -118,93 +148,41 @@
 - Storage buckets created: `avatars` (public), `professional-docs` (private), `patient-docs` (private)
 - `.env` populated with real project URL and anon key
 
----
-
 **Files created:**
 
-**Foundation**
-- `package.json` — React 19 + Vite 7 + Tailwind 4 + Supabase JS + Heroicons + Recharts
-- `vite.config.js` — Vite + @tailwindcss/vite + @vitejs/plugin-react
-- `index.html` — Google Fonts (Inter + Plus Jakarta Sans), lang="es"
-- `.env` — Supabase URL + anon key (real values)
-- `.env.example` — Template for env vars
-- `.gitignore` — Standard Vite gitignore
+*Foundation:* `package.json`, `vite.config.js`, `index.html`, `.env`, `.env.example`, `.gitignore`
 
-**Design system**
-- `src/index.css` — Full Tailwind 4 `@theme` (teal #0F7173 brand, coral #F97316 accent) + all `@utility` blocks: btn-primary, btn-accent, btn-secondary, btn-danger, form-input, form-label, form-select, form-textarea, card, card-hover, table-header, table-cell, table-row, nav-item-active, nav-item-inactive, status-badge, status-pending/confirmed/in-progress/completed/cancelled, animations
+*Design system:* `src/index.css` — Full Tailwind 4 `@theme` + all `@utility` blocks (btn-primary, btn-accent, btn-secondary, btn-danger, form-input, form-label, form-select, form-textarea, card, card-hover, table-header, table-cell, table-row, nav-item-active/inactive, status-badge variants, animations)
 
-**Core**
-- `src/main.jsx` — React 19 entry point
-- `src/App.jsx` — Full router with role guards (RequireRole), auth gate, onAuthStateChange listener, loading screen
+*Core:* `src/main.jsx`, `src/App.jsx` (router + role guards + auth gate + onAuthStateChange)
 
-**Library**
-- `src/lib/supabase.js` — Supabase client, getCurrentUser, isAuthenticated, toCamelCase, toSnakeCase
+*Library:* `src/lib/supabase.js` — Supabase client, getCurrentUser, isAuthenticated, toCamelCase, toSnakeCase
 
-**Services**
-- `src/services/authService.js` — register (creates profile row), login (with role redirect), logout, getCurrentUserProfile (with localStorage cache), verifySession, onAuthStateChange
-- `src/services/profilesService.js` — getById, update, uploadAvatar
-- `src/services/professionalService.js` — getByUserId, upsert, uploadDocument, search (filters: specialty/onDemand/minRating), getPublicProfile, setVerified, getPendingVerification
-- `src/services/consultationsService.js` — create, getByPatient, getByProfessional, getById, updateStatus, getAll
-- `src/services/reviewsService.js` — create, getByProfessional, recalculateRating
-- `src/services/documentsService.js` — upload (to Supabase Storage), getByPatient, delete
-- `src/services/availabilityService.js` — getByProfessional, create, delete
+*Services:* authService, profilesService, professionalService, consultationsService, reviewsService, documentsService, availabilityService
 
-**Components**
-- `src/components/Toast.jsx` — Pub-sub toast system (success/error/info/warning), ToastContainer, auto-dismiss at 4s
-- `src/components/Modal.jsx` — Reusable overlay modal, body scroll lock, 4 sizes
-- `src/components/Sidebar.jsx` — Role-aware nav (4 roles), mobile overlay, logout button
-- `src/components/Header.jsx` — Top bar with user avatar, role label, user dropdown, logout
-- `src/components/FileUpload.jsx` — Drag-and-drop + click upload, file preview with clear button
-- `src/components/StarRating.jsx` — 1–5 star input/display, hover state, read-only mode, 3 sizes
-- `src/components/StatusBadge.jsx` — Maps consultation status to Spanish label + color pill
-- `src/components/CalendlyEmbed.jsx` — Loads Calendly widget script, renders inline widget, prefill name/email
-- `src/components/ProfessionalCard.jsx` — Search result card: avatar, specialty, on-demand badge, rating, price, "Ver perfil" CTA
+*Components:* Toast, Modal, Sidebar, Header, FileUpload, StarRating, StatusBadge, CalendlyEmbed, ProfessionalCard
 
-**Layouts**
-- `src/layouts/AppLayout.jsx` — Sidebar + Header wrapper with mobile menu state
-- `src/layouts/AuthLayout.jsx` — Centered card with Healthier logo, footer
+*Layouts:* AppLayout (sidebar + header), AuthLayout (centered card)
 
-**Pages — Auth**
-- `src/pages/Landing.jsx` — Full landing: navbar, hero ("Tu salud, cuando la necesitás"), specialties grid (4), how-it-works (3 steps), pro benefits section, CTA final, footer
-- `src/pages/auth/Login.jsx` — Email/password form, role-based redirect on success
-- `src/pages/auth/Register.jsx` — Role picker (Paciente/Profesional), name/email/password form
+*Pages — Auth:* Landing, Login, Register
 
-**Pages — Patient**
-- `src/pages/patient/Dashboard.jsx` — Quick action cards, upcoming consultations list, empty state
-- `src/pages/patient/Search.jsx` — Specialty dropdown, min-rating select, on-demand toggle, results grid
-- `src/pages/patient/ProfessionalProfile.jsx` — Full public profile: avatar, specialty, rating, bio, price, "Agendar" CTA, reviews list
-- `src/pages/patient/Book.jsx` — Calendly embed + postMessage listener → creates consultation record on booking
-- `src/pages/patient/Consultations.jsx` — Table with status filter tabs
-- `src/pages/patient/Documents.jsx` — PDF upload modal, document grid with download/delete
-- `src/pages/patient/Profile.jsx` — Edit name/phone/birthdate, avatar upload
+*Pages — Patient:* Dashboard, Search, ProfessionalProfile, Book, Consultations, Documents, Profile
 
-**Pages — Professional**
-- `src/pages/professional/Onboarding.jsx` — 4-step wizard: personal info → title PDF upload → license+DNI upload → review & submit
-- `src/pages/professional/Dashboard.jsx` — Pending verification notice if not approved; stats cards + today's agenda list
-- `src/pages/professional/Agenda.jsx` — On-demand toggle, Calendly URL input, live embed preview
-- `src/pages/professional/ConsultationDetail.jsx` — Patient info, "Cerrar consulta" modal with notes + prescription toggle + file upload
-- `src/pages/professional/Profile.jsx` — Edit specialty/sub-specialty/bio/price
+*Pages — Professional:* Onboarding, Dashboard, Agenda, ConsultationDetail, Profile
 
-**Pages — Admin**
-- `src/pages/admin/Professionals.jsx` — Pending verification table, side panel with PDF viewer (iframe), approve/reject buttons with optional note
-- `src/pages/admin/Users.jsx` — All users table with search, role color badges
-- `src/pages/admin/Consultations.jsx` — Platform-wide consultation log with status filter
+*Pages — Admin:* Professionals, Users, Consultations
 
-**Pages — Super Admin**
-- `src/pages/super-admin/Dashboard.jsx` — 4 stat cards + Recharts BarChart (consultations last 7 days)
-- `src/pages/super-admin/Admins.jsx` — Admin list, promote-user-to-admin modal
-- `src/pages/super-admin/Settings.jsx` — Platform name, support email, maintenance mode toggle, allow-registrations toggle
+*Pages — Super Admin:* Dashboard, Admins, Settings
 
-**Database**
-- `supabase/migrations/001_initial_schema.sql` — Full schema: 6 tables, updated_at triggers, RLS policies, indexes, storage bucket comments
-
----
+*Database:* `supabase/migrations/001_initial_schema.sql` — 6 tables, updated_at triggers, RLS policies, indexes
 
 **Key notes:**
 - All UI copy in Spanish (Argentine market)
 - No Stripe — payments deferred; no payment fields in schema
 - Scheduling via Calendly inline embed; consultation record created on `calendly.event_scheduled` postMessage
-- Professional onboarding requires admin approval before dashboard is shown (`is_verified` gate)
-- `toCamelCase`/`toSnakeCase` helpers in supabase.js handle DB ↔ JS naming throughout all services
+- Professional onboarding requires admin approval (`is_verified` gate)
+- `toCamelCase`/`toSnakeCase` helpers handle DB ↔ JS naming throughout
 - localStorage caches `userProfile` to avoid redundant DB calls on navigation
 - Auth state managed via `onAuthStateChange` in App.jsx
+
+**Source:** Claude Code — Macbook Pro

@@ -78,7 +78,7 @@ export default function PatientDocuments({ profile }) {
     return (
       <div className="absolute inset-0 bg-[#F8FAFC] flex flex-col animate-fade-in">
         {/* Header */}
-        <div className="pt-14 pb-4 px-6 bg-white/90 backdrop-blur-xl border-b border-gray-100 flex items-center gap-4 sticky top-0 z-10">
+        <div className="pt-6 sm:pt-8 pb-4 px-6 bg-white/90 backdrop-blur-xl border-b border-gray-100 flex items-center gap-4 sticky top-0 z-10">
           <button onClick={() => setViewingCat(null)} className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50">
             <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
@@ -238,7 +238,7 @@ export default function PatientDocuments({ profile }) {
 
   // Main vault view
   return (
-    <div className="absolute inset-0 bg-[#F8FAFC] pt-16 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
+    <div className="absolute inset-0 bg-[#F8FAFC] pt-6 sm:pt-8 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
       <div className="mb-8 mt-4">
         <h1 className="text-[32px] font-black text-gray-900 tracking-tight leading-none">Bóveda Clínica</h1>
         <p className="text-gray-500 font-medium text-[15px] mt-2 flex items-center gap-1.5">

@@ -98,7 +98,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   if (showAddFamiliar) {
     return (
       <div className="absolute inset-0 bg-white flex flex-col animate-fade-in">
-        <div className="pt-14 pb-4 px-6 bg-white/90 backdrop-blur-xl border-b border-gray-100 flex items-center justify-between sticky top-0 z-10">
+        <div className="pt-6 sm:pt-8 pb-4 px-6 bg-white/90 backdrop-blur-xl border-b border-gray-100 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-3">
             <button onClick={() => setShowAddFamiliar(false)} className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50">
               <ArrowLeft className="w-5 h-5 text-gray-700" />
@@ -135,7 +135,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   if (showTarjeta) {
     return (
       <div className="absolute inset-0 bg-white flex flex-col animate-fade-in">
-        <div className="pt-14 pb-4 px-6 bg-white/90 backdrop-blur-xl border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
+        <div className="pt-6 sm:pt-8 pb-4 px-6 bg-white/90 backdrop-blur-xl border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
           <button onClick={() => setShowTarjeta(false)} className="w-10 h-10 bg-white border border-gray-200 shadow-sm rounded-full flex items-center justify-center hover:bg-gray-50">
             <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
@@ -163,7 +163,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
 
   // Main profile view
   return (
-    <div className="absolute inset-0 bg-[#F8FAFC] pt-16 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
+    <div className="absolute inset-0 bg-[#F8FAFC] pt-6 sm:pt-8 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
       <div className="flex justify-between items-center mb-8 mt-4">
         <h1 className="text-[32px] font-black text-gray-900 tracking-tight leading-none">Mi Perfil</h1>
         <button
