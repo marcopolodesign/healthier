@@ -2,6 +2,50 @@
 
 ---
 
+## 2026-04-14: Client Design System Integration — Patient Mobile Redesign
+
+**Branch:** `feat/client-design-patient`
+
+**Change:** Integrated the client's single-file React mockup into the existing Healthier codebase. Patient experience fully replaced with a mobile-first phone-frame UI (430×932 iPhone shell). Professional/admin/super-admin dashboards unchanged.
+
+**Files created:**
+- `src/layouts/PatientMobileLayout.jsx` — phone-frame wrapper + bottom nav; replaces AppLayout for all `/paciente/*` routes
+- `src/components/patient/InteractiveMap.jsx` — drag-to-pan map with professional markers, ambulance radar, route animation
+- `src/components/patient/TopDownAmbulance.jsx` — flat SVG top-down ambulance vector
+- `src/components/patient/useBottomSheet.js` — drag-to-expand bottom sheet hook
+- `src/pages/patient/OnDemand.jsx` — on-demand vertical service selection + payment + match flow
+- `src/pages/patient/Emergency.jsx` — S.O.S payment → ambulance radar → matched unit with live ETA
+- `src/pages/patient/VideoCall.jsx` — full-screen videocall UI with timer, self-view PiP
+- `src/services/aiService.js` — mock AI triage (keyword-based; TODO: wire Gemini API)
+- `src/services/emergencyService.js` — mock emergency dispatch (TODO: wire real dispatcher)
+
+**Files rewritten:**
+- `src/pages/patient/Dashboard.jsx` — map home + bottom sheet + vitals widgets + AI triage bar + specialty grid + SOS shortcut
+- `src/pages/patient/Consultations.jsx` — 5-step agenda booking modal (modality → specialty → professional → datetime → payment); list wired to `consultationsService`
+- `src/pages/patient/Documents.jsx` — bóveda by category + nutrition AI (Calai IA) + rehab AI (Kine AI) + upload flow
+- `src/pages/patient/Profile.jsx` — editable basic/clinical info, emergency contact, familiares, tarjetas, comprobantes; persists to `profilesService`
+
+**Files modified:**
+- `src/App.jsx` — patient routes now use `PatientMobileLayout`; new routes `/paciente/ondemand/:vertical`, `/paciente/sos`, `/paciente/videollamada/:id`
+- `src/index.css` — brand re-themed from teal (#0F7173) → blue (#2563EB) across all tokens; new `--color-danger` (#DC2626) for emergencies; specialist vertical color tokens added; `animate-slide-up-spring`, `animate-dash-move`, `scrollbar-hide` utilities added
+- `package.json` / `package-lock.json` — added `lucide-react`
+
+**Key implementation notes:**
+- Dual icon library: `lucide-react` for patient area, `@heroicons/react` retained for pro/admin; acceptable during migration
+- AI triage + S.O.S are UI-only mocks with realistic delays — wire real backends in a follow-up pass
+- Familiares, tarjetas, food/workout logs live in local state only — persistence needs new Supabase tables (deferred)
+- Consultations booking modal calls real `consultationsService.create()` — actual DB rows are created
+- Profile saves to real `profilesService.update()` — field mapping assumes snake_case column names in `profiles` table
+
+**Follow-up items:**
+- Wire `VITE_GEMINI_API_KEY` + real `aiService.triage()` call
+- `supabase/migrations/NNN_patient_extras.sql`: `food_logs`, `workout_logs`, `familiares`, `payment_methods`, `documents.category`
+- Geolocation: OSM reverse-geocode rate-limit handling
+- Video call: replace mock UI with actual WebRTC / Daily.co / Agora integration
+- Baseline git commit on `main` already created; branch is `feat/client-design-patient`
+
+---
+
 ## 2026-03-26: Figma Screens Push + Bug Fixes + Sitewide Sidecart
 
 **Change:** Pushed all 18 Healthier app screens into Figma (`NnHInsYlpesMmLU1cTnPz2`), fixed critical auth/DB bugs, made IndexSidecart sitewide, and created test users.

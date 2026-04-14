@@ -1,20 +1,25 @@
 @import "tailwindcss";
 
-/* Healthier — Teal + Coral Theme */
+/* Healthier — Blue + Coral Theme (client design system) */
 @theme {
-  /* Brand colors */
-  --color-brand: #0F7173;
-  --color-brand-hover: #0a5c5e;
-  --color-brand-muted: rgba(15, 113, 115, 0.1);
-  --color-brand-light: rgba(15, 113, 115, 0.15);
+  /* Brand colors — Medical Blue */
+  --color-brand: #2563EB;
+  --color-brand-hover: #1d4ed8;
+  --color-brand-muted: rgba(37, 99, 235, 0.1);
+  --color-brand-light: rgba(37, 99, 235, 0.15);
 
   /* Accent (CTAs) */
   --color-accent: #F97316;
   --color-accent-hover: #ea6c0a;
   --color-accent-muted: rgba(249, 115, 22, 0.1);
 
+  /* Emergency / danger */
+  --color-danger: #DC2626;
+  --color-danger-hover: #b91c1c;
+  --color-danger-muted: rgba(220, 38, 38, 0.1);
+
   /* Background colors */
-  --color-bg-primary: #f8f9fa;
+  --color-bg-primary: #F8FAFC;
   --color-bg-secondary: #ffffff;
   --color-bg-surface: #f3f4f6;
   --color-bg-surface-hover: #e5e7eb;
@@ -23,7 +28,7 @@
   /* Border colors */
   --color-border-default: #e5e7eb;
   --color-border-hover: #d1d5db;
-  --color-border-focus: #0F7173;
+  --color-border-focus: #2563EB;
 
   /* Text colors */
   --color-text-primary: #1f2937;
@@ -36,6 +41,13 @@
   --color-warning: #F59E0B;
   --color-error: #EF4444;
   --color-info: #3B82F6;
+
+  /* Specialist verticals */
+  --color-v-clinica: #2563EB;
+  --color-v-nutricion: #059669;
+  --color-v-mente: #7C3AED;
+  --color-v-fisico: #EA580C;
+  --color-v-veterinaria: #0284C7;
 }
 
 @layer base {
@@ -89,7 +101,7 @@
   }
   &:focus {
     outline: none;
-    box-shadow: 0 0 0 2px white, 0 0 0 4px rgba(15, 113, 115, 0.4);
+    box-shadow: 0 0 0 2px white, 0 0 0 4px rgba(37, 99, 235, 0.4);
   }
   &:disabled {
     opacity: 0.5;
@@ -231,7 +243,7 @@
   transition: border-color 150ms, box-shadow 150ms;
   &:hover {
     border-color: var(--color-brand);
-    box-shadow: 0 2px 8px rgba(15, 113, 115, 0.1);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
   }
 }
 
@@ -323,9 +335,9 @@
 }
 
 @utility status-in-progress {
-  background-color: rgba(15, 113, 115, 0.1);
-  color: #0F7173;
-  border: 1px solid rgba(15, 113, 115, 0.2);
+  background-color: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  border: 1px solid rgba(37, 99, 235, 0.2);
 }
 
 @utility status-completed {
@@ -366,4 +378,32 @@
 
 @utility animate-fade-in-up {
   animation: fadeInUp 0.25s ease-out;
+}
+
+/* ── Patient mobile animations (client design system) ── */
+@keyframes slideUpSpring {
+  0%   { transform: translateY(100%); opacity: 0; }
+  70%  { transform: translateY(-2%);  opacity: 1; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes dashMove {
+  from { stroke-dashoffset: 24; }
+  to   { stroke-dashoffset: 0;  }
+}
+
+@utility animate-slide-up-spring {
+  animation: slideUpSpring 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@utility animate-dash-move {
+  animation: dashMove 1s linear infinite;
+}
+
+/* ── Scrollbar hide (mobile panels) ── */
+@utility scrollbar-hide {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }

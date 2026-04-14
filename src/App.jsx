@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-
 import { ToastContainer } from './components/Toast'
 import AppLayout from './layouts/AppLayout'
 import AuthLayout from './layouts/AuthLayout'
+import PatientMobileLayout from './layouts/PatientMobileLayout'
 import IndexSidecart from './components/IndexSidecart'
 import { authService } from './services/authService'
 import { supabase } from './lib/supabase'
@@ -19,6 +20,9 @@ import BookConsultation from './pages/patient/Book'
 import PatientConsultations from './pages/patient/Consultations'
 import PatientDocuments from './pages/patient/Documents'
 import PatientProfile from './pages/patient/Profile'
+import OnDemand from './pages/patient/OnDemand'
+import Emergency from './pages/patient/Emergency'
+import VideoCall from './pages/patient/VideoCall'
 
 import ProfessionalDashboard from './pages/professional/Dashboard'
 import ProfessionalOnboarding from './pages/professional/Onboarding'
@@ -130,19 +134,23 @@ export default function App() {
           <Route path="/registro" element={<Register onLogin={handleLogin} />} />
         </Route>
 
-        {/* Patient */}
+        {/* Patient — mobile shell */}
         <Route element={
           <RequireRole profile={profile} allowed={['patient']}>
-            <AppLayout profile={profile} onOpenSidecart={() => setSidecartOpen(true)} />
+            <PatientMobileLayout profile={profile} />
           </RequireRole>
         }>
-          <Route path="/paciente/dashboard" element={<PatientDashboard profile={profile} />} />
-          <Route path="/paciente/buscar" element={<PatientSearch profile={profile} />} />
-          <Route path="/paciente/profesional/:id" element={<ProfessionalProfile profile={profile} />} />
-          <Route path="/paciente/agendar/:id" element={<BookConsultation profile={profile} />} />
-          <Route path="/paciente/consultas" element={<PatientConsultations profile={profile} />} />
-          <Route path="/paciente/documentos" element={<PatientDocuments profile={profile} />} />
-          <Route path="/paciente/perfil" element={<PatientProfile profile={profile} onProfileUpdate={setProfile} />} />
+          <Route path="/paciente/dashboard"       element={<PatientDashboard    profile={profile} />} />
+          <Route path="/paciente/consultas"        element={<PatientConsultations profile={profile} />} />
+          <Route path="/paciente/documentos"       element={<PatientDocuments    profile={profile} />} />
+          <Route path="/paciente/perfil"           element={<PatientProfile      profile={profile} onProfileUpdate={setProfile} />} />
+          <Route path="/paciente/ondemand/:vertical" element={<OnDemand          profile={profile} />} />
+          <Route path="/paciente/sos"              element={<Emergency           profile={profile} />} />
+          <Route path="/paciente/videollamada/:id" element={<VideoCall           profile={profile} />} />
+          {/* Legacy routes kept for backward compatibility */}
+          <Route path="/paciente/buscar"           element={<PatientSearch       profile={profile} />} />
+          <Route path="/paciente/profesional/:id"  element={<ProfessionalProfile profile={profile} />} />
+          <Route path="/paciente/agendar/:id"      element={<BookConsultation    profile={profile} />} />
         </Route>
 
         {/* Professional */}

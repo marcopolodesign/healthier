@@ -12,6 +12,7 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@supabase/supabase-js": "^2.89.0",
+    "lucide-react": "^1.8.0",
     "mermaid": "^11.13.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
