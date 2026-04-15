@@ -13,7 +13,7 @@ export default function PatientMobileLayout({ profile }) {
   const hideNavOnDesktop = pathname === '/paciente/dashboard'
 
   return (
-    <div className="h-dvh bg-[#F8FAFC] relative overflow-hidden">
+    <div className="h-dvh bg-bg-primary relative overflow-hidden">
       {/* Page content */}
       <div className="absolute inset-0">
         <Outlet />

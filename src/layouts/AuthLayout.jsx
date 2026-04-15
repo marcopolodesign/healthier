@@ -3,15 +3,15 @@ import { BoltIcon } from '@heroicons/react/24/outline'
 
 export default function AuthLayout() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand/5 via-white to-accent/5 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-brand/5 via-bg-primary to-brand/10 flex flex-col">
       {/* Header */}
       <nav className="px-6 py-4">
         <Link to="/" className="flex items-center gap-2 w-fit">
           <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center">
             <BoltIcon className="h-5 w-5 text-white" />
           </div>
-          <span className="font-bold text-xl text-text-primary" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Healthier
+          <span className="font-bold text-xl text-text-primary">
+            Health<em className="not-italic text-brand">ier</em>
           </span>
         </Link>
       </nav>
