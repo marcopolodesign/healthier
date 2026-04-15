@@ -1,53 +1,116 @@
 @import "tailwindcss";
 
-/* Healthier — Blue + Coral Theme (client design system) */
-@theme {
-  /* Brand colors — Medical Blue */
-  --color-brand: #2563EB;
-  --color-brand-hover: #1d4ed8;
-  --color-brand-muted: rgba(37, 99, 235, 0.1);
-  --color-brand-light: rgba(37, 99, 235, 0.15);
+/* ── Licensed fonts (drop .woff2 files into /public/fonts/ to activate) ── */
+@font-face {
+  font-family: 'GT Super Display';
+  src: url('/fonts/GTSuperDisplay-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'GT Super Display';
+  src: url('/fonts/GTSuperDisplay-RegularItalic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'GT Super Display';
+  src: url('/fonts/GTSuperDisplay-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'GT Super Display';
+  src: url('/fonts/GTSuperDisplay-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
 
-  /* Accent (CTAs) */
-  --color-accent: #F97316;
-  --color-accent-hover: #ea6c0a;
-  --color-accent-muted: rgba(249, 115, 22, 0.1);
+@font-face {
+  font-family: 'Everett';
+  src: url('/fonts/Everett-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Everett';
+  src: url('/fonts/Everett-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Everett';
+  src: url('/fonts/Everett-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Healthier — Warm Editorial Theme (v2: cream/terracotta, GT Super / Everett) */
+@theme {
+  /* Brand — Terracotta */
+  --color-brand: #b05a36;
+  --color-brand-hover: #8e4529;
+  --color-brand-muted: rgba(176, 90, 54, 0.1);
+  --color-brand-light: rgba(176, 90, 54, 0.15);
+
+  /* Accent (same terracotta — single accent) */
+  --color-accent: #b05a36;
+  --color-accent-hover: #8e4529;
+  --color-accent-muted: rgba(176, 90, 54, 0.1);
 
   /* Emergency / danger */
-  --color-danger: #DC2626;
-  --color-danger-hover: #b91c1c;
-  --color-danger-muted: rgba(220, 38, 38, 0.1);
+  --color-danger: #db0000;
+  --color-danger-hover: #b00000;
+  --color-danger-muted: rgba(219, 0, 0, 0.1);
 
-  /* Background colors */
-  --color-bg-primary: #F8FAFC;
-  --color-bg-secondary: #ffffff;
-  --color-bg-surface: #f3f4f6;
-  --color-bg-surface-hover: #e5e7eb;
+  /* Background colors — warm cream palette */
+  --color-bg-primary: #fef9ef;
+  --color-bg-secondary: #f5eee1;
+  --color-bg-surface: #d1c9bf;
+  --color-bg-surface-hover: #c4bbb0;
   --color-bg-overlay: rgba(0, 0, 0, 0.5);
 
+  /* Named palette aliases */
+  --color-beige: #fef9ef;
+  --color-cream: #f5eee1;
+  --color-midnight: #2a2b2f;
+  --color-terracotta: #b05a36;
+
   /* Border colors */
-  --color-border-default: #e5e7eb;
-  --color-border-hover: #d1d5db;
-  --color-border-focus: #2563EB;
+  --color-border-default: #d1c9bf;
+  --color-border-hover: #bfb6ab;
+  --color-border-focus: #b05a36;
 
   /* Text colors */
-  --color-text-primary: #1f2937;
-  --color-text-secondary: #6b7280;
-  --color-text-tertiary: #9ca3af;
-  --color-text-muted: #d1d5db;
+  --color-text-primary: #2a2b2f;
+  --color-text-secondary: #515151;
+  --color-text-tertiary: #737373;
+  --color-text-muted: #d1c9bf;
 
   /* Status colors */
   --color-success: #22c55e;
   --color-warning: #F59E0B;
-  --color-error: #EF4444;
-  --color-info: #3B82F6;
+  --color-error: #db0000;
+  --color-info: #b05a36;
 
   /* Specialist verticals */
-  --color-v-clinica: #2563EB;
+  --color-v-clinica: #b05a36;
   --color-v-nutricion: #059669;
   --color-v-mente: #7C3AED;
   --color-v-fisico: #EA580C;
   --color-v-veterinaria: #0284C7;
+
+  /* Radii */
+  --radius-pill: 999px;
+  --radius-card-lg: 1.5rem;
+  --radius-card: 0.75rem;
 }
 
 @layer base {
@@ -56,7 +119,7 @@
   }
 
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Everett', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background-color: var(--color-bg-primary);
     color: var(--color-text-primary);
     -webkit-font-smoothing: antialiased;
@@ -64,7 +127,7 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-family: 'GT Super Display', 'Fraunces', Georgia, serif;
   }
 
   * {
@@ -92,8 +155,8 @@
   background-color: var(--color-brand);
   color: white;
   font-weight: 600;
-  padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
   transition: all 150ms;
   cursor: pointer;
   &:hover {
@@ -101,7 +164,7 @@
   }
   &:focus {
     outline: none;
-    box-shadow: 0 0 0 2px white, 0 0 0 4px rgba(37, 99, 235, 0.4);
+    box-shadow: 0 0 0 2px var(--color-bg-primary), 0 0 0 4px rgba(176, 90, 54, 0.4);
   }
   &:disabled {
     opacity: 0.5;
@@ -110,19 +173,19 @@
 }
 
 @utility btn-accent {
-  background-color: var(--color-accent);
+  background-color: var(--color-brand);
   color: white;
   font-weight: 600;
-  padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
   transition: all 150ms;
   cursor: pointer;
   &:hover {
-    background-color: var(--color-accent-hover);
+    background-color: var(--color-brand-hover);
   }
   &:focus {
     outline: none;
-    box-shadow: 0 0 0 2px white, 0 0 0 4px rgba(249, 115, 22, 0.4);
+    box-shadow: 0 0 0 2px var(--color-bg-primary), 0 0 0 4px rgba(176, 90, 54, 0.4);
   }
   &:disabled {
     opacity: 0.5;
@@ -134,8 +197,8 @@
   background-color: transparent;
   color: var(--color-text-primary);
   font-weight: 500;
-  padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
   border: 1px solid var(--color-border-default);
   transition: all 150ms;
   cursor: pointer;
@@ -146,16 +209,16 @@
 }
 
 @utility btn-danger {
-  background-color: rgba(239, 68, 68, 0.1);
-  color: var(--color-error);
+  background-color: rgba(219, 0, 0, 0.1);
+  color: var(--color-danger);
   font-weight: 500;
-  padding: 0.5rem 1rem;
-  border-radius: 0.375rem;
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(219, 0, 0, 0.2);
   transition: all 150ms;
   cursor: pointer;
   &:hover {
-    background-color: rgba(239, 68, 68, 0.15);
+    background-color: rgba(219, 0, 0, 0.15);
   }
 }
 
@@ -163,10 +226,10 @@
 @utility form-input {
   display: block;
   width: 100%;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.375rem;
+  padding: 0.625rem 1rem;
+  border-radius: 999px;
   border: 1px solid var(--color-border-default);
-  background-color: white;
+  background-color: var(--color-bg-secondary);
   color: var(--color-text-primary);
   font-size: 0.875rem;
   transition: border-color 150ms, box-shadow 150ms;
@@ -191,10 +254,10 @@
 @utility form-select {
   display: block;
   width: 100%;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.375rem;
+  padding: 0.625rem 1rem;
+  border-radius: 999px;
   border: 1px solid var(--color-border-default);
-  background-color: white;
+  background-color: var(--color-bg-secondary);
   color: var(--color-text-primary);
   font-size: 0.875rem;
   cursor: pointer;
@@ -209,10 +272,10 @@
 @utility form-textarea {
   display: block;
   width: 100%;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.375rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
   border: 1px solid var(--color-border-default);
-  background-color: white;
+  background-color: var(--color-bg-secondary);
   color: var(--color-text-primary);
   font-size: 0.875rem;
   resize: vertical;
@@ -230,20 +293,19 @@
 /* ── Cards ── */
 @utility card {
   background-color: var(--color-bg-secondary);
-  border-radius: 0.5rem;
-  border: 1px solid var(--color-border-default);
+  border-radius: 1.5rem;
   padding: 1.25rem;
+  box-shadow: 0 1px 4px rgba(42, 43, 47, 0.06);
 }
 
 @utility card-hover {
   background-color: var(--color-bg-secondary);
-  border-radius: 0.5rem;
-  border: 1px solid var(--color-border-default);
+  border-radius: 1.5rem;
   padding: 1.25rem;
-  transition: border-color 150ms, box-shadow 150ms;
+  box-shadow: 0 1px 4px rgba(42, 43, 47, 0.06);
+  transition: box-shadow 150ms;
   &:hover {
-    border-color: var(--color-brand);
-    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 4px 16px rgba(176, 90, 54, 0.12);
   }
 }
 
@@ -280,7 +342,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0.75rem;
-  border-radius: 0.375rem;
+  border-radius: 0.5rem;
   font-size: 0.875rem;
   font-weight: 500;
   background-color: var(--color-brand-muted);
@@ -292,7 +354,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0.75rem;
-  border-radius: 0.375rem;
+  border-radius: 0.5rem;
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--color-text-secondary);
@@ -323,21 +385,21 @@
 }
 
 @utility status-pending {
-  background-color: rgba(245, 158, 11, 0.1);
-  color: #d97706;
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+  border: 1px solid rgba(245, 158, 11, 0.25);
 }
 
 @utility status-confirmed {
-  background-color: rgba(59, 130, 246, 0.1);
-  color: #2563eb;
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background-color: rgba(176, 90, 54, 0.1);
+  color: #b05a36;
+  border: 1px solid rgba(176, 90, 54, 0.2);
 }
 
 @utility status-in-progress {
-  background-color: rgba(37, 99, 235, 0.1);
-  color: #2563eb;
-  border: 1px solid rgba(37, 99, 235, 0.2);
+  background-color: rgba(176, 90, 54, 0.1);
+  color: #b05a36;
+  border: 1px solid rgba(176, 90, 54, 0.2);
 }
 
 @utility status-completed {
@@ -347,9 +409,9 @@
 }
 
 @utility status-cancelled {
-  background-color: rgba(239, 68, 68, 0.1);
-  color: #dc2626;
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  background-color: rgba(219, 0, 0, 0.1);
+  color: #db0000;
+  border: 1px solid rgba(219, 0, 0, 0.2);
 }
 
 /* ── Animations ── */
