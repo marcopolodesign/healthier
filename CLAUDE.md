@@ -144,6 +144,15 @@ npm run preview  # Preview production build
 
 ## Recent Changes
 
+### 2026-04-14: App-wide design system v2 — cream/terracotta, GT Super Display / Everett, pill buttons
+Full visual re-skin on branch `feat/design-v2`. Tokens, fonts, utilities, and all patient pages migrated to warm editorial palette. Brand `#2563EB` → `#b05a36`, danger → `#db0000`, bg-primary → beige, bg-secondary → cream.
+
+### 2026-04-14: Wire patient prototype to real Supabase professionals
+Dashboard markers, OnDemand "Profesional Asignado", and Consultations booking modal all now fetch real verified pros from DB. New `src/lib/verticals.js` shared mapping. 5 demo pros seeded via migration.
+
+### 2026-04-14: Responsive patient interactions — PatientSheet + PatientPageOverlay
+All sheets/modals/sub-screens in Consultations, Documents, Profile, OnDemand, Emergency, VideoCall now render as centered modals/cards on desktop and preserve the original mobile bottom-sheet/full-page UX at 390px.
+
 ### 2026-04-14: Responsive patient dashboard — Google Maps floating panel
 On desktop (≥640px) the bottom sheet becomes a frosted-glass panel anchored to the bottom-left of the map. All content always visible. Mobile keeps drag-to-expand sheet unchanged.
 

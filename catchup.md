@@ -4,6 +4,67 @@ Reverse-chronological record of completed implementations. Updated after every s
 
 ---
 
+## 2026-04-14: App-wide design system migration — warm editorial palette (v2)
+
+**Source:** Claude Code — Macbook Pro
+
+Full visual re-skin to a warm, editorial aesthetic inspired by functionhealth.com. No routing, data, or component-tree changes.
+
+**Tokens (`src/index.css`):** All `@theme` tokens updated — brand `#2563EB` → terracotta `#b05a36`, danger `#DC2626` → `#db0000`, bg-primary → beige `#fef9ef`, bg-secondary → cream `#f5eee1`. New tokens: `--color-cream`, `--color-beige`, `--color-midnight`, `--color-terracotta`, `--radius-pill` (999px), `--radius-card-lg` (1.5rem). v-clinica updated to terracotta; other 4 verticals unchanged.
+
+**Fonts:** `@font-face` blocks added for GT Super Display (4 weights) + Everett (3 weights) pointing to `/public/fonts/*.woff2`. Google Fonts updated to load Fraunces + Inter as free fallbacks. `h1–h6` now cascade to GT Super Display → Fraunces → Georgia serif; `body` to Everett → Inter.
+
+**Utility classes:** All buttons now pill-shaped (`border-radius: 999px`), padding bumped to `0.75rem 1.5rem`. `btn-accent` aliased to `btn-primary` (single terracotta accent). Cards: `border-radius: 1.5rem`, cream background, shadow-only (no hard border). Form inputs: pill radius; textareas: 0.75rem. Status badges: warmed to beige backgrounds.
+
+**Patient pages swept:** Emergency, Profile, Documents, Consultations, Dashboard, OnDemand — all `bg-[#F8FAFC]` → `bg-bg-primary`; clinica vertical `#2563EB` → `#b05a36`; all `bg-blue-50`/`border-blue-200` brand UI → terracotta equivalents. VISA (`#1A1F71`) and Mastercard (`#FF5F00`) brand colors preserved.
+
+**Components:** InteractiveMap user-dot ping + shadow → terracotta; emergency route stroke `#DC2626` → `#db0000`. PatientPageOverlay + PatientSheet default bg → cream. PatientBottomNav: no change needed (uses `text-brand` token).
+
+**Shared:** IndexSidecart mermaid theme teal → terracotta/cream palette. Modal radius `rounded-xl` → `rounded-[1.5rem]`. Toast error style → `#db0000`.
+
+**Layouts:** AuthLayout gradient `via-white` → `via-bg-primary`; wordmark editorial italic suffix ("Health*ier*"). PatientMobileLayout `bg-[#F8FAFC]` → `bg-bg-primary`.
+
+**Branch:** `feat/design-v2` (6 commits). Build: ✅ clean.
+
+---
+
+## 2026-04-14: Responsive patient interactions — PatientSheet + PatientPageOverlay primitives
+
+All remaining mobile-only interactions in the patient area now render correctly on desktop. At 390 px the experience is identical to before; at ≥640 px sheets appear as centered frosted modals and full-page sub-screens appear as constrained cards over a dimmed backdrop.
+
+**New shared primitives:**
+- `src/components/patient/PatientSheet.jsx` — mobile: bottom-up sheet with drag handle; desktop: centered modal (`max-w-lg` default). Props: `open`, `onClose`, `children`, `maxWidth`, `backdropClose`. Handles Escape key + backdrop click.
+- `src/components/patient/PatientPageOverlay.jsx` — mobile: `absolute inset-0` takeover; desktop: `max-w-2xl` centered card over dim backdrop. Props: `open`, `onClose`, `children`, `className`.
+
+**Per-page changes:**
+- `Dashboard.jsx` — `mapProFlow` overlay migrated to `PatientSheet`; close button moved inside sheet header
+- `Consultations.jsx` — booking modal (5 steps) migrated to `PatientSheet`; content rail gets `max-w-2xl mx-auto`; specialty chip row wraps on `sm:` instead of horizontal-scrolling
+- `Documents.jsx` — category detail converted from early-return to `PatientPageOverlay`; upload modal migrated to `PatientSheet`; removed unused `documentsService` import
+- `Profile.jsx` — `showAddFamiliar` and `showTarjeta` early-returns removed; replaced with `PatientSheet maxWidth="max-w-md"` overlays over the main profile view; main view wrapped in `max-w-lg mx-auto`
+- `OnDemand.jsx` — payment screen uses `sm:` classes to become a centered modal (`sm:max-w-lg sm:rounded-[28px]`); drag handle hidden on `sm:`; back arrow `top-4/left-4 sm:top-6/left-6`; `matched` and `searching` states capped at `max-w-md mx-auto`
+- `Emergency.jsx` — same payment screen treatment as OnDemand; matched-state info panel becomes a Google Maps-style floating panel on desktop (`sm:absolute sm:left-4 sm:bottom-4 sm:w-[380px] sm:rounded-[28px]`)
+- `VideoCall.jsx` — inner wrapper `max-w-5xl mx-auto h-full` prevents stretch on ultrawide; self-view PiP `sm:top-24 sm:right-8 sm:w-36 sm:h-48`; header `sm:pt-8`; controls `sm:pb-8`
+
+**Source:** Claude Code — Macbook Pro
+
+---
+
+## 2026-04-14: Wire patient prototype to real Supabase professionals
+
+**Source:** Claude Code — Macbook Pro
+
+Replaced all hardcoded mock professionals with real data from Supabase across three patient flows:
+
+- **DB seed (`002_seed_demo_professionals.sql`):** Inserted 5 demo professionals (one per vertical: `medicina_general`, `nutricion`, `psicologia`, `entrenamiento`, `veterinaria`) into `auth.users → profiles → professional_profiles` with `is_verified=true`, `is_active=true`, `is_on_demand=true`, real bios, Unsplash avatars, and plausible ratings. Applied directly via Supabase MCP.
+- **Dashboard map markers:** Removed `MARKER_PRO_MAP` hardcode. On mount, calls `professionalService.getDashboardPool()` (new method — all verified+active pros). `markersByVertical` is computed via `pickProForVertical` from the new `src/lib/verticals.js`. Clicking a marker now shows the real pro's name, avatar (with initial fallback), specialty label, and rating from DB.
+- **OnDemand "Profesional Asignado":** Removed `MOCK_PRO`. After the mock payment + 3.5s searching animation, fetches a real pro for the vertical using `professionalService.search({ specialty, onDemand: true })`. Shows real name/avatar/rating. Empty state shows if no pro exists for that vertical.
+- **Consultations booking modal:** Removed hardcoded `PROFESSIONALS` array (ids 103/104 would FK-fail). Now calls `professionalService.search({ specialty })` when advancing to the professional step. Passes real `professional.userId` (= `profiles.id`) as `consultations.professional_id` — FK is now valid. Removed `modality` from the insert payload (not in schema).
+- **Shared `src/lib/verticals.js` (new):** `VERTICAL_SPECIALTIES` map, `SPECIALTY_LABELS` (moved from `ProfessionalCard.jsx` and `ProfessionalProfile.jsx`), and `pickProForVertical` helper. All three screens import from here.
+- **`InteractiveMap.jsx`:** Now accepts a `markers` prop from Dashboard (real pro list → slot positions). Falls back to `DEFAULT_MARKERS` (now 5 slots including veterinaria). 5th marker slot added at `x:50, y:-240`.
+- **Onboarding:** Added `veterinaria` to the professional specialty dropdown.
+
+---
+
 ## 2026-04-14: Responsive patient dashboard — Google Maps floating panel
 
 On desktop (≥640px), the `Dashboard.jsx` bottom sheet is replaced by a frosted-glass floating panel anchored to the bottom-left of the map — same pattern as Google Maps. The panel is `absolute left-4 bottom-[96px] w-[360px] rounded-[28px]` with a frosted-glass style, scrollable body, and all content (vitals, AI triage, specialty grid, SOS, veterinary) always visible. Mobile keeps the original drag-to-expand bottom sheet exactly as-is. An `isDesktop` state (with resize listener) drives the switch.
