@@ -5,10 +5,13 @@ import {
   Stethoscope, Apple, BrainCircuit, Dumbbell, PawPrint,
 } from 'lucide-react'
 import { consultationsService } from '../../services/consultationsService'
+import { professionalService } from '../../services/professionalService'
+import { VERTICAL_SPECIALTIES } from '../../lib/verticals'
 import { toast } from '../../components/Toast'
+import PatientSheet from '../../components/patient/PatientSheet'
 
 const VERTICALS = [
-  { id: 'clinica',     nombre: 'Clínica',      icon: Stethoscope, color: '#2563EB', bg: '#EFF6FF' },
+  { id: 'clinica',     nombre: 'Clínica',      icon: Stethoscope, color: '#b05a36', bg: '#fef9ef' },
   { id: 'nutricion',   nombre: 'Nutrición',    icon: Apple,       color: '#059669', bg: '#ECFDF5' },
   { id: 'mente',       nombre: 'Psicología',   icon: BrainCircuit,color: '#7C3AED', bg: '#F5F3FF' },
   { id: 'fisico',      nombre: 'Kinesiología', icon: Dumbbell,    color: '#EA580C', bg: '#FFF7ED' },
@@ -22,11 +25,6 @@ const ESPECIALIDADES = {
   fisico:      ['Kinesiología y Rehabilitación', 'Preparación Física', 'Yoga y Pilates', 'Entrenamiento Funcional'],
   veterinaria: ['Clínica General Veterinaria', 'Vacunación', 'Urgencias 24h', 'Peluquería Canina/Felina'],
 }
-
-const PROFESSIONALS = [
-  { id: 103, name: 'Dr. Martín López',    rating: '4.9', reviews: 256, img: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80' },
-  { id: 104, name: 'Dra. Sofía Martínez', rating: '4.7', reviews: 185, img: 'https://images.unsplash.com/photo-1594824432258-f6a26563b7e7?auto=format&fit=crop&w=200&q=80' },
-]
 
 const AGENDA_DATES = ['12 Mar', '13 Mar', '14 Mar', '15 Mar', '16 Mar', '17 Mar']
 const AGENDA_TIMES = ['09:00 AM', '10:30 AM', '14:00 PM', '16:00 PM', '18:30 PM']
@@ -58,6 +56,8 @@ export default function PatientConsultations({ profile }) {
   const [agendaTime, setAgendaTime] = useState(null)
   const [paying, setPaying] = useState(false)
   const [paid, setPaid] = useState(false)
+  const [pros, setPros] = useState([])
+  const [prosLoading, setProsLoading] = useState(false)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -71,7 +71,23 @@ export default function PatientConsultations({ profile }) {
     setSelVertical(vertical)
     setStep('modality'); setModality(null); setSpecialty(null); setProfessional(null)
     setAgendaDate('12 Mar'); setAgendaTime(null); setPaying(false); setPaid(false)
+    setPros([]); setProsLoading(false)
     setModalOpen(true)
+  }
+
+  const loadPros = verticalId => {
+    const slugs = VERTICAL_SPECIALTIES[verticalId] || []
+    if (!slugs.length) { setPros([]); return }
+    setProsLoading(true)
+    professionalService.search({ specialty: slugs[0] })
+      .then(data => setPros(data))
+      .catch(() => setPros([]))
+      .finally(() => setProsLoading(false))
+  }
+
+  const advanceToProfessional = verticalId => {
+    loadPros(verticalId)
+    setStep('professional')
   }
 
   const goBack = () => {
@@ -87,11 +103,10 @@ export default function PatientConsultations({ profile }) {
     setTimeout(async () => {
       try {
         await consultationsService.create({
-          patientId: profile.id,
+          patientId:      profile.id,
           professionalId: professional.id,
-          scheduledAt: `2026-03-${agendaDate.split(' ')[0]}T${agendaTime?.split(' ')[0]}:00`,
-          modality: modality === 'Videollamada' ? 'video' : 'in_person',
-          status: 'confirmed',
+          scheduledAt:    `2026-03-${agendaDate.split(' ')[0]}T${agendaTime?.split(' ')[0]}:00`,
+          status:         'confirmed',
         })
         setPaid(true)
         setTimeout(() => {
@@ -116,7 +131,8 @@ export default function PatientConsultations({ profile }) {
   const shown    = view === 'upcoming' ? upcoming : past
 
   return (
-    <div className="absolute inset-0 bg-[#F8FAFC] pt-6 sm:pt-8 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
+    <div className="absolute inset-0 bg-bg-primary pt-6 sm:pt-8 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
+      <div className="max-w-2xl mx-auto">
       <div className="mb-8 mt-4">
         <h1 className="text-[32px] font-black text-gray-900 tracking-tight leading-none">Mi Agenda</h1>
         <p className="text-gray-500 font-medium text-[15px] mt-2 flex items-center gap-1.5">
@@ -124,8 +140,8 @@ export default function PatientConsultations({ profile }) {
         </p>
       </div>
 
-      {/* Specialty scrollable list */}
-      <div className="flex gap-3 overflow-x-auto scrollbar-hide mb-8 -mx-6 px-6">
+      {/* Specialty list — scrollable on mobile, wrapped grid on desktop */}
+      <div className="flex gap-3 overflow-x-auto scrollbar-hide sm:overflow-visible sm:flex-wrap mb-8 -mx-6 px-6 sm:mx-0 sm:px-0">
         {VERTICALS.map(v => (
           <div
             key={v.id}
@@ -182,7 +198,7 @@ export default function PatientConsultations({ profile }) {
                 </div>
               </div>
               {date && (
-                <div className="bg-[#F8FAFC] rounded-xl p-3 flex justify-between items-center border border-gray-100">
+                <div className="bg-bg-primary rounded-xl p-3 flex justify-between items-center border border-gray-100">
                   <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-gray-400" /><span className="font-bold text-[13px] text-gray-800">{date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}</span></div>
                   <div className="w-px h-4 bg-gray-200" />
                   <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-gray-400" /><span className="font-black text-[13px] text-gray-900">{date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span></div>
@@ -203,31 +219,30 @@ export default function PatientConsultations({ profile }) {
         })}
       </div>
 
-      {/* Booking modal */}
-      {modalOpen && selVertical && (
-        <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm z-[70] flex flex-col justify-end animate-fade-in">
-          <div className="w-full bg-white rounded-t-[40px] shadow-[0_-20px_50px_rgba(0,0,0,0.2)] pb-12 pt-4 animate-slide-up-spring flex flex-col max-h-[90%]">
-            <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6 flex-shrink-0" />
-            <div className="px-6 flex justify-between items-center mb-6 flex-shrink-0">
-              <div>
-                <h2 className="text-[24px] font-black text-gray-900 leading-none tracking-tight">{STEP_TITLES[step]}</h2>
-                <p className="text-[13px] font-bold text-gray-500 tracking-widest uppercase mt-1">
-                  {selVertical.nombre}{modality ? ` • ${modality}` : ''}{specialty && step !== 'specialty' && step !== 'modality' ? ` • ${specialty}` : ''}
-                </p>
-              </div>
-              <button onClick={goBack} className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50" disabled={paying}>
-                <ArrowLeft className="w-5 h-5 text-gray-700" />
-              </button>
-            </div>
+      </div>{/* end max-w-2xl */}
 
-            <div className="px-6 overflow-y-auto scrollbar-hide flex-1">
+      {/* Booking modal — responsive sheet/modal */}
+      <PatientSheet open={modalOpen && !!selVertical} onClose={() => setModalOpen(false)}>
+        <div className="px-6 pt-4 pb-2 flex justify-between items-center flex-shrink-0">
+          <div>
+            <h2 className="text-[24px] font-black text-gray-900 leading-none tracking-tight">{STEP_TITLES[step]}</h2>
+            <p className="text-[13px] font-bold text-gray-500 tracking-widest uppercase mt-1">
+              {selVertical?.nombre}{modality ? ` • ${modality}` : ''}{specialty && step !== 'specialty' && step !== 'modality' ? ` • ${specialty}` : ''}
+            </p>
+          </div>
+          <button onClick={goBack} className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50" disabled={paying}>
+            <ArrowLeft className="w-5 h-5 text-gray-700" />
+          </button>
+        </div>
+
+        <div className="px-6 overflow-y-auto scrollbar-hide flex-1">
               {step === 'modality' && (
                 <div className="space-y-4 pb-6">
                   {[
                     { label: 'Virtual', sub: 'Videollamada segura en la app', mod: 'Videollamada', icon: Video, bg: 'bg-blue-50', color: 'text-brand' },
                     { label: 'Presencial', sub: 'En el consultorio del profesional', mod: 'Presencial', icon: MapPin, bg: 'bg-emerald-50', color: 'text-emerald-600' },
                   ].map(opt => (
-                    <div key={opt.mod} onClick={() => { setModality(opt.mod); setStep(ESPECIALIDADES[selVertical.id] ? 'specialty' : 'professional') }} className="bg-[#F8FAFC] p-5 rounded-[24px] shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:border-brand transition-all group">
+                    <div key={opt.mod} onClick={() => { setModality(opt.mod); if (ESPECIALIDADES[selVertical.id]) { setStep('specialty') } else { advanceToProfessional(selVertical.id) } }} className="bg-bg-primary p-5 rounded-[24px] shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:border-brand transition-all group">
                       <div className={`w-14 h-14 ${opt.bg} rounded-full flex items-center justify-center group-hover:scale-110 transition-transform`}>
                         <opt.icon className={`w-7 h-7 ${opt.color}`} />
                       </div>
@@ -244,7 +259,7 @@ export default function PatientConsultations({ profile }) {
               {step === 'specialty' && (
                 <div className="space-y-3 pb-6">
                   {(ESPECIALIDADES[selVertical.id] || []).map(esp => (
-                    <div key={esp} onClick={() => { setSpecialty(esp); setStep('professional') }} className="bg-white p-4 rounded-[20px] shadow-sm border border-gray-100 flex justify-between items-center cursor-pointer hover:border-brand hover:bg-[#F8FAFC] transition-all group">
+                    <div key={esp} onClick={() => { setSpecialty(esp); advanceToProfessional(selVertical.id) }} className="bg-white p-4 rounded-[20px] shadow-sm border border-gray-100 flex justify-between items-center cursor-pointer hover:border-brand hover:bg-bg-primary transition-all group">
                       <span className="font-bold text-[16px] text-gray-800">{esp}</span>
                       <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-brand transition-colors" />
                     </div>
@@ -254,30 +269,42 @@ export default function PatientConsultations({ profile }) {
 
               {step === 'professional' && (
                 <div className="space-y-4 pb-6">
-                  {PROFESSIONALS.map(p => (
-                    <div key={p.id} onClick={() => { setProfessional(p); setStep('datetime') }} className="bg-[#F8FAFC] p-4 rounded-[24px] shadow-sm border border-gray-100 flex gap-4 cursor-pointer hover:border-brand transition-all group">
-                      <img src={p.img} alt={p.name} className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm flex-shrink-0" />
-                      <div className="flex-1 flex flex-col justify-center">
-                        <h4 className="font-black text-[17px] text-gray-900 leading-tight">{p.name}</h4>
-                        <div className="flex items-center gap-1.5 mt-1">
-                          <div className="flex items-center gap-1 bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded text-[12px]">
-                            <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
-                            <span className="font-bold">{p.rating}</span>
+                  {prosLoading ? (
+                    [1, 2].map(i => <div key={i} className="h-24 bg-white rounded-[24px] animate-pulse border border-gray-100" />)
+                  ) : pros.length === 0 ? (
+                    <p className="text-center text-gray-400 font-medium py-8">No hay profesionales disponibles para esta especialidad.</p>
+                  ) : pros.map(p => {
+                    const proName   = p.profiles?.fullName || 'Profesional'
+                    const proAvatar = p.profiles?.avatarUrl || null
+                    const proObj    = { id: p.userId, name: proName, img: proAvatar, rating: String(p.averageRating ?? '—'), reviews: p.totalReviews ?? 0 }
+                    return (
+                      <div key={p.id} onClick={() => { setProfessional(proObj); setStep('datetime') }} className="bg-bg-primary p-4 rounded-[24px] shadow-sm border border-gray-100 flex gap-4 cursor-pointer hover:border-brand transition-all group">
+                        {proAvatar
+                          ? <img src={proAvatar} alt={proName} className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm flex-shrink-0" />
+                          : <div className="w-16 h-16 rounded-full border-2 border-white shadow-sm flex-shrink-0 flex items-center justify-center text-2xl font-black bg-gray-100 text-gray-400">{proName[0]}</div>
+                        }
+                        <div className="flex-1 flex flex-col justify-center">
+                          <h4 className="font-black text-[17px] text-gray-900 leading-tight">{proName}</h4>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <div className="flex items-center gap-1 bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded text-[12px]">
+                              <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                              <span className="font-bold">{String(p.averageRating ?? '—')}</span>
+                            </div>
+                            <span className="text-[12px] font-medium text-gray-400">({p.totalReviews ?? 0} reseñas)</span>
                           </div>
-                          <span className="text-[12px] font-medium text-gray-400">({p.reviews} reseñas)</span>
+                        </div>
+                        <div className="flex items-center justify-center pr-2">
+                          <div className="bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full text-[11px] font-bold group-hover:bg-brand group-hover:text-white transition-colors">ELEGIR</div>
                         </div>
                       </div>
-                      <div className="flex items-center justify-center pr-2">
-                        <div className="bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full text-[11px] font-bold group-hover:bg-brand group-hover:text-white transition-colors">ELEGIR</div>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
 
               {step === 'datetime' && (
                 <div className="pb-6">
-                  <div className="bg-[#F8FAFC] rounded-[24px] p-5 shadow-sm border border-gray-100 mb-6">
+                  <div className="bg-bg-primary rounded-[24px] p-5 shadow-sm border border-gray-100 mb-6">
                     <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Día</h4>
                     <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide -mx-2 px-2">
                       {AGENDA_DATES.map(d => (
@@ -299,10 +326,13 @@ export default function PatientConsultations({ profile }) {
 
               {step === 'payment' && (
                 <div className="pb-6 animate-fade-in">
-                  <div className="bg-[#F8FAFC] rounded-[24px] p-5 shadow-sm border border-gray-100 mb-4">
+                  <div className="bg-bg-primary rounded-[24px] p-5 shadow-sm border border-gray-100 mb-4">
                     <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">Resumen</h4>
                     <div className="flex gap-4 items-center mb-5">
-                      <img src={professional?.img} alt={professional?.name} className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm" />
+                      {professional?.img
+                        ? <img src={professional.img} alt={professional.name} className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm" />
+                        : <div className="w-14 h-14 rounded-full border-2 border-white shadow-sm bg-gray-100 flex items-center justify-center font-black text-gray-400 text-xl">{professional?.name?.[0] || '?'}</div>
+                      }
                       <div>
                         <h4 className="font-black text-[17px] text-gray-900 leading-tight">{professional?.name}</h4>
                         <p className="text-[14px] text-gray-500 font-medium mt-0.5">{specialty}</p>
@@ -322,7 +352,7 @@ export default function PatientConsultations({ profile }) {
                   </div>
                   <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100 mb-6">
                     <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Método de Pago</h4>
-                    <div className="flex items-center justify-between p-3.5 border-2 border-brand bg-blue-50/50 rounded-[16px]">
+                    <div className="flex items-center justify-between p-3.5 border-2 border-brand bg-brand-muted/40 rounded-[16px]">
                       <div className="flex items-center gap-3">
                         <div className="w-11 h-7 rounded bg-[#1A1F71] flex items-center justify-center text-[9px] text-white font-black">VISA</div>
                         <span className="font-bold text-gray-900 text-[15px]">•••• 4242</span>
@@ -341,10 +371,9 @@ export default function PatientConsultations({ profile }) {
                   </button>
                 </div>
               )}
-            </div>
-          </div>
         </div>
-      )}
+        <div className="h-6 flex-shrink-0" />{/* bottom padding */}
+      </PatientSheet>
     </div>
   )
 }

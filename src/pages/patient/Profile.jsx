@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { profilesService } from '../../services/profilesService'
 import { toast } from '../../components/Toast'
+import PatientSheet from '../../components/patient/PatientSheet'
 
 export default function PatientProfile({ profile, onProfileUpdate }) {
   const [editing, setEditing] = useState(false)
@@ -60,7 +61,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
     <div className="flex flex-col">
       <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">{label}</label>
       {editing
-        ? <input type={type} value={userData[name]} onChange={e => setUserData(p => ({ ...p, [name]: e.target.value }))} className="bg-[#F8FAFC] border border-gray-200 rounded-2xl px-4 py-3.5 outline-none text-[16px] font-medium text-gray-900 focus:border-brand" />
+        ? <input type={type} value={userData[name]} onChange={e => setUserData(p => ({ ...p, [name]: e.target.value }))} className="bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3.5 outline-none text-[16px] font-medium text-gray-900 focus:border-brand" />
         : <div className="px-1 py-1 text-[17px] font-medium text-gray-900">{userData[name] || '—'}</div>
       }
     </div>
@@ -94,76 +95,10 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
     setNewFamiliar({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '' })
   }
 
-  // Add familiar screen
-  if (showAddFamiliar) {
-    return (
-      <div className="absolute inset-0 bg-white flex flex-col animate-fade-in">
-        <div className="pt-6 sm:pt-8 pb-4 px-6 bg-white/90 backdrop-blur-xl border-b border-gray-100 flex items-center justify-between sticky top-0 z-10">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setShowAddFamiliar(false)} className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50">
-              <ArrowLeft className="w-5 h-5 text-gray-700" />
-            </button>
-            <h2 className="text-xl font-black text-gray-900">Añadir Familiar</h2>
-          </div>
-          <button onClick={saveNuevoFamiliar} className="text-emerald-700 font-bold px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-full hover:bg-emerald-100 text-sm">Guardar</button>
-        </div>
-        <div className="flex-1 bg-[#F8FAFC] overflow-y-auto p-6 space-y-6 pb-32 scrollbar-hide">
-          <div className="bg-white rounded-[28px] p-6 shadow-sm border border-gray-100 space-y-5">
-            {[['Nombre Completo', 'nombre'], ['Vínculo', 'vinculo'], ['DNI', 'dni']].map(([lbl, nm]) => (
-              <div key={nm} className="flex flex-col">
-                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">{lbl}</label>
-                <input type="text" value={newFamiliar[nm]} onChange={e => setNewFamiliar(p => ({ ...p, [nm]: e.target.value }))} className="bg-[#F8FAFC] border border-gray-200 rounded-2xl px-4 py-3.5 outline-none text-[15px] font-medium text-gray-900 focus:border-brand" />
-              </div>
-            ))}
-          </div>
-          <div className="bg-white rounded-[28px] p-6 shadow-sm border border-gray-100 space-y-5">
-            <div className="grid grid-cols-2 gap-4">
-              {[['Obra Social', 'obraSocial'], ['N° Afiliado', 'numeroSocio']].map(([lbl, nm]) => (
-                <div key={nm} className="flex flex-col">
-                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">{lbl}</label>
-                  <input type="text" value={newFamiliar[nm]} onChange={e => setNewFamiliar(p => ({ ...p, [nm]: e.target.value }))} className="bg-[#F8FAFC] border border-gray-200 rounded-2xl px-4 py-3.5 outline-none text-[15px] font-medium text-gray-900 focus:border-brand" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Edit tarjeta screen
-  if (showTarjeta) {
-    return (
-      <div className="absolute inset-0 bg-white flex flex-col animate-fade-in">
-        <div className="pt-6 sm:pt-8 pb-4 px-6 bg-white/90 backdrop-blur-xl border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
-          <button onClick={() => setShowTarjeta(false)} className="w-10 h-10 bg-white border border-gray-200 shadow-sm rounded-full flex items-center justify-center hover:bg-gray-50">
-            <ArrowLeft className="w-5 h-5 text-gray-700" />
-          </button>
-          <button onClick={saveTarjeta} className="text-brand font-bold px-5 py-2 bg-blue-50 border border-blue-100 rounded-full hover:bg-blue-100">Guardar</button>
-        </div>
-        <div className="p-6 bg-[#F8FAFC] flex-1">
-          <div className="bg-white rounded-[28px] p-6 shadow-sm border border-gray-100 space-y-6">
-            <div className={`w-full h-40 rounded-2xl p-5 text-white flex flex-col justify-between shadow-lg ${tarjetaForm.marca === 'VISA' ? 'bg-[#1A1F71]' : 'bg-[#FF5F00]'}`}>
-              <CreditCard className="w-8 h-8 opacity-80" />
-              <p className="font-mono text-xl tracking-widest">{tarjetaForm.numero || '**** **** **** ****'}</p>
-            </div>
-            <div className="space-y-5 pt-4">
-              <input type="text" name="numero" value={tarjetaForm.numero} onChange={handleTarjetaChange} placeholder="0000 0000 0000 0000" className="bg-[#F8FAFC] border border-gray-200 rounded-2xl px-4 py-3.5 outline-none w-full font-medium focus:border-brand" />
-              <input type="text" name="titular" value={tarjetaForm.titular} onChange={handleTarjetaChange} placeholder="Titular" className="bg-[#F8FAFC] border border-gray-200 rounded-2xl px-4 py-3.5 outline-none w-full font-medium focus:border-brand" />
-              <div className="grid grid-cols-2 gap-4">
-                <input type="text" name="vencimiento" value={tarjetaForm.vencimiento} onChange={handleTarjetaChange} placeholder="MM/AA" className="bg-[#F8FAFC] border border-gray-200 rounded-2xl px-4 py-3.5 outline-none w-full font-medium focus:border-brand" />
-                <input type="password" name="cvv" value={tarjetaForm.cvv} onChange={handleTarjetaChange} placeholder="CVV" className="bg-[#F8FAFC] border border-gray-200 rounded-2xl px-4 py-3.5 outline-none w-full font-medium focus:border-brand" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   // Main profile view
   return (
-    <div className="absolute inset-0 bg-[#F8FAFC] pt-6 sm:pt-8 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
+    <div className="absolute inset-0 bg-bg-primary pt-6 sm:pt-8 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
+      <div className="max-w-lg mx-auto">
       <div className="flex justify-between items-center mb-8 mt-4">
         <h1 className="text-[32px] font-black text-gray-900 tracking-tight leading-none">Mi Perfil</h1>
         <button
@@ -197,7 +132,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       </div>
 
       {/* Basic info */}
-      <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-6">
+      <div className="bg-bg-secondary rounded-[32px] p-6 shadow-sm border border-border-default mb-6">
         <h3 className="font-black text-lg text-gray-900 mb-6 flex items-center gap-2"><User className="w-5 h-5 text-brand" /> Información Básica</h3>
         <div className="space-y-5">
           {field('Nombre', 'nombre')}
@@ -208,7 +143,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       </div>
 
       {/* Clinical profile */}
-      <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-6">
+      <div className="bg-bg-secondary rounded-[32px] p-6 shadow-sm border border-border-default mb-6">
         <h3 className="font-black text-lg text-gray-900 mb-6 flex items-center gap-2"><Stethoscope className="w-5 h-5 text-brand" /> Perfil Clínico</h3>
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-4">
@@ -216,7 +151,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
             <div className="flex flex-col">
               <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Sangre</label>
               {editing
-                ? <select value={userData.sangre} onChange={e => setUserData(p => ({ ...p, sangre: e.target.value }))} className="bg-[#F8FAFC] border border-gray-200 rounded-2xl px-4 py-3.5 outline-none text-[16px] font-medium text-gray-900 focus:border-brand">
+                ? <select value={userData.sangre} onChange={e => setUserData(p => ({ ...p, sangre: e.target.value }))} className="bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3.5 outline-none text-[16px] font-medium text-gray-900 focus:border-brand">
                     {['O Positivo', 'O Negativo', 'A Positivo', 'A Negativo', 'B Positivo', 'B Negativo', 'AB Positivo', 'AB Negativo'].map(b => <option key={b}>{b}</option>)}
                   </select>
                 : <div className="px-1 py-1 text-[17px] font-medium text-gray-900">{userData.sangre}</div>
@@ -231,7 +166,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       </div>
 
       {/* Emergency contact */}
-      <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-6">
+      <div className="bg-bg-secondary rounded-[32px] p-6 shadow-sm border border-border-default mb-6">
         <h3 className="font-black text-lg text-gray-900 mb-6 flex items-center gap-2"><Phone className="w-5 h-5 text-red-500" /> Contacto de Emergencia</h3>
         <div className="space-y-5">
           {field('Nombre Completo', 'emergenciaNombre')}
@@ -243,7 +178,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       </div>
 
       {/* Family group */}
-      <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-6">
+      <div className="bg-bg-secondary rounded-[32px] p-6 shadow-sm border border-border-default mb-6">
         <div className="flex justify-between items-center mb-6">
           <h3 className="font-black text-lg text-gray-900 flex items-center gap-2"><Users className="w-5 h-5 text-emerald-500" /> Grupo Familiar</h3>
           {!editing && <span onClick={() => setShowAddFamiliar(true)} className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full cursor-pointer hover:bg-emerald-100 transition-colors">+ AÑADIR</span>}
@@ -251,7 +186,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         {familiares.length === 0
           ? <p className="text-sm text-gray-400 text-center py-4">No hay familiares vinculados.</p>
           : familiares.map(f => (
-            <div key={f.id} className="bg-[#F8FAFC] rounded-2xl p-4 border border-gray-100 mb-3">
+            <div key={f.id} className="bg-bg-primary rounded-2xl p-4 border border-gray-100 mb-3">
               <div className="flex justify-between items-center">
                 <div>
                   <p className="font-bold text-[16px] text-gray-900">{f.nombre}</p>
@@ -265,19 +200,19 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       </div>
 
       {/* Payment info */}
-      <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-6">
+      <div className="bg-bg-secondary rounded-[32px] p-6 shadow-sm border border-border-default mb-6">
         <div className="flex justify-between items-center mb-6">
           <h3 className="font-black text-lg text-gray-900 flex items-center gap-2"><CreditCard className="w-5 h-5 text-brand" /> Info. de Pago</h3>
           {!editing && (
             <span
               onClick={() => { setTarjetaForm({ id: null, numero: '', titular: '', vencimiento: '', cvv: '', marca: 'VISA' }); setShowTarjeta(true) }}
-              className="text-[11px] font-bold text-brand bg-blue-50 px-3 py-1.5 rounded-full cursor-pointer hover:bg-blue-100"
+              className="text-[11px] font-bold text-brand bg-brand-muted px-3 py-1.5 rounded-full cursor-pointer hover:bg-brand-light"
             >+ AÑADIR</span>
           )}
         </div>
         <div className="space-y-4">
           {tarjetas.map(t => (
-            <div key={t.id} className="bg-[#F8FAFC] rounded-2xl p-4 border border-gray-100 flex items-center justify-between">
+            <div key={t.id} className="bg-bg-primary rounded-2xl p-4 border border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className={`w-12 h-8 rounded-md flex items-center justify-center text-[10px] text-white font-black shadow-sm ${t.marca === 'VISA' ? 'bg-[#1A1F71]' : 'bg-[#FF5F00]'}`}>{t.marca}</div>
                 <div>
@@ -298,7 +233,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       </div>
 
       {/* Receipts */}
-      <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-6">
+      <div className="bg-bg-secondary rounded-[32px] p-6 shadow-sm border border-border-default mb-6">
         <h3 className="font-black text-lg text-gray-900 mb-6 flex items-center gap-2"><Receipt className="w-5 h-5 text-gray-400" /> Comprobantes</h3>
         {comprobantes.length === 0
           ? <p className="text-sm text-gray-400 text-center py-4">No tenés comprobantes aún.</p>
@@ -325,6 +260,66 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           <LogOut className="w-5 h-5" /> Cerrar Sesión
         </button>
       )}
+      </div>{/* end max-w-lg */}
+
+      {/* Añadir Familiar — responsive sheet/modal */}
+      <PatientSheet open={showAddFamiliar} onClose={() => setShowAddFamiliar(false)} maxWidth="max-w-md">
+        <div className="px-6 pt-4 pb-2 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setShowAddFamiliar(false)} className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50">
+              <ArrowLeft className="w-5 h-5 text-gray-700" />
+            </button>
+            <h2 className="text-xl font-black text-gray-900">Añadir Familiar</h2>
+          </div>
+          <button onClick={saveNuevoFamiliar} className="text-emerald-700 font-bold px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-full hover:bg-emerald-100 text-sm">Guardar</button>
+        </div>
+        <div className="flex-1 overflow-y-auto scrollbar-hide p-6 space-y-6 pb-8 bg-bg-primary">
+          <div className="bg-white rounded-[28px] p-6 shadow-sm border border-gray-100 space-y-5">
+            {[['Nombre Completo', 'nombre'], ['Vínculo', 'vinculo'], ['DNI', 'dni']].map(([lbl, nm]) => (
+              <div key={nm} className="flex flex-col">
+                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">{lbl}</label>
+                <input type="text" value={newFamiliar[nm]} onChange={e => setNewFamiliar(p => ({ ...p, [nm]: e.target.value }))} className="bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3.5 outline-none text-[15px] font-medium text-gray-900 focus:border-brand" />
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-[28px] p-6 shadow-sm border border-gray-100 space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+              {[['Obra Social', 'obraSocial'], ['N° Afiliado', 'numeroSocio']].map(([lbl, nm]) => (
+                <div key={nm} className="flex flex-col">
+                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">{lbl}</label>
+                  <input type="text" value={newFamiliar[nm]} onChange={e => setNewFamiliar(p => ({ ...p, [nm]: e.target.value }))} className="bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3.5 outline-none text-[15px] font-medium text-gray-900 focus:border-brand" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </PatientSheet>
+
+      {/* Editar Tarjeta — responsive sheet/modal */}
+      <PatientSheet open={showTarjeta} onClose={() => setShowTarjeta(false)} maxWidth="max-w-md">
+        <div className="px-6 pt-4 pb-4 flex justify-between items-center flex-shrink-0 border-b border-gray-100">
+          <button onClick={() => setShowTarjeta(false)} className="w-10 h-10 bg-white border border-gray-200 shadow-sm rounded-full flex items-center justify-center hover:bg-gray-50">
+            <ArrowLeft className="w-5 h-5 text-gray-700" />
+          </button>
+          <button onClick={saveTarjeta} className="text-brand font-bold px-5 py-2 bg-brand-muted border border-brand/20 rounded-full hover:bg-brand-light">Guardar</button>
+        </div>
+        <div className="overflow-y-auto scrollbar-hide flex-1 p-6 pb-8 bg-bg-primary">
+          <div className="bg-white rounded-[28px] p-6 shadow-sm border border-gray-100 space-y-6">
+            <div className={`w-full h-40 rounded-2xl p-5 text-white flex flex-col justify-between shadow-lg ${tarjetaForm.marca === 'VISA' ? 'bg-[#1A1F71]' : 'bg-[#FF5F00]'}`}>
+              <CreditCard className="w-8 h-8 opacity-80" />
+              <p className="font-mono text-xl tracking-widest">{tarjetaForm.numero || '**** **** **** ****'}</p>
+            </div>
+            <div className="space-y-5 pt-4">
+              <input type="text" name="numero" value={tarjetaForm.numero} onChange={handleTarjetaChange} placeholder="0000 0000 0000 0000" className="bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3.5 outline-none w-full font-medium focus:border-brand" />
+              <input type="text" name="titular" value={tarjetaForm.titular} onChange={handleTarjetaChange} placeholder="Titular" className="bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3.5 outline-none w-full font-medium focus:border-brand" />
+              <div className="grid grid-cols-2 gap-4">
+                <input type="text" name="vencimiento" value={tarjetaForm.vencimiento} onChange={handleTarjetaChange} placeholder="MM/AA" className="bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3.5 outline-none w-full font-medium focus:border-brand" />
+                <input type="password" name="cvv" value={tarjetaForm.cvv} onChange={handleTarjetaChange} placeholder="CVV" className="bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3.5 outline-none w-full font-medium focus:border-brand" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </PatientSheet>
     </div>
   )
 }

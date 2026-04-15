@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PatientBottomNav from '../../components/patient/PatientBottomNav'
+import PatientSheet from '../../components/patient/PatientSheet'
 import {
   Search, Stethoscope, Apple, BrainCircuit, Dumbbell, MapPin,
   Clock, ChevronRight, Star, ShieldCheck, Video,
@@ -10,22 +11,26 @@ import {
 import InteractiveMap from '../../components/patient/InteractiveMap'
 import { useBottomSheet } from '../../components/patient/useBottomSheet'
 import { aiService } from '../../services/aiService'
-import { consultationsService } from '../../services/consultationsService'
+import { professionalService } from '../../services/professionalService'
 import { toast } from '../../components/Toast'
+import { SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
 
 const VERTICALS = [
-  { id: 'clinica',     nombre: 'Clínica',      icon: Stethoscope, color: '#2563EB', bg: '#EFF6FF', shadow: 'rgba(37,99,235,0.15)',  eta: '3 min' },
+  { id: 'clinica',     nombre: 'Clínica',      icon: Stethoscope, color: '#b05a36', bg: '#fef9ef', shadow: 'rgba(176,90,54,0.15)',  eta: '3 min' },
   { id: 'nutricion',   nombre: 'Nutrición',    icon: Apple,       color: '#059669', bg: '#ECFDF5', shadow: 'rgba(5,150,105,0.15)',  eta: '10 min' },
   { id: 'mente',       nombre: 'Psicología',   icon: BrainCircuit,color: '#7C3AED', bg: '#F5F3FF', shadow: 'rgba(124,58,237,0.15)', eta: '15 min' },
   { id: 'fisico',      nombre: 'Kinesiología', icon: Dumbbell,    color: '#EA580C', bg: '#FFF7ED', shadow: 'rgba(234,88,12,0.15)',  eta: '5 min' },
   { id: 'veterinaria', nombre: 'Veterinaria',  icon: PawPrint,    color: '#0284C7', bg: '#F0F9FF', shadow: 'rgba(2,132,199,0.15)',  eta: '8 min' },
 ]
 
-const MARKER_PRO_MAP = {
-  clinica:   { name: 'Dr. Martín López',      specialty: 'Médico Clínico',      rating: '4.9', reviews: 256, img: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80', color: '#2563EB', bg: '#EFF6FF', icon: Stethoscope },
-  nutricion: { name: 'Lic. Ana Gómez',        specialty: 'Nutrición Clínica',   rating: '4.8', reviews: 204, img: 'https://images.unsplash.com/photo-1594824432258-f6a26563b7e7?auto=format&fit=crop&w=200&q=80', color: '#059669', bg: '#ECFDF5', icon: Apple },
-  fisico:    { name: 'Lic. Matías Fernández', specialty: 'Kinesiología y Rehab', rating: '4.9', reviews: 312, img: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80', color: '#EA580C', bg: '#FFF7ED', icon: Dumbbell },
-}
+// Fixed map slot positions for the 5 verticals (order must match VERTICALS)
+const MAP_SLOTS = [
+  { x: -120, y: -180 },
+  { x:  220, y:  -90 },
+  { x: -200, y:   80 },
+  { x:  150, y:  190 },
+  { x:   50, y: -240 },
+]
 
 export default function PatientDashboard({ profile }) {
   const navigate = useNavigate()
@@ -43,6 +48,25 @@ export default function PatientDashboard({ profile }) {
   const [selectedMapPro, setSelectedMapPro] = useState(null)
   const [selectedMapModality, setSelectedMapModality] = useState(null)
   const [mapPaymentStatus, setMapPaymentStatus] = useState('idle')
+  const [proPool, setProPool] = useState([])
+
+  // One pro per vertical, keyed by vertical id
+  const markersByVertical = useMemo(() => {
+    const result = {}
+    VERTICALS.forEach(v => {
+      const pro = pickProForVertical(proPool, v.id)
+      if (pro) result[v.id] = pro
+    })
+    return result
+  }, [proPool])
+
+  // Marker list for InteractiveMap — one slot per vertical that has a real pro
+  const mapMarkers = useMemo(() =>
+    VERTICALS
+      .map((v, i) => markersByVertical[v.id] ? { id: i + 1, type: v.id, ...MAP_SLOTS[i] } : null)
+      .filter(Boolean),
+    [markersByVertical]
+  )
 
   // Respond to viewport resizes
   useEffect(() => {
@@ -87,6 +111,13 @@ export default function PatientDashboard({ profile }) {
     return () => { if (watchId !== undefined) navigator.geolocation.clearWatch(watchId) }
   }, [isLocating])
 
+  // Load verified professionals for map markers
+  useEffect(() => {
+    professionalService.getDashboardPool()
+      .then(data => setProPool(data))
+      .catch(() => {}) // silent — map just shows no markers
+  }, [])
+
   const handleAITriage = async () => {
     if (!searchQuery.trim()) return
     setIsAnalyzing(true)
@@ -102,11 +133,21 @@ export default function PatientDashboard({ profile }) {
   }
 
   const handleMarkerClick = type => {
-    if (MARKER_PRO_MAP[type]) {
-      setSelectedMapPro(MARKER_PRO_MAP[type])
-      setMapProFlow('details')
-      setMapPaymentStatus('idle')
-    }
+    const pro = markersByVertical[type]
+    if (!pro) return
+    const vert = VERTICALS.find(v => v.id === type)
+    setSelectedMapPro({
+      name:      pro.profiles?.fullName || 'Profesional',
+      specialty: SPECIALTY_LABELS[pro.specialty] || pro.specialty,
+      rating:    String(pro.averageRating ?? '—'),
+      reviews:   pro.totalReviews ?? 0,
+      img:       pro.profiles?.avatarUrl || null,
+      color:     vert.color,
+      bg:        vert.bg,
+      icon:      vert.icon,
+    })
+    setMapProFlow('details')
+    setMapPaymentStatus('idle')
   }
 
   const handleMapPayment = () => {
@@ -145,7 +186,7 @@ export default function PatientDashboard({ profile }) {
 
   const aiTriageBar = (expandOnClick) => (
     <div
-      className={`bg-[#F8FAFC] p-4 rounded-[24px] flex flex-col gap-3 shadow-sm border border-gray-100 transition-all focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-200 ${searchQuery ? 'border-blue-200 bg-blue-50/30' : ''}`}
+      className={`bg-bg-primary p-4 rounded-[24px] flex flex-col gap-3 shadow-sm border border-gray-100 transition-all focus-within:ring-2 focus-within:ring-brand/20 focus-within:border-brand/40 ${searchQuery ? 'border-brand/30 bg-brand-muted/30' : ''}`}
       onClick={expandOnClick}
     >
       <div className="flex items-center gap-3">
@@ -177,10 +218,10 @@ export default function PatientDashboard({ profile }) {
       </div>
 
       {aiResponse && (
-        <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm mt-2 animate-fade-in relative overflow-hidden">
+        <div className="bg-bg-secondary p-4 rounded-xl border border-brand/20 shadow-sm mt-2 animate-fade-in relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1.5 h-full bg-brand" />
           <div className="flex gap-3 items-start">
-            <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <div className="w-8 h-8 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0 mt-0.5">
               <Sparkles className="w-4 h-4 text-brand" />
             </div>
             <div className="flex-1">
@@ -280,6 +321,7 @@ export default function PatientDashboard({ profile }) {
         sheetState={sheet.state}
         appState={appState}
         verticales={VERTICALS}
+        markers={mapMarkers}
         onMarkerClick={handleMarkerClick}
         userLocation={userLocation}
       />
@@ -338,12 +380,12 @@ export default function PatientDashboard({ profile }) {
       {/* ── Mobile: drag-to-expand bottom sheet ── */}
       {!isDesktop && (
         <div
-          className={`absolute left-0 w-full bg-white rounded-t-[40px] shadow-[0_-15px_40px_rgba(0,0,0,0.08)] z-40 flex flex-col border-t border-gray-100 ${!sheet.dragging ? 'transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]' : ''}`}
+          className={`absolute left-0 w-full bg-bg-secondary rounded-t-[40px] shadow-[0_-15px_40px_rgba(0,0,0,0.08)] z-40 flex flex-col border-t border-border-default ${!sheet.dragging ? 'transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]' : ''}`}
           style={{ height: '85%', bottom: 0, transform: sheet.getTransform() }}
         >
           {/* Drag handle + greeting */}
           <div
-            className="w-full flex flex-col items-center pt-4 pb-2 cursor-grab active:cursor-grabbing touch-none bg-white rounded-t-[40px]"
+            className="w-full flex flex-col items-center pt-4 pb-2 cursor-grab active:cursor-grabbing touch-none bg-bg-secondary rounded-t-[40px]"
             onPointerDown={sheet.onPointerDown}
             onPointerMove={sheet.onPointerMove}
             onPointerUp={sheet.onPointerUp}
@@ -365,7 +407,7 @@ export default function PatientDashboard({ profile }) {
           </div>
 
           {/* Scrollable content */}
-          <div className="px-6 flex-1 overflow-y-auto pb-32 scrollbar-hide bg-white mt-2 flex flex-col gap-5">
+          <div className="px-6 flex-1 overflow-y-auto pb-32 scrollbar-hide bg-bg-secondary mt-2 flex flex-col gap-5">
             {vitalsRow}
             {aiTriageBar(() => sheet.setState('expanded'))}
             {specialtyGrid}
@@ -378,98 +420,104 @@ export default function PatientDashboard({ profile }) {
         </div>
       )}
 
-      {/* Map pro flow overlay */}
-      {mapProFlow && selectedMapPro && (
-        <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm z-[80] flex flex-col justify-end animate-fade-in">
-          <button
-            onClick={() => { setMapProFlow(null); setSelectedMapPro(null); setSelectedMapModality(null) }}
-            className="absolute top-4 right-6 z-[90] w-10 h-10 bg-white border border-gray-200 shadow-sm rounded-full flex items-center justify-center hover:bg-gray-50"
-          >
-            ✕
-          </button>
-
-          <div className="w-full bg-white rounded-t-[40px] shadow-[0_-20px_50px_rgba(0,0,0,0.2)] pb-10 pt-6 animate-slide-up-spring">
-            {mapProFlow === 'details' && (
-              <div className="px-6">
-                <div className="bg-[#F8FAFC] rounded-[28px] p-5 border border-gray-100 flex items-center gap-5 mb-6">
-                  <img src={selectedMapPro.img} alt={selectedMapPro.name} className="w-20 h-20 rounded-[20px] object-cover border-2 border-white shadow-sm flex-shrink-0" />
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                      <span className="text-[10px] font-black text-emerald-600 tracking-widest uppercase">Disponible ahora</span>
-                    </div>
-                    <h4 className="font-black text-[20px] text-gray-900 leading-tight">{selectedMapPro.name}</h4>
-                    <p className="text-[14px] text-gray-500 font-medium mt-0.5">{selectedMapPro.specialty}</p>
-                    <div className="flex items-center gap-1 mt-1.5">
-                      <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-                      <span className="font-bold text-[13px] text-gray-800">{selectedMapPro.rating}</span>
-                      <span className="text-[12px] text-gray-400">({selectedMapPro.reviews})</span>
-                    </div>
-                  </div>
-                </div>
-                <h3 className="font-black text-[18px] text-gray-900 mb-4">¿Cómo preferís atenderte?</h3>
-                <div className="space-y-3">
-                  {[
-                    { label: 'Virtual (En Vivo)', sub: 'Conectá por videollamada al instante.', mod: 'Videollamada', icon: Video, color: 'text-brand', bg: 'bg-blue-50' },
-                    { label: 'Presencial', sub: 'Acudí al consultorio (a 1.2 km de vos).', mod: 'Presencial', icon: MapPin, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                  ].map(opt => (
-                    <div
-                      key={opt.mod}
-                      onClick={() => { setSelectedMapModality(opt.mod); setMapProFlow('payment') }}
-                      className="bg-white p-5 rounded-[24px] shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:border-brand transition-all group"
-                    >
-                      <div className={`w-14 h-14 ${opt.bg} rounded-[16px] flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                        <opt.icon className={`w-6 h-6 ${opt.color}`} />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-black text-[17px] text-gray-900">{opt.label}</h3>
-                        <p className="text-[13px] text-gray-500 font-medium mt-0.5">{opt.sub}</p>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-brand transition-colors" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {mapProFlow === 'payment' && (
-              <div className="px-6 animate-fade-in">
-                <div className="flex items-center gap-3 mb-6">
-                  <button onClick={() => setMapProFlow('details')} className="w-10 h-10 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50" disabled={mapPaymentStatus !== 'idle'}>
-                    ←
-                  </button>
-                  <h2 className="text-[24px] font-black text-gray-900 leading-none tracking-tight">Confirmar Reserva</h2>
-                </div>
-                <div className="bg-[#F8FAFC] rounded-[24px] p-5 border border-gray-100 mb-6">
-                  <div className="flex items-center gap-4 mb-4 pb-4 border-b border-gray-200">
-                    <img src={selectedMapPro.img} alt={selectedMapPro.name} className="w-12 h-12 rounded-full object-cover border border-white shadow-sm" />
-                    <div>
-                      <h4 className="font-bold text-[16px] text-gray-900 leading-tight">{selectedMapPro.name}</h4>
-                      <p className="text-[13px] text-gray-500 font-medium">{selectedMapModality} • Hoy, ahora</p>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center pt-1">
-                    <span className="font-bold text-gray-500">Total</span>
-                    <span className="font-black text-[24px] text-gray-900">$20.00</span>
-                  </div>
-                </div>
+      {/* Map pro flow — responsive sheet/modal */}
+      <PatientSheet
+        open={!!mapProFlow && !!selectedMapPro}
+        onClose={() => { setMapProFlow(null); setSelectedMapPro(null); setSelectedMapModality(null) }}
+      >
+        <div className="pb-10 overflow-y-auto scrollbar-hide flex-1">
+          {mapProFlow === 'details' && (
+            <div className="px-6 pt-4">
+              <div className="flex justify-end mb-3">
                 <button
-                  onClick={handleMapPayment}
-                  disabled={mapPaymentStatus !== 'idle'}
-                  className={`w-full py-5 rounded-[20px] font-bold text-[17px] shadow-md transition-all flex justify-center items-center gap-3
-                    ${mapPaymentStatus === 'success' ? 'bg-emerald-500 text-white scale-[1.02]' :
-                      mapPaymentStatus === 'processing' ? 'bg-gray-200 text-gray-400 cursor-not-allowed' :
-                      'bg-brand text-white hover:bg-brand-hover active:scale-95'}`}
-                >
-                  {mapPaymentStatus === 'processing' ? <><Loader2 className="w-5 h-5 animate-spin" /> Procesando...</>
-                   : mapPaymentStatus === 'success' ? <>✓ ¡Reserva Exitosa!</>
-                   : <>Pagar $20.00 y Conectar</>}
-                </button>
+                  onClick={() => { setMapProFlow(null); setSelectedMapPro(null); setSelectedMapModality(null) }}
+                  className="w-10 h-10 bg-white border border-gray-200 shadow-sm rounded-full flex items-center justify-center hover:bg-gray-50"
+                >✕</button>
               </div>
-            )}
-          </div>
+              <div className="bg-bg-primary rounded-[28px] p-5 border border-gray-100 flex items-center gap-5 mb-6">
+                {selectedMapPro.img
+                  ? <img src={selectedMapPro.img} alt={selectedMapPro.name} className="w-20 h-20 rounded-[20px] object-cover border-2 border-white shadow-sm flex-shrink-0" />
+                  : <div className="w-20 h-20 rounded-[20px] border-2 border-white shadow-sm flex-shrink-0 flex items-center justify-center text-3xl font-black" style={{ backgroundColor: selectedMapPro.bg, color: selectedMapPro.color }}>{selectedMapPro.name[0]}</div>
+                }
+                <div>
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                    <span className="text-[10px] font-black text-emerald-600 tracking-widest uppercase">Disponible ahora</span>
+                  </div>
+                  <h4 className="font-black text-[20px] text-gray-900 leading-tight">{selectedMapPro.name}</h4>
+                  <p className="text-[14px] text-gray-500 font-medium mt-0.5">{selectedMapPro.specialty}</p>
+                  <div className="flex items-center gap-1 mt-1.5">
+                    <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                    <span className="font-bold text-[13px] text-gray-800">{selectedMapPro.rating}</span>
+                    <span className="text-[12px] text-gray-400">({selectedMapPro.reviews})</span>
+                  </div>
+                </div>
+              </div>
+              <h3 className="font-black text-[18px] text-gray-900 mb-4">¿Cómo preferís atenderte?</h3>
+              <div className="space-y-3">
+                {[
+                  { label: 'Virtual (En Vivo)', sub: 'Conectá por videollamada al instante.', mod: 'Videollamada', icon: Video, color: 'text-brand', bg: 'bg-blue-50' },
+                  { label: 'Presencial', sub: 'Acudí al consultorio (a 1.2 km de vos).', mod: 'Presencial', icon: MapPin, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                ].map(opt => (
+                  <div
+                    key={opt.mod}
+                    onClick={() => { setSelectedMapModality(opt.mod); setMapProFlow('payment') }}
+                    className="bg-white p-5 rounded-[24px] shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:border-brand transition-all group"
+                  >
+                    <div className={`w-14 h-14 ${opt.bg} rounded-[16px] flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                      <opt.icon className={`w-6 h-6 ${opt.color}`} />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-black text-[17px] text-gray-900">{opt.label}</h3>
+                      <p className="text-[13px] text-gray-500 font-medium mt-0.5">{opt.sub}</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-brand transition-colors" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {mapProFlow === 'payment' && (
+            <div className="px-6 pt-4 animate-fade-in">
+              <div className="flex items-center gap-3 mb-6">
+                <button onClick={() => setMapProFlow('details')} className="w-10 h-10 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50" disabled={mapPaymentStatus !== 'idle'}>
+                  ←
+                </button>
+                <h2 className="text-[24px] font-black text-gray-900 leading-none tracking-tight">Confirmar Reserva</h2>
+              </div>
+              <div className="bg-bg-primary rounded-[24px] p-5 border border-gray-100 mb-6">
+                <div className="flex items-center gap-4 mb-4 pb-4 border-b border-gray-200">
+                  {selectedMapPro.img
+                    ? <img src={selectedMapPro.img} alt={selectedMapPro.name} className="w-12 h-12 rounded-full object-cover border border-white shadow-sm" />
+                    : <div className="w-12 h-12 rounded-full border border-white shadow-sm flex items-center justify-center font-black text-lg" style={{ backgroundColor: selectedMapPro.bg, color: selectedMapPro.color }}>{selectedMapPro.name[0]}</div>
+                  }
+                  <div>
+                    <h4 className="font-bold text-[16px] text-gray-900 leading-tight">{selectedMapPro.name}</h4>
+                    <p className="text-[13px] text-gray-500 font-medium">{selectedMapModality} • Hoy, ahora</p>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center pt-1">
+                  <span className="font-bold text-gray-500">Total</span>
+                  <span className="font-black text-[24px] text-gray-900">$20.00</span>
+                </div>
+              </div>
+              <button
+                onClick={handleMapPayment}
+                disabled={mapPaymentStatus !== 'idle'}
+                className={`w-full py-5 rounded-[20px] font-bold text-[17px] shadow-md transition-all flex justify-center items-center gap-3
+                  ${mapPaymentStatus === 'success' ? 'bg-emerald-500 text-white scale-[1.02]' :
+                    mapPaymentStatus === 'processing' ? 'bg-gray-200 text-gray-400 cursor-not-allowed' :
+                    'bg-brand text-white hover:bg-brand-hover active:scale-95'}`}
+              >
+                {mapPaymentStatus === 'processing' ? <><Loader2 className="w-5 h-5 animate-spin" /> Procesando...</>
+                 : mapPaymentStatus === 'success' ? <>✓ ¡Reserva Exitosa!</>
+                 : <>Pagar $20.00 y Conectar</>}
+              </button>
+            </div>
+          )}
         </div>
-      )}
+      </PatientSheet>
     </div>
   )
 }

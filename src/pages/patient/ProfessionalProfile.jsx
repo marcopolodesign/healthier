@@ -5,16 +5,7 @@ import { professionalService } from '../../services/professionalService'
 import { reviewsService } from '../../services/reviewsService'
 import StarRating from '../../components/StarRating'
 import { toast } from '../../components/Toast'
-
-const SPECIALTY_LABELS = {
-  medicina_general: 'Medicina General',
-  nutricion: 'Nutrición',
-  psicologia: 'Psicología',
-  entrenamiento: 'Entrenamiento Físico',
-  cardiologia: 'Cardiología',
-  dermatologia: 'Dermatología',
-  otra: 'Otra',
-}
+import { SPECIALTY_LABELS } from '../../lib/verticals'
 
 export default function ProfessionalProfile() {
   const { id } = useParams()

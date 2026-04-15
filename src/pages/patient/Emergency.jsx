@@ -41,9 +41,9 @@ export default function Emergency({ profile }) {
     return (
       <div className="absolute inset-0 flex flex-col z-[100]">
         <InteractiveMap appState="emergency_matched" sheetState="collapsed" verticales={[]} onMarkerClick={() => {}} userLocation={null} />
-        <div className="absolute inset-0 z-[100] flex flex-col justify-end pointer-events-none animate-fade-in">
-          <div className="w-full bg-white rounded-t-[40px] p-8 flex flex-col shadow-[0_-15px_40px_rgba(0,0,0,0.2)] border-t border-gray-100 pointer-events-auto animate-slide-up-spring">
-            <div className="w-14 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
+        <div className="absolute inset-0 z-[100] flex flex-col justify-end sm:justify-start pointer-events-none animate-fade-in">
+          <div className="w-full sm:w-[380px] bg-white rounded-t-[40px] sm:rounded-[28px] p-8 flex flex-col shadow-[0_-15px_40px_rgba(0,0,0,0.2)] sm:shadow-[0_8px_40px_rgba(0,0,0,0.15)] border-t sm:border border-gray-100 pointer-events-auto animate-slide-up-spring sm:absolute sm:left-4 sm:bottom-4">
+            <div className="w-14 h-1.5 bg-gray-200 rounded-full mx-auto mb-6 sm:hidden" />
             <div className="bg-red-50 text-red-600 px-4 py-2 rounded-full text-[12px] font-black tracking-widest uppercase mb-4 inline-flex items-center gap-2 self-start border border-red-100">
               <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" /> UNIDAD EN CAMINO
             </div>
@@ -56,7 +56,7 @@ export default function Emergency({ profile }) {
                 <p className="font-black text-[42px] text-red-600 leading-none drop-shadow-sm">0{eta}<span className="text-[20px]">m</span></p>
               </div>
             </div>
-            <div className="bg-[#F8FAFC] rounded-[24px] p-5 mb-6 border border-gray-100 shadow-sm">
+            <div className="bg-bg-primary rounded-[24px] p-5 mb-6 border border-gray-100 shadow-sm">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-white rounded-[16px] flex items-center justify-center border border-gray-200 shadow-sm relative">
                   <User className="w-6 h-6 text-gray-400" />
@@ -89,7 +89,7 @@ export default function Emergency({ profile }) {
       <div className="absolute inset-0 flex flex-col z-[100]">
         <InteractiveMap appState="emergency_searching" sheetState="collapsed" verticales={[]} onMarkerClick={() => {}} userLocation={null} />
         <div className="absolute inset-0 z-[90] flex flex-col justify-between pointer-events-none animate-fade-in">
-          <div className="pt-24 px-8 text-center">
+          <div className="pt-24 px-8 text-center max-w-md mx-auto w-full">
             <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-full mb-4 relative shadow-md border border-red-100">
               <div className="absolute inset-0 border-2 border-red-500 rounded-full animate-ping opacity-50" />
               <Siren className="w-8 h-8 text-red-600 animate-pulse" />
@@ -97,7 +97,7 @@ export default function Emergency({ profile }) {
             <h2 className="text-[32px] font-black text-gray-900 leading-none mb-2">Rastreando GPS</h2>
             <p className="text-red-600 font-bold text-[15px] uppercase tracking-widest animate-pulse">Ubicando unidades móviles...</p>
           </div>
-          <div className="p-8 pb-12 bg-gradient-to-t from-white via-white/95 to-transparent pointer-events-auto">
+          <div className="p-8 pb-12 bg-gradient-to-t from-white via-white/95 to-transparent pointer-events-auto max-w-md mx-auto w-full">
             <button onClick={() => navigate('/paciente/dashboard')} className="w-full py-4 rounded-[20px] font-bold text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 shadow-sm transition-colors">
               Cancelar S.O.S
             </button>
@@ -109,16 +109,16 @@ export default function Emergency({ profile }) {
 
   // Payment screen
   return (
-    <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex flex-col justify-end animate-fade-in">
-      <div className="absolute top-14 left-6 z-[60]">
+    <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex flex-col justify-end sm:items-center sm:justify-center animate-fade-in">
+      <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-[60]">
         <button onClick={() => navigate('/paciente/dashboard')} className="w-12 h-12 bg-white rounded-full flex items-center justify-center hover:bg-gray-50 shadow-sm">
           <ArrowLeft className="h-6 w-6 text-gray-900" />
         </button>
       </div>
-      <div className="w-full bg-white rounded-t-[40px] shadow-[0_-20px_50px_rgba(0,0,0,0.2)] pb-10 pt-4 animate-slide-up-spring relative overflow-hidden">
+      <div className="w-full sm:max-w-lg bg-white rounded-t-[40px] sm:rounded-[28px] shadow-[0_-20px_50px_rgba(0,0,0,0.2)] sm:shadow-2xl pb-10 pt-4 animate-slide-up-spring relative overflow-hidden border-t sm:border border-gray-100">
         <div className="absolute top-0 right-0 w-48 h-48 bg-red-500/5 rounded-bl-[100%] pointer-events-none" />
         <div className="p-8 relative z-10">
-          <div className="w-14 h-1.5 bg-gray-200 rounded-full mx-auto mb-8" />
+          <div className="w-14 h-1.5 bg-gray-200 rounded-full mx-auto mb-8 sm:hidden" />
           <div className="flex items-center gap-4 mb-8">
             <div className="w-16 h-16 rounded-[20px] bg-red-50 flex items-center justify-center border border-red-100 shadow-sm">
               <AlertTriangle className="h-8 w-8 text-red-600 animate-pulse" />
