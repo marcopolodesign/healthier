@@ -43,15 +43,15 @@ export const ToastContainer = () => {
 
   const styles = {
     success: 'bg-green-50 border-green-200 text-green-800',
-    error:   'bg-red-50 border-red-200 text-red-800',
-    info:    'bg-blue-50 border-blue-200 text-blue-800',
+    error:   'bg-red-50 border-[#db0000]/30 text-[#db0000]',
+    info:    'bg-bg-secondary border-brand/20 text-brand',
     warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
   }
 
   const icons = {
     success: <CheckCircleIcon className="h-5 w-5 text-green-600 shrink-0" />,
-    error:   <XCircleIcon className="h-5 w-5 text-red-600 shrink-0" />,
-    info:    <InformationCircleIcon className="h-5 w-5 text-blue-600 shrink-0" />,
+    error:   <XCircleIcon className="h-5 w-5 shrink-0" style={{ color: '#db0000' }} />,
+    info:    <InformationCircleIcon className="h-5 w-5 text-brand shrink-0" />,
     warning: <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600 shrink-0" />,
   }
 

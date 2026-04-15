@@ -125,12 +125,12 @@ export default function IndexSidecart({ isOpen, onClose }) {
       securityLevel: 'loose',
       theme: 'base',
       themeVariables: {
-        primaryColor: '#e0f2f1',
-        primaryTextColor: '#0f766e',
-        primaryBorderColor: '#0F7173',
-        lineColor: '#0F7173',
-        secondaryColor: '#f0fdf4',
-        tertiaryColor: '#fff7ed',
+        primaryColor: '#f5eee1',
+        primaryTextColor: '#b05a36',
+        primaryBorderColor: '#b05a36',
+        lineColor: '#8e4529',
+        secondaryColor: '#fef9ef',
+        tertiaryColor: '#d1c9bf',
       },
       flowchart: { curve: 'basis', padding: 20 },
     })
@@ -172,7 +172,7 @@ export default function IndexSidecart({ isOpen, onClose }) {
       `}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border-default shrink-0">
-          <h2 className="font-bold text-base text-text-primary" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <h2 className="font-bold text-base text-text-primary">
             Índice de pantallas
           </h2>
           <button
