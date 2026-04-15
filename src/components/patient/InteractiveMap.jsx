@@ -3,18 +3,19 @@ import { LocateFixed } from 'lucide-react'
 import TopDownAmbulance from './TopDownAmbulance'
 
 const VERTICALS = [
-  { id: 'clinica',     color: '#2563EB' },
+  { id: 'clinica',     color: '#b05a36' },
   { id: 'nutricion',   color: '#059669' },
   { id: 'mente',       color: '#7C3AED' },
   { id: 'fisico',      color: '#EA580C' },
   { id: 'veterinaria', color: '#0284C7' },
 ]
 
-const MAP_MARKERS = [
-  { id: 1, type: 'clinica',    x: -120, y: -180 },
-  { id: 2, type: 'nutricion',  x:  220, y:  -90 },
-  { id: 3, type: 'mente',      x: -200, y:   80 },
-  { id: 4, type: 'fisico',     x:  150, y:  190 },
+const DEFAULT_MARKERS = [
+  { id: 1, type: 'clinica',     x: -120, y: -180 },
+  { id: 2, type: 'nutricion',   x:  220, y:  -90 },
+  { id: 3, type: 'mente',       x: -200, y:   80 },
+  { id: 4, type: 'fisico',      x:  150, y:  190 },
+  { id: 5, type: 'veterinaria', x:   50, y: -240 },
 ]
 
 const AMBULANCE_STATIC = [
@@ -23,7 +24,8 @@ const AMBULANCE_STATIC = [
   { id: 'a4', x:  150, y:  120 },
 ]
 
-export default function InteractiveMap({ appState, sheetState, verticales, onMarkerClick, userLocation }) {
+export default function InteractiveMap({ appState, sheetState, verticales, markers, onMarkerClick, userLocation }) {
+  const activeMarkers = markers ?? DEFAULT_MARKERS
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [startPos, setStartPos] = useState({ x: 0, y: 0 })
@@ -86,20 +88,20 @@ export default function InteractiveMap({ appState, sheetState, verticales, onMar
             <line
               x1={`calc(50% + ${ambPos.x}px)`} y1={`calc(50% + ${ambPos.y}px)`}
               x2="50%" y2="50%"
-              stroke="#DC2626" strokeWidth="5" strokeDasharray="10 10" strokeLinecap="round"
-              className="animate-dash-move drop-shadow-[0_4px_6px_rgba(220,38,38,0.4)]"
+              stroke="#db0000" strokeWidth="5" strokeDasharray="10 10" strokeLinecap="round"
+              className="animate-dash-move drop-shadow-[0_4px_6px_rgba(219,0,0,0.4)]"
             />
           </svg>
         )}
 
         {/* User dot */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex items-center justify-center">
-          <div className="absolute w-20 h-20 bg-blue-500/20 rounded-full animate-[ping_3s_cubic-bezier(0,0,0.2,1)_infinite]" />
-          <div className="w-6 h-6 bg-brand rounded-full shadow-[0_4px_15px_rgba(37,99,235,0.6)] border-[3.5px] border-white relative z-10" />
+          <div className="absolute w-20 h-20 bg-brand/20 rounded-full animate-[ping_3s_cubic-bezier(0,0,0.2,1)_infinite]" />
+          <div className="w-6 h-6 bg-brand rounded-full shadow-[0_4px_15px_rgba(176,90,54,0.6)] border-[3.5px] border-white relative z-10" />
         </div>
 
         {/* Clinical markers */}
-        {appState !== 'emergency_searching' && MAP_MARKERS.map(m => {
+        {appState !== 'emergency_searching' && activeMarkers.map(m => {
           const v = verticales.find(v => v.id === m.type)
           if (!v) return null
           return (
