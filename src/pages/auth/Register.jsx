@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { UserIcon, EnvelopeIcon, LockClosedIcon, BriefcaseIcon, HeartIcon } from '@heroicons/react/24/outline'
+import { User, Mail, Lock, Briefcase, Heart } from 'lucide-react'
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 
@@ -19,7 +19,7 @@ export default function Register({ onLogin }) {
       const { profile } = await authService.login(form.email, form.password)
       onLogin(profile)
 
-      if (profile.role === 'patient') navigate('/paciente/dashboard')
+      if (profile.role === 'patient') navigate('/paciente/onboarding')
       else if (profile.role === 'professional') navigate('/profesional/onboarding')
       else navigate('/')
     } catch (err) {
@@ -34,13 +34,13 @@ export default function Register({ onLogin }) {
       id: 'patient',
       label: 'Paciente',
       desc: 'Quiero consultar con profesionales',
-      icon: HeartIcon,
+      icon: Heart,
     },
     {
       id: 'professional',
       label: 'Profesional de la Salud',
       desc: 'Quiero ofrecer mis servicios',
-      icon: BriefcaseIcon,
+      icon: Briefcase,
     },
   ]
 
@@ -78,7 +78,7 @@ export default function Register({ onLogin }) {
         <div>
           <label className="form-label">Nombre completo</label>
           <div className="relative">
-            <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
             <input
               type="text"
               required
@@ -93,7 +93,7 @@ export default function Register({ onLogin }) {
         <div>
           <label className="form-label">Email</label>
           <div className="relative">
-            <EnvelopeIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
             <input
               type="email"
               required
@@ -108,7 +108,7 @@ export default function Register({ onLogin }) {
         <div>
           <label className="form-label">Contraseña</label>
           <div className="relative">
-            <LockClosedIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
             <input
               type="password"
               required

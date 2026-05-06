@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { XMarkIcon } from '@heroicons/react/24/outline'
+import { X } from 'lucide-react'
 
 export default function Modal({ open, onClose, title, children, size = 'md' }) {
   useEffect(() => {
@@ -28,7 +28,7 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
           <div className="flex items-center justify-between px-6 py-4 border-b border-border-default">
             <h3 className="text-base font-semibold text-text-primary">{title}</h3>
             <button onClick={onClose} className="text-text-tertiary hover:text-text-primary transition-colors">
-              <XMarkIcon className="h-5 w-5" />
+              <X className="h-5 w-5" />
             </button>
           </div>
         )}

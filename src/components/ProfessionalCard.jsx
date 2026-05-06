@@ -1,16 +1,7 @@
 import { Link } from 'react-router-dom'
-import { UserCircleIcon, BoltIcon } from '@heroicons/react/24/outline'
+import { UserCircle, Zap } from 'lucide-react'
 import StarRating from './StarRating'
-
-const SPECIALTY_LABELS = {
-  medicina_general: 'Medicina General',
-  nutricion: 'Nutrición',
-  psicologia: 'Psicología',
-  entrenamiento: 'Entrenamiento Físico',
-  cardiologia: 'Cardiología',
-  dermatologia: 'Dermatología',
-  otra: 'Otra',
-}
+import { SPECIALTY_LABELS } from '../lib/verticals'
 
 export default function ProfessionalCard({ professional }) {
   const { id, profiles, specialty, bio, averageRating, totalReviews, isOnDemand, sessionPrice } = professional
@@ -25,7 +16,7 @@ export default function ProfessionalCard({ professional }) {
           <img src={avatar} alt={name} className="h-14 w-14 rounded-full object-cover shrink-0" />
         ) : (
           <div className="h-14 w-14 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
-            <UserCircleIcon className="h-8 w-8 text-brand" />
+            <UserCircle className="h-8 w-8 text-brand" />
           </div>
         )}
         <div className="flex-1 min-w-0">
@@ -33,7 +24,7 @@ export default function ProfessionalCard({ professional }) {
           <p className="text-sm text-brand">{SPECIALTY_LABELS[specialty] || specialty}</p>
           {isOnDemand && (
             <span className="inline-flex items-center gap-1 text-xs bg-accent-muted text-accent px-2 py-0.5 rounded-full mt-1">
-              <BoltIcon className="h-3 w-3" />
+              <Zap className="h-3 w-3" />
               Consulta ahora
             </span>
           )}

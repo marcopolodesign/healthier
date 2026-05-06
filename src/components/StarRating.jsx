@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { StarIcon } from '@heroicons/react/24/solid'
-import { StarIcon as StarOutline } from '@heroicons/react/24/outline'
+import { Star } from 'lucide-react'
 
 export default function StarRating({ value = 0, onChange, size = 'md', readOnly = false }) {
   const [hover, setHover] = useState(0)
@@ -23,8 +22,8 @@ export default function StarRating({ value = 0, onChange, size = 'md', readOnly 
             className={`${readOnly ? 'cursor-default' : 'cursor-pointer hover:scale-110 transition-transform'}`}
           >
             {filled
-              ? <StarIcon className={`${cls} text-yellow-400`} />
-              : <StarOutline className={`${cls} text-gray-300`} />
+              ? <Star className={`${cls} text-yellow-400 fill-yellow-400`} />
+              : <Star className={`${cls} text-gray-300`} />
             }
           </button>
         )

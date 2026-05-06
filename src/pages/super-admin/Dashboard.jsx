@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { UsersIcon, CalendarDaysIcon, StarIcon, ShieldCheckIcon } from '@heroicons/react/24/outline'
+import { Users, Calendar, Star, ShieldCheck } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 import { supabase, toCamelCase } from '../../lib/supabase'
 import { toast } from '../../components/Toast'
@@ -52,10 +52,10 @@ export default function SuperAdminDashboard() {
   }, [])
 
   const cards = [
-    { label: 'Usuarios totales',       value: stats.users,               icon: UsersIcon,           color: 'text-brand bg-brand-muted' },
-    { label: 'Profesionales activos',  value: stats.professionals,       icon: ShieldCheckIcon,     color: 'text-purple-600 bg-purple-50' },
-    { label: 'Consultas totales',      value: stats.consultations,       icon: CalendarDaysIcon,    color: 'text-blue-500 bg-blue-50' },
-    { label: 'Pendientes verificación',value: stats.pendingVerification, icon: StarIcon,            color: 'text-warning bg-yellow-50' },
+    { label: 'Usuarios totales',       value: stats.users,               icon: Users,           color: 'text-brand bg-brand-muted' },
+    { label: 'Profesionales activos',  value: stats.professionals,       icon: ShieldCheck,     color: 'text-purple-600 bg-purple-50' },
+    { label: 'Consultas totales',      value: stats.consultations,       icon: Calendar,    color: 'text-blue-500 bg-blue-50' },
+    { label: 'Pendientes verificación',value: stats.pendingVerification, icon: Star,            color: 'text-warning bg-yellow-50' },
   ]
 
   return (

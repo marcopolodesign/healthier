@@ -14,6 +14,7 @@ import { aiService } from '../../services/aiService'
 import { professionalService } from '../../services/professionalService'
 import { toast } from '../../components/Toast'
 import { SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
+import { latLngToPixel, reverseGeocode } from '../../lib/geo'
 
 const VERTICALS = [
   { id: 'clinica',     nombre: 'Clínica',      icon: Stethoscope, color: '#b05a36', bg: '#fef9ef', shadow: 'rgba(176,90,54,0.15)',  eta: '3 min' },
@@ -23,8 +24,8 @@ const VERTICALS = [
   { id: 'veterinaria', nombre: 'Veterinaria',  icon: PawPrint,    color: '#0284C7', bg: '#F0F9FF', shadow: 'rgba(2,132,199,0.15)',  eta: '8 min' },
 ]
 
-// Fixed map slot positions for the 5 verticals (order must match VERTICALS)
-const MAP_SLOTS = [
+// Fallback pixel offsets used when a pro has no geo coordinates yet
+const FALLBACK_SLOTS = [
   { x: -120, y: -180 },
   { x:  220, y:  -90 },
   { x: -200, y:   80 },
@@ -49,6 +50,7 @@ export default function PatientDashboard({ profile }) {
   const [selectedMapModality, setSelectedMapModality] = useState(null)
   const [mapPaymentStatus, setMapPaymentStatus] = useState('idle')
   const [proPool, setProPool] = useState([])
+  const [availableNow, setAvailableNow] = useState(false)
 
   // One pro per vertical, keyed by vertical id
   const markersByVertical = useMemo(() => {
@@ -60,12 +62,19 @@ export default function PatientDashboard({ profile }) {
     return result
   }, [proPool])
 
-  // Marker list for InteractiveMap — one slot per vertical that has a real pro
+  // Marker list for InteractiveMap — project real lat/lng onto overlay, fallback to fixed slots
   const mapMarkers = useMemo(() =>
     VERTICALS
-      .map((v, i) => markersByVertical[v.id] ? { id: i + 1, type: v.id, ...MAP_SLOTS[i] } : null)
+      .map((v, i) => {
+        const pro = markersByVertical[v.id]
+        if (!pro) return null
+        const pixelPos = (userLocation && pro.latitude != null && pro.longitude != null)
+          ? latLngToPixel(userLocation, pro)
+          : FALLBACK_SLOTS[i]
+        return { id: i + 1, type: v.id, isOnDemand: pro.isOnDemand ?? false, ...pixelPos }
+      })
       .filter(Boolean),
-    [markersByVertical]
+    [markersByVertical, userLocation]
   )
 
   // Respond to viewport resizes
@@ -84,15 +93,8 @@ export default function PatientDashboard({ profile }) {
           const { latitude: lat, longitude: lng } = pos.coords
           setUserLocation({ lat, lng })
           if (isLocating) {
-            try {
-              const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-              const data = await res.json()
-              const street = data.address.road || data.address.suburb || data.address.city || 'Ubicación Actual'
-              const num = data.address.house_number ? ` ${data.address.house_number}` : ''
-              setAddressName(`${street}${num}`)
-            } catch {
-              setAddressName('Ubicación Actual')
-            }
+            const name = await reverseGeocode(lat, lng).catch(() => null)
+            setAddressName(name || 'Ubicación Actual')
             setIsLocating(false)
           }
         },
@@ -324,6 +326,7 @@ export default function PatientDashboard({ profile }) {
         markers={mapMarkers}
         onMarkerClick={handleMarkerClick}
         userLocation={userLocation}
+        availableNow={availableNow}
       />
 
       {/* Location header */}
@@ -345,6 +348,21 @@ export default function PatientDashboard({ profile }) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Filter chip — top right */}
+      <div className="absolute top-4 sm:top-6 right-6 z-30">
+        <button
+          onClick={() => setAvailableNow(v => !v)}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold shadow-[0_4px_16px_rgba(0,0,0,0.10)] border transition-all backdrop-blur-[12px] ${
+            availableNow
+              ? 'bg-emerald-500 border-emerald-400 text-white'
+              : 'bg-white/80 border-white/60 text-gray-700 hover:bg-white'
+          }`}
+        >
+          <span className={`w-1.5 h-1.5 rounded-full ${availableNow ? 'bg-white animate-pulse' : 'bg-emerald-500'}`} />
+          Disponibles ahora
+        </button>
       </div>
 
       {/* ── Desktop: Google Maps-style floating panel (bottom-left) ── */}

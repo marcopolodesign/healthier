@@ -33,6 +33,17 @@ export const professionalService = {
     return data.publicUrl
   },
 
+  async getDashboardPool() {
+    const { data, error } = await supabase
+      .from('professional_profiles')
+      .select('*, profiles(full_name, avatar_url, email)')
+      .eq('is_verified', true)
+      .eq('is_active', true)
+      .order('average_rating', { ascending: false })
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
   async search(filters = {}) {
     let query = supabase
       .from('professional_profiles')
@@ -73,11 +84,25 @@ export const professionalService = {
     if (error) throw error
   },
 
+  async reject(userId, reason = '') {
+    const { error } = await supabase
+      .from('professional_profiles')
+      .update({
+        is_verified: false,
+        is_active: false,
+        rejection_reason: reason || null,
+        rejected_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+    if (error) throw error
+  },
+
   async getPendingVerification() {
     const { data, error } = await supabase
       .from('professional_profiles')
       .select('*, profiles(full_name, email, avatar_url)')
       .eq('is_verified', false)
+      .is('rejected_at', null)
       .order('created_at', { ascending: true })
     if (error) throw error
     return toCamelCase(data)

@@ -2,9 +2,9 @@
 
 This document provides context for Claude Code when working on this React/Supabase project.
 
-> **📝 MANDATORY:** After completing ANY implementation (feature, fix, refactor — anything that changes code), you MUST automatically update `catchup.md` with a concise entry **at the top** (after the header). Do NOT ask the user — just do it. Also add a one-line summary to the "Recent Changes" section at the bottom of this file. This is non-negotiable and applies to every task.
+> **📝 MANDATORY:** After completing ANY implementation, add a `[website]`-tagged entry at the top of **`~/Local/Healthier/catchup.md`** (the single unified log). Do NOT write to `website/catchup.md` — it is a stub. Do NOT ask the user — just do it.
 >
-> **Source tagging & pull rule:** Every catchup entry MUST include a `**Source:**` line (e.g. `Claude Code — Macbook Pro`, `Claude App — iPhone`, `Claude.ai — web`). Before writing the entry, read the most recent entry's `**Source:**` field. If it differs from the current session's source, run `git pull origin main` first to avoid overwriting changes made from another device.
+> **Source tagging & pull rule:** Every catchup entry MUST include a `**Source:**` line (e.g. `Claude Code — Macbook Pro`, `Claude App — iPhone`, `Claude.ai — web`). Before writing the entry, read the most recent entry's `**Source:**` field. If it differs from the current session's source, run `git pull origin main` first.
 
 > **🔍 MANDATORY — Code Quality Gate:** After completing a code-changing task, review for reuse, quality, and efficiency before updating catchup.md.
 > - **Small changes (1–2 files):** Do a quick inline review yourself — check for duplicated utilities, unused imports, missing cleanup. No agent needed.
@@ -21,7 +21,7 @@ This document provides context for Claude Code when working on this React/Supaba
 Healthier — Health-services marketplace MVP connecting patients with healthcare professionals in Buenos Aires.
 
 - **Stack:** React 19 + Vite 7 + Tailwind CSS 4 + Supabase JS + React Router v7
-- **Icon libraries:** `lucide-react` (patient area) · `@heroicons/react` (pro/admin/super-admin — do NOT swap)
+- **Icons:** `lucide-react` ONLY — https://lucide.dev/icons/. Do NOT use `@heroicons/react` or any other icon library.
 - **Language:** All UI copy in Spanish (Argentine)
 - **Payments:** Deferred — no Stripe
 - **Scheduling:** Calendly inline embed (professional agenda)
@@ -84,6 +84,23 @@ The following services are **UI-only mocks** with realistic `setTimeout` delays.
 
 ---
 
+## Design Reference — functionhealth.com
+
+**https://www.functionhealth.com** is the primary visual reference for the Healthier brand aesthetic.
+
+Key principles to follow:
+
+- **Editorial serif headings:** All `h1`–`h6` use our serif stack (`GT Super Display` → `Fraunces` → Georgia). Never override with inline `fontFamily` styles — the CSS base layer handles this automatically.
+- **Large, confident type:** Hero headings are bold and large (`text-4xl`→`text-6xl`). Tracking is tight (`leading-tight`). Italic weights are used sparingly for emphasis.
+- **Generous whitespace:** Sections use `py-20` minimum vertical padding. Content blocks breathe — no cramped layouts.
+- **Minimal color:** Warm cream/beige backgrounds, terracotta brand accent, dark `#2a2b2f` text. No gratuitous gradients.
+- **Clean CTAs:** Pill-shaped buttons (`border-radius: 999px`) with clear primary/secondary hierarchy.
+- **Trust signals:** Star ratings, verification badges, and professional avatars used like Function Health uses lab test logos and physician credentials.
+
+> **Typography invariant:** Headings must always resolve to the serif stack. Never add `style={{ fontFamily: '...' }}` to heading elements — it fights the design system.
+
+---
+
 ## Design System
 
 - **Brand:** `#2563EB` (blue) — `var(--color-brand)` · hover: `#1d4ed8`
@@ -143,6 +160,19 @@ npm run preview  # Preview production build
 ---
 
 ## Recent Changes
+
+### 2026-04-29: Professional onboarding split into 5 steps (Especialidad → Presentación → Tarifas → Documentación → Revisión)
+
+### 2026-04-29: Bug fix pass — auth, RLS, ConsultationDetail, Profile, Dashboard, mobile bóveda
+Fixed NULL auth tokens blocking demo logins; added `has_shared_consultation` SECURITY DEFINER + RLS policy so professionals see patient names; fixed wrong userId/bucket in prescription upload; added prescription validation; fixed coordinate overwrite on profile save; fixed new-professional dashboard state; implemented real document upload in mobile bóveda.
+
+### 2026-04-23: Full MVP bridge-the-gap pass
+Pro geo (Nominatim autocomplete + real lat/lng on patient map), avatar upload, modality persist + "Entrar a Sala" unblocked, cancel flow, prescription upload, rejection reason + resubmit, reviews capture, real availability slot editor, specialty DRY + vertical coverage, patient profile columns, super-admin promote via RPC.
+
+### 2026-04-22: Monorepo restructure — website/ + mobile/ under ~/Local/Healthier/
+Mobile RN project scaffolded at `../mobile/` (Expo Router TS, design-v2 theme, full auth + tab + flow screens ported from client Snack).
+
+### 2026-04-20: Serif typography enforced on Landing — inline font overrides removed, Function Health reference added to CLAUDE.md
 
 ### 2026-04-14: App-wide design system v2 — cream/terracotta, GT Super Display / Everett, pill buttons
 Full visual re-skin on branch `feat/design-v2`. Tokens, fonts, utilities, and all patient pages migrated to warm editorial palette. Brand `#2563EB` → `#b05a36`, danger → `#db0000`, bg-primary → beige, bg-secondary → cream.

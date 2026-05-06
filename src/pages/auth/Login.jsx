@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline'
+import { Mail, Lock } from 'lucide-react'
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 
@@ -41,7 +41,7 @@ export default function Login({ onLogin }) {
         <div>
           <label className="form-label">Email</label>
           <div className="relative">
-            <EnvelopeIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
             <input
               type="email"
               required
@@ -56,7 +56,7 @@ export default function Login({ onLogin }) {
         <div>
           <label className="form-label">Contraseña</label>
           <div className="relative">
-            <LockClosedIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
             <input
               type="password"
               required

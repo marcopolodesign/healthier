@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { CheckCircleIcon, XCircleIcon, InformationCircleIcon, ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { CheckCircle, XCircle, Info, AlertTriangle, X } from 'lucide-react'
 
 let toastId = 0
 const toastListeners = new Set()
@@ -49,10 +49,10 @@ export const ToastContainer = () => {
   }
 
   const icons = {
-    success: <CheckCircleIcon className="h-5 w-5 text-green-600 shrink-0" />,
-    error:   <XCircleIcon className="h-5 w-5 shrink-0" style={{ color: '#db0000' }} />,
-    info:    <InformationCircleIcon className="h-5 w-5 text-brand shrink-0" />,
-    warning: <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600 shrink-0" />,
+    success: <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />,
+    error:   <XCircle className="h-5 w-5 shrink-0" style={{ color: '#db0000' }} />,
+    info:    <Info className="h-5 w-5 text-brand shrink-0" />,
+    warning: <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />,
   }
 
   return (
@@ -62,7 +62,7 @@ export const ToastContainer = () => {
           {icons[t.type]}
           <p className="flex-1 text-sm font-medium">{t.message}</p>
           <button onClick={() => remove(t.id)} className="text-gray-400 hover:text-gray-600 shrink-0">
-            <XMarkIcon className="h-4 w-4" />
+            <X className="h-4 w-4" />
           </button>
         </div>
       ))}

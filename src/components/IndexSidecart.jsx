@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { XMarkIcon } from '@heroicons/react/24/outline'
+import { X } from 'lucide-react'
 import mermaid from 'mermaid'
 
 const ALL_SECTIONS = [
@@ -179,7 +179,7 @@ export default function IndexSidecart({ isOpen, onClose }) {
             onClick={onClose}
             className="p-1.5 rounded-md text-text-muted hover:bg-bg-surface hover:text-text-primary transition-colors"
           >
-            <XMarkIcon className="h-5 w-5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 

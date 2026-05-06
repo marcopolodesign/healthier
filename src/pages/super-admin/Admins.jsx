@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { ShieldCheckIcon, UserPlusIcon } from '@heroicons/react/24/outline'
+import { ShieldCheck, UserPlus } from 'lucide-react'
 import { supabase, toCamelCase } from '../../lib/supabase'
+import { adminService } from '../../services/adminService'
 import Modal from '../../components/Modal'
 import { toast } from '../../components/Toast'
 
@@ -8,7 +9,7 @@ export default function SuperAdminAdmins() {
   const [admins, setAdmins] = useState([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
-  const [form, setForm] = useState({ email: '' })
+  const [form, setForm] = useState({ email: '', role: 'admin' })
   const [saving, setSaving] = useState(false)
 
   const load = () => {
@@ -24,16 +25,16 @@ export default function SuperAdminAdmins() {
   useEffect(() => { load() }, [])
 
   const promoteToAdmin = async () => {
+    if (!form.email) return
     setSaving(true)
     try {
-      const { data: user, error } = await supabase.from('profiles').update({ role: 'admin' }).eq('email', form.email).select().single()
-      if (error) throw new Error('No se encontró un usuario con ese email')
-      setAdmins(prev => [...prev, toCamelCase(user)])
-      toast.success('Usuario promovido a admin')
+      await adminService.promoteUser(form.email, form.role)
+      toast.success('Rol actualizado correctamente')
       setModalOpen(false)
-      setForm({ email: '' })
+      setForm({ email: '', role: 'admin' })
+      load()
     } catch (err) {
-      toast.error(err.message)
+      toast.error(err.message || 'Error al actualizar el rol')
     } finally {
       setSaving(false)
     }
@@ -50,7 +51,7 @@ export default function SuperAdminAdmins() {
           <p className="text-text-secondary mt-1">{admins.length} administradores activos</p>
         </div>
         <button onClick={() => setModalOpen(true)} className="btn-primary text-sm flex items-center gap-2">
-          <UserPlusIcon className="h-4 w-4" />
+          <UserPlus className="h-4 w-4" />
           Agregar admin
         </button>
       </div>
@@ -60,7 +61,7 @@ export default function SuperAdminAdmins() {
           <div className="p-6 space-y-3">{[1,2].map(i => <div key={i} className="h-14 bg-bg-surface rounded-lg animate-pulse" />)}</div>
         ) : admins.length === 0 ? (
           <div className="text-center py-12">
-            <ShieldCheckIcon className="h-10 w-10 text-text-muted mx-auto mb-3" />
+            <ShieldCheck className="h-10 w-10 text-text-muted mx-auto mb-3" />
             <p className="text-text-secondary">No hay administradores</p>
           </div>
         ) : (
@@ -94,17 +95,24 @@ export default function SuperAdminAdmins() {
         )}
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Promover usuario a admin">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Asignar rol de administrador">
         <div className="space-y-4">
-          <p className="text-sm text-text-secondary">Ingresá el email de un usuario registrado para promoverlo a administrador.</p>
+          <p className="text-sm text-text-secondary">Ingresá el email de un usuario registrado para asignarle un rol.</p>
           <div>
             <label className="form-label">Email del usuario</label>
-            <input type="email" value={form.email} onChange={e => setForm({ email: e.target.value })} className="form-input" placeholder="usuario@email.com" />
+            <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className="form-input" placeholder="usuario@email.com" />
+          </div>
+          <div>
+            <label className="form-label">Rol a asignar</label>
+            <select value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))} className="form-select">
+              <option value="admin">Admin</option>
+              <option value="super_admin">Super Admin</option>
+            </select>
           </div>
           <div className="flex gap-3">
             <button onClick={() => setModalOpen(false)} className="btn-secondary flex-1">Cancelar</button>
             <button onClick={promoteToAdmin} disabled={saving || !form.email} className="btn-primary flex-1">
-              {saving ? 'Guardando...' : 'Promover'}
+              {saving ? 'Guardando...' : 'Guardar'}
             </button>
           </div>
         </div>

@@ -1,36 +1,53 @@
 import { useState, useEffect } from 'react'
 import { professionalService } from '../../services/professionalService'
 import { profilesService } from '../../services/profilesService'
+import FileUpload from '../../components/FileUpload'
+import AddressAutocomplete from '../../components/common/AddressAutocomplete'
+import { SPECIALTIES } from '../../lib/verticals'
 import { toast } from '../../components/Toast'
 
-const SPECIALTIES = [
-  { value: 'medicina_general', label: 'Medicina General' },
-  { value: 'nutricion', label: 'Nutrición' },
-  { value: 'psicologia', label: 'Psicología' },
-  { value: 'entrenamiento', label: 'Entrenamiento Físico' },
-  { value: 'cardiologia', label: 'Cardiología' },
-  { value: 'dermatologia', label: 'Dermatología' },
-  { value: 'otra', label: 'Otra' },
-]
-
-export default function ProfessionalProfile({ profile, onProfileUpdate }) {
+export default function ProfessionalProfile({ profile }) {
   const [profData, setProfData] = useState(null)
-  const [form, setForm] = useState({ specialty: '', subSpecialty: '', bio: '', sessionPrice: '' })
+  const [form, setForm] = useState({
+    specialty: '', subSpecialty: '', bio: '', sessionPrice: '',
+    address: '', latitude: null, longitude: null,
+  })
+  const [avatarFile, setAvatarFile] = useState(null)
+  const [avatarPreview, setAvatarPreview] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     professionalService.getByUserId(profile?.id).then(p => {
       setProfData(p)
-      if (p) setForm({ specialty: p.specialty || '', subSpecialty: p.subSpecialty || '', bio: p.bio || '', sessionPrice: p.sessionPrice || '' })
+      if (p) setForm({
+        specialty:    p.specialty    || '',
+        subSpecialty: p.subSpecialty || '',
+        bio:          p.bio          || '',
+        sessionPrice: p.sessionPrice || '',
+        address:      p.address      || '',
+        latitude:     p.latitude     || null,
+        longitude:    p.longitude    || null,
+      })
     }).finally(() => setLoading(false))
   }, [profile?.id])
+
+  const handleAvatarFile = file => {
+    setAvatarFile(file)
+    setAvatarPreview(URL.createObjectURL(file))
+  }
 
   const save = async (e) => {
     e.preventDefault()
     setSaving(true)
     try {
-      await professionalService.upsert(profile.id, { ...form, sessionPrice: form.sessionPrice ? Number(form.sessionPrice) : null })
+      if (avatarFile) {
+        await profilesService.uploadAvatar(profile.id, avatarFile)
+        setAvatarFile(null)
+      }
+      const payload = { ...form, sessionPrice: form.sessionPrice ? Number(form.sessionPrice) : null }
+      if (payload.latitude == null) { delete payload.latitude; delete payload.longitude }
+      await professionalService.upsert(profile.id, payload)
       toast.success('Perfil actualizado')
     } catch {
       toast.error('Error al guardar')
@@ -41,6 +58,8 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
 
   if (loading) return <div className="h-64 bg-bg-surface rounded-xl animate-pulse" />
 
+  const currentAvatar = avatarPreview || profData?.profiles?.avatarUrl
+
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl">
       <div>
@@ -48,26 +67,75 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
         <p className="text-text-secondary mt-1">Esta información es visible para los pacientes</p>
       </div>
 
-      <form onSubmit={save} className="card space-y-4">
+      <form onSubmit={save} className="card space-y-5">
+        {/* Avatar */}
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-full overflow-hidden bg-brand-muted flex items-center justify-center shrink-0">
+            {currentAvatar
+              ? <img src={currentAvatar} alt="Avatar" className="w-full h-full object-cover" />
+              : <span className="text-brand font-bold text-2xl">{profile?.fullName?.[0]}</span>
+            }
+          </div>
+          <div className="flex-1">
+            <label className="form-label">Foto de perfil</label>
+            <FileUpload
+              onFile={handleAvatarFile}
+              accept="image/*"
+              label={avatarFile ? avatarFile.name : 'Cambiar foto'}
+            />
+          </div>
+        </div>
+
         <div>
           <label className="form-label">Especialidad</label>
-          <select value={form.specialty} onChange={e => setForm(p => ({ ...p, specialty: e.target.value }))} className="form-select">
+          <select
+            value={form.specialty}
+            onChange={e => setForm(p => ({ ...p, specialty: e.target.value }))}
+            className="form-select"
+          >
             <option value="">Seleccioná una especialidad</option>
             {SPECIALTIES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
         </div>
+
         <div>
           <label className="form-label">Sub-especialidad</label>
-          <input type="text" value={form.subSpecialty} onChange={e => setForm(p => ({ ...p, subSpecialty: e.target.value }))} className="form-input" />
+          <input
+            type="text"
+            value={form.subSpecialty}
+            onChange={e => setForm(p => ({ ...p, subSpecialty: e.target.value }))}
+            className="form-input"
+          />
         </div>
+
         <div>
           <label className="form-label">Bio / Presentación</label>
-          <textarea value={form.bio} onChange={e => setForm(p => ({ ...p, bio: e.target.value }))} rows={5} className="form-textarea" />
+          <textarea
+            value={form.bio}
+            onChange={e => setForm(p => ({ ...p, bio: e.target.value }))}
+            rows={5}
+            className="form-textarea"
+          />
         </div>
+
         <div>
           <label className="form-label">Precio por sesión (ARS)</label>
-          <input type="number" value={form.sessionPrice} onChange={e => setForm(p => ({ ...p, sessionPrice: e.target.value }))} className="form-input" />
+          <input
+            type="number"
+            value={form.sessionPrice}
+            onChange={e => setForm(p => ({ ...p, sessionPrice: e.target.value }))}
+            className="form-input"
+          />
         </div>
+
+        <AddressAutocomplete
+          label="Dirección del consultorio"
+          value={{ address: form.address, latitude: form.latitude, longitude: form.longitude }}
+          onChange={({ address, latitude, longitude }) =>
+            setForm(p => ({ ...p, address, latitude, longitude }))
+          }
+        />
+
         <button type="submit" disabled={saving} className="btn-primary">
           {saving ? 'Guardando...' : 'Guardar cambios'}
         </button>

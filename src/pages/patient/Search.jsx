@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { MagnifyingGlassIcon, BoltIcon, AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline'
+import { Search as SearchIcon, Zap, SlidersHorizontal } from 'lucide-react'
 import { professionalService } from '../../services/professionalService'
 import ProfessionalCard from '../../components/ProfessionalCard'
 import { toast } from '../../components/Toast'
@@ -86,14 +86,14 @@ export default function Search() {
                 <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${filters.onDemand ? 'translate-x-5' : 'translate-x-1'}`} />
               </div>
               <span className="text-sm text-text-primary flex items-center gap-1">
-                <BoltIcon className="h-4 w-4 text-accent" />
+                <Zap className="h-4 w-4 text-accent" />
                 Disponible ahora
               </span>
             </label>
           </div>
 
           <button onClick={search} className="btn-primary flex items-center gap-2">
-            <MagnifyingGlassIcon className="h-4 w-4" />
+            <SearchIcon className="h-4 w-4" />
             Buscar
           </button>
         </div>
@@ -106,7 +106,7 @@ export default function Search() {
         </div>
       ) : results.length === 0 && searched ? (
         <div className="text-center py-16 card">
-          <AdjustmentsHorizontalIcon className="h-12 w-12 text-text-muted mx-auto mb-3" />
+          <SlidersHorizontal className="h-12 w-12 text-text-muted mx-auto mb-3" />
           <p className="text-text-secondary font-medium">No encontramos profesionales con esos filtros</p>
           <p className="text-sm text-text-tertiary mt-1">Probá cambiando los criterios de búsqueda</p>
         </div>

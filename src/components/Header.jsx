@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bars3Icon, UserCircleIcon, ChevronDownIcon, BoltIcon } from '@heroicons/react/24/outline'
+import { Menu, UserCircle, ChevronDown, Zap } from 'lucide-react'
 import { authService } from '../services/authService'
 import { toast } from './Toast'
 
@@ -25,13 +25,13 @@ export default function Header({ profile, onMenuToggle, onLogoClick }) {
     <header className="h-14 bg-white border-b border-border-default flex items-center justify-between px-4 shrink-0">
       {/* Mobile hamburger */}
       <button onClick={onMenuToggle} className="lg:hidden p-1 text-text-secondary hover:text-text-primary">
-        <Bars3Icon className="h-6 w-6" />
+        <Menu className="h-6 w-6" />
       </button>
 
       {/* Mobile logo */}
       <button onClick={onLogoClick} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
         <div className="w-6 h-6 bg-brand rounded flex items-center justify-center">
-          <BoltIcon className="h-4 w-4 text-white" />
+          <Zap className="h-4 w-4 text-white" />
         </div>
         <span className="font-bold text-text-primary text-sm">Healthier</span>
       </button>
@@ -46,13 +46,13 @@ export default function Header({ profile, onMenuToggle, onLogoClick }) {
           {profile?.avatarUrl ? (
             <img src={profile.avatarUrl} alt={profile.fullName} className="h-7 w-7 rounded-full object-cover" />
           ) : (
-            <UserCircleIcon className="h-7 w-7 text-text-tertiary" />
+            <UserCircle className="h-7 w-7 text-text-tertiary" />
           )}
           <div className="hidden sm:block text-left">
             <p className="text-sm font-medium text-text-primary leading-tight">{profile?.fullName || 'Usuario'}</p>
             <p className="text-xs text-text-secondary leading-tight">{ROLE_LABELS[profile?.role] || ''}</p>
           </div>
-          <ChevronDownIcon className="h-4 w-4 text-text-tertiary" />
+          <ChevronDown className="h-4 w-4 text-text-tertiary" />
         </button>
 
         {userMenuOpen && (

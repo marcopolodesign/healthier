@@ -1,36 +1,33 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import {
-  HomeIcon, MagnifyingGlassIcon, CalendarDaysIcon, DocumentTextIcon,
-  UserIcon, UsersIcon, ClipboardDocumentListIcon, ChartBarIcon,
-  ShieldCheckIcon, Cog6ToothIcon, BoltIcon,
-} from '@heroicons/react/24/outline'
+import { Home, Search, Calendar, FileText, User, Users, ClipboardList, BarChart2, ShieldCheck, Settings, Zap, MapPin } from 'lucide-react'
 import { authService } from '../services/authService'
 import { toast } from './Toast'
 
 const NAV_BY_ROLE = {
   patient: [
-    { to: '/paciente/dashboard',     icon: HomeIcon,                label: 'Inicio' },
-    { to: '/paciente/buscar',        icon: MagnifyingGlassIcon,     label: 'Buscar profesionales' },
-    { to: '/paciente/consultas',     icon: CalendarDaysIcon,        label: 'Mis consultas' },
-    { to: '/paciente/documentos',    icon: DocumentTextIcon,        label: 'Mis documentos' },
-    { to: '/paciente/perfil',        icon: UserIcon,                label: 'Mi perfil' },
+    { to: '/paciente/dashboard',     icon: Home,                label: 'Inicio' },
+    { to: '/paciente/buscar',        icon: Search,              label: 'Buscar profesionales' },
+    { to: '/paciente/consultas',     icon: Calendar,            label: 'Mis consultas' },
+    { to: '/paciente/documentos',    icon: FileText,            label: 'Mis documentos' },
+    { to: '/paciente/perfil',        icon: User,                label: 'Mi perfil' },
   ],
   professional: [
-    { to: '/profesional/dashboard',  icon: HomeIcon,                label: 'Inicio' },
-    { to: '/profesional/agenda',     icon: CalendarDaysIcon,        label: 'Mi agenda' },
-    { to: '/profesional/perfil',     icon: UserIcon,                label: 'Mi perfil' },
+    { to: '/profesional/dashboard',  icon: Home,       label: 'Inicio' },
+    { to: '/profesional/agenda',     icon: Calendar,   label: 'Mi agenda' },
+    { to: '/profesional/perfil',     icon: User,       label: 'Mi perfil' },
   ],
   admin: [
-    { to: '/admin/profesionales',    icon: ShieldCheckIcon,         label: 'Verificación' },
-    { to: '/admin/usuarios',         icon: UsersIcon,               label: 'Usuarios' },
-    { to: '/admin/consultas',        icon: ClipboardDocumentListIcon, label: 'Consultas' },
+    { to: '/admin/profesionales',    icon: ShieldCheck,   label: 'Verificación' },
+    { to: '/admin/usuarios',         icon: Users,         label: 'Usuarios' },
+    { to: '/admin/consultas',        icon: ClipboardList, label: 'Consultas' },
   ],
   super_admin: [
-    { to: '/super-admin/dashboard',  icon: ChartBarIcon,            label: 'Dashboard' },
-    { to: '/super-admin/admins',     icon: ShieldCheckIcon,         label: 'Admins' },
-    { to: '/admin/profesionales',    icon: UsersIcon,               label: 'Verificación' },
-    { to: '/admin/usuarios',         icon: UsersIcon,               label: 'Usuarios' },
-    { to: '/super-admin/settings',   icon: Cog6ToothIcon,           label: 'Configuración' },
+    { to: '/super-admin/dashboard',  icon: BarChart2,    label: 'Dashboard' },
+    { to: '/super-admin/admins',     icon: ShieldCheck,  label: 'Admins' },
+    { to: '/admin/profesionales',    icon: Users,        label: 'Verificación' },
+    { to: '/admin/usuarios',         icon: Users,        label: 'Usuarios' },
+    { to: '/super-admin/zonas',      icon: MapPin,       label: 'Zonas' },
+    { to: '/super-admin/settings',   icon: Settings,     label: 'Configuración' },
   ],
 }
 
@@ -63,7 +60,7 @@ export default function Sidebar({ role, mobileOpen, onClose, onLogoClick }) {
           className="flex items-center gap-2 px-4 py-5 border-b border-border-default w-full hover:bg-bg-surface transition-colors"
         >
           <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center">
-            <BoltIcon className="h-5 w-5 text-white" />
+            <Zap className="h-5 w-5 text-white" />
           </div>
           <span className="font-bold text-lg text-text-primary" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
             Healthier

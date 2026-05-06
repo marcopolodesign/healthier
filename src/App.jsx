@@ -14,6 +14,7 @@ import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
 
 import PatientDashboard from './pages/patient/Dashboard'
+import PatientOnboarding from './pages/patient/Onboarding'
 import PatientSearch from './pages/patient/Search'
 import ProfessionalProfile from './pages/patient/ProfessionalProfile'
 import BookConsultation from './pages/patient/Book'
@@ -22,13 +23,13 @@ import PatientDocuments from './pages/patient/Documents'
 import PatientProfile from './pages/patient/Profile'
 import OnDemand from './pages/patient/OnDemand'
 import Emergency from './pages/patient/Emergency'
-import VideoCall from './pages/patient/VideoCall'
 
 import ProfessionalDashboard from './pages/professional/Dashboard'
 import ProfessionalOnboarding from './pages/professional/Onboarding'
 import ProfessionalAgenda from './pages/professional/Agenda'
 import ConsultationDetail from './pages/professional/ConsultationDetail'
 import ProfessionalProfileEdit from './pages/professional/Profile'
+import ProfessionalVideoCall from './pages/professional/VideoCall'
 
 import AdminProfessionals from './pages/admin/Professionals'
 import AdminUsers from './pages/admin/Users'
@@ -37,6 +38,7 @@ import AdminConsultations from './pages/admin/Consultations'
 import SuperAdminDashboard from './pages/super-admin/Dashboard'
 import SuperAdminAdmins from './pages/super-admin/Admins'
 import SuperAdminSettings from './pages/super-admin/Settings'
+import SuperAdminZones from './pages/super-admin/Zones'
 
 // ── Role guards ──────────────────────────────────────────
 function RequireRole({ profile, allowed, children }) {
@@ -146,12 +148,18 @@ export default function App() {
           <Route path="/paciente/perfil"           element={<PatientProfile      profile={profile} onProfileUpdate={setProfile} />} />
           <Route path="/paciente/ondemand/:vertical" element={<OnDemand          profile={profile} />} />
           <Route path="/paciente/sos"              element={<Emergency           profile={profile} />} />
-          <Route path="/paciente/videollamada/:id" element={<VideoCall           profile={profile} />} />
           {/* Legacy routes kept for backward compatibility */}
           <Route path="/paciente/buscar"           element={<PatientSearch       profile={profile} />} />
           <Route path="/paciente/profesional/:id"  element={<ProfessionalProfile profile={profile} />} />
           <Route path="/paciente/agendar/:id"      element={<BookConsultation    profile={profile} />} />
         </Route>
+
+        {/* Patient onboarding — full-screen, no mobile nav */}
+        <Route path="/paciente/onboarding" element={
+          <RequireRole profile={profile} allowed={['patient']}>
+            <PatientOnboarding profile={profile} />
+          </RequireRole>
+        } />
 
         {/* Professional */}
         <Route element={
@@ -163,6 +171,7 @@ export default function App() {
           <Route path="/profesional/onboarding" element={<ProfessionalOnboarding profile={profile} />} />
           <Route path="/profesional/agenda" element={<ProfessionalAgenda profile={profile} />} />
           <Route path="/profesional/consulta/:id" element={<ConsultationDetail profile={profile} />} />
+          <Route path="/profesional/videollamada/:id" element={<ProfessionalVideoCall profile={profile} />} />
           <Route path="/profesional/perfil" element={<ProfessionalProfileEdit profile={profile} onProfileUpdate={setProfile} />} />
         </Route>
 
@@ -185,6 +194,7 @@ export default function App() {
         }>
           <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
           <Route path="/super-admin/admins" element={<SuperAdminAdmins />} />
+          <Route path="/super-admin/zonas" element={<SuperAdminZones />} />
           <Route path="/super-admin/settings" element={<SuperAdminSettings />} />
         </Route>
 

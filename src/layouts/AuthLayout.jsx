@@ -1,5 +1,5 @@
 import { Outlet, Link } from 'react-router-dom'
-import { BoltIcon } from '@heroicons/react/24/outline'
+import { Zap } from 'lucide-react'
 
 export default function AuthLayout() {
   return (
@@ -8,7 +8,7 @@ export default function AuthLayout() {
       <nav className="px-6 py-4">
         <Link to="/" className="flex items-center gap-2 w-fit">
           <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center">
-            <BoltIcon className="h-5 w-5 text-white" />
+            <Zap className="h-5 w-5 text-white" />
           </div>
           <span className="font-bold text-xl text-text-primary">
             Health<em className="not-italic text-brand">ier</em>

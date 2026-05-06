@@ -25,6 +25,18 @@ export const reviewsService = {
     return toCamelCase(data)
   },
 
+  async getByPatient(patientId) {
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('patient_id', patientId)
+    if (error) throw error
+    const rows = toCamelCase(data)
+    const map = {}
+    rows.forEach(r => { if (r.consultationId) map[r.consultationId] = r })
+    return map
+  },
+
   async recalculateRating(professionalId) {
     const { data } = await supabase
       .from('reviews')

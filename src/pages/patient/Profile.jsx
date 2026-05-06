@@ -1,14 +1,17 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   User, Edit3, Check, Camera, ShieldCheck, Stethoscope,
   Phone, Users, CreditCard, Receipt, LogOut, ArrowLeft,
   FileText, Trash2, Download, Plus,
 } from 'lucide-react'
 import { profilesService } from '../../services/profilesService'
+import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
 
 export default function PatientProfile({ profile, onProfileUpdate }) {
+  const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
   const [userData, setUserData] = useState({
     nombre:           profile?.fullName      || '',
@@ -256,7 +259,10 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       </div>
 
       {!editing && (
-        <button className="w-full bg-red-50 text-red-600 py-4 rounded-[20px] font-bold text-[16px] flex justify-center items-center gap-2 hover:bg-red-100 transition-colors">
+        <button
+          onClick={async () => { await authService.logout(); navigate('/') }}
+          className="w-full bg-red-50 text-red-600 py-4 rounded-[20px] font-bold text-[16px] flex justify-center items-center gap-2 hover:bg-red-100 transition-colors"
+        >
           <LogOut className="w-5 h-5" /> Cerrar Sesión
         </button>
       )}

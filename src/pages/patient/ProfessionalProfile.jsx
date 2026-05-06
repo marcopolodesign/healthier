@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { UserCircleIcon, BoltIcon, StarIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
+import { UserCircle, Zap, Star, ArrowLeft } from 'lucide-react'
 import { professionalService } from '../../services/professionalService'
 import { reviewsService } from '../../services/reviewsService'
 import StarRating from '../../components/StarRating'
@@ -41,7 +41,7 @@ export default function ProfessionalProfile() {
   return (
     <div className="space-y-6 animate-fade-in max-w-3xl mx-auto">
       <Link to="/paciente/buscar" className="flex items-center gap-1 text-sm text-text-secondary hover:text-brand">
-        <ArrowLeftIcon className="h-4 w-4" /> Volver a la búsqueda
+        <ArrowLeft className="h-4 w-4" /> Volver a la búsqueda
       </Link>
 
       {/* Profile header */}
@@ -51,7 +51,7 @@ export default function ProfessionalProfile() {
             <img src={avatar} alt={name} className="h-24 w-24 rounded-full object-cover shrink-0" />
           ) : (
             <div className="h-24 w-24 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
-              <UserCircleIcon className="h-14 w-14 text-brand" />
+              <UserCircle className="h-14 w-14 text-brand" />
             </div>
           )}
           <div className="flex-1">
@@ -69,7 +69,7 @@ export default function ProfessionalProfile() {
             </div>
             {professional.isOnDemand && (
               <span className="inline-flex items-center gap-1 text-sm bg-accent-muted text-accent px-3 py-1 rounded-full mt-2">
-                <BoltIcon className="h-4 w-4" />
+                <Zap className="h-4 w-4" />
                 Disponible para consulta ahora
               </span>
             )}

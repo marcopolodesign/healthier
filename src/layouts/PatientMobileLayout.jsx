@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import PatientBottomNav from '../components/patient/PatientBottomNav'
 
-const HIDE_NAV_PREFIXES = ['/paciente/sos', '/paciente/ondemand', '/paciente/videollamada']
+const HIDE_NAV_PREFIXES = ['/paciente/sos', '/paciente/ondemand']
 
 export default function PatientMobileLayout({ profile }) {
   const { pathname } = useLocation()

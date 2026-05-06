@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeftIcon } from '@heroicons/react/24/outline'
+import { ArrowLeft } from 'lucide-react'
 import { professionalService } from '../../services/professionalService'
 import { consultationsService } from '../../services/consultationsService'
 import CalendlyEmbed from '../../components/CalendlyEmbed'
@@ -49,7 +49,7 @@ export default function Book({ profile }) {
   return (
     <div className="space-y-6 animate-fade-in max-w-3xl mx-auto">
       <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-text-secondary hover:text-brand">
-        <ArrowLeftIcon className="h-4 w-4" /> Volver
+        <ArrowLeft className="h-4 w-4" /> Volver
       </button>
 
       <div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { MagnifyingGlassIcon, UsersIcon } from '@heroicons/react/24/outline'
+import { Search, Users } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { toCamelCase } from '../../lib/supabase'
 import { toast } from '../../components/Toast'
@@ -41,7 +41,7 @@ export default function AdminUsers() {
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
         <input
           type="text"
           value={search}
@@ -56,7 +56,7 @@ export default function AdminUsers() {
           <div className="p-6 space-y-3">{[1,2,3,4,5].map(i => <div key={i} className="h-14 bg-bg-surface rounded-lg animate-pulse" />)}</div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
-            <UsersIcon className="h-12 w-12 text-text-muted mx-auto mb-3" />
+            <Users className="h-12 w-12 text-text-muted mx-auto mb-3" />
             <p className="text-text-secondary">No se encontraron usuarios</p>
           </div>
         ) : (

@@ -1,47 +1,40 @@
 @import "tailwindcss";
 
-/* ── Licensed fonts (drop .woff2 files into /public/fonts/ to activate) ── */
+/* ── Licensed fonts ── */
+@font-face {
+  font-family: 'GT Super Display';
+  src: url('/fonts/GTSuperDisplay-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
 @font-face {
   font-family: 'GT Super Display';
   src: url('/fonts/GTSuperDisplay-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'GT Super Display';
-  src: url('/fonts/GTSuperDisplay-RegularItalic.woff2') format('woff2');
-  font-weight: 400;
-  font-style: italic;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'GT Super Display';
-  src: url('/fonts/GTSuperDisplay-Medium.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'GT Super Display';
-  src: url('/fonts/GTSuperDisplay-Bold.woff2') format('woff2');
-  font-weight: 700;
+  font-weight: 400 700;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
   font-family: 'Everett';
-  src: url('/fonts/Everett-Regular.woff2') format('woff2');
-  font-weight: 400;
+  src: url('/fonts/Everett-Light.woff2') format('woff2');
+  font-weight: 300;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'Everett';
-  src: url('/fonts/Everett-Medium.woff2') format('woff2');
-  font-weight: 500;
+  src: url('/fonts/Everett-Regular.woff2') format('woff2');
+  font-weight: 400 600;
   font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Everett';
+  src: url('/fonts/Everett-RegularItalic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
   font-display: swap;
 }
 @font-face {
@@ -119,7 +112,7 @@
   }
 
   body {
-    font-family: 'Everett', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Everett', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background-color: var(--color-bg-primary);
     color: var(--color-text-primary);
     -webkit-font-smoothing: antialiased;
@@ -127,7 +120,8 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'GT Super Display', 'Fraunces', Georgia, serif;
+    font-family: 'GT Super Display', Georgia, serif;
+    font-weight: 300;
   }
 
   * {
