@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { UserCircle, Zap } from 'lucide-react'
+import { UserCircle, Lightning } from '@phosphor-icons/react';
 import StarRating from './StarRating'
 import { SPECIALTY_LABELS } from '../lib/verticals'
 
@@ -24,7 +24,7 @@ export default function ProfessionalCard({ professional }) {
           <p className="text-sm text-brand">{SPECIALTY_LABELS[specialty] || specialty}</p>
           {isOnDemand && (
             <span className="inline-flex items-center gap-1 text-xs bg-accent-muted text-accent px-2 py-0.5 rounded-full mt-1">
-              <Zap className="h-3 w-3" />
+              <Lightning className="h-3 w-3" />
               Consulta ahora
             </span>
           )}

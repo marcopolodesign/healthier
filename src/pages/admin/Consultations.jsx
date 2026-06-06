@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Calendar, Video, MapPin } from 'lucide-react'
+import { Calendar, VideoCamera, MapPin } from '@phosphor-icons/react';
 import { consultationsService } from '../../services/consultationsService'
 import StatusBadge from '../../components/StatusBadge'
 import { toast } from '../../components/Toast'
@@ -77,7 +77,7 @@ export default function AdminConsultations() {
                   <td className="table-cell hidden sm:table-cell">{c.professional?.fullName || '—'}</td>
                   <td className="table-cell hidden md:table-cell">
                     {c.modality === 'video'
-                      ? <span className="flex items-center gap-1 text-brand"><Video className="h-4 w-4" /> Video</span>
+                      ? <span className="flex items-center gap-1 text-brand"><VideoCamera className="h-4 w-4" /> VideoCamera</span>
                       : c.modality === 'presencial'
                         ? <span className="flex items-center gap-1 text-emerald-600"><MapPin className="h-4 w-4" /> Presencial</span>
                         : <span className="text-text-tertiary">—</span>

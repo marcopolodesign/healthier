@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  User, Edit3, Check, Camera, ShieldCheck, Stethoscope,
-  Phone, Users, CreditCard, Receipt, LogOut, ArrowLeft,
-  FileText, Trash2, Download, Plus,
-} from 'lucide-react'
+  User, PencilSimple, Check, Camera, ShieldCheck, Heartbeat,
+  Phone, Users, CreditCard, Receipt, SignOut, ArrowLeft,
+  FileText, Trash, Download, Plus,
+} from '@phosphor-icons/react'
 import { profilesService } from '../../services/profilesService'
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
@@ -108,7 +108,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           onClick={toggleEdit}
           className={`bg-white px-4 py-2 rounded-full font-bold text-[13px] shadow-sm flex items-center gap-2 border ${editing ? 'border-emerald-200 text-emerald-600' : 'border-gray-200 text-gray-700'} hover:bg-gray-50 transition-colors`}
         >
-          {editing ? <><Check className="w-4 h-4" /> Guardar</> : <><Edit3 className="w-4 h-4" /> Editar</>}
+          {editing ? <><Check className="w-4 h-4" /> Guardar</> : <><PencilSimple className="w-4 h-4" /> Editar</>}
         </button>
       </div>
 
@@ -147,7 +147,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
 
       {/* Clinical profile */}
       <div className="bg-bg-secondary rounded-[32px] p-6 shadow-sm border border-border-default mb-6">
-        <h3 className="font-black text-lg text-gray-900 mb-6 flex items-center gap-2"><Stethoscope className="w-5 h-5 text-brand" /> Perfil Clínico</h3>
+        <h3 className="font-black text-lg text-gray-900 mb-6 flex items-center gap-2"><Heartbeat className="w-5 h-5 text-brand" /> Perfil Clínico</h3>
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-4">
             {field('DNI', 'dni')}
@@ -225,8 +225,8 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
               </div>
               {editing
                 ? <div className="flex gap-2">
-                    <button onClick={() => { setTarjetaForm({ ...t, cvv: '' }); setShowTarjeta(true) }} className="p-2 bg-white rounded-full text-brand shadow-sm"><Edit3 className="w-4 h-4" /></button>
-                    <button onClick={() => setTarjetas(prev => prev.filter(c => c.id !== t.id))} className="p-2 bg-white rounded-full text-red-600 shadow-sm"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={() => { setTarjetaForm({ ...t, cvv: '' }); setShowTarjeta(true) }} className="p-2 bg-white rounded-full text-brand shadow-sm"><PencilSimple className="w-4 h-4" /></button>
+                    <button onClick={() => setTarjetas(prev => prev.filter(c => c.id !== t.id))} className="p-2 bg-white rounded-full text-red-600 shadow-sm"><Trash className="w-4 h-4" /></button>
                   </div>
                 : <Check className="w-5 h-5 text-emerald-500" />
               }
@@ -263,7 +263,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           onClick={async () => { await authService.logout(); navigate('/') }}
           className="w-full bg-red-50 text-red-600 py-4 rounded-[20px] font-bold text-[16px] flex justify-center items-center gap-2 hover:bg-red-100 transition-colors"
         >
-          <LogOut className="w-5 h-5" /> Cerrar Sesión
+          <SignOut className="w-5 h-5" /> Cerrar Sesión
         </button>
       )}
       </div>{/* end max-w-lg */}

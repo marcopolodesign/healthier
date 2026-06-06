@@ -71,11 +71,81 @@ export const consultationsService = {
   async getById(id) {
     const { data, error } = await supabase
       .from('consultations')
-      .select('*, patient:profiles!patient_id(full_name, avatar_url, email), professional:profiles!professional_id(full_name, avatar_url, professional_profiles(specialty, calendly_url))')
+      .select('*, heural_encounter_id, patient:profiles!patient_id(full_name, avatar_url, email, heural_id), professional:profiles!professional_id(full_name, avatar_url, professional_profiles(specialty)), consultation_type:consultation_types!consultation_type_id(id, name, price, modality), consultation_orders(*)')
       .eq('id', id)
       .single()
     if (error) throw error
     return toCamelCase(data)
+  },
+
+  async update(id, fields) {
+    const { data, error } = await supabase
+      .from('consultations')
+      .update(toSnakeCase(fields))
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
+  async startConsultation(id, code) {
+    const { data, error } = await supabase.rpc('start_consultation', {
+      p_consultation_id: id,
+      p_code: code,
+    })
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
+  async addOrder(consultationId, { description, orderType, url }) {
+    const { data, error } = await supabase
+      .from('consultation_orders')
+      .insert({ consultation_id: consultationId, description, order_type: orderType, url: url || null })
+      .select()
+      .single()
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
+  async removeOrder(orderId) {
+    const { error } = await supabase
+      .from('consultation_orders')
+      .delete()
+      .eq('id', orderId)
+    if (error) throw error
+  },
+
+  /**
+   * Append a Heural prescription ID to consultations.prescription_heural_ids[].
+   * Uses Postgres array_append so it's safe to call multiple times.
+   * @param {string} consultationId
+   * @param {string} prescriptionHeuralId  - TEXT HashID returned by Heural
+   */
+  async addPrescriptionHeuralId(consultationId, prescriptionHeuralId) {
+    const { data, error } = await supabase.rpc('append_prescription_heural_id', {
+      p_consultation_id: consultationId,
+      p_heural_id: prescriptionHeuralId,
+    })
+    if (error) {
+      // Fallback: read current array, append, write back
+      const { data: row, error: readErr } = await supabase
+        .from('consultations')
+        .select('prescription_heural_ids')
+        .eq('id', consultationId)
+        .single()
+      if (readErr) throw readErr
+      const current = row.prescription_heural_ids ?? []
+      if (!current.includes(prescriptionHeuralId)) {
+        const { error: writeErr } = await supabase
+          .from('consultations')
+          .update({ prescription_heural_ids: [...current, prescriptionHeuralId] })
+          .eq('id', consultationId)
+        if (writeErr) throw writeErr
+      }
+      return
+    }
+    return data
   },
 
   async updateStatus(id, status, extra = {}) {
@@ -95,6 +165,17 @@ export const consultationsService = {
       cancelledBy,
       cancelReason: reason || null,
     })
+  },
+
+  async getEarningsData(professionalId) {
+    const { data, error } = await supabase
+      .from('consultations')
+      .select('id, status, payment_status, price_at_booking, modality, obra_social_name, scheduled_at, completed_at, consultation_type:consultation_types!consultation_type_id(name), profiles!patient_id(full_name, avatar_url)')
+      .eq('professional_id', professionalId)
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false })
+    if (error) throw error
+    return toCamelCase(data)
   },
 
   async getAll(filters = {}) {

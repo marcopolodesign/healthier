@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, AlertTriangle, Clock, Ambulance, Loader2, Check, Phone, ShieldCheck, Siren, User } from 'lucide-react'
+import { ArrowLeft, Warning, Clock, Ambulance, CircleNotch, Check, Phone, ShieldCheck, Siren, User } from '@phosphor-icons/react';
 import { emergencyService } from '../../services/emergencyService'
 import InteractiveMap from '../../components/patient/InteractiveMap'
 import { toast } from '../../components/Toast'
@@ -121,7 +121,7 @@ export default function Emergency({ profile }) {
           <div className="w-14 h-1.5 bg-gray-200 rounded-full mx-auto mb-8 sm:hidden" />
           <div className="flex items-center gap-4 mb-8">
             <div className="w-16 h-16 rounded-[20px] bg-red-50 flex items-center justify-center border border-red-100 shadow-sm">
-              <AlertTriangle className="h-8 w-8 text-red-600 animate-pulse" />
+              <Warning className="h-8 w-8 text-red-600 animate-pulse" />
             </div>
             <div>
               <h2 className="text-[32px] font-black tracking-tight leading-none mb-1 text-gray-900">Alerta S.O.S</h2>
@@ -163,7 +163,7 @@ export default function Emergency({ profile }) {
                 paymentStatus === 'processing' ? 'bg-gray-200 text-gray-500' :
                 'bg-red-600 text-white shadow-[0_8px_25px_rgba(220,38,38,0.3)] hover:bg-red-700 active:scale-95'}`}
           >
-            {paymentStatus === 'processing' ? <><Loader2 className="w-6 h-6 animate-spin" /> Procesando Pago...</>
+            {paymentStatus === 'processing' ? <><CircleNotch className="w-6 h-6 animate-spin" /> Procesando Pago...</>
              : paymentStatus === 'success' ? <><Check className="w-7 h-7 animate-bounce" /> ¡Unidad Despachada!</>
              : <>DESPACHAR AHORA ($50)</>}
           </button>

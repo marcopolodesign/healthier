@@ -5,7 +5,7 @@ import { professionalService } from '../services/professionalService'
 import { consultationsService } from '../services/consultationsService'
 import { toast } from './Toast'
 
-export default function CloseConsultationModal({ open, onClose, consultationId, patientName, profile, onFinalized }) {
+export default function CloseConsultationModal({ open, onClose, consultationId, patientName, modality, profile, onFinalized }) {
   const [form, setForm] = useState({ notes: '', code: '', needsPrescription: false, prescriptionFile: null })
   const [closing, setClosing] = useState(false)
 
@@ -54,6 +54,7 @@ export default function CloseConsultationModal({ open, onClose, consultationId, 
       <div className="space-y-4">
         <p className="text-sm text-text-secondary">
           Completá los datos para cerrar la consulta con {patientName || 'el/la paciente'}.
+          {modality === 'presencial' && ' La duración se registrará automáticamente.'}
         </p>
 
         <div>
@@ -86,23 +87,25 @@ export default function CloseConsultationModal({ open, onClose, consultationId, 
           />
         )}
 
-        <div>
-          <label className="form-label">
-            Código de validación <span className="text-text-muted font-normal">(opcional)</span>
-          </label>
-          <input
-            type="text"
-            inputMode="numeric"
-            maxLength={4}
-            value={form.code}
-            onChange={e => setForm(p => ({ ...p, code: e.target.value.replace(/\D/g, '') }))}
-            placeholder="0000"
-            className="form-input text-center tracking-[0.3em] text-lg font-mono"
-          />
-          <p className="text-xs text-text-muted mt-1">
-            Pedíselo al paciente si todavía no finalizó del lado de la app.
-          </p>
-        </div>
+        {modality !== 'presencial' && (
+          <div>
+            <label className="form-label">
+              Código de validación <span className="text-text-muted font-normal">(opcional)</span>
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={4}
+              value={form.code}
+              onChange={e => setForm(p => ({ ...p, code: e.target.value.replace(/\D/g, '') }))}
+              placeholder="0000"
+              className="form-input text-center tracking-[0.3em] text-lg font-mono"
+            />
+            <p className="text-xs text-text-muted mt-1">
+              Pedíselo al paciente si todavía no finalizó del lado de la app.
+            </p>
+          </div>
+        )}
 
         <div className="flex gap-3 pt-2">
           <button onClick={onClose} className="btn-secondary flex-1">Cancelar</button>

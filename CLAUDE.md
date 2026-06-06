@@ -6,6 +6,8 @@ This document provides context for Claude Code when working on this React/Supaba
 >
 > **Source tagging & pull rule:** Every catchup entry MUST include a `**Source:**` line (e.g. `Claude Code — Macbook Pro`, `Claude App — iPhone`, `Claude.ai — web`). Before writing the entry, read the most recent entry's `**Source:**` field. If it differs from the current session's source, run `git pull origin main` first.
 
+> **🔜 MANDATORY — Next Steps:** At the end of every session (after catchup.md), update **`~/Local/Healthier/nextsteps.md`**. Replace the Now/Next/Later lists to reflect current priorities. Move completed items out, add newly discovered work, re-rank as needed. Tag items `[website]`, `[mobile]`, or `[cross]`. Do NOT ask the user — just do it.
+
 > **🔍 MANDATORY — Code Quality Gate:** After completing a code-changing task, review for reuse, quality, and efficiency before updating catchup.md.
 > - **Small changes (1–2 files):** Do a quick inline review yourself — check for duplicated utilities, unused imports, missing cleanup. No agent needed.
 > - **Large changes (3+ files):** Run `/simplify` which spawns a single Sonnet reviewer agent.
@@ -21,7 +23,7 @@ This document provides context for Claude Code when working on this React/Supaba
 Healthier — Health-services marketplace MVP connecting patients with healthcare professionals in Buenos Aires.
 
 - **Stack:** React 19 + Vite 7 + Tailwind CSS 4 + Supabase JS + React Router v7
-- **Icons:** `lucide-react` ONLY — https://lucide.dev/icons/. Do NOT use `@heroicons/react` or any other icon library.
+- **Icons:** `@phosphor-icons/react` ONLY — https://phosphoricons.com. Do NOT use lucide-react or any other icon library.
 - **Language:** All UI copy in Spanish (Argentine)
 - **Payments:** Deferred — no Stripe
 - **Scheduling:** Calendly inline embed (professional agenda)
@@ -73,6 +75,25 @@ Role guards are in `src/App.jsx` via `RequireRole`. Patient routes use `PatientM
 
 ---
 
+## Mobile-First Professional Screens
+
+Some professional pages are designed exclusively for phone use and must never be constrained to a desktop layout. They are registered as **standalone routes** (outside `AppLayout`) in `App.jsx` so there is no sidebar.
+
+| Route | File | Why phone-only |
+|-------|------|----------------|
+| `/profesional/emergencias` | `pages/professional/Emergencias.jsx` | Operated on the street, requires large touch targets and full-screen urgency UI |
+
+**Rules for mobile-first professional screens:**
+- Root must be `min-h-screen` (not inside AppLayout — no sidebar).
+- Minimum button height: `py-5` (≈56px touch target).
+- Use `fixed inset-0 z-50` only if overlaying the app shell mid-navigation; use `min-h-screen flex flex-col` for standalone routes.
+- No horizontal scrolling. Single-column layout always.
+- Dark/high-contrast headers for outdoor readability.
+- Navigation button must open Google Maps via `maps.google.com/?q=lat,lng&navigate=yes` — not an in-page map.
+- When adding a new phone-only professional screen: register it the same way (standalone route before the AppLayout block) and add it to this table.
+
+---
+
 ## Mock Services — Do Not Wire Yet
 
 The following services are **UI-only mocks** with realistic `setTimeout` delays. Do not attempt to wire real backends without a dedicated task:
@@ -103,11 +124,13 @@ Key principles to follow:
 
 ## Design System
 
-- **Brand:** `#2563EB` (blue) — `var(--color-brand)` · hover: `#1d4ed8`
-- **Danger:** `#DC2626` (red) — `var(--color-danger)` · S.O.S / destructive actions
-- **Accent:** `#F97316` (coral) — `var(--color-accent)` · non-patient areas
+- **Brand primary:** `#7CB38B` (sage) — `var(--color-brand)` · hover: `#5f9470`
+- **Brand secondary:** `#E8927C` (coral) — `var(--color-brand-secondary)`
+- **Brand tertiary:** `#9B8EC4` (lavender) — `var(--color-brand-tertiary)`
+- **Danger:** `#D9534F` — `var(--color-danger)` · S.O.S / destructive actions
+- **bg-primary:** `#F6F5F0` (warm ivory) · **bg-secondary:** `#FDFCF9`
 - All `@theme` tokens and `@utility` blocks defined in `src/index.css`
-- Fonts: Inter (body) · Plus Jakarta Sans (headings)
+- Fonts: GT Super Display (headings serif) · TWK Everett (body sans) — licensed TTF/woff2 in `public/fonts/`
 
 ### Button & form utilities
 

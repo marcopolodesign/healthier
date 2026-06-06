@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, Users } from 'lucide-react'
+import { MagnifyingGlass, Users } from '@phosphor-icons/react';
 import { supabase } from '../../lib/supabase'
 import { toCamelCase } from '../../lib/supabase'
 import { toast } from '../../components/Toast'
@@ -39,9 +39,9 @@ export default function AdminUsers() {
         <p className="text-text-secondary mt-1">{users.length} usuarios registrados</p>
       </div>
 
-      {/* Search */}
+      {/* MagnifyingGlass */}
       <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+        <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
         <input
           type="text"
           value={search}

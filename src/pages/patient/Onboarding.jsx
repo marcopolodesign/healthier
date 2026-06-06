@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, UserRound, HeartPulse, ShieldPlus } from 'lucide-react'
+import { Check, UserCircle, Heartbeat, ShieldPlus } from '@phosphor-icons/react';
 import { profilesService } from '../../services/profilesService'
 import { toast } from '../../components/Toast'
 
 const STEPS = [
-  { label: 'Datos de cuenta',   short: 'Cuenta',   icon: UserRound  },
-  { label: 'Salud general',     short: 'Salud',    icon: HeartPulse },
+  { label: 'Datos de cuenta',   short: 'Cuenta',   icon: UserCircle  },
+  { label: 'Salud general',     short: 'Salud',    icon: Heartbeat },
   { label: 'Información médica', short: 'Médico',  icon: ShieldPlus },
 ]
 

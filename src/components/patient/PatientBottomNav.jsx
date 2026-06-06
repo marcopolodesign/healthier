@@ -1,38 +1,51 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Home, Calendar, FolderOpen, User } from 'lucide-react'
+import { House, Calendar, FolderOpen, User, Plus } from '@phosphor-icons/react'
 
-export const PATIENT_TABS = [
-  { id: 'home',     path: '/paciente/dashboard', icon: Home },
-  { id: 'activity', path: '/paciente/consultas',  icon: Calendar },
-  { id: 'boveda',   path: '/paciente/documentos', icon: FolderOpen },
-  { id: 'profile',  path: '/paciente/perfil',     icon: User, isProfile: true },
+const TABS = [
+  { id: 'home',   path: '/paciente/dashboard',  icon: House,       label: 'Inicio'  },
+  { id: 'agenda', path: '/paciente/consultas',   icon: Calendar,    label: 'Agenda'  },
+  { id: 'boveda', path: '/paciente/documentos',  icon: FolderOpen,  label: 'Bóveda'  },
+  { id: 'perfil', path: '/paciente/perfil',      icon: User,        label: 'Perfil'  },
 ]
 
 export default function PatientBottomNav({ className = '' }) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
-  const activeId = PATIENT_TABS.find(t => pathname.startsWith(t.path))?.id ?? 'home'
+
+  const activeId = TABS.find(t => pathname.startsWith(t.path))?.id
 
   return (
-    <nav className={`flex justify-between items-center ${className}`}>
-      {PATIENT_TABS.map(tab => {
+    <nav className={`flex items-center justify-between ${className}`}>
+      {TABS.map(tab => {
         const active = tab.id === activeId
         return (
           <button
             key={tab.id}
             onClick={() => navigate(tab.path)}
-            className={`flex flex-col items-center gap-1.5 transition-all duration-300 ${active ? 'text-brand scale-110' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`flex flex-col items-center gap-1 transition-all duration-200 px-3 ${active ? 'text-brand' : 'text-gray-400 hover:text-gray-500'}`}
           >
-            {tab.isProfile ? (
-              <div className={`w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center ${active ? 'ring-2 ring-brand ring-offset-2' : ''}`}>
-                <tab.icon className="h-4 w-4 text-gray-600" strokeWidth={2.5} />
-              </div>
-            ) : (
-              <tab.icon className="h-6 w-6" strokeWidth={active ? 2.5 : 2} />
-            )}
+            <tab.icon
+              className={`h-[22px] w-[22px] transition-transform duration-200 ${active ? 'scale-110' : ''}`}
+              weight={active ? 'fill' : 'regular'}
+            />
+            <span className={`text-[10px] font-medium tracking-wide ${active ? 'text-brand' : 'text-gray-400'}`}>
+              {tab.label}
+            </span>
           </button>
         )
       })}
+
+      {/* + booking pill — matches mobile */}
+      <button
+        onClick={() => navigate('/paciente/consultas')}
+        className="flex flex-col items-center gap-1 px-3"
+        aria-label="Nueva consulta"
+      >
+        <div className="w-9 h-9 rounded-full bg-brand flex items-center justify-center shadow-[0_4px_12px_rgba(176,90,54,0.35)] transition-transform duration-200 active:scale-95">
+          <Plus className="h-[18px] w-[18px] text-white" weight="bold" />
+        </div>
+        <span className="text-[10px] font-medium text-gray-400 tracking-wide">Nuevo</span>
+      </button>
     </nav>
   )
 }

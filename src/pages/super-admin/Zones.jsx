@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { MapPin, Plus, Trash2, Users } from 'lucide-react'
+import { MapPin, Plus, Trash, Users } from '@phosphor-icons/react';
 import { supabase } from '../../lib/supabase'
 import { toast } from '../../components/Toast'
 
@@ -141,7 +141,7 @@ export default function SuperAdminZones() {
                   className="p-1 text-text-tertiary hover:text-danger transition-colors"
                   title="Eliminar zona"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash className="h-4 w-4" />
                 </button>
               </div>
             ))}

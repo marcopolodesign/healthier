@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ShieldCheck, X, FileText, UserCircle } from 'lucide-react'
+import { ShieldCheck, X, FileText, UserCircle } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import { toast } from '../../components/Toast'
 

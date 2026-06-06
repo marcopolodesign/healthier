@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Check, Stethoscope, User, MapPin, FileCheck, ClipboardList } from 'lucide-react'
+import { Check, Stethoscope, User, MapPin, FileText, ClipboardText } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import { profilesService } from '../../services/profilesService'
 import { SPECIALTIES } from '../../lib/verticals'
@@ -12,8 +12,8 @@ const STEPS = [
   { label: 'Especialidad',      short: 'Especialidad',   icon: Stethoscope  },
   { label: 'Tu presentación',   short: 'Perfil',         icon: User         },
   { label: 'Tarifas y lugar',   short: 'Tarifas',        icon: MapPin       },
-  { label: 'Documentación',     short: 'Documentos',     icon: FileCheck    },
-  { label: 'Revisión y envío',  short: 'Revisión',       icon: ClipboardList},
+  { label: 'Documentación',     short: 'Documentos',     icon: FileText    },
+  { label: 'Revisión y envío',  short: 'Revisión',       icon: ClipboardText},
 ]
 
 export default function Onboarding({ profile }) {

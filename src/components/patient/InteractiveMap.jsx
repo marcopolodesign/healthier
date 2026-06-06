@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { LocateFixed } from 'lucide-react'
+import { Crosshair } from '@phosphor-icons/react';
 import TopDownAmbulance from './TopDownAmbulance'
 
 const VERTICALS = [
@@ -142,7 +142,7 @@ export default function InteractiveMap({ appState, sheetState, verticales, marke
             onClick={e => { e.stopPropagation(); setPan({ x: 0, y: 0 }) }}
             className="w-12 h-12 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-[0_8px_20px_rgba(0,0,0,0.15)] border border-gray-100 hover:bg-white transition-all active:scale-95"
           >
-            <LocateFixed className="w-6 h-6 text-brand" />
+            <Crosshair className="w-6 h-6 text-brand" />
           </button>
         </div>
       )}

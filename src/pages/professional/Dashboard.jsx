@@ -1,26 +1,56 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, Star, Users, Clock, AlertTriangle, XCircle } from 'lucide-react'
+import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar } from '@phosphor-icons/react';
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
+import { emergencyService } from '../../services/emergencyService'
 import StatusBadge from '../../components/StatusBadge'
 import { toast } from '../../components/Toast'
 
+const CODE_COLORS = { ROJO: 'bg-red-600', AMARILLO: 'bg-amber-500', VERDE: 'bg-emerald-600' }
+
+function formatARS(amount) {
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(amount || 0)
+}
+
+function getThisMonthEarnings(earningsData) {
+  const now = new Date()
+  return earningsData
+    .filter(c => {
+      const d = new Date(c.completedAt || c.scheduledAt)
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+    })
+    .reduce((sum, c) => sum + (c.priceAtBooking || 0), 0)
+}
+
 export default function ProfessionalDashboard({ profile }) {
   const [consultations, setConsultations] = useState([])
+  const [earningsData, setEarningsData] = useState([])
   const [profProfile, setProfProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [activeEmergency, setActiveEmergency] = useState(null)
+  const unsubRef = useRef(null)
 
   useEffect(() => {
     if (!profile?.id) return
     Promise.all([
       consultationsService.getByProfessional(profile.id),
       professionalService.getByUserId(profile.id),
-    ]).then(([cons, prof]) => {
+      emergencyService.getActiveForProfessional(profile.id),
+      consultationsService.getEarningsData(profile.id),
+    ]).then(([cons, prof, emg, earnings]) => {
       setConsultations(cons)
       setProfProfile(prof)
+      setActiveEmergency(emg)
+      setEarningsData(earnings)
     }).catch(() => toast.error('Error al cargar datos'))
     .finally(() => setLoading(false))
+
+    unsubRef.current = emergencyService.subscribe(profile.id, (updated) => {
+      const terminal = ['cancelled', 'completed']
+      setActiveEmergency(terminal.includes(updated.status) ? null : updated)
+    })
+    return () => unsubRef.current?.()
   }, [profile?.id])
 
   const today = consultations.filter(c => {
@@ -28,11 +58,13 @@ export default function ProfessionalDashboard({ profile }) {
     return new Date(c.scheduledAt).toDateString() === new Date().toDateString()
   })
 
+  const thisMonthEarnings = getThisMonthEarnings(earningsData)
+
   const stats = [
-    { label: 'Consultas hoy',    value: today.length,                                    icon: Calendar, color: 'text-brand bg-brand-muted' },
-    { label: 'Total consultas',  value: consultations.length,                            icon: Users,    color: 'text-blue-500 bg-blue-50' },
-    { label: 'Calificación',     value: profProfile?.averageRating?.toFixed(1) || '—',  icon: Star,         color: 'text-yellow-500 bg-yellow-50' },
-    { label: 'Reseñas',          value: profProfile?.totalReviews || 0,                 icon: Users,    color: 'text-purple-500 bg-purple-50' },
+    { label: 'Consultas hoy',   value: today.length,                                   icon: Calendar,     color: 'text-brand bg-brand-muted' },
+    { label: 'Total consultas', value: consultations.length,                           icon: Users,        color: 'text-blue-600 bg-blue-50' },
+    { label: 'Calificación',    value: profProfile?.averageRating?.toFixed(1) || '—', icon: Star,         color: 'text-yellow-500 bg-yellow-50' },
+    { label: 'Reseñas',         value: profProfile?.totalReviews || 0,                icon: Users,        color: 'text-purple-500 bg-purple-50' },
   ]
 
   if (!profProfile?.isVerified && !loading) {
@@ -58,10 +90,7 @@ export default function ProfessionalDashboard({ profile }) {
                 <p className="text-sm text-text-secondary mt-2">
                   Revisá la información y volvé a enviar tu perfil con las correcciones necesarias.
                 </p>
-                <Link
-                  to="/profesional/onboarding?resubmit=1"
-                  className="btn-primary text-sm mt-3 inline-flex"
-                >
+                <Link to="/profesional/onboarding?resubmit=1" className="btn-primary text-sm mt-3 inline-flex">
                   Corregir y reenviar
                 </Link>
               </div>
@@ -70,7 +99,7 @@ export default function ProfessionalDashboard({ profile }) {
         ) : !profProfile ? (
           <div className="card border-brand/20 bg-brand-muted/30">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="h-6 w-6 text-brand shrink-0 mt-0.5" />
+              <Warning className="h-6 w-6 text-brand shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold text-text-primary">Completá tu perfil</p>
                 <p className="text-sm text-text-secondary mt-1">
@@ -85,7 +114,7 @@ export default function ProfessionalDashboard({ profile }) {
         ) : (
           <div className="card border-warning/30 bg-yellow-50">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="h-6 w-6 text-warning shrink-0 mt-0.5" />
+              <Warning className="h-6 w-6 text-warning shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold text-text-primary">Perfil en revisión</p>
                 <p className="text-sm text-text-secondary mt-1">
@@ -101,11 +130,34 @@ export default function ProfessionalDashboard({ profile }) {
 
   return (
     <div className="space-y-6 animate-fade-in">
+
+      {/* Emergency banner */}
+      {activeEmergency && (
+        <Link
+          to="/profesional/emergencias"
+          className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-white ${CODE_COLORS[activeEmergency.triage_code] ?? 'bg-red-600'} shadow-lg`}
+        >
+          <Siren className="w-5 h-5 shrink-0 animate-pulse" />
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm leading-tight">Emergencia activa</p>
+            <p className="text-xs opacity-80 truncate">
+              {activeEmergency.dispatch_code} · {activeEmergency.triage_code} · {
+                activeEmergency.status === 'dispatched' ? 'Esperando confirmación'
+                : activeEmergency.status === 'in_transit' ? 'En camino'
+                : 'Llegaste'
+              }
+            </p>
+          </div>
+          <span className="text-sm font-bold shrink-0">Ver →</span>
+        </Link>
+      )}
+
       <div>
         <h1 className="text-2xl font-bold text-text-primary">Hola, {profile?.fullName?.split(' ')[0]} 👋</h1>
         <p className="text-text-secondary mt-1">Tu agenda de hoy</p>
       </div>
 
+      {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map(s => (
           <div key={s.label} className="card">
@@ -118,6 +170,32 @@ export default function ProfessionalDashboard({ profile }) {
         ))}
       </div>
 
+      {/* Earnings banner */}
+      <Link to="/profesional/ganancias" className="card flex items-center gap-4 hover:border-brand/40 transition-colors group">
+        <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0">
+          <TrendUp className="h-6 w-6 text-emerald-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-text-secondary font-medium uppercase tracking-wide">Ganancias este mes</p>
+          <p className="text-2xl font-bold text-text-primary mt-0.5">
+            {loading ? <span className="text-text-muted">—</span> : formatARS(thisMonthEarnings)}
+          </p>
+          {!loading && earningsData.length > 0 && (
+            <p className="text-xs text-text-secondary mt-0.5">
+              {earningsData.filter(c => {
+                const d = new Date(c.completedAt || c.scheduledAt)
+                const now = new Date()
+                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+              }).length} consultas completadas
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-1 text-brand text-sm font-medium shrink-0 group-hover:gap-2 transition-all">
+          Ver desglose <ArrowRight className="h-4 w-4" />
+        </div>
+      </Link>
+
+      {/* Today's consultations */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-text-primary">Consultas de hoy</h2>
@@ -151,10 +229,7 @@ export default function ProfessionalDashboard({ profile }) {
                   </Link>
                   <StatusBadge status={c.status} />
                   {canJoin && (
-                    <Link
-                      to={`/profesional/videollamada/${c.id}`}
-                      className="btn-primary text-xs px-3 py-1.5 shrink-0"
-                    >
+                    <Link to={`/profesional/videollamada/${c.id}`} className="btn-primary text-xs px-3 py-1.5 shrink-0">
                       Sala
                     </Link>
                   )}

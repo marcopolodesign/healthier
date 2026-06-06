@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users, Calendar, Star, ShieldCheck } from 'lucide-react'
+import { Users, Calendar, Star, ShieldCheck } from '@phosphor-icons/react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 import { supabase, toCamelCase } from '../../lib/supabase'
 import { toast } from '../../components/Toast'

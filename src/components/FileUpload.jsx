@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Upload, File, X } from 'lucide-react'
+import { Upload, File, X } from '@phosphor-icons/react';
 
 export default function FileUpload({ onFile, accept = '.pdf,.jpg,.jpeg,.png', label = 'Subir archivo', hint = '' }) {
   const inputRef = useRef(null)

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
-import { Zap, Heart, ShieldCheck, Clock, Star, Search, Calendar, CheckCircle, Smartphone, DollarSign, Users } from 'lucide-react'
+import { Heart, ShieldCheck, Clock, Star, MagnifyingGlass, Calendar, CheckCircle, DeviceMobile, CurrencyDollar, Users, Lightning } from '@phosphor-icons/react';
+import { CompanyLogo } from '../components/common/CompanyLogo'
 
 const SPECIALTIES = [
   { icon: '🩺', label: 'Medicina General', desc: 'Consultas médicas generales y diagnóstico' },
@@ -9,17 +10,17 @@ const SPECIALTIES = [
 ]
 
 const STEPS = [
-  { num: 1, icon: Search,    title: 'Encontrá tu especialista', desc: 'Buscá por especialidad y filtrá por disponibilidad inmediata o agenda futura.' },
+  { num: 1, icon: MagnifyingGlass,    title: 'Encontrá tu especialista', desc: 'Buscá por especialidad y filtrá por disponibilidad inmediata o agenda futura.' },
   { num: 2, icon: Calendar,  title: 'Agendá o consultá ahora',   desc: 'Reservá un turno en el horario que más te convenga, o iniciá una consulta al instante.' },
   { num: 3, icon: Heart,     title: 'Seguimiento de tu salud',   desc: 'Accedé al historial de consultas, documentos y recetas en un solo lugar.' },
 ]
 
 const PRO_BENEFITS = [
-  { icon: Calendar,    text: 'Agenda propia integrada con Calendly' },
-  { icon: Zap,         text: 'Modo consulta inmediata (on-demand)' },
+  { icon: Calendar,    text: 'Agenda propia integrada' },
+  { icon: Lightning,         text: 'Modo consulta inmediata (on-demand)' },
   { icon: Users,       text: 'Crecé tu base de pacientes' },
-  { icon: DollarSign,  text: 'Sin comisiones abusivas' },
-  { icon: Smartphone,  text: 'Acceso desde cualquier dispositivo' },
+  { icon: CurrencyDollar,  text: 'Sin comisiones abusivas' },
+  { icon: DeviceMobile,  text: 'Acceso desde cualquier dispositivo' },
   { icon: ShieldCheck, text: 'Perfil verificado y confiable' },
 ]
 
@@ -29,14 +30,7 @@ export default function Landing() {
       {/* ── Navbar ── */}
       <nav className="fixed top-0 inset-x-0 z-40 bg-white/80 backdrop-blur border-b border-border-default">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center">
-              <Zap className="h-5 w-5 text-white" />
-            </div>
-            <span className="font-bold text-xl text-text-primary">
-              Healthier
-            </span>
-          </div>
+          <CompanyLogo size="sm" />
           <div className="flex items-center gap-3">
             <Link to="/login" className="btn-secondary text-sm hidden sm:inline-flex">Iniciar sesión</Link>
             <Link to="/registro" className="btn-primary text-sm">Registrarse</Link>
@@ -215,11 +209,8 @@ export default function Landing() {
 
       {/* ── Footer ── */}
       <footer className="bg-gray-900 text-gray-400 py-8 px-4 text-center text-sm">
-        <div className="flex items-center justify-center gap-2 mb-3">
-          <div className="w-6 h-6 bg-brand rounded flex items-center justify-center">
-            <Zap className="h-4 w-4 text-white" />
-          </div>
-          <span className="font-semibold text-white">Healthier</span>
+        <div className="flex justify-center mb-3">
+          <CompanyLogo size="sm" inverted />
         </div>
         <p>© {new Date().getFullYear()} Healthier. Todos los derechos reservados.</p>
         <p className="mt-1">Buenos Aires, Argentina</p>

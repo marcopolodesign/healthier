@@ -1,10 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Zap, Plus, X, Calendar, Video, ExternalLink } from 'lucide-react'
+import { Lightning, Plus, X, Calendar, VideoCamera, MapPin } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import { availabilityService } from '../../services/availabilityService'
 import { consultationsService } from '../../services/consultationsService'
-import CalendlyEmbed from '../../components/CalendlyEmbed'
 import { toast } from '../../components/Toast'
 
 const DAYS = [
@@ -22,7 +21,7 @@ function fmtTime(t) {
 }
 
 export default function Agenda({ profile }) {
-  const [form, setForm] = useState({ calendlyUrl: '', isOnDemand: false })
+  const [form, setForm] = useState({ isOnDemand: false })
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -35,9 +34,10 @@ export default function Agenda({ profile }) {
   const [todayConsultations, setTodayConsultations] = useState([])
 
   useEffect(() => {
-    professionalService.getByUserId(profile?.id)
+    if (!profile?.id) return
+    professionalService.getByUserId(profile.id)
       .then(p => {
-        if (p) setForm({ calendlyUrl: p.calendlyUrl || '', isOnDemand: p.isOnDemand || false })
+        if (p) setForm({ isOnDemand: p.isOnDemand || false })
       })
       .finally(() => setLoading(false))
   }, [profile?.id])
@@ -138,7 +138,7 @@ export default function Agenda({ profile }) {
   if (loading) return <div className="h-64 bg-bg-surface rounded-xl animate-pulse" />
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in pb-12">
       <div>
         <h1 className="text-2xl font-bold text-text-primary">Mi agenda</h1>
         <p className="text-text-secondary mt-1">Configurá tus franjas horarias por día de la semana</p>
@@ -154,23 +154,30 @@ export default function Agenda({ profile }) {
               ? new Date(c.scheduledAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
               : '—'
             const isVideo = c.modality === 'video'
+            const href = isVideo ? `/profesional/videollamada/${c.id}` : `/profesional/consulta/${c.id}`
             return (
-              <div key={c.id} className="flex items-center gap-4 p-3 bg-bg-surface rounded-xl">
+              <Link
+                key={c.id}
+                to={href}
+                className="flex items-center gap-4 p-3 bg-bg-surface rounded-xl hover:bg-brand-muted/40 transition-colors cursor-pointer"
+              >
                 <div className={`w-2 h-2 rounded-full shrink-0 ${isVideo ? 'bg-brand' : 'bg-green-500'}`} />
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-text-primary text-sm truncate">{patientName}</p>
                   <p className="text-xs text-text-secondary">{isVideo ? 'Videoconsulta' : 'Presencial'} · {time}</p>
                 </div>
-                {isVideo && (
-                  <Link
-                    to={`/profesional/videollamada/${c.id}`}
-                    className="btn-primary flex items-center gap-1.5 text-sm px-4 py-2 shrink-0"
-                  >
-                    <Video className="h-4 w-4" />
-                    Acceder a la consulta
-                  </Link>
+                {isVideo ? (
+                  <span className="btn-primary flex items-center gap-1.5 text-sm px-4 py-2 shrink-0">
+                    <VideoCamera className="h-4 w-4" />
+                    Entrar
+                  </span>
+                ) : (
+                  <span className="btn-secondary flex items-center gap-1.5 text-sm px-4 py-2 shrink-0">
+                    <MapPin className="h-4 w-4" />
+                    Ver consulta
+                  </span>
                 )}
-              </div>
+              </Link>
             )
           })}
         </div>
@@ -189,90 +196,98 @@ export default function Agenda({ profile }) {
         </div>
 
         {scheduleLoading ? (
-          <div className="space-y-2">
-            {[1, 2, 3].map(i => <div key={i} className="h-14 bg-bg-surface rounded-lg animate-pulse" />)}
+          <div className="flex gap-3 overflow-hidden">
+            {[1, 2, 3, 4, 5].map(i => <div key={i} className="w-36 h-40 bg-bg-surface rounded-xl animate-pulse shrink-0" />)}
           </div>
         ) : (
-          <div className="space-y-2">
-            {DAYS.map(day => {
-              const entries = scheduleByDay[day.value] || []
-              const isAdding = addingForDay === day.value
-              const hasEntries = entries.length > 0
+          <>
+            {/* Horizontal day columns */}
+            <div className="overflow-x-auto -mx-1 px-1 pb-1">
+              <div className="flex gap-3" style={{ minWidth: 'max-content' }}>
+                {DAYS.map(day => {
+                  const entries = scheduleByDay[day.value] || []
+                  const hasEntries = entries.length > 0
+                  const isAdding = addingForDay === day.value
 
-              return (
-                <div key={day.value} className="border border-border-default rounded-xl overflow-hidden">
-                  {/* Day header */}
-                  <div className={`flex items-center justify-between px-4 py-3 ${hasEntries ? 'bg-brand-muted/40' : 'bg-bg-surface'}`}>
-                    <div className="flex items-center gap-3">
-                      <span className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold ${hasEntries ? 'bg-brand text-white' : 'bg-gray-200 text-text-tertiary'}`}>
-                        {day.short}
-                      </span>
-                      <span className="font-medium text-text-primary text-sm">{day.label}</span>
-                      {hasEntries && (
-                        <span className="text-xs text-brand font-medium">
-                          {entries.length} franja{entries.length > 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => openAddFranja(day.value)}
-                      className="p-1.5 rounded-lg hover:bg-brand-muted text-brand transition-colors"
-                      title={isAdding ? 'Cancelar' : 'Agregar franja'}
+                  return (
+                    <div
+                      key={day.value}
+                      className={`w-36 shrink-0 flex flex-col rounded-xl border overflow-hidden ${isAdding ? 'border-brand/50 ring-1 ring-brand/20' : 'border-border-default'}`}
                     >
-                      {isAdding ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                    </button>
-                  </div>
-
-                  {/* Existing franjas */}
-                  {hasEntries && (
-                    <div className="px-4 py-2 flex flex-wrap gap-2 border-t border-border-default bg-white">
-                      {entries.map(e => (
-                        <div key={e.id} className="flex items-center gap-1.5 border border-border-default rounded-full px-3 py-1.5 bg-bg-surface">
-                          <span className="text-sm font-medium text-text-primary">
-                            {fmtTime(e.startTime)} – {fmtTime(e.endTime)}
-                          </span>
-                          <button
-                            onClick={() => deleteFranja(e.id)}
-                            className="text-text-tertiary hover:text-red-500 transition-colors ml-0.5"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
+                      {/* Day header */}
+                      <div className={`flex items-center justify-between px-3 py-2.5 ${hasEntries ? 'bg-brand-muted/40' : 'bg-bg-surface'}`}>
+                        <div>
+                          <p className={`text-xs font-bold ${hasEntries ? 'text-brand' : 'text-text-tertiary'}`}>{day.short}</p>
+                          <p className="text-xs text-text-secondary leading-tight">{day.label}</p>
                         </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Add franja inline form */}
-                  {isAdding && (
-                    <div className="px-4 pb-3 pt-2 bg-bg-surface border-t border-border-default">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="time"
-                          value={newFranja.start}
-                          onChange={e => setNewFranja(p => ({ ...p, start: e.target.value }))}
-                          className="form-input text-sm flex-1"
-                        />
-                        <span className="text-text-tertiary text-sm shrink-0">—</span>
-                        <input
-                          type="time"
-                          value={newFranja.end}
-                          onChange={e => setNewFranja(p => ({ ...p, end: e.target.value }))}
-                          className="form-input text-sm flex-1"
-                        />
                         <button
-                          onClick={() => addFranja(day.value)}
-                          disabled={addingFranja}
-                          className="btn-primary text-sm px-4 py-2 shrink-0"
+                          onClick={() => openAddFranja(day.value)}
+                          className="p-1 rounded-lg hover:bg-brand-muted text-brand transition-colors"
+                          title={isAdding ? 'Cancelar' : 'Agregar franja'}
                         >
-                          {addingFranja ? '...' : 'Agregar'}
+                          {isAdding ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                         </button>
                       </div>
+
+                      {/* Vertically stacked franjas */}
+                      <div className="flex flex-col gap-1.5 p-2 bg-white flex-1 min-h-[5rem]">
+                        {!hasEntries && (
+                          <p className="text-xs text-text-tertiary text-center pt-3">Sin franjas</p>
+                        )}
+                        {entries.map(e => (
+                          <div
+                            key={e.id}
+                            className="flex items-center justify-between gap-1 border border-border-default rounded-lg px-2 py-1.5 bg-bg-surface"
+                          >
+                            <span className="text-xs font-medium text-text-primary tabular-nums">
+                              {fmtTime(e.startTime)} – {fmtTime(e.endTime)}
+                            </span>
+                            <button
+                              onClick={() => deleteFranja(e.id)}
+                              className="text-text-tertiary hover:text-red-500 transition-colors shrink-0"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  )}
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Add franja form — appears below scroll strip */}
+            {addingForDay !== null && (
+              <div className="border border-brand/30 rounded-xl p-4 bg-brand-muted/20">
+                <p className="text-sm font-medium text-text-primary mb-3">
+                  Agregar franja — {DAYS.find(d => d.value === addingForDay)?.label}
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    value={newFranja.start}
+                    onChange={e => setNewFranja(p => ({ ...p, start: e.target.value }))}
+                    className="form-input text-sm flex-1"
+                  />
+                  <span className="text-text-tertiary text-sm shrink-0">—</span>
+                  <input
+                    type="time"
+                    value={newFranja.end}
+                    onChange={e => setNewFranja(p => ({ ...p, end: e.target.value }))}
+                    className="form-input text-sm flex-1"
+                  />
+                  <button
+                    onClick={() => addFranja(addingForDay)}
+                    disabled={addingFranja}
+                    className="btn-primary text-sm px-4 py-2 shrink-0"
+                  >
+                    {addingFranja ? '...' : 'Agregar'}
+                  </button>
                 </div>
-              )
-            })}
-          </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -282,7 +297,7 @@ export default function Agenda({ profile }) {
         <div className="flex items-center justify-between p-4 bg-bg-surface rounded-lg">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-accent-muted flex items-center justify-center">
-              <Zap className="h-5 w-5 text-accent" />
+              <Lightning className="h-5 w-5 text-accent" />
             </div>
             <div>
               <p className="font-semibold text-text-primary">Consulta inmediata</p>
@@ -297,38 +312,10 @@ export default function Agenda({ profile }) {
           </button>
         </div>
 
-        {/* Calendly URL */}
-        <div>
-          <label className="form-label flex items-center gap-1.5">
-            <ExternalLink className="h-4 w-4" />
-            Link de Calendly (alternativo)
-          </label>
-          <input
-            type="url"
-            value={form.calendlyUrl}
-            onChange={e => setForm(p => ({ ...p, calendlyUrl: e.target.value }))}
-            placeholder="https://calendly.com/tu-usuario"
-            className="form-input"
-          />
-          <p className="text-xs text-text-tertiary mt-1">
-            Opcional — se muestra junto con tus franjas nativas.{' '}
-            <a href="https://calendly.com" target="_blank" rel="noreferrer" className="text-brand hover:underline">
-              Crear cuenta en Calendly
-            </a>
-          </p>
-        </div>
-
         <button onClick={save} disabled={saving} className="btn-primary">
           {saving ? 'Guardando...' : 'Guardar configuración'}
         </button>
       </div>
-
-      {form.calendlyUrl && (
-        <div className="card">
-          <h2 className="font-semibold text-text-primary mb-4">Vista previa de Calendly</h2>
-          <CalendlyEmbed url={form.calendlyUrl} height={500} />
-        </div>
-      )}
     </div>
   )
 }

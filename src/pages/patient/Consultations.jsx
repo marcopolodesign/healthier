@@ -1,22 +1,25 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Calendar, Clock, Video, MapPin, Star, ChevronRight, ArrowLeft, Loader2, Check,
-  Stethoscope, Apple, BrainCircuit, Dumbbell, PawPrint, X, FileText,
-} from 'lucide-react'
+  Calendar, Clock, VideoCamera, MapPin, Star, CaretRight, ArrowLeft, CircleNotch, Check,
+  Stethoscope, AppleLogo, Brain, Barbell, PawPrint, X, FileText, Ambulance,
+  CheckCircle, ArrowsClockwise,
+} from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
 import { availabilityService } from '../../services/availabilityService'
 import { reviewsService } from '../../services/reviewsService'
+import { emergencyService } from '../../services/emergencyService'
+import { heuralService } from '../../services/heuralService'
 import { VERTICAL_SPECIALTIES } from '../../lib/verticals'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
 
 const VERTICALS = [
   { id: 'clinica',     nombre: 'Clínica',      icon: Stethoscope, color: '#b05a36', bg: '#fef9ef' },
-  { id: 'nutricion',   nombre: 'Nutrición',    icon: Apple,       color: '#059669', bg: '#ECFDF5' },
-  { id: 'mente',       nombre: 'Psicología',   icon: BrainCircuit,color: '#7C3AED', bg: '#F5F3FF' },
-  { id: 'fisico',      nombre: 'Kinesiología', icon: Dumbbell,    color: '#EA580C', bg: '#FFF7ED' },
+  { id: 'nutricion',   nombre: 'Nutrición',    icon: AppleLogo,       color: '#059669', bg: '#ECFDF5' },
+  { id: 'mente',       nombre: 'Psicología',   icon: Brain,color: '#7C3AED', bg: '#F5F3FF' },
+  { id: 'fisico',      nombre: 'Kinesiología', icon: Barbell,    color: '#EA580C', bg: '#FFF7ED' },
   { id: 'veterinaria', nombre: 'Veterinaria',  icon: PawPrint,    color: '#0284C7', bg: '#F0F9FF' },
 ]
 
@@ -83,11 +86,23 @@ export default function PatientConsultations({ profile }) {
   const [cancelReason, setCancelReason] = useState('')
   const [cancelling, setCancelling] = useState(false)
 
+  // Heural appointment actions state
+  // confirmedIds: Set of consultation IDs the patient has confirmed this session
+  const [confirmedIds, setConfirmedIds] = useState(new Set())
+  // confirmingId: consultation ID currently being confirmed (spinner)
+  const [confirmingId, setConfirmingId] = useState(null)
+  // heuralCancelTarget: consultation object for Heural cancellation sheet
+  const [heuralCancelTarget, setHeuralCancelTarget] = useState(null)
+  const [heuralCancelReason, setHeuralCancelReason] = useState('')
+  const [heuralCancelling, setHeuralCancelling] = useState(false)
+
   // Review modal state
   const [reviewTarget, setReviewTarget] = useState(null)
   const [reviewRating, setReviewRating] = useState(0)
   const [reviewComment, setReviewComment] = useState('')
   const [submittingReview, setSubmittingReview] = useState(false)
+
+  const [emergencies, setEmergencies] = useState([])
 
   const loadTurnos = () =>
     consultationsService.getByPatient(profile.id).then(setTurnos)
@@ -95,7 +110,10 @@ export default function PatientConsultations({ profile }) {
   useEffect(() => {
     if (!profile?.id) return
     setLoading(true)
-    loadTurnos()
+    Promise.all([
+      loadTurnos(),
+      emergencyService.getByPatient(profile.id).then(setEmergencies).catch(() => {}),
+    ])
       .catch(() => toast.error('Error al cargar consultas'))
       .finally(() => setLoading(false))
   }, [profile?.id])
@@ -206,6 +224,48 @@ export default function PatientConsultations({ profile }) {
     }
   }
 
+  const handleHeuralConfirm = async (consultation) => {
+    if (!consultation.heuralAppointmentId) return
+    setConfirmingId(consultation.id)
+    try {
+      const { error } = await heuralService.confirmAppointment(consultation.heuralAppointmentId)
+      if (error) {
+        toast.error(error)
+      } else {
+        setConfirmedIds(prev => new Set(prev).add(consultation.id))
+        toast.success('Asistencia confirmada')
+      }
+    } catch (err) {
+      toast.error(err?.message ?? 'Error al confirmar asistencia')
+    } finally {
+      setConfirmingId(null)
+    }
+  }
+
+  const handleHeuralCancel = async () => {
+    if (!heuralCancelTarget) return
+    setHeuralCancelling(true)
+    try {
+      const { error } = await heuralService.cancelAppointment(
+        heuralCancelTarget.heuralAppointmentId,
+        heuralCancelReason,
+      )
+      if (error) {
+        toast.error(error)
+      } else {
+        // Update local list status to cancelled
+        setTurnos(prev => prev.map(t => t.id === heuralCancelTarget.id ? { ...t, status: 'cancelled' } : t))
+        toast.success('Turno cancelado')
+        setHeuralCancelTarget(null)
+        setHeuralCancelReason('')
+      }
+    } catch (err) {
+      toast.error(err?.message ?? 'Error al cancelar el turno')
+    } finally {
+      setHeuralCancelling(false)
+    }
+  }
+
   const submitReview = async () => {
     if (!reviewRating || !reviewTarget) return
     setSubmittingReview(true)
@@ -236,6 +296,10 @@ export default function PatientConsultations({ profile }) {
   const past     = turnos.filter(t =>  ['completed', 'cancelled'].includes(t.status))
   const shown    = view === 'upcoming' ? upcoming : past
 
+  const TRIAGE_COLORS = { ROJO: '#F43F5E', AMARILLO: '#F59E0B', VERDE: '#10B981' }
+  const activeEmergencies = emergencies.filter(e => ['pending', 'dispatched', 'in_transit', 'arrived'].includes(e.status))
+  const pastEmergencies   = emergencies.filter(e => ['completed', 'cancelled'].includes(e.status))
+
   const slotsByDate = groupSlotsByDate(availableSlots)
   const availableDates = Object.keys(slotsByDate)
   const timeSlotsForDate = selectedDate ? (slotsByDate[selectedDate] || []) : []
@@ -250,98 +314,207 @@ export default function PatientConsultations({ profile }) {
         </p>
       </div>
 
-      {/* Specialty list */}
-      <div className="flex gap-3 overflow-x-auto scrollbar-hide sm:overflow-visible sm:flex-wrap mb-8 -mx-6 px-6 sm:mx-0 sm:px-0">
+      {/* Specialty chips — naked icon + vertical-color label (mobile pattern) */}
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-6 -mx-6 px-6">
         {VERTICALS.map(v => (
-          <div key={v.id} onClick={() => openModal(v)} className="bg-white rounded-[20px] p-3 shadow-sm border border-gray-100 flex items-center gap-3 cursor-pointer hover:border-blue-200 transition-all flex-shrink-0 min-w-[140px]">
-            <div className="w-10 h-10 rounded-[12px] flex items-center justify-center" style={{ backgroundColor: v.bg }}>
-              <v.icon className="w-5 h-5" style={{ color: v.color }} />
-            </div>
-            <h3 className="font-bold text-[14px] text-gray-900">{v.nombre}</h3>
-          </div>
+          <button key={v.id} onClick={() => openModal(v)} className="flex items-center gap-2 bg-bg-secondary border border-border-default rounded-[28px] px-4 py-2.5 shrink-0 active:opacity-80 transition-opacity">
+            <v.icon className="w-[18px] h-[18px] shrink-0" style={{ color: v.color }} />
+            <span className="text-[14px] font-light font-serif whitespace-nowrap" style={{ color: v.color }}>{v.nombre}</span>
+          </button>
         ))}
       </div>
 
-      {/* View toggle */}
-      <div className="flex bg-gray-200/60 p-1 rounded-xl mb-6">
+      {/* Segment control — matches mobile style */}
+      <div className="flex bg-bg-secondary border border-border-default p-1 rounded-[32px] mb-5">
         {['upcoming', 'past'].map(tab => (
-          <button key={tab} onClick={() => setView(tab)} className={`flex-1 py-2.5 text-[14px] font-bold rounded-lg transition-all ${view === tab ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
+          <button key={tab} onClick={() => setView(tab)} className={`flex-1 py-2 text-[14px] rounded-[28px] transition-all ${view === tab ? 'bg-white font-bold text-text-primary shadow-sm' : 'font-medium text-text-tertiary'}`}>
             {tab === 'upcoming' ? 'Próximos' : 'Historial'}
           </button>
         ))}
       </div>
 
+      {/* Active emergency banners — always at top of Próximos */}
+      {view === 'upcoming' && activeEmergencies.map(emg => {
+        const triageColor = TRIAGE_COLORS[emg.triage_code] ?? '#F43F5E'
+        const fecha = new Date(emg.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
+        return (
+          <div key={emg.id} className="mb-3 rounded-[32px] border p-4 flex items-center gap-4 cursor-pointer active:opacity-80 transition-opacity" style={{ borderColor: triageColor + '40', backgroundColor: triageColor + '08' }} onClick={() => navigate('/paciente/sos')}>
+            <div className="w-12 h-12 rounded-[14px] flex items-center justify-center shrink-0" style={{ backgroundColor: triageColor + '20' }}>
+              <Ambulance className="w-6 h-6" style={{ color: triageColor }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-[15px] text-gray-900">Emergencia S.O.S</p>
+              <p className="text-[13px] text-gray-500 font-medium">{fecha} · {emg.dispatch_code ?? '—'}</p>
+            </div>
+            <div className="px-2.5 py-1 rounded-md text-[10px] font-black tracking-widest uppercase text-white" style={{ backgroundColor: triageColor }}>
+              {emg.triage_code ?? 'ACTIVA'}
+            </div>
+          </div>
+        )
+      })}
+
+      {/* Past emergencies in Historial */}
+      {view === 'past' && pastEmergencies.map(emg => {
+        const triageColor = TRIAGE_COLORS[emg.triage_code] ?? '#F43F5E'
+        const fecha = new Date(emg.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
+        return (
+          <div key={emg.id} className="mb-3 bg-bg-secondary rounded-[32px] border border-border-default p-4 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-[14px] bg-gray-50 flex items-center justify-center shrink-0">
+              <Ambulance className="w-6 h-6 text-gray-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-[15px] text-gray-900">Emergencia S.O.S · {emg.triage_code}</p>
+              <p className="text-[13px] text-gray-500 font-medium">{fecha} · {emg.dispatch_code ?? '—'}</p>
+            </div>
+            <div className="px-2.5 py-1 rounded-md text-[10px] font-black bg-gray-100 text-gray-500 uppercase tracking-wider">
+              Finalizado
+            </div>
+          </div>
+        )
+      })}
+
       {/* Consultation list */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {loading ? (
-          [1, 2].map(i => <div key={i} className="h-40 bg-white rounded-[24px] animate-pulse border border-gray-100" />)
-        ) : shown.length === 0 ? (
-          <div className="bg-white p-8 rounded-[24px] border border-gray-100 text-center shadow-sm flex flex-col items-center justify-center">
-            <Calendar className="w-10 h-10 text-gray-200 mb-3" />
-            <p className="font-bold text-[14px] text-gray-500">No hay turnos en esta sección</p>
+          [1, 2].map(i => <div key={i} className="h-32 bg-bg-secondary rounded-[32px] animate-pulse border border-border-default" />)
+        ) : shown.length === 0 && (view === 'upcoming' ? activeEmergencies : pastEmergencies).length === 0 ? (
+          <div className="bg-bg-secondary p-8 rounded-[32px] border border-border-default text-center flex flex-col items-center justify-center">
+            <Calendar className="w-10 h-10 text-text-muted mb-3" />
+            <p className="font-medium text-[14px] text-text-tertiary">Sin turnos en esta sección</p>
           </div>
         ) : shown.map(t => {
           const vert = VERTICALS.find(v => v.id === t.specialty) || VERTICALS[0]
           const date = t.scheduledAt ? new Date(t.scheduledAt) : null
           const hasReview = !!patientReviewMap[t.id]
+          const isUpcomingActive = view === 'upcoming' && ['confirmed', 'pending'].includes(t.status)
+          const hasHeural = !!t.heuralAppointmentId
+          // Actions row shows if there's something to show in it:
+          // — upcoming non-Heural: always (cancel button)
+          // — upcoming Heural video confirmed: video entry button
+          // — past completed: prescription / review
+          const hasActions = (isUpcomingActive && (!hasHeural || (t.status === 'confirmed' && t.modality === 'video'))) ||
+                             (view === 'past' && t.status === 'completed')
+          const isConfirmedHeural = confirmedIds.has(t.id)
+          const isConfirming = confirmingId === t.id
           return (
-            <div key={t.id} className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100 flex flex-col gap-4 hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start border-b border-gray-50 pb-4">
-                <div className="flex gap-3">
-                  <div className="w-12 h-12 rounded-[14px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: vert.bg }}>
-                    <vert.icon className="w-6 h-6" style={{ color: vert.color }} />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-[16px] text-gray-900 leading-tight">{t.professional?.fullName || 'Profesional'}</h4>
-                    <p className="text-[13px] text-gray-500 font-medium mt-0.5">{vert.nombre}</p>
-                  </div>
+            <div key={t.id} className="bg-bg-secondary rounded-[32px] border border-border-default overflow-hidden">
+              <div className="flex">
+                {/* Left: date column */}
+                <div className="w-[88px] shrink-0 border-r border-border-default flex flex-col items-center justify-center py-5 gap-0.5">
+                  {date ? (
+                    <>
+                      <span className="text-[28px] font-black text-text-primary leading-none">
+                        {date.toLocaleDateString('es-AR', { day: '2-digit' })}
+                      </span>
+                      <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wide">
+                        {date.toLocaleDateString('es-AR', { month: 'short' })}
+                      </span>
+                      <div className="flex items-center gap-1 mt-1.5">
+                        <Clock className="w-3 h-3 text-text-tertiary" />
+                        <span className="text-[11px] font-medium text-text-tertiary">
+                          {date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <span className="text-[12px] text-text-tertiary font-medium">—</span>
+                  )}
                 </div>
-                <div className={`px-2.5 py-1 rounded-md text-[10px] font-black tracking-widest uppercase ${STATUS_STYLE[t.status] || STATUS_STYLE.pending}`}>
-                  {STATUS_LABEL[t.status] || t.status}
+
+                {/* Right: content */}
+                <div className="flex-1 p-4 flex flex-col gap-2 min-w-0">
+                  {/* Vertical: naked icon + name in vertical color (mobile pattern) */}
+                  <div className="flex items-center justify-between gap-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <vert.icon className="w-4 h-4 shrink-0" style={{ color: vert.color }} />
+                      <span className="text-[13px] font-light font-serif" style={{ color: vert.color }}>{vert.nombre}</span>
+                    </div>
+                    {/* Heural sync badge */}
+                    {hasHeural && (
+                      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-teal-50 border border-teal-100">
+                        <ArrowsClockwise className="w-2.5 h-2.5 text-teal-500" />
+                        <span className="text-[9px] font-bold text-teal-500 uppercase tracking-wide">Heural</span>
+                      </div>
+                    )}
+                  </div>
+                  {/* Pro name — serif light, larger */}
+                  <p className="text-[17px] font-light font-serif text-text-primary leading-snug">
+                    {t.professional?.fullName || 'Profesional'}
+                  </p>
+                  {/* Tags: modality pill + status pill */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${t.modality === 'video' ? 'bg-brand-muted text-brand' : 'bg-emerald-50 text-emerald-600'}`}>
+                      {t.modality === 'video' ? <VideoCamera className="w-3 h-3" /> : <MapPin className="w-3 h-3" />}
+                      {t.modality === 'video' ? 'Videollamada' : 'Presencial'}
+                    </div>
+                    <div className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${STATUS_STYLE[t.status] || STATUS_STYLE.pending}`}>
+                      {STATUS_LABEL[t.status] || t.status}
+                    </div>
+                  </div>
+
+                  {/* Heural confirm + cancel — only for upcoming active consultations with a Heural ID */}
+                  {isUpcomingActive && hasHeural && (
+                    <div className="flex flex-col gap-1.5 mt-1 pt-2 border-t border-border-default">
+                      {/* Confirm attendance */}
+                      {isConfirmedHeural ? (
+                        <div className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 rounded-[14px]">
+                          <CheckCircle className="w-4 h-4 text-emerald-500" weight="fill" />
+                          <span className="text-[12px] font-bold text-emerald-600">Asistencia confirmada</span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleHeuralConfirm(t)}
+                          disabled={isConfirming}
+                          className="flex items-center justify-center gap-1.5 w-full py-3 rounded-[14px] border border-emerald-200 bg-emerald-50 text-emerald-700 text-[13px] font-semibold hover:bg-emerald-100 active:opacity-80 transition-colors disabled:opacity-50"
+                        >
+                          {isConfirming
+                            ? <><CircleNotch className="w-3.5 h-3.5 animate-spin" /> Confirmando...</>
+                            : <><CheckCircle className="w-3.5 h-3.5" /> Confirmar asistencia</>
+                          }
+                        </button>
+                      )}
+                      {/* Cancel via Heural */}
+                      <button
+                        onClick={() => { setHeuralCancelTarget(t); setHeuralCancelReason('') }}
+                        className="flex items-center justify-center gap-1 w-full py-2.5 rounded-[14px] border border-red-100 bg-red-50 text-red-500 text-[12px] font-semibold hover:bg-red-100 active:opacity-80 transition-colors"
+                      >
+                        <X className="w-3 h-3" /> Cancelar turno
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {date && (
-                <div className="bg-bg-primary rounded-xl p-3 flex justify-between items-center border border-gray-100">
-                  <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-gray-400" /><span className="font-bold text-[13px] text-gray-800">{date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}</span></div>
-                  <div className="w-px h-4 bg-gray-200" />
-                  <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-gray-400" /><span className="font-black text-[13px] text-gray-900">{date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span></div>
-                  <div className="w-px h-4 bg-gray-200" />
-                  <span className={`text-[13px] font-bold flex items-center gap-1 ${t.modality === 'video' ? 'text-brand' : 'text-emerald-600'}`}>
-                    {t.modality === 'video' ? <Video className="w-3.5 h-3.5" /> : <MapPin className="w-3.5 h-3.5" />}
-                    {t.modality === 'video' ? 'Video' : 'Presencial'}
-                  </span>
+              {/* Actions row */}
+              {hasActions && (
+                <div className="border-t border-border-default flex">
+                  {view === 'upcoming' && t.status === 'confirmed' && t.modality === 'video' && (
+                    <button onClick={() => navigate('/paciente/videollamada/1')} className="flex-1 py-3 text-[13px] font-semibold text-brand flex items-center justify-center gap-1.5 hover:bg-brand-muted transition-colors">
+                      <VideoCamera className="w-4 h-4" /> Entrar a Sala
+                    </button>
+                  )}
+                  {view === 'upcoming' && ['confirmed', 'pending'].includes(t.status) && !hasHeural && (
+                    <button onClick={() => { setCancelTarget(t); setCancelReason('') }} className={`py-3 text-[13px] font-semibold text-error flex items-center justify-center gap-1.5 hover:bg-red-50 transition-colors ${t.status === 'confirmed' && t.modality === 'video' ? 'w-24 border-l border-border-default' : 'flex-1'}`}>
+                      Cancelar
+                    </button>
+                  )}
+                  {view === 'past' && t.status === 'completed' && t.prescriptionUrl && (
+                    <a href={t.prescriptionUrl} target="_blank" rel="noreferrer" className="flex-1 py-3 text-[13px] font-semibold text-brand flex items-center justify-center gap-1.5 hover:bg-brand-muted transition-colors">
+                      <FileText className="w-4 h-4" /> Ver receta
+                    </a>
+                  )}
+                  {view === 'past' && t.status === 'completed' && !hasReview && (
+                    <button onClick={() => { setReviewTarget(t); setReviewRating(0); setReviewComment('') }} className="flex-1 py-3 text-[13px] font-semibold text-amber-600 flex items-center justify-center gap-1.5 hover:bg-amber-50 transition-colors">
+                      <Star className="w-4 h-4" /> Dejar reseña
+                    </button>
+                  )}
+                  {view === 'past' && t.status === 'completed' && hasReview && (
+                    <div className="flex-1 py-3 flex items-center justify-center gap-1 text-[13px] text-amber-500 font-bold">
+                      <Star className="w-4 h-4 fill-amber-400" /> {patientReviewMap[t.id]?.rating}/5
+                    </div>
+                  )}
                 </div>
               )}
-
-              {/* Actions */}
-              <div className="flex gap-2 flex-wrap">
-                {view === 'upcoming' && t.status === 'confirmed' && t.modality === 'video' && (
-                  <button onClick={() => navigate('/paciente/videollamada/1')} className="flex-1 bg-brand text-white py-2.5 rounded-xl font-bold text-[13px] hover:bg-brand-hover transition-colors flex items-center justify-center gap-2">
-                    <Video className="w-4 h-4" /> Entrar a Sala
-                  </button>
-                )}
-                {view === 'upcoming' && ['confirmed', 'pending'].includes(t.status) && (
-                  <button onClick={() => { setCancelTarget(t); setCancelReason('') }} className="px-4 py-2.5 rounded-xl font-bold text-[13px] text-red-500 border border-red-100 hover:bg-red-50 transition-colors">
-                    Cancelar
-                  </button>
-                )}
-                {view === 'past' && t.status === 'completed' && t.prescriptionUrl && (
-                  <a href={t.prescriptionUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-[13px] font-bold text-brand hover:underline">
-                    <FileText className="w-4 h-4" /> Ver receta
-                  </a>
-                )}
-                {view === 'past' && t.status === 'completed' && !hasReview && (
-                  <button onClick={() => { setReviewTarget(t); setReviewRating(0); setReviewComment('') }} className="px-4 py-2.5 rounded-xl font-bold text-[13px] text-yellow-600 border border-yellow-100 hover:bg-yellow-50 transition-colors flex items-center gap-1.5">
-                    <Star className="w-4 h-4" /> Dejar reseña
-                  </button>
-                )}
-                {view === 'past' && t.status === 'completed' && hasReview && (
-                  <div className="flex items-center gap-1 text-[13px] text-yellow-500 font-bold">
-                    <Star className="w-4 h-4 fill-yellow-400" /> {patientReviewMap[t.id]?.rating}/5
-                  </div>
-                )}
-              </div>
             </div>
           )
         })}
@@ -366,7 +539,7 @@ export default function PatientConsultations({ profile }) {
           {step === 'modality' && (
             <div className="space-y-4 pb-6">
               {[
-                { label: 'Virtual', sub: 'Videollamada segura en la app', mod: 'Videollamada', icon: Video, bg: 'bg-blue-50', color: 'text-brand' },
+                { label: 'Virtual', sub: 'Videollamada segura en la app', mod: 'Videollamada', icon: VideoCamera, bg: 'bg-blue-50', color: 'text-brand' },
                 { label: 'Presencial', sub: 'En el consultorio del profesional', mod: 'Presencial', icon: MapPin, bg: 'bg-emerald-50', color: 'text-emerald-600' },
               ].map(opt => (
                 <div key={opt.mod} onClick={() => { setModality(opt.mod); ESPECIALIDADES[selVertical.id] ? setStep('specialty') : advanceToProfessional(selVertical.id) }} className="bg-bg-primary p-5 rounded-[24px] shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:border-brand transition-all group">
@@ -377,7 +550,7 @@ export default function PatientConsultations({ profile }) {
                     <h3 className="font-black text-[18px] text-gray-900">{opt.label}</h3>
                     <p className="text-[13px] text-gray-500 font-medium mt-0.5">{opt.sub}</p>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-brand transition-colors" />
+                  <CaretRight className="w-5 h-5 text-gray-300 group-hover:text-brand transition-colors" />
                 </div>
               ))}
             </div>
@@ -388,7 +561,7 @@ export default function PatientConsultations({ profile }) {
               {(ESPECIALIDADES[selVertical.id] || []).map(esp => (
                 <div key={esp} onClick={() => { setSpecialty(esp); advanceToProfessional(selVertical.id) }} className="bg-white p-4 rounded-[20px] shadow-sm border border-gray-100 flex justify-between items-center cursor-pointer hover:border-brand hover:bg-bg-primary transition-all group">
                   <span className="font-bold text-[16px] text-gray-800">{esp}</span>
-                  <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-brand transition-colors" />
+                  <CaretRight className="w-5 h-5 text-gray-300 group-hover:text-brand transition-colors" />
                 </div>
               ))}
             </div>
@@ -481,7 +654,7 @@ export default function PatientConsultations({ profile }) {
                 <div className="space-y-2">
                   <div className="bg-white rounded-xl p-3 flex justify-center items-center border border-gray-100">
                     <span className="font-bold text-[14px] text-gray-800 flex items-center gap-2">
-                      {modality === 'Videollamada' ? <Video className="w-4 h-4 text-brand" /> : <MapPin className="w-4 h-4 text-emerald-600" />}
+                      {modality === 'Videollamada' ? <VideoCamera className="w-4 h-4 text-brand" /> : <MapPin className="w-4 h-4 text-emerald-600" />}
                       Cita {modality}
                     </span>
                   </div>
@@ -512,7 +685,7 @@ export default function PatientConsultations({ profile }) {
                 </div>
               </div>
               <button onClick={confirmPay} disabled={paying || paid} className={`w-full py-5 rounded-[20px] font-bold text-[17px] shadow-sm transition-all flex justify-center items-center gap-3 ${paid ? 'bg-emerald-500 text-white scale-[1.02]' : paying ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-brand text-white hover:bg-brand-hover active:scale-95'}`}>
-                {paying ? <><Loader2 className="w-5 h-5 animate-spin" /> Procesando...</>
+                {paying ? <><CircleNotch className="w-5 h-5 animate-spin" /> Procesando...</>
                  : paid  ? <><Check className="w-6 h-6 text-white animate-bounce" strokeWidth={3} /> ¡Turno Confirmado!</>
                  : <>Confirmar y Pagar</>}
               </button>
@@ -584,6 +757,51 @@ export default function PatientConsultations({ profile }) {
           <button onClick={submitReview} disabled={!reviewRating || submittingReview} className={`w-full py-4 rounded-[20px] font-bold text-[16px] transition-all ${reviewRating ? 'bg-brand text-white hover:bg-brand-hover active:scale-95' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
             {submittingReview ? 'Enviando...' : 'Enviar reseña'}
           </button>
+        </div>
+      </PatientSheet>
+
+      {/* ─── Heural cancel sheet ─── */}
+      <PatientSheet open={!!heuralCancelTarget} onClose={() => setHeuralCancelTarget(null)} maxWidth="max-w-md">
+        <div className="px-6 pt-4 pb-2 flex items-center gap-3 flex-shrink-0">
+          <button onClick={() => setHeuralCancelTarget(null)} className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50">
+            <X className="w-5 h-5 text-gray-700" />
+          </button>
+          <h2 className="text-[20px] font-black text-gray-900">Cancelar turno</h2>
+        </div>
+        <div className="px-6 flex-1 overflow-y-auto pb-8">
+          <p className="text-gray-500 text-[14px] mb-5 mt-2">
+            ¿Por qué querés cancelar el turno con{' '}
+            <span className="font-bold text-gray-800">{heuralCancelTarget?.professional?.fullName || 'el profesional'}</span>?
+          </p>
+          <div className="mb-6">
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 block">Motivo</label>
+            <select
+              value={heuralCancelReason}
+              onChange={e => setHeuralCancelReason(e.target.value)}
+              className="w-full bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3.5 outline-none text-[15px] font-medium text-gray-900 focus:border-red-300 appearance-none"
+            >
+              <option value="">Seleccioná un motivo...</option>
+              <option value="Me siento mejor">Me siento mejor</option>
+              <option value="No puedo en ese horario">No puedo en ese horario</option>
+              <option value="Encontré otro profesional">Encontré otro profesional</option>
+              <option value="Otro motivo">Otro motivo</option>
+            </select>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setHeuralCancelTarget(null)}
+              className="flex-1 py-3.5 rounded-[20px] font-bold text-[15px] border border-gray-200 text-gray-700 hover:bg-gray-50"
+            >
+              No, volver
+            </button>
+            <button
+              onClick={handleHeuralCancel}
+              disabled={heuralCancelling || !heuralCancelReason}
+              className="flex-1 py-3.5 rounded-[20px] font-bold text-[15px] bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+            >
+              {heuralCancelling ? 'Cancelando...' : 'Sí, cancelar'}
+            </button>
+          </div>
         </div>
       </PatientSheet>
     </div>

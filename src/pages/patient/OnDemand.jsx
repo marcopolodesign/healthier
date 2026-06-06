@@ -1,16 +1,16 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Video, Clock, Loader2, Check } from 'lucide-react'
-import { Stethoscope, Apple, BrainCircuit, Dumbbell, PawPrint } from 'lucide-react'
+import { ArrowLeft, VideoCamera, Clock, CircleNotch, Check } from '@phosphor-icons/react';
+import { Stethoscope, AppleLogo, Brain, Barbell, PawPrint } from '@phosphor-icons/react';
 import { toast } from '../../components/Toast'
 import { professionalService } from '../../services/professionalService'
 import { SPECIALTY_LABELS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
 
 const VERTICALS = {
   clinica:     { nombre: 'Clínica',      icon: Stethoscope, color: '#b05a36', bg: '#fef9ef', eta: '3 min' },
-  nutricion:   { nombre: 'Nutrición',    icon: Apple,       color: '#059669', bg: '#ECFDF5', eta: '10 min' },
-  mente:       { nombre: 'Psicología',   icon: BrainCircuit,color: '#7C3AED', bg: '#F5F3FF', eta: '15 min' },
-  fisico:      { nombre: 'Kinesiología', icon: Dumbbell,    color: '#EA580C', bg: '#FFF7ED', eta: '5 min' },
+  nutricion:   { nombre: 'Nutrición',    icon: AppleLogo,       color: '#059669', bg: '#ECFDF5', eta: '10 min' },
+  mente:       { nombre: 'Psicología',   icon: Brain,color: '#7C3AED', bg: '#F5F3FF', eta: '15 min' },
+  fisico:      { nombre: 'Kinesiología', icon: Barbell,    color: '#EA580C', bg: '#FFF7ED', eta: '5 min' },
   veterinaria: { nombre: 'Veterinaria',  icon: PawPrint,    color: '#0284C7', bg: '#F0F9FF', eta: '8 min' },
 }
 
@@ -102,7 +102,7 @@ export default function OnDemand({ profile }) {
         <div className="w-full max-w-md mx-auto bg-white rounded-[32px] p-6 shadow-[0_0_40px_rgba(0,0,0,0.06)] border border-gray-100 relative z-10 mt-auto">
           <div className="flex items-start gap-4 mb-6 p-4 bg-brand-muted/40 rounded-[20px] border border-brand/20">
             <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm">
-              <Video className="w-5 h-5 text-brand" />
+              <VideoCamera className="w-5 h-5 text-brand" />
             </div>
             <div>
               <h4 className="font-bold text-gray-900 text-[15px] mb-1">Sala Segura Creada</h4>
@@ -164,7 +164,7 @@ export default function OnDemand({ profile }) {
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100">
-                    <Video className="h-6 w-6 text-gray-900" />
+                    <VideoCamera className="h-6 w-6 text-gray-900" />
                   </div>
                   <div>
                     <h4 className="font-bold text-[18px] text-gray-900">Consulta en Vivo</h4>
@@ -186,7 +186,7 @@ export default function OnDemand({ profile }) {
                 paymentStatus === 'processing' ? 'bg-gray-100 text-gray-400' :
                 'bg-brand text-white hover:bg-brand-hover active:scale-95'}`}
           >
-            {paymentStatus === 'processing' ? <><Loader2 className="w-5 h-5 animate-spin" /> Autorizando...</>
+            {paymentStatus === 'processing' ? <><CircleNotch className="w-5 h-5 animate-spin" /> Autorizando...</>
              : paymentStatus === 'success' ? <><Check className="w-6 h-6 animate-bounce" /> ¡Pago Exitoso!</>
              : <>Pagar $15 e Iniciar</>}
           </button>

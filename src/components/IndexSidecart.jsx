@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X } from 'lucide-react'
+import { X } from '@phosphor-icons/react';
 import mermaid from 'mermaid'
 
 const ALL_SECTIONS = [
@@ -18,7 +18,7 @@ const ALL_SECTIONS = [
       { label: 'Dashboard', route: '/paciente/dashboard', desc: 'Inicio paciente' },
       { label: 'Buscar profesionales', route: '/paciente/buscar', desc: 'Búsqueda y filtros' },
       { label: 'Perfil del profesional', route: '/paciente/profesional/:id', desc: 'Vista pública del profesional' },
-      { label: 'Agendar consulta', route: '/paciente/agendar/:id', desc: 'Reserva con Calendly' },
+      { label: 'Agendar consulta', route: '/paciente/agendar/:id', desc: 'Reservar turno' },
       { label: 'Mis consultas', route: '/paciente/consultas', desc: 'Historial' },
       { label: 'Mis documentos', route: '/paciente/documentos', desc: 'Archivos clínicos' },
       { label: 'Mi perfil', route: '/paciente/perfil', desc: 'Editar perfil' },

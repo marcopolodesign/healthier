@@ -1,18 +1,19 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  ShieldCheck, ChevronRight, ArrowLeft, Eye, Plus,
-  UploadCloud, Camera, Loader2, Activity, Check,
-  FileText, FolderOpen, Apple, Dumbbell, PawPrint, Sparkles,
-} from 'lucide-react'
+  ShieldCheck, CaretRight, ArrowLeft, Eye, Plus,
+  CloudArrowUp, Camera, CircleNotch, Pulse, Check,
+  FileText, FolderOpen, AppleLogo, Barbell, PawPrint, Sparkle,
+} from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
 import PatientPageOverlay from '../../components/patient/PatientPageOverlay'
 
 const CATEGORIES = [
   { id: 'recetas',       name: 'Recetas Digitales', icon: FileText,   color: '#b05a36', bg: '#fef9ef', uploadable: false },
-  { id: 'analisis',      name: 'Análisis',           icon: Activity,   color: '#059669', bg: '#ECFDF5', uploadable: true  },
-  { id: 'nutricion',     name: 'Plan Nutricional',   icon: Apple,      color: '#059669', bg: '#ECFDF5', uploadable: true  },
-  { id: 'entrenamiento', name: 'Rehab y Físico',      icon: Dumbbell,   color: '#EA580C', bg: '#FFF7ED', uploadable: true  },
+  { id: 'analisis',      name: 'Análisis',           icon: Pulse,   color: '#059669', bg: '#ECFDF5', uploadable: true  },
+  { id: 'nutricion',     name: 'Plan Nutricional',   icon: AppleLogo,      color: '#059669', bg: '#ECFDF5', uploadable: true  },
+  { id: 'entrenamiento', name: 'Rehab y Físico',      icon: Barbell,   color: '#EA580C', bg: '#FFF7ED', uploadable: true  },
   { id: 'historial',     name: 'Historial',           icon: FolderOpen, color: '#7C3AED', bg: '#F5F3FF', uploadable: false },
   { id: 'peludo',        name: 'Amigo Peludo',        icon: PawPrint,   color: '#0284C7', bg: '#F0F9FF', uploadable: true  },
 ]
@@ -27,6 +28,7 @@ const MOCK_DOCS_BY_CATEGORY = {
 }
 
 export default function PatientDocuments({ profile }) {
+  const navigate = useNavigate()
   const [viewingCat, setViewingCat] = useState(null)
   const [docs, setDocs] = useState(MOCK_DOCS_BY_CATEGORY)
   const [showUpload, setShowUpload] = useState(false)
@@ -77,11 +79,31 @@ export default function PatientDocuments({ profile }) {
   // Main vault view (category detail rendered via PatientPageOverlay below)
   return (
     <div className="absolute inset-0 bg-bg-primary pt-6 sm:pt-8 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
-      <div className="mb-8 mt-4">
-        <h1 className="text-[32px] font-black text-gray-900 tracking-tight leading-none">Bóveda Clínica</h1>
+      <div className="mb-6 mt-4">
+        <h1 className="text-[32px] font-black text-gray-900 tracking-tight leading-none">Bóveda</h1>
         <p className="text-gray-500 font-medium text-[15px] mt-2 flex items-center gap-1.5">
-          <ShieldCheck className="w-4 h-4 text-emerald-500" /> Documentos seguros
+          <ShieldCheck className="w-4 h-4 text-emerald-500" /> Tu historial médico seguro
         </p>
+      </div>
+
+      {/* Feature cards — Biovisor & NutriPlan */}
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <button
+          onClick={() => navigate('/paciente/biovisor')}
+          className="bg-gradient-to-br from-teal-500 to-teal-700 rounded-[22px] p-4 text-left text-white shadow-md hover:shadow-lg active:scale-95 transition-all"
+        >
+          <Pulse className="w-6 h-6 mb-2 opacity-90" />
+          <p className="font-black text-[15px] leading-tight">Biovisor</p>
+          <p className="text-[11px] opacity-80 mt-0.5">Parámetros de salud</p>
+        </button>
+        <button
+          onClick={() => navigate('/paciente/nutriplan')}
+          className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-[22px] p-4 text-left text-white shadow-md hover:shadow-lg active:scale-95 transition-all"
+        >
+          <AppleLogo className="w-6 h-6 mb-2 opacity-90" />
+          <p className="font-black text-[15px] leading-tight">NutriPlan</p>
+          <p className="text-[11px] opacity-80 mt-0.5">Mi plan nutricional</p>
+        </button>
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-8">
@@ -122,7 +144,7 @@ export default function PatientDocuments({ profile }) {
                   <p className="text-[12px] text-gray-400 font-medium mt-0.5">{doc.subtitulo}</p>
                 </div>
               </div>
-              <ChevronRight className="w-5 h-5 text-gray-300" />
+              <CaretRight className="w-5 h-5 text-gray-300" />
             </div>
           )
         })}
@@ -189,7 +211,7 @@ export default function PatientDocuments({ profile }) {
                     <div className="flex items-center justify-between mb-5">
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 bg-emerald-500 rounded-[14px] flex items-center justify-center shadow-md">
-                          <Sparkles className="w-6 h-6 text-white" />
+                          <Sparkle className="w-6 h-6 text-white" />
                         </div>
                         <div>
                           <h3 className="font-black text-[18px] text-emerald-950">Calai IA</h3>
@@ -221,7 +243,7 @@ export default function PatientDocuments({ profile }) {
                       disabled={isAnalyzingImage}
                       className={`w-full py-4 rounded-[16px] font-bold text-[15px] flex justify-center items-center gap-2 transition-all shadow-sm ${isAnalyzingImage ? 'bg-emerald-200 text-emerald-700 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95'}`}
                     >
-                      {isAnalyzingImage ? <><Loader2 className="w-5 h-5 animate-spin" /> IA Analizando Plato...</> : <><Camera className="w-5 h-5" /> Analizar Plato con IA</>}
+                      {isAnalyzingImage ? <><CircleNotch className="w-5 h-5 animate-spin" /> IA Analizando Plato...</> : <><Camera className="w-5 h-5" /> Analizar Plato con IA</>}
                     </button>
                   </div>
                 )}
@@ -231,7 +253,7 @@ export default function PatientDocuments({ profile }) {
                   <div className="bg-orange-50/50 p-6 rounded-[28px] border border-orange-100 shadow-sm">
                     <div className="flex items-center gap-3 mb-5">
                       <div className="w-12 h-12 bg-orange-500 rounded-[14px] flex items-center justify-center shadow-md">
-                        <Activity className="w-6 h-6 text-white" />
+                        <Pulse className="w-6 h-6 text-white" />
                       </div>
                       <div>
                         <h3 className="font-black text-[18px] text-orange-950">Kine AI</h3>
@@ -256,7 +278,7 @@ export default function PatientDocuments({ profile }) {
                       disabled={isAnalyzingImage}
                       className={`w-full py-4 rounded-[16px] font-bold text-[15px] flex justify-center items-center gap-2 transition-all shadow-sm ${isAnalyzingImage ? 'bg-orange-200 text-orange-700 cursor-not-allowed' : 'bg-orange-600 text-white hover:bg-orange-700 active:scale-95'}`}
                     >
-                      {isAnalyzingImage ? <><Loader2 className="w-5 h-5 animate-spin" /> Analizando Biomecánica...</> : <><Camera className="w-5 h-5" /> Subir Video/Foto del Ejercicio</>}
+                      {isAnalyzingImage ? <><CircleNotch className="w-5 h-5 animate-spin" /> Analizando Biomecánica...</> : <><Camera className="w-5 h-5" /> Subir VideoCamera/Foto del Ejercicio</>}
                     </button>
                   </div>
                 )}
@@ -277,7 +299,7 @@ export default function PatientDocuments({ profile }) {
                               <p className="text-[12px] text-gray-400 font-medium mt-0.5">{doc.subtitulo}</p>
                             </div>
                           </div>
-                          <ChevronRight className="w-5 h-5 text-gray-300" />
+                          <CaretRight className="w-5 h-5 text-gray-300" />
                         </div>
                       ))}
                     </div>
@@ -314,7 +336,7 @@ export default function PatientDocuments({ profile }) {
                           onClick={() => { setUploadCat(viewingCat); setNewDocName(''); setShowUpload(true) }}
                           className="border-2 border-dashed border-gray-200 rounded-[24px] p-6 flex flex-col items-center justify-center bg-white cursor-pointer hover:bg-gray-50 transition-colors"
                         >
-                          <UploadCloud className="w-8 h-8 text-gray-300 mb-2" />
+                          <CloudArrowUp className="w-8 h-8 text-gray-300 mb-2" />
                           <p className="font-bold text-[14px] text-gray-600">Añadir progreso</p>
                         </div>
                       )}

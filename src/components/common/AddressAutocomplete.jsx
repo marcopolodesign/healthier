@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { MapPin, Loader2 } from 'lucide-react'
+import { MapPin, CircleNotch } from '@phosphor-icons/react';
 import { searchAddresses } from '../../lib/geo'
 
 export default function AddressAutocomplete({ value, onChange, label = 'DirecciÃ³n', placeholder = 'Ej: Av. Santa Fe 1900, Buenos Aires', className = '' }) {
@@ -70,7 +70,7 @@ export default function AddressAutocomplete({ value, onChange, label = 'DirecciÃ
           className="form-input pl-9"
           autoComplete="off"
         />
-        {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary animate-spin" />}
+        {loading && <CircleNotch className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary animate-spin" />}
       </div>
       {open && results.length > 0 && (
         <ul className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-border-default max-h-48 overflow-y-auto">

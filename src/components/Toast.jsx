@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { CheckCircle, XCircle, Info, AlertTriangle, X } from 'lucide-react'
+import { CheckCircle, XCircle, Info, Warning, X } from '@phosphor-icons/react';
 
 let toastId = 0
 const toastListeners = new Set()
@@ -52,7 +52,7 @@ export const ToastContainer = () => {
     success: <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />,
     error:   <XCircle className="h-5 w-5 shrink-0" style={{ color: '#db0000' }} />,
     info:    <Info className="h-5 w-5 text-brand shrink-0" />,
-    warning: <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />,
+    warning: <Warning className="h-5 w-5 text-yellow-600 shrink-0" />,
   }
 
   return (

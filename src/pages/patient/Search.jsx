@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search as SearchIcon, Zap, SlidersHorizontal } from 'lucide-react'
+import { MagnifyingGlass as SearchIcon, Lightning, SlidersHorizontal } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import ProfessionalCard from '../../components/ProfessionalCard'
 import { toast } from '../../components/Toast'
@@ -15,7 +15,7 @@ const SPECIALTIES = [
   { value: 'otra', label: 'Otra' },
 ]
 
-export default function Search() {
+export default function MagnifyingGlass() {
   const [filters, setFilters] = useState({ specialty: '', onDemand: false, minRating: 0 })
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
@@ -86,7 +86,7 @@ export default function Search() {
                 <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${filters.onDemand ? 'translate-x-5' : 'translate-x-1'}`} />
               </div>
               <span className="text-sm text-text-primary flex items-center gap-1">
-                <Zap className="h-4 w-4 text-accent" />
+                <Lightning className="h-4 w-4 text-accent" />
                 Disponible ahora
               </span>
             </label>

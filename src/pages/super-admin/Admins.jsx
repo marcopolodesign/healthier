@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ShieldCheck, UserPlus } from 'lucide-react'
+import { ShieldCheck, UserPlus } from '@phosphor-icons/react';
 import { supabase, toCamelCase } from '../../lib/supabase'
 import { adminService } from '../../services/adminService'
 import Modal from '../../components/Modal'

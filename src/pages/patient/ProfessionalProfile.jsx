@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { UserCircle, Zap, Star, ArrowLeft } from 'lucide-react'
+import { UserCircle, Lightning, Star, ArrowLeft } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import { reviewsService } from '../../services/reviewsService'
 import StarRating from '../../components/StarRating'
@@ -69,7 +69,7 @@ export default function ProfessionalProfile() {
             </div>
             {professional.isOnDemand && (
               <span className="inline-flex items-center gap-1 text-sm bg-accent-muted text-accent px-3 py-1 rounded-full mt-2">
-                <Zap className="h-4 w-4" />
+                <Lightning className="h-4 w-4" />
                 Disponible para consulta ahora
               </span>
             )}

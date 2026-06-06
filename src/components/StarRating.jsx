@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Star } from 'lucide-react'
+import { Star } from '@phosphor-icons/react';
 
 export default function StarRating({ value = 0, onChange, size = 'md', readOnly = false }) {
   const [hover, setHover] = useState(0)
