@@ -45,7 +45,7 @@
   font-display: swap;
 }
 
-/* Healthier — Natural Editorial Theme (v3: sage/coral/lavender, GT Super / Everett) */
+/* Healthier — Natural Editorial Theme (v3: sage/coral/lavender, Everett everywhere) */
 @theme {
   /* Brand — Sage (primary) */
   --color-brand: #7CB38B;
@@ -137,8 +137,7 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'GT Super Display', Georgia, serif;
-    font-weight: 300;
+    font-family: 'Everett', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
   * {
