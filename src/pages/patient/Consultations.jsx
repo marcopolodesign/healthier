@@ -11,9 +11,11 @@ import { availabilityService } from '../../services/availabilityService'
 import { reviewsService } from '../../services/reviewsService'
 import { emergencyService } from '../../services/emergencyService'
 import { heuralService } from '../../services/heuralService'
+import { mpService } from '../../services/mpService'
 import { VERTICAL_SPECIALTIES } from '../../lib/verticals'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
+import SavedCardSelector from '../../components/payment/SavedCardSelector'
 
 const VERTICALS = [
   { id: 'clinica',     nombre: 'Clínica',      icon: Stethoscope, color: '#b05a36', bg: '#fef9ef' },
@@ -80,6 +82,10 @@ export default function PatientConsultations({ profile }) {
   // Payment
   const [paying, setPaying] = useState(false)
   const [paid, setPaid] = useState(false)
+  const [selectedCardId, setSelectedCardId] = useState(null)
+  const [mpPublicKey, setMpPublicKey] = useState(null)
+  const [mpConfigLoading, setMpConfigLoading] = useState(false)
+  const [paymentAmount, setPaymentAmount] = useState(null)
 
   // Cancel modal state
   const [cancelTarget, setCancelTarget] = useState(null)
@@ -127,11 +133,26 @@ export default function PatientConsultations({ profile }) {
       .catch(() => {})
   }, [profile?.id])
 
+  // Load MP public key and resolve payment amount when entering payment step
+  useEffect(() => {
+    if (step !== 'payment') return
+    // Resolve amount from professional prices based on modality
+    const amount = modality === 'Videollamada'
+      ? (professional?.priceVideo ?? professional?.pricePresencial ?? null)
+      : (professional?.pricePresencial ?? professional?.priceVideo ?? null)
+    setPaymentAmount(amount)
+    setMpConfigLoading(true)
+    mpService.getPaymentPlatformConfig()
+      .then(({ data }) => setMpPublicKey(data?.publicKey ?? null))
+      .catch(() => setMpPublicKey(null))
+      .finally(() => setMpConfigLoading(false))
+  }, [step])
+
   const openModal = vertical => {
     setSelVertical(vertical)
     setStep('modality'); setModality(null); setSpecialty(null); setProfessional(null)
     setAvailableSlots([]); setSelectedDate(null); setSelectedSlot(null)
-    setPaying(false); setPaid(false); setPros([]); setProsLoading(false)
+    setPaying(false); setPaid(false); setSelectedCardId(null); setPaymentAmount(null); setPros([]); setProsLoading(false)
     setModalOpen(true)
   }
 
@@ -168,7 +189,16 @@ export default function PatientConsultations({ profile }) {
   }
 
   const selectProfessional = pro => {
-    const proObj = { id: pro.userId, name: pro.profiles?.fullName || 'Profesional', img: pro.profiles?.avatarUrl || null, rating: String(pro.averageRating ?? '—'), reviews: pro.totalReviews ?? 0 }
+    const proObj = {
+      id:      pro.userId,
+      name:    pro.profiles?.fullName || 'Profesional',
+      img:     pro.profiles?.avatarUrl || null,
+      rating:  String(pro.averageRating ?? '—'),
+      reviews: pro.totalReviews ?? 0,
+      // Price resolved later in payment step based on modality
+      pricePresencial: pro.pricePresencial ?? null,
+      priceVideo:      pro.priceVideo ?? null,
+    }
     setProfessional(proObj)
     loadSlots(pro.userId)
     setStep('datetime')
@@ -182,30 +212,52 @@ export default function PatientConsultations({ profile }) {
     else setModalOpen(false)
   }
 
-  const confirmPay = () => {
-    if (!selectedSlot) return
+  const confirmPay = async () => {
+    if (!selectedSlot || !selectedCardId) return
     setPaying(true)
-    setTimeout(async () => {
-      try {
-        await consultationsService.create({
-          patientId:      profile.id,
-          professionalId: professional.id,
-          scheduledAt:    selectedSlot.startTime,
-          modality:       modality === 'Videollamada' ? 'video' : 'presencial',
-          status:         'confirmed',
-        })
-        await availabilityService.bookSlot(selectedSlot.id)
-        setPaid(true)
-        setTimeout(() => {
-          setModalOpen(false)
-          toast.success('¡Turno confirmado!')
-          loadTurnos()
-        }, 1000)
-      } catch {
-        toast.error('Error al confirmar el turno')
-        setPaying(false)
+    try {
+      // 1. Create the consultation record first (DB write before UI confirmation)
+      const consultation = await consultationsService.create({
+        patientId:      profile.id,
+        professionalId: professional.id,
+        scheduledAt:    selectedSlot.startTime,
+        modality:       modality === 'Videollamada' ? 'video' : 'presencial',
+        status:         'pending',
+      })
+
+      // 2. Book the slot
+      await availabilityService.bookSlot(selectedSlot.id)
+
+      // 3. Charge via Mercado Pago
+      const { data: paymentData, error: paymentError } = await mpService.createPayment({
+        consultationId: consultation.id,
+        amount:         paymentAmount ?? 0,
+        cardId:         selectedCardId,
+        professionalId: professional.id,
+        description:    `Consulta Healthier — ${professional.name}`,
+      })
+
+      if (paymentError) {
+        // Payment failed — cancel the consultation and surface the error
+        await consultationsService.cancel(consultation.id, profile.id, 'Pago rechazado')
+        throw new Error(paymentError)
       }
-    }, 1500)
+
+      // 4. Mark consultation confirmed if MP returned approved
+      if (paymentData?.status === 'approved') {
+        await consultationsService.updateStatus(consultation.id, 'confirmed')
+      }
+
+      setPaid(true)
+      setTimeout(() => {
+        setModalOpen(false)
+        toast.success('¡Turno confirmado y pago acreditado!')
+        loadTurnos()
+      }, 1000)
+    } catch (err) {
+      toast.error(err?.message ?? 'Error al confirmar el turno')
+      setPaying(false)
+    }
   }
 
   const handleCancel = async () => {
@@ -319,7 +371,7 @@ export default function PatientConsultations({ profile }) {
         {VERTICALS.map(v => (
           <button key={v.id} onClick={() => openModal(v)} className="flex items-center gap-2 bg-bg-secondary border border-border-default rounded-[28px] px-4 py-2.5 shrink-0 active:opacity-80 transition-opacity">
             <v.icon className="w-[18px] h-[18px] shrink-0" style={{ color: v.color }} />
-            <span className="text-[14px] font-light font-serif whitespace-nowrap" style={{ color: v.color }}>{v.nombre}</span>
+            <span className="text-[14px] font-light whitespace-nowrap" style={{ color: v.color }}>{v.nombre}</span>
           </button>
         ))}
       </div>
@@ -427,7 +479,7 @@ export default function PatientConsultations({ profile }) {
                   <div className="flex items-center justify-between gap-1.5">
                     <div className="flex items-center gap-1.5">
                       <vert.icon className="w-4 h-4 shrink-0" style={{ color: vert.color }} />
-                      <span className="text-[13px] font-light font-serif" style={{ color: vert.color }}>{vert.nombre}</span>
+                      <span className="text-[13px] font-light" style={{ color: vert.color }}>{vert.nombre}</span>
                     </div>
                     {/* Heural sync badge */}
                     {hasHeural && (
@@ -437,8 +489,7 @@ export default function PatientConsultations({ profile }) {
                       </div>
                     )}
                   </div>
-                  {/* Pro name — serif light, larger */}
-                  <p className="text-[17px] font-light font-serif text-text-primary leading-snug">
+                  <p className="text-[17px] font-light text-text-primary leading-snug">
                     {t.professional?.fullName || 'Profesional'}
                   </p>
                   {/* Tags: modality pill + status pill */}
@@ -672,19 +723,29 @@ export default function PatientConsultations({ profile }) {
               </div>
               <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100 mb-6">
                 <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Método de Pago</h4>
-                <div className="flex items-center justify-between p-3.5 border-2 border-brand bg-brand-muted/40 rounded-[16px]">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-7 rounded bg-[#1A1F71] flex items-center justify-center text-[9px] text-white font-black">VISA</div>
-                    <span className="font-bold text-gray-900 text-[15px]">•••• 4242</span>
+                {mpConfigLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-6 text-gray-400">
+                    <CircleNotch className="w-5 h-5 animate-spin" />
+                    <span className="text-[13px]">Cargando métodos de pago…</span>
                   </div>
-                  <div className="w-6 h-6 bg-brand rounded-full flex items-center justify-center"><Check className="w-3 h-3 text-white" strokeWidth={3} /></div>
-                </div>
-                <div className="flex justify-between items-center mt-5 pt-5 border-t border-gray-100">
-                  <span className="font-bold text-gray-500">A pagar hoy</span>
-                  <span className="font-black text-[24px] text-gray-900">$10.00</span>
-                </div>
+                ) : (
+                  <SavedCardSelector
+                    selectedCardId={selectedCardId}
+                    onCardSelected={setSelectedCardId}
+                    publicKey={mpPublicKey}
+                    payerEmail={profile?.email ?? ''}
+                  />
+                )}
+                {paymentAmount != null && (
+                  <div className="flex justify-between items-center mt-5 pt-5 border-t border-gray-100">
+                    <span className="font-bold text-gray-500">A pagar hoy</span>
+                    <span className="font-black text-[24px] text-gray-900">
+                      ${paymentAmount.toLocaleString('es-AR')}
+                    </span>
+                  </div>
+                )}
               </div>
-              <button onClick={confirmPay} disabled={paying || paid} className={`w-full py-5 rounded-[20px] font-bold text-[17px] shadow-sm transition-all flex justify-center items-center gap-3 ${paid ? 'bg-emerald-500 text-white scale-[1.02]' : paying ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-brand text-white hover:bg-brand-hover active:scale-95'}`}>
+              <button onClick={confirmPay} disabled={paying || paid || !selectedCardId} className={`w-full py-5 rounded-[20px] font-bold text-[17px] shadow-sm transition-all flex justify-center items-center gap-3 ${paid ? 'bg-emerald-500 text-white scale-[1.02]' : (paying || !selectedCardId) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-brand text-white hover:bg-brand-hover active:scale-95'}`}>
                 {paying ? <><CircleNotch className="w-5 h-5 animate-spin" /> Procesando...</>
                  : paid  ? <><Check className="w-6 h-6 text-white animate-bounce" strokeWidth={3} /> ¡Turno Confirmado!</>
                  : <>Confirmar y Pagar</>}

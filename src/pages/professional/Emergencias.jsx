@@ -185,7 +185,7 @@ export default function ProfessionalEmergencias({ profile }) {
           <button onClick={() => navigate('/profesional/dashboard')} className="w-10 h-10 rounded-full bg-bg-secondary flex items-center justify-center">
             <ArrowLeft className="w-5 h-5 text-text-primary" />
           </button>
-          <h1 className="font-serif text-xl text-text-primary">Emergencias</h1>
+          <h1 className="text-xl font-medium text-text-primary">Emergencias</h1>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
           <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center">

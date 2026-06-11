@@ -209,7 +209,7 @@ export default function PatientDashboard({ profile }) {
               <v.icon className="w-[18px] h-[18px] flex-shrink-0" style={{ color: v.color }} />
               <span
                 className="text-[18px] leading-[22px] flex-1"
-                style={{ color: v.color, fontFamily: "'GT Super Display', 'Fraunces', Georgia, serif", fontWeight: 300 }}
+                style={{ color: v.color }}
               >{v.nombre}</span>
             </div>
             <span className="text-[11px] font-medium" style={{ color: '#b05a36' }}>{v.price}</span>
@@ -339,7 +339,7 @@ export default function PatientDashboard({ profile }) {
             <div className="w-12 h-1.5 bg-gray-200 rounded-full mb-5 pointer-events-none" />
             <div className="w-full px-6 flex justify-between items-center pointer-events-none mb-2">
               <div>
-                <h2 className="text-[28px] tracking-tight text-text-primary leading-none" style={{ fontFamily: "'GT Super Display', 'Fraunces', Georgia, serif", fontWeight: 300 }}>{getGreeting()}, {firstName}</h2>
+                <h2 className="text-[28px] tracking-tight text-text-primary leading-none font-light">{getGreeting()}, {firstName}</h2>
                 <p className="text-[14px] font-medium text-text-secondary mt-1">¿Cómo podemos ayudarte hoy?</p>
               </div>
               <div className="w-12 h-12 rounded-full overflow-hidden border-2 flex-shrink-0" style={{ backgroundColor: '#b05a36', borderColor: '#f5eee1' }}>
