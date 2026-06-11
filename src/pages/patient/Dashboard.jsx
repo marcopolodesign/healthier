@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import PatientBottomNav from '../../components/patient/PatientBottomNav'
 import PatientSheet from '../../components/patient/PatientSheet'
 import {
   Stethoscope, AppleLogo, Brain, Barbell, MapPin,
@@ -24,12 +23,12 @@ function getGreeting() {
 }
 
 const VERTICALS = [
-  { id: 'clinica',     nombre: 'Clínica',          icon: Stethoscope, color: '#b05a36', bg: '#fef9ef', shadow: 'rgba(176,90,54,0.15)',  eta: '3 min',  price: '$20' },
-  { id: 'nutricion',   nombre: 'Nutrición',         icon: AppleLogo,   color: '#059669', bg: '#ECFDF5', shadow: 'rgba(5,150,105,0.15)',  eta: '10 min', price: '$15' },
-  { id: 'mente',       nombre: 'Psicología',        icon: Brain,       color: '#7C3AED', bg: '#F5F3FF', shadow: 'rgba(124,58,237,0.15)', eta: '15 min', price: '$18' },
-  { id: 'fisico',      nombre: 'Kinesiología',      icon: Barbell,     color: '#EA580C', bg: '#FFF7ED', shadow: 'rgba(234,88,12,0.15)',  eta: '5 min',  price: '$16' },
-  { id: 'veterinaria', nombre: 'Veterinaria',       icon: PawPrint,    color: '#0284C7', bg: '#F0F9FF', shadow: 'rgba(2,132,199,0.15)',  eta: '8 min',  price: '$18' },
-  { id: 'preparador',  nombre: 'Preparador Físico', icon: Pulse,       color: '#0F766E', bg: '#F0FDFA', shadow: 'rgba(15,118,110,0.15)', eta: '12 min', price: '$14' },
+  { id: 'clinica',     nombre: 'Clínica',          icon: Stethoscope, color: '#b05a36', bg: '#fef9ef', shadow: 'rgba(176,90,54,0.15)',  eta: '3 min'  },
+  { id: 'nutricion',   nombre: 'Nutrición',         icon: AppleLogo,   color: '#059669', bg: '#ECFDF5', shadow: 'rgba(5,150,105,0.15)',  eta: '10 min' },
+  { id: 'mente',       nombre: 'Psicología',        icon: Brain,       color: '#7C3AED', bg: '#F5F3FF', shadow: 'rgba(124,58,237,0.15)', eta: '15 min' },
+  { id: 'fisico',      nombre: 'Kinesiología',      icon: Barbell,     color: '#EA580C', bg: '#FFF7ED', shadow: 'rgba(234,88,12,0.15)',  eta: '5 min',  comingSoon: true },
+  { id: 'veterinaria', nombre: 'Veterinaria',       icon: PawPrint,    color: '#0284C7', bg: '#F0F9FF', shadow: 'rgba(2,132,199,0.15)',  eta: '8 min',  comingSoon: true },
+  { id: 'preparador',  nombre: 'Preparador Físico', icon: Pulse,       color: '#0F766E', bg: '#F0FDFA', shadow: 'rgba(15,118,110,0.15)', eta: '12 min', comingSoon: true },
 ]
 
 // Fallback pixel offsets used when a pro has no geo coordinates yet
@@ -202,8 +201,12 @@ export default function PatientDashboard({ profile }) {
         {VERTICALS.map(v => (
           <div
             key={v.id}
-            onClick={() => goToVertical(v)}
-            className="p-4 rounded-[12px] cursor-pointer flex flex-col gap-1.5 transition-all hover:scale-[0.98] active:scale-95 border border-border-default bg-bg-secondary"
+            onClick={v.comingSoon ? undefined : () => goToVertical(v)}
+            className={`p-4 rounded-[12px] flex flex-col gap-1.5 transition-all border border-border-default ${
+              v.comingSoon
+                ? 'opacity-60 cursor-default bg-bg-secondary'
+                : 'cursor-pointer hover:scale-[0.98] active:scale-95 bg-bg-secondary'
+            }`}
           >
             <div className="flex flex-row items-center gap-2 mb-1">
               <v.icon className="w-[18px] h-[18px] flex-shrink-0" style={{ color: v.color }} />
@@ -212,7 +215,11 @@ export default function PatientDashboard({ profile }) {
                 style={{ color: v.color }}
               >{v.nombre}</span>
             </div>
-            <span className="text-[11px] font-medium" style={{ color: '#b05a36' }}>{v.price}</span>
+            {v.comingSoon && (
+              <span className="text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full self-start" style={{ backgroundColor: v.bg, color: v.color }}>
+                Próximamente
+              </span>
+            )}
           </div>
         ))}
       </div>
@@ -257,26 +264,6 @@ export default function PatientDashboard({ profile }) {
         availableNow={availableNow}
       />
 
-      {/* Location header */}
-      <div className="absolute top-4 sm:top-6 w-full px-6 z-30 flex justify-start items-center pointer-events-none">
-        <div className="flex flex-col bg-white/70 backdrop-blur-[20px] px-2 py-2 rounded-[20px] shadow-[0_8px_30px_rgba(0,0,0,0.06)] border border-white/50 pointer-events-auto cursor-pointer transition-all self-start max-w-[70%]">
-          <div className="flex items-center gap-2 pr-2">
-            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm flex-shrink-0">
-              {isLocating
-                ? <CircleNotch className="h-4 w-4 text-brand animate-spin" />
-                : <MapPin className="h-4 w-4 text-brand" />
-              }
-            </div>
-            <div className="flex flex-col justify-center overflow-hidden">
-              <span className="text-[9px] font-bold text-gray-500 tracking-wider uppercase mb-0.5 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse flex-shrink-0" />
-                UBICACIÓN ACTUAL
-              </span>
-              <span className="font-black text-gray-900 text-[14px] leading-none truncate">{addressName}</span>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Filter chip — top right */}
       <div className="absolute top-4 sm:top-6 right-6 z-30">
@@ -315,10 +302,6 @@ export default function PatientDashboard({ profile }) {
             <div className="flex flex-col gap-3">{sosButton}</div>
           </div>
 
-          {/* Nav — pinned to bottom of panel */}
-          <div className="flex-shrink-0 border-t border-gray-100/80 px-6 py-3">
-            <PatientBottomNav />
-          </div>
         </div>
       )}
 
