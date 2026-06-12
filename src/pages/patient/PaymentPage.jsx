@@ -25,6 +25,7 @@ export default function PaymentPage({ profile }) {
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [paying, setPaying]                 = useState(false)
   const [paid, setPaid]                     = useState(false)
+  const [advancingDemo, setAdvancingDemo]   = useState(false)
 
   const publicKey  = import.meta.env.VITE_MP_PUBLIC_KEY ?? ''
   const isDemoMode = !publicKey
@@ -32,6 +33,33 @@ export default function PaymentPage({ profile }) {
   useEffect(() => {
     if (isDemoMode) setSelectedCardId('__demo__')
   }, [isDemoMode])
+
+  const handleDemoAdvance = async () => {
+    if (advancingDemo) return
+    if (!profile?.id || !professionalId) {
+      toast.error('Faltan datos para continuar')
+      return
+    }
+    setAdvancingDemo(true)
+    try {
+      await consultationsService.create({
+        patientId:      profile.id,
+        professionalId,
+        vertical:       verticalId,
+        modality:       modality === 'virtual' ? 'video' : 'presencial',
+        status:         'confirmed',
+        paymentStatus:  'demo',
+        priceAtBooking: price ?? null,
+        scheduledAt:    scheduledAt ?? new Date().toISOString(),
+      })
+      toast.success('¡Turno confirmado! (demo)')
+      setTimeout(() => navigate('/paciente/consultas'), 1200)
+    } catch (err) {
+      toast.error(err?.message || 'Error al confirmar el turno')
+    } finally {
+      setAdvancingDemo(false)
+    }
+  }
 
   const handlePay = async () => {
     if (paying || paid) return
@@ -217,6 +245,16 @@ export default function PaymentPage({ profile }) {
           {paying && <CircleNotch className="w-5 h-5 animate-spin" />}
           {paid    && <Check className="w-5 h-5" weight="bold" />}
           {paid ? '¡Turno Confirmado!' : paying ? 'Procesando...' : 'Confirmar y Pagar'}
+        </button>
+
+        {/* Demo bypass */}
+        <button
+          onClick={handleDemoAdvance}
+          disabled={advancingDemo || paid}
+          className="w-full py-3 rounded-full font-semibold text-[13px] text-text-tertiary border border-border-default bg-transparent hover:bg-bg-secondary transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {advancingDemo && <CircleNotch className="w-4 h-4 animate-spin" />}
+          Avanzar (demo)
         </button>
 
       </div>
