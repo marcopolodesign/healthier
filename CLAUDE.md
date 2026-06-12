@@ -118,7 +118,9 @@ Key principles to follow:
 - **Clean CTAs:** Pill-shaped buttons (`border-radius: 999px`) with clear primary/secondary hierarchy.
 - **Trust signals:** Star ratings, verification badges, and professional avatars used like Function Health uses lab test logos and physician credentials.
 
-> **Typography invariant:** Headings must always resolve to the serif stack. Never add `style={{ fontFamily: '...' }}` to heading elements — it fights the design system.
+> **Typography invariant:** The ONLY font in this project is **TWK Everett** — GT Super Display has been removed. `font-serif` and `font-sans` both resolve to Everett via `--font-serif` / `--font-sans` tokens in `src/index.css`.
+
+> **No inline styles — ever.** Never use `style={{ ... }}` on any element. All styling must go through Tailwind utility classes or `@utility` / `@layer` blocks in `src/index.css`. Inline styles fight the design system, bypass the theme tokens, and are impossible to audit. If a value isn't in the theme, add it as a token first.
 
 ---
 
@@ -130,7 +132,7 @@ Key principles to follow:
 - **Danger:** `#D9534F` — `var(--color-danger)` · S.O.S / destructive actions
 - **bg-primary:** `#F6F5F0` (warm ivory) · **bg-secondary:** `#FDFCF9`
 - All `@theme` tokens and `@utility` blocks defined in `src/index.css`
-- Fonts: GT Super Display (headings serif) · TWK Everett (body sans) — licensed TTF/woff2 in `public/fonts/`
+- Font: **TWK Everett only** — licensed woff2 in `public/fonts/`. GT Super Display has been removed.
 
 ### Button & form utilities
 

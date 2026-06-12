@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { PhoneSlash, CircleNotch } from '@phosphor-icons/react'
+import { PhoneSlash, CircleNotch, SealCheck } from '@phosphor-icons/react'
 import DailyIframe from '@daily-co/daily-js'
 import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
@@ -25,6 +25,9 @@ export default function PatientVideoCall({ profile }) {
   const [consultation, setConsultation] = useState(null)
   const [loadingConsultation, setLoadingConsultation] = useState(true)
   const [callLoading, setCallLoading] = useState(false)
+
+  // Validation code overlay
+  const [validationCode, setValidationCode] = useState(null)
 
   // Pre-consulta gate
   const [showPreconsulta, setShowPreconsulta] = useState(false)
@@ -61,6 +64,11 @@ export default function PatientVideoCall({ profile }) {
         navigate('/paciente/consultas')
       })
       .finally(() => setLoadingConsultation(false))
+
+    // Fetch validation code in parallel (non-blocking)
+    consultationsService.getValidationCode(consultationId)
+      .then(code => { if (code) setValidationCode(code) })
+      .catch(() => {})
   }, [id])
 
   // ── Step 2: After preconsulta → join call ───────────────────────────────────
@@ -97,8 +105,18 @@ export default function PatientVideoCall({ profile }) {
         })
         callFrameRef.current = callFrame
 
-        callFrame.on('left-meeting', () => {
-          if (!destroyed) navigate('/paciente/consultas')
+        callFrame.on('left-meeting', async () => {
+          if (destroyed) return
+          if (consultationId) {
+            try {
+              await consultationsService.finalize(consultationId, 'patient')
+            } catch {
+              // non-blocking — always navigate regardless
+            }
+            navigate(`/paciente/consulta/review/${consultationId}`)
+          } else {
+            navigate('/paciente/consultas')
+          }
         })
         callFrame.on('error', (e) => {
           toast.error(`Error en la videollamada: ${e.errorMsg}`)
@@ -138,10 +156,20 @@ export default function PatientVideoCall({ profile }) {
     setPreconsultaDone(true)
   }
 
-  const handleHangUp = () => {
+  const handleHangUp = async () => {
+    const consultationId = id === '1' ? null : id
     callFrameRef.current?.destroy()
     callFrameRef.current = null
-    navigate('/paciente/consultas')
+    if (consultationId) {
+      try {
+        await consultationsService.finalize(consultationId, 'patient')
+      } catch {
+        // non-blocking
+      }
+      navigate(`/paciente/consulta/review/${consultationId}`)
+    } else {
+      navigate('/paciente/consultas')
+    }
   }
 
   // ── Loading skeleton ─────────────────────────────────────────────────────────
@@ -193,6 +221,18 @@ export default function PatientVideoCall({ profile }) {
         )}
 
         <div ref={containerRef} className="w-full h-full" />
+
+        {/* Validation code pill — floating, non-interactive, top-right */}
+        {validationCode && (
+          <div
+            className="absolute top-3 right-3 z-20 pointer-events-none flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-white/60 rounded-full px-3 py-1.5 shadow-md"
+          >
+            <SealCheck className="w-3.5 h-3.5 text-brand flex-shrink-0" />
+            <span className="text-[11px] font-bold text-gray-800 whitespace-nowrap">
+              Tu código <span className="text-brand font-black tracking-wide">{validationCode}</span>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Pre-consulta sheet — overlays the video container */}

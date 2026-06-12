@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { House, Calendar, FolderOpen, User, Plus } from '@phosphor-icons/react'
+import { House, Calendar, FolderOpen, User } from '@phosphor-icons/react'
 
 const TABS = [
   { id: 'home',   path: '/paciente/dashboard',  icon: House,       label: 'Inicio'  },
@@ -35,17 +35,6 @@ export default function PatientBottomNav({ className = '' }) {
         )
       })}
 
-      {/* + booking pill — matches mobile */}
-      <button
-        onClick={() => navigate('/paciente/consultas')}
-        className="flex flex-col items-center gap-1 px-3"
-        aria-label="Nueva consulta"
-      >
-        <div className="w-9 h-9 rounded-full bg-brand flex items-center justify-center shadow-[0_4px_12px_rgba(176,90,54,0.35)] transition-transform duration-200 active:scale-95">
-          <Plus className="h-[18px] w-[18px] text-white" weight="bold" />
-        </div>
-        <span className="text-[10px] font-medium text-gray-400 tracking-wide">Nuevo</span>
-      </button>
     </nav>
   )
 }

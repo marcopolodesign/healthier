@@ -1,30 +1,21 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, VideoCamera, Clock, CircleNotch, Check } from '@phosphor-icons/react';
-import { Stethoscope, AppleLogo, Brain, Barbell, PawPrint } from '@phosphor-icons/react';
 import { toast } from '../../components/Toast'
 import { professionalService } from '../../services/professionalService'
-import { SPECIALTY_LABELS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
-
-const VERTICALS = {
-  clinica:     { nombre: 'Clínica',      icon: Stethoscope, color: '#b05a36', bg: '#fef9ef', eta: '3 min' },
-  nutricion:   { nombre: 'Nutrición',    icon: AppleLogo,       color: '#059669', bg: '#ECFDF5', eta: '10 min' },
-  mente:       { nombre: 'Psicología',   icon: Brain,color: '#7C3AED', bg: '#F5F3FF', eta: '15 min' },
-  fisico:      { nombre: 'Kinesiología', icon: Barbell,    color: '#EA580C', bg: '#FFF7ED', eta: '5 min' },
-  veterinaria: { nombre: 'Veterinaria',  icon: PawPrint,    color: '#0284C7', bg: '#F0F9FF', eta: '8 min' },
-}
+import { VERTICALS_BY_ID, SPECIALTY_LABELS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
 
 export default function OnDemand({ profile }) {
   const { vertical: verticalId } = useParams()
   const navigate = useNavigate()
-  const vertical = VERTICALS[verticalId]
+  const vertical = VERTICALS_BY_ID[verticalId]
 
   const [paymentStatus, setPaymentStatus] = useState('idle')
   const [searching, setSearching] = useState(false)
   const [matched, setMatched] = useState(false)
   const [matchedPro, setMatchedPro] = useState(null)
 
-  if (!vertical) {
+  if (!vertical || vertical.comingSoon) {
     navigate('/paciente/dashboard')
     return null
   }

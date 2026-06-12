@@ -2,17 +2,17 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
 import {
-  Stethoscope, AppleLogo, Brain, Barbell, MapPin,
-  Clock, CaretRight, Star, VideoCamera,
-  CircleNotch, Heartbeat, PawPrint, Pulse,
+  MapPin, Clock, CaretRight, Star, VideoCamera,
+  CircleNotch, Heartbeat, Calendar, Plus,
 } from '@phosphor-icons/react'
 
 const LAST_VERTICAL_KEY = 'healthier_last_vertical'
 import InteractiveMap from '../../components/patient/InteractiveMap'
 import { useBottomSheet } from '../../components/patient/useBottomSheet'
 import { professionalService } from '../../services/professionalService'
+import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
-import { SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
+import { VERTICALS, SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
 import { latLngToPixel, reverseGeocode } from '../../lib/geo'
 
 function getGreeting() {
@@ -21,15 +21,6 @@ function getGreeting() {
   if (h < 19) return 'Buenas tardes'
   return 'Buenas noches'
 }
-
-const VERTICALS = [
-  { id: 'clinica',     nombre: 'Clínica',          icon: Stethoscope, color: '#b05a36', bg: '#fef9ef', shadow: 'rgba(176,90,54,0.15)',  eta: '3 min'  },
-  { id: 'nutricion',   nombre: 'Nutrición',         icon: AppleLogo,   color: '#059669', bg: '#ECFDF5', shadow: 'rgba(5,150,105,0.15)',  eta: '10 min' },
-  { id: 'mente',       nombre: 'Psicología',        icon: Brain,       color: '#7C3AED', bg: '#F5F3FF', shadow: 'rgba(124,58,237,0.15)', eta: '15 min' },
-  { id: 'fisico',      nombre: 'Kinesiología',      icon: Barbell,     color: '#EA580C', bg: '#FFF7ED', shadow: 'rgba(234,88,12,0.15)',  eta: '5 min',  comingSoon: true },
-  { id: 'veterinaria', nombre: 'Veterinaria',       icon: PawPrint,    color: '#0284C7', bg: '#F0F9FF', shadow: 'rgba(2,132,199,0.15)',  eta: '8 min',  comingSoon: true },
-  { id: 'preparador',  nombre: 'Preparador Físico', icon: Pulse,       color: '#0F766E', bg: '#F0FDFA', shadow: 'rgba(15,118,110,0.15)', eta: '12 min', comingSoon: true },
-]
 
 // Fallback pixel offsets used when a pro has no geo coordinates yet
 const FALLBACK_SLOTS = [
@@ -59,10 +50,15 @@ export default function PatientDashboard({ profile }) {
     try { return JSON.parse(localStorage.getItem(LAST_VERTICAL_KEY)) } catch { return null }
   })
 
+  // Upcoming consultations — shown prominently in the dashboard sheet
+  const [upcomingConsultations, setUpcomingConsultations] = useState([])
+  const [upcomingLoading, setUpcomingLoading] = useState(false)
+
   // One pro per vertical, keyed by vertical id
   const markersByVertical = useMemo(() => {
     const result = {}
     VERTICALS.forEach(v => {
+      if (v.comingSoon) return   // no map pin for coming-soon verticals
       const pro = pickProForVertical(proPool, v.id)
       if (pro) result[v.id] = pro
     })
@@ -127,6 +123,20 @@ export default function PatientDashboard({ profile }) {
       .catch(() => {}) // silent — map just shows no markers
   }, [])
 
+  // Load upcoming consultations for the dashboard card (top 3, soonest first)
+  useEffect(() => {
+    if (!profile?.id) return
+    setUpcomingLoading(true)
+    consultationsService.getByPatient(profile.id)
+      .then(data => {
+        const active = data.filter(c => ['pending', 'confirmed', 'in_progress'].includes(c.status))
+        active.sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt))
+        setUpcomingConsultations(active.slice(0, 3))
+      })
+      .catch(() => {})
+      .finally(() => setUpcomingLoading(false))
+  }, [profile?.id])
+
   const handleMarkerClick = type => {
     const pro = markersByVertical[type]
     if (!pro) return
@@ -162,7 +172,7 @@ export default function PatientDashboard({ profile }) {
     const entry = { id: v.id, nombre: v.nombre }
     localStorage.setItem(LAST_VERTICAL_KEY, JSON.stringify(entry))
     setLastUsed(entry)
-    navigate(`/paciente/ondemand/${v.id}`)
+    navigate(`/paciente/reservar?vertical=${v.id}`)
   }
 
   const firstName = profile?.fullName?.split(' ')[0] || 'Paciente'
@@ -240,6 +250,76 @@ export default function PatientDashboard({ profile }) {
     </div>
   )
 
+  // Upcoming consultations section — shown at the top of the dashboard sheet
+  const upcomingSection = (
+    <div className="flex flex-col gap-2">
+      {/* Section header with "Reservar" CTA */}
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold text-text-secondary tracking-wide uppercase">
+          Próximas consultas
+        </span>
+        <button
+          onClick={() => navigate('/paciente/consultas')}
+          className="flex items-center gap-1 text-[12px] font-bold text-brand hover:text-brand-hover transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Reservar
+        </button>
+      </div>
+
+      {upcomingLoading ? (
+        <div className="h-16 bg-bg-primary rounded-[16px] border border-border-default animate-pulse" />
+      ) : upcomingConsultations.length === 0 ? (
+        <div
+          onClick={() => navigate('/paciente/consultas')}
+          className="flex items-center gap-3 px-4 py-3 rounded-[16px] bg-bg-primary border border-dashed border-border-default cursor-pointer hover:border-brand/40 transition-colors group"
+        >
+          <Calendar className="w-5 h-5 text-text-muted group-hover:text-brand transition-colors flex-shrink-0" />
+          <span className="text-[13px] text-text-tertiary font-medium group-hover:text-text-primary transition-colors">
+            Sin turnos próximos — reservá ahora
+          </span>
+        </div>
+      ) : (
+        upcomingConsultations.map(c => {
+          const isVirtual = c.modality === 'video'
+          const proName = c.professional?.fullName ?? 'Profesional'
+          const d = c.scheduledAt ? new Date(c.scheduledAt) : null
+          const dateLabel = d
+            ? d.toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' })
+            : '—'
+          const timeLabel = d
+            ? d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+            : '—:—'
+          return (
+            <div
+              key={c.id}
+              onClick={() => {
+                if (c.modality === 'video') {
+                  navigate(`/paciente/sala-espera/${c.id}`)
+                } else {
+                  navigate('/paciente/consultas')
+                }
+              }}
+              className="flex items-center gap-3 px-4 py-3 rounded-[16px] bg-bg-primary border border-border-default cursor-pointer hover:border-brand/40 active:opacity-80 transition-all group"
+            >
+              {/* Modality dot */}
+              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isVirtual ? 'bg-brand' : 'bg-emerald-500'}`} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[14px] font-bold text-text-primary truncate leading-tight">{proName}</p>
+                <p className="text-[12px] text-text-secondary font-medium mt-0.5">
+                  {isVirtual ? 'Videoconsulta' : 'Presencial'} · {dateLabel} {timeLabel}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold flex-shrink-0" style={{ backgroundColor: isVirtual ? '#e8f4ec' : '#ecfdf5', color: isVirtual ? '#7CB38B' : '#059669' }}>
+                {isVirtual ? <VideoCamera className="w-3 h-3" /> : <MapPin className="w-3 h-3" />}
+              </div>
+            </div>
+          )
+        })
+      )}
+    </div>
+  )
+
   const avatarEl = (
     <div className="w-11 h-11 rounded-full overflow-hidden border-2 flex-shrink-0" style={{ backgroundColor: '#b05a36', borderColor: '#f5eee1' }}>
       {profile?.avatarUrl
@@ -297,7 +377,7 @@ export default function PatientDashboard({ profile }) {
 
           {/* Scrollable body — all sections always visible */}
           <div className="overflow-y-auto scrollbar-hide flex-1 px-5 pt-4 pb-4 flex flex-col gap-4">
-            {lastUsedPill}
+            {upcomingSection}
             {specialtyGrid}
             <div className="flex flex-col gap-3">{sosButton}</div>
           </div>
@@ -308,12 +388,12 @@ export default function PatientDashboard({ profile }) {
       {/* ── Mobile: drag-to-expand bottom sheet ── */}
       {!isDesktop && (
         <div
-          className={`absolute left-0 w-full bg-bg-secondary rounded-t-[40px] shadow-[0_-15px_40px_rgba(0,0,0,0.08)] z-40 flex flex-col border-t border-border-default ${!sheet.dragging ? 'transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]' : ''}`}
-          style={{ height: '85%', bottom: 0, transform: sheet.getTransform() }}
+          className={`absolute left-0 w-full bg-bg-secondary shadow-[0_-15px_40px_rgba(0,0,0,0.08)] z-40 flex flex-col border-t border-border-default ${sheet.state === 'expanded' ? 'rounded-t-none' : 'rounded-t-[40px]'} ${!sheet.dragging ? 'transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]' : ''}`}
+          style={{ height: '100%', bottom: 0, transform: sheet.getTransform() }}
         >
           {/* Drag handle + greeting */}
           <div
-            className="w-full flex flex-col items-center pt-4 pb-2 cursor-grab active:cursor-grabbing touch-none bg-bg-secondary rounded-t-[40px]"
+            className={`w-full flex flex-col items-center pt-4 pb-2 cursor-grab active:cursor-grabbing touch-none bg-bg-secondary ${sheet.state === 'expanded' ? 'rounded-t-none' : 'rounded-t-[40px]'}`}
             onPointerDown={sheet.onPointerDown}
             onPointerMove={sheet.onPointerMove}
             onPointerUp={sheet.onPointerUp}
@@ -335,14 +415,10 @@ export default function PatientDashboard({ profile }) {
           </div>
 
           {/* Scrollable content */}
-          <div className="px-6 flex-1 overflow-y-auto pb-32 scrollbar-hide bg-bg-secondary mt-2 flex flex-col gap-5">
-            {lastUsedPill}
+          <div className="px-6 flex-1 overflow-y-auto pb-56 scrollbar-hide bg-bg-secondary mt-2 flex flex-col gap-5">
+            {upcomingSection}
             {specialtyGrid}
-
-            {/* SOS — revealed when expanded */}
-            <div className={`transition-all duration-500 ease-in-out overflow-hidden flex flex-col gap-4 ${sheet.state === 'expanded' ? 'max-h-[200px] opacity-100 mb-8' : 'max-h-0 opacity-0 m-0'}`}>
-              {sosButton}
-            </div>
+            <div className="mb-8">{sosButton}</div>
           </div>
         </div>
       )}

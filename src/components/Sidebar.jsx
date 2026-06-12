@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp } from '@phosphor-icons/react';
+import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
 import { toast } from './Toast'
 import { CompanyLogo } from './common/CompanyLogo'
@@ -40,7 +40,7 @@ const NAV_BY_ROLE = {
   ],
 }
 
-export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onClose, onLogoClick }) {
+export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onClose, onLogoClick, companionOpen, onOpenCompanion }) {
   const navigate = useNavigate()
   const allItems = NAV_BY_ROLE[role] || []
   const items = allItems.filter(item => !item.specialty || item.specialty === profSpecialty)
@@ -59,10 +59,10 @@ export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onCl
       )}
 
       <aside className={`
-        fixed top-0 left-0 h-full min-h-screen w-64 bg-white border-r border-border-default z-30
+        fixed top-0 left-0 h-screen w-64 bg-white border border-border-default z-30
         flex flex-col transition-transform duration-200
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:sticky lg:top-0 lg:h-screen lg:translate-x-0
+        lg:top-3 lg:left-3 lg:bottom-3 lg:h-auto lg:translate-x-0 lg:rounded-2xl lg:overflow-hidden lg:shadow-[4px_4px_32px_rgba(0,0,0,0.10)]
       `}>
         {/* Logo */}
         <button
@@ -86,6 +86,26 @@ export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onCl
             </NavLink>
           ))}
         </nav>
+
+        {/* Healthy IA */}
+        {role === 'professional' && onOpenCompanion && (
+          <div className="px-3 py-3">
+            <button
+              onClick={() => { onOpenCompanion(); onClose?.() }}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl w-full transition-all duration-200 ${
+                companionOpen
+                  ? 'bg-brand text-white shadow-sm'
+                  : 'text-brand border border-brand/25 bg-brand-muted hover:bg-brand hover:text-white'
+              }`}
+            >
+              <Sparkle className="h-[22px] w-[22px] shrink-0" weight={companionOpen ? 'fill' : 'duotone'} />
+              <span className="text-sm font-medium">Healthy</span>
+              {!companionOpen && (
+                <span className="ml-auto text-[10px] bg-white/60 text-brand rounded-full px-1.5 py-0.5 font-semibold tracking-wide">BETA</span>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Bottom action */}
         <div className="px-3 py-4 border-t border-border-default">

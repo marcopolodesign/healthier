@@ -42,6 +42,11 @@ import PatientBiovisor from './pages/patient/Biovisor'
 import PatientNutriPlan from './pages/patient/NutriPlan'
 import PatientComprobantes from './pages/patient/Comprobantes'
 import PatientVideoCall from './pages/patient/VideoCall'
+import WaitingRoom from './pages/patient/WaitingRoom'
+import ConsultationReview from './pages/patient/ConsultationReview'
+import BuscarProfesional from './pages/patient/BuscarProfesional'
+import ReservarConsulta from './pages/patient/ReservarConsulta'
+import PaymentPage from './pages/patient/PaymentPage'
 
 import AdminProfessionals from './pages/admin/Professionals'
 import AdminUsers from './pages/admin/Users'
@@ -181,6 +186,11 @@ export default function App() {
           <Route path="/paciente/nutriplan"        element={<PatientNutriPlan    profile={profile} />} />
           <Route path="/paciente/comprobantes"     element={<PatientComprobantes profile={profile} />} />
           <Route path="/paciente/videollamada/:id" element={<PatientVideoCall    profile={profile} />} />
+          <Route path="/paciente/reservar"            element={<ReservarConsulta   profile={profile} />} />
+          <Route path="/paciente/buscar-profesional"  element={<BuscarProfesional  profile={profile} />} />
+          <Route path="/paciente/sala-espera/:consultationId" element={<WaitingRoom profile={profile} />} />
+          <Route path="/paciente/pago" element={<PaymentPage profile={profile} />} />
+          <Route path="/paciente/consulta/review/:consultationId" element={<ConsultationReview profile={profile} />} />
         </Route>
 
         {/* Patient onboarding — full-screen, no mobile nav */}

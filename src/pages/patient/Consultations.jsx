@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import {
   Calendar, Clock, VideoCamera, MapPin, Star, CaretRight, ArrowLeft, CircleNotch, Check,
-  Stethoscope, AppleLogo, Brain, Barbell, PawPrint, X, FileText, Ambulance,
-  CheckCircle, ArrowsClockwise,
+  X, FileText, Ambulance, CheckCircle, ArrowsClockwise,
 } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
@@ -12,18 +11,10 @@ import { reviewsService } from '../../services/reviewsService'
 import { emergencyService } from '../../services/emergencyService'
 import { heuralService } from '../../services/heuralService'
 import { mpService } from '../../services/mpService'
-import { VERTICAL_SPECIALTIES } from '../../lib/verticals'
+import { VERTICALS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
-
-const VERTICALS = [
-  { id: 'clinica',     nombre: 'Clínica',      icon: Stethoscope, color: '#b05a36', bg: '#fef9ef' },
-  { id: 'nutricion',   nombre: 'Nutrición',    icon: AppleLogo,       color: '#059669', bg: '#ECFDF5' },
-  { id: 'mente',       nombre: 'Psicología',   icon: Brain,color: '#7C3AED', bg: '#F5F3FF' },
-  { id: 'fisico',      nombre: 'Kinesiología', icon: Barbell,    color: '#EA580C', bg: '#FFF7ED' },
-  { id: 'veterinaria', nombre: 'Veterinaria',  icon: PawPrint,    color: '#0284C7', bg: '#F0F9FF' },
-]
 
 const ESPECIALIDADES = {
   clinica:     ['Médico Generalista', 'Cardiología', 'Dermatología', 'Pediatría', 'Traumatología'],
@@ -57,8 +48,14 @@ function groupSlotsByDate(slots) {
     }, {})
 }
 
+// Map BuscarProfesional URL modality values to Consultations internal modality state
+const MODALITY_PARAM_MAP = { video: 'Videollamada', presencial: 'Presencial' }
+
 export default function PatientConsultations({ profile }) {
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const autoBookConsumed = useRef(false)
   const [view, setView] = useState('upcoming')
   const [turnos, setTurnos] = useState([])
   const [loading, setLoading] = useState(true)
@@ -132,6 +129,86 @@ export default function PatientConsultations({ profile }) {
       .then(setPatientReviewMap)
       .catch(() => {})
   }, [profile?.id])
+
+  // Auto-open booking modal when navigated here from ReservarConsulta with autoBook state
+  useEffect(() => {
+    if (autoBookConsumed.current) return
+    const state = location.state
+    if (!state?.autoBook) return
+    autoBookConsumed.current = true
+    // Clear navigation state so a refresh doesn't re-trigger
+    window.history.replaceState({}, '', location.pathname)
+    const vertId = state.verticalId
+    const vert = VERTICALS.find(v => v.id === vertId)
+    if (!vert) return
+    // Pre-set modality to 'Videollamada' (virtual path always uses video)
+    setModality('Videollamada')
+    // If a professional was pre-selected, skip straight to datetime/payment
+    if (state.professionalId) {
+      setProfessional({
+        id:      state.professionalId,
+        name:    'Profesional',
+        img:     null,
+        rating:  '—',
+        reviews: 0,
+        pricePresencial: null,
+        priceVideo: null,
+      })
+      if (state.scheduledAt) {
+        // We have a full booking — go straight to payment
+        const slot = { id: 'autobook', startTime: state.scheduledAt }
+        setSelectedSlot(slot)
+        openModal(vert)
+        setStep('payment')
+      } else {
+        openModal(vert)
+        loadSlots(state.professionalId)
+        setStep('datetime')
+      }
+    } else {
+      openModal(vert)
+    }
+  }, [location.state])
+
+  // Handle URL params from BuscarProfesional (?vertical=&pro=&modality=)
+  const urlParamConsumed = useRef(false)
+  useEffect(() => {
+    if (urlParamConsumed.current) return
+    const proId      = searchParams.get('pro')
+    const vertId     = searchParams.get('vertical')
+    const modalParam = searchParams.get('modality')
+    if (!proId && !vertId) return
+    urlParamConsumed.current = true
+    const vert = vertId ? VERTICALS.find(v => v.id === vertId) : null
+    if (!vert) return
+    const modalityState = MODALITY_PARAM_MAP[modalParam] || 'Videollamada'
+    setModality(modalityState)
+    if (proId) {
+      professionalService.search({})
+        .then(data => {
+          const match = data.find(p => p.userId === proId)
+          if (!match) return
+          const proObj = {
+            id:              match.userId,
+            name:            match.profiles?.fullName || 'Profesional',
+            img:             match.profiles?.avatarUrl || null,
+            rating:          String(match.averageRating ?? '—'),
+            reviews:         match.totalReviews ?? 0,
+            pricePresencial: match.pricePresencial ?? null,
+            priceVideo:      match.priceVideo ?? null,
+          }
+          setProfessional(proObj)
+          openModal(vert)
+          setModality(modalityState)
+          loadSlots(proId)
+          setStep('datetime')
+        })
+        .catch(() => {})
+    } else {
+      openModal(vert)
+      setModality(modalityState)
+    }
+  }, [])
 
   // Load MP public key and resolve payment amount when entering payment step
   useEffect(() => {
@@ -249,11 +326,17 @@ export default function PatientConsultations({ profile }) {
       }
 
       setPaid(true)
+      const confirmedId = consultation.id
+      const isVirtual = modality === 'Videollamada'
       setTimeout(() => {
         setModalOpen(false)
-        toast.success('¡Turno confirmado y pago acreditado!')
-        loadTurnos()
-      }, 1000)
+        if (isVirtual) {
+          navigate(`/paciente/videollamada/${confirmedId}`)
+        } else {
+          toast.success('¡Turno confirmado y pago acreditado!')
+          loadTurnos()
+        }
+      }, 800)
     } catch (err) {
       toast.error(err?.message ?? 'Error al confirmar el turno')
       setPaying(false)
@@ -369,9 +452,17 @@ export default function PatientConsultations({ profile }) {
       {/* Specialty chips — naked icon + vertical-color label (mobile pattern) */}
       <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-6 -mx-6 px-6">
         {VERTICALS.map(v => (
-          <button key={v.id} onClick={() => openModal(v)} className="flex items-center gap-2 bg-bg-secondary border border-border-default rounded-[28px] px-4 py-2.5 shrink-0 active:opacity-80 transition-opacity">
+          <button
+            key={v.id}
+            onClick={v.comingSoon ? undefined : () => openModal(v)}
+            disabled={v.comingSoon}
+            className={`flex items-center gap-2 bg-bg-secondary border border-border-default rounded-[28px] px-4 py-2.5 shrink-0 transition-opacity ${v.comingSoon ? 'opacity-50 cursor-default' : 'active:opacity-80'}`}
+          >
             <v.icon className="w-[18px] h-[18px] shrink-0" style={{ color: v.color }} />
             <span className="text-[14px] font-light whitespace-nowrap" style={{ color: v.color }}>{v.nombre}</span>
+            {v.comingSoon && (
+              <span className="text-[9px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full ml-0.5" style={{ backgroundColor: v.bg, color: v.color }}>Pronto</span>
+            )}
           </button>
         ))}
       </div>
@@ -435,16 +526,19 @@ export default function PatientConsultations({ profile }) {
             <p className="font-medium text-[14px] text-text-tertiary">Sin turnos en esta sección</p>
           </div>
         ) : shown.map(t => {
-          const vert = VERTICALS.find(v => v.id === t.specialty) || VERTICALS[0]
+          const vert = VERTICALS.find(v => v.id === t.vertical) || VERTICALS[0]
           const date = t.scheduledAt ? new Date(t.scheduledAt) : null
           const hasReview = !!patientReviewMap[t.id]
           const isUpcomingActive = view === 'upcoming' && ['confirmed', 'pending'].includes(t.status)
           const hasHeural = !!t.heuralAppointmentId
+          const isInProgressVideo = view === 'upcoming' && t.status === 'in_progress' && t.modality === 'video'
           // Actions row shows if there's something to show in it:
           // — upcoming non-Heural: always (cancel button)
           // — upcoming Heural video confirmed: video entry button
+          // — upcoming in_progress video: re-entry button
           // — past completed: prescription / review
           const hasActions = (isUpcomingActive && (!hasHeural || (t.status === 'confirmed' && t.modality === 'video'))) ||
+                             isInProgressVideo ||
                              (view === 'past' && t.status === 'completed')
           const isConfirmedHeural = confirmedIds.has(t.id)
           const isConfirming = confirmingId === t.id
@@ -539,8 +633,8 @@ export default function PatientConsultations({ profile }) {
               {/* Actions row */}
               {hasActions && (
                 <div className="border-t border-border-default flex">
-                  {view === 'upcoming' && t.status === 'confirmed' && t.modality === 'video' && (
-                    <button onClick={() => navigate('/paciente/videollamada/1')} className="flex-1 py-3 text-[13px] font-semibold text-brand flex items-center justify-center gap-1.5 hover:bg-brand-muted transition-colors">
+                  {view === 'upcoming' && ['confirmed', 'in_progress'].includes(t.status) && t.modality === 'video' && (
+                    <button onClick={() => navigate(`/paciente/videollamada/${t.id}`)} className="flex-1 py-3 text-[13px] font-semibold text-brand flex items-center justify-center gap-1.5 hover:bg-brand-muted transition-colors">
                       <VideoCamera className="w-4 h-4" /> Entrar a Sala
                     </button>
                   )}
@@ -628,7 +722,7 @@ export default function PatientConsultations({ profile }) {
                 const proName = p.profiles?.fullName || 'Profesional'
                 const proAvatar = p.profiles?.avatarUrl || null
                 return (
-                  <div key={p.id} onClick={() => selectProfessional(p)} className="bg-bg-primary p-4 rounded-[24px] shadow-sm border border-gray-100 flex gap-4 cursor-pointer hover:border-brand transition-all group">
+                  <div key={p.userId ?? p.id} onClick={() => selectProfessional(p)} className="bg-bg-primary p-4 rounded-[24px] shadow-sm border border-gray-100 flex gap-4 cursor-pointer hover:border-brand transition-all group">
                     {proAvatar
                       ? <img src={proAvatar} alt={proName} className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm flex-shrink-0" />
                       : <div className="w-16 h-16 rounded-full border-2 border-white shadow-sm flex-shrink-0 flex items-center justify-center text-2xl font-black bg-gray-100 text-gray-400">{proName[0]}</div>

@@ -190,4 +190,26 @@ export const consultationsService = {
     if (error) throw error
     return toCamelCase(data)
   },
+
+  /**
+   * Fetch the data needed to initiate a Mercado Pago payment for a consultation.
+   * Returns: { id, priceAtBooking, professionalId, mpAccountConnected }
+   *   mpAccountConnected — true when the professional has an active mp_accounts row.
+   */
+  async getConsultationForPayment(consultationId) {
+    const { data, error } = await supabase
+      .from('consultations')
+      .select('id, price_at_booking, professional_id, professional:profiles!professional_id(mp_accounts(id, access_token))')
+      .eq('id', consultationId)
+      .single()
+    if (error) throw error
+    const row = toCamelCase(data)
+    const mpAccount = row.professional?.mpAccounts?.[0] ?? null
+    return {
+      id: row.id,
+      priceAtBooking: row.priceAtBooking ?? null,
+      professionalId: row.professionalId,
+      mpAccountConnected: !!(mpAccount?.accessToken),
+    }
+  },
 }

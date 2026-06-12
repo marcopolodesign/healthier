@@ -2,15 +2,6 @@ import { useState, useEffect } from 'react'
 import { Crosshair } from '@phosphor-icons/react';
 import TopDownAmbulance from './TopDownAmbulance'
 
-const VERTICALS = [
-  { id: 'clinica',     color: '#b05a36' },
-  { id: 'nutricion',   color: '#059669' },
-  { id: 'mente',       color: '#7C3AED' },
-  { id: 'fisico',      color: '#EA580C' },
-  { id: 'veterinaria', color: '#0284C7' },
-]
-
-
 const AMBULANCE_STATIC = [
   { id: 'a2', x: -180, y:   90 },
   { id: 'a3', x:  -60, y: -200 },
