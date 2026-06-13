@@ -84,8 +84,8 @@ export default function ProfessionalBottomNav({ profile, profSpecialty, classNam
             className="fixed inset-0 z-[90] bg-black/40 backdrop-blur-sm"
             onClick={() => setOpen(false)}
           />
-          <div className="fixed bottom-0 left-0 right-0 z-[100] max-w-lg mx-auto">
-            <div className="bg-[#fef9ef] rounded-t-[28px] px-5 pt-4 pb-10 shadow-[0_-8px_40px_rgba(0,0,0,0.15)]">
+          <div className="fixed bottom-0 left-0 right-0 z-[100]">
+            <div className="bg-[#fef9ef] px-5 pt-4 pb-10 shadow-[0_-8px_40px_rgba(0,0,0,0.15)]">
               <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
 
               <div className="flex items-center justify-between mb-5">
