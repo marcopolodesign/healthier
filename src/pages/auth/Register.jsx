@@ -13,7 +13,7 @@ const CONSENT_ITEMS = [
   {
     key: 'ley25326',
     title: 'Ley 25.326 — Argentina',
-    desc: 'Acepto el tratamiento de datos según la Ley de Protección de Datos Personales. Puedo ejercer derechos de acceso, rectificación y supresión.',
+    desc: 'Acepto el tratamiento de datos según la Ley de Protección de Datos Personales. Mis datos se almacenan en servidores de Amazon Web Services en São Paulo, Brasil. Puedo ejercer derechos de acceso, rectificación y supresión.',
   },
   {
     key: 'equipo_tratante',
