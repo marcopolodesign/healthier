@@ -1,17 +1,38 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { User, Envelope, Lock, Briefcase, Heart } from '@phosphor-icons/react';
+import { User, Envelope, Lock, Briefcase, Heart, Check } from '@phosphor-icons/react';
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 
+const CONSENT_ITEMS = [
+  {
+    key: 'hipaa',
+    title: 'Datos de salud',
+    desc: 'Acepto que Healthier almacene mis datos médicos con cifrado AES-256, accesibles solo por profesionales autorizados.',
+  },
+  {
+    key: 'ley25326',
+    title: 'Ley 25.326 — Argentina',
+    desc: 'Acepto el tratamiento de datos según la Ley de Protección de Datos Personales. Puedo ejercer derechos de acceso, rectificación y supresión.',
+  },
+  {
+    key: 'equipo_tratante',
+    title: 'Acceso del equipo médico',
+    desc: 'Acepto que los profesionales que me atiendan en Healthier puedan acceder a mi información clínica compartida para una atención integral y coordinada.',
+  },
+]
+
 export default function Register({ onLogin }) {
   const [form, setForm] = useState({ fullName: '', email: '', password: '', role: '' })
+  const [consents, setConsents] = useState({ hipaa: false, ley25326: false, equipo_tratante: false })
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const allConsented = Object.values(consents).every(Boolean)
 
   const submit = async (e) => {
     e.preventDefault()
     if (!form.role) { toast.error('Seleccioná un tipo de cuenta'); return }
+    if (!allConsented) { toast.error('Necesitamos tu consentimiento para continuar'); return }
     if (form.password.length < 6) { toast.error('La contraseña debe tener al menos 6 caracteres'); return }
     setLoading(true)
     try {
@@ -120,7 +141,30 @@ export default function Register({ onLogin }) {
           </div>
         </div>
 
-        <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-2">
+        {/* Consent */}
+        <div className="border border-border-default rounded-xl p-4 space-y-3 bg-bg-primary">
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Consentimiento requerido</p>
+          {CONSENT_ITEMS.map(item => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setConsents(p => ({ ...p, [item.key]: !p[item.key] }))}
+              className="flex items-start gap-3 w-full text-left"
+            >
+              <span className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${
+                consents[item.key] ? 'bg-brand border-brand' : 'border-border-default'
+              }`}>
+                {consents[item.key] && <Check className="h-3 w-3 text-white" weight="bold" />}
+              </span>
+              <span>
+                <span className="text-sm font-semibold text-text-primary block">{item.title}</span>
+                <span className="text-xs text-text-secondary leading-relaxed">{item.desc}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <button type="submit" disabled={loading || !allConsented} className="btn-primary w-full py-2.5 mt-2 disabled:opacity-40 disabled:cursor-not-allowed">
           {loading ? 'Creando cuenta...' : 'Crear cuenta'}
         </button>
       </form>
