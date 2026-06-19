@@ -26,6 +26,7 @@ export default function Onboarding({ profile }) {
   const [form, setForm] = useState({
     specialty: '', subSpecialty: '', bio: '', sessionPrice: '',
     address: '', latitude: null, longitude: null,
+    licenseType: 'MN', licenseNumber: '',
   })
   const [avatarFile, setAvatarFile]   = useState(null)
   const [avatarPreview, setAvatarPreview] = useState(null)
@@ -38,13 +39,15 @@ export default function Onboarding({ profile }) {
     professionalService.getByUserId(profile.id).then(p => {
       if (!p) return
       setForm({
-        specialty:    p.specialty    || '',
-        subSpecialty: p.subSpecialty || '',
-        bio:          p.bio          || '',
-        sessionPrice: p.sessionPrice?.toString() || '',
-        address:      p.address      || '',
-        latitude:     p.latitude     || null,
-        longitude:    p.longitude    || null,
+        specialty:     p.specialty     || '',
+        subSpecialty:  p.subSpecialty  || '',
+        bio:           p.bio           || '',
+        sessionPrice:  p.sessionPrice?.toString() || '',
+        address:       p.address       || '',
+        latitude:      p.latitude      || null,
+        longitude:     p.longitude     || null,
+        licenseType:   p.licenseType   || 'MN',
+        licenseNumber: p.licenseNumber || '',
       })
     })
   }, [isResubmit, profile?.id])
@@ -56,7 +59,7 @@ export default function Onboarding({ profile }) {
 
   // Per-step validation
   const canAdvance = () => {
-    if (step === 0) return !!form.specialty
+    if (step === 0) return !!form.specialty && form.licenseNumber.length > 0
     return true
   }
 
@@ -79,6 +82,8 @@ export default function Onboarding({ profile }) {
         titleDocumentUrl:   titleUrl   || undefined,
         licenseDocumentUrl: licenseUrl || undefined,
         dniDocumentUrl:     dniUrl     || undefined,
+        license_type:       form.licenseType,
+        license_number:     form.licenseNumber,
         isVerified:         false,
         isActive:           false,
         submittedAt:        new Date().toISOString(),
@@ -174,6 +179,33 @@ export default function Onboarding({ profile }) {
                   className="form-input"
                   placeholder="Ej: Cardiología Clínica"
                 />
+              </div>
+              <div>
+                <label className="form-label">Matrícula <span className="text-danger">*</span></label>
+                <div className="flex gap-2 mb-3">
+                  {['MN', 'MP'].map(type => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setForm(p => ({ ...p, licenseType: type }))}
+                      className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                        form.licenseType === type
+                          ? 'bg-brand text-white border-brand'
+                          : 'bg-white border-border-default text-text-secondary'
+                      }`}
+                    >
+                      {type === 'MN' ? 'MN — Matrícula Nacional' : 'MP — Matrícula Provincial'}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={form.licenseNumber}
+                  onChange={e => setForm(p => ({ ...p, licenseNumber: e.target.value }))}
+                  className="form-input"
+                  placeholder="Ej: 123456"
+                />
+                <p className="text-xs text-text-tertiary mt-1">Número de matrícula</p>
               </div>
             </>
           )}
@@ -276,12 +308,13 @@ export default function Onboarding({ profile }) {
                 {[
                   ['Especialidad',      form.specialty || '—'],
                   ['Sub-especialidad',  form.subSpecialty || '—'],
+                  ['Matrícula',         form.licenseNumber ? `${form.licenseType} ${form.licenseNumber}` : '—'],
                   ['Bio',               form.bio ? form.bio.slice(0, 100) + (form.bio.length > 100 ? '…' : '') : '—'],
                   ['Precio por sesión', form.sessionPrice ? `$${form.sessionPrice} ARS` : '—'],
                   ['Consultorio',       form.address || '—'],
                   ['Foto de perfil',    avatarFile ? avatarFile.name : '—'],
                   ['Título',           titleFile   ? titleFile.name   : '—'],
-                  ['Matrícula',        licenseFile ? licenseFile.name : '—'],
+                  ['Doc. matrícula',   licenseFile ? licenseFile.name : '—'],
                   ['DNI',              dniFile     ? dniFile.name     : '—'],
                 ].map(([label, value]) => (
                   <div key={label} className="flex items-start gap-3 px-4 py-2.5">

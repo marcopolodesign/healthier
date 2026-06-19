@@ -7,7 +7,7 @@ import {
 import { professionalService } from '../../services/professionalService'
 import { availabilityService } from '../../services/availabilityService'
 import { consultationsService } from '../../services/consultationsService'
-import { VERTICALS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
+import { VERTICALS, VERTICAL_SPECIALTIES, SPECIALTY_LABELS } from '../../lib/verticals'
 import { toast } from '../../components/Toast'
 
 // Verticals that trigger the clinica auto-match flow
@@ -438,7 +438,7 @@ export default function ReservarConsulta({ profile }) {
               </h1>
               {(matchedPro?.specialty || selectedVertical?.nombre) && (
                 <p className="text-text-secondary text-[14px] mt-0.5">
-                  {matchedPro?.specialty || selectedVertical.nombre}
+                  {SPECIALTY_LABELS[matchedPro?.specialty] || matchedPro?.specialty || selectedVertical.nombre}
                 </p>
               )}
             </div>
@@ -584,7 +584,7 @@ export default function ReservarConsulta({ profile }) {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-[14px] text-text-primary truncate">{pro.name}</div>
-                      <div className="text-[12px] text-text-secondary mt-0.5 truncate">{pro.specialty}</div>
+                      <div className="text-[12px] text-text-secondary mt-0.5 truncate">{SPECIALTY_LABELS[pro.specialty] || pro.specialty}</div>
                       <div className="flex items-center gap-1 mt-1">
                         <Star className="w-3 h-3 text-amber-400" weight="fill" />
                         <span className="text-[12px] font-semibold text-amber-600">{pro.rating.toFixed(1)}</span>
