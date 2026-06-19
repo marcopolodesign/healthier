@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash } from '@phosphor-icons/react'
 import { professionalService } from '../../services/professionalService'
 import { profilesService } from '../../services/profilesService'
-import { consultationTypesService } from '../../services/consultationTypesService'
 import FileUpload from '../../components/FileUpload'
 import AddressAutocomplete from '../../components/common/AddressAutocomplete'
 import { SPECIALTIES } from '../../lib/verticals'
@@ -12,10 +10,8 @@ export default function ProfessionalProfile({ profile }) {
   const [profData, setProfData] = useState(null)
   const [form, setForm] = useState({
     specialty: '', subSpecialty: '', bio: '',
-    pricePresencial: '', priceVideo: '',
     address: '', latitude: null, longitude: null,
   })
-  const [consultationTypes, setConsultationTypes] = useState([])
   const [avatarFile, setAvatarFile] = useState(null)
   const [avatarPreview, setAvatarPreview] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -23,22 +19,16 @@ export default function ProfessionalProfile({ profile }) {
 
   useEffect(() => {
     if (!profile?.id) return
-    Promise.all([
-      professionalService.getByUserId(profile.id),
-      consultationTypesService.getByProfessional(profile.id),
-    ]).then(([p, types]) => {
+    professionalService.getByUserId(profile.id).then(p => {
       setProfData(p)
       if (p) setForm({
-        specialty:       p.specialty       || '',
-        subSpecialty:    p.subSpecialty    || '',
-        bio:             p.bio             || '',
-        pricePresencial: p.pricePresencial ?? p.sessionPrice ?? '',
-        priceVideo:      p.priceVideo      ?? p.sessionPrice ?? '',
-        address:         p.address         || '',
-        latitude:        p.latitude        || null,
-        longitude:       p.longitude       || null,
+        specialty:    p.specialty    || '',
+        subSpecialty: p.subSpecialty || '',
+        bio:          p.bio          || '',
+        address:      p.address      || '',
+        latitude:     p.latitude     || null,
+        longitude:    p.longitude    || null,
       })
-      setConsultationTypes(types)
     }).finally(() => setLoading(false))
   }, [profile?.id])
 
@@ -46,11 +36,6 @@ export default function ProfessionalProfile({ profile }) {
     setAvatarFile(file)
     setAvatarPreview(URL.createObjectURL(file))
   }
-
-  const addType    = () => setConsultationTypes(prev => [...prev, { name: '', price: '', modality: '' }])
-  const removeType = i  => setConsultationTypes(prev => prev.filter((_, idx) => idx !== i))
-  const updateType = (i, key, val) =>
-    setConsultationTypes(prev => prev.map((t, idx) => idx === i ? { ...t, [key]: val } : t))
 
   const save = async (e) => {
     e.preventDefault()
@@ -60,20 +45,9 @@ export default function ProfessionalProfile({ profile }) {
         await profilesService.uploadAvatar(profile.id, avatarFile)
         setAvatarFile(null)
       }
-      const pres = form.pricePresencial ? Number(form.pricePresencial) : null
-      const vid  = form.priceVideo      ? Number(form.priceVideo)      : null
-      const payload = {
-        ...form,
-        pricePresencial: pres,
-        priceVideo:      vid,
-        sessionPrice:    pres ?? vid ?? null,
-      }
+      const payload = { ...profData, ...form }
       if (payload.latitude == null) { delete payload.latitude; delete payload.longitude }
-
-      await Promise.all([
-        professionalService.upsert(profile.id, payload),
-        consultationTypesService.saveTypes(profile.id, consultationTypes),
-      ])
+      await professionalService.upsert(profile.id, payload)
       toast.success('Perfil actualizado')
     } catch {
       toast.error('Error al guardar')
@@ -156,122 +130,6 @@ export default function ProfessionalProfile({ profile }) {
               setForm(p => ({ ...p, address, latitude, longitude }))
             }
           />
-        </div>
-
-        {/* ── Pricing card ── */}
-        <div className="card space-y-5">
-          <h2 className="font-semibold text-text-primary">Tarifas</h2>
-
-          <div>
-            <label className="form-label">Precio base por modalidad (ARS)</label>
-            <p className="text-xs text-text-secondary mb-2">
-              Usado cuando no se selecciona un tipo de consulta específico.
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-text-secondary mb-1 block">Presencial</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={form.pricePresencial}
-                    onChange={e => setForm(p => ({ ...p, pricePresencial: e.target.value }))}
-                    className="form-input pl-7"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-text-secondary mb-1 block">Videollamada</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={form.priceVideo}
-                    onChange={e => setForm(p => ({ ...p, priceVideo: e.target.value }))}
-                    className="form-input pl-7"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Consultation types repeater ── */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <label className="form-label mb-0">Tipos de consulta</label>
-                <p className="text-xs text-text-secondary mt-0.5">
-                  Nombrados y con precio propio. El paciente los elige al agendar.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={addType}
-                className="flex items-center gap-1.5 text-sm text-brand hover:text-brand-hover font-medium shrink-0"
-              >
-                <Plus className="h-4 w-4" />
-                Agregar tipo
-              </button>
-            </div>
-
-            {consultationTypes.length === 0 ? (
-              <div className="border border-dashed border-border-default rounded-xl py-5 text-center">
-                <p className="text-sm text-text-muted">Sin tipos definidos — se usarán los precios base.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {/* Header */}
-                <div className="grid grid-cols-[1fr_110px_130px_32px] gap-2 px-1">
-                  <span className="text-xs text-text-muted">Nombre</span>
-                  <span className="text-xs text-text-muted">Precio (ARS)</span>
-                  <span className="text-xs text-text-muted">Modalidad</span>
-                  <span />
-                </div>
-                {consultationTypes.map((t, i) => (
-                  <div key={t.id || i} className="grid grid-cols-[1fr_110px_130px_32px] gap-2 items-center">
-                    <input
-                      type="text"
-                      value={t.name}
-                      onChange={e => updateType(i, 'name', e.target.value)}
-                      placeholder="Ej: Consulta inicial"
-                      className="form-input"
-                    />
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-                      <input
-                        type="number"
-                        min="0"
-                        value={t.price || ''}
-                        onChange={e => updateType(i, 'price', e.target.value)}
-                        placeholder="0"
-                        className="form-input pl-7"
-                      />
-                    </div>
-                    <select
-                      value={t.modality || ''}
-                      onChange={e => updateType(i, 'modality', e.target.value)}
-                      className="form-select"
-                    >
-                      <option value="">Ambas</option>
-                      <option value="presencial">Presencial</option>
-                      <option value="video">Videollamada</option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => removeType(i)}
-                      className="p-1.5 text-text-muted hover:text-danger transition-colors"
-                    >
-                      <Trash className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
         <button type="submit" disabled={saving} className="btn-primary w-full">

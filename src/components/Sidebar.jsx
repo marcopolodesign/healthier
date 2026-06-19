@@ -18,12 +18,13 @@ const NAV_BY_ROLE = {
     { to: '/paciente/perfil',        icon: User,                label: 'Mi perfil' },
   ],
   professional: [
-    { to: '/profesional/dashboard',  icon: House,       label: 'Inicio' },
-    { to: '/profesional/agenda',     icon: Calendar,   label: 'Mi agenda' },
-    { to: '/profesional/pacientes',  icon: Users,      label: 'Pacientes' },
-    { to: '/profesional/historial',  icon: ClockCounterClockwise,    label: 'Historial' },
-    { to: '/profesional/ganancias',  icon: TrendUp,  label: 'Ganancias' },
-    { to: '/profesional/nutriplan',  icon: ForkKnife,       label: 'NutriPlan Pro', specialty: 'nutricion' },
+    { to: '/profesional/dashboard',      icon: House,                label: 'Inicio' },
+    { to: '/profesional/agenda',         icon: Calendar,             label: 'Mi agenda' },
+    { to: '/profesional/pacientes',      icon: Users,                label: 'Pacientes' },
+    { to: '/profesional/historial',      icon: ClockCounterClockwise, label: 'Historial' },
+    { to: '/profesional/ganancias',      icon: TrendUp,              label: 'Ganancias' },
+    { to: '/profesional/configuracion',  icon: Gear,                 label: 'Configuración' },
+    { to: '/profesional/nutriplan',      icon: ForkKnife,            label: 'NutriPlan Pro', specialty: 'nutricion' },
   ],
   admin: [
     { to: '/admin/profesionales',    icon: ShieldCheck,   label: 'Verificación' },
@@ -126,7 +127,6 @@ export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onCl
               )}
               <div className="text-left min-w-0">
                 <p className="text-sm font-medium text-text-primary leading-tight truncate">{profile?.fullName || 'Mi perfil'}</p>
-                <p className="text-xs text-text-secondary leading-tight">Ver perfil</p>
               </div>
             </NavLink>
           ) : (
