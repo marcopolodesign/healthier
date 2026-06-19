@@ -497,3 +497,26 @@
     display: none;
   }
 }
+
+/* ── Historia Clínica print stylesheet ── */
+@media print {
+  /* Hide everything that isn't the HC content */
+  nav, [data-bottom-nav], aside, .print\:hidden {
+    display: none !important;
+  }
+
+  body, html {
+    background: white !important;
+  }
+
+  /* Expand all encounter detail sections for print */
+  .encounter-detail {
+    display: block !important;
+  }
+
+  /* Page breaks between encounters */
+  .encounter-card {
+    break-inside: avoid;
+    margin-bottom: 1rem;
+  }
+}

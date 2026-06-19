@@ -38,10 +38,12 @@ import ProfessionalHistorial from './pages/professional/Historial'
 import ProfessionalPatientProfile from './pages/professional/PatientProfile'
 import ProfessionalPacientes from './pages/professional/Pacientes'
 import ProfessionalGanancias from './pages/professional/Ganancias'
+import ProfessionalConfiguracion from './pages/professional/Configuracion'
 import PatientBiovisor from './pages/patient/Biovisor'
 import PatientNutriPlan from './pages/patient/NutriPlan'
 import PatientComprobantes from './pages/patient/Comprobantes'
 import PatientVideoCall from './pages/patient/VideoCall'
+import HistoriaClinicaPaciente from './pages/paciente/HistoriaClinicaPaciente'
 import WaitingRoom from './pages/patient/WaitingRoom'
 import ConsultationReview from './pages/patient/ConsultationReview'
 import BuscarProfesional from './pages/patient/BuscarProfesional'
@@ -191,6 +193,7 @@ export default function App() {
           <Route path="/paciente/sala-espera/:consultationId" element={<WaitingRoom profile={profile} />} />
           <Route path="/paciente/pago" element={<PaymentPage profile={profile} />} />
           <Route path="/paciente/consulta/review/:consultationId" element={<ConsultationReview profile={profile} />} />
+          <Route path="/paciente/historia-clinica" element={<HistoriaClinicaPaciente profile={profile} />} />
         </Route>
 
         {/* Patient onboarding — full-screen, no mobile nav */}
@@ -225,6 +228,7 @@ export default function App() {
           <Route path="/profesional/paciente/:patientId" element={<ProfessionalPatientProfile />} />
           <Route path="/profesional/pacientes" element={<ProfessionalPacientes profile={profile} />} />
           <Route path="/profesional/ganancias" element={<ProfessionalGanancias profile={profile} />} />
+          <Route path="/profesional/configuracion" element={<ProfessionalConfiguracion profile={profile} />} />
         </Route>
 
         {/* Admin */}

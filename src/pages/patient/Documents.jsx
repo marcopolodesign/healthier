@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ShieldCheck, CaretRight, ArrowLeft, Eye, Plus,
   CloudArrowUp, Camera, CircleNotch, Pulse, Check,
-  FileText, FolderOpen, AppleLogo, Barbell, PawPrint, Sparkle,
+  FileText, FolderOpen, AppleLogo, Barbell, PawPrint, Sparkle, ClipboardText,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
@@ -85,6 +85,23 @@ export default function PatientDocuments({ profile }) {
           <ShieldCheck className="w-4 h-4 text-emerald-500" /> Tu historial médico seguro
         </p>
       </div>
+
+      {/* Historia Clínica banner */}
+      <button
+        onClick={() => navigate('/paciente/historia-clinica')}
+        className="w-full bg-gradient-to-r from-[#7CB38B] to-[#5f9470] rounded-[22px] p-5 text-left text-white shadow-md hover:shadow-lg active:scale-[0.98] transition-all mb-4 flex items-center justify-between"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-white/20 rounded-[14px] flex items-center justify-center flex-shrink-0">
+            <ClipboardText className="w-7 h-7 text-white" />
+          </div>
+          <div>
+            <p className="font-black text-[17px] leading-tight">Historia Clínica</p>
+            <p className="text-[12px] opacity-80 mt-0.5">Ver y descargar tu HC completa</p>
+          </div>
+        </div>
+        <CaretRight className="w-5 h-5 opacity-70 flex-shrink-0" />
+      </button>
 
       {/* Feature cards — Biovisor & NutriPlan */}
       <div className="grid grid-cols-2 gap-3 mb-6">
