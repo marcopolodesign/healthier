@@ -11,6 +11,7 @@ export default function ProfessionalProfile({ profile }) {
   const [form, setForm] = useState({
     specialty: '', subSpecialty: '', bio: '',
     address: '', latitude: null, longitude: null,
+    calendlyUrl: '',
   })
   const [avatarFile, setAvatarFile] = useState(null)
   const [avatarPreview, setAvatarPreview] = useState(null)
@@ -28,6 +29,7 @@ export default function ProfessionalProfile({ profile }) {
         address:      p.address      || '',
         latitude:     p.latitude     || null,
         longitude:    p.longitude    || null,
+        calendlyUrl:  p.calendlyUrl  || '',
       })
     }).finally(() => setLoading(false))
   }, [profile?.id])
@@ -130,6 +132,20 @@ export default function ProfessionalProfile({ profile }) {
               setForm(p => ({ ...p, address, latitude, longitude }))
             }
           />
+
+          <div>
+            <label className="form-label">Link de Calendly (opcional)</label>
+            <input
+              type="url"
+              value={form.calendlyUrl}
+              onChange={e => setForm(p => ({ ...p, calendlyUrl: e.target.value }))}
+              placeholder="https://calendly.com/tu-nombre/consulta"
+              className="form-input"
+            />
+            <p className="text-xs text-text-muted mt-1">
+              Si completás este campo, los pacientes verán un widget de Calendly en tu perfil público para agendar directamente.
+            </p>
+          </div>
         </div>
 
         <button type="submit" disabled={saving} className="btn-primary w-full">
