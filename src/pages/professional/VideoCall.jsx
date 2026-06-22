@@ -204,13 +204,17 @@ export default function ProfessionalVideoCall({ profile }) {
         if (destroyed) return
         setConsultation(cons)
 
-        const callFrame = DailyIframe.createFrame(containerRef.current, {
+        const DailyLib = window.__DailyIframeMock ?? DailyIframe
+        const callFrame = DailyLib.createFrame(containerRef.current, {
           iframeStyle: { width: '100%', height: '100%', border: 'none', borderRadius: '12px' },
           showLeaveButton: false,
           showFullscreenButton: true,
           lang: 'es',
         })
         callFrameRef.current = callFrame
+        callFrame.on('joined-meeting', () => {
+          if (!destroyed) consultationsService.updateStatus(id, 'in_progress').catch(() => {})
+        })
         callFrame.on('left-meeting', () => { if (!destroyed) setCloseModal(true) })
         callFrame.on('error', e => {
           toast.error(`Error en la videollamada: ${e.errorMsg}`)

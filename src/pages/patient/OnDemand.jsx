@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, VideoCamera, Clock, CircleNotch, Check } from '@phosphor-icons/react';
 import { toast } from '../../components/Toast'
 import { professionalService } from '../../services/professionalService'
+import { consultationsService } from '../../services/consultationsService'
 import { VERTICALS_BY_ID, SPECIALTY_LABELS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
 
 export default function OnDemand({ profile }) {
@@ -14,6 +15,7 @@ export default function OnDemand({ profile }) {
   const [searching, setSearching] = useState(false)
   const [matched, setMatched] = useState(false)
   const [matchedPro, setMatchedPro] = useState(null)
+  const [consultationId, setConsultationId] = useState(null)
 
   if (!vertical || vertical.comingSoon) {
     navigate('/paciente/dashboard')
@@ -37,8 +39,25 @@ export default function OnDemand({ profile }) {
         Promise.all([
           new Promise(r => setTimeout(r, 3500)),
           fetchPro,
-        ]).then(([, pros]) => {
-          setMatchedPro(pros[0] || null)
+        ]).then(async ([, pros]) => {
+          const pro = pros[0] ?? null
+          if (pro && profile?.id) {
+            try {
+              const cons = await consultationsService.create({
+                patientId: profile.id,
+                professionalId: pro.profileId ?? pro.id,
+                scheduledAt: new Date().toISOString(),
+                modality: 'video',
+                status: 'confirmed',
+                priceAtBooking: 15,
+              })
+              setConsultationId(cons.id)
+            } catch (err) {
+              console.error('[OnDemand] consultation create failed:', err)
+              toast.error('Error al crear la consulta. Intentá de nuevo.')
+            }
+          }
+          setMatchedPro(pro)
           setSearching(false)
           setMatched(true)
         })
@@ -100,7 +119,11 @@ export default function OnDemand({ profile }) {
               <p className="text-gray-500 text-[13px] leading-snug">El profesional te está esperando. Tenés 3 min para unirte.</p>
             </div>
           </div>
-          <button onClick={() => navigate('/paciente/videollamada/1')} className="w-full bg-brand text-white py-4 rounded-[20px] font-bold text-[17px] shadow-md hover:bg-brand-hover active:scale-95 transition-all flex justify-center items-center gap-3 mb-4">
+          <button
+            data-testid="enter-call-btn"
+            onClick={() => navigate(consultationId ? `/paciente/sala-espera/${consultationId}` : '/paciente/videollamada/1')}
+            className="w-full bg-brand text-white py-4 rounded-[20px] font-bold text-[17px] shadow-md hover:bg-brand-hover active:scale-95 transition-all flex justify-center items-center gap-3 mb-4"
+          >
             Entrar a la Llamada
           </button>
           <button onClick={() => navigate('/paciente/dashboard')} className="w-full bg-gray-50 text-gray-500 py-3.5 rounded-[16px] font-bold text-[15px] flex justify-center items-center hover:bg-gray-100">
