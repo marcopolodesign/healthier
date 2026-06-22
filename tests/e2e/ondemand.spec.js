@@ -59,12 +59,16 @@ test.describe('Patient — on-demand consultation', () => {
 
   test('creates consultation and lands on sala de espera', async ({ page }) => {
     await loginAs(page, PATIENT_EMAIL, PATIENT_PASS)
-    await page.goto('/paciente/ondemand/medicina_general')
+    await page.goto('/paciente/ondemand/clinica')
 
     await page.getByRole('button', { name: /Pagar/i }).click()
 
-    // Wait through payment + search animation + consultation create (≤12s total)
-    await page.waitForURL(/\/paciente\/sala-espera\//, { timeout: 12_000 })
+    // Wait through payment (1.5s) + success (1s) + search animation + consultation create (≤10s total)
+    const enterCallBtn = page.getByRole('button', { name: /Entrar a la Llamada/i })
+    await expect(enterCallBtn).toBeVisible({ timeout: 12_000 })
+    await enterCallBtn.click()
+
+    await page.waitForURL(/\/paciente\/sala-espera\//, { timeout: 8_000 })
 
     consultationId = page.url().split('/sala-espera/')[1]
     expect(consultationId).toBeTruthy()
@@ -72,7 +76,7 @@ test.describe('Patient — on-demand consultation', () => {
     // Button disabled while waiting for doctor
     const enterBtn = page.getByRole('button', { name: /Entrar a la consulta/i })
     await expect(enterBtn).toBeDisabled()
-    await expect(page.getByText(/Sala de espera/i)).toBeVisible()
+    await expect(page.getByRole('heading', { name: /Sala de espera/i })).toBeVisible()
   })
 
   test('sala de espera unlocks when status becomes in_progress', async ({ page }) => {

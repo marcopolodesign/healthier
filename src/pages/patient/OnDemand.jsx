@@ -45,7 +45,7 @@ export default function OnDemand({ profile }) {
             try {
               const cons = await consultationsService.create({
                 patientId: profile.id,
-                professionalId: pro.profileId ?? pro.id,
+                professionalId: pro.userId,
                 scheduledAt: new Date().toISOString(),
                 modality: 'video',
                 status: 'confirmed',
