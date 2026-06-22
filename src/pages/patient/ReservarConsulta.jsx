@@ -77,15 +77,20 @@ export default function ReservarConsulta({ profile }) {
 
   const paramVerticalId = searchParams.get('vertical')
   const paramProId      = searchParams.get('proId')
+  const paramModality   = searchParams.get('modality') // 'virtual' | 'presencial'
 
   // ── State ─────────────────────────────────────────────────
   const [selectedVertical, setSelectedVertical] = useState(
     () => VERTICALS.find(v => v.id === paramVerticalId && !v.comingSoon) || null
   )
-  const [step, setStep] = useState(
-    paramVerticalId && !VERTICALS.find(v => v.id === paramVerticalId)?.comingSoon ? 'modality' : 'vertical'
-  )
-  const [modality, setModality]         = useState(null) // 'virtual' | 'presencial'
+  const [step, setStep] = useState(() => {
+    const hasVert = paramVerticalId && !VERTICALS.find(v => v.id === paramVerticalId)?.comingSoon
+    if (!hasVert) return 'vertical'
+    if (paramModality && paramProId) return 'datetime'
+    if (paramModality) return 'professional'
+    return 'modality'
+  })
+  const [modality, setModality] = useState(paramModality || null) // 'virtual' | 'presencial'
   const [petName, setPetName]           = useState('')
   const [petSpecies, setPetSpecies]     = useState('')
   const [professionals, setProfessionals] = useState([])

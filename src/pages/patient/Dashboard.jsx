@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
 import {
   MapPin, Clock, CaretRight, Star, VideoCamera,
-  CircleNotch, Heartbeat, Calendar, Plus,
+  Heartbeat, Calendar, Plus,
 } from '@phosphor-icons/react'
 
 const LAST_VERTICAL_KEY = 'healthier_last_vertical'
@@ -42,8 +42,6 @@ export default function PatientDashboard({ profile }) {
   const [isLocating, setIsLocating] = useState(true)
   const [mapProFlow, setMapProFlow] = useState(null)
   const [selectedMapPro, setSelectedMapPro] = useState(null)
-  const [selectedMapModality, setSelectedMapModality] = useState(null)
-  const [mapPaymentStatus, setMapPaymentStatus] = useState('idle')
   const [proPool, setProPool] = useState([])
   const [availableNow, setAvailableNow] = useState(false)
   const [lastUsed, setLastUsed] = useState(() => {
@@ -142,30 +140,25 @@ export default function PatientDashboard({ profile }) {
     if (!pro) return
     const vert = VERTICALS.find(v => v.id === type)
     setSelectedMapPro({
-      name:      pro.profiles?.fullName || 'Profesional',
-      specialty: SPECIALTY_LABELS[pro.specialty] || pro.specialty,
-      rating:    String(pro.averageRating ?? '—'),
-      reviews:   pro.totalReviews ?? 0,
-      img:       pro.profiles?.avatarUrl || null,
-      color:     vert.color,
-      bg:        vert.bg,
-      icon:      vert.icon,
+      name:       pro.profiles?.fullName || 'Profesional',
+      specialty:  SPECIALTY_LABELS[pro.specialty] || pro.specialty,
+      rating:     String(pro.averageRating ?? '—'),
+      reviews:    pro.totalReviews ?? 0,
+      img:        pro.profiles?.avatarUrl || null,
+      color:      vert.color,
+      bg:         vert.bg,
+      icon:       vert.icon,
+      userId:     pro.userId,
+      verticalId: type,
     })
     setMapProFlow('details')
-    setMapPaymentStatus('idle')
   }
 
-  const handleMapPayment = () => {
-    setMapPaymentStatus('processing')
-    setTimeout(() => {
-      setMapPaymentStatus('success')
-      setTimeout(() => {
-        setMapProFlow(null)
-        setSelectedMapPro(null)
-        navigate('/paciente/consultas')
-        toast.success('¡Reserva confirmada!')
-      }, 1000)
-    }, 1500)
+  const handleMapModalitySelect = modality => {
+    if (!selectedMapPro) return
+    setMapProFlow(null)
+    setSelectedMapPro(null)
+    navigate(`/paciente/reservar?vertical=${selectedMapPro.verticalId}&proId=${selectedMapPro.userId}&modality=${modality}`)
   }
 
   const goToVertical = v => {
@@ -426,7 +419,7 @@ export default function PatientDashboard({ profile }) {
       {/* Map pro flow — responsive sheet/modal */}
       <PatientSheet
         open={!!mapProFlow && !!selectedMapPro}
-        onClose={() => { setMapProFlow(null); setSelectedMapPro(null); setSelectedMapModality(null) }}
+        onClose={() => { setMapProFlow(null); setSelectedMapPro(null) }}
       >
         <div className="pb-10 overflow-y-auto scrollbar-hide flex-1">
           {mapProFlow === 'details' && (
@@ -464,7 +457,7 @@ export default function PatientDashboard({ profile }) {
                 ].map(opt => (
                   <div
                     key={opt.mod}
-                    onClick={() => { setSelectedMapModality(opt.mod); setMapProFlow('payment') }}
+                    onClick={() => handleMapModalitySelect(opt.mod === 'Videollamada' ? 'virtual' : 'presencial')}
                     className="bg-white p-5 rounded-[24px] shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:border-brand transition-all group"
                   >
                     <div className={`w-14 h-14 ${opt.bg} rounded-[16px] flex items-center justify-center group-hover:scale-110 transition-transform`}>
@@ -481,44 +474,6 @@ export default function PatientDashboard({ profile }) {
             </div>
           )}
 
-          {mapProFlow === 'payment' && (
-            <div className="px-6 pt-4 animate-fade-in">
-              <div className="flex items-center gap-3 mb-6">
-                <button onClick={() => setMapProFlow('details')} className="w-10 h-10 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50" disabled={mapPaymentStatus !== 'idle'}>
-                  ←
-                </button>
-                <h2 className="text-[24px] font-black text-gray-900 leading-none tracking-tight">Confirmar Reserva</h2>
-              </div>
-              <div className="bg-bg-primary rounded-[24px] p-5 border border-gray-100 mb-6">
-                <div className="flex items-center gap-4 mb-4 pb-4 border-b border-gray-200">
-                  {selectedMapPro.img
-                    ? <img src={selectedMapPro.img} alt={selectedMapPro.name} className="w-12 h-12 rounded-full object-cover border border-white shadow-sm" />
-                    : <div className="w-12 h-12 rounded-full border border-white shadow-sm flex items-center justify-center font-black text-lg" style={{ backgroundColor: selectedMapPro.bg, color: selectedMapPro.color }}>{selectedMapPro.name[0]}</div>
-                  }
-                  <div>
-                    <h4 className="font-bold text-[16px] text-gray-900 leading-tight">{selectedMapPro.name}</h4>
-                    <p className="text-[13px] text-gray-500 font-medium">{selectedMapModality} • Hoy, ahora</p>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center pt-1">
-                  <span className="font-bold text-gray-500">Total</span>
-                  <span className="font-black text-[24px] text-gray-900">$20.00</span>
-                </div>
-              </div>
-              <button
-                onClick={handleMapPayment}
-                disabled={mapPaymentStatus !== 'idle'}
-                className={`w-full py-5 rounded-[20px] font-bold text-[17px] shadow-md transition-all flex justify-center items-center gap-3
-                  ${mapPaymentStatus === 'success' ? 'bg-emerald-500 text-white scale-[1.02]' :
-                    mapPaymentStatus === 'processing' ? 'bg-gray-200 text-gray-400 cursor-not-allowed' :
-                    'bg-brand text-white hover:bg-brand-hover active:scale-95'}`}
-              >
-                {mapPaymentStatus === 'processing' ? <><CircleNotch className="w-5 h-5 animate-spin" /> Procesando...</>
-                 : mapPaymentStatus === 'success' ? <>✓ ¡Reserva Exitosa!</>
-                 : <>Pagar $20.00 y Conectar</>}
-              </button>
-            </div>
-          )}
         </div>
       </PatientSheet>
     </div>
