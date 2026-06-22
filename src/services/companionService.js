@@ -1,4 +1,5 @@
-const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
+import { supabase } from '../lib/supabase'
+
 const MAX_HISTORY = 20
 
 function getMockResponse(message) {
@@ -163,39 +164,21 @@ Respondé SIEMPRE con JSON válido, sin texto extra ni bloques de código:
   },
 
   async sendMessage(messages, systemPrompt) {
-    // Cap history to avoid token bloat
     const trimmed = messages.slice(-MAX_HISTORY)
 
-    if (!ANTHROPIC_API_KEY) {
-      await new Promise(r => setTimeout(r, 900))
-      const lastMsg = trimmed[trimmed.length - 1]?.content ?? ''
-      return getMockResponse(lastMsg)
-    }
-
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1024,
-          system: systemPrompt,
-          messages: trimmed,
-        }),
+      const { data, error } = await supabase.functions.invoke('ai-companion', {
+        body: { messages: trimmed, systemPrompt },
       })
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      if (error) throw error
 
-      const data = await res.json()
-      const raw = data.content?.[0]?.text ?? ''
+      const raw = data?.text ?? ''
+      if (!raw) throw new Error('Empty response from ai-companion')
+
       return parseJsonResponse(raw)
     } catch (err) {
-      console.error('[companionService] API error:', err?.message ?? err)
+      console.error('[companionService] Edge Function error:', err?.message ?? err)
       return {
         text: `No pude conectarme (${err?.message ?? 'error desconocido'}). Revisá tu conexión e intentá de nuevo.`,
         followUps: [],
