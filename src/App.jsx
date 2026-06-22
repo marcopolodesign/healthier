@@ -50,6 +50,7 @@ import ConsultationReview from './pages/patient/ConsultationReview'
 import BuscarProfesional from './pages/patient/BuscarProfesional'
 import ReservarConsulta from './pages/patient/ReservarConsulta'
 import PaymentPage from './pages/patient/PaymentPage'
+import PatientAIChat from './pages/patient/PatientAIChat'
 
 import AdminProfessionals from './pages/admin/Professionals'
 import AdminUsers from './pages/admin/Users'
@@ -196,6 +197,7 @@ export default function App() {
           <Route path="/paciente/pago" element={<PaymentPage profile={profile} />} />
           <Route path="/paciente/consulta/review/:consultationId" element={<ConsultationReview profile={profile} />} />
           <Route path="/paciente/historia-clinica" element={<HistoriaClinicaPaciente profile={profile} />} />
+          <Route path="/paciente/ia"              element={<PatientAIChat           profile={profile} />} />
         </Route>
 
         {/* Patient onboarding — full-screen, no mobile nav */}
