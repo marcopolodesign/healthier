@@ -53,7 +53,7 @@ export const consultationsService = {
   async getByPatient(patientId) {
     const { data, error } = await supabase
       .from('consultations')
-      .select('*, professional:profiles!professional_id(full_name, avatar_url, professional_profiles(specialty))')
+      .select('*, professional:profiles!professional_id(full_name, avatar_url, professional_profiles(specialty)), consultation_orders(*)')
       .eq('patient_id', patientId)
       .order('scheduled_at', { ascending: false })
     if (error) throw error

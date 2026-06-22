@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import {
   Calendar, Clock, VideoCamera, MapPin, Star, CaretRight, ArrowLeft, CircleNotch, Check,
-  X, FileText, Ambulance, CheckCircle, ArrowsClockwise,
+  X, FileText, Ambulance, CheckCircle, ArrowsClockwise, ClipboardText, Pill, UserCircle,
 } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
@@ -532,6 +532,7 @@ export default function PatientConsultations({ profile }) {
           const isUpcomingActive = view === 'upcoming' && ['confirmed', 'pending'].includes(t.status)
           const hasHeural = !!t.heuralAppointmentId
           const isInProgressVideo = view === 'upcoming' && t.status === 'in_progress' && t.modality === 'video'
+          const orders = t.consultationOrders ?? []
           // Actions row shows if there's something to show in it:
           // — upcoming non-Heural: always (cancel button)
           // — upcoming Heural video confirmed: video entry button
@@ -629,6 +630,39 @@ export default function PatientConsultations({ profile }) {
                   )}
                 </div>
               </div>
+
+              {/* Orders / prescriptions / referrals section */}
+              {orders.length > 0 && (
+                <div className="border-t border-border-default px-4 py-3 space-y-1.5">
+                  {orders.map(order => {
+                    const orderIcon = order.orderType === 'receta' ? Pill
+                      : order.orderType === 'derivacion' ? UserCircle
+                      : ClipboardText
+                    const orderLabel = order.orderType === 'receta' ? 'Receta'
+                      : order.orderType === 'derivacion' ? 'Derivación'
+                      : 'Orden'
+                    const OrderIcon = orderIcon
+                    return (
+                      <div key={order.id} className="flex items-center gap-2.5">
+                        <OrderIcon className="w-4 h-4 text-brand shrink-0" />
+                        <span className="text-[12px] text-text-secondary flex-1 truncate">{order.description}</span>
+                        {order.url ? (
+                          <a
+                            href={order.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[11px] text-brand font-semibold shrink-0 hover:underline"
+                          >
+                            {orderLabel} →
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-text-tertiary shrink-0">{orderLabel}</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
 
               {/* Actions row */}
               {hasActions && (
