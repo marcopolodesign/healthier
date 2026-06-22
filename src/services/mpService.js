@@ -208,4 +208,23 @@ export const mpService = {
   getMpConnectUrl(professionalId) {
     return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mp-connect?professional_id=${professionalId}`
   },
+
+  /**
+   * Check whether a professional has a connected MP Marketplace account.
+   * Returns { data: { connected: boolean, email: string|null }, error }
+   */
+  async getConnectionStatus(professionalId) {
+    try {
+      const { data, error } = await supabase
+        .from('mp_accounts')
+        .select('id, seller_email, connected_at')
+        .eq('professional_id', professionalId)
+        .maybeSingle()
+
+      if (error) return { data: { connected: false, email: null }, error: error.message }
+      return { data: { connected: !!data, email: data?.seller_email ?? null }, error: null }
+    } catch (err) {
+      return { data: { connected: false, email: null }, error: err.message }
+    }
+  },
 }

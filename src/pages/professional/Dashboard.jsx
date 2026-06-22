@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar } from '@phosphor-icons/react';
+import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle } from '@phosphor-icons/react';
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
 import { emergencyService } from '../../services/emergencyService'
+import { mpService } from '../../services/mpService'
 import StatusBadge from '../../components/StatusBadge'
 import { toast } from '../../components/Toast'
 
@@ -29,6 +30,7 @@ export default function ProfessionalDashboard({ profile }) {
   const [profProfile, setProfProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [activeEmergency, setActiveEmergency] = useState(null)
+  const [mpStatus, setMpStatus] = useState(null)
   const unsubRef = useRef(null)
 
   useEffect(() => {
@@ -38,11 +40,13 @@ export default function ProfessionalDashboard({ profile }) {
       professionalService.getByUserId(profile.id),
       emergencyService.getActiveForProfessional(profile.id),
       consultationsService.getEarningsData(profile.id),
-    ]).then(([cons, prof, emg, earnings]) => {
+      mpService.getConnectionStatus(profile.id),
+    ]).then(([cons, prof, emg, earnings, mp]) => {
       setConsultations(cons)
       setProfProfile(prof)
       setActiveEmergency(emg)
       setEarningsData(earnings)
+      setMpStatus(mp.data)
     }).catch(() => toast.error('Error al cargar datos'))
     .finally(() => setLoading(false))
 
@@ -194,6 +198,37 @@ export default function ProfessionalDashboard({ profile }) {
           Ver desglose <ArrowRight className="h-4 w-4" />
         </div>
       </Link>
+
+      {/* MercadoPago connection banner */}
+      {!loading && mpStatus && !mpStatus.connected && (
+        <a
+          href={mpService.getMpConnectUrl(profile.id)}
+          className="card flex items-center gap-4 border-amber-200 bg-amber-50 hover:border-amber-300 transition-colors group"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
+            <LinkSimple className="h-6 w-6 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-amber-700 font-medium uppercase tracking-wide">Pagos no configurados</p>
+            <p className="text-base font-semibold text-text-primary mt-0.5">Conectar MercadoPago</p>
+            <p className="text-xs text-text-secondary mt-0.5">Necesario para recibir pagos de tus consultas</p>
+          </div>
+          <div className="flex items-center gap-1 text-amber-600 text-sm font-medium shrink-0 group-hover:gap-2 transition-all">
+            Conectar <ArrowRight className="h-4 w-4" />
+          </div>
+        </a>
+      )}
+      {!loading && mpStatus?.connected && (
+        <div className="card flex items-center gap-4 border-emerald-200 bg-emerald-50">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0">
+            <CheckCircle className="h-6 w-6 text-emerald-600" weight="fill" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-emerald-700 font-medium uppercase tracking-wide">MercadoPago conectado</p>
+            <p className="text-sm text-text-secondary mt-0.5">{mpStatus.email ?? 'Cuenta vinculada'}</p>
+          </div>
+        </div>
+      )}
 
       {/* Today's consultations */}
       <div className="card">
