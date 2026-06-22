@@ -45,6 +45,8 @@ export const consultationsService = {
       .select()
       .single()
     if (error) throw error
+    // Fire-and-forget booking emails (silently skipped if RESEND_API_KEY is not set)
+    supabase.functions.invoke('send-booking-email', { body: { consultationId: row.id } }).catch(() => {})
     return toCamelCase(row)
   },
 
