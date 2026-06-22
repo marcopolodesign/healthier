@@ -13,6 +13,7 @@ import { professionalService } from './services/professionalService'
 import Landing from './pages/Landing'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
+import TerminosYCondiciones from './pages/TerminosYCondiciones'
 
 import PatientDashboard from './pages/patient/Dashboard'
 import PatientOnboarding from './pages/patient/Onboarding'
@@ -161,6 +162,7 @@ export default function App() {
       <Routes>
         {/* Public */}
         <Route path="/" element={<Landing />} />
+        <Route path="/terminos" element={<TerminosYCondiciones />} />
 
         {/* Auth */}
         <Route element={<AuthLayout />}>

@@ -18,7 +18,8 @@ const CONSENT_ITEMS = [
   {
     key: 'equipo_tratante',
     title: 'Acceso del equipo médico',
-    desc: 'Acepto que los profesionales que me atiendan en Healthier puedan acceder a mi información clínica compartida para una atención integral y coordinada.',
+    desc: 'Acepto que los profesionales que me atiendan en Healthier puedan acceder a mi información clínica compartida para una atención integral y coordinada. Ver Términos y Condiciones.',
+    link: '/terminos',
   },
 ]
 
@@ -158,7 +159,21 @@ export default function Register({ onLogin }) {
               </span>
               <span>
                 <span className="text-sm font-semibold text-text-primary block">{item.title}</span>
-                <span className="text-xs text-text-secondary leading-relaxed">{item.desc}</span>
+                <span className="text-xs text-text-secondary leading-relaxed">
+                  {item.link ? (
+                    <>
+                      {item.desc.replace(' Ver Términos y Condiciones.', '')}{' '}
+                      <Link
+                        to={item.link}
+                        target="_blank"
+                        className="text-brand hover:underline"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        Ver Términos y Condiciones.
+                      </Link>
+                    </>
+                  ) : item.desc}
+                </span>
               </span>
             </button>
           ))}
