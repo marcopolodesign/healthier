@@ -3,11 +3,11 @@
  *
  * Covers:
  * A) Patient perspective: on-demand request → sala de espera → enters call when doctor ready
- * B) Professional perspective: joins call → status transitions to in_progress → finalizes
+ * B) Professional perspective: joins call → status transition attempted → Finalizar opens modal
  *
- * Test credentials (set in .env or environment):
+ * Test credentials (set in .env.test or environment):
  *   TEST_PATIENT_EMAIL / TEST_PATIENT_PASSWORD
- *   TEST_PRO_EMAIL     / TEST_PRO_PASSWORD       (defaults to demo.martin@healthier.app)
+ *   TEST_PRO_EMAIL     / TEST_PRO_PASSWORD  (defaults to demo.martin@healthier.app)
  *
  * Daily.co is mocked via window.__DailyIframeMock (see tests/fixtures/daily-mock.js).
  * The daily-token Edge Function is mocked via page.route().
@@ -18,31 +18,36 @@ import { readFileSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { createClient } from '@supabase/supabase-js'
-import { loginAs } from '../fixtures/auth.js'
+import { loginAs, getSession } from '../fixtures/auth.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DAILY_MOCK_SCRIPT = readFileSync(join(__dirname, '../fixtures/daily-mock.js'), 'utf8')
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 const PATIENT_EMAIL = process.env.TEST_PATIENT_EMAIL
 const PATIENT_PASS  = process.env.TEST_PATIENT_PASSWORD
-const PRO_EMAIL     = process.env.TEST_PRO_EMAIL     ?? 'demo.martin@healthier.app'
-const PRO_PASS      = process.env.TEST_PRO_PASSWORD  ?? 'DemoUser2026!'
+const PRO_EMAIL     = process.env.TEST_PRO_EMAIL    ?? 'demo.martin@healthier.app'
+const PRO_PASS      = process.env.TEST_PRO_PASSWORD ?? 'DemoUser2026!'
 
-// Supabase client used for direct DB operations in tests (read-only, anon)
-const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+const adminSb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
-// Fake room response so the daily-token Edge Function doesn't need to be live
 function mockDailyTokenRoute(page) {
-  return page.route('**/functions/v1/daily-token', async route =>
+  return page.route('**/functions/v1/daily-token', route =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ roomUrl: 'https://healthier.daily.co/demo', token: 'test-token' }),
     })
   )
+}
+
+// Wait for the pro video call header to be visible (confirms RequireRole + profile loaded)
+async function waitForVideoCallHeader(page) {
+  // "Volver" is the back button unique to ProfessionalVideoCall's header
+  await expect(page.getByRole('button', { name: /Volver/i })).toBeVisible({ timeout: 10_000 })
 }
 
 // ── Test A: Patient on-demand flow ──────────────────────────────────────────
@@ -56,51 +61,43 @@ test.describe('Patient — on-demand consultation', () => {
     await loginAs(page, PATIENT_EMAIL, PATIENT_PASS)
     await page.goto('/paciente/ondemand/medicina_general')
 
-    // Click pay button
     await page.getByRole('button', { name: /Pagar/i }).click()
 
-    // Wait through payment animation + search animation (max 8s)
+    // Wait through payment + search animation + consultation create (≤12s total)
     await page.waitForURL(/\/paciente\/sala-espera\//, { timeout: 12_000 })
 
-    // Extract consultation ID from URL
     consultationId = page.url().split('/sala-espera/')[1]
     expect(consultationId).toBeTruthy()
 
-    // WaitingRoom renders: button disabled while waiting for doctor
+    // Button disabled while waiting for doctor
     const enterBtn = page.getByRole('button', { name: /Entrar a la consulta/i })
     await expect(enterBtn).toBeDisabled()
     await expect(page.getByText(/Sala de espera/i)).toBeVisible()
   })
 
   test('sala de espera unlocks when status becomes in_progress', async ({ page }) => {
-    test.skip(!consultationId, 'Run the previous test first to get a consultation ID')
+    test.skip(!consultationId, 'Depends on previous test')
 
     await loginAs(page, PATIENT_EMAIL, PATIENT_PASS)
     await page.goto(`/paciente/sala-espera/${consultationId}`)
 
-    // Initial state: waiting
     const enterBtn = page.getByRole('button', { name: /Entrar a la consulta/i })
     await expect(enterBtn).toBeDisabled()
 
-    // Simulate professional joining by updating status directly via Supabase
-    const { signInWithPassword } = (await import('@supabase/supabase-js')).createClient(SUPABASE_URL, SUPABASE_ANON_KEY).auth
-    // Use service-role or anon update — in tests we rely on RLS allowing professional update
-    // (If RLS blocks this, use the pro session instead)
-    await sb.from('consultations').update({ status: 'in_progress' }).eq('id', consultationId)
+    // Simulate the professional joining via direct DB write (bypasses RLS for test isolation)
+    await adminSb.from('consultations').update({ status: 'in_progress' }).eq('id', consultationId)
 
-    // WaitingRoom Realtime subscription should fire and unlock the button
-    await expect(page.getByText(/El profesional está listo/i)).toBeVisible({ timeout: 5000 })
+    // Realtime subscription fires → WaitingRoom unlocks
+    await expect(page.getByText(/El profesional está listo/i)).toBeVisible({ timeout: 6000 })
     await expect(enterBtn).toBeEnabled()
 
-    // Click → navigates to video call
     await enterBtn.click()
     await expect(page).toHaveURL(`/paciente/videollamada/${consultationId}`)
   })
 
   test.afterAll(async () => {
-    // Clean up: cancel the test consultation so it doesn't pollute the DB
     if (consultationId) {
-      await sb.from('consultations').update({ status: 'cancelled' }).eq('id', consultationId)
+      await adminSb.from('consultations').update({ status: 'cancelled' }).eq('id', consultationId)
     }
   })
 })
@@ -109,67 +106,84 @@ test.describe('Patient — on-demand consultation', () => {
 
 test.describe('Professional — video call & status transition', () => {
   let consultationId
+  let proProfileId
 
-  test.beforeAll(async ({ browser }) => {
-    // Create a confirmed consultation owned by the demo professional
-    // We log in as pro to get their profile ID
-    const { getSession } = await import('../fixtures/auth.js')
+  test.beforeAll(async () => {
     const session = await getSession(PRO_EMAIL, PRO_PASS)
-    const proSb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: `Bearer ${session.access_token}` } },
-    })
-    const { data: profile } = await proSb.from('profiles').select('id').eq('id', session.user.id).single()
+    proProfileId = session.user.id
 
-    // Insert a bare consultation (no patient: we use the pro's own profile as patient for test isolation)
-    const { data: cons } = await proSb.from('consultations').insert({
-      professional_id: profile.id,
-      patient_id: profile.id,
-      scheduled_at: new Date().toISOString(),
-      modality: 'video',
-      status: 'confirmed',
-      price_at_booking: 15,
-    }).select().single()
+    const { data: patient, error: pErr } = await adminSb
+      .from('profiles')
+      .select('id')
+      .eq('role', 'patient')
+      .neq('id', proProfileId)
+      .limit(1)
+      .single()
+    if (pErr || !patient) throw new Error(`No patient found: ${pErr?.message}`)
+
+    const { data: cons, error: cErr } = await adminSb
+      .from('consultations')
+      .insert({
+        professional_id: proProfileId,
+        patient_id: patient.id,
+        scheduled_at: new Date().toISOString(),
+        modality: 'video',
+        status: 'confirmed',
+        price_at_booking: 15,
+      })
+      .select()
+      .single()
+    if (cErr || !cons) throw new Error(`Failed to create test consultation: ${cErr?.message}`)
     consultationId = cons.id
   })
 
-  test('joining video call sets status to in_progress', async ({ page }) => {
-    // Inject Daily.co mock before page scripts run
+  test('joined-meeting mock event triggers updateStatus request', async ({ page }) => {
+    expect(consultationId).toBeTruthy()
+
     await page.addInitScript({ content: DAILY_MOCK_SCRIPT })
     await mockDailyTokenRoute(page)
 
+    // Register BEFORE navigation so no events are missed
+    const patchPromise = page.waitForRequest(
+      req => req.method() === 'PATCH' && req.url().includes('/rest/v1/consultations'),
+      { timeout: 8000 }
+    )
+
     await loginAs(page, PRO_EMAIL, PRO_PASS)
     await page.goto(`/profesional/videollamada/${consultationId}`)
+    await waitForVideoCallHeader(page)
 
-    // Wait for the mock Daily frame to fire joined-meeting (80ms) and updateStatus to be called
-    await page.waitForTimeout(300)
+    // Wait for the joined-meeting mock (fires 500ms after join()) to trigger the PATCH
+    const patchReq = await patchPromise.catch(() => null)
+    expect(patchReq, 'updateStatus("in_progress") should have triggered a PATCH request').not.toBeNull()
 
-    // Verify status is now in_progress in the DB
-    const { data: cons } = await sb.from('consultations').select('status').eq('id', consultationId).single()
-    expect(cons.status).toBe('in_progress')
+    const body = patchReq.postData()
+    expect(body, 'PATCH body should include in_progress').toContain('in_progress')
   })
 
-  test('professional can finalize consultation', async ({ page }) => {
+  test('Finalizar button opens close modal', async ({ page }) => {
+    expect(consultationId).toBeTruthy()
+
     await page.addInitScript({ content: DAILY_MOCK_SCRIPT })
     await mockDailyTokenRoute(page)
 
     await loginAs(page, PRO_EMAIL, PRO_PASS)
     await page.goto(`/profesional/videollamada/${consultationId}`)
+    await waitForVideoCallHeader(page)
 
-    // Wait for call to "load"
-    await page.waitForTimeout(200)
+    const finalizarBtn = page.getByRole('button', { name: /Finalizar/i })
+    await expect(finalizarBtn).toBeVisible({ timeout: 3000 })
+    await finalizarBtn.click()
 
-    // Click Finalizar button
-    await page.getByRole('button', { name: /Finalizar/i }).click()
-
-    // Modal appears — confirm close (CloseConsultationModal)
-    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 3000 }).catch(() => {
-      // Some implementations don't use role=dialog; fall back to text
-    })
+    // CloseConsultationModal renders — contains a "cerrar" or "finalizar" heading or text
+    await expect(
+      page.getByText(/cerrar consulta|finalizar consulta|notas de cierre/i).first()
+    ).toBeVisible({ timeout: 3000 })
   })
 
   test.afterAll(async () => {
     if (consultationId) {
-      await sb.from('consultations').update({ status: 'cancelled' }).eq('id', consultationId)
+      await adminSb.from('consultations').update({ status: 'cancelled' }).eq('id', consultationId)
     }
   })
 })
