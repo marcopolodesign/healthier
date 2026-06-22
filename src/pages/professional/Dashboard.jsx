@@ -55,21 +55,15 @@ export default function ProfessionalDashboard({ profile }) {
       setActiveEmergency(terminal.includes(updated.status) ? null : updated)
     })
 
-    // Real-time booking notifications — fire when a patient creates a new consultation
+    // Live state update — AppLayout handles the toast; this just refreshes the list
     const bookingChannel = supabase
-      .channel(`pro-bookings-${profile.id}`)
+      .channel(`dashboard-bookings-${profile.id}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'consultations', filter: `professional_id=eq.${profile.id}` },
-        async (payload) => {
+        async () => {
           const updated = await consultationsService.getByProfessional(profile.id)
           setConsultations(updated)
-          const newCons = updated.find(c => c.id === payload.new.id)
-          const name = newCons?.profiles?.fullName || 'Nuevo paciente'
-          const time = newCons?.scheduledAt
-            ? new Date(newCons.scheduledAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-            : null
-          toast.success(time ? `Nueva reserva de ${name} — ${time}` : `Nueva reserva de ${name}`)
         }
       )
       .subscribe()

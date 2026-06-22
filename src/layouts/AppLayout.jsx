@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
 import Header from '../components/Header'
 import ProfessionalBottomNav from '../components/professional/ProfessionalBottomNav'
 import AICompanion from '../components/professional/AICompanion'
+import { supabase } from '../lib/supabase'
+import { consultationsService } from '../services/consultationsService'
+import { toast } from '../components/Toast'
 
 const HIDE_PROF_NAV_PREFIXES = ['/profesional/videollamada', '/profesional/consulta']
 
@@ -15,6 +18,28 @@ export default function AppLayout({ profile, profSpecialty, onOpenSidecart }) {
   const isProfessional = profile?.role === 'professional'
   const hideProfNav = HIDE_PROF_NAV_PREFIXES.some(p => pathname.startsWith(p))
   const showProfNav = isProfessional && !hideProfNav
+
+  // Global booking notification — fires on any professional page when a new consultation arrives
+  useEffect(() => {
+    if (!isProfessional || !profile?.id) return
+    const channel = supabase
+      .channel(`global-bookings-${profile.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'consultations', filter: `professional_id=eq.${profile.id}` },
+        async (payload) => {
+          const updated = await consultationsService.getByProfessional(profile.id)
+          const newCons = updated.find(c => c.id === payload.new.id)
+          const name = newCons?.profiles?.fullName || 'Nuevo paciente'
+          const time = newCons?.scheduledAt
+            ? new Date(newCons.scheduledAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+            : null
+          toast.success(time ? `Nueva reserva de ${name} — ${time}` : `Nueva reserva de ${name}`)
+        }
+      )
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [isProfessional, profile?.id])
 
   return (
     <div className="min-h-screen bg-bg-primary flex">
