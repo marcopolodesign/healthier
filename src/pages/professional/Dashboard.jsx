@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle } from '@phosphor-icons/react';
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
 import { emergencyService } from '../../services/emergencyService'
 import { mpService } from '../../services/mpService'
+import { supabase } from '../../lib/supabase'
 import StatusBadge from '../../components/StatusBadge'
 import { toast } from '../../components/Toast'
 
@@ -31,7 +32,6 @@ export default function ProfessionalDashboard({ profile }) {
   const [loading, setLoading] = useState(true)
   const [activeEmergency, setActiveEmergency] = useState(null)
   const [mpStatus, setMpStatus] = useState(null)
-  const unsubRef = useRef(null)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -50,11 +50,34 @@ export default function ProfessionalDashboard({ profile }) {
     }).catch(() => toast.error('Error al cargar datos'))
     .finally(() => setLoading(false))
 
-    unsubRef.current = emergencyService.subscribe(profile.id, (updated) => {
+    const unsubEmergency = emergencyService.subscribe(profile.id, (updated) => {
       const terminal = ['cancelled', 'completed']
       setActiveEmergency(terminal.includes(updated.status) ? null : updated)
     })
-    return () => unsubRef.current?.()
+
+    // Real-time booking notifications — fire when a patient creates a new consultation
+    const bookingChannel = supabase
+      .channel(`pro-bookings-${profile.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'consultations', filter: `professional_id=eq.${profile.id}` },
+        async (payload) => {
+          const updated = await consultationsService.getByProfessional(profile.id)
+          setConsultations(updated)
+          const newCons = updated.find(c => c.id === payload.new.id)
+          const name = newCons?.profiles?.fullName || 'Nuevo paciente'
+          const time = newCons?.scheduledAt
+            ? new Date(newCons.scheduledAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+            : null
+          toast.success(time ? `Nueva reserva de ${name} — ${time}` : `Nueva reserva de ${name}`)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      unsubEmergency()
+      supabase.removeChannel(bookingChannel)
+    }
   }, [profile?.id])
 
   const today = consultations.filter(c => {
