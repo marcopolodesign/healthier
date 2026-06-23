@@ -31,7 +31,9 @@ export default function WalkInQueue({ profile }) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [waitTime, setWaitTime] = useState('')
+  const [queuePosition, setQueuePosition] = useState(null)
   const channelRef = useRef(null)
+  const queueChannelRef = useRef(null)
 
   // On mount: check if patient already has an active queue entry
   useEffect(() => {
@@ -59,6 +61,10 @@ export default function WalkInQueue({ profile }) {
     updateTimer()
     const interval = setInterval(updateTimer, 30000)
 
+    const refreshPosition = () =>
+      walkInQueueService.getQueuePosition(activeEntry.id).then(setQueuePosition)
+    refreshPosition()
+
     channelRef.current = walkInQueueService.subscribeToEntry(activeEntry.id, updated => {
       setActiveEntry(updated)
       if (updated.status === 'in_progress' && updated.consultationId) {
@@ -69,9 +75,12 @@ export default function WalkInQueue({ profile }) {
       }
     })
 
+    queueChannelRef.current = walkInQueueService.subscribeToQueue(refreshPosition)
+
     return () => {
       clearInterval(interval)
       if (channelRef.current) channelRef.current.unsubscribe()
+      if (queueChannelRef.current) queueChannelRef.current.unsubscribe()
     }
   }, [activeEntry?.id, activeEntry?.createdAt])
 
@@ -207,9 +216,19 @@ export default function WalkInQueue({ profile }) {
                 <p className="font-bold text-lg text-text-primary">En espera</p>
                 <p className="text-sm text-text-secondary mt-1">Un profesional te atenderá en breve</p>
               </div>
-              <div className="flex items-center justify-center gap-4 pt-1">
+              <div className="flex items-center justify-center gap-6 pt-1">
+                {queuePosition !== null && (
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-brand">
+                      {queuePosition === 1 ? '🟢 Próximo' : `#${queuePosition}`}
+                    </p>
+                    <p className="text-xs text-text-secondary">
+                      {queuePosition === 1 ? 'en atención' : 'en la cola'}
+                    </p>
+                  </div>
+                )}
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-brand">{waitTime}</p>
+                  <p className="text-2xl font-bold text-text-primary">{waitTime}</p>
                   <p className="text-xs text-text-secondary">esperando</p>
                 </div>
               </div>

@@ -64,6 +64,18 @@ export const walkInQueueService = {
     if (error) throw error
   },
 
+  async getQueuePosition(entryId) {
+    const { data, error } = await supabase
+      .from('walk_in_queue')
+      .select('id')
+      .eq('status', 'waiting')
+      .order('priority', { ascending: false })
+      .order('created_at', { ascending: true })
+    if (error) throw error
+    const idx = (data ?? []).findIndex(e => e.id === entryId)
+    return idx === -1 ? null : idx + 1
+  },
+
   subscribeToEntry(entryId, callback) {
     return supabase
       .channel(`walk_in_queue:${entryId}`)
