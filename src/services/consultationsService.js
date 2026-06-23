@@ -45,8 +45,18 @@ export const consultationsService = {
       .select()
       .single()
     if (error) throw error
-    // Fire-and-forget booking emails (silently skipped if RESEND_API_KEY is not set)
     supabase.functions.invoke('send-booking-email', { body: { consultationId: row.id } }).catch(() => {})
+    // Notify professional of new booking via push
+    if (row.professional_id) {
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          userId: row.professional_id,
+          title:  'Nuevo turno reservado',
+          body:   'Un paciente reservó un turno contigo.',
+          url:    '/profesional/dashboard',
+        },
+      }).catch(() => {})
+    }
     return toCamelCase(row)
   },
 
