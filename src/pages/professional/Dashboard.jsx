@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle } from '@phosphor-icons/react';
+import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle, X, CircleNotch } from '@phosphor-icons/react';
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
 import { emergencyService } from '../../services/emergencyService'
@@ -32,6 +32,7 @@ export default function ProfessionalDashboard({ profile }) {
   const [loading, setLoading] = useState(true)
   const [activeEmergency, setActiveEmergency] = useState(null)
   const [mpStatus, setMpStatus] = useState(null)
+  const [confirmingId, setConfirmingId] = useState(null)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -80,6 +81,40 @@ export default function ProfessionalDashboard({ profile }) {
   })
 
   const thisMonthEarnings = getThisMonthEarnings(earningsData)
+
+  // Upcoming pending bookings that need confirmation (not today — those are in the today section)
+  const pendingBookings = consultations.filter(c => {
+    if (c.status !== 'pending') return false
+    if (!c.scheduledAt) return false
+    const d = new Date(c.scheduledAt)
+    return d > new Date()
+  }).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt))
+
+  async function handleConfirm(id) {
+    setConfirmingId(id)
+    try {
+      await consultationsService.updateStatus(id, 'confirmed')
+      setConsultations(prev => prev.map(c => c.id === id ? { ...c, status: 'confirmed' } : c))
+      toast.success('Turno confirmado')
+    } catch {
+      toast.error('Error al confirmar')
+    } finally {
+      setConfirmingId(null)
+    }
+  }
+
+  async function handleReject(id) {
+    setConfirmingId(id)
+    try {
+      await consultationsService.cancel(id, profile.id, 'Rechazado por el profesional')
+      setConsultations(prev => prev.map(c => c.id === id ? { ...c, status: 'cancelled' } : c))
+      toast.success('Turno rechazado')
+    } catch {
+      toast.error('Error al rechazar')
+    } finally {
+      setConfirmingId(null)
+    }
+  }
 
   const stats = [
     { label: 'Consultas hoy',   value: today.length,                                   icon: Calendar,     color: 'text-brand bg-brand-muted' },
@@ -243,6 +278,59 @@ export default function ProfessionalDashboard({ profile }) {
           <div className="flex-1 min-w-0">
             <p className="text-xs text-emerald-700 font-medium uppercase tracking-wide">MercadoPago conectado</p>
             <p className="text-sm text-text-secondary mt-0.5">{mpStatus.email ?? 'Cuenta vinculada'}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Pending bookings — only shown when there are pending ones */}
+      {pendingBookings.length > 0 && (
+        <div className="card border-amber-200 bg-amber-50/60">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-amber-800">
+              Turnos pendientes
+              <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-600 text-white text-xs font-bold">
+                {pendingBookings.length}
+              </span>
+            </h2>
+          </div>
+          <div className="space-y-2">
+            {pendingBookings.map(c => {
+              const busy = confirmingId === c.id
+              const patientName = c.profiles?.fullName || c.profiles?.full_name || 'Paciente'
+              const date = c.scheduledAt
+                ? new Date(c.scheduledAt).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
+                : '—'
+              const time = c.scheduledAt
+                ? new Date(c.scheduledAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+                : '—'
+              return (
+                <div key={c.id} className="flex items-center gap-3 bg-white rounded-xl p-3 border border-amber-100">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-text-primary text-sm truncate">{patientName}</p>
+                    <p className="text-xs text-text-secondary mt-0.5 capitalize">{date} · {time}</p>
+                    <p className="text-xs text-text-tertiary mt-0.5">{c.modality === 'video' ? 'Videoconsulta' : 'Presencial'}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => handleReject(c.id)}
+                      disabled={busy}
+                      className="h-8 w-8 rounded-full border border-red-200 bg-red-50 hover:bg-red-100 flex items-center justify-center transition-colors disabled:opacity-40"
+                      title="Rechazar"
+                    >
+                      {busy ? <CircleNotch className="h-4 w-4 text-red-500 animate-spin" /> : <X className="h-4 w-4 text-red-500" />}
+                    </button>
+                    <button
+                      onClick={() => handleConfirm(c.id)}
+                      disabled={busy}
+                      className="h-8 w-8 rounded-full border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center transition-colors disabled:opacity-40"
+                      title="Confirmar"
+                    >
+                      {busy ? <CircleNotch className="h-4 w-4 text-emerald-600 animate-spin" /> : <CheckCircle className="h-4 w-4 text-emerald-600" />}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
