@@ -9,36 +9,56 @@ const STATUS_COLORS = { completed: '#7CB38B', confirmed: '#9B8EC4', pending: '#E
 const STATUS_LABELS = { completed: 'Completadas', confirmed: 'Confirmadas', pending: 'Pendientes', cancelled: 'Canceladas', in_progress: 'En curso' }
 
 export default function SuperAdminDashboard() {
-  const [stats, setStats] = useState({ users: 0, professionals: 0, pendingVerification: 0, completedConsultations: 0, revenue: 0, walkInWaiting: 0, walkInAvailable: 0 })
+  const [stats, setStats] = useState({ users: 0, professionals: 0, pendingVerification: 0, completedConsultations: 0, revenue: 0, walkInWaiting: 0, walkInAvailable: 0, avgRating: null, consultationsThisMonth: 0, newPatientsThisMonth: 0 })
   const [chartData, setChartData] = useState([])
   const [statusData, setStatusData] = useState([])
   const [topPros, setTopPros] = useState([])
+  const [recentConsultations, setRecentConsultations] = useState([])
+  const [allConsultations, setAllConsultations] = useState([])
   const [loading, setLoading] = useState(true)
+  const [chartDays, setChartDays] = useState(30)
 
   useEffect(() => {
     const load = async () => {
       try {
+        const now = new Date()
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+
         const [
           { count: users },
           { count: professionals },
           { count: pending },
           { count: walkInWaiting },
           { count: walkInAvailable },
+          { count: consultationsThisMonth },
+          { count: newPatientsThisMonth },
           { data: consultations },
           { data: prosRaw },
+          { data: reviews },
+          { data: recentRaw },
         ] = await Promise.all([
           supabase.from('profiles').select('*', { count: 'exact', head: true }),
           supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('is_verified', true),
           supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('is_verified', false),
           supabase.from('walk_in_queue').select('*', { count: 'exact', head: true }).eq('status', 'waiting'),
           supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('is_available_walkin', true),
-          supabase.from('consultations').select('id, status, scheduled_at, price_at_booking').order('scheduled_at', { ascending: false }).limit(300),
+          supabase.from('consultations').select('*', { count: 'exact', head: true }).gte('created_at', monthStart),
+          supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'patient').gte('created_at', monthStart),
+          supabase.from('consultations').select('id, status, scheduled_at, price_at_booking').order('scheduled_at', { ascending: false }).limit(500),
           supabase.from('professional_profiles').select('*, profiles(full_name)').eq('is_verified', true).order('average_rating', { ascending: false }).limit(5),
+          supabase.from('reviews').select('rating'),
+          supabase.from('consultations').select('id, status, scheduled_at, modality, profiles!patient_id(full_name), professional:profiles!professional_id(full_name)').order('created_at', { ascending: false }).limit(8),
         ])
 
         // Revenue: sum price_at_booking for completed consultations
         const completed = (consultations ?? []).filter(c => c.status === 'completed')
         const revenue = completed.reduce((acc, c) => acc + Number(c.price_at_booking || 0), 0)
+
+        // Platform-wide average rating
+        const allRatings = (reviews ?? []).map(r => Number(r.rating)).filter(r => !isNaN(r))
+        const avgRating = allRatings.length > 0
+          ? (allRatings.reduce((s, r) => s + r, 0) / allRatings.length).toFixed(1)
+          : null
 
         setStats({
           users: users ?? 0,
@@ -48,22 +68,23 @@ export default function SuperAdminDashboard() {
           revenue,
           walkInWaiting: walkInWaiting ?? 0,
           walkInAvailable: walkInAvailable ?? 0,
+          avgRating,
+          consultationsThisMonth: consultationsThisMonth ?? 0,
+          newPatientsThisMonth: newPatientsThisMonth ?? 0,
         })
 
-        // Consultations per day (last 7 days)
-        const days = {}
-        for (let i = 6; i >= 0; i--) {
-          const d = new Date()
-          d.setDate(d.getDate() - i)
-          const key = d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
-          days[key] = 0
-        }
-        ;(consultations ?? []).forEach(c => {
-          if (!c.scheduled_at) return
-          const key = new Date(c.scheduled_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
-          if (key in days) days[key]++
-        })
-        setChartData(Object.entries(days).map(([date, count]) => ({ date, count })))
+        setRecentConsultations((recentRaw ?? []).map(c => ({
+          id: c.id,
+          patient: c.profiles?.full_name ?? '—',
+          professional: c.professional?.full_name ?? '—',
+          date: c.scheduled_at ? new Date(c.scheduled_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—',
+          status: c.status,
+          modality: c.modality,
+        })))
+
+        // Store raw consultations for chart re-rendering on period change
+        setAllConsultations(consultations ?? [])
+        buildChart(consultations ?? [], chartDays)
 
         // Status distribution
         const statusMap = {}
@@ -90,15 +111,37 @@ export default function SuperAdminDashboard() {
     load()
   }, [])
 
+  useEffect(() => {
+    if (allConsultations.length > 0) buildChart(allConsultations, chartDays)
+  }, [chartDays, allConsultations])
+
+  function buildChart(consultations, days) {
+    const map = {}
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      const key = d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+      map[key] = 0
+    }
+    consultations.forEach(c => {
+      if (!c.scheduled_at) return
+      const key = new Date(c.scheduled_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+      if (key in map) map[key]++
+    })
+    setChartData(Object.entries(map).map(([date, count]) => ({ date, count })))
+  }
+
   const cards = [
-    { label: 'Usuarios totales',        value: stats.users,                  icon: Users,            color: 'text-brand bg-brand-muted' },
-    { label: 'Profesionales verificados', value: stats.professionals,         icon: ShieldCheck,      color: 'text-purple-600 bg-purple-50' },
-    { label: 'Consultas completadas',   value: stats.completedConsultations, icon: Calendar,         color: 'text-blue-600 bg-blue-50' },
-    { label: 'Revenue estimado',        value: `$${stats.revenue.toLocaleString('es-AR')}`, icon: CurrencyDollar, color: 'text-emerald-600 bg-emerald-50', raw: true },
-    { label: 'Walk-in en espera',       value: stats.walkInWaiting,          icon: ClockCountdown,   color: 'text-orange-500 bg-orange-50' },
-    { label: 'Disponibles walk-in',     value: stats.walkInAvailable,        icon: Lightning,        color: 'text-green-600 bg-green-50' },
-    { label: 'Pendientes verificación', value: stats.pendingVerification,    icon: SealCheck,        color: 'text-amber-600 bg-amber-50' },
-    { label: 'Reseñas promedio',        value: '—',                          icon: Star,             color: 'text-yellow-500 bg-yellow-50' },
+    { label: 'Usuarios totales',          value: stats.users,                                     icon: Users,          color: 'text-brand bg-brand-muted' },
+    { label: 'Profesionales verificados', value: stats.professionals,                              icon: ShieldCheck,    color: 'text-purple-600 bg-purple-50' },
+    { label: 'Consultas completadas',     value: stats.completedConsultations,                    icon: Calendar,       color: 'text-blue-600 bg-blue-50' },
+    { label: 'Revenue estimado',          value: `$${stats.revenue.toLocaleString('es-AR')}`,    icon: CurrencyDollar, color: 'text-emerald-600 bg-emerald-50', raw: true },
+    { label: 'Consultas este mes',        value: stats.consultationsThisMonth,                    icon: ClockCountdown, color: 'text-indigo-500 bg-indigo-50' },
+    { label: 'Pacientes nuevos (mes)',    value: stats.newPatientsThisMonth,                      icon: Users,          color: 'text-teal-600 bg-teal-50' },
+    { label: 'Pendientes verificación',   value: stats.pendingVerification,                       icon: SealCheck,      color: 'text-amber-600 bg-amber-50' },
+    { label: 'Reseña promedio',           value: stats.avgRating != null ? `${stats.avgRating} ★` : '—', icon: Star, color: 'text-yellow-500 bg-yellow-50', raw: true },
+    { label: 'Walk-in en espera',         value: stats.walkInWaiting,                             icon: Lightning,      color: 'text-orange-500 bg-orange-50' },
+    { label: 'Disponibles walk-in',       value: stats.walkInAvailable,                           icon: Lightning,      color: 'text-green-600 bg-green-50' },
   ]
 
   return (
@@ -109,7 +152,7 @@ export default function SuperAdminDashboard() {
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {cards.map(c => (
           <div key={c.label} className="card">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${c.color}`}>
@@ -127,7 +170,18 @@ export default function SuperAdminDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Consultations per day */}
         <div className="card lg:col-span-2">
-          <h2 className="font-semibold text-text-primary mb-4">Consultas — últimos 7 días</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-text-primary">Consultas por día</h2>
+            <div className="flex gap-1">
+              {[7, 30].map(d => (
+                <button
+                  key={d}
+                  onClick={() => setChartDays(d)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${chartDays === d ? 'bg-brand text-white' : 'bg-bg-primary text-text-tertiary hover:text-text-primary'}`}
+                >{d}d</button>
+              ))}
+            </div>
+          </div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
               <XAxis dataKey="date" tick={{ fontSize: 11 }} />
@@ -182,6 +236,45 @@ export default function SuperAdminDashboard() {
                       </span>
                     </td>
                     <td className="py-2.5 text-right text-text-tertiary">{p.totalReviews}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Recent consultations */}
+      {recentConsultations.length > 0 && (
+        <div className="card">
+          <h2 className="font-semibold text-text-primary mb-4">Consultas recientes</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border-default">
+                  <th className="text-left py-2 pr-4 text-text-tertiary font-medium text-xs">Paciente</th>
+                  <th className="text-left py-2 pr-4 text-text-tertiary font-medium text-xs">Profesional</th>
+                  <th className="text-left py-2 pr-4 text-text-tertiary font-medium text-xs">Fecha</th>
+                  <th className="text-left py-2 pr-2 text-text-tertiary font-medium text-xs">Modalidad</th>
+                  <th className="text-left py-2 text-text-tertiary font-medium text-xs">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentConsultations.map((c) => (
+                  <tr key={c.id} className="border-b border-border-default/50 last:border-0 hover:bg-bg-primary/50">
+                    <td className="py-2.5 pr-4 font-medium text-text-primary truncate max-w-[140px]">{c.patient}</td>
+                    <td className="py-2.5 pr-4 text-text-secondary truncate max-w-[140px]">{c.professional}</td>
+                    <td className="py-2.5 pr-4 text-text-tertiary whitespace-nowrap">{c.date}</td>
+                    <td className="py-2.5 pr-2">
+                      <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full ${c.modality === 'video' ? 'bg-brand-muted text-brand' : 'bg-emerald-50 text-emerald-600'}`}>
+                        {c.modality === 'video' ? 'Video' : 'Presencial'}
+                      </span>
+                    </td>
+                    <td className="py-2.5">
+                      <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full ${STATUS_COLORS[c.status] ? '' : ''}`} style={{ backgroundColor: (STATUS_COLORS[c.status] ?? '#e5e7eb') + '20', color: STATUS_COLORS[c.status] ?? '#6b7280' }}>
+                        {STATUS_LABELS[c.status] ?? c.status}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
