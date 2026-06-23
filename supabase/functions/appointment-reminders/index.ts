@@ -1,8 +1,48 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
 
+type Reminder = { window: [number, number]; column: 'reminder_sent' | 'reminder_24h_sent'; label: string }
+
+const REMINDERS: Reminder[] = [
+  { window: [23, 37],           column: 'reminder_sent',     label: 'en 30 minutos' },
+  { window: [23 * 60 + 45, 24 * 60 + 15], column: 'reminder_24h_sent', label: 'mañana' },
+]
+
+async function sendPush(
+  supabase: ReturnType<typeof createClient>,
+  patientId: string,
+  title: string,
+  body: string,
+  url: string,
+): Promise<boolean> {
+  const { data: subs } = await supabase
+    .from('push_subscriptions')
+    .select('endpoint, p256dh, auth')
+    .eq('user_id', patientId)
+
+  if (!subs?.length) return false
+
+  const payload = JSON.stringify({ title, body, url })
+  const results = await Promise.allSettled(
+    subs.map(async (sub: { endpoint: string; p256dh: string; auth: string }) => {
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          payload
+        )
+      } catch (err: unknown) {
+        const status = (err as { statusCode?: number })?.statusCode
+        if (status === 410 || status === 404) {
+          await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
+        }
+        throw err
+      }
+    })
+  )
+  return results.some(r => r.status === 'fulfilled')
+}
+
 Deno.serve(async (req: Request) => {
-  // Verify this was called by our pg_cron job via the shared secret
   const secret = req.headers.get('x-cron-secret')
   if (secret !== Deno.env.get('CRON_SECRET')) {
     return new Response('Unauthorized', { status: 401 })
@@ -19,90 +59,62 @@ Deno.serve(async (req: Request) => {
     Deno.env.get('VAPID_PRIVATE_KEY')!
   )
 
-  // Query confirmed consultations starting in 23–37 minutes (30-min reminder window).
-  // A cron firing every 15 min guarantees each consultation is caught by exactly one run.
   const now = new Date()
-  const windowStart = new Date(now.getTime() + 23 * 60 * 1000).toISOString()
-  const windowEnd = new Date(now.getTime() + 37 * 60 * 1000).toISOString()
+  let totalSent = 0
+  let totalChecked = 0
 
-  const { data: upcoming, error } = await supabase
-    .from('consultations')
-    .select(`
-      id,
-      patient_id,
-      scheduled_at,
-      professional:profiles!professional_id ( full_name )
-    `)
-    .eq('status', 'confirmed')
-    .eq('reminder_sent', false)
-    .gte('scheduled_at', windowStart)
-    .lte('scheduled_at', windowEnd)
+  for (const reminder of REMINDERS) {
+    const [minMin, maxMin] = reminder.window
+    const windowStart = new Date(now.getTime() + minMin * 60 * 1000).toISOString()
+    const windowEnd   = new Date(now.getTime() + maxMin * 60 * 1000).toISOString()
 
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 })
-  }
+    const { data: upcoming, error } = await supabase
+      .from('consultations')
+      .select(`
+        id,
+        patient_id,
+        scheduled_at,
+        professional:profiles!professional_id ( full_name )
+      `)
+      .eq('status', 'confirmed')
+      .eq(reminder.column, false)
+      .gte('scheduled_at', windowStart)
+      .lte('scheduled_at', windowEnd)
 
-  if (!upcoming?.length) {
-    return new Response(JSON.stringify({ sent: 0, checked: 0 }))
-  }
+    if (error || !upcoming?.length) continue
 
-  let sent = 0
-  const remindedIds: string[] = []
+    totalChecked += upcoming.length
+    const remindedIds: string[] = []
 
-  for (const consultation of upcoming) {
-    const patientId = consultation.patient_id
-    const professionalName = (consultation.professional as { full_name?: string } | null)?.full_name ?? 'tu profesional'
-    const scheduledAt = new Date(consultation.scheduled_at as string)
-    const timeStr = scheduledAt.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' })
+    for (const c of upcoming) {
+      const professionalName = (c.professional as { full_name?: string } | null)?.full_name ?? 'tu profesional'
+      const scheduledAt = new Date(c.scheduled_at as string)
+      const timeStr = scheduledAt.toLocaleTimeString('es-AR', {
+        hour: '2-digit', minute: '2-digit',
+        timeZone: 'America/Argentina/Buenos_Aires',
+      })
 
-    // Get push subscriptions for this patient
-    const { data: subs } = await supabase
-      .from('push_subscriptions')
-      .select('endpoint, p256dh, auth')
-      .eq('user_id', patientId)
+      let title: string, body: string
+      if (reminder.column === 'reminder_sent') {
+        title = 'Tu consulta comienza pronto'
+        body  = `Tu consulta con ${professionalName} es a las ${timeStr}. ¡Preparate!`
+      } else {
+        title = 'Recordatorio de turno'
+        body  = `Mañana tenés una consulta con ${professionalName} a las ${timeStr}.`
+      }
 
-    if (!subs?.length) {
-      // No subscription but still mark as sent to avoid repeated DB lookups
-      remindedIds.push(consultation.id)
-      continue
+      const sent = await sendPush(supabase, c.patient_id, title, body, '/paciente/consultas')
+      if (sent) totalSent++
+      remindedIds.push(c.id)
     }
 
-    const payload = JSON.stringify({
-      title: 'Tu consulta comienza pronto',
-      body: `Tu consulta con ${professionalName} es a las ${timeStr}. ¡Preparate!`,
-      url: '/paciente/consultas',
-    })
-
-    const results = await Promise.allSettled(
-      subs.map(async (sub: { endpoint: string; p256dh: string; auth: string }) => {
-        try {
-          await webpush.sendNotification(
-            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            payload
-          )
-        } catch (err: unknown) {
-          const status = (err as { statusCode?: number })?.statusCode
-          if (status === 410 || status === 404) {
-            await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
-          }
-          throw err
-        }
-      })
-    )
-
-    const succeeded = results.filter(r => r.status === 'fulfilled').length
-    if (succeeded > 0) sent++
-    remindedIds.push(consultation.id)
+    if (remindedIds.length > 0) {
+      await supabase
+        .from('consultations')
+        .update({ [reminder.column]: true })
+        .in('id', remindedIds)
+    }
   }
 
-  // Mark all processed consultations as reminder_sent regardless of push outcome —
-  // prevents repeated attempts for patients with no subscription.
-  if (remindedIds.length > 0) {
-    await supabase
-      .from('consultations')
-      .update({ reminder_sent: true })
-      .in('id', remindedIds)
-  }
-
-  return new Response(JSON.stringify({ sent, checked: upcoming.length }))
+  return new Response(JSON.stringify({ sent: totalSent, checked: totalChecked }))
 })

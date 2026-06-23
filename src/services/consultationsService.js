@@ -180,6 +180,17 @@ export const consultationsService = {
         },
       }).catch(() => {})
     }
+    // Notify patient when their booking is cancelled by someone else (professional or admin)
+    if (status === 'cancelled' && result.patientId && extra.cancelledBy !== result.patientId) {
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          userId: result.patientId,
+          title:  'Consulta cancelada',
+          body:   'Tu consulta fue cancelada. Podés reservar un nuevo turno.',
+          url:    '/paciente/consultas',
+        },
+      }).catch(() => {})
+    }
     return result
   },
 
