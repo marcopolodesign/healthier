@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
 import {
   MapPin, Clock, CaretRight, Star, VideoCamera,
-  Heartbeat, Calendar, Plus,
+  Heartbeat, Calendar, Plus, Siren,
 } from '@phosphor-icons/react'
 
 const LAST_VERTICAL_KEY = 'healthier_last_vertical'
@@ -230,15 +230,28 @@ export default function PatientDashboard({ profile }) {
   )
 
   const sosButton = (
-    <div
-      onClick={() => navigate('/paciente/sos')}
-      className="w-full py-5 px-5 rounded-[24px] flex items-center gap-4 cursor-pointer active:scale-95 transition-all"
-      style={{ backgroundColor: '#db0000' }}
-    >
-      <Heartbeat className="w-7 h-7 text-white flex-shrink-0" />
-      <div className="flex flex-col">
-        <span className="font-bold text-[15px] text-white leading-none">EMERGENCIA S.O.S</span>
-        <span className="text-[12px] text-white/80 mt-0.5">Solicitar ambulancia de inmediato</span>
+    <div className="flex flex-col gap-2">
+      <div
+        onClick={() => navigate('/paciente/sos')}
+        className="w-full py-5 px-5 rounded-[24px] flex items-center gap-4 cursor-pointer active:scale-95 transition-all"
+        style={{ backgroundColor: '#db0000' }}
+      >
+        <Heartbeat className="w-7 h-7 text-white flex-shrink-0" />
+        <div className="flex flex-col">
+          <span className="font-bold text-[15px] text-white leading-none">EMERGENCIA S.O.S</span>
+          <span className="text-[12px] text-white/80 mt-0.5">Solicitar ambulancia de inmediato</span>
+        </div>
+      </div>
+      <div
+        onClick={() => navigate('/paciente/urgente')}
+        className="w-full py-4 px-5 rounded-[24px] flex items-center gap-4 cursor-pointer active:scale-95 transition-all"
+        style={{ backgroundColor: '#E8927C' }}
+      >
+        <Siren className="w-6 h-6 text-white flex-shrink-0" />
+        <div className="flex flex-col">
+          <span className="font-bold text-[14px] text-white leading-none">Consulta urgente</span>
+          <span className="text-[11px] text-white/80 mt-0.5">Ver a un médico sin turno previo</span>
+        </div>
       </div>
     </div>
   )

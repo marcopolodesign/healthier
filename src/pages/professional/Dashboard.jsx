@@ -5,9 +5,11 @@ import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
 import { emergencyService } from '../../services/emergencyService'
 import { mpService } from '../../services/mpService'
+import { walkInQueueService } from '../../services/walkInQueueService'
 import { supabase } from '../../lib/supabase'
 import StatusBadge from '../../components/StatusBadge'
 import { toast } from '../../components/Toast'
+import { useNavigate } from 'react-router-dom'
 
 const CODE_COLORS = { ROJO: 'bg-red-600', AMARILLO: 'bg-amber-500', VERDE: 'bg-emerald-600' }
 
@@ -26,6 +28,7 @@ function getThisMonthEarnings(earningsData) {
 }
 
 export default function ProfessionalDashboard({ profile }) {
+  const navigate = useNavigate()
   const [consultations, setConsultations] = useState([])
   const [earningsData, setEarningsData] = useState([])
   const [profProfile, setProfProfile] = useState(null)
@@ -33,6 +36,8 @@ export default function ProfessionalDashboard({ profile }) {
   const [activeEmergency, setActiveEmergency] = useState(null)
   const [mpStatus, setMpStatus] = useState(null)
   const [confirmingId, setConfirmingId] = useState(null)
+  const [walkInQueue, setWalkInQueue] = useState([])
+  const [claimingId, setClaimingId] = useState(null)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -69,9 +74,17 @@ export default function ProfessionalDashboard({ profile }) {
       )
       .subscribe()
 
+    walkInQueueService.getWaitingQueue().then(setWalkInQueue).catch(() => {})
+
+    const queueChannel = walkInQueueService.subscribeToQueue(async () => {
+      const updated = await walkInQueueService.getWaitingQueue()
+      setWalkInQueue(updated)
+    })
+
     return () => {
       unsubEmergency()
       supabase.removeChannel(bookingChannel)
+      queueChannel.unsubscribe()
     }
   }, [profile?.id])
 
@@ -113,6 +126,26 @@ export default function ProfessionalDashboard({ profile }) {
       toast.error('Error al rechazar')
     } finally {
       setConfirmingId(null)
+    }
+  }
+
+  async function handleClaimEntry(entry) {
+    setClaimingId(entry.id)
+    try {
+      const consultation = await consultationsService.create({
+        patientId: entry.patientId,
+        professionalId: profile.id,
+        modality: 'video',
+        status: 'in_progress',
+        notes: entry.chiefComplaint,
+      })
+      await walkInQueueService.claim(entry.id, profile.id, consultation.id)
+      setWalkInQueue(prev => prev.filter(e => e.id !== entry.id))
+      navigate(`/profesional/videollamada/${consultation.id}`)
+    } catch {
+      toast.error('Error al atender la consulta')
+    } finally {
+      setClaimingId(null)
     }
   }
 
@@ -328,6 +361,50 @@ export default function ProfessionalDashboard({ profile }) {
                       {busy ? <CircleNotch className="h-4 w-4 text-emerald-600 animate-spin" /> : <CheckCircle className="h-4 w-4 text-emerald-600" />}
                     </button>
                   </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Walk-in queue */}
+      {walkInQueue.length > 0 && (
+        <div className="card border-brand/30 bg-brand/5">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock className="h-4 w-4 text-brand" />
+            <h2 className="font-semibold text-brand">
+              Cola de espera
+              <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full bg-brand text-white text-xs font-bold">
+                {walkInQueue.length}
+              </span>
+            </h2>
+          </div>
+          <div className="space-y-2">
+            {walkInQueue.map(entry => {
+              const busy = claimingId === entry.id
+              const patientName = entry.patient?.fullName || entry.patient?.full_name || 'Paciente'
+              const wait = Math.floor((Date.now() - new Date(entry.createdAt).getTime()) / 60000)
+              const priorityColor = { high: 'text-red-600 bg-red-50', medium: 'text-amber-600 bg-amber-50', low: 'text-green-600 bg-green-50' }[entry.priority]
+              const priorityLabel = { high: 'Alta', medium: 'Media', low: 'Baja' }[entry.priority]
+              return (
+                <div key={entry.id} className="flex items-start gap-3 bg-white rounded-xl p-3 border border-brand/10">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-text-primary text-sm truncate">{patientName}</p>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0 ${priorityColor}`}>{priorityLabel}</span>
+                    </div>
+                    <p className="text-xs text-text-secondary mt-1 line-clamp-2">{entry.chiefComplaint}</p>
+                    <p className="text-xs text-text-tertiary mt-0.5">{wait < 1 ? 'Ahora mismo' : `${wait} min esperando`}</p>
+                  </div>
+                  <button
+                    onClick={() => handleClaimEntry(entry)}
+                    disabled={busy}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand text-white text-xs font-semibold hover:bg-brand/90 disabled:opacity-50 transition-colors"
+                  >
+                    {busy ? <CircleNotch size={12} className="animate-spin" /> : null}
+                    {busy ? 'Iniciando…' : 'Atender'}
+                  </button>
                 </div>
               )
             })}
