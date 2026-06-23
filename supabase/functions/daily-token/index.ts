@@ -85,13 +85,21 @@ Deno.serve(async (req) => {
     let roomUrl: string = consultation.daily_room_url
     let roomName: string = consultation.daily_room_name
 
+    // If a room URL is stored, verify it still exists in Daily.co (rooms expire)
+    if (roomUrl && roomName) {
+      const checkRes = await fetch(`${DAILY_API_BASE}/rooms/${roomName}`, {
+        headers: { Authorization: `Bearer ${DAILY_API_KEY}` },
+      })
+      if (!checkRes.ok) {
+        // Room is gone — clear stored values and fall through to create a new one
+        roomUrl = null as unknown as string
+        roomName = null as unknown as string
+      }
+    }
+
     if (!roomUrl) {
-      // Expiry: scheduledAt + 2h, minimum 30 min from now
-      const minExp = Math.floor(Date.now() / 1000) + 1800
-      const schedExp = consultation.scheduled_at
-        ? Math.floor(new Date(consultation.scheduled_at).getTime() / 1000) + 7200
-        : minExp
-      const exp = Math.max(minExp, schedExp)
+      // Expiry: 24 hours from now (generous — rooms auto-clean after consultation ends)
+      const exp = Math.floor(Date.now() / 1000) + 86400
 
       const roomRes = await fetch(`${DAILY_API_BASE}/rooms`, {
         method: 'POST',
