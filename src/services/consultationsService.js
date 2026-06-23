@@ -155,10 +155,22 @@ export const consultationsService = {
       .from('consultations')
       .update({ status, ...toSnakeCase(extra) })
       .eq('id', id)
-      .select()
+      .select('*, patient:profiles!patient_id(full_name)')
       .single()
     if (error) throw error
-    return toCamelCase(data)
+    const result = toCamelCase(data)
+    // Notify patient when professional confirms their booking
+    if (status === 'confirmed' && result.patientId) {
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          userId: result.patientId,
+          title:  'Turno confirmado',
+          body:   'Tu consulta fue confirmada por el profesional.',
+          url:    '/paciente/consultas',
+        },
+      }).catch(() => {})
+    }
+    return result
   },
 
   async cancel(id, cancelledBy, reason = '') {

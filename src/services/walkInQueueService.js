@@ -44,7 +44,7 @@ export const walkInQueueService = {
   },
 
   async claim(id, professionalId, consultationId) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('walk_in_queue')
       .update({
         professional_id: professionalId,
@@ -53,7 +53,20 @@ export const walkInQueueService = {
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
+      .select('patient_id')
+      .single()
     if (error) throw error
+    // Notify patient that a professional has taken their request
+    if (data?.patient_id) {
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          userId: data.patient_id,
+          title:  '¡Un profesional te atenderá ahora!',
+          body:   'Tu consulta urgente fue tomada. Ingresá a la videollamada.',
+          url:    `/paciente/sala-espera/${consultationId}`,
+        },
+      }).catch(() => {})
+    }
   },
 
   async complete(id) {
