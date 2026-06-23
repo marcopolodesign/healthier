@@ -180,6 +180,20 @@ export const consultationsService = {
         },
       }).catch(() => {})
     }
+    // Notify patient when professional joins the call (status → in_progress)
+    if (status === 'in_progress' && result.patientId) {
+      const consultationUrl = result.dailyRoomUrl
+        ? `/paciente/videollamada/${id}`
+        : `/paciente/sala-espera/${id}`
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          userId: result.patientId,
+          title:  '¡El profesional está listo!',
+          body:   'Tu consulta comenzó. ¡Entrá a la sala ahora!',
+          url:    consultationUrl,
+        },
+      }).catch(() => {})
+    }
     // Notify patient when their booking is cancelled by someone else (professional or admin)
     if (status === 'cancelled' && result.patientId && extra.cancelledBy !== result.patientId) {
       supabase.functions.invoke('send-push-notification', {
