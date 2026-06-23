@@ -6,6 +6,7 @@ import { profilesService } from '../../services/profilesService'
 import { SPECIALTIES } from '../../lib/verticals'
 import AddressAutocomplete from '../../components/common/AddressAutocomplete'
 import FileUpload from '../../components/FileUpload'
+import { geocodeAddress } from '../../lib/geo'
 import { toast } from '../../components/Toast'
 
 const STEPS = [
@@ -89,6 +90,10 @@ export default function Onboarding({ profile }) {
         submittedAt:        new Date().toISOString(),
         rejectionReason:    null,
         rejectedAt:         null,
+      }
+      if (payload.latitude == null && payload.address) {
+        const geo = await geocodeAddress(payload.address)
+        if (geo) { payload.latitude = geo.lat; payload.longitude = geo.lng }
       }
       if (payload.latitude == null) { delete payload.latitude; delete payload.longitude }
       await professionalService.upsert(profile.id, payload)

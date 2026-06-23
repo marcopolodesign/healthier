@@ -46,6 +46,17 @@ export async function searchAddresses(query, signal) {
   }))
 }
 
+// Geocode a single address string — returns { lat, lng } or null.
+export async function geocodeAddress(address) {
+  if (!address || address.trim().length < 3) return null
+  try {
+    const results = await searchAddresses(address)
+    return results.length > 0 ? { lat: results[0].lat, lng: results[0].lng } : null
+  } catch {
+    return null
+  }
+}
+
 // Nominatim reverse geocode — returns a short street address string.
 export async function reverseGeocode(lat, lng) {
   const res = await fetch(

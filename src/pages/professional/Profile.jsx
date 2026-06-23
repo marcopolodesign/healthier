@@ -4,6 +4,7 @@ import { profilesService } from '../../services/profilesService'
 import FileUpload from '../../components/FileUpload'
 import AddressAutocomplete from '../../components/common/AddressAutocomplete'
 import { SPECIALTIES } from '../../lib/verticals'
+import { geocodeAddress } from '../../lib/geo'
 import { toast } from '../../components/Toast'
 
 export default function ProfessionalProfile({ profile }) {
@@ -48,6 +49,10 @@ export default function ProfessionalProfile({ profile }) {
         setAvatarFile(null)
       }
       const payload = { ...profData, ...form }
+      if (payload.latitude == null && payload.address) {
+        const geo = await geocodeAddress(payload.address)
+        if (geo) { payload.latitude = geo.lat; payload.longitude = geo.lng }
+      }
       if (payload.latitude == null) { delete payload.latitude; delete payload.longitude }
       await professionalService.upsert(profile.id, payload)
       toast.success('Perfil actualizado')
