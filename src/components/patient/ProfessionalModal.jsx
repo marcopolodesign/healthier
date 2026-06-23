@@ -1,4 +1,4 @@
-import { Star, SealCheck, VideoCamera, MapPin, CalendarPlus, X, ChatCircle, Phone } from '@phosphor-icons/react'
+import { Star, SealCheck, VideoCamera, MapPin, CalendarPlus, X, ChatCircle, Phone, Lightning } from '@phosphor-icons/react'
 import { SPECIALTY_LABELS } from '../../lib/verticals'
 import PatientSheet from './PatientSheet'
 
@@ -119,6 +119,14 @@ export default function ProfessionalModal({ pro, open, onClose, modality, onBook
               </div>
             )}
           </div>
+
+          {/* Walk-in available badge */}
+          {pro.isAvailableWalkin && (
+            <div className="flex items-center gap-1 bg-green-50 border border-green-200 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-semibold mt-2 self-start">
+              <Lightning className="w-2.5 h-2.5" weight="fill" />
+              Disponible ahora
+            </div>
+          )}
 
           {/* Close */}
           <button
