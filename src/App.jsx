@@ -52,6 +52,7 @@ import ReservarConsulta from './pages/patient/ReservarConsulta'
 import PaymentPage from './pages/patient/PaymentPage'
 import PatientAIChat from './pages/patient/PatientAIChat'
 import WalkInQueue from './pages/patient/WalkInQueue'
+import HealthSnapshot from './pages/patient/HealthSnapshot'
 
 import AdminProfessionals from './pages/admin/Professionals'
 import AdminUsers from './pages/admin/Users'
@@ -200,6 +201,7 @@ export default function App() {
           <Route path="/paciente/historia-clinica" element={<HistoriaClinicaPaciente profile={profile} />} />
           <Route path="/paciente/ia"              element={<PatientAIChat           profile={profile} />} />
           <Route path="/paciente/urgente"         element={<WalkInQueue             profile={profile} />} />
+          <Route path="/paciente/salud"           element={<HealthSnapshot          profile={profile} />} />
         </Route>
 
         {/* Patient onboarding — full-screen, no mobile nav */}

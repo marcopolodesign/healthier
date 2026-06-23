@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
 import {
   MapPin, Clock, CaretRight, Star, VideoCamera,
-  Heartbeat, Calendar, Plus, Siren,
+  Heartbeat, Calendar, Plus, Siren, Pulse,
 } from '@phosphor-icons/react'
 
 const LAST_VERTICAL_KEY = 'healthier_last_vertical'
@@ -326,6 +326,22 @@ export default function PatientDashboard({ profile }) {
     </div>
   )
 
+  const healthSnapshotLink = (
+    <button
+      onClick={() => navigate('/paciente/salud')}
+      className="w-full flex items-center gap-3 px-4 py-3 rounded-[14px] bg-bg-primary border border-border-default hover:border-brand/30 active:opacity-80 transition-all group text-left"
+    >
+      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#7CB38B18' }}>
+        <Pulse className="w-4 h-4" style={{ color: '#7CB38B' }} />
+      </div>
+      <div className="flex-1">
+        <p className="text-[13px] font-bold text-text-primary leading-tight">Resumen de salud</p>
+        <p className="text-[11px] text-text-secondary font-medium mt-0.5">Condiciones · Medicamentos · Alergias</p>
+      </div>
+      <CaretRight className="w-4 h-4 text-text-tertiary group-hover:text-text-secondary transition-colors flex-shrink-0" />
+    </button>
+  )
+
   const avatarEl = (
     <div className="w-11 h-11 rounded-full overflow-hidden border-2 flex-shrink-0" style={{ backgroundColor: '#b05a36', borderColor: '#f5eee1' }}>
       {profile?.avatarUrl
@@ -384,6 +400,7 @@ export default function PatientDashboard({ profile }) {
           {/* Scrollable body — all sections always visible */}
           <div className="overflow-y-auto scrollbar-hide flex-1 px-5 pt-4 pb-4 flex flex-col gap-4">
             {upcomingSection}
+            {healthSnapshotLink}
             {specialtyGrid}
             <div className="flex flex-col gap-3">{sosButton}</div>
           </div>
@@ -423,6 +440,7 @@ export default function PatientDashboard({ profile }) {
           {/* Scrollable content */}
           <div className="px-6 flex-1 overflow-y-auto pb-56 scrollbar-hide bg-bg-secondary mt-2 flex flex-col gap-5">
             {upcomingSection}
+            {healthSnapshotLink}
             {specialtyGrid}
             <div className="mb-8">{sosButton}</div>
           </div>
