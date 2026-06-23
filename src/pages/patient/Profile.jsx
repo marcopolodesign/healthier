@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   User, PencilSimple, Check, Camera, ShieldCheck, Heartbeat,
   Phone, Users, CreditCard, Receipt, SignOut, ArrowLeft,
-  FileText, Trash, Download, Plus,
+  FileText, Trash, Download, Plus, Bell, BellSlash,
 } from '@phosphor-icons/react'
 import { profilesService } from '../../services/profilesService'
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
+import { notificationService } from '../../services/notificationService'
 
 export default function PatientProfile({ profile, onProfileUpdate }) {
   const navigate = useNavigate()
@@ -36,6 +37,28 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   const [newFamiliar, setNewFamiliar] = useState({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '' })
   const [showTarjeta, setShowTarjeta] = useState(false)
   const [tarjetaForm, setTarjetaForm] = useState({ id: null, numero: '', titular: '', vencimiento: '', cvv: '', marca: 'VISA' })
+
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushTogglingOn, setPushTogglingOn] = useState(false)
+
+  useEffect(() => {
+    setPushEnabled(notificationService.isSupported() && notificationService.isPushEnabled())
+  }, [])
+
+  const handleTogglePush = async () => {
+    if (pushEnabled) {
+      await notificationService.unsubscribe(profile?.id)
+      setPushEnabled(false)
+      toast.info('Notificaciones desactivadas')
+    } else {
+      setPushTogglingOn(true)
+      const ok = await notificationService.subscribe(profile?.id)
+      setPushEnabled(ok)
+      if (ok) toast.success('Notificaciones activadas')
+      else toast.error('No se pudo activar las notificaciones')
+      setPushTogglingOn(false)
+    }
+  }
 
   const toggleEdit = async () => {
     if (editing) {
@@ -257,6 +280,32 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           ))
         }
       </div>
+
+      {/* Notifications section */}
+      {!editing && notificationService.isSupported() && (
+        <div className="bg-white rounded-[28px] p-5 border border-gray-100 shadow-sm">
+          <h3 className="font-black text-lg text-gray-900 flex items-center gap-2 mb-4">
+            <Bell className="w-5 h-5 text-brand" /> Notificaciones
+          </h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-semibold text-text-primary text-sm">Notificaciones push</p>
+              <p className="text-xs text-text-secondary mt-0.5">Confirmaciones de turno y alertas</p>
+            </div>
+            <button
+              onClick={handleTogglePush}
+              disabled={pushTogglingOn}
+              className={`relative inline-flex h-7 w-13 items-center rounded-full transition-colors focus:outline-none ${pushEnabled ? 'bg-brand' : 'bg-gray-300'}`}
+              style={{ width: 52 }}
+            >
+              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${pushEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
+            </button>
+          </div>
+          {Notification.permission === 'denied' && (
+            <p className="text-xs text-text-tertiary mt-2">Para activar notificaciones, permitilas en la configuración de tu navegador.</p>
+          )}
+        </div>
+      )}
 
       {!editing && (
         <button
