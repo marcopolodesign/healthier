@@ -198,6 +198,17 @@ export const consultationsService = {
    * Returns: { id, priceAtBooking, professionalId, mpAccountConnected }
    *   mpAccountConnected — true when the professional has an active mp_accounts row.
    */
+  async getReceiptsForPatient(patientId) {
+    const { data, error } = await supabase
+      .from('consultations')
+      .select('id, status, payment_status, price_at_booking, modality, vertical, scheduled_at, completed_at, professional:profiles!professional_id(full_name, professional_profiles(specialty))')
+      .eq('patient_id', patientId)
+      .not('status', 'in', '("pending","cancelled","no_show")')
+      .order('scheduled_at', { ascending: false })
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
   async getConsultationForPayment(consultationId) {
     const { data, error } = await supabase
       .from('consultations')
