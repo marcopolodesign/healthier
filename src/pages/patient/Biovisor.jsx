@@ -120,6 +120,94 @@ function AiAnalysis({ parameters }) {
   )
 }
 
+// ─── Historical Trend Chart ───────────────────────────────────────────────────
+
+function HistoricalChart({ paramName, history }) {
+  const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date))
+  const points = sorted.flatMap(entry => {
+    const p = entry.parameters.find(p => p.name === paramName)
+    return p ? [{ date: entry.date, value: p.value, min: p.min, max: p.max }] : []
+  })
+
+  if (!points.length) return (
+    <div className="flex flex-col items-center py-10 text-text-secondary">
+      <Pulse size={32} className="opacity-20 mb-2" />
+      <p className="text-xs">Sin datos para este parámetro</p>
+    </div>
+  )
+
+  if (points.length === 1) {
+    const p = points[0]
+    const status = getStatus(p.value, p.min, p.max)
+    const color = statusColor(status)
+    return (
+      <div className="flex flex-col items-center py-8 gap-1">
+        <span className="text-4xl font-bold" style={{ color }}>{p.value}</span>
+        <span className="text-xs text-text-secondary">{p.date}</span>
+        <span className="text-xs text-text-muted mt-1">Subí más análisis para ver la evolución</span>
+      </div>
+    )
+  }
+
+  const W = 320, H = 140
+  const PAD = { top: 20, right: 16, bottom: 28, left: 36 }
+  const innerW = W - PAD.left - PAD.right
+  const innerH = H - PAD.top - PAD.bottom
+
+  const refMin = points[0].min
+  const refMax = points[0].max
+  const allVals = points.map(p => p.value)
+  const dataMin = Math.min(...allVals, refMin)
+  const dataMax = Math.max(...allVals, refMax)
+  const span = dataMax - dataMin || 1
+
+  const xOf = i => PAD.left + (i / (points.length - 1)) * innerW
+  const yOf = v => PAD.top + ((dataMax - v) / span) * innerH
+
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xOf(i).toFixed(1)} ${yOf(p.value).toFixed(1)}`).join(' ')
+  const areaPath = `${linePath} L ${xOf(points.length - 1).toFixed(1)} ${(PAD.top + innerH).toFixed(1)} L ${xOf(0).toFixed(1)} ${(PAD.top + innerH).toFixed(1)} Z`
+  const gradId = `grad-${paramName.replace(/[^a-z0-9]/gi, '-')}`
+
+  const fmtDate = d => {
+    const [, m, day] = d.split('-')
+    return `${parseInt(day)} ${['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][parseInt(m)]}`
+  }
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={SAGE} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={SAGE} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* Normal range band */}
+      <rect x={PAD.left} y={yOf(refMax).toFixed(1)} width={innerW} height={(yOf(refMin) - yOf(refMax)).toFixed(1)} fill={SAGE} fillOpacity="0.08" />
+      {/* Area */}
+      <path d={areaPath} fill={`url(#${gradId})`} />
+      {/* Line */}
+      <path d={linePath} stroke={SAGE} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      {/* Dots + value labels */}
+      {points.map((p, i) => {
+        const c = statusColor(getStatus(p.value, p.min, p.max))
+        return (
+          <g key={i}>
+            <circle cx={xOf(i).toFixed(1)} cy={yOf(p.value).toFixed(1)} r="4" fill="white" stroke={c} strokeWidth="2" />
+            <text x={xOf(i).toFixed(1)} y={(yOf(p.value) - 8).toFixed(1)} textAnchor="middle" fill={c} fontSize="9" fontWeight="600">{p.value}</text>
+          </g>
+        )
+      })}
+      {/* X date labels */}
+      {points.map((p, i) => (
+        <text key={i} x={xOf(i).toFixed(1)} y={H - 4} textAnchor="middle" fill="#9ca3af" fontSize="9">{fmtDate(p.date)}</text>
+      ))}
+      {/* Ref range labels */}
+      <text x={PAD.left - 4} y={(yOf(refMax) + 4).toFixed(1)} textAnchor="end" fill="#9ca3af" fontSize="9">{refMax}</text>
+      <text x={PAD.left - 4} y={(yOf(refMin) + 4).toFixed(1)} textAnchor="end" fill="#9ca3af" fontSize="9">{refMin}</text>
+    </svg>
+  )
+}
+
 // ─── Gemini OCR ───────────────────────────────────────────────────────────────
 
 async function toBase64(file) {
@@ -171,16 +259,25 @@ export default function PatientBiovisor({ profile }) {
   const [loadingReports, setLoadingReports] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [activeTab, setActiveTab] = useState('biovisor')
+  const [selectedParam, setSelectedParam] = useState('')
   const [error, setError] = useState('')
 
   const history = reports.map(r => ({ id: r.id, date: r.reportDate, parameters: r.parameters }))
   const latest = history[0] ?? null
   const previous = history[1] ?? null
 
+  // All unique parameter names across all reports (ordered by first appearance)
+  const allParamNames = [...new Set(history.flatMap(h => h.parameters.map(p => p.name)))]
+
   useEffect(() => {
     if (!profile?.id) return
     diagnosticReportService.getByPatient(profile.id)
-      .then(data => setReports(data))
+      .then(data => {
+        setReports(data)
+        if (data.length > 0 && data[0].parameters.length > 0) {
+          setSelectedParam(data[0].parameters[0].name)
+        }
+      })
       .catch(() => {})
       .finally(() => setLoadingReports(false))
   }, [profile?.id])
@@ -201,6 +298,7 @@ export default function PatientBiovisor({ profile }) {
       }
       const saved = await diagnosticReportService.create({ patientId: profile.id, reportDate: date, parameters })
       setReports(prev => [saved, ...prev])
+      if (parameters.length > 0) setSelectedParam(parameters[0].name)
       setActiveTab('biovisor')
     } catch {
       setError('Error al analizar el documento. Verificá tu conexión e intentá de nuevo.')
@@ -327,25 +425,86 @@ export default function PatientBiovisor({ profile }) {
                 <p className="font-medium">Sin historial aún</p>
                 <p className="text-sm mt-1">Cargá al menos un análisis para ver la evolución de tus parámetros.</p>
               </div>
-            ) : history.map((entry, i) => (
-              <div key={entry.id} className="card p-4 space-y-2">
-                <p className="font-semibold text-text-primary text-sm">
-                  {new Date(entry.date + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {entry.parameters.map(p => {
-                    const status = getStatus(p.value, p.min, p.max)
-                    const color = statusColor(status)
-                    return (
-                      <div key={p.id} className="flex items-center justify-between bg-bg-subtle rounded-lg px-3 py-2">
-                        <span className="text-xs text-text-secondary truncate">{p.name}</span>
-                        <span className="text-xs font-bold ml-2 shrink-0" style={{ color }}>{p.value} {p.unit}</span>
-                      </div>
-                    )
-                  })}
+            ) : (
+              <>
+                {/* Parameter selector pills */}
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                  {allParamNames.map(name => (
+                    <button
+                      key={name}
+                      onClick={() => setSelectedParam(name)}
+                      className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                        selectedParam === name
+                          ? 'bg-brand text-white border-brand'
+                          : 'bg-bg-surface text-text-secondary border-border-default hover:border-brand hover:text-brand'
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  ))}
                 </div>
-              </div>
-            ))}
+
+                {/* Trend chart */}
+                {selectedParam && (
+                  <div className="card p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-text-primary">{selectedParam}</p>
+                      {(() => {
+                        const latest = [...history].sort((a, b) => b.date.localeCompare(a.date))[0]?.parameters.find(p => p.name === selectedParam)
+                        if (!latest) return null
+                        const status = getStatus(latest.value, latest.min, latest.max)
+                        const color = statusColor(status)
+                        const badge = { normal: 'bg-green-100 text-green-700', warning: 'bg-amber-100 text-amber-700', danger: 'bg-red-100 text-red-700' }[status]
+                        const label = { normal: 'Normal', warning: 'Atención', danger: 'Alerta' }[status]
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg font-bold" style={{ color }}>{latest.value}</span>
+                            <span className="text-xs text-text-secondary">{latest.unit}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge}`}>{label}</span>
+                          </div>
+                        )
+                      })()}
+                    </div>
+                    <HistoricalChart paramName={selectedParam} history={history} />
+                    {(() => {
+                      const refPoint = history.flatMap(h => h.parameters).find(p => p.name === selectedParam)
+                      if (!refPoint) return null
+                      return (
+                        <p className="text-xs text-text-secondary text-center">
+                          Rango de referencia: {refPoint.min} – {refPoint.max} {refPoint.unit}
+                        </p>
+                      )
+                    })()}
+                  </div>
+                )}
+
+                {/* Studies list */}
+                <p className="text-xs font-medium text-text-secondary uppercase tracking-wide">Estudios ({history.length})</p>
+                {[...history].sort((a, b) => b.date.localeCompare(a.date)).map(entry => (
+                  <div key={entry.id} className="card p-4 space-y-2">
+                    <p className="font-semibold text-text-primary text-sm">
+                      {new Date(entry.date + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {entry.parameters.map(p => {
+                        const status = getStatus(p.value, p.min, p.max)
+                        const color = statusColor(status)
+                        return (
+                          <button
+                            key={p.id}
+                            onClick={() => setSelectedParam(p.name)}
+                            className={`flex items-center justify-between bg-bg-subtle rounded-lg px-3 py-2 text-left transition-colors ${selectedParam === p.name ? 'ring-1 ring-brand' : ''}`}
+                          >
+                            <span className="text-xs text-text-secondary truncate">{p.name}</span>
+                            <span className="text-xs font-bold ml-2 shrink-0" style={{ color }}>{p.value} {p.unit}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )}
 

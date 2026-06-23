@@ -2,7 +2,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import PatientBottomNav from '../components/patient/PatientBottomNav'
 import { Plus } from '@phosphor-icons/react'
 
-const HIDE_NAV_PREFIXES = ['/paciente/sos', '/paciente/ondemand', '/paciente/videollamada', '/paciente/reservar', '/paciente/sala-espera', '/paciente/consulta/review']
+const HIDE_NAV_PREFIXES = ['/paciente/sos', '/paciente/ondemand', '/paciente/videollamada', '/paciente/reservar', '/paciente/sala-espera', '/paciente/consulta/review', '/paciente/urgente']
 
 export default function PatientMobileLayout({ profile }) {
   const { pathname } = useLocation()
