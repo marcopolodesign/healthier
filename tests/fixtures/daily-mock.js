@@ -1,30 +1,81 @@
 // Injected via page.addInitScript() before app scripts run.
-// Sets window.__DailyIframeMock so ProfessionalVideoCall.jsx uses it
+// Mocks window.__DailyIframeMock so ProfessionalVideoCall.jsx uses it
 // instead of the real @daily-co/daily-js SDK.
 //
-// Uses 300/500ms delays so React Strict Mode's unmount/remount cycle
-// completes before events fire (the cycle is synchronous, so even 20ms
-// would work, but 300ms removes all timing ambiguity).
-//
-// window.__mockFrameCreated is set to true when createFrame() is called,
-// confirming the component actually rendered and called the Daily SDK.
+// Simulates the createCallObject() API — no UI iframe, just events.
+// The 300/500ms delays give React Strict Mode's unmount+remount cycle
+// time to complete before events fire.
 
 window.__DailyIframeMock = (() => {
-  let listeners = {}
-  const frame = {
-    on(event, cb) { listeners[event] = cb; return frame },
-    join() {
-      setTimeout(() => listeners['loading']?.(), 300)
-      setTimeout(() => listeners['joined-meeting']?.({ participants: {} }), 500)
-      return Promise.resolve()
-    },
-    destroy() { listeners = {} },
-    leave() { listeners['left-meeting']?.(); return Promise.resolve() },
+  // Minimal MediaStreamTrack-like object for video/audio tiles
+  const mockTrack = { kind: 'video', readyState: 'live', enabled: true }
+  const mockAudioTrack = { kind: 'audio', readyState: 'live', enabled: true }
+
+  function makeParticipant(local) {
+    return {
+      local,
+      tracks: {
+        video: { persistentTrack: local ? mockTrack : null, state: 'playable' },
+        audio: { persistentTrack: local ? mockAudioTrack : null, state: 'playable' },
+      },
+    }
   }
-  window.__mockDailyFrame = frame
+
+  function makeCallObject() {
+    let listeners = {}
+    let localCamOn = true
+    let localMicOn = true
+
+    const call = {
+      on(event, cb) { listeners[event] = cb; return call },
+      join(_opts) {
+        setTimeout(() => {
+          listeners['joined-meeting']?.({
+            participants: { local: makeParticipant(true) },
+          })
+        }, 500)
+        return Promise.resolve()
+      },
+      participants() {
+        return { local: makeParticipant(true) }
+      },
+      setLocalVideo(enabled) {
+        localCamOn = enabled
+        setTimeout(() => {
+          listeners['participant-updated']?.({ participant: makeParticipant(true) })
+        }, 50)
+        return Promise.resolve()
+      },
+      setLocalAudio(enabled) {
+        localMicOn = enabled
+        setTimeout(() => {
+          listeners['participant-updated']?.({ participant: makeParticipant(true) })
+        }, 50)
+        return Promise.resolve()
+      },
+      leave() {
+        setTimeout(() => listeners['left-meeting']?.(), 50)
+        return Promise.resolve()
+      },
+      destroy() { listeners = {} },
+    }
+    return call
+  }
+
   return {
+    createCallObject: () => {
+      window.__mockCallObjectCreated = true
+      return makeCallObject()
+    },
+    // Keep createFrame stub so any legacy test code doesn't throw
     createFrame: (_container, _opts) => {
       window.__mockFrameCreated = true
+      const frame = {
+        on(_e, _cb) { return frame },
+        join() { return Promise.resolve() },
+        leave() { return Promise.resolve() },
+        destroy() {},
+      }
       return frame
     },
   }
