@@ -1,51 +1,84 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, PhoneSlash, ClipboardText, ArrowsOut, ArrowsIn, Plus, Check, CircleNotch, Globe, Lock, User } from '@phosphor-icons/react';
+import { ArrowLeft, PhoneSlash, ClipboardText, ArrowsOut, ArrowsIn, Plus, Check, CircleNotch, User } from '@phosphor-icons/react';
 import DailyIframe from '@daily-co/daily-js'
 import { consultationsService } from '../../services/consultationsService'
-import { historiaClinicaService } from '../../services/historiaClinicaService'
+import { clinicalService } from '../../services/clinicalService'
 import CloseConsultationModal from '../../components/CloseConsultationModal'
 import { toast } from '../../components/Toast'
-import { SPECIALTIES, SPECIALTY_COLORS } from '../../lib/specialties'
+
+const ENTRY_TYPE_LABELS = {
+  note: 'Nota',
+  diagnosis: 'Diagnóstico',
+  indication: 'Indicación',
+  addendum: 'Addendum',
+}
 
 function ClinicalPanel({ consultation, profile }) {
   const patientId = consultation?.patientId
-  const [notes, setNotes] = useState([])
-  const [loadingNotes, setLoadingNotes] = useState(true)
+  const professionalId = consultation?.professionalId
+  const pp = profile?.professionalProfiles?.[0]
+  const licenseType = pp?.licenseType ?? 'MN'
+  const licenseNumber = pp?.licenseNumber ?? '0'
+  const specialty = pp?.specialty ?? 'otra'
+
+  const [encounterId, setEncounterId] = useState(null)
+  const [entries, setEntries] = useState([])
+  const [loadingEntries, setLoadingEntries] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({
-    specialty: profile?.professionalProfiles?.[0]?.specialty ?? SPECIALTIES[0],
-    noteType: 'internal',
-    title: '',
-    content: '',
-  })
+  const [form, setForm] = useState({ entryType: 'note', content: '' })
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (!patientId) return
-    historiaClinicaService.getPatientNotes(patientId)
-      .then(setNotes)
-      .catch(() => {})
-      .finally(() => setLoadingNotes(false))
-  }, [patientId])
+    if (!consultation?.id) return
+    async function load() {
+      try {
+        const existing = await clinicalService.getEncounterByConsultationIdSafe(consultation.id)
+        if (existing) {
+          setEncounterId(existing.id)
+          const detail = await clinicalService.getEncounterWithDetail(existing.id)
+          setEntries(detail.entries)
+        }
+      } catch {
+        // leave empty
+      } finally {
+        setLoadingEntries(false)
+      }
+    }
+    load()
+  }, [consultation?.id])
 
   async function handleSubmit(e) {
     e.preventDefault()
     if (!form.content.trim()) return
     setSubmitting(true)
     try {
-      const note = await historiaClinicaService.addNote({
+      let eid = encounterId
+      if (!eid) {
+        const enc = await clinicalService.createEncounter({
+          patientId,
+          professionalId,
+          consultationId: consultation.id,
+          specialty,
+          modality: consultation.modality,
+          licenseType,
+          licenseNumber,
+        })
+        eid = enc.id
+        setEncounterId(eid)
+      }
+      const entry = await clinicalService.addEntry(eid, {
         patientId,
-        consultationId: consultation?.id,
-        specialty: form.specialty,
-        noteType: form.noteType,
-        title: form.title || null,
+        professionalId,
+        entryType: form.entryType,
         content: form.content,
+        licenseType,
+        licenseNumber,
       })
-      setNotes(prev => [note, ...prev])
-      setForm(f => ({ ...f, title: '', content: '' }))
+      setEntries(prev => [...prev, entry])
+      setForm(f => ({ ...f, content: '' }))
       setShowForm(false)
-      toast.success('Nota guardada')
+      toast.success('Nota guardada en la HC')
     } catch {
       toast.error('Error al guardar nota')
     } finally {
@@ -72,30 +105,15 @@ function ClinicalPanel({ consultation, profile }) {
       {/* Quick note form */}
       {showForm && (
         <form onSubmit={handleSubmit} className="p-3 border-b border-border-default space-y-2 shrink-0 bg-bg-subtle">
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              className="form-select text-xs py-1"
-              value={form.specialty}
-              onChange={e => setForm(f => ({ ...f, specialty: e.target.value }))}
-            >
-              {SPECIALTIES.map(s => <option key={s}>{s}</option>)}
-            </select>
-            <select
-              className="form-select text-xs py-1"
-              value={form.noteType}
-              onChange={e => setForm(f => ({ ...f, noteType: e.target.value }))}
-            >
-              <option value="internal">Interna</option>
-              <option value="external">Externa</option>
-            </select>
-          </div>
-          <input
-            type="text"
-            className="form-input text-xs py-1.5"
-            placeholder="Título (opcional)"
-            value={form.title}
-            onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-          />
+          <select
+            className="form-select text-xs py-1 w-full"
+            value={form.entryType}
+            onChange={e => setForm(f => ({ ...f, entryType: e.target.value }))}
+          >
+            {Object.entries(ENTRY_TYPE_LABELS).map(([v, label]) => (
+              <option key={v} value={v}>{label}</option>
+            ))}
+          </select>
           <textarea
             required
             rows={3}
@@ -116,61 +134,38 @@ function ClinicalPanel({ consultation, profile }) {
         </form>
       )}
 
-      {/* Notes timeline */}
+      {/* Entries timeline */}
       <div className="flex-1 overflow-y-auto px-3 py-4">
-        {loadingNotes && (
+        {loadingEntries && (
           <div className="flex justify-center py-8">
             <CircleNotch className="h-5 w-5 animate-spin text-brand" />
           </div>
         )}
-        {!loadingNotes && notes.length === 0 && (
+        {!loadingEntries && entries.length === 0 && (
           <div className="text-center py-8 text-text-secondary">
             <ClipboardText className="h-8 w-8 mx-auto mb-2 opacity-30" />
             <p className="text-xs">Sin notas clínicas</p>
             <p className="text-xs opacity-60">Agregá la primera con el botón de arriba</p>
           </div>
         )}
-        {notes.length > 0 && (
+        {entries.length > 0 && (
           <ol className="relative">
-            {/* Vertical spine */}
             <span className="absolute left-[5px] top-2 bottom-2 w-px bg-border-default" />
-
-            {notes.map((note, i) => {
-              const color = SPECIALTY_COLORS[note.specialty] ?? '#95A5A6'
-              const date = new Date(note.createdAt)
+            {entries.map((entry, i) => {
+              const date = new Date(entry.createdAt)
               const dateLabel = date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
               const timeLabel = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
               return (
-                <li key={note.id} className={`relative pl-5 ${i < notes.length - 1 ? 'pb-4' : ''}`}>
-                  {/* Dot on the spine */}
-                  <span
-                    className="absolute left-0 top-1.5 w-[11px] h-[11px] rounded-full border-2 border-white ring-1 ring-border-default"
-                    style={{ background: color }}
-                  />
-
-                  {/* Date stamp */}
+                <li key={entry.id} className={`relative pl-5 ${i < entries.length - 1 ? 'pb-4' : ''}`}>
+                  <span className="absolute left-0 top-1.5 w-[11px] h-[11px] rounded-full border-2 border-white bg-brand ring-1 ring-border-default" />
                   <p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wide mb-1.5">
                     {dateLabel} · {timeLabel}
                   </p>
-
-                  {/* Card */}
                   <div className="rounded-lg border border-border-default bg-bg-surface p-2.5 space-y-1.5">
-                    <div className="flex items-center justify-between gap-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-                        <span className="text-xs font-semibold text-text-primary truncate">{note.specialty}</span>
-                      </div>
-                      <span className="flex items-center gap-0.5 shrink-0">
-                        {note.noteType === 'external'
-                          ? <><Globe className="h-3 w-3 text-green-600" /><span className="text-[10px] text-green-700">Externa</span></>
-                          : <><Lock className="h-3 w-3 text-amber-600" /><span className="text-[10px] text-amber-700">Interna</span></>}
-                      </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-brand">{ENTRY_TYPE_LABELS[entry.entryType] ?? entry.entryType}</span>
                     </div>
-                    {note.title && <p className="text-xs font-semibold text-text-primary">{note.title}</p>}
-                    <p className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">{note.content}</p>
-                    {note.professional?.fullName && (
-                      <p className="text-[10px] text-text-tertiary">{note.professional.fullName}</p>
-                    )}
+                    <p className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">{entry.content}</p>
                   </div>
                 </li>
               )

@@ -2,15 +2,19 @@ import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 
 export const clinicalService = {
 
-  async createEncounter({ patientId, professionalId, consultationId, specialty, chiefComplaint }) {
+  async createEncounter({ patientId, professionalId, consultationId, specialty, chiefComplaint, modality, licenseType, licenseNumber }) {
     const payload = toSnakeCase({
       patientId,
       professionalId,
       consultationId,
-      specialty: specialty ?? null,
+      specialty: specialty ?? 'otra',
       status: 'in_progress',
-      started_at: new Date().toISOString(),
     })
+    // Required NOT NULL fields not handled by toSnakeCase
+    payload.professional_license_type = licenseType ?? 'MN'
+    payload.professional_license_number = licenseNumber ?? '0'
+    payload.modality = modality === 'video' ? 'telemedicina' : (modality ?? 'telemedicina')
+    payload.started_at = new Date().toISOString()
     if (chiefComplaint !== undefined) payload.chief_complaint = chiefComplaint
 
     const { data, error } = await supabase
@@ -21,6 +25,18 @@ export const clinicalService = {
 
     if (error) throw error
     return toCamelCase(data)
+  },
+
+  // Returns existing encounter for a consultation, or null if none
+  async getEncounterByConsultationIdSafe(consultationId) {
+    const { data, error } = await supabase
+      .from('clinical_encounters')
+      .select('*')
+      .eq('consultation_id', consultationId)
+      .maybeSingle()
+
+    if (error) throw error
+    return data ? toCamelCase(data) : null
   },
 
   async finishEncounter(encounterId) {
@@ -35,7 +51,7 @@ export const clinicalService = {
     return toCamelCase(data)
   },
 
-  async addEntry(encounterId, { patientId, professionalId, entryType, content, icdCode }) {
+  async addEntry(encounterId, { patientId, professionalId, entryType, content, icdCode, licenseType, licenseNumber }) {
     const payload = toSnakeCase({
       encounterId,
       patientId,
@@ -43,6 +59,8 @@ export const clinicalService = {
       entryType,
       content: content ?? null,
     })
+    payload.professional_license_type = licenseType ?? 'MN'
+    payload.professional_license_number = licenseNumber ?? '0'
     if (icdCode !== undefined) payload.icd_code = icdCode
 
     const { data, error } = await supabase
