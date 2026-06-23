@@ -230,9 +230,8 @@ export default function ReservarConsulta({ profile }) {
         createPayload.petName    = petName    || null
         createPayload.petSpecies = petSpecies || null
       }
-      await consultationsService.create(createPayload)
-      toast.success('¡Turno confirmado!')
-      navigate('/paciente/consultas')
+      const created = await consultationsService.create(createPayload)
+      navigate(`/paciente/turno-confirmado/${created.id}`)
     } catch (err) {
       setCreateError(err?.message || 'Error al guardar el turno. Intentá de nuevo.')
     } finally {

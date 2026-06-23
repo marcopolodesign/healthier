@@ -42,7 +42,7 @@ export default function PaymentPage({ profile }) {
     }
     setAdvancingDemo(true)
     try {
-      await consultationsService.create({
+      const created = await consultationsService.create({
         patientId:      profile.id,
         professionalId,
         vertical:       verticalId,
@@ -52,8 +52,7 @@ export default function PaymentPage({ profile }) {
         priceAtBooking: price ?? null,
         scheduledAt:    scheduledAt ?? new Date().toISOString(),
       })
-      toast.success('¡Turno confirmado! (demo)')
-      setTimeout(() => navigate('/paciente/consultas'), 1200)
+      navigate(`/paciente/turno-confirmado/${created.id}`)
     } catch (err) {
       toast.error(err?.message || 'Error al confirmar el turno')
     } finally {
@@ -71,7 +70,7 @@ export default function PaymentPage({ profile }) {
     if (isDemoMode) {
       setPaying(true)
       try {
-        await consultationsService.create({
+        const created = await consultationsService.create({
           patientId:      profile.id,
           professionalId,
           vertical:       verticalId,
@@ -81,9 +80,7 @@ export default function PaymentPage({ profile }) {
           priceAtBooking: price ?? null,
           scheduledAt:    scheduledAt ?? new Date().toISOString(),
         })
-        setPaid(true)
-        toast.success('¡Turno confirmado! (modo demo)')
-        setTimeout(() => navigate('/paciente/consultas'), 1800)
+        navigate(`/paciente/turno-confirmado/${created.id}`)
       } catch (err) {
         toast.error(err?.message || 'Error al confirmar el turno')
       } finally {
@@ -119,9 +116,7 @@ export default function PaymentPage({ profile }) {
       if (payErr) throw new Error(payErr)
 
       if (paymentData?.status === 'approved') {
-        setPaid(true)
-        toast.success('¡Turno confirmado y pago acreditado!')
-        setTimeout(() => navigate('/paciente/consultas'), 1800)
+        navigate(`/paciente/turno-confirmado/${consultation.id}`)
       } else {
         toast.error('El pago no pudo procesarse. Intentá con otra tarjeta.')
       }
