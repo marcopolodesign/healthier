@@ -38,6 +38,8 @@ export default function ProfessionalDashboard({ profile }) {
   const [confirmingId, setConfirmingId] = useState(null)
   const [walkInQueue, setWalkInQueue] = useState([])
   const [claimingId, setClaimingId] = useState(null)
+  const [availableWalkIn, setAvailableWalkIn] = useState(false)
+  const [togglingAvail, setTogglingAvail] = useState(false)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -75,6 +77,7 @@ export default function ProfessionalDashboard({ profile }) {
       .subscribe()
 
     walkInQueueService.getWaitingQueue().then(setWalkInQueue).catch(() => {})
+    walkInQueueService.getMyAvailability(profile.id).then(setAvailableWalkIn).catch(() => {})
 
     const queueChannel = walkInQueueService.subscribeToQueue(async () => {
       const updated = await walkInQueueService.getWaitingQueue()
@@ -126,6 +129,20 @@ export default function ProfessionalDashboard({ profile }) {
       toast.error('Error al rechazar')
     } finally {
       setConfirmingId(null)
+    }
+  }
+
+  async function handleToggleAvailability() {
+    setTogglingAvail(true)
+    try {
+      const next = !availableWalkIn
+      await walkInQueueService.setAvailability(profile.id, next)
+      setAvailableWalkIn(next)
+      toast.success(next ? 'Disponible para consultas urgentes' : 'No disponible para consultas urgentes')
+    } catch {
+      toast.error('Error al cambiar disponibilidad')
+    } finally {
+      setTogglingAvail(false)
     }
   }
 
@@ -368,18 +385,34 @@ export default function ProfessionalDashboard({ profile }) {
         </div>
       )}
 
-      {/* Walk-in queue */}
-      {walkInQueue.length > 0 && (
-        <div className="card border-brand/30 bg-brand/5">
-          <div className="flex items-center gap-2 mb-3">
+      {/* Walk-in availability toggle + queue */}
+      <div className="card border-brand/30 bg-brand/5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-brand" />
             <h2 className="font-semibold text-brand">
-              Cola de espera
-              <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full bg-brand text-white text-xs font-bold">
-                {walkInQueue.length}
-              </span>
+              Consultas urgentes
+              {walkInQueue.length > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full bg-brand text-white text-xs font-bold">
+                  {walkInQueue.length}
+                </span>
+              )}
             </h2>
           </div>
+          <button
+            onClick={handleToggleAvailability}
+            disabled={togglingAvail}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${availableWalkIn ? 'bg-brand' : 'bg-gray-300'}`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${availableWalkIn ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+        <p className="text-xs text-text-secondary mb-3">
+          {availableWalkIn ? '✅ Disponible para atender consultas urgentes sin turno' : 'Activá para recibir consultas urgentes sin turno previo'}
+        </p>
+
+      {walkInQueue.length > 0 && (
+        <div>
           <div className="space-y-2">
             {walkInQueue.map(entry => {
               const busy = claimingId === entry.id
@@ -411,6 +444,7 @@ export default function ProfessionalDashboard({ profile }) {
           </div>
         </div>
       )}
+      </div>
 
       {/* Today's consultations */}
       <div className="card">

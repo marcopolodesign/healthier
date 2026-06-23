@@ -32,8 +32,14 @@ export default function WalkInQueue({ profile }) {
   const [error, setError] = useState('')
   const [waitTime, setWaitTime] = useState('')
   const [queuePosition, setQueuePosition] = useState(null)
+  const [availableCount, setAvailableCount] = useState(null)
   const channelRef = useRef(null)
   const queueChannelRef = useRef(null)
+
+  // On mount: load available professional count
+  useEffect(() => {
+    walkInQueueService.getAvailableCount().then(setAvailableCount).catch(() => {})
+  }, [])
 
   // On mount: check if patient already has an active queue entry
   useEffect(() => {
@@ -144,6 +150,11 @@ export default function WalkInQueue({ profile }) {
               <div>
                 <p className="font-semibold text-text-primary text-sm">¿Qué te trae hoy?</p>
                 <p className="text-xs text-text-secondary mt-1">Describí brevemente tu síntoma o consulta. Un profesional de salud te atenderá en orden de llegada.</p>
+                {availableCount !== null && (
+                  <p className={`text-xs mt-1.5 font-medium ${availableCount > 0 ? 'text-brand' : 'text-text-secondary'}`}>
+                    {availableCount > 0 ? `${availableCount} profesional${availableCount > 1 ? 'es' : ''} disponible${availableCount > 1 ? 's' : ''} ahora` : 'No hay profesionales disponibles en este momento'}
+                  </p>
+                )}
               </div>
             </div>
 
