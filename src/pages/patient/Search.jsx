@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { MagnifyingGlass as SearchIcon, Lightning, SlidersHorizontal } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import ProfessionalCard from '../../components/ProfessionalCard'
@@ -16,6 +17,7 @@ const SPECIALTIES = [
 ]
 
 export default function MagnifyingGlass() {
+  const navigate = useNavigate()
   const [filters, setFilters] = useState({ specialty: '', onDemand: false, minRating: 0 })
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
@@ -114,7 +116,13 @@ export default function MagnifyingGlass() {
         <>
           <p className="text-sm text-text-secondary">{results.length} profesional{results.length !== 1 ? 'es' : ''} encontrado{results.length !== 1 ? 's' : ''}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {results.map(p => <ProfessionalCard key={p.id} professional={p} />)}
+            {results.map(p => (
+              <ProfessionalCard
+                key={p.id}
+                pro={p}
+                onSelect={() => navigate(`/paciente/profesional/${p.id}`)}
+              />
+            ))}
           </div>
         </>
       )}
