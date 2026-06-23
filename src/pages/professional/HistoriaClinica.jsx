@@ -6,8 +6,75 @@ import {
 } from '@phosphor-icons/react'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { profilesService } from '../../services/profilesService'
+import { diagnosticReportService } from '../../services/diagnosticReportService'
 import { toast } from '../../components/Toast'
 import { SPECIALTIES, SPECIALTY_COLORS } from '../../lib/specialties'
+
+const SAGE = '#7CB38B'
+const WARNING_COLOR = '#E4A853'
+const ALERT_COLOR = '#D9534F'
+
+function paramStatus(value, min, max) {
+  if (value >= min && value <= max) return 'normal'
+  const range = max - min
+  const margin = range * 0.25
+  return (value < min - margin || value > max + margin) ? 'danger' : 'warning'
+}
+
+function paramColor(status) {
+  if (status === 'danger') return ALERT_COLOR
+  if (status === 'warning') return WARNING_COLOR
+  return SAGE
+}
+
+function LabReportCard({ report }) {
+  const [open, setOpen] = useState(false)
+  const date = new Date(report.reportDate + 'T12:00:00')
+  const dateStr = date.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
+  const abnormal = report.parameters.filter(p => paramStatus(p.value, p.min, p.max) !== 'normal')
+  return (
+    <div className="card p-4 space-y-3">
+      <button className="w-full flex items-center justify-between gap-3 text-left" onClick={() => setOpen(o => !o)}>
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-brand/10 flex items-center justify-center shrink-0">
+            <Stethoscope size={18} className="text-brand" />
+          </div>
+          <div>
+            <p className="font-semibold text-text-primary text-sm">{dateStr}</p>
+            <p className="text-xs text-text-secondary">{report.parameters.length} parámetros · {abnormal.length > 0 ? <span className="text-amber-600">{abnormal.length} fuera de rango</span> : <span className="text-green-600">todos normales</span>}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {abnormal.slice(0, 3).map(p => (
+            <span key={p.id} className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: paramColor(paramStatus(p.value, p.min, p.max)) + '20', color: paramColor(paramStatus(p.value, p.min, p.max)) }}>
+              {p.name}
+            </span>
+          ))}
+          <Plus size={14} className={`text-text-secondary transition-transform ${open ? 'rotate-45' : ''}`} />
+        </div>
+      </button>
+      {open && (
+        <div className="pt-2 border-t border-border-default grid gap-2">
+          {report.parameters.map(p => {
+            const st = paramStatus(p.value, p.min, p.max)
+            const col = paramColor(st)
+            const label = { normal: 'Normal', warning: 'Atención', danger: 'Alerta' }[st]
+            const badge = { normal: 'bg-green-100 text-green-700', warning: 'bg-amber-100 text-amber-700', danger: 'bg-red-100 text-red-700' }[st]
+            return (
+              <div key={p.id} className="flex items-center gap-2 text-sm">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: col }} />
+                <span className="text-text-primary flex-1 min-w-0 truncate">{p.name}</span>
+                <span className="font-bold shrink-0" style={{ color: col }}>{p.value} {p.unit}</span>
+                <span className="text-xs text-text-secondary shrink-0">({p.min}–{p.max})</span>
+                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0 ${badge}`}>{label}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const MONTHS_ES = [
   'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
@@ -193,7 +260,9 @@ export default function HistoriaClinica({ profile }) {
   const navigate = useNavigate()
   const [patient, setPatient] = useState(null)
   const [notes, setNotes] = useState([])
+  const [labReports, setLabReports] = useState([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('notas')
   const [filter, setFilter] = useState('all')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
@@ -208,8 +277,9 @@ export default function HistoriaClinica({ profile }) {
     Promise.all([
       profilesService.getById(patientId),
       historiaClinicaService.getPatientNotes(patientId),
+      diagnosticReportService.getByPatient(patientId),
     ])
-      .then(([p, n]) => { setPatient(p); setNotes(n) })
+      .then(([p, n, labs]) => { setPatient(p); setNotes(n); setLabReports(labs) })
       .catch(() => toast.error('Error al cargar la historia clínica'))
       .finally(() => setLoading(false))
   }, [patientId])
@@ -293,17 +363,37 @@ export default function HistoriaClinica({ profile }) {
             </div>
           )}
         </div>
-        <button
-          onClick={() => setShowForm(s => !s)}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Nueva nota
-        </button>
+        {activeTab === 'notas' && (
+          <button
+            onClick={() => setShowForm(s => !s)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Nueva nota
+          </button>
+        )}
       </div>
 
-      {/* New note form */}
-      {showForm && (
+      {/* Section tabs */}
+      <div className="flex border-b border-border-default">
+        {[
+          { key: 'notas', label: 'Notas clínicas' },
+          { key: 'laboratorio', label: `Laboratorio${labReports.length > 0 ? ` (${labReports.length})` : ''}` },
+        ].map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === key ? 'border-brand text-brand' : 'border-transparent text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* New note form — notas tab only */}
+      {activeTab === 'notas' && showForm && (
         <form onSubmit={handleSubmit} className="card p-5 space-y-4 border-brand/30">
           <h2 className="font-semibold text-text-primary flex items-center gap-2">
             <Stethoscope className="h-4 w-4 text-brand" />
@@ -365,48 +455,68 @@ export default function HistoriaClinica({ profile }) {
         </form>
       )}
 
-      {/* Filter tabs */}
-      <div className="flex gap-2">
-        {[
-          { key: 'all', label: 'Todas' },
-          { key: 'internal', label: 'Internas' },
-          { key: 'external', label: 'Externas' },
-        ].map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setFilter(key)}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors
-              ${filter === key
-                ? 'bg-brand text-white'
-                : 'bg-bg-muted text-text-secondary hover:text-text-primary'}`}
-          >
-            {label}
-          </button>
-        ))}
-        <span className="ml-auto text-xs text-text-secondary self-center">
-          {filtered.length} nota{filtered.length !== 1 ? 's' : ''}
-        </span>
-      </div>
+      {/* Notas tab */}
+      {activeTab === 'notas' && (
+        <>
+          {/* Filter tabs */}
+          <div className="flex gap-2">
+            {[
+              { key: 'all', label: 'Todas' },
+              { key: 'internal', label: 'Internas' },
+              { key: 'external', label: 'Externas' },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors
+                  ${filter === key
+                    ? 'bg-brand text-white'
+                    : 'bg-bg-muted text-text-secondary hover:text-text-primary'}`}
+              >
+                {label}
+              </button>
+            ))}
+            <span className="ml-auto text-xs text-text-secondary self-center">
+              {filtered.length} nota{filtered.length !== 1 ? 's' : ''}
+            </span>
+          </div>
 
-      {/* Timeline */}
-      {groupedByDate.length === 0 ? (
-        <div className="text-center py-16 text-text-secondary">
-          <User className="h-12 w-12 mx-auto mb-3 opacity-30" />
-          <p className="font-medium">Sin notas clínicas</p>
-          <p className="text-sm mt-1">Agregá la primera nota usando el botón de arriba.</p>
-        </div>
-      ) : (
-        <div>
-          {groupedByDate.map(([key, dayNotes]) => (
-            <DateGroup
-              key={key}
-              dateStr={key}
-              notes={dayNotes}
-              currentUserId={profile?.id}
-              onDelete={handleDelete}
-              onUpdate={handleUpdate}
-            />
-          ))}
+          {/* Timeline */}
+          {groupedByDate.length === 0 ? (
+            <div className="text-center py-16 text-text-secondary">
+              <User className="h-12 w-12 mx-auto mb-3 opacity-30" />
+              <p className="font-medium">Sin notas clínicas</p>
+              <p className="text-sm mt-1">Agregá la primera nota usando el botón de arriba.</p>
+            </div>
+          ) : (
+            <div>
+              {groupedByDate.map(([key, dayNotes]) => (
+                <DateGroup
+                  key={key}
+                  dateStr={key}
+                  notes={dayNotes}
+                  currentUserId={profile?.id}
+                  onDelete={handleDelete}
+                  onUpdate={handleUpdate}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Laboratorio tab */}
+      {activeTab === 'laboratorio' && (
+        <div className="space-y-3">
+          {labReports.length === 0 ? (
+            <div className="text-center py-16 text-text-secondary">
+              <Stethoscope className="h-12 w-12 mx-auto mb-3 opacity-30" />
+              <p className="font-medium">Sin análisis de laboratorio</p>
+              <p className="text-sm mt-1">El paciente aún no ha subido reportes de laboratorio.</p>
+            </div>
+          ) : (
+            labReports.map(r => <LabReportCard key={r.id} report={r} />)
+          )}
         </div>
       )}
     </div>
