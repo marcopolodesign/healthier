@@ -3,13 +3,16 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, PhoneSlash, ClipboardText, ArrowsOut, ArrowsIn,
   Plus, Check, CircleNotch, User, Microphone, MicrophoneSlash,
-  Camera, CameraSlash,
+  Camera, CameraSlash, Warning,
 } from '@phosphor-icons/react'
 import DailyIframe from '@daily-co/daily-js'
+import { supabase } from '../../lib/supabase'
 import { consultationsService } from '../../services/consultationsService'
 import { clinicalService } from '../../services/clinicalService'
 import CloseConsultationModal from '../../components/CloseConsultationModal'
 import { toast } from '../../components/Toast'
+
+const NO_SHOW_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
 const ENTRY_TYPE_LABELS = {
   note: 'Nota',
@@ -209,11 +212,17 @@ export default function ProfessionalVideoCall({ profile }) {
   const { id } = useParams()
   const navigate = useNavigate()
   const callRef = useRef(null)
+  const channelRef = useRef(null)
+  const noShowTimerRef = useRef(null)
 
   const [consultation, setConsultation] = useState(null)
-  const [joining, setJoining] = useState(true)
+  // bothReady: both professional + patient are in the presence waiting room
+  const [bothReady, setBothReady] = useState(false)
+  // joining: actively connecting to Daily.co (after bothReady)
+  const [joining, setJoining] = useState(false)
   const [closeModal, setCloseModal] = useState(false)
   const [splitScreen, setSplitScreen] = useState(true)
+  const [noShowBanner, setNoShowBanner] = useState(false)
 
   // Local tracks & controls
   const [camOn, setCamOn] = useState(true)
@@ -221,21 +230,71 @@ export default function ProfessionalVideoCall({ profile }) {
   const [localVideoTrack, setLocalVideoTrack] = useState(null)
 
   // Remote participant
-  const [remote, setRemote] = useState(null) // { videoTrack, audioTrack }
+  const [remote, setRemote] = useState(null)
 
+  // ── Step 1: Load consultation ───────────────────────────────────────────────
   useEffect(() => {
+    consultationsService.getById(id)
+      .then(cons => setConsultation(cons))
+      .catch(() => {
+        toast.error('No se pudo cargar la consulta')
+        navigate('/profesional/dashboard')
+      })
+  }, [id])
+
+  // ── Step 2: Presence waiting room ──────────────────────────────────────────
+  useEffect(() => {
+    if (!id) return
     let destroyed = false
 
-    async function init() {
-      try {
-        const [cons, { roomUrl, token }] = await Promise.all([
-          consultationsService.getById(id),
-          consultationsService.getDailyAccess(id),
-        ])
-        if (destroyed) return
-        setConsultation(cons)
+    const ch = supabase.channel(`consultation-waiting-${id}`)
+    channelRef.current = ch
 
-        // Use mock if injected by tests, otherwise real Daily.co call object
+    ch.on('presence', { event: 'sync' }, () => {
+      if (destroyed) return
+      const state = ch.presenceState()
+      const roles = Object.values(state).flat().map(p => p.role)
+      const hasPatient = roles.includes('patient')
+      setBothReady(prev => {
+        if (!prev && hasPatient) {
+          // Patient just arrived — cancel no-show timer
+          clearTimeout(noShowTimerRef.current)
+          setNoShowBanner(false)
+        }
+        return hasPatient
+      })
+    })
+
+    ch.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED' && !destroyed) {
+        await ch.track({ role: 'professional' })
+        // Start 5-minute no-show countdown
+        noShowTimerRef.current = setTimeout(() => {
+          if (!destroyed) setNoShowBanner(true)
+        }, NO_SHOW_TIMEOUT_MS)
+      }
+    })
+
+    return () => {
+      destroyed = true
+      clearTimeout(noShowTimerRef.current)
+      ch.untrack().catch(() => {})
+      supabase.removeChannel(ch)
+      channelRef.current = null
+    }
+  }, [id])
+
+  // ── Step 3: Join Daily.co when both are ready ───────────────────────────────
+  useEffect(() => {
+    if (!bothReady) return
+    let destroyed = false
+    setJoining(true)
+
+    async function joinDaily() {
+      try {
+        const { roomUrl, token } = await consultationsService.getDailyAccess(id)
+        if (destroyed) return
+
         const DailyLib = window.__DailyIframeMock ?? DailyIframe
         const call = DailyLib.createCallObject()
         callRef.current = call
@@ -244,7 +303,6 @@ export default function ProfessionalVideoCall({ profile }) {
           if (destroyed) return
           setJoining(false)
           consultationsService.updateStatus(id, 'in_progress').catch(() => {})
-          // Seed local track state from the participants snapshot
           const local = call.participants().local
           setLocalVideoTrack(local?.tracks?.video?.persistentTrack ?? null)
           setCamOn(local?.tracks?.video?.state === 'playable')
@@ -295,13 +353,13 @@ export default function ProfessionalVideoCall({ profile }) {
       }
     }
 
-    init()
+    joinDaily()
     return () => {
       destroyed = true
       callRef.current?.leave()
       callRef.current?.destroy()
     }
-  }, [id])
+  }, [bothReady])
 
   async function toggleCam() {
     const next = !camOn
@@ -318,7 +376,6 @@ export default function ProfessionalVideoCall({ profile }) {
   }
 
   function handleLeave() {
-    // Show our close modal immediately — don't wait for left-meeting event
     setCloseModal(true)
     callRef.current?.leave().catch(() => {})
   }
@@ -326,6 +383,21 @@ export default function ProfessionalVideoCall({ profile }) {
   const handleFinalized = () => {
     callRef.current?.destroy()
     navigate('/profesional/consulta/' + id)
+  }
+
+  async function handleNoShow() {
+    try {
+      await consultationsService.updateStatus(id, 'no_show')
+    } catch {
+      // non-blocking
+    }
+    navigate('/profesional/dashboard')
+  }
+
+  function handleKeepWaiting() {
+    setNoShowBanner(false)
+    // Reset 5-minute timer
+    noShowTimerRef.current = setTimeout(() => setNoShowBanner(true), NO_SHOW_TIMEOUT_MS)
   }
 
   return (
@@ -400,12 +472,52 @@ export default function ProfessionalVideoCall({ profile }) {
         </div>
       </div>
 
+      {/* No-show banner */}
+      {noShowBanner && (
+        <div className="shrink-0 flex items-center justify-between gap-4 px-6 py-3 bg-amber-900/60 border-b border-amber-700/40">
+          <div className="flex items-center gap-2 text-amber-200 text-sm">
+            <Warning className="h-4 w-4 shrink-0" />
+            <span>El paciente no se unió a la consulta.</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleKeepWaiting}
+              className="text-xs px-3 py-1.5 rounded-full border border-amber-600/60 text-amber-300 hover:bg-amber-800/40 transition-colors"
+            >
+              Seguir esperando
+            </button>
+            <button
+              onClick={handleNoShow}
+              className="text-xs px-3 py-1.5 rounded-full bg-amber-600 hover:bg-amber-500 text-white font-medium transition-colors"
+            >
+              Marcar como ausente
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Video area */}
         <div className={`relative bg-zinc-900 ${splitScreen ? 'flex-1' : 'w-full'}`}>
 
-          {/* Joining overlay */}
+          {/* Waiting room — patient hasn't joined the presence channel yet */}
+          {!bothReady && !joining && (
+            <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 z-10">
+              <div className="text-center space-y-4">
+                <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto relative">
+                  <User className="h-12 w-12 text-white/15" />
+                  <span className="absolute inset-0 rounded-full border-2 border-brand/30 animate-ping" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-white/50 text-sm">Esperando al paciente…</p>
+                  <p className="text-white/20 text-xs">El paciente recibirá una notificación</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Connecting to Daily.co — after both are in presence channel */}
           {joining && (
             <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 z-10">
               <div className="text-center space-y-3">
@@ -422,13 +534,13 @@ export default function ProfessionalVideoCall({ profile }) {
               className="absolute inset-0 w-full h-full object-cover"
             />
           ) : (
-            !joining && (
+            bothReady && !joining && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center space-y-3">
                   <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto">
                     <User className="h-12 w-12 text-white/15" />
                   </div>
-                  <p className="text-white/30 text-sm">Esperando al paciente…</p>
+                  <p className="text-white/30 text-sm">Paciente conectado, esperando video…</p>
                 </div>
               </div>
             )
@@ -437,8 +549,8 @@ export default function ProfessionalVideoCall({ profile }) {
           {/* Remote audio (invisible) */}
           {remote?.audioTrack && <AudioPlayer track={remote.audioTrack} />}
 
-          {/* Local camera — PiP in bottom-right corner */}
-          {!joining && (
+          {/* Local camera — PiP in bottom-right corner (shown once in call) */}
+          {bothReady && !joining && (
             <div className="absolute bottom-4 right-4 w-40 h-28 rounded-xl overflow-hidden border border-white/10 shadow-2xl bg-zinc-800 z-10">
               {camOn && localVideoTrack ? (
                 <VideoTile
