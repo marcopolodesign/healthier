@@ -63,6 +63,10 @@ import SuperAdminDashboard from './pages/super-admin/Dashboard'
 import SuperAdminAdmins from './pages/super-admin/Admins'
 import SuperAdminSettings from './pages/super-admin/Settings'
 import SuperAdminZones from './pages/super-admin/Zones'
+import SuperAdminUsuarios from './pages/super-admin/Usuarios'
+import SuperAdminUsuariosProspects from './pages/super-admin/UsuariosProspects'
+import SuperAdminProfesionales from './pages/super-admin/Profesionales'
+import SuperAdminProfesionalesProspects from './pages/super-admin/ProfesionalesProspects'
 
 // ── Role guards ──────────────────────────────────────────
 function RequireRole({ profile, allowed, children }) {
@@ -266,6 +270,10 @@ export default function App() {
           <Route path="/super-admin/admins" element={<SuperAdminAdmins />} />
           <Route path="/super-admin/zonas" element={<SuperAdminZones />} />
           <Route path="/super-admin/settings" element={<SuperAdminSettings />} />
+          <Route path="/super-admin/usuarios" element={<SuperAdminUsuarios />} />
+          <Route path="/super-admin/usuarios/prospects" element={<SuperAdminUsuariosProspects />} />
+          <Route path="/super-admin/profesionales" element={<SuperAdminProfesionales />} />
+          <Route path="/super-admin/profesionales/prospects" element={<SuperAdminProfesionalesProspects />} />
         </Route>
 
         {/* Catch-all */}

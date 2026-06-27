@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle } from '@phosphor-icons/react';
+import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
 import { toast } from './Toast'
 import { CompanyLogo } from './common/CompanyLogo'
@@ -32,12 +32,14 @@ const NAV_BY_ROLE = {
     { to: '/admin/consultas',        icon: ClipboardText, label: 'Consultas' },
   ],
   super_admin: [
-    { to: '/super-admin/dashboard',  icon: ChartBar,    label: 'Dashboard' },
-    { to: '/super-admin/admins',     icon: ShieldCheck,  label: 'Admins' },
-    { to: '/admin/profesionales',    icon: Users,        label: 'Verificación' },
-    { to: '/admin/usuarios',         icon: Users,        label: 'Usuarios' },
-    { to: '/super-admin/zonas',      icon: MapPin,       label: 'Zonas' },
-    { to: '/super-admin/settings',   icon: Gear,     label: 'Configuración' },
+    { to: '/super-admin/dashboard',              icon: ChartBar,        label: 'Dashboard' },
+    { to: '/super-admin/admins',                 icon: ShieldCheck,     label: 'Admins' },
+    { to: '/super-admin/usuarios',               icon: Users,           label: 'Usuarios' },
+    { to: '/super-admin/usuarios/prospects',     icon: UserCirclePlus,  label: 'Usuarios Prospects' },
+    { to: '/super-admin/profesionales',          icon: ShieldCheck,     label: 'Profesionales' },
+    { to: '/super-admin/profesionales/prospects',icon: UserCirclePlus,  label: 'Prof. Prospects' },
+    { to: '/super-admin/zonas',                  icon: MapPin,          label: 'Zonas' },
+    { to: '/super-admin/settings',               icon: Gear,            label: 'Configuración' },
   ],
 }
 
