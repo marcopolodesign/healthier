@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Heart, ShieldCheck, Clock, Star, MagnifyingGlass, Calendar, CheckCircle, DeviceMobile, CurrencyDollar, Users, Lightning } from '@phosphor-icons/react';
 import { CompanyLogo } from '../components/common/CompanyLogo'
+import { captureUtms } from '../lib/utms'
 
 const SPECIALTIES = [
   { icon: '🩺', label: 'Medicina General', desc: 'Consultas médicas generales y diagnóstico' },
@@ -25,6 +27,8 @@ const PRO_BENEFITS = [
 ]
 
 export default function Landing() {
+  useEffect(() => { captureUtms() }, [])
+
   return (
     <div className="min-h-screen bg-white">
       {/* ── Navbar ── */}

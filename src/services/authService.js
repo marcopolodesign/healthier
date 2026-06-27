@@ -1,7 +1,7 @@
 import { supabase, toCamelCase } from '../lib/supabase'
 
 export const authService = {
-  async register(email, password, role, fullName) {
+  async register(email, password, role, fullName, utms = {}) {
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -11,12 +11,18 @@ export const authService = {
     })
     if (authError) throw new Error(authError.message)
 
-    // Create profile row
+    // Create profile row — include UTM attribution if captured from landing page
     const { error: profileError } = await supabase.from('profiles').insert({
       id: authData.user.id,
       email,
       full_name: fullName,
       role,
+      utm_source:   utms.utm_source   ?? null,
+      utm_medium:   utms.utm_medium   ?? null,
+      utm_campaign: utms.utm_campaign ?? null,
+      utm_id:       utms.utm_id       ?? null,
+      utm_content:  utms.utm_content  ?? null,
+      referrer_url: utms.referrer_url ?? null,
     })
     if (profileError) throw new Error(profileError.message)
 

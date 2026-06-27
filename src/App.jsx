@@ -213,10 +213,15 @@ export default function App() {
           </RequireRole>
         } />
 
-        {/* Professional emergency — full-screen, no sidebar, phone-operated */}
+        {/* Professional — full-screen standalone routes (no sidebar) */}
         <Route path="/profesional/emergencias" element={
           <RequireRole profile={profile} allowed={['professional']}>
             <ProfessionalEmergencias profile={profile} />
+          </RequireRole>
+        } />
+        <Route path="/profesional/videollamada/:id" element={
+          <RequireRole profile={profile} allowed={['professional']}>
+            <ProfessionalVideoCall profile={profile} />
           </RequireRole>
         } />
 
@@ -230,7 +235,6 @@ export default function App() {
           <Route path="/profesional/onboarding" element={<ProfessionalOnboarding profile={profile} />} />
           <Route path="/profesional/agenda" element={<ProfessionalAgenda profile={profile} />} />
           <Route path="/profesional/consulta/:id" element={<ConsultationDetail profile={profile} />} />
-          <Route path="/profesional/videollamada/:id" element={<ProfessionalVideoCall profile={profile} />} />
           <Route path="/profesional/perfil" element={<ProfessionalProfileEdit profile={profile} onProfileUpdate={setProfile} />} />
           <Route path="/profesional/nutriplan" element={<NutriPlan profile={profile} />} />
           <Route path="/profesional/historia-clinica/:patientId" element={<HistoriaClinica profile={profile} />} />

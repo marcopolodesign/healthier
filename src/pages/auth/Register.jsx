@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { User, Envelope, Lock, Briefcase, Heart, Check } from '@phosphor-icons/react';
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
+import { getStoredUtms, clearUtms } from '../../lib/utms'
 
 const CONSENT_ITEMS = [
   {
@@ -37,7 +38,9 @@ export default function Register({ onLogin }) {
     if (form.password.length < 6) { toast.error('La contraseña debe tener al menos 6 caracteres'); return }
     setLoading(true)
     try {
-      await authService.register(form.email, form.password, form.role, form.fullName)
+      const utms = getStoredUtms()
+      await authService.register(form.email, form.password, form.role, form.fullName, utms)
+      clearUtms()
       const { profile } = await authService.login(form.email, form.password)
       onLogin(profile)
 

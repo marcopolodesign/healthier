@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users, Calendar, ShieldCheck, CurrencyDollar, Lightning, ClockCountdown, SealCheck, Star } from '@phosphor-icons/react'
+import { Users, Calendar, ShieldCheck, CurrencyDollar, Lightning, ClockCountdown, SealCheck, Star, ChartBar } from '@phosphor-icons/react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { supabase } from '../../lib/supabase'
 import { toast } from '../../components/Toast'
@@ -15,6 +15,7 @@ export default function SuperAdminDashboard() {
   const [topPros, setTopPros] = useState([])
   const [recentConsultations, setRecentConsultations] = useState([])
   const [allConsultations, setAllConsultations] = useState([])
+  const [acquisitionData, setAcquisitionData] = useState([])
   const [loading, setLoading] = useState(true)
   const [chartDays, setChartDays] = useState(30)
 
@@ -36,6 +37,7 @@ export default function SuperAdminDashboard() {
           { data: prosRaw },
           { data: reviews },
           { data: recentRaw },
+          { data: utmProfiles },
         ] = await Promise.all([
           supabase.from('profiles').select('*', { count: 'exact', head: true }),
           supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('is_verified', true),
@@ -48,6 +50,7 @@ export default function SuperAdminDashboard() {
           supabase.from('professional_profiles').select('*, profiles(full_name)').eq('is_verified', true).order('average_rating', { ascending: false }).limit(5),
           supabase.from('reviews').select('rating'),
           supabase.from('consultations').select('id, status, scheduled_at, modality, profiles!patient_id(full_name), professional:profiles!professional_id(full_name)').order('created_at', { ascending: false }).limit(8),
+          supabase.from('profiles').select('utm_source, role'),
         ])
 
         // Revenue: sum price_at_booking for completed consultations
@@ -94,6 +97,17 @@ export default function SuperAdminDashboard() {
         setStatusData(Object.entries(statusMap).map(([name, value]) => ({
           name: STATUS_LABELS[name] ?? name, value, fill: STATUS_COLORS[name] ?? '#e5e7eb'
         })).sort((a, b) => b.value - a.value))
+
+        // Acquisition funnel — group by utm_source
+        const srcMap = {}
+        ;(utmProfiles ?? []).forEach(p => {
+          const src = p.utm_source || '(orgánico / directo)'
+          if (!srcMap[src]) srcMap[src] = { source: src, patients: 0, professionals: 0, total: 0 }
+          srcMap[src].total++
+          if (p.role === 'patient') srcMap[src].patients++
+          else if (p.role === 'professional') srcMap[src].professionals++
+        })
+        setAcquisitionData(Object.values(srcMap).sort((a, b) => b.total - a.total))
 
         // Top professionals
         setTopPros((prosRaw ?? []).map(p => ({
@@ -243,6 +257,53 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
       )}
+
+      {/* Acquisition funnel */}
+      <div className="card">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
+            <ChartBar className="h-4 w-4 text-purple-600" />
+          </div>
+          <h2 className="font-semibold text-text-primary">Funnel de adquisición</h2>
+        </div>
+        {acquisitionData.length === 0 ? (
+          <p className="text-sm text-text-tertiary">Sin datos de UTM aún. Los registros capturarán la fuente cuando lleguen desde campañas.</p>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border-default">
+                    <th className="text-left py-2 pr-4 text-text-tertiary font-medium text-xs">Fuente</th>
+                    <th className="text-right py-2 pr-4 text-text-tertiary font-medium text-xs">Pacientes</th>
+                    <th className="text-right py-2 pr-4 text-text-tertiary font-medium text-xs">Profesionales</th>
+                    <th className="text-right py-2 text-text-tertiary font-medium text-xs">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {acquisitionData.map((row) => (
+                    <tr key={row.source} className="border-b border-border-default/50 last:border-0 hover:bg-bg-primary/50">
+                      <td className="py-2.5 pr-4 font-medium text-text-primary truncate max-w-[160px]">{row.source}</td>
+                      <td className="py-2.5 pr-4 text-right text-text-secondary">{row.patients}</td>
+                      <td className="py-2.5 pr-4 text-right text-text-secondary">{row.professionals}</td>
+                      <td className="py-2.5 text-right font-bold text-text-primary">{row.total}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={acquisitionData} layout="vertical" margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
+                <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                <YAxis type="category" dataKey="source" tick={{ fontSize: 11 }} width={120} />
+                <Tooltip formatter={(v, n) => [v, n === 'patients' ? 'Pacientes' : 'Profesionales']} />
+                <Bar dataKey="patients" fill="#7CB38B" stackId="a" radius={[0, 0, 0, 0]} name="patients" />
+                <Bar dataKey="professionals" fill="#9B8EC4" stackId="a" radius={[0, 4, 4, 0]} name="professionals" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
 
       {/* Recent consultations */}
       {recentConsultations.length > 0 && (
