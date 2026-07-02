@@ -11,6 +11,9 @@ import { professionalService } from './services/professionalService'
 
 // Pages
 import Landing from './pages/Landing'
+import LandingPediatria from './pages/landing/Pediatria'
+import LandingSinObraSocial from './pages/landing/SinObraSocial'
+import LandingMedicoOnline from './pages/landing/MedicoOnline'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
 import TerminosYCondiciones from './pages/TerminosYCondiciones'
@@ -170,6 +173,9 @@ export default function App() {
       <Routes>
         {/* Public */}
         <Route path="/" element={<Landing />} />
+        <Route path="/landing/pediatria"       element={<LandingPediatria />} />
+        <Route path="/landing/sin-obra-social" element={<LandingSinObraSocial />} />
+        <Route path="/landing/medico-online"   element={<LandingMedicoOnline />} />
         <Route path="/terminos" element={<TerminosYCondiciones />} />
 
         {/* Auth */}
