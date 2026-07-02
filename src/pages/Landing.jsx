@@ -1,224 +1,376 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Heart, ShieldCheck, Clock, Star, MagnifyingGlass, Calendar, CheckCircle, DeviceMobile, CurrencyDollar, Users, Lightning } from '@phosphor-icons/react';
+import {
+  ShieldCheck, Tag, Clock, Lock, Check, ArrowRight,
+  MapPin, FileText, Stethoscope, Brain, AppleLogo,
+  Baby, FirstAid, MagnifyingGlass, Calendar, Clipboard,
+} from '@phosphor-icons/react'
 import { CompanyLogo } from '../components/common/CompanyLogo'
 import { captureUtms } from '../lib/utms'
 
+// ── Data ──────────────────────────────────────────────────────────────────────
+
 const SPECIALTIES = [
-  { icon: '🩺', label: 'Medicina General', desc: 'Consultas médicas generales y diagnóstico' },
-  { icon: '🥗', label: 'Nutrición',         desc: 'Planes alimentarios y hábitos saludables' },
-  { icon: '🧠', label: 'Psicología',        desc: 'Salud mental y bienestar emocional' },
-  { icon: '💪', label: 'Entrenamiento',     desc: 'Acondicionamiento físico personalizado' },
+  { icon: Stethoscope, label: 'Clínica general',    href: '/registro' },
+  { icon: Brain,       label: 'Psicología',          href: '/registro' },
+  { icon: AppleLogo,   label: 'Nutrición',           href: '/registro' },
+  { icon: Baby,        label: 'Pediatría',           href: '/registro' },
+  { icon: FirstAid,    label: 'Consultas urgentes',  href: '/registro' },
+]
+
+const PAINS = [
+  'No tenés obra social.',
+  'La guardia privada sale cara.',
+  'No querés perder horas en traslados.',
+  'Necesitás ver el precio antes.',
+  'Querés un profesional confiable.',
+  'Buscás resolver todo en una sola sesión.',
+]
+
+const FEATURES = [
+  {
+    icon: Tag,
+    title: 'Precio visible',
+    desc: 'Sabés cuánto pagás antes de reservar. Sin letras chicas ni sorpresas.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Profesionales verificados',
+    desc: 'Título, matrícula y perfil confiable. Revisamos cada profesional.',
+  },
+  {
+    icon: FileText,
+    title: 'Receta digital',
+    desc: 'La recibís al instante en tu historial. Sin volver al consultorio.',
+  },
+  {
+    icon: MapPin,
+    title: 'Desde cualquier ciudad',
+    desc: 'Consultá desde tu casa, oficina o donde estés. 100% online.',
+  },
+  {
+    icon: Clipboard,
+    title: 'Historial centralizado',
+    desc: 'Toda tu información clínica en un solo lugar, siempre disponible.',
+  },
+]
+
+const SINS = [
+  { title: 'Sin sorpresas',         desc: 'Precio claro antes de reservar.' },
+  { title: 'Sin trámites',          desc: 'Sin autorizaciones ni vueltas.' },
+  { title: 'Sin traslados',         desc: 'Desde tu celular o notebook.' },
+  { title: 'Sin cobertura médica',  desc: 'Accedé igual, cuando lo necesitás.' },
 ]
 
 const STEPS = [
-  { num: 1, icon: MagnifyingGlass,    title: 'Encontrá tu especialista', desc: 'Buscá por especialidad y filtrá por disponibilidad inmediata o agenda futura.' },
-  { num: 2, icon: Calendar,  title: 'Agendá o consultá ahora',   desc: 'Reservá un turno en el horario que más te convenga, o iniciá una consulta al instante.' },
-  { num: 3, icon: Heart,     title: 'Seguimiento de tu salud',   desc: 'Accedé al historial de consultas, documentos y recetas en un solo lugar.' },
+  { icon: MagnifyingGlass, num: '01', title: 'Elegís médico',           desc: 'Buscá por especialidad y mirá el precio antes de reservar.' },
+  { icon: Calendar,        num: '02', title: 'Reservás',                desc: 'Elegís horario y confirmás en minutos desde tu celular.' },
+  { icon: Clock,           num: '03', title: 'Consultás online',        desc: 'Videollamada con el profesional desde donde estés.' },
+  { icon: FileText,        num: '04', title: 'Recibís tu receta',       desc: 'Resumen y receta digital al instante en tu historial.' },
 ]
 
-const PRO_BENEFITS = [
-  { icon: Calendar,    text: 'Agenda propia integrada' },
-  { icon: Lightning,         text: 'Modo consulta inmediata (on-demand)' },
-  { icon: Users,       text: 'Crecé tu base de pacientes' },
-  { icon: CurrencyDollar,  text: 'Sin comisiones abusivas' },
-  { icon: DeviceMobile,  text: 'Acceso desde cualquier dispositivo' },
-  { icon: ShieldCheck, text: 'Perfil verificado y confiable' },
+const PRICE_INCLUDES = [
+  'Profesional verificado',
+  'Atención online',
+  'Receta digital incluida',
+  'Sin trámites',
+  'Sin sorpresas',
 ]
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function Landing() {
   useEffect(() => { captureUtms() }, [])
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-bg-secondary font-sans">
+
       {/* ── Navbar ── */}
-      <nav className="fixed top-0 inset-x-0 z-40 bg-white/80 backdrop-blur border-b border-border-default">
+      <nav className="fixed top-0 inset-x-0 z-40 bg-bg-secondary/90 backdrop-blur border-b border-border-default">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <CompanyLogo size="sm" />
           <div className="flex items-center gap-3">
-            <Link to="/login" className="btn-secondary text-sm hidden sm:inline-flex">Iniciar sesión</Link>
-            <Link to="/registro" className="btn-primary text-sm">Registrarse</Link>
+            <Link to="/login" className="btn-secondary text-sm hidden sm:inline-flex py-2 px-4">
+              Iniciar sesión
+            </Link>
+            <Link to="/registro" className="btn-accent text-sm py-2 px-5 rounded-full">
+              Reservar consulta
+            </Link>
           </div>
         </div>
       </nav>
 
       {/* ── Hero ── */}
-      <section className="pt-32 pb-20 px-4 text-center bg-gradient-to-b from-brand/5 via-white to-white">
-        <div className="max-w-3xl mx-auto">
-          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-brand bg-brand-muted px-3 py-1 rounded-full mb-6">
-            <ShieldCheck className="h-4 w-4" />
-            Profesionales verificados · Buenos Aires
-          </span>
-          <h1
-            className="text-4xl sm:text-5xl lg:text-6xl font-bold text-text-primary mb-6 leading-tight"
-          >
-            Tu salud,{' '}
-            <span className="text-brand">cuando la necesitás</span>
-          </h1>
-          <p className="text-lg sm:text-xl text-text-secondary mb-10 max-w-2xl mx-auto">
-            Consultas médicas online con profesionales verificados.
-            Agendadas o ahora mismo, desde donde estés.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link to="/registro" className="btn-accent text-base px-8 py-3 rounded-lg">
-              Buscar un profesional
-            </Link>
-            <Link to="/registro?tipo=profesional" className="btn-secondary text-base px-8 py-3 rounded-lg">
-              ¿Sos profesional? Sumate
-            </Link>
-          </div>
+      <section className="pt-24 pb-0 px-4 bg-bg-secondary">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center min-h-[520px]">
 
-          {/* Social proof */}
-          <div className="flex items-center justify-center gap-6 mt-12 text-sm text-text-secondary">
-            <div className="flex items-center gap-1.5">
-              <div className="flex -space-x-2">
-                {['bg-teal-400', 'bg-blue-400', 'bg-purple-400', 'bg-orange-400'].map((c, i) => (
-                  <div key={i} className={`w-7 h-7 rounded-full ${c} border-2 border-white`} />
-                ))}
-              </div>
-              <span>+500 profesionales</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-              <span>4.9/5 de satisfacción</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Especialidades ── */}
-      <section className="py-20 px-4 bg-bg-primary">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-text-primary mb-3">
-              Especialidades disponibles
-            </h2>
-            <p className="text-text-secondary">Encontrá el especialista que necesitás</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {SPECIALTIES.map(s => (
-              <div key={s.label} className="card-hover text-center group">
-                <div className="text-4xl mb-3">{s.icon}</div>
-                <h3 className="font-semibold text-text-primary mb-1">{s.label}</h3>
-                <p className="text-sm text-text-secondary">{s.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Cómo funciona ── */}
-      <section className="py-20 px-4 bg-white">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-text-primary mb-3">
-              ¿Cómo funciona?
-            </h2>
-            <p className="text-text-secondary">En 3 simples pasos</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {STEPS.map(step => (
-              <div key={step.num} className="text-center">
-                <div className="w-14 h-14 rounded-2xl bg-brand-muted flex items-center justify-center mx-auto mb-4 relative">
-                  <step.icon className="h-7 w-7 text-brand" />
-                  <span className="absolute -top-2 -right-2 w-6 h-6 bg-brand text-white text-xs font-bold rounded-full flex items-center justify-center">
-                    {step.num}
-                  </span>
-                </div>
-                <h3 className="font-semibold text-text-primary mb-2">{step.title}</h3>
-                <p className="text-sm text-text-secondary">{step.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Para profesionales ── */}
-      <section className="py-20 px-4 bg-gradient-to-br from-brand/5 to-accent/5">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <span className="text-sm font-medium text-brand">Para profesionales</span>
-              <h2 className="text-3xl font-bold text-text-primary mt-2 mb-4">
-                Hacé crecer tu práctica con Healthier
-              </h2>
-              <p className="text-text-secondary mb-8">
-                Conectate con pacientes que necesitan tus servicios. Gestioná tu agenda, ofrecé consultas inmediatas y construí tu reputación online.
+            {/* Left — copy */}
+            <div className="py-12 lg:py-20">
+              <span className="inline-block text-xs font-bold tracking-widest text-brand uppercase mb-5">
+                Médico online sin obra social
+              </span>
+              <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold text-text-primary leading-[1.08] mb-6">
+                Sin obra social no debería significar sin atención médica.
+              </h1>
+              <p className="text-lg text-text-secondary mb-8 max-w-lg">
+                Elegí médico. Mirá el precio. Reservá en minutos.
+                Profesionales verificados disponibles online.
               </p>
-              <div className="space-y-3">
-                {PRO_BENEFITS.map(b => (
-                  <div key={b.text} className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-brand-muted flex items-center justify-center shrink-0">
-                      <b.icon className="h-4 w-4 text-brand" />
-                    </div>
-                    <span className="text-sm text-text-primary">{b.text}</span>
+              <div className="flex flex-col sm:flex-row gap-3 mb-10">
+                <Link to="/registro"
+                  className="btn-accent text-base px-8 py-3.5 rounded-full inline-flex items-center justify-center gap-2">
+                  Reservar consulta <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link to="/login"
+                  className="btn-secondary text-base px-8 py-3.5 rounded-full inline-flex items-center justify-center">
+                  Ya tengo cuenta
+                </Link>
+              </div>
+
+              {/* Trust bar */}
+              <div className="flex flex-wrap gap-5 text-sm text-text-secondary">
+                {[
+                  { icon: Tag,         text: 'Precio transparente' },
+                  { icon: Clock,       text: 'Respuesta rápida' },
+                  { icon: Lock,        text: 'Seguro y confidencial' },
+                ].map(({ icon: Icon, text }) => (
+                  <div key={text} className="flex items-center gap-1.5">
+                    <Icon className="h-4 w-4 text-brand" />
+                    <span>{text}</span>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="card shadow-lg">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-full bg-brand-muted flex items-center justify-center">
-                  <Users className="h-6 w-6 text-brand" />
+
+            {/* Right — specialty panel */}
+            <div className="hidden lg:block">
+              <div className="bg-white rounded-3xl shadow-sm border border-border-default p-6 ml-auto max-w-[320px]">
+                <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-4">
+                  Consultas para:
+                </p>
+                <div className="space-y-2">
+                  {SPECIALTIES.map(({ icon: Icon, label, href }) => (
+                    <Link key={label} to={href}
+                      className="flex items-center gap-3 p-3 rounded-xl hover:bg-bg-primary transition-colors group">
+                      <div className="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
+                        <Icon className="h-4 w-4 text-brand" />
+                      </div>
+                      <span className="text-sm font-medium text-text-primary group-hover:text-brand transition-colors">
+                        {label}
+                      </span>
+                      <ArrowRight className="h-3.5 w-3.5 text-text-tertiary ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </Link>
+                  ))}
                 </div>
-                <div>
-                  <p className="font-semibold text-text-primary">Dr. Martín García</p>
-                  <p className="text-sm text-brand">Medicina General</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1 mb-3">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                ))}
-                <span className="text-sm text-text-secondary ml-1">5.0 (48 reseñas)</span>
-              </div>
-              <p className="text-sm text-text-secondary mb-4">
-                "Healthier me permitió llegar a muchos más pacientes y gestionar mi agenda de forma simple."
-              </p>
-              <div className="flex gap-2">
-                {['Verificado', 'On-demand', '+100 consultas'].map(tag => (
-                  <span key={tag} className="text-xs bg-brand-muted text-brand px-2 py-1 rounded-full">{tag}</span>
-                ))}
+                <p className="text-xs text-brand font-semibold mt-5 text-center">
+                  Sin trámites. Sin sorpresas.
+                </p>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Disponible desde cualquier ciudad pill */}
+        <div className="max-w-6xl mx-auto pb-4">
+          <div className="inline-flex items-center gap-2 bg-white border border-border-default rounded-full px-4 py-2 text-sm text-text-secondary shadow-sm">
+            <MapPin className="h-3.5 w-3.5 text-brand" />
+            Disponible desde cualquier ciudad
+          </div>
+        </div>
+      </section>
+
+      {/* ── Pain section ── */}
+      <section className="py-20 px-4 bg-bg-primary">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
+          <div>
+            <p className="text-xs font-bold tracking-widest text-brand uppercase mb-3">
+              Sabemos lo que pasa
+            </p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-text-primary leading-tight mb-6">
+              La salud no debería ser complicada ni impredecible.
+            </h2>
+            <Link to="/registro"
+              className="btn-accent inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold">
+              Empezar ahora <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <div className="space-y-3">
+            {PAINS.map((pain, i) => (
+              <div key={pain}
+                className="flex items-center gap-4 p-4 bg-white rounded-xl border border-border-default">
+                <span className="text-sm font-bold text-brand/60 tabular-nums shrink-0">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <p className="text-sm text-text-primary">{pain}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Features ── */}
+      <section className="py-20 px-4 bg-bg-secondary">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-12">
+            <p className="text-xs font-bold tracking-widest text-brand uppercase mb-3">
+              Healthier es diferente
+            </p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-text-primary max-w-lg leading-tight">
+              Atención médica clara, rápida y sin burocracia.
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {FEATURES.map(({ icon: Icon, title, desc }) => (
+              <div key={title}
+                className="bg-white rounded-2xl border border-border-default p-6 flex flex-col gap-4">
+                <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center">
+                  <Icon className="h-5 w-5 text-brand" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-text-primary mb-1">{title}</h3>
+                  <p className="text-sm text-text-secondary leading-relaxed">{desc}</p>
+                </div>
+              </div>
+            ))}
+
+            {/* Price card inline in the grid */}
+            <div className="bg-brand rounded-2xl p-6 flex flex-col gap-4 text-white sm:col-span-2 lg:col-span-1">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-white/70 mb-1">
+                  Consulta clínica online
+                </p>
+                <p className="text-4xl font-bold">$14.900</p>
+              </div>
+              <div className="space-y-2">
+                {PRICE_INCLUDES.map(item => (
+                  <div key={item} className="flex items-center gap-2 text-sm">
+                    <Check className="h-4 w-4 text-white/80 shrink-0" />
+                    <span className="text-white/90">{item}</span>
+                  </div>
+                ))}
+              </div>
+              <Link to="/registro"
+                className="mt-auto bg-white text-brand font-semibold text-sm px-5 py-2.5 rounded-full text-center hover:bg-bg-primary transition-colors">
+                Reservar ahora
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── "Sin..." value props ── */}
+      <section className="py-12 px-4 bg-bg-primary border-y border-border-default">
+        <div className="max-w-6xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {SINS.map(({ title, desc }) => (
+            <div key={title} className="text-center">
+              <p className="font-semibold text-text-primary mb-1">{title}</p>
+              <p className="text-xs text-text-secondary">{desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Cómo funciona ── */}
+      <section className="py-20 px-4 bg-bg-secondary">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-12">
+            <p className="text-xs font-bold tracking-widest text-brand uppercase mb-3">
+              ¿Cómo funciona?
+            </p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-text-primary">
+              En 4 pasos, sin complicaciones.
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {STEPS.map(({ icon: Icon, num, title, desc }, i) => (
+              <div key={num} className="relative">
+                {i < STEPS.length - 1 && (
+                  <div className="hidden lg:block absolute top-5 left-[calc(100%-8px)] w-full h-px bg-border-default z-0" />
+                )}
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center shrink-0">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <span className="text-xs font-bold text-text-tertiary">{num}</span>
+                  </div>
+                  <h3 className="font-semibold text-text-primary mb-1">{title}</h3>
+                  <p className="text-sm text-text-secondary leading-relaxed">{desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Mobile specialty links ── */}
+      <section className="py-12 px-4 bg-bg-primary lg:hidden">
+        <div className="max-w-md mx-auto">
+          <p className="text-xs font-bold tracking-widest text-brand uppercase mb-4">
+            Consultas para:
+          </p>
+          <div className="space-y-2">
+            {SPECIALTIES.map(({ icon: Icon, label, href }) => (
+              <Link key={label} to={href}
+                className="flex items-center gap-3 p-3.5 bg-white rounded-xl border border-border-default hover:border-brand/30 transition-colors group">
+                <div className="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
+                  <Icon className="h-4 w-4 text-brand" />
+                </div>
+                <span className="text-sm font-medium text-text-primary">{label}</span>
+                <ArrowRight className="h-3.5 w-3.5 text-text-tertiary ml-auto" />
+              </Link>
+            ))}
           </div>
         </div>
       </section>
 
       {/* ── CTA final ── */}
-      <section className="py-20 px-4 bg-brand text-white text-center">
-        <div className="max-w-2xl mx-auto">
-          <h2 className="text-3xl font-bold mb-4">
-            Empezá hoy
+      <section className="py-20 px-4 bg-brand">
+        <div className="max-w-3xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 bg-white/20 text-white text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full mb-6">
+            <Clock className="h-3.5 w-3.5" />
+            Atención inmediata · 5 min
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+            Tu próxima consulta puede empezar hoy.
           </h2>
-          <p className="text-brand-muted mb-8 text-lg" style={{ color: 'rgba(255,255,255,0.8)' }}>
-            Registrate gratis y accedé a cientos de profesionales verificados.
+          <p className="text-white/80 text-lg mb-8">
+            Atención médica de calidad, sin trámites ni sorpresas.
+            Cuando la necesitás, a un tap de distancia.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link
-              to="/registro"
-              className="bg-white text-brand font-semibold px-8 py-3 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              Crear cuenta gratis
+            <Link to="/registro"
+              className="bg-white text-brand font-semibold px-8 py-3.5 rounded-full hover:bg-bg-primary transition-colors inline-flex items-center justify-center gap-2">
+              Reservar consulta <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link
-              to="/login"
-              className="border border-white/50 text-white font-semibold px-8 py-3 rounded-lg hover:bg-white/10 transition-colors"
-            >
+            <Link to="/login"
+              className="border border-white/40 text-white font-semibold px-8 py-3.5 rounded-full hover:bg-white/10 transition-colors">
               Ya tengo cuenta
             </Link>
           </div>
+          <p className="text-white/60 text-xs mt-6">
+            Accedé desde cualquier ciudad, sin guardias ni trámites.
+          </p>
         </div>
       </section>
 
       {/* ── Footer ── */}
-      <footer className="bg-gray-900 text-gray-400 py-8 px-4 text-center text-sm">
-        <div className="flex justify-center mb-3">
+      <footer className="bg-text-primary text-text-tertiary py-10 px-4">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <CompanyLogo size="sm" inverted />
+          <div className="flex gap-6 text-xs">
+            <Link to="/terminos" className="hover:text-white transition-colors">Términos y condiciones</Link>
+            <Link to="/login" className="hover:text-white transition-colors">Iniciar sesión</Link>
+            <Link to="/registro?tipo=profesional" className="hover:text-white transition-colors">¿Sos profesional?</Link>
+          </div>
+          <p className="text-xs">© {new Date().getFullYear()} Healthier · Buenos Aires</p>
         </div>
-        <p>© {new Date().getFullYear()} Healthier. Todos los derechos reservados.</p>
-        <p className="mt-1">Buenos Aires, Argentina</p>
       </footer>
+
     </div>
   )
 }
