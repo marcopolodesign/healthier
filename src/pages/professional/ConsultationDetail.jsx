@@ -557,9 +557,7 @@ export default function ConsultationDetail({ profile }) {
           <PrescriptionCreator
             patientId={consultation.patientId}
             encounterId={clinicalEncounterId}
-            consultationId={id}
-            patientPhone={consultation.patient?.phone ?? null}
-            patientEmail={consultation.patient?.email ?? null}
+            professionalId={profile?.id ?? null}
           />
         </div>
       </div>
