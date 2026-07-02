@@ -61,10 +61,16 @@ export const mpService = {
    */
   async getPaymentPlatformConfig() {
     try {
-      // 1. Environment variable (preferred for non-marketplace deployments)
-      const envKey = import.meta.env.VITE_MP_PUBLIC_KEY
-      if (envKey) {
-        return { data: { publicKey: envKey }, error: null }
+      // 1. Environment variable — picks sandbox or prod based on VITE_MP_IS_PROD
+      const isProd = import.meta.env.VITE_MP_IS_PROD === 'true'
+      const envKey = isProd
+        ? import.meta.env.VITE_MP_PUBLIC_KEY_PROD
+        : import.meta.env.VITE_MP_PUBLIC_KEY_SANDBOX
+      // Fallback: legacy single-key var (removed once all envs are migrated)
+      const legacyKey = import.meta.env.VITE_MP_PUBLIC_KEY
+      const resolvedKey = envKey || legacyKey
+      if (resolvedKey) {
+        return { data: { publicKey: resolvedKey, isProd }, error: null }
       }
 
       // 2. Fetch from mp_accounts — take the first connected professional

@@ -18,8 +18,13 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const MP_CLIENT_ID = Deno.env.get("MP_CLIENT_ID")!;
-const MP_CLIENT_SECRET = Deno.env.get("MP_CLIENT_SECRET")!;
+const IS_PROD = Deno.env.get("MP_IS_PROD") === "true";
+const MP_CLIENT_ID = IS_PROD
+  ? Deno.env.get("MP_CLIENT_ID_PROD")!
+  : Deno.env.get("MP_CLIENT_ID_SANDBOX")!;
+const MP_CLIENT_SECRET = IS_PROD
+  ? Deno.env.get("MP_CLIENT_SECRET_PROD")!
+  : Deno.env.get("MP_CLIENT_SECRET_SANDBOX")!;
 const REDIRECT_URI = Deno.env.get("MP_REDIRECT_URI")!; // e.g. https://aixjejdoofervrkggbkd.supabase.co/functions/v1/mp-connect?action=callback
 const APP_URL = Deno.env.get("APP_URL") ?? "https://healthier.com.ar"; // fallback
 

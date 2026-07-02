@@ -225,3 +225,19 @@ Developer tool: Healthier logo opens a full-height drawer with all platform page
 
 ### 2026-03-19: Full MVP scaffold — Sprint 1–4
 Built entire Healthier MVP from scratch: 4 roles, Supabase schema (6 tables + RLS), full routing, auth, services, and UI in Spanish.
+
+---
+
+## Verificación en browser (obligatorio)
+
+Después de implementar cualquier cambio en un proyecto web o de UI, SIEMPRE verificar el resultado en el browser antes de reportar la tarea como completada. Usar el skill `/verify` o abrir el browser manualmente. No reportar "listo" sin haber visto el resultado funcionando.
+
+
+## Actualizar AMBOS timelines (obligatorio)
+
+Después de cada tarea completada, antes de reportar al usuario, actualizar:
+
+1. **Timeline del proyecto** — mover el item a "Completado", actualizar "Ahora (en curso)" y "Próximo".
+2. **Timeline global** — `~/Local/timeline.md` — actualizar la fila del proyecto en la tabla resumen + el bloque Estado/Próximo paso del proyecto.
+
+No preguntar. No saltear aunque la tarea sea pequeña. El timeline global es la fuente de verdad que Alan usa para saber en qué está cada proyecto y qué sigue.

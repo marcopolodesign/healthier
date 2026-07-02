@@ -25,8 +25,11 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-signature, x-request-id",
 };
 
+const IS_PROD = Deno.env.get("MP_IS_PROD") === "true";
 const MP_WEBHOOK_SECRET = Deno.env.get("MP_WEBHOOK_SECRET")!;
-const MP_ACCESS_TOKEN = Deno.env.get("MP_ACCESS_TOKEN")!; // platform-level token to fetch payment details
+const MP_ACCESS_TOKEN = IS_PROD
+  ? Deno.env.get("MP_ACCESS_TOKEN_PROD")!
+  : Deno.env.get("MP_ACCESS_TOKEN_SANDBOX")!;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

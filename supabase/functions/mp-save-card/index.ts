@@ -1,6 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const MP_ACCESS_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')!
+const IS_PROD = Deno.env.get('MP_IS_PROD') === 'true'
+const MP_ACCESS_TOKEN = IS_PROD
+  ? Deno.env.get('MP_ACCESS_TOKEN_PROD')!
+  : Deno.env.get('MP_ACCESS_TOKEN_SANDBOX')!
 const MP_API_BASE = 'https://api.mercadopago.com/v1'
 
 const corsHeaders = {

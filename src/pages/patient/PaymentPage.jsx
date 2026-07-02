@@ -26,9 +26,17 @@ export default function PaymentPage({ profile }) {
   const [paying, setPaying]                 = useState(false)
   const [paid, setPaid]                     = useState(false)
   const [advancingDemo, setAdvancingDemo]   = useState(false)
+  const [publicKey, setPublicKey]           = useState(null)
+  const [configLoading, setConfigLoading]   = useState(true)
 
-  const publicKey  = import.meta.env.VITE_MP_PUBLIC_KEY ?? ''
-  const isDemoMode = !publicKey
+  const isDemoMode = !configLoading && !publicKey
+
+  useEffect(() => {
+    mpService.getPaymentPlatformConfig().then(({ data }) => {
+      setPublicKey(data?.publicKey ?? null)
+      setConfigLoading(false)
+    })
+  }, [])
 
   useEffect(() => {
     if (isDemoMode) setSelectedCardId('__demo__')
