@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react'
 import {
   Plus, CircleNotch, Info, Check, X, Heart, Thermometer, Drop,
 } from '@phosphor-icons/react'
-import { heuralService } from '../../services/heuralService'
+import { supabase } from '../../lib/supabase'
+import { clinicalService } from '../../services/clinicalService'
 import { toast } from '../Toast'
 
 // ── Vital definitions ─────────────────────────────────────────────────────────
-// code matches what Heural returns as the `code` field in observations
 const VITAL_DEFS = [
   {
     key: 'BLOOD_PRESSURE',
@@ -80,29 +80,23 @@ const VITAL_DEFS = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/**
- * Extract a single numeric value from the observations list for a given vital code.
- * For blood pressure we look for SYSTOLIC / DIASTOLIC sub-codes.
- */
 function extractVitalsFromObservations(observations) {
   if (!observations?.length) return {}
   const result = {}
 
   observations.forEach(obs => {
-    const code = (obs.code ?? '').toUpperCase()
-    const val = obs.value
+    // observation_type stores the code string (e.g. 'HEART_RATE')
+    const code = (obs.observation_type ?? '').toUpperCase()
+    const val = obs.value_numeric ?? obs.value_string
 
-    // Map known Heural codes to our formKeys
     const mapping = {
-      HEART_RATE:   'heartRate',
-      SPO2:         'oxygenSaturation',
-      WEIGHT:       'weight',
-      HEIGHT:       'height',
-      TEMPERATURE:  'temperature',
+      HEART_RATE:               'heartRate',
+      SPO2:                     'oxygenSaturation',
+      WEIGHT:                   'weight',
+      HEIGHT:                   'height',
+      TEMPERATURE:              'temperature',
       SYSTOLIC_BLOOD_PRESSURE:  'systolicPressure',
       DIASTOLIC_BLOOD_PRESSURE: 'diastolicPressure',
-      // Some systems store BP as a single observation with compound values
-      BLOOD_PRESSURE: null, // handled separately if needed
     }
 
     const formKey = mapping[code]
@@ -112,10 +106,6 @@ function extractVitalsFromObservations(observations) {
   return result
 }
 
-/**
- * Merge pre-consulta data (from heuralService.getPreconsulta) into form values.
- * Preconsulta keys match the formKey names directly.
- */
 function mergePreconsulta(base, pre) {
   if (!pre) return base
   const keys = ['weight', 'height', 'systolicPressure', 'diastolicPressure', 'heartRate', 'oxygenSaturation']
@@ -165,7 +155,7 @@ function VitalCard({ def, value, systolic, diastolic, fromPre }) {
 }
 
 // ── Record vitals form ────────────────────────────────────────────────────────
-function RecordVitalsForm({ patientHeuralId, encounterId, initialValues, onSaved, onCancel }) {
+function RecordVitalsForm({ patientId, encounterId, initialValues, onSaved, onCancel }) {
   const [form, setForm] = useState({
     systolicPressure: '',
     diastolicPressure: '',
@@ -183,7 +173,6 @@ function RecordVitalsForm({ patientHeuralId, encounterId, initialValues, onSaved
   }
 
   async function handleSave() {
-    // Build list of vitals to save (skip empty fields)
     const vitalsToSave = []
 
     if (form.systolicPressure)
@@ -207,33 +196,31 @@ function RecordVitalsForm({ patientHeuralId, encounterId, initialValues, onSaved
     }
 
     setSaving(true)
-    const results = await Promise.all(
-      vitalsToSave.map(v =>
-        heuralService.createVital(patientHeuralId, encounterId, v.code, v.value, v.unit)
+    try {
+      await Promise.all(
+        vitalsToSave.map(v =>
+          clinicalService.addObservation(encounterId, {
+            patientId,
+            code: v.code,
+            display: v.code,
+            value: parseFloat(v.value),
+            unit: v.unit,
+          })
+        )
       )
-    )
-    setSaving(false)
-
-    const errors = results.filter(r => r.error)
-    if (errors.length === results.length) {
-      toast.error('Error al guardar los signos vitales')
-      return
-    }
-    if (errors.length > 0) {
-      toast.warning(`${results.length - errors.length} signo(s) guardado(s), ${errors.length} con error`)
-    } else {
       toast.success('Signos vitales registrados')
+      onSaved(form)
+    } catch {
+      toast.error('Error al guardar los signos vitales')
+    } finally {
+      setSaving(false)
     }
-
-    const saved = results.filter(r => r.data).map(r => r.data)
-    onSaved(saved, form)
   }
 
   return (
     <div className="mt-4 pt-4 border-t border-border-default space-y-4">
       <p className="text-sm font-semibold text-text-primary">Registrar signos vitales</p>
 
-      {/* BP row */}
       <div>
         <label className="form-label text-xs">Presión arterial (mmHg)</label>
         <div className="flex gap-2 items-center">
@@ -260,61 +247,23 @@ function RecordVitalsForm({ patientHeuralId, encounterId, initialValues, onSaved
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="form-label text-xs">FC (lpm)</label>
-          <input
-            type="number"
-            min="0"
-            value={form.heartRate}
-            onChange={e => setField('heartRate', e.target.value)}
-            placeholder="Ej: 72"
-            className="form-input"
-          />
+          <input type="number" min="0" value={form.heartRate} onChange={e => setField('heartRate', e.target.value)} placeholder="Ej: 72" className="form-input" />
         </div>
         <div>
           <label className="form-label text-xs">SpO₂ (%)</label>
-          <input
-            type="number"
-            min="0"
-            max="100"
-            value={form.oxygenSaturation}
-            onChange={e => setField('oxygenSaturation', e.target.value)}
-            placeholder="Ej: 98"
-            className="form-input"
-          />
+          <input type="number" min="0" max="100" value={form.oxygenSaturation} onChange={e => setField('oxygenSaturation', e.target.value)} placeholder="Ej: 98" className="form-input" />
         </div>
         <div>
           <label className="form-label text-xs">Peso (kg)</label>
-          <input
-            type="number"
-            min="0"
-            step="0.1"
-            value={form.weight}
-            onChange={e => setField('weight', e.target.value)}
-            placeholder="Ej: 70.5"
-            className="form-input"
-          />
+          <input type="number" min="0" step="0.1" value={form.weight} onChange={e => setField('weight', e.target.value)} placeholder="Ej: 70.5" className="form-input" />
         </div>
         <div>
           <label className="form-label text-xs">Talla (cm)</label>
-          <input
-            type="number"
-            min="0"
-            value={form.height}
-            onChange={e => setField('height', e.target.value)}
-            placeholder="Ej: 170"
-            className="form-input"
-          />
+          <input type="number" min="0" value={form.height} onChange={e => setField('height', e.target.value)} placeholder="Ej: 170" className="form-input" />
         </div>
         <div className="col-span-2">
           <label className="form-label text-xs">Temperatura (°C)</label>
-          <input
-            type="number"
-            min="0"
-            step="0.1"
-            value={form.temperature}
-            onChange={e => setField('temperature', e.target.value)}
-            placeholder="Ej: 36.5"
-            className="form-input"
-          />
+          <input type="number" min="0" step="0.1" value={form.temperature} onChange={e => setField('temperature', e.target.value)} placeholder="Ej: 36.5" className="form-input" />
         </div>
       </div>
 
@@ -334,38 +283,39 @@ function RecordVitalsForm({ patientHeuralId, encounterId, initialValues, onSaved
 // ── Main component ─────────────────────────────────────────────────────────────
 /**
  * VitalsPanel
- * @param {{ patientHeuralId: string|null, encounterId: string|null, preconsulta?: object }} props
- *   preconsulta — optional pre-consulta object with weight, height, systolicPressure, etc.
+ * @param {{ patientId: string|null, encounterId: string|null, preconsulta?: object }} props
  */
-export default function VitalsPanel({ patientHeuralId, encounterId, preconsulta }) {
+export default function VitalsPanel({ patientId, encounterId, preconsulta }) {
   const [observations, setObservations] = useState([])
   const [loading, setLoading] = useState(true)
   const [formOpen, setFormOpen] = useState(false)
-  // Which values came from pre-consulta (used for badges)
   const [preKeys, setPreKeys] = useState([])
 
-  useEffect(() => {
-    if (!patientHeuralId || !encounterId) { setLoading(false); return }
-    heuralService.getObservations(patientHeuralId, encounterId)
-      .then(({ data }) => setObservations(data ?? []))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [patientHeuralId, encounterId])
+  async function loadObservations() {
+    if (!encounterId) { setLoading(false); return }
+    const { data } = await supabase
+      .from('clinical_observations')
+      .select('*')
+      .eq('encounter_id', encounterId)
+      .order('observed_at', { ascending: true })
+    setObservations(data ?? [])
+    setLoading(false)
+  }
 
-  if (!patientHeuralId || !encounterId) {
+  useEffect(() => { loadObservations() }, [encounterId])
+
+  if (!patientId || !encounterId) {
     return (
       <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-700">
         <Info className="h-4 w-4 mt-0.5 shrink-0" />
-        Historia clínica no disponible — sin ID Heural o encuentro vinculado.
+        Historia clínica no disponible — falta paciente o encuentro clínico.
       </div>
     )
   }
 
-  // Derive form prefill values from observations + preconsulta
   const fromObservations = extractVitalsFromObservations(observations)
   const merged = mergePreconsulta(fromObservations, preconsulta)
 
-  // Track which keys were injected from preconsulta (for badge)
   function openForm() {
     const pre = mergePreconsulta({}, preconsulta)
     const keys = Object.keys(pre).filter(k => !fromObservations[k] && pre[k])
@@ -373,29 +323,8 @@ export default function VitalsPanel({ patientHeuralId, encounterId, preconsulta 
     setFormOpen(true)
   }
 
-  function handleSaved(_savedObs, formValues) {
-    // Merge saved values back into our observations state as local display
-    // The next real load would re-fetch from Heural, but this gives immediate feedback
-    const fakeObservations = []
-    const codeMap = {
-      systolicPressure:  'SYSTOLIC_BLOOD_PRESSURE',
-      diastolicPressure: 'DIASTOLIC_BLOOD_PRESSURE',
-      heartRate:         'HEART_RATE',
-      oxygenSaturation:  'SPO2',
-      weight:            'WEIGHT',
-      height:            'HEIGHT',
-      temperature:       'TEMPERATURE',
-    }
-    Object.entries(formValues).forEach(([k, v]) => {
-      if (v && codeMap[k]) {
-        fakeObservations.push({ id: `local-${k}`, code: codeMap[k], value: v })
-      }
-    })
-    setObservations(prev => {
-      // Remove any existing same-code observations, then add new ones
-      const existingCodes = new Set(fakeObservations.map(o => o.code))
-      return [...prev.filter(o => !existingCodes.has(o.code?.toUpperCase())), ...fakeObservations]
-    })
+  async function handleSaved() {
+    await loadObservations()
     setFormOpen(false)
   }
 
@@ -404,14 +333,12 @@ export default function VitalsPanel({ patientHeuralId, encounterId, preconsulta 
 
   return (
     <div className="space-y-3">
-      {/* Loading skeletons */}
       {loading && (
         <div className="grid grid-cols-3 gap-2">
           {[1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)}
         </div>
       )}
 
-      {/* Vitals grid */}
       {!loading && hasAnyVital && (
         <div className="grid grid-cols-3 gap-2">
           {VITAL_DEFS.map(def => {
@@ -433,10 +360,9 @@ export default function VitalsPanel({ patientHeuralId, encounterId, preconsulta 
         <p className="text-sm text-text-muted py-2">Sin signos vitales registrados.</p>
       )}
 
-      {/* Record form */}
       {formOpen ? (
         <RecordVitalsForm
-          patientHeuralId={patientHeuralId}
+          patientId={patientId}
           encounterId={encounterId}
           initialValues={merged}
           onSaved={handleSaved}

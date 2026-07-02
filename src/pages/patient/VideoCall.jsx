@@ -42,7 +42,7 @@ function VideoTile({ track, muted = false, mirror = false, className = '' }) {
  *
  * Flow:
  *  1. Load consultation.
- *  2. If heural_appointment_id → show PreconsultaForm first.
+ *  2. Show PreconsultaForm first.
  *  3. After submit/skip → join Daily.co room via createCallObject (no prebuilt UI).
  */
 export default function PatientVideoCall() {
@@ -86,11 +86,7 @@ export default function PatientVideoCall() {
     consultationsService.getById(consultationId)
       .then((cons) => {
         setConsultation(cons)
-        if (cons?.heuralAppointmentId) {
-          setShowPreconsulta(true)
-        } else {
-          setPreconsultaDone(true)
-        }
+        setShowPreconsulta(true)
       })
       .catch(() => {
         toast.error('No se pudo cargar la consulta')
@@ -402,7 +398,7 @@ export default function PatientVideoCall() {
       <PreconsultaForm
         isOpen={showPreconsulta}
         onClose={handlePreconsultaClose}
-        appointmentHeuralId={consultation?.heuralAppointmentId ?? null}
+        consultationId={consultation?.id ?? null}
         onSubmitted={handlePreconsultaSubmitted}
       />
     </div>

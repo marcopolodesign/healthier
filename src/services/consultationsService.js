@@ -83,7 +83,7 @@ export const consultationsService = {
   async getById(id) {
     const { data, error } = await supabase
       .from('consultations')
-      .select('*, heural_encounter_id, patient:profiles!patient_id(full_name, avatar_url, email, heural_id), professional:profiles!professional_id(full_name, avatar_url, professional_profiles(specialty)), consultation_type:consultation_types!consultation_type_id(id, name, price, modality), consultation_orders(*)')
+      .select('*, patient:profiles!patient_id(id, full_name, avatar_url, email, phone), professional:profiles!professional_id(full_name, avatar_url, professional_profiles(specialty)), consultation_type:consultation_types!consultation_type_id(id, name, price, modality), consultation_orders(*)')
       .eq('id', id)
       .single()
     if (error) throw error
@@ -126,38 +126,6 @@ export const consultationsService = {
       .delete()
       .eq('id', orderId)
     if (error) throw error
-  },
-
-  /**
-   * Append a Heural prescription ID to consultations.prescription_heural_ids[].
-   * Uses Postgres array_append so it's safe to call multiple times.
-   * @param {string} consultationId
-   * @param {string} prescriptionHeuralId  - TEXT HashID returned by Heural
-   */
-  async addPrescriptionHeuralId(consultationId, prescriptionHeuralId) {
-    const { data, error } = await supabase.rpc('append_prescription_heural_id', {
-      p_consultation_id: consultationId,
-      p_heural_id: prescriptionHeuralId,
-    })
-    if (error) {
-      // Fallback: read current array, append, write back
-      const { data: row, error: readErr } = await supabase
-        .from('consultations')
-        .select('prescription_heural_ids')
-        .eq('id', consultationId)
-        .single()
-      if (readErr) throw readErr
-      const current = row.prescription_heural_ids ?? []
-      if (!current.includes(prescriptionHeuralId)) {
-        const { error: writeErr } = await supabase
-          .from('consultations')
-          .update({ prescription_heural_ids: [...current, prescriptionHeuralId] })
-          .eq('id', consultationId)
-        if (writeErr) throw writeErr
-      }
-      return
-    }
-    return data
   },
 
   async updateStatus(id, status, extra = {}) {

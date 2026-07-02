@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Plus, X, CircleNotch, Warning, Info, MagnifyingGlass, Check,
 } from '@phosphor-icons/react'
-import { heuralService } from '../../services/heuralService'
+import { supabase } from '../../lib/supabase'
+import { clinicalService } from '../../services/clinicalService'
 import { toast } from '../Toast'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -40,105 +41,39 @@ function SkeletonRow() {
   )
 }
 
-// ── SNOMED search input ───────────────────────────────────────────────────────
-function SnomedSearch({ value, onChange, onSelect, placeholder = 'Buscar alérgeno…' }) {
-  const [query, setQuery] = useState(value || '')
-  const [results, setResults] = useState([])
-  const [searching, setSearching] = useState(false)
-  const debounceRef = useRef(null)
-
-  useEffect(() => {
-    if (!query || query.length < 3) { setResults([]); return }
-    clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(async () => {
-      setSearching(true)
-      const { data } = await heuralService.searchMedication(query, 8)
-      setSearching(false)
-      setResults(data ?? [])
-    }, 350)
-    return () => clearTimeout(debounceRef.current)
-  }, [query])
-
-  function pick(item) {
-    setQuery(item.display)
-    setResults([])
-    onSelect(item)
-  }
-
-  function handleChange(e) {
-    const v = e.target.value
-    setQuery(v)
-    onChange(v, null) // text changed, no SNOMED concept yet
-  }
-
-  return (
-    <div className="relative">
-      <div className="relative">
-        <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary pointer-events-none" />
-        <input
-          type="text"
-          value={query}
-          onChange={handleChange}
-          placeholder={placeholder}
-          className="form-input pl-9"
-        />
-        {searching && (
-          <CircleNotch className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand animate-spin" />
-        )}
-      </div>
-      {results.length > 0 && (
-        <ul className="absolute z-20 w-full mt-1 bg-white border border-border-default rounded-xl shadow-lg max-h-48 overflow-y-auto">
-          {results.map(item => (
-            <li key={item.conceptId}>
-              <button
-                type="button"
-                onClick={() => pick(item)}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-brand-muted/40 transition-colors"
-              >
-                <span className="font-medium text-text-primary">{item.display}</span>
-                {item.fsn && item.fsn !== item.display && (
-                  <span className="block text-xs text-text-tertiary truncate">{item.fsn}</span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
-}
-
 // ── Allergy row ───────────────────────────────────────────────────────────────
 function AllergyRow({ allergy }) {
-  const cat = CATEGORY_LABELS[allergy.category] ?? CATEGORY_LABELS.MEDICATION
-  const crit = CRITICALITY_LABELS[allergy.criticality] ?? CRITICALITY_LABELS.UNABLE_TO_ASSESS
-  const status = STATUS_LABELS[allergy.clinicalStatus] ?? STATUS_LABELS.ACTIVE
-  const isHigh = allergy.criticality === 'HIGH'
+  // Supabase fields: substance, category, criticality, clinical_status, created_at
+  const categoryKey = (allergy.category ?? 'MEDICATION').toUpperCase()
+  const criticalityKey = (allergy.criticality ?? 'UNABLE_TO_ASSESS').toUpperCase()
+  const statusKey = (allergy.clinical_status ?? 'ACTIVE').toUpperCase()
+
+  const cat = CATEGORY_LABELS[categoryKey] ?? CATEGORY_LABELS.MEDICATION
+  const crit = CRITICALITY_LABELS[criticalityKey] ?? CRITICALITY_LABELS.UNABLE_TO_ASSESS
+  const status = STATUS_LABELS[statusKey] ?? STATUS_LABELS.ACTIVE
+  const isHigh = criticalityKey === 'HIGH'
 
   return (
     <div className={`flex items-start gap-3 p-3 rounded-xl border transition-colors ${
       isHigh ? 'border-red-300 bg-red-50/40' : 'border-border-default bg-bg-surface'
     }`}>
-      {/* Category badge */}
       <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 mt-0.5 ${cat.bg} ${cat.text} border ${cat.border}`}>
         <span>{cat.emoji}</span> {cat.label}
       </span>
 
-      {/* Name & date */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-text-primary leading-tight">
-          {allergy.codeDisplay || allergy.code || '—'}
+          {allergy.substance || '—'}
         </p>
-        {allergy.recordedDate && (
+        {allergy.created_at && (
           <p className="text-[11px] text-text-tertiary mt-0.5">
-            {new Date(allergy.recordedDate).toLocaleDateString('es-AR', {
+            {new Date(allergy.created_at).toLocaleDateString('es-AR', {
               day: 'numeric', month: 'short', year: 'numeric',
             })}
           </p>
         )}
       </div>
 
-      {/* Status + criticality */}
       <div className="flex flex-col items-end gap-1 shrink-0">
         <span className={`flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${crit.bg} ${crit.text}`}>
           {isHigh && <Warning className="h-3 w-3" />}
@@ -154,10 +89,9 @@ function AllergyRow({ allergy }) {
 }
 
 // ── Add-allergy form ──────────────────────────────────────────────────────────
-function AddAllergyForm({ patientHeuralId, encounterId, onSaved, onCancel }) {
+function AddAllergyForm({ patientId, encounterId, onSaved, onCancel }) {
   const [form, setForm] = useState({
     codeDisplay: '',
-    code: '',
     category: 'MEDICATION',
     criticality: 'LOW',
     clinicalStatus: 'ACTIVE',
@@ -168,58 +102,43 @@ function AddAllergyForm({ patientHeuralId, encounterId, onSaved, onCancel }) {
     setForm(p => ({ ...p, [key]: val }))
   }
 
-  function handleSnomedSelect(item) {
-    setForm(p => ({ ...p, codeDisplay: item.display, code: String(item.conceptId) }))
-  }
-
-  function handleSnomedText(text, _concept) {
-    setForm(p => ({ ...p, codeDisplay: text, code: '' }))
-  }
-
   async function handleSave() {
     if (!form.codeDisplay.trim()) { toast.warning('Ingresá el nombre del alérgeno'); return }
     setSaving(true)
-    const { data, error } = await heuralService.saveAllergy({
-      patientHeuralId,
-      encounterId,
-      code: form.code || form.codeDisplay,
-      codeDisplay: form.codeDisplay.trim(),
-      category: form.category,
-      criticality: form.criticality,
-      clinicalStatus: form.clinicalStatus,
-    })
-    setSaving(false)
-    if (error) {
+    try {
+      const saved = await clinicalService.addAllergy(encounterId, {
+        patientId,
+        allergen: form.codeDisplay.trim(),
+        allergyType: form.category,
+        clinicalStatus: form.clinicalStatus,
+        severity: form.criticality,
+        reaction: '',
+      })
+      toast.success('Alergia registrada')
+      onSaved(saved)
+    } catch {
       toast.error('Error al guardar la alergia')
-      return
+    } finally {
+      setSaving(false)
     }
-    toast.success('Alergia registrada')
-    onSaved(data)
   }
 
   return (
     <div className="mt-4 pt-4 border-t border-border-default space-y-3">
       <p className="text-sm font-semibold text-text-primary">Nueva alergia</p>
 
-      {/* Allergen name / SNOMED search */}
       <div>
         <label className="form-label text-xs">Alérgeno</label>
-        {form.category === 'MEDICATION' ? (
-          <SnomedSearch
-            value={form.codeDisplay}
-            onChange={handleSnomedText}
-            onSelect={handleSnomedSelect}
-            placeholder="Buscar medicamento…"
-          />
-        ) : (
+        <div className="relative">
+          <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary pointer-events-none" />
           <input
             type="text"
             value={form.codeDisplay}
             onChange={e => setField('codeDisplay', e.target.value)}
-            placeholder="Ej: Mariscos, Polen de gramíneas…"
-            className="form-input"
+            placeholder={form.category === 'MEDICATION' ? 'Ej: Amoxicilina, Ibuprofeno…' : 'Ej: Mariscos, Polen de gramíneas…'}
+            className="form-input pl-9"
           />
-        )}
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -266,42 +185,36 @@ function AddAllergyForm({ patientHeuralId, encounterId, onSaved, onCancel }) {
 // ── Main component ─────────────────────────────────────────────────────────────
 /**
  * AllergyPanel
- * @param {{ patientHeuralId: string|null, encounterId: string|null, institutionId: string|null }} props
+ * @param {{ patientId: string|null, encounterId: string|null }} props
  */
-export default function AllergyPanel({ patientHeuralId, encounterId }) {
+export default function AllergyPanel({ patientId, encounterId }) {
   const [allergies, setAllergies] = useState([])
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
 
   useEffect(() => {
-    if (!patientHeuralId) { setLoading(false); return }
-    heuralService.getAllergies(patientHeuralId, encounterId ?? null)
+    if (!patientId) { setLoading(false); return }
+    supabase
+      .from('clinical_allergies')
+      .select('*')
+      .eq('patient_id', patientId)
+      .order('created_at', { ascending: false })
       .then(({ data }) => setAllergies(data ?? []))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [patientHeuralId, encounterId])
+  }, [patientId])
 
-  if (!patientHeuralId) {
+  if (!patientId) {
     return (
       <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-700">
         <Info className="h-4 w-4 mt-0.5 shrink-0" />
-        Historia clínica no sincronizada con Heural — el paciente no tiene ID Heural registrado.
-      </div>
-    )
-  }
-
-  if (!encounterId) {
-    return (
-      <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-700">
-        <Info className="h-4 w-4 mt-0.5 shrink-0" />
-        Historia clínica no sincronizada con Heural — esta consulta no tiene un encuentro vinculado.
+        Paciente no identificado — no se pueden cargar alergias.
       </div>
     )
   }
 
   return (
     <div className="space-y-3">
-      {/* Loading skeletons */}
       {loading && (
         <div className="space-y-2">
           <SkeletonRow />
@@ -309,7 +222,6 @@ export default function AllergyPanel({ patientHeuralId, encounterId }) {
         </div>
       )}
 
-      {/* Allergy list */}
       {!loading && allergies.length === 0 && !addOpen && (
         <p className="text-sm text-text-muted py-2">Sin alergias registradas.</p>
       )}
@@ -320,10 +232,9 @@ export default function AllergyPanel({ patientHeuralId, encounterId }) {
         </div>
       )}
 
-      {/* Add form */}
       {addOpen ? (
         <AddAllergyForm
-          patientHeuralId={patientHeuralId}
+          patientId={patientId}
           encounterId={encounterId}
           onSaved={newAllergy => {
             setAllergies(prev => [newAllergy, ...prev])
@@ -332,7 +243,7 @@ export default function AllergyPanel({ patientHeuralId, encounterId }) {
           onCancel={() => setAddOpen(false)}
         />
       ) : (
-        !loading && (
+        !loading && encounterId && (
           <button
             type="button"
             onClick={() => setAddOpen(true)}

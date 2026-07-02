@@ -7,7 +7,7 @@ import {
 } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
-import { heuralService } from '../../services/heuralService'
+import { supabase } from '../../lib/supabase'
 import StatusBadge from '../../components/StatusBadge'
 import CloseConsultationModal from '../../components/CloseConsultationModal'
 import Modal from '../../components/Modal'
@@ -47,8 +47,7 @@ export default function ConsultationDetail({ profile }) {
   const [coverageForm, setCoverageForm] = useState({ obraSocialName: '', affiliateNumber: '' })
   const [savingCoverage, setSavingCoverage] = useState(false)
 
-  // Heural — pre-consulta data (loaded lazily when the HC section is visible)
-  const [preconsulta, setPreconsulta] = useState(null)
+  const [clinicalEncounterId, setClinicalEncounterId] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -66,16 +65,15 @@ export default function ConsultationDetail({ profile }) {
         obraSocialName: consultation.obraSocialName || '',
         affiliateNumber: consultation.affiliateNumber || '',
       })
-      // Load pre-consulta when heural encounter is available
-      const patientHeuralId = consultation.patient?.heuralId
-      const encounterId = consultation.heuralEncounterId
-      if (patientHeuralId && encounterId) {
-        heuralService.getPreconsulta(encounterId, patientHeuralId)
-          .then(({ data }) => { if (data) setPreconsulta(data) })
-          .catch(() => {})
-      }
+      // Load clinical encounter for this consultation
+      supabase
+        .from('clinical_encounters')
+        .select('id')
+        .eq('consultation_id', consultation.id)
+        .maybeSingle()
+        .then(({ data }) => { if (data) setClinicalEncounterId(data.id) })
     }
-  }, [consultation])
+  }, [consultation?.id])
 
   const saveCoverage = async () => {
     setSavingCoverage(true)
@@ -510,64 +508,61 @@ export default function ConsultationDetail({ profile }) {
         </div>
       )}
 
-      {/* Historia Clínica — Heural (only when patient has heural_id) */}
-      {consultation.patient?.heuralId && (
-        <div className="card space-y-5">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-brand-muted flex items-center justify-center shrink-0">
-              <FirstAidKit className="h-4 w-4 text-brand" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-text-primary">Historia Clínica</h2>
-              <p className="text-xs text-text-secondary">Heural EHR · esta consulta</p>
-            </div>
+      {/* Historia Clínica */}
+      <div className="card space-y-5">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-brand-muted flex items-center justify-center shrink-0">
+            <FirstAidKit className="h-4 w-4 text-brand" />
           </div>
-
-          {/* Allergies subsection */}
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <FirstAidKit className="h-4 w-4 text-brand" />
-              <p className="text-sm font-semibold text-text-primary">Alergias</p>
-            </div>
-            <AllergyPanel
-              patientHeuralId={consultation.patient.heuralId}
-              encounterId={consultation.heuralEncounterId ?? null}
-            />
-          </div>
-
-          <div className="border-t border-border-default" />
-
-          {/* Vitals subsection */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Heartbeat className="h-4 w-4 text-brand" />
-              <p className="text-sm font-semibold text-text-primary">Signos vitales</p>
-            </div>
-            <VitalsPanel
-              patientHeuralId={consultation.patient.heuralId}
-              encounterId={consultation.heuralEncounterId ?? null}
-              preconsulta={preconsulta}
-            />
-          </div>
-
-          <div className="border-t border-border-default" />
-
-          {/* Prescriptions subsection */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Pill className="h-4 w-4 text-brand" />
-              <p className="text-sm font-semibold text-text-primary">Recetas digitales</p>
-            </div>
-            <PrescriptionCreator
-              patientHeuralId={consultation.patient.heuralId ?? null}
-              encounterId={consultation.heuralEncounterId ?? null}
-              consultationId={id}
-              patientPhone={consultation.patient?.phone ?? null}
-              patientEmail={consultation.patient?.email ?? null}
-            />
+            <h2 className="font-semibold text-text-primary">Historia Clínica</h2>
+            <p className="text-xs text-text-secondary">Esta consulta</p>
           </div>
         </div>
-      )}
+
+        {/* Allergies subsection */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <FirstAidKit className="h-4 w-4 text-brand" />
+            <p className="text-sm font-semibold text-text-primary">Alergias</p>
+          </div>
+          <AllergyPanel
+            patientId={consultation.patientId}
+            encounterId={clinicalEncounterId}
+          />
+        </div>
+
+        <div className="border-t border-border-default" />
+
+        {/* Vitals subsection */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Heartbeat className="h-4 w-4 text-brand" />
+            <p className="text-sm font-semibold text-text-primary">Signos vitales</p>
+          </div>
+          <VitalsPanel
+            patientId={consultation.patientId}
+            encounterId={clinicalEncounterId}
+          />
+        </div>
+
+        <div className="border-t border-border-default" />
+
+        {/* Prescriptions subsection */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Pill className="h-4 w-4 text-brand" />
+            <p className="text-sm font-semibold text-text-primary">Recetas digitales</p>
+          </div>
+          <PrescriptionCreator
+            patientId={consultation.patientId}
+            encounterId={clinicalEncounterId}
+            consultationId={id}
+            patientPhone={consultation.patient?.phone ?? null}
+            patientEmail={consultation.patient?.email ?? null}
+          />
+        </div>
+      </div>
 
       {/* Navigation shortcuts */}
       <div className="grid grid-cols-2 gap-3">

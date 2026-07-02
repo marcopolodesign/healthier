@@ -2,14 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import {
   Calendar, Clock, VideoCamera, MapPin, Star, CaretRight, ArrowLeft, CircleNotch, Check,
-  X, FileText, Ambulance, CheckCircle, ArrowsClockwise, ClipboardText, Pill, UserCircle,
+  X, FileText, Ambulance, ClipboardText, Pill, UserCircle,
 } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
 import { availabilityService } from '../../services/availabilityService'
 import { reviewsService } from '../../services/reviewsService'
 import { emergencyService } from '../../services/emergencyService'
-import { heuralService } from '../../services/heuralService'
 import { mpService } from '../../services/mpService'
 import { VERTICALS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
 import { toast } from '../../components/Toast'
@@ -88,16 +87,6 @@ export default function PatientConsultations({ profile }) {
   const [cancelTarget, setCancelTarget] = useState(null)
   const [cancelReason, setCancelReason] = useState('')
   const [cancelling, setCancelling] = useState(false)
-
-  // Heural appointment actions state
-  // confirmedIds: Set of consultation IDs the patient has confirmed this session
-  const [confirmedIds, setConfirmedIds] = useState(new Set())
-  // confirmingId: consultation ID currently being confirmed (spinner)
-  const [confirmingId, setConfirmingId] = useState(null)
-  // heuralCancelTarget: consultation object for Heural cancellation sheet
-  const [heuralCancelTarget, setHeuralCancelTarget] = useState(null)
-  const [heuralCancelReason, setHeuralCancelReason] = useState('')
-  const [heuralCancelling, setHeuralCancelling] = useState(false)
 
   // Review modal state
   const [reviewTarget, setReviewTarget] = useState(null)
@@ -359,48 +348,6 @@ export default function PatientConsultations({ profile }) {
     }
   }
 
-  const handleHeuralConfirm = async (consultation) => {
-    if (!consultation.heuralAppointmentId) return
-    setConfirmingId(consultation.id)
-    try {
-      const { error } = await heuralService.confirmAppointment(consultation.heuralAppointmentId)
-      if (error) {
-        toast.error(error)
-      } else {
-        setConfirmedIds(prev => new Set(prev).add(consultation.id))
-        toast.success('Asistencia confirmada')
-      }
-    } catch (err) {
-      toast.error(err?.message ?? 'Error al confirmar asistencia')
-    } finally {
-      setConfirmingId(null)
-    }
-  }
-
-  const handleHeuralCancel = async () => {
-    if (!heuralCancelTarget) return
-    setHeuralCancelling(true)
-    try {
-      const { error } = await heuralService.cancelAppointment(
-        heuralCancelTarget.heuralAppointmentId,
-        heuralCancelReason,
-      )
-      if (error) {
-        toast.error(error)
-      } else {
-        // Update local list status to cancelled
-        setTurnos(prev => prev.map(t => t.id === heuralCancelTarget.id ? { ...t, status: 'cancelled' } : t))
-        toast.success('Turno cancelado')
-        setHeuralCancelTarget(null)
-        setHeuralCancelReason('')
-      }
-    } catch (err) {
-      toast.error(err?.message ?? 'Error al cancelar el turno')
-    } finally {
-      setHeuralCancelling(false)
-    }
-  }
-
   const submitReview = async () => {
     if (!reviewRating || !reviewTarget) return
     setSubmittingReview(true)
@@ -530,19 +477,9 @@ export default function PatientConsultations({ profile }) {
           const date = t.scheduledAt ? new Date(t.scheduledAt) : null
           const hasReview = !!patientReviewMap[t.id]
           const isUpcomingActive = view === 'upcoming' && ['confirmed', 'pending'].includes(t.status)
-          const hasHeural = !!t.heuralAppointmentId
           const isInProgressVideo = view === 'upcoming' && t.status === 'in_progress' && t.modality === 'video'
           const orders = t.consultationOrders ?? []
-          // Actions row shows if there's something to show in it:
-          // — upcoming non-Heural: always (cancel button)
-          // — upcoming Heural video confirmed: video entry button
-          // — upcoming in_progress video: re-entry button
-          // — past completed: prescription / review
-          const hasActions = (isUpcomingActive && (!hasHeural || (t.status === 'confirmed' && t.modality === 'video'))) ||
-                             isInProgressVideo ||
-                             (view === 'past' && t.status === 'completed')
-          const isConfirmedHeural = confirmedIds.has(t.id)
-          const isConfirming = confirmingId === t.id
+          const hasActions = isUpcomingActive || isInProgressVideo || (view === 'past' && t.status === 'completed')
           return (
             <div key={t.id} className="bg-bg-secondary rounded-[32px] border border-border-default overflow-hidden">
               <div className="flex">
@@ -576,14 +513,7 @@ export default function PatientConsultations({ profile }) {
                       <vert.icon className="w-4 h-4 shrink-0" style={{ color: vert.color }} />
                       <span className="text-[13px] font-light" style={{ color: vert.color }}>{vert.nombre}</span>
                     </div>
-                    {/* Heural sync badge */}
-                    {hasHeural && (
-                      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-teal-50 border border-teal-100">
-                        <ArrowsClockwise className="w-2.5 h-2.5 text-teal-500" />
-                        <span className="text-[9px] font-bold text-teal-500 uppercase tracking-wide">Heural</span>
-                      </div>
-                    )}
-                  </div>
+  </div>
                   <p className="text-[17px] font-light text-text-primary leading-snug">
                     {t.professional?.fullName || 'Profesional'}
                   </p>
@@ -598,36 +528,6 @@ export default function PatientConsultations({ profile }) {
                     </div>
                   </div>
 
-                  {/* Heural confirm + cancel — only for upcoming active consultations with a Heural ID */}
-                  {isUpcomingActive && hasHeural && (
-                    <div className="flex flex-col gap-1.5 mt-1 pt-2 border-t border-border-default">
-                      {/* Confirm attendance */}
-                      {isConfirmedHeural ? (
-                        <div className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 rounded-[14px]">
-                          <CheckCircle className="w-4 h-4 text-emerald-500" weight="fill" />
-                          <span className="text-[12px] font-bold text-emerald-600">Asistencia confirmada</span>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleHeuralConfirm(t)}
-                          disabled={isConfirming}
-                          className="flex items-center justify-center gap-1.5 w-full py-3 rounded-[14px] border border-emerald-200 bg-emerald-50 text-emerald-700 text-[13px] font-semibold hover:bg-emerald-100 active:opacity-80 transition-colors disabled:opacity-50"
-                        >
-                          {isConfirming
-                            ? <><CircleNotch className="w-3.5 h-3.5 animate-spin" /> Confirmando...</>
-                            : <><CheckCircle className="w-3.5 h-3.5" /> Confirmar asistencia</>
-                          }
-                        </button>
-                      )}
-                      {/* Cancel via Heural */}
-                      <button
-                        onClick={() => { setHeuralCancelTarget(t); setHeuralCancelReason('') }}
-                        className="flex items-center justify-center gap-1 w-full py-2.5 rounded-[14px] border border-red-100 bg-red-50 text-red-500 text-[12px] font-semibold hover:bg-red-100 active:opacity-80 transition-colors"
-                      >
-                        <X className="w-3 h-3" /> Cancelar turno
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -672,7 +572,7 @@ export default function PatientConsultations({ profile }) {
                       <VideoCamera className="w-4 h-4" /> Entrar a Sala
                     </button>
                   )}
-                  {view === 'upcoming' && ['confirmed', 'pending'].includes(t.status) && !hasHeural && (
+                  {view === 'upcoming' && ['confirmed', 'pending'].includes(t.status) && (
                     <button onClick={() => { setCancelTarget(t); setCancelReason('') }} className={`py-3 text-[13px] font-semibold text-error flex items-center justify-center gap-1.5 hover:bg-red-50 transition-colors ${t.status === 'confirmed' && t.modality === 'video' ? 'w-24 border-l border-border-default' : 'flex-1'}`}>
                       Cancelar
                     </button>
@@ -949,50 +849,6 @@ export default function PatientConsultations({ profile }) {
         </div>
       </PatientSheet>
 
-      {/* ─── Heural cancel sheet ─── */}
-      <PatientSheet open={!!heuralCancelTarget} onClose={() => setHeuralCancelTarget(null)} maxWidth="max-w-md">
-        <div className="px-6 pt-4 pb-2 flex items-center gap-3 flex-shrink-0">
-          <button onClick={() => setHeuralCancelTarget(null)} className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50">
-            <X className="w-5 h-5 text-gray-700" />
-          </button>
-          <h2 className="text-[20px] font-black text-gray-900">Cancelar turno</h2>
-        </div>
-        <div className="px-6 flex-1 overflow-y-auto pb-8">
-          <p className="text-gray-500 text-[14px] mb-5 mt-2">
-            ¿Por qué querés cancelar el turno con{' '}
-            <span className="font-bold text-gray-800">{heuralCancelTarget?.professional?.fullName || 'el profesional'}</span>?
-          </p>
-          <div className="mb-6">
-            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 block">Motivo</label>
-            <select
-              value={heuralCancelReason}
-              onChange={e => setHeuralCancelReason(e.target.value)}
-              className="w-full bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3.5 outline-none text-[15px] font-medium text-gray-900 focus:border-red-300 appearance-none"
-            >
-              <option value="">Seleccioná un motivo...</option>
-              <option value="Me siento mejor">Me siento mejor</option>
-              <option value="No puedo en ese horario">No puedo en ese horario</option>
-              <option value="Encontré otro profesional">Encontré otro profesional</option>
-              <option value="Otro motivo">Otro motivo</option>
-            </select>
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setHeuralCancelTarget(null)}
-              className="flex-1 py-3.5 rounded-[20px] font-bold text-[15px] border border-gray-200 text-gray-700 hover:bg-gray-50"
-            >
-              No, volver
-            </button>
-            <button
-              onClick={handleHeuralCancel}
-              disabled={heuralCancelling || !heuralCancelReason}
-              className="flex-1 py-3.5 rounded-[20px] font-bold text-[15px] bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
-            >
-              {heuralCancelling ? 'Cancelando...' : 'Sí, cancelar'}
-            </button>
-          </div>
-        </div>
-      </PatientSheet>
     </div>
   )
 }

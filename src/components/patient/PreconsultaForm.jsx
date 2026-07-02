@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { X, CircleNotch, ClipboardText, Heart, Scales, Ruler, Drop, Wind } from '@phosphor-icons/react'
 import PatientSheet from './PatientSheet'
 import { toast } from '../Toast'
-import { submitPreconsulta } from '../../services/heuralService'
+import { supabase } from '../../lib/supabase'
 
 /**
  * PreconsultaForm
@@ -10,12 +10,12 @@ import { submitPreconsulta } from '../../services/heuralService'
  * Shows a bottom-sheet pre-consultation form before a video call.
  *
  * Props:
- *   isOpen              – boolean, controls visibility
- *   onClose             – called when the sheet is dismissed without submitting
- *   appointmentHeuralId – string | null — Heural appointment ID; if null the form is skipped
- *   onSubmitted         – called after submit OR skip; parent proceeds to video call
+ *   isOpen         – boolean, controls visibility
+ *   onClose        – called when the sheet is dismissed without submitting
+ *   consultationId – string | null — Supabase consultation UUID; if null the form is skipped
+ *   onSubmitted    – called after submit OR skip; parent proceeds to video call
  */
-export default function PreconsultaForm({ isOpen, onClose, appointmentHeuralId, onSubmitted }) {
+export default function PreconsultaForm({ isOpen, onClose, consultationId, onSubmitted }) {
   const [submitting, setSubmitting] = useState(false)
 
   const [form, setForm] = useState({
@@ -36,36 +36,35 @@ export default function PreconsultaForm({ isOpen, onClose, appointmentHeuralId, 
     if (submitting) return
     setSubmitting(true)
 
-    // If no Heural appointment ID, skip silently
-    if (!appointmentHeuralId) {
+    if (!consultationId) {
       setSubmitting(false)
       onSubmitted()
       return
     }
 
-    // Build payload — only include non-empty numeric fields
     const payload = {
-      mainComplaint: form.mainComplaint || null,
+      main_complaint: form.mainComplaint || null,
       symptoms: form.symptoms || null,
       weight: form.weight ? parseFloat(form.weight) : null,
       height: form.height ? parseFloat(form.height) : null,
-      systolicPressure: form.systolicPressure ? parseInt(form.systolicPressure, 10) : null,
-      diastolicPressure: form.diastolicPressure ? parseInt(form.diastolicPressure, 10) : null,
-      heartRate: form.heartRate ? parseInt(form.heartRate, 10) : null,
-      oxygenSaturation: form.oxygenSaturation ? parseFloat(form.oxygenSaturation) : null,
-      currentMedications: form.currentMedications || null,
+      systolic_pressure: form.systolicPressure ? parseInt(form.systolicPressure, 10) : null,
+      diastolic_pressure: form.diastolicPressure ? parseInt(form.diastolicPressure, 10) : null,
+      heart_rate: form.heartRate ? parseInt(form.heartRate, 10) : null,
+      oxygen_saturation: form.oxygenSaturation ? parseFloat(form.oxygenSaturation) : null,
+      current_medications: form.currentMedications || null,
     }
 
     try {
-      const { error } = await submitPreconsulta(appointmentHeuralId, payload)
+      const { error } = await supabase
+        .from('consultations')
+        .update({ preconsulta_data: payload })
+        .eq('id', consultationId)
       if (error) {
-        // API error — log it but never block the patient from joining
-        console.warn('[PreconsultaForm] API error (non-blocking):', error)
+        console.warn('[PreconsultaForm] Save error (non-blocking):', error)
       } else {
         toast.success('Pre-consulta enviada')
       }
     } catch (err) {
-      // Network failure — also non-blocking
       console.warn('[PreconsultaForm] Network error (non-blocking):', err)
     } finally {
       setSubmitting(false)
