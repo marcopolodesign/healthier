@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Healthier — Plataforma para profesionales</title>
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1/src/index.js" defer></script>
+<style>
+@font-face{font-family:'Everett';src:url('fonts/Everett-Light.woff2') format('woff2');font-weight:300;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('fonts/Everett-Regular.woff2') format('woff2');font-weight:400 600;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('fonts/Everett-RegularItalic.woff2') format('woff2');font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:'Everett';src:url('fonts/Everett-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+
+:root{
+  --sage:#7CB38B;--sage-hover:#5f9470;--sage-muted:rgba(124,179,139,.1);--sage-muted2:rgba(124,179,139,.18);
+  --coral:#E8927C;--lavender:#9B8EC4;--danger:#D9534F;--gold:#E4A853;--sky:#6BAFCF;--green:#6BBF7B;
+  --bg-primary:#F6F5F0;--bg-secondary:#FDFCF9;--surface:#fff;
+  --text-primary:#2D2A26;--text-secondary:#6B6560;--text-tertiary:#A8A29E;
+  --border:#D8D4CE;--border-hover:#C4BFB8;
+  --radius-pill:999px;--radius-card:1.5rem;--radius-card-sm:1rem;
+  --shadow-card:0 1px 4px rgba(45,42,38,.06);--shadow-hover:0 8px 28px rgba(124,179,139,.14);
+  --t:all .36s cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-primary)}
+body{font-family:'Everett',-apple-system,BlinkMacSystemFont,sans-serif;color:var(--text-primary);-webkit-font-smoothing:antialiased}
+button{all:unset;cursor:pointer}
+
+/* DECK */
+#deck{position:fixed;inset:0;overflow:hidden}
+.slide{
+  position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;
+  padding:5rem 2rem 4rem;opacity:0;pointer-events:none;
+  transition:opacity .42s cubic-bezier(.4,0,.2,1),transform .42s cubic-bezier(.4,0,.2,1);
+  transform:translateY(20px);overflow:hidden;
+}
+.slide.active{opacity:1;pointer-events:auto;transform:translateY(0)}
+@media(prefers-reduced-motion:reduce){.slide{transition:opacity .15s}}
+
+.slide-ivory{background:var(--bg-primary)}
+.slide-cream{background:var(--bg-secondary)}
+.slide-white{background:var(--surface)}
+.slide-sage{background:var(--sage)}
+.slide-dark{background:#1d1e1a;color:#f9f8f5}
+
+/* NAV */
+#nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.75rem 1.5rem;height:52px;
+  background:rgba(246,245,240,.82);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  transition:background .3s,border-color .3s;
+}
+#dots{display:flex;align-items:center;gap:.35rem;flex:1;justify-content:center}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--border);transition:var(--t);cursor:pointer}
+.dot.active{background:var(--sage);width:18px;border-radius:3px}
+#counter{font-size:.75rem;font-weight:600;color:var(--text-tertiary);letter-spacing:.04em;min-width:4rem;text-align:right}
+
+.arrow-btn{
+  position:fixed;top:50%;z-index:99;transform:translateY(-50%);
+  width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.7);backdrop-filter:blur(8px);
+  border:1px solid var(--border);color:var(--text-secondary);
+  transition:var(--t);opacity:.55;font-size:1.1rem;
+}
+.arrow-btn:hover{opacity:1;background:#fff;color:var(--text-primary)}
+#btn-prev{left:.75rem}
+#btn-next{right:.75rem}
+.arrow-btn.hidden{opacity:0;pointer-events:none}
+.progress-bar{position:fixed;bottom:0;left:0;height:2px;background:var(--sage);transition:width .4s cubic-bezier(.4,0,.2,1);z-index:100}
+
+/* LAYOUT */
+.content{width:100%;max-width:880px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:1.5rem;text-align:center}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:2.5rem;align-items:center;width:100%;max-width:960px}
+.two-col.r{direction:rtl}.two-col.r>*{direction:ltr}
+
+/* TYPOGRAPHY */
+.eyebrow{display:inline-flex;align-items:center;gap:.4rem;font-size:.75rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;background:var(--sage-muted);color:var(--sage);padding:.3rem .85rem;border-radius:var(--radius-pill)}
+.eyebrow.coral{background:rgba(232,146,124,.1);color:#c2614a}
+.eyebrow.lavender{background:rgba(155,142,196,.1);color:#6d5fa3}
+.eyebrow.gold{background:rgba(228,168,83,.1);color:#9a6c1a}
+h1.hero{font-size:clamp(2.4rem,5.5vw,4.2rem);font-weight:700;line-height:1.1;letter-spacing:-.02em;max-width:18ch}
+h1.hero .a{color:var(--sage)}
+h2.st{font-size:clamp(1.9rem,4vw,2.9rem);font-weight:700;line-height:1.15;letter-spacing:-.02em;max-width:22ch}
+h2.st .a{color:var(--sage)}
+h2.st .ac{color:var(--coral)}
+h2.st .al{color:var(--lavender)}
+h2.st .ag{color:var(--gold)}
+.lead{font-size:clamp(.95rem,1.8vw,1.15rem);color:var(--text-secondary);line-height:1.65;max-width:52ch}
+.lead strong{color:var(--text-primary);font-weight:600}
+
+/* FEATURE GRID */
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.85rem;width:100%;max-width:900px}
+.fc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:1.1rem 1.3rem;text-align:left;box-shadow:var(--shadow-card);transition:var(--t)}
+.fc:hover{box-shadow:var(--shadow-hover);border-color:rgba(124,179,139,.3);transform:translateY(-2px)}
+.ic{width:38px;height:38px;border-radius:.7rem;display:flex;align-items:center;justify-content:center;margin-bottom:.65rem;font-size:1.1rem}
+.ic.s{background:var(--sage-muted);color:var(--sage)}
+.ic.c{background:rgba(232,146,124,.1);color:var(--coral)}
+.ic.l{background:rgba(155,142,196,.1);color:var(--lavender)}
+.ic.g{background:rgba(228,168,83,.1);color:var(--gold)}
+.ic.k{background:rgba(107,175,207,.1);color:var(--sky)}
+.ic.gr{background:rgba(107,191,123,.12);color:var(--green)}
+.fc h3{font-size:.9rem;font-weight:700;margin-bottom:.25rem}
+.fc p{font-size:.8rem;color:var(--text-secondary);line-height:1.5}
+
+/* SIDEBAR MOCK */
+.sidebar-mock{
+  width:200px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:1rem .75rem;box-shadow:var(--shadow-card);flex-shrink:0;
+}
+.sb-logo{font-size:.85rem;font-weight:700;color:var(--sage);margin-bottom:1rem;padding:.25rem .5rem}
+.sb-item{display:flex;align-items:center;gap:.55rem;padding:.5rem .65rem;border-radius:.65rem;font-size:.78rem;font-weight:500;color:var(--text-secondary);margin-bottom:.1rem;transition:var(--t)}
+.sb-item.active{background:var(--sage-muted);color:var(--sage-hover);font-weight:700}
+.sb-item i{font-size:.95rem}
+
+/* DASHBOARD MOCK */
+.dash-mock{flex:1;display:flex;flex-direction:column;gap:.75rem;min-width:0}
+.dash-greeting{font-size:.85rem;font-weight:700;color:var(--text-primary);margin-bottom:.25rem}
+.stat-row{display:grid;grid-template-columns:repeat(2,1fr);gap:.6rem}
+.sc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);padding:.75rem 1rem;box-shadow:var(--shadow-card)}
+.sc-lbl{font-size:.65rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:.2rem}
+.sc-val{font-size:1.25rem;font-weight:700}
+.sc-val.s{color:var(--sage)}
+.sc-val.c{color:var(--coral)}
+.sc-delta{font-size:.65rem;color:var(--green);font-weight:600;margin-top:.1rem}
+.consult-item{display:flex;align-items:center;gap:.6rem;padding:.55rem .75rem;background:var(--surface);border:1px solid var(--border);border-radius:.75rem;box-shadow:var(--shadow-card)}
+.ci-time{font-size:.7rem;font-weight:700;color:var(--text-tertiary);min-width:36px}
+.ci-name{font-size:.78rem;font-weight:700;flex:1}
+.ci-badge{font-size:.6rem;font-weight:600;padding:.15rem .45rem;border-radius:var(--radius-pill)}
+.ci-badge.video{background:rgba(107,175,207,.12);color:#2e7fa8}
+.ci-badge.pres{background:var(--sage-muted);color:var(--sage-hover)}
+.ci-btn{font-size:.65rem;font-weight:700;background:var(--sage);color:#fff;padding:.25rem .65rem;border-radius:var(--radius-pill)}
+
+/* AGENDA MOCK */
+.agenda-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:1.1rem;box-shadow:var(--shadow-card);width:100%;max-width:340px}
+.ag-head{font-size:.78rem;font-weight:700;margin-bottom:.85rem}
+.ag-day{margin-bottom:.65rem}
+.ag-day-lbl{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-tertiary);margin-bottom:.35rem}
+.slot-row{display:flex;gap:.35rem;flex-wrap:wrap}
+.slot{font-size:.68rem;font-weight:600;padding:.28rem .6rem;border-radius:var(--radius-pill);background:var(--sage-muted);color:var(--sage-hover);border:1px solid rgba(124,179,139,.25)}
+.ondemand{display:flex;align-items:center;justify-content:space-between;margin-top:.75rem;padding:.6rem .85rem;border-radius:.75rem;background:linear-gradient(90deg,rgba(124,179,139,.08),rgba(124,179,139,.03));border:1px solid rgba(124,179,139,.2)}
+.od-lbl{font-size:.75rem;font-weight:700}
+.od-sub{font-size:.63rem;color:var(--text-secondary)}
+.toggle{width:36px;height:20px;border-radius:var(--radius-pill);background:var(--sage);position:relative;flex-shrink:0}
+.toggle::after{content:'';position:absolute;top:3px;right:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+
+/* VIDEO MOCK */
+.video-wrap{width:260px;height:185px;border-radius:1.2rem;overflow:hidden;background:#1a1a1a;position:relative;flex-shrink:0;box-shadow:0 12px 40px rgba(0,0,0,.28)}
+.vbg{position:absolute;inset:0;background:linear-gradient(135deg,#1e3a2f,#0d1f17)}
+.vuser{position:absolute;top:50%;left:50%;transform:translate(-50%,-58%);display:flex;flex-direction:column;align-items:center;gap:.35rem}
+.vav{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--sage),#4a8a60);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.1rem;font-weight:700}
+.vname{font-size:.65rem;color:rgba(255,255,255,.8);font-weight:600}
+.vbar{position:absolute;bottom:0;left:0;right:0;padding:.5rem .7rem;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:space-between}
+.vbar-lbl{font-size:.62rem;color:rgba(255,255,255,.75);font-weight:600}
+.vbtns{display:flex;gap:.35rem}
+.vb{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem}
+.vb.on{background:rgba(255,255,255,.15);color:#fff}
+.vb.red{background:var(--danger);color:#fff}
+
+/* CLINICAL PANEL */
+.cp{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);padding:.85rem 1rem;width:190px;box-shadow:var(--shadow-card)}
+.cp-head{font-size:.7rem;font-weight:700;margin-bottom:.45rem;display:flex;align-items:center;gap:.3rem}
+.cp-note{font-size:.67rem;color:var(--text-secondary);line-height:1.45;padding:.45rem;background:var(--bg-primary);border-radius:.5rem;margin-bottom:.35rem}
+.cp-pill{font-size:.6rem;background:rgba(155,142,196,.12);color:var(--lavender);padding:.18rem .45rem;border-radius:var(--radius-pill);font-weight:600}
+.cp-pill.s{background:var(--sage-muted);color:var(--sage-hover)}
+
+/* HC MOCK */
+.hc-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:1.1rem;width:100%;max-width:340px;box-shadow:var(--shadow-card)}
+.hc-entry{padding:.65rem .75rem;border-radius:.7rem;background:var(--bg-primary);margin-bottom:.5rem;text-align:left}
+.hc-meta{display:flex;align-items:center;justify-content:space-between;margin-bottom:.2rem}
+.hc-title{font-size:.75rem;font-weight:700}
+.hc-date{font-size:.62rem;color:var(--text-tertiary)}
+.hc-body{font-size:.7rem;color:var(--text-secondary);line-height:1.45}
+.hc-vis{font-size:.58rem;padding:.12rem .38rem;border-radius:var(--radius-pill);font-weight:600}
+.hc-vis.i{background:rgba(155,142,196,.12);color:var(--lavender)}
+.hc-vis.e{background:var(--sage-muted);color:var(--sage-hover)}
+
+/* PROFILE MOCK */
+.prof-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:1.1rem;width:100%;max-width:300px;box-shadow:var(--shadow-card)}
+.pav{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--sage),var(--sage-hover));display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.1rem;font-weight:700}
+.p-badge{display:inline-flex;align-items:center;gap:.2rem;font-size:.62rem;font-weight:700;background:rgba(107,191,123,.12);color:#3a8c4e;padding:.18rem .45rem;border-radius:var(--radius-pill)}
+.stars{display:flex;align-items:center;gap:.25rem;font-size:.78rem;font-weight:600;color:var(--gold)}
+.ct-row{display:flex;align-items:center;justify-content:space-between;padding:.45rem .65rem;border-radius:.65rem;border:1px solid var(--border);background:var(--bg-primary);margin-bottom:.35rem}
+.ct-lbl{font-size:.75rem;font-weight:600}
+.ct-price{font-size:.75rem;font-weight:700;color:var(--sage-hover)}
+.ct-mod{font-size:.62rem;color:var(--text-tertiary)}
+
+/* GANANCIAS MOCK */
+.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.65rem;width:100%;max-width:380px}
+.sg{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);padding:.85rem 1rem;box-shadow:var(--shadow-card)}
+.sg-lbl{font-size:.65rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:.2rem}
+.sg-val{font-size:1.3rem;font-weight:700}
+.sg-delta{font-size:.65rem;color:var(--green);font-weight:600;margin-top:.15rem}
+
+/* ONBOARDING STEPS */
+.ob-steps{display:flex;gap:.45rem;justify-content:center;flex-wrap:wrap;width:100%;max-width:620px}
+.ob-step{flex:1;min-width:88px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);padding:.8rem .55rem;text-align:center;box-shadow:var(--shadow-card)}
+.ob-num{width:26px;height:26px;border-radius:50%;background:var(--sage);color:#fff;font-size:.75rem;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto .4rem}
+.ob-step h4{font-size:.7rem;font-weight:700;margin-bottom:.12rem}
+.ob-step p{font-size:.62rem;color:var(--text-secondary)}
+
+/* EMERGENCIAS MOCK */
+.emer-mock{width:200px;background:#0f1410;border-radius:1.8rem;padding:1rem;box-shadow:0 16px 48px rgba(0,0,0,.4);flex-shrink:0}
+.emer-status{text-align:center;margin-bottom:.85rem}
+.emer-dot{width:10px;height:10px;border-radius:50%;background:#ff4444;margin:0 auto .35rem;box-shadow:0 0 8px rgba(255,68,68,.6)}
+.emer-lbl{font-size:.65rem;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.08em}
+.emer-code{font-size:.75rem;font-weight:700;padding:.3rem .65rem;border-radius:var(--radius-pill);text-align:center;margin-bottom:.6rem}
+.emer-code.rojo{background:rgba(217,83,79,.2);color:#ff6b6b;border:1px solid rgba(217,83,79,.4)}
+.emer-code.verde{background:rgba(107,191,123,.2);color:#6bbf7b;border:1px solid rgba(107,191,123,.4)}
+.emer-info{font-size:.65rem;color:rgba(255,255,255,.6);margin-bottom:.5rem;line-height:1.4}
+.emer-btn{display:block;width:100%;padding:.55rem;border-radius:var(--radius-pill);font-size:.68rem;font-weight:700;text-align:center;margin-bottom:.4rem}
+.emer-btn.primary{background:var(--sage);color:#fff}
+.emer-btn.secondary{background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.15)}
+
+/* NUTRIPLAN MOCK */
+.np-mock{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:1.1rem;width:100%;max-width:300px;box-shadow:var(--shadow-card)}
+.np-bar-wrap{margin-bottom:.75rem}
+.np-bar-lbl{display:flex;justify-content:space-between;font-size:.7rem;font-weight:600;margin-bottom:.3rem}
+.np-bar{height:8px;background:var(--bg-primary);border-radius:var(--radius-pill);overflow:hidden}
+.np-bar-fill{height:100%;background:linear-gradient(90deg,var(--sage),var(--sage-hover));border-radius:var(--radius-pill)}
+.np-meal{display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;border-radius:.5rem;background:var(--bg-primary);margin-bottom:.3rem;font-size:.7rem}
+.np-meal-icon{width:24px;height:24px;border-radius:.4rem;background:var(--sage-muted);display:flex;align-items:center;justify-content:center;font-size:.75rem;flex-shrink:0;color:var(--sage)}
+.np-meal-name{font-weight:600;flex:1}
+.np-meal-kcal{color:var(--text-tertiary);font-size:.65rem}
+
+/* AI COMPANION MOCK */
+.ai-mock{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:1rem 1.1rem;width:100%;max-width:300px;box-shadow:var(--shadow-card)}
+.ai-head{display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem}
+.ai-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--sage),var(--lavender));display:flex;align-items:center;justify-content:center;color:#fff;font-size:.75rem;font-weight:700}
+.ai-name{font-size:.78rem;font-weight:700}
+.ai-status{font-size:.62rem;color:var(--text-tertiary)}
+.ai-bubble{background:var(--bg-primary);border-radius:.85rem .85rem .85rem .15rem;padding:.55rem .75rem;font-size:.72rem;color:var(--text-secondary);line-height:1.5;margin-bottom:.5rem}
+.ai-quick{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.5rem}
+.ai-q{font-size:.65rem;font-weight:600;padding:.28rem .65rem;border-radius:var(--radius-pill);background:var(--sage-muted);color:var(--sage-hover);border:1px solid rgba(124,179,139,.25)}
+.ai-input{display:flex;align-items:center;gap:.4rem;padding:.45rem .7rem;border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--bg-primary)}
+.ai-input-ph{font-size:.68rem;color:var(--text-tertiary);flex:1}
+.ai-send{width:22px;height:22px;border-radius:50%;background:var(--sage);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.6rem;flex-shrink:0}
+
+/* PRESENCIAL MOCK */
+.pres-mock{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:1.1rem;width:100%;max-width:280px;box-shadow:var(--shadow-card)}
+.pres-head{font-size:.78rem;font-weight:700;margin-bottom:.75rem;display:flex;align-items:center;gap:.4rem}
+.code-input{display:flex;gap:.4rem;justify-content:center;margin-bottom:.75rem}
+.code-box{width:36px;height:40px;border:2px solid var(--border);border-radius:.5rem;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:700;background:var(--bg-primary)}
+.code-box.filled{border-color:var(--sage);background:var(--sage-muted);color:var(--sage-hover)}
+.pres-info{font-size:.7rem;color:var(--text-secondary);text-align:center;margin-bottom:.6rem;line-height:1.4}
+.pres-btn{display:block;width:100%;padding:.55rem;border-radius:var(--radius-pill);font-size:.7rem;font-weight:700;text-align:center;background:var(--sage);color:#fff}
+.os-row{display:flex;align-items:center;justify-content:space-between;padding:.45rem .6rem;border-radius:.6rem;border:1px solid var(--border);background:var(--bg-primary);margin-bottom:.35rem;font-size:.72rem}
+
+/* CTA */
+.btn-pill{display:inline-flex;align-items:center;gap:.5rem;font-size:1rem;font-weight:700;padding:.85rem 2.2rem;border-radius:var(--radius-pill);transition:var(--t);cursor:pointer}
+.btn-pill.white{background:#fff;color:var(--sage)}
+.btn-pill.white:hover{background:rgba(255,255,255,.9);transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,.15)}
+
+/* SAGE SLIDE OVERRIDES */
+.slide-sage .eyebrow,.slide-sage h1,.slide-sage h2,.slide-sage p,.slide-sage .lead{color:#fff}
+.slide-sage .eyebrow{background:rgba(255,255,255,.2);color:#fff}
+.slide-dark .eyebrow{background:rgba(124,179,139,.22);color:#a8dbb8}
+
+/* RESPONSIVE */
+@media(max-width:720px){
+  .two-col{grid-template-columns:1fr;gap:1.5rem}
+  .two-col .video-wrap,.two-col .agenda-wrap,.two-col .hc-wrap,.two-col .prof-card{margin:0 auto}
+  h1.hero{font-size:clamp(2rem,8vw,3rem)}
+  h2.st{font-size:clamp(1.7rem,6vw,2.4rem)}
+  .fg{grid-template-columns:1fr 1fr}
+  .slide{padding:4rem 1.25rem 3rem}
+}
+@media(max-width:480px){.fg{grid-template-columns:1fr}.stat-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<nav id="nav">
+  <div style="opacity:.7;display:flex;align-items:center">
+    <svg width="72" height="15" viewBox="0 0 2540 545" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2448.13 177.94C2431.53 189.42 2417.82 226.52 2407.3 237.12L2406.85 203.81L2406.37 160.72C2406.55 155.87 2397.89 156.69 2395.11 155.8C2367.66 169.18 2332.68 186.41 2302.58 191.38L2302.41 206.5C2309.19 208.85 2335.7 206.6 2339.49 215.15L2295.16 329.68C2262.21 422.16 2175.28 540.94 2064.98 480.76C2028.56 458.86 2001.14 415.12 2010.64 371.86C2063.43 350.52 2169.76 304.28 2221.8 280.53L2272.79 256.5C2233.21 167.64 2121.29 120.98 2037.58 181.31C1890.93 281.28 1943.29 581.64 2149.99 540.47C2281.13 519.09 2312.97 360.92 2356.55 257.27C2353.02 309.94 2384.65 490.31 2329.97 510.45C2313.21 517.49 2296.91 509.14 2301.46 534.4L2474.8 534.39C2482.54 494.59 2409.9 535.49 2412.75 449.6C2419.64 377.61 2387.96 251.74 2465.32 210.14C2493.64 198.58 2515.86 213.39 2527.21 234.77C2540.48 240.08 2536.02 169.58 2539.02 165.78C2510.34 147.76 2472.36 154.1 2448.13 177.95V177.94ZM2046.84 226.43C2065.87 205.39 2091.38 192.99 2120.04 192.6C2159.51 191.17 2189.98 210.95 2211.81 244.15L2152.02 270.21C2022.04 326.75 1984.11 326.75 2046.84 226.43Z" fill="#7CB38B"/>
+      <path d="M1736.52 480.85C1738.98 472.73 1740.42 464.47 1740.4 455.53L1740.07 293.92C1740.04 277.6 1737.64 262.44 1732.73 247.36C1726.45 228.04 1713.47 211.82 1694.89 203.4C1676.24 194.95 1655.56 193.74 1635.69 198.26C1601.8 205.97 1574.67 240.32 1567.27 273.71L1567.19 448.53C1567.18 459.05 1567.91 468.53 1570.84 478.23C1579.22 505.88 1603.77 514.19 1631.62 516.51L1631.81 534.39H1453.71L1453.62 516.72C1476.88 514.25 1499.88 509.44 1507.64 485.82C1510.34 477.58 1512.36 468.91 1512.36 459.44L1512.17 80.18C1512.17 69.77 1511.14 60.67 1509.4 50.98C1506.95 37.4 1497.86 27.02 1484.58 22.8C1475.14 19.79 1465.67 19.02 1455.14 17.76L1455.27 0H1567.02L1567.26 217.12L1587.17 191.64C1607.52 169.1 1634.88 156.8 1665.29 155.36C1713.46 153.07 1756.09 174.55 1776.05 219.18C1783.68 236.26 1788.05 253.8 1788.74 272.79C1788.74 272.79 1787.49 461.06 1787.49 495.41C1787.49 508.37 1804.24 513.98 1817.44 512.71C1835.13 511.01 1858.33 493.61 1859.85 475.81L1860.65 256.56C1860.91 241.19 1854.84 216.56 1840.63 211.63C1830.77 208.2 1820.88 207.96 1810.4 206.88L1810.71 191.17C1829.49 187.1 1847.07 182.11 1864.16 173.71L1899.82 156.17C1903 155.09 1908.57 156.99 1911.76 158.7L1908.03 462.6C1906.51 482.87 1909.35 507.6 1929.5 510.8L1953.83 514.66L1955.02 534.39H1677.8L1677.89 516.65C1704.31 513.65 1728.56 507.12 1736.52 480.85Z" fill="#7CB38B"/>
+      <path d="M1470.29 483.55C1465.45 494.85 1460.69 505.1 1453.07 514.25C1434.97 535.99 1407.43 545.24 1379.54 541.82C1352.28 538.48 1331.17 521.22 1322.91 494.97C1318.46 480.8 1316.78 466.52 1316.76 451.13L1316.48 201.89L1261.87 201.83L1261.81 178.58C1273.28 174.44 1283.57 170.89 1293.9 165.2C1330.97 144.74 1343.58 105.53 1349.65 64.89H1369.43L1368.96 99.96V166.16L1463.86 166.36L1464 202.01L1368.95 201.97L1369.18 334.81L1369.88 445.58C1370.04 471.28 1378.83 498.53 1405.9 501.03C1418.62 502.2 1431.04 498.23 1441.06 489.79L1455.33 475.2L1470.29 483.55Z" fill="#7CB38B"/>
+      <path d="M1924.31 44.66C1924.31 67.15 1906.07 85.38 1883.58 85.38C1861.09 85.38 1842.84 67.15 1842.84 44.66C1842.84 22.17 1861.08 3.94 1883.58 3.94C1906.08 3.94 1924.31 22.17 1924.31 44.66Z" fill="#7CB38B"/>
+      <path d="M1279.66 516.37C1268.21 515.33 1258.02 513.81 1247.88 509.27C1226.51 499.72 1221.41 478.5 1221.4 455.41L1221.24 0.02L1110.45 0L1110.31 18.04C1134.56 19.66 1159.12 24.28 1163.92 49.59C1165.84 59.74 1166.57 69.3 1166.58 80.18L1166.72 454.42C1166.72 463.75 1165.84 471.35 1163.83 480.17C1159.51 499.13 1142.7 513.9 1122.6 513.22C1109.25 512.77 1098.26 503.51 1091.89 492.34C1086.23 482.42 1083.89 471.43 1083.87 459.56L1083.62 318.85C1083.58 297.11 1081.86 276.68 1077.83 255.57C1074.33 237.23 1068.22 220.08 1057.91 204.5C1028.28 159.69 971.72 148.01 920.87 158.06C875.4 167.05 842.31 198.71 822.63 239.83C813.34 259.23 806.49 278.69 800.12 299.34L776.81 374.82C754.98 445.51 715.49 500.87 635.01 495.2C568.14 489.99 529.27 433.88 519.84 370.94L651.88 315.95L786.91 258.33C760.37 202.12 714.09 159.41 649.72 154.47C619.86 152.27 590.49 156.51 563.49 169.68C468.13 216.18 447.34 339.11 482.17 433.23C498.06 476.17 527.77 511.4 570.51 528.99C610.92 545.63 656.04 547.5 697.49 533.43C742.43 518.17 769.32 483.31 786.38 440.35C795.18 418.19 801.69 396.19 808.1 373.11C816.58 342.57 824.95 312.99 836.28 283.47C853.74 238.02 880.83 199.33 932.25 194.44C953.03 192.47 973.36 196.23 991.04 207.4C1021.81 228.43 1027.71 263.83 1028.73 299.77C991.11 303.89 955.37 312.83 920.71 326.75C906.11 332.61 893.1 339.63 880.18 348.27C863.09 359.69 849.14 374.05 838.59 391.59C819.99 422.52 817.7 465.34 835.56 496.74C844.79 512.96 857.89 525.68 875.39 533C907.82 546.57 944.51 545.78 976.2 530.17C998.07 519.4 1014.88 502.42 1028.04 481.3C1032.69 513.04 1050.27 532.21 1082.44 536.97C1095.78 538.63 1108.29 537.53 1121.71 534.42L1279.88 534.39L1279.66 516.37ZM522.54 291.54C525.91 274.81 530.81 259.11 539.27 244.35C554.73 216.33 581.35 198.08 613.06 193.27C661.29 186.03 698.5 204.61 725.13 244.55L519.22 331.36C518.92 317.24 520.38 304.68 522.54 291.54ZM1029.58 389.71L1026.88 440.83C1010.64 479.64 963.9 504.82 922.95 498.46C895.66 494.22 876.56 473.1 875.41 445.62C873.78 406.55 899.23 377.94 934.04 363.01C964.55 349.92 996.29 340.62 1029.61 334.97L1029.58 389.71Z" fill="#7CB38B"/>
+      <path d="M356.33 477.02L358.76 443.52L358.51 272.01L116.85 272.04V457.49C116.85 467.26 118.96 475.95 121.85 484.61C131.7 508.2 154.35 513.91 179.15 516.45L179.01 534.41H0.14L0 516.72L28.12 510.85C44.23 505.88 55.54 493.3 58.91 476.54C60.89 466.69 61.18 457.14 61.18 446.44L61.16 88.16C61.16 74.64 60.14 62.41 57.17 49.81C50.95 23.4 26.97 20 1.89 17.78L1.98 0H176.91L177.08 17.97C151.12 20.13 127.33 25.33 120.81 51.88C118.16 64.83 117.05 77.36 117.03 91.07L116.82 238.01H358.51L358.59 90.07C358.6 76.98 357.53 65.04 355.21 52.59C349.36 24.33 326.68 20.09 299.46 17.86L299.55 0L474.04 0.02L474.18 17.91C448.41 19.45 422.24 26.03 417.51 52.61C415.26 65.24 414.33 77.34 414.32 90.56L414.11 426.45L414.65 455.72C414.8 464.19 415.62 472.6 417.82 480.71C424.75 506.34 448.09 514.62 474.69 516.41L474.82 534.39H297.59L297.87 516.06C326.87 512.7 349.44 506.94 356.33 477.02Z" fill="#7CB38B"/>
+    </svg>
+  </div>
+  <div id="dots"></div>
+  <div id="counter">01 / 14</div>
+</nav>
+
+<button class="arrow-btn hidden" id="btn-prev">&#8592;</button>
+<button class="arrow-btn" id="btn-next">&#8594;</button>
+<div class="progress-bar" id="progress-bar" style="width:7.14%"></div>
+
+<div id="deck">
+
+<!-- 1. PORTADA -->
+<section class="slide slide-ivory active" data-slide="1">
+  <div class="content">
+    <span class="eyebrow">Plataforma clínica · Para profesionales</span>
+    <h1 class="hero">Tu práctica,<br>en una sola <span class="a">herramienta.</span></h1>
+    <p class="lead">Dashboard, agenda, consultas, historia clínica, recetas digitales y ganancias — todo integrado. Desde el primer turno hasta el seguimiento.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center;margin-top:.25rem">
+      <span style="font-size:.8rem;font-weight:500;padding:.35rem .9rem;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--surface);color:var(--text-secondary)">Médicos</span>
+      <span style="font-size:.8rem;font-weight:500;padding:.35rem .9rem;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--surface);color:var(--text-secondary)">Nutricionistas</span>
+      <span style="font-size:.8rem;font-weight:500;padding:.35rem .9rem;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--surface);color:var(--text-secondary)">Psicólogos</span>
+      <span style="font-size:.8rem;font-weight:500;padding:.35rem .9rem;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--surface);color:var(--text-secondary)">Kinesiólogos</span>
+      <span style="font-size:.8rem;font-weight:500;padding:.35rem .9rem;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--surface);color:var(--text-secondary)">Entrenadores</span>
+    </div>
+    <p style="font-size:.82rem;color:var(--text-tertiary);margin-top:1rem">→ Navegá con las flechas o barra espaciadora</p>
+  </div>
+</section>
+
+<!-- 2. DASHBOARD -->
+<section class="slide slide-cream" data-slide="2">
+  <div class="two-col">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow">Dashboard</span>
+      <h2 class="st">Tu día,<br><span class="a">de un vistazo.</span></h2>
+      <p class="lead">Al entrar ves tu agenda del día, las estadísticas clave y podés unirte a una consulta en un tap.</p>
+      <ul style="display:flex;flex-direction:column;gap:.5rem;list-style:none">
+        <li style="display:flex;align-items:center;gap:.6rem;font-size:.88rem;color:var(--text-secondary)"><span style="width:22px;height:22px;border-radius:50%;background:var(--sage-muted);display:flex;align-items:center;justify-content:center;color:var(--sage);flex-shrink:0;font-size:.8rem"><i class="ph ph-chart-bar"></i></span>Consultas hoy, rating y ganancias del mes</li>
+        <li style="display:flex;align-items:center;gap:.6rem;font-size:.88rem;color:var(--text-secondary)"><span style="width:22px;height:22px;border-radius:50%;background:var(--sage-muted);display:flex;align-items:center;justify-content:center;color:var(--sage);flex-shrink:0;font-size:.8rem"><i class="ph ph-calendar"></i></span>Lista de turnos del día con botón "Sala"</li>
+        <li style="display:flex;align-items:center;gap:.6rem;font-size:.88rem;color:var(--text-secondary)"><span style="width:22px;height:22px;border-radius:50%;background:var(--sage-muted);display:flex;align-items:center;justify-content:center;color:var(--sage);flex-shrink:0;font-size:.8rem"><i class="ph ph-star"></i></span>Rating promedio y conteo de reseñas</li>
+      </ul>
+    </div>
+    <div style="display:flex;gap:.75rem;align-items:flex-start">
+      <div class="sidebar-mock">
+        <div class="sb-logo">Healthier</div>
+        <div class="sb-item active"><i class="ph ph-squares-four"></i> Dashboard</div>
+        <div class="sb-item"><i class="ph ph-calendar"></i> Agenda</div>
+        <div class="sb-item"><i class="ph ph-video-camera"></i> Consultas</div>
+        <div class="sb-item"><i class="ph ph-users"></i> Pacientes</div>
+        <div class="sb-item"><i class="ph ph-file-text"></i> Historial</div>
+        <div class="sb-item"><i class="ph ph-currency-circle-dollar"></i> Ganancias</div>
+        <div class="sb-item"><i class="ph ph-user-circle"></i> Perfil</div>
+      </div>
+      <div class="dash-mock">
+        <div class="dash-greeting">Hola, Dra. López 👋 — Hoy</div>
+        <div class="stat-row">
+          <div class="sc"><div class="sc-lbl">Hoy</div><div class="sc-val c">5</div><div class="sc-delta">consultas</div></div>
+          <div class="sc"><div class="sc-lbl">Este mes</div><div class="sc-val s">$186k</div><div class="sc-delta">↑ 24%</div></div>
+          <div class="sc"><div class="sc-lbl">Rating</div><div class="sc-val" style="font-size:1.1rem">★ 4.9</div></div>
+          <div class="sc"><div class="sc-lbl">Reseñas</div><div class="sc-val">63</div></div>
+        </div>
+        <div style="font-size:.7rem;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin:.5rem 0 .3rem">Agenda de hoy</div>
+        <div class="consult-item"><span class="ci-time">09:00</span><span class="ci-name">Martina G.</span><span class="ci-badge video">Video</span><span class="ci-btn">Sala</span></div>
+        <div style="height:.3rem"></div>
+        <div class="consult-item"><span class="ci-time">10:30</span><span class="ci-name">Carlos R.</span><span class="ci-badge pres">Presencial</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. AGENDA -->
+<section class="slide slide-white" data-slide="3">
+  <div class="two-col r">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow">Agenda</span>
+      <h2 class="st">Franjas propias.<br><span class="a">On-demand</span> cuando querés.</h2>
+      <p class="lead">Editás tus franjas horarias por día de la semana. Los turnos se reservan sobre tu disponibilidad real. Activás el modo <strong>Consulta inmediata</strong> cuando estás disponible al instante.</p>
+      <p class="lead" style="font-size:.88rem">Videoconsulta y Presencial con sus propios horarios. Sin dobles turnos ni idas y vueltas por WhatsApp.</p>
+    </div>
+    <div style="display:flex;justify-content:center">
+      <div class="agenda-wrap">
+        <div class="ag-head">Mi disponibilidad semanal</div>
+        <div class="ag-day"><div class="ag-day-lbl">Lunes</div><div class="slot-row"><span class="slot">09:00</span><span class="slot">10:00</span><span class="slot">11:30</span><span class="slot">16:00</span></div></div>
+        <div class="ag-day"><div class="ag-day-lbl">Miércoles</div><div class="slot-row"><span class="slot">09:00</span><span class="slot">10:00</span><span class="slot">14:00</span></div></div>
+        <div class="ag-day"><div class="ag-day-lbl">Viernes</div><div class="slot-row"><span class="slot">09:00</span><span class="slot">11:00</span><span class="slot">15:30</span></div></div>
+        <div class="ondemand">
+          <div><div class="od-lbl">Consulta inmediata</div><div class="od-sub">Disponible ahora mismo</div></div>
+          <div class="toggle"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4. CONSULTA PRESENCIAL -->
+<section class="slide slide-ivory" data-slide="4">
+  <div class="two-col">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow">Presencial</span>
+      <h2 class="st">Abrir la sesión<br>con <span class="a">código seguro.</span></h2>
+      <p class="lead">El paciente llega al consultorio con un código de 4 dígitos generado por la app. Vos lo ingresás para abrir la sesión y registrar la asistencia.</p>
+      <p class="lead" style="font-size:.88rem">Cobertura médica editable por consulta — obra social y número de afiliado. Órdenes, recetas y derivaciones desde la misma pantalla.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:.75rem">
+      <div class="pres-mock">
+        <div class="pres-head"><i class="ph ph-map-pin" style="color:var(--sage)"></i> Consulta presencial</div>
+        <p class="pres-info">Pedile al paciente su código de 4 dígitos para abrir la sesión.</p>
+        <div class="code-input">
+          <div class="code-box filled">3</div>
+          <div class="code-box filled">7</div>
+          <div class="code-box filled">1</div>
+          <div class="code-box">—</div>
+        </div>
+        <div class="pres-btn">Abrir consulta</div>
+        <div style="margin-top:.75rem">
+          <div style="font-size:.68rem;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">Cobertura médica</div>
+          <div class="os-row"><span>Obra social</span><span style="font-weight:700;color:var(--text-primary)">OSDE</span></div>
+          <div class="os-row"><span>N° afiliado</span><span style="font-weight:700;color:var(--text-primary)">4421-88</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5. VIDEOCONSULTA -->
+<section class="slide slide-cream" data-slide="5">
+  <div class="two-col r">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow">Videoconsulta</span>
+      <h2 class="st">Video HD + panel<br>clínico <span class="al">en vivo.</span></h2>
+      <p class="lead">Videollamada real con Daily.co — sin apps externas. Al costado, el panel clínico: tomás notas, leés el historial anterior y escribís la receta sin salir de la pantalla.</p>
+      <div style="display:flex;flex-direction:column;gap:.4rem">
+        <div style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:var(--text-secondary)"><i class="ph ph-video-camera" style="color:var(--sage)"></i> Video HD con acceso por token seguro</div>
+        <div style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:var(--text-secondary)"><i class="ph ph-note-pencil" style="color:var(--lavender)"></i> Notas internas sin que las vea el paciente</div>
+        <div style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:var(--text-secondary)"><i class="ph ph-clock-counter-clockwise" style="color:var(--sage)"></i> Historial del paciente disponible al instante</div>
+        <div style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:var(--text-secondary)"><i class="ph ph-calendar-plus" style="color:var(--coral)"></i> "Agendar próxima consulta" al finalizar</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:.7rem;align-items:center">
+      <div class="video-wrap">
+        <div class="vbg"></div>
+        <div class="vuser"><div class="vav">MG</div><div class="vname">Martina González</div></div>
+        <div class="vbar">
+          <span class="vbar-lbl">En consulta · 18:24</span>
+          <div class="vbtns">
+            <div class="vb on"><i class="ph ph-microphone" style="font-size:.65rem"></i></div>
+            <div class="vb on"><i class="ph ph-camera" style="font-size:.65rem"></i></div>
+            <div class="vb red"><i class="ph ph-phone-slash" style="font-size:.65rem"></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="cp">
+        <div class="cp-head"><i class="ph ph-note-pencil" style="color:var(--sage)"></i> Historia clínica</div>
+        <div class="cp-note">Dolor lumbar desde hace 3 días. Sin fiebre. Evaluando origen muscular vs. disco.</div>
+        <div style="display:flex;gap:.3rem;flex-wrap:wrap">
+          <span class="cp-pill">Interna</span>
+          <span class="cp-pill s">Agregar orden</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. HISTORIA CLINICA -->
+<section class="slide slide-white" data-slide="6">
+  <div class="two-col">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow lavender">Historia clínica</span>
+      <h2 class="st">El historial<br>siempre <span class="al">disponible.</span></h2>
+      <p class="lead">Timeline cronológico por paciente. Cada nota tiene visibilidad: <strong>interna</strong> (solo profesionales) o <strong>externa</strong> (visible al paciente). Varios profesionales pueden anotar en el mismo historial.</p>
+      <p class="lead" style="font-size:.88rem">Integración con EHR Heural — alergias, vitales, medicación y prescripciones digitales sincronizadas.</p>
+    </div>
+    <div style="display:flex;justify-content:center">
+      <div class="hc-wrap">
+        <div style="font-size:.78rem;font-weight:700;margin-bottom:.85rem;display:flex;align-items:center;gap:.4rem"><i class="ph ph-file-text" style="color:var(--lavender)"></i> Martina González — HC</div>
+        <div class="hc-entry">
+          <div class="hc-meta"><span class="hc-title">Consulta 10/06</span><span class="hc-vis i">Interna</span></div>
+          <div class="hc-date" style="margin-bottom:.25rem">Dra. López · Medicina General</div>
+          <div class="hc-body">Dolor lumbar L4-L5. Se indica ibuprofeno 400mg + reposo relativo 48hs. Control en 7 días.</div>
+        </div>
+        <div class="hc-entry">
+          <div class="hc-meta"><span class="hc-title">Receta digital</span><span class="hc-vis e">Externa</span></div>
+          <div class="hc-date" style="margin-bottom:.25rem">Dra. López · 10/06</div>
+          <div class="hc-body">Ibuprofeno 400mg — 1 comp. cada 8hs por 5 días. Enviada por WhatsApp.</div>
+        </div>
+        <div class="hc-entry">
+          <div class="hc-meta"><span class="hc-title">Vitales pre-consulta</span><span class="hc-vis i">Interna</span></div>
+          <div class="hc-body">TA: 120/80 · FC: 72 · Temp: 36.5 · SpO2: 98%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7. RECETAS Y ORDENES -->
+<section class="slide slide-ivory" data-slide="7">
+  <div class="content">
+    <span class="eyebrow">Recetas y órdenes</span>
+    <h2 class="st">Documentos clínicos<br><span class="a">en segundos.</span></h2>
+    <p class="lead">Generás recetas, órdenes de análisis y derivaciones directamente desde la consulta. El paciente las recibe en su teléfono o email.</p>
+    <div class="fg" style="margin-top:.75rem;grid-template-columns:repeat(3,1fr)">
+      <div class="fc">
+        <div class="ic s"><i class="ph ph-pill"></i></div>
+        <h3>Recetas digitales</h3>
+        <p>Medicamento, dosis y posología. Enviada por WhatsApp o email al instante. Queda en la historia clínica.</p>
+      </div>
+      <div class="fc">
+        <div class="ic g"><i class="ph ph-clipboard-text"></i></div>
+        <h3>Órdenes de análisis</h3>
+        <p>Generás la orden con el tipo de estudio. El paciente la tiene en su bóveda para presentar en el laboratorio.</p>
+      </div>
+      <div class="fc">
+        <div class="ic l"><i class="ph ph-arrow-u-up-right"></i></div>
+        <h3>Derivaciones</h3>
+        <p>Derivá a otro profesional con contexto clínico incluido. Queda registrado en el historial del paciente.</p>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:.6rem;padding:.75rem 1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);margin-top:.25rem">
+      <i class="ph ph-whatsapp-logo" style="color:var(--green);font-size:1.1rem"></i>
+      <span style="font-size:.82rem;color:var(--text-secondary)">Integración con EHR Heural — recetas y medicación sincronizadas automáticamente</span>
+    </div>
+  </div>
+</section>
+
+<!-- 8. MIS PACIENTES -->
+<section class="slide slide-cream" data-slide="8">
+  <div class="two-col r">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow">Mis pacientes</span>
+      <h2 class="st">Todos tus pacientes,<br>en un <span class="a">lugar.</span></h2>
+      <p class="lead">Lista deduplicada de pacientes con los que tuviste consultas — con última fecha, modalidad, total de consultas y acceso directo a su historia clínica.</p>
+      <p class="lead" style="font-size:.88rem">Buscable por nombre. Un tap para ver el perfil completo o el historial clínico.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:.5rem;width:100%;max-width:320px">
+      <div style="font-size:.72rem;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.2rem">Mis pacientes (18)</div>
+      {[
+        {name:'Martina González',spec:'Medicina General',date:'10 jun',n:6,mod:'Video'},
+        {name:'Carlos Rodríguez',spec:'Medicina General',date:'8 jun',n:3,mod:'Presencial'},
+        {name:'Sofía Méndez',spec:'Medicina General',date:'5 jun',n:11,mod:'Video'},
+      ].map(p => `
+        <div style="display:flex;align-items:center;gap:.65rem;padding:.65rem .85rem;background:var(--surface);border:1px solid var(--border);border-radius:.9rem;box-shadow:var(--shadow-card)">
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--sage),var(--sage-hover));display:flex;align-items:center;justify-content:center;color:#fff;font-size:.75rem;font-weight:700;flex-shrink:0">${p.name.split(' ').map(x=>x[0]).join('')}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.78rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+            <div style="font-size:.65rem;color:var(--text-tertiary)">${p.date} · ${p.mod}</div>
+          </div>
+          <div style="font-size:.68rem;font-weight:700;background:var(--sage-muted);color:var(--sage-hover);padding:.18rem .5rem;border-radius:var(--radius-pill)">${p.n} consultas</div>
+        </div>
+      `).join('')}
+    </div>
+  </div>
+</section>
+
+<!-- 9. PERFIL / VIDRIERA -->
+<section class="slide slide-white" data-slide="9">
+  <div class="two-col">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow coral">Perfil público</span>
+      <h2 class="st">Tu perfil<br>clínico <span class="ac">completo.</span></h2>
+      <p class="lead">Foto, especialidad, bio clínica y dirección del consultorio. Tipos de consulta con precios propios — el paciente los elige al reservar.</p>
+      <p class="lead" style="font-size:.88rem">Rating y reseñas reales acumuladas consulta a consulta. Información siempre editable desde tu perfil.</p>
+    </div>
+    <div style="display:flex;justify-content:center">
+      <div class="prof-card">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.85rem">
+          <div class="pav">DR</div>
+          <div>
+            <div class="p-badge"><i class="ph ph-seal-check" style="font-size:.58rem"></i> Verificado</div>
+            <div style="font-size:.95rem;font-weight:700;margin-top:.1rem">Dr. Rodrigo Méndez</div>
+            <div style="font-size:.78rem;color:var(--text-secondary)">Nutricionista · Buenos Aires</div>
+          </div>
+        </div>
+        <div class="stars" style="margin-bottom:.75rem">★★★★★ <span style="font-size:.75rem;font-weight:400;color:var(--text-secondary)">4.8 · 63 reseñas</span></div>
+        <div style="font-size:.72rem;font-weight:700;margin-bottom:.4rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em">Tipos de consulta</div>
+        <div class="ct-row"><div><div class="ct-lbl">Consulta inicial</div><div class="ct-mod">Videollamada</div></div><div class="ct-price">$9.500</div></div>
+        <div class="ct-row"><div><div class="ct-lbl">Seguimiento</div><div class="ct-mod">Video o Presencial</div></div><div class="ct-price">$6.000</div></div>
+        <div class="ct-row"><div><div class="ct-lbl">NutriPlan Pro</div><div class="ct-mod">Videollamada</div></div><div class="ct-price">$14.000</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10. GANANCIAS -->
+<section class="slide slide-ivory" data-slide="10">
+  <div class="two-col r">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow gold">Ganancias</span>
+      <h2 class="st">Dashboard de<br>ingresos en <span class="ag">ARS.</span></h2>
+      <p class="lead">Totales por semana, mes e histórico. Evolución mensual con desglose presencial vs. video. Estado de cada cobro — pagado, pendiente o reembolsado.</p>
+      <p class="lead" style="font-size:.88rem">Vos fijás los precios por tipo de consulta. Los números, siempre claros.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:.65rem">
+      <div class="stat-grid">
+        <div class="sg"><div class="sg-lbl">Este mes</div><div class="sg-val" style="color:var(--sage)">$186.000</div><div class="sg-delta">↑ 24%</div></div>
+        <div class="sg"><div class="sg-lbl">Esta semana</div><div class="sg-val">$43.500</div><div class="sg-delta">↑ 12%</div></div>
+        <div class="sg"><div class="sg-lbl">Hoy</div><div class="sg-val" style="color:var(--coral)">6</div><div class="sg-delta">consultas</div></div>
+        <div class="sg"><div class="sg-lbl">Histórico</div><div class="sg-val">$1.24M</div><div class="sg-delta">184 consult.</div></div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);padding:.9rem 1.1rem;width:100%;max-width:380px">
+        <div style="font-size:.65rem;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.6rem">Evolución mensual</div>
+        <div style="display:flex;align-items:flex-end;gap:.45rem;height:52px">
+          <div style="flex:1;background:var(--sage-muted2);border-radius:.2rem .2rem 0 0;height:45%"></div>
+          <div style="flex:1;background:var(--sage-muted2);border-radius:.2rem .2rem 0 0;height:60%"></div>
+          <div style="flex:1;background:var(--sage-muted2);border-radius:.2rem .2rem 0 0;height:50%"></div>
+          <div style="flex:1;background:var(--sage-muted2);border-radius:.2rem .2rem 0 0;height:75%"></div>
+          <div style="flex:1;background:var(--sage);border-radius:.2rem .2rem 0 0;height:90%;opacity:.85"></div>
+        </div>
+        <div style="display:flex;gap:.45rem;margin-top:.2rem">
+          <div style="flex:1;font-size:.6rem;text-align:center;color:var(--text-tertiary)">Feb</div>
+          <div style="flex:1;font-size:.6rem;text-align:center;color:var(--text-tertiary)">Mar</div>
+          <div style="flex:1;font-size:.6rem;text-align:center;color:var(--text-tertiary)">Abr</div>
+          <div style="flex:1;font-size:.6rem;text-align:center;color:var(--text-tertiary)">May</div>
+          <div style="flex:1;font-size:.6rem;text-align:center;color:var(--sage);font-weight:700">Jun</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 11. NUTRIPLAN PRO -->
+<section class="slide slide-cream" data-slide="11">
+  <div class="two-col">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow gold">NutriPlan Pro</span>
+      <h2 class="st">Planes nutricionales<br>con <span class="ag">IA.</span></h2>
+      <p class="lead">Exclusivo para nutricionistas. Ingresás los datos del paciente y generás un plan con calorías objetivo, distribución de macros y recetas sugeridas — en segundos.</p>
+      <p class="lead" style="font-size:.88rem">El paciente lo ve en su app en la sección "Plan del día" con las recetas detalladas.</p>
+    </div>
+    <div style="display:flex;justify-content:center">
+      <div class="np-mock">
+        <div style="font-size:.78rem;font-weight:700;margin-bottom:.85rem;display:flex;align-items:center;gap:.4rem"><i class="ph ph-fork-knife" style="color:var(--gold)"></i> NutriPlan Pro</div>
+        <div class="np-bar-wrap">
+          <div class="np-bar-lbl"><span>Objetivo calórico</span><span style="color:var(--sage)">1.820 / 2.100 kcal</span></div>
+          <div class="np-bar"><div class="np-bar-fill" style="width:87%"></div></div>
+        </div>
+        <div style="font-size:.68rem;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">Plan del día</div>
+        <div class="np-meal"><div class="np-meal-icon"><i class="ph ph-sun"></i></div><div class="np-meal-name">Desayuno</div><div class="np-meal-kcal">380 kcal</div></div>
+        <div class="np-meal"><div class="np-meal-icon"><i class="ph ph-bowl-food"></i></div><div class="np-meal-name">Almuerzo</div><div class="np-meal-kcal">620 kcal</div></div>
+        <div class="np-meal"><div class="np-meal-icon"><i class="ph ph-coffee"></i></div><div class="np-meal-name">Merienda</div><div class="np-meal-kcal">180 kcal</div></div>
+        <div class="np-meal"><div class="np-meal-icon"><i class="ph ph-moon"></i></div><div class="np-meal-name">Cena</div><div class="np-meal-kcal">640 kcal</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 12. AI COMPANION -->
+<section class="slide slide-white" data-slide="12">
+  <div class="two-col r">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow lavender">Companion IA</span>
+      <h2 class="st">Tu asistente<br>clínico <span class="al">integrado.</span></h2>
+      <p class="lead">Un chat IA contextual con tu agenda real. Te saluda con tu primer paciente del día y te ayuda a navegar la plataforma con lenguaje natural.</p>
+      <div style="display:flex;flex-direction:column;gap:.4rem">
+        <div style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:var(--text-secondary)"><i class="ph ph-calendar-check" style="color:var(--lavender)"></i> "¿Qué tengo hoy?" → muestra la agenda</div>
+        <div style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:var(--text-secondary)"><i class="ph ph-user" style="color:var(--lavender)"></i> "Próximo paciente" → abre el perfil</div>
+        <div style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:var(--text-secondary)"><i class="ph ph-clock" style="color:var(--lavender)"></i> "Pendientes" → historial de consultas</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:center">
+      <div class="ai-mock">
+        <div class="ai-head">
+          <div class="ai-avatar">IA</div>
+          <div><div class="ai-name">Companion</div><div class="ai-status">Activo · 5 consultas hoy</div></div>
+        </div>
+        <div class="ai-bubble">¡Hola, Dra. López! Hoy tenés 5 consultas programadas. La primera es a las <strong>09:00</strong> con <strong>Martina González</strong>. ¿En qué te ayudo?</div>
+        <div class="ai-quick">
+          <span class="ai-q">¿Qué tengo hoy?</span>
+          <span class="ai-q">Próximo paciente</span>
+          <span class="ai-q">Pendientes</span>
+        </div>
+        <div class="ai-input">
+          <span class="ai-input-ph">Escribí tu consulta…</span>
+          <div class="ai-send"><i class="ph ph-paper-plane-tilt" style="font-size:.65rem"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 13. EMERGENCIAS -->
+<section class="slide slide-dark" data-slide="13">
+  <div class="two-col">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow" style="background:rgba(217,83,79,.2);color:#ff8a80">Emergencias</span>
+      <h2 class="st" style="color:#fff">Pantalla de guardia<br>para el <span style="color:var(--coral)">campo.</span></h2>
+      <p class="lead" style="color:rgba(255,255,255,.65)">UI full-screen diseñada para el celular en la calle. Botones grandes, alto contraste. Recibís el despacho, ves la triage, navegás al paciente con Google Maps y registrás la llegada.</p>
+      <div style="display:flex;flex-direction:column;gap:.4rem">
+        <div style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:rgba(255,255,255,.6)"><i class="ph ph-vibrate" style="color:var(--coral)"></i> Vibración al recibir un nuevo despacho</div>
+        <div style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:rgba(255,255,255,.6)"><i class="ph ph-map-trifold" style="color:var(--sage)"></i> "Navegar al paciente" abre Google Maps</div>
+        <div style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:rgba(255,255,255,.6)"><i class="ph ph-phone-call" style="color:var(--sky)"></i> "Llamar al paciente" con un tap</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:center">
+      <div class="emer-mock">
+        <div class="emer-status">
+          <div class="emer-dot"></div>
+          <div class="emer-lbl">En guardia · Escuchando</div>
+        </div>
+        <div class="emer-code rojo">⚠ Código Rojo</div>
+        <div class="emer-info">Dolor torácico + disnea. Paciente: H/58. A 2.1km.</div>
+        <div class="emer-btn primary">Aceptar emergencia</div>
+        <div style="height:.2rem"></div>
+        <div class="emer-code verde" style="margin-bottom:.6rem">✓ Código Verde — disponible</div>
+        <div class="emer-btn secondary">Navegar al paciente</div>
+        <div class="emer-btn secondary">Llamar al paciente</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 14. CTA -->
+<section class="slide slide-sage" data-slide="14">
+  <div class="content">
+    <svg width="90" height="19" viewBox="0 0 2540 545" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:.88;margin-bottom:.25rem">
+      <path d="M2448.13 177.94C2431.53 189.42 2417.82 226.52 2407.3 237.12L2406.85 203.81L2406.37 160.72C2406.55 155.87 2397.89 156.69 2395.11 155.8C2367.66 169.18 2332.68 186.41 2302.58 191.38L2302.41 206.5C2309.19 208.85 2335.7 206.6 2339.49 215.15L2295.16 329.68C2262.21 422.16 2175.28 540.94 2064.98 480.76C2028.56 458.86 2001.14 415.12 2010.64 371.86C2063.43 350.52 2169.76 304.28 2221.8 280.53L2272.79 256.5C2233.21 167.64 2121.29 120.98 2037.58 181.31C1890.93 281.28 1943.29 581.64 2149.99 540.47C2281.13 519.09 2312.97 360.92 2356.55 257.27C2353.02 309.94 2384.65 490.31 2329.97 510.45C2313.21 517.49 2296.91 509.14 2301.46 534.4L2474.8 534.39C2482.54 494.59 2409.9 535.49 2412.75 449.6C2419.64 377.61 2387.96 251.74 2465.32 210.14C2493.64 198.58 2515.86 213.39 2527.21 234.77C2540.48 240.08 2536.02 169.58 2539.02 165.78C2510.34 147.76 2472.36 154.1 2448.13 177.95V177.94ZM2046.84 226.43C2065.87 205.39 2091.38 192.99 2120.04 192.6C2159.51 191.17 2189.98 210.95 2211.81 244.15L2152.02 270.21C2022.04 326.75 1984.11 326.75 2046.84 226.43Z" fill="white"/>
+      <path d="M1736.52 480.85C1738.98 472.73 1740.42 464.47 1740.4 455.53L1740.07 293.92C1740.04 277.6 1737.64 262.44 1732.73 247.36C1726.45 228.04 1713.47 211.82 1694.89 203.4C1676.24 194.95 1655.56 193.74 1635.69 198.26C1601.8 205.97 1574.67 240.32 1567.27 273.71L1567.19 448.53C1567.18 459.05 1567.91 468.53 1570.84 478.23C1579.22 505.88 1603.77 514.19 1631.62 516.51L1631.81 534.39H1453.71L1453.62 516.72C1476.88 514.25 1499.88 509.44 1507.64 485.82C1510.34 477.58 1512.36 468.91 1512.36 459.44L1512.17 80.18C1512.17 69.77 1511.14 60.67 1509.4 50.98C1506.95 37.4 1497.86 27.02 1484.58 22.8C1475.14 19.79 1465.67 19.02 1455.14 17.76L1455.27 0H1567.02L1567.26 217.12L1587.17 191.64C1607.52 169.1 1634.88 156.8 1665.29 155.36C1713.46 153.07 1756.09 174.55 1776.05 219.18C1783.68 236.26 1788.05 253.8 1788.74 272.79L1787.49 495.41C1787.49 508.37 1804.24 513.98 1817.44 512.71C1835.13 511.01 1858.33 493.61 1859.85 475.81L1860.65 256.56C1860.91 241.19 1854.84 216.56 1840.63 211.63C1830.77 208.2 1820.88 207.96 1810.4 206.88L1810.71 191.17C1829.49 187.1 1847.07 182.11 1864.16 173.71L1899.82 156.17C1903 155.09 1908.57 156.99 1911.76 158.7L1908.03 462.6C1906.51 482.87 1909.35 507.6 1929.5 510.8L1953.83 514.66L1955.02 534.39H1677.8L1677.89 516.65C1704.31 513.65 1728.56 507.12 1736.52 480.85Z" fill="white"/>
+      <path d="M1470.29 483.55C1465.45 494.85 1460.69 505.1 1453.07 514.25C1434.97 535.99 1407.43 545.24 1379.54 541.82C1352.28 538.48 1331.17 521.22 1322.91 494.97C1318.46 480.8 1316.78 466.52 1316.76 451.13L1316.48 201.89L1261.87 201.83L1261.81 178.58C1273.28 174.44 1283.57 170.89 1293.9 165.2C1330.97 144.74 1343.58 105.53 1349.65 64.89H1369.43L1368.96 99.96V166.16L1463.86 166.36L1464 202.01L1368.95 201.97L1369.18 334.81L1369.88 445.58C1370.04 471.28 1378.83 498.53 1405.9 501.03C1418.62 502.2 1431.04 498.23 1441.06 489.79L1455.33 475.2L1470.29 483.55Z" fill="white"/>
+      <path d="M1924.31 44.66C1924.31 67.15 1906.07 85.38 1883.58 85.38C1861.09 85.38 1842.84 67.15 1842.84 44.66C1842.84 22.17 1861.08 3.94 1883.58 3.94C1906.08 3.94 1924.31 22.17 1924.31 44.66Z" fill="white"/>
+      <path d="M1279.66 516.37C1268.21 515.33 1258.02 513.81 1247.88 509.27C1226.51 499.72 1221.41 478.5 1221.4 455.41L1221.24 0.02L1110.45 0L1110.31 18.04C1134.56 19.66 1159.12 24.28 1163.92 49.59C1165.84 59.74 1166.57 69.3 1166.58 80.18L1166.72 454.42C1166.72 463.75 1165.84 471.35 1163.83 480.17C1159.51 499.13 1142.7 513.9 1122.6 513.22C1109.25 512.77 1098.26 503.51 1091.89 492.34C1086.23 482.42 1083.89 471.43 1083.87 459.56L1083.62 318.85C1083.58 297.11 1081.86 276.68 1077.83 255.57C1074.33 237.23 1068.22 220.08 1057.91 204.5C1028.28 159.69 971.72 148.01 920.87 158.06C875.4 167.05 842.31 198.71 822.63 239.83C813.34 259.23 806.49 278.69 800.12 299.34L776.81 374.82C754.98 445.51 715.49 500.87 635.01 495.2C568.14 489.99 529.27 433.88 519.84 370.94L651.88 315.95L786.91 258.33C760.37 202.12 714.09 159.41 649.72 154.47C619.86 152.27 590.49 156.51 563.49 169.68C468.13 216.18 447.34 339.11 482.17 433.23C498.06 476.17 527.77 511.4 570.51 528.99C610.92 545.63 656.04 547.5 697.49 533.43C742.43 518.17 769.32 483.31 786.38 440.35C795.18 418.19 801.69 396.19 808.1 373.11C816.58 342.57 824.95 312.99 836.28 283.47C853.74 238.02 880.83 199.33 932.25 194.44C953.03 192.47 973.36 196.23 991.04 207.4C1021.81 228.43 1027.71 263.83 1028.73 299.77C991.11 303.89 955.37 312.83 920.71 326.75C906.11 332.61 893.1 339.63 880.18 348.27C863.09 359.69 849.14 374.05 838.59 391.59C819.99 422.52 817.7 465.34 835.56 496.74C844.79 512.96 857.89 525.68 875.39 533C907.82 546.57 944.51 545.78 976.2 530.17C998.07 519.4 1014.88 502.42 1028.04 481.3C1032.69 513.04 1050.27 532.21 1082.44 536.97C1095.78 538.63 1108.29 537.53 1121.71 534.42L1279.88 534.39L1279.66 516.37Z" fill="white"/>
+      <path d="M356.33 477.02L358.76 443.52L358.51 272.01L116.85 272.04V457.49C116.85 467.26 118.96 475.95 121.85 484.61C131.7 508.2 154.35 513.91 179.15 516.45L179.01 534.41H0.14L0 516.72L28.12 510.85C44.23 505.88 55.54 493.3 58.91 476.54C60.89 466.69 61.18 457.14 61.18 446.44L61.16 88.16C61.16 74.64 60.14 62.41 57.17 49.81C50.95 23.4 26.97 20 1.89 17.78L1.98 0H176.91L177.08 17.97C151.12 20.13 127.33 25.33 120.81 51.88C118.16 64.83 117.05 77.36 117.03 91.07L116.82 238.01H358.51L358.59 90.07C358.6 76.98 357.53 65.04 355.21 52.59C349.36 24.33 326.68 20.09 299.46 17.86L299.55 0L474.04 0.02L474.18 17.91C448.41 19.45 422.24 26.03 417.51 52.61C415.26 65.24 414.33 77.34 414.32 90.56L414.11 426.45L414.65 455.72C414.8 464.19 415.62 472.6 417.82 480.71C424.75 506.34 448.09 514.62 474.69 516.41L474.82 534.39H297.59L297.87 516.06C326.87 512.7 349.44 506.94 356.33 477.02Z" fill="white"/>
+    </svg>
+    <h1 class="hero" style="color:#fff;font-size:clamp(2.2rem,5vw,3.6rem)">Tu plataforma<br>clínica, <span style="opacity:.7">completa.</span></h1>
+    <p style="font-size:1.05rem;color:rgba(255,255,255,.78);line-height:1.6;max-width:44ch">Dashboard · Agenda · Presencial · Video · Historia clínica · Recetas · Pacientes · Ganancias · NutriPlan · Companion IA</p>
+    <button class="btn-pill white">Registrarme como profesional →</button>
+    <p style="font-size:.78rem;color:rgba(255,255,255,.45);margin-top:.25rem">Verificación en 24–48 hs hábiles · Gratis para comenzar</p>
+  </div>
+</section>
+
+</div><!-- /#deck -->
+
+<script>
+const TOTAL = 14;
+let current = 1;
+const slides = document.querySelectorAll('.slide');
+const dotsEl = document.getElementById('dots');
+const counter = document.getElementById('counter');
+const progress = document.getElementById('progress-bar');
+const btnPrev = document.getElementById('btn-prev');
+const btnNext = document.getElementById('btn-next');
+
+slides.forEach((_,i) => {
+  const d = document.createElement('button');
+  d.className = 'dot' + (i===0?' active':'');
+  d.setAttribute('aria-label',`Slide ${i+1}`);
+  d.addEventListener('click',()=>goTo(i+1));
+  dotsEl.appendChild(d);
+});
+
+function pad(n){return String(n).padStart(2,'0')}
+
+function goTo(n){
+  if(n<1||n>TOTAL||n===current) return;
+  slides[current-1].classList.remove('active');
+  current=n;
+  slides[current-1].classList.add('active');
+  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===current-1));
+  counter.textContent=`${pad(current)} / ${pad(TOTAL)}`;
+  progress.style.width=`${(current/TOTAL)*100}%`;
+  btnPrev.classList.toggle('hidden',current===1);
+  btnNext.classList.toggle('hidden',current===TOTAL);
+  history.replaceState(null,'',`#${current}`);
+
+  const s = slides[current-1];
+  const dark = s.classList.contains('slide-dark')||s.classList.contains('slide-sage');
+  const nav = document.getElementById('nav');
+  nav.style.background = dark ? 'rgba(0,0,0,.25)' : 'rgba(246,245,240,.82)';
+  nav.style.borderBottomColor = dark ? 'rgba(255,255,255,.1)' : 'var(--border)';
+  counter.style.color = dark ? 'rgba(255,255,255,.4)' : 'var(--text-tertiary)';
+  document.querySelectorAll('.dot').forEach(d=>{
+    d.style.background = dark
+      ? (d.classList.contains('active')?'#fff':'rgba(255,255,255,.25)')
+      : (d.classList.contains('active')?'var(--sage)':'var(--border)');
+  });
+}
+
+btnNext.addEventListener('click',()=>goTo(current+1));
+btnPrev.addEventListener('click',()=>goTo(current-1));
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='Enter'){e.preventDefault();goTo(current+1)}
+  else if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();goTo(current-1)}
+  else if(e.key==='Home'){e.preventDefault();goTo(1)}
+  else if(e.key==='End'){e.preventDefault();goTo(TOTAL)}
+  else if(e.key==='f'||e.key==='F'){
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  }
+});
+
+document.getElementById('deck').addEventListener('click',e=>{
+  if(e.target.closest('button')||e.target.closest('a')) return;
+  const x = e.clientX/window.innerWidth;
+  if(x<0.25) goTo(current-1); else if(x>0.75) goTo(current+1);
+});
+
+let tx=0;
+document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX},{passive:true});
+document.addEventListener('touchend',e=>{
+  const dx=tx-e.changedTouches[0].clientX;
+  if(Math.abs(dx)>50) dx>0?goTo(current+1):goTo(current-1);
+},{passive:true});
+
+const hash=parseInt(location.hash.replace('#',''));
+const start=(hash>=1&&hash<=TOTAL)?hash:1;
+if(start!==1){
+  slides[0].classList.remove('active');
+  slides[start-1].classList.add('active');
+  current=start;
+  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===start-1));
+  counter.textContent=`${pad(start)} / ${pad(TOTAL)}`;
+  progress.style.width=`${(start/TOTAL)*100}%`;
+  btnPrev.classList.toggle('hidden',start===1);
+  btnNext.classList.toggle('hidden',start===TOTAL);
+}
+</script>
+</body>
+</html>

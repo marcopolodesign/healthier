@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Healthier × MercadoPago — Documentación de Integración</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #f6f5f0;
+    color: #2d2a26;
+    line-height: 1.6;
+  }
+  .header {
+    background: #2d2a26;
+    color: #f6f5f0;
+    padding: 40px 48px;
+  }
+  .header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+  }
+  .header p {
+    font-size: 14px;
+    color: #a09a94;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .badge-sandbox { background: #fef3c7; color: #92400e; }
+  .badge-prod    { background: #d1fae5; color: #065f46; }
+  .badge-done    { background: #dbeafe; color: #1e40af; }
+  .badge-pending { background: #fce7f3; color: #9d174d; }
+
+  .content { max-width: 960px; margin: 0 auto; padding: 48px 24px; }
+
+  section { margin-bottom: 48px; }
+  h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e5e3de;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h3 {
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #7c7167;
+    margin-bottom: 10px;
+    margin-top: 20px;
+  }
+
+  .card {
+    background: white;
+    border-radius: 16px;
+    border: 1px solid #e5e3de;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .card p, .card li {
+    font-size: 13.5px;
+    color: #4a4540;
+    margin-bottom: 4px;
+  }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .flow-step {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 16px;
+  }
+  .step-num {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    background: #7cb38b;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .step-content { flex: 1; }
+  .step-content strong { display: block; font-size: 14px; margin-bottom: 2px; }
+  .step-content span { font-size: 13px; color: #5a5550; }
+  .step-content code {
+    background: #f0ede8;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 12px; background: #f0ede8; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #5a5550; }
+  td { padding: 10px 12px; border-bottom: 1px solid #f0ede8; }
+  tr:last-child td { border-bottom: none; }
+  td code {
+    background: #f0ede8;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11.5px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  .secret-box {
+    background: #1e1b18;
+    color: #e8e3dc;
+    border-radius: 12px;
+    padding: 20px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    margin-top: 12px;
+  }
+  .secret-box .comment { color: #6b7280; }
+  .secret-box .key { color: #93c5fd; }
+  .secret-box .val { color: #6ee7b7; }
+
+  .checklist li {
+    list-style: none;
+    padding: 8px 0;
+    font-size: 14px;
+    border-bottom: 1px solid #f0ede8;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .check { color: #059669; font-size: 16px; }
+  .cross  { color: #e74c3c; font-size: 16px; }
+  .pend   { color: #d97706; font-size: 16px; }
+
+  .warning {
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-left: 4px solid #f59e0b;
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: 13px;
+    color: #78350f;
+    margin-top: 16px;
+  }
+  .info {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-left: 4px solid #3b82f6;
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: 13px;
+    color: #1e3a5f;
+    margin-top: 16px;
+  }
+
+  .prod-checklist {
+    counter-reset: prod-steps;
+  }
+  .prod-checklist li {
+    counter-increment: prod-steps;
+    list-style: none;
+    padding: 12px 16px 12px 48px;
+    position: relative;
+    border-bottom: 1px solid #f0ede8;
+    font-size: 13.5px;
+  }
+  .prod-checklist li::before {
+    content: counter(prod-steps);
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    background: #e8927c;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .prod-checklist li:last-child { border-bottom: none; }
+
+  footer {
+    background: #2d2a26;
+    color: #a09a94;
+    text-align: center;
+    padding: 24px;
+    font-size: 12px;
+    margin-top: 48px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Healthier × MercadoPago — Integración de Pagos</h1>
+  <p>Documentación técnica · Actualizada 2026-07-01 · Ambiente actual: <strong style="color:#fcd34d">Sandbox</strong></p>
+</div>
+
+<div class="content">
+
+  <!-- ESTADO ACTUAL -->
+  <section>
+    <h2>📋 Estado actual</h2>
+    <ul class="checklist card">
+      <li><span class="check">✅</span> App MP creada — ID <code>7249460045458060</code>, User ID <code>3496553871</code></li>
+      <li><span class="check">✅</span> Credenciales sandbox guardadas en Supabase secrets + <code>.env</code></li>
+      <li><span class="check">✅</span> Credenciales producción guardadas en Supabase secrets</li>
+      <li><span class="check">✅</span> Flag <code>IS_PROD</code> implementado en 4 Edge Functions + frontend</li>
+      <li><span class="check">✅</span> Checkout Bricks verificados end-to-end en sandbox</li>
+      <li><span class="check">✅</span> Webhook registrado en MP Developer Portal (sandbox + producción)</li>
+      <li><span class="check">✅</span> <code>MP_WEBHOOK_SECRET</code> guardado en Supabase secrets</li>
+      <li><span class="pend">⏳</span> Edge Functions de pagos activas en Supabase (mp-connect, mp-payment, mp-save-card, mp-webhook)</li>
+      <li><span class="cross">❌</span> Modo producción activo — pendiente de activación manual</li>
+    </ul>
+  </section>
+
+  <!-- CREDENCIALES Y SECRETS -->
+  <section>
+    <h2>🔑 Credenciales y Secrets</h2>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Supabase Secrets (Edge Functions)</div>
+        <p>Configuradas vía <code>supabase secrets set</code>. Solo accesibles en runtime de las Edge Functions — nunca expuestas al browser.</p>
+        <div class="secret-box">
+          <span class="comment"># Aplicación MP</span><br>
+          <span class="key">MP_CLIENT_ID</span>=<span class="val">✓ guardado</span><br>
+          <span class="key">MP_CLIENT_SECRET</span>=<span class="val">✓ guardado</span><br>
+          <span class="key">MP_REDIRECT_URI</span>=<span class="val">✓ guardado</span><br><br>
+          <span class="comment"># Access tokens (sandbox)</span><br>
+          <span class="key">MP_ACCESS_TOKEN</span>=<span class="val">TEST-1886... (sandbox)</span><br><br>
+          <span class="comment"># Access tokens (prod)</span><br>
+          <span class="key">MP_ACCESS_TOKEN_PROD</span>=<span class="val">APP_USR-... (prod)</span><br><br>
+          <span class="comment"># Webhook</span><br>
+          <span class="key">MP_WEBHOOK_SECRET</span>=<span class="val">262f1dbf... (firma HMAC)</span><br><br>
+          <span class="comment"># Feature flag</span><br>
+          <span class="key">MP_IS_PROD</span>=<span class="val">false</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Variables de entorno frontend (.env / Vercel)</div>
+        <p>Las claves públicas son seguras de exponer al browser — solo permiten inicializar el SDK, no operar.</p>
+        <div class="secret-box">
+          <span class="comment"># Modo activo</span><br>
+          <span class="key">VITE_MP_IS_PROD</span>=<span class="val">false</span><br><br>
+          <span class="comment"># Claves públicas (sin riesgo)</span><br>
+          <span class="key">VITE_MP_PUBLIC_KEY_SANDBOX</span>=<span class="val">TEST-42ab9055...</span><br>
+          <span class="key">VITE_MP_PUBLIC_KEY_PROD</span>=<span class="val">APP_USR-898fb96e...</span><br><br>
+          <span class="comment"># La app lee la correcta según IS_PROD</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="warning">
+      <strong>⚠️ Separación de responsabilidades:</strong> Las claves <em>secretas</em> (<code>MP_CLIENT_SECRET</code>, <code>MP_ACCESS_TOKEN</code>, <code>MP_WEBHOOK_SECRET</code>) viven solo en Supabase Secrets y nunca llegan al browser. Las claves <em>públicas</em> (<code>VITE_MP_PUBLIC_KEY_*</code>) están en el frontend y es seguro que así sea — MP las diseñó para eso.
+    </div>
+  </section>
+
+  <!-- FLUJO DE PAGO -->
+  <section>
+    <h2>💳 Flujo de pago completo</h2>
+
+    <div class="card">
+      <h3>Flujo principal — paciente agenda y paga</h3>
+
+      <div class="flow-step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <strong>Selección de profesional</strong>
+          <span>El paciente elige clínica → especialidad → profesional → fecha/hora en <code>/paciente/reservar</code></span>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <strong>PaymentPage — carga configuración MP</strong>
+          <span>El frontend llama a <code>mpService.getPaymentPlatformConfig()</code> → Edge Function <code>mp-save-card</code> retorna la <em>public key</em> correcta según <code>MP_IS_PROD</code>. Si no hay public key, entra en "modo demo" (badge amarillo).</span>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <strong>Selección o tokenización de tarjeta</strong>
+          <span>El componente <code>SavedCardSelector</code> muestra tarjetas guardadas del paciente. Si no tiene, renderiza <code>MercadoPago Checkout Bricks</code> para ingresar una tarjeta nueva — los datos nunca pasan por nuestros servidores, MP los tokeniza directamente.</span>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <strong>Crear consulta (status: pending)</strong>
+          <span>Antes de cobrar, se crea la consulta en Supabase con <code>status: 'pending'</code> y <code>payment_status: 'pending_payment'</code>. El DB write ocurre ANTES de intentar el pago — si algo falla, queda registro.</span>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <strong>Cobro vía Edge Function <code>mp-payment</code></strong>
+          <span>El frontend envía <code>{ consultationId, amount, cardId, professionalId }</code> → Edge Function usa <code>MP_ACCESS_TOKEN</code> para hacer <code>POST /v1/payments</code> a la API de MP. El token de tarjeta nunca llega al browser.</span>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-num">6</div>
+        <div class="step-content">
+          <strong>Resultado del pago</strong>
+          <span>Si <code>status === 'approved'</code> → redirige a <code>/paciente/turno-confirmado/:id</code>. Si falla → toast de error, la consulta queda en <code>pending_payment</code> para reintento.</span>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-num">7</div>
+        <div class="step-content">
+          <strong>Webhook confirma en backend</strong>
+          <span>MP envía una notificación a <code>/functions/v1/mp-webhook</code>. La Edge Function verifica la firma HMAC con <code>MP_WEBHOOK_SECRET</code> y actualiza el estado de la consulta en Supabase.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TARJETAS GUARDADAS -->
+  <section>
+    <h2>🗂️ Cuándo se usan las tarjetas guardadas</h2>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Primera vez que paga</div>
+        <p>El componente <code>SavedCardSelector</code> no tiene tarjetas para mostrar → renderiza <strong>Checkout Bricks</strong> de MP: formulario completo con número, vencimiento, CVV y nombre del titular.</p>
+        <br>
+        <p>El paciente puede tildar "Guardar tarjeta para futuras compras" → MP retorna un <code>customer_id</code> y un <code>card_id</code> que guardamos en Supabase (tabla <code>patient_payment_methods</code>).</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Pagos siguientes</div>
+        <p>El componente consulta las tarjetas guardadas del paciente (<code>mpService.getSavedCards(patientId)</code>) y las muestra como chips seleccionables con últimos 4 dígitos + icono de red.</p>
+        <br>
+        <p>El paciente elige una → el frontend envía solo el <code>card_id</code> a la Edge Function → MP procesa sin volver a pedir datos de la tarjeta.</p>
+      </div>
+    </div>
+
+    <h3>Datos que guardamos de las tarjetas</h3>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Campo</th><th>Guardado en</th><th>Para qué sirve</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>mp_customer_id</code></td>
+            <td><code>profiles</code> del paciente</td>
+            <td>ID de cliente en MP — necesario para listar y cobrar tarjetas guardadas</td>
+          </tr>
+          <tr>
+            <td><code>card_id</code></td>
+            <td><code>patient_payment_methods</code></td>
+            <td>Token de la tarjeta en MP. Se envía al cobrar — MP conoce los datos reales</td>
+          </tr>
+          <tr>
+            <td><code>last_four_digits</code></td>
+            <td><code>patient_payment_methods</code></td>
+            <td>Para mostrar al paciente cuál tarjeta es (ej: "•••• 4242")</td>
+          </tr>
+          <tr>
+            <td><code>payment_method_id</code></td>
+            <td><code>patient_payment_methods</code></td>
+            <td>Red de la tarjeta (visa, mastercard, etc.) — para mostrar el logo</td>
+          </tr>
+          <tr>
+            <td><code>expiration_month/year</code></td>
+            <td><code>patient_payment_methods</code></td>
+            <td>Mostrar vencimiento + alertar si expiró</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="info" style="margin-top: 12px;">
+        <strong>Nunca guardamos:</strong> el número completo de tarjeta, CVV, ni ningún dato sensible de PCI. Solo los tokens que MP nos devuelve, que son inútiles sin las credenciales del merchant.
+      </div>
+    </div>
+  </section>
+
+  <!-- EDGE FUNCTIONS -->
+  <section>
+    <h2>⚡ Edge Functions de MercadoPago</h2>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Función</th><th>Endpoint</th><th>Qué hace</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>mp-connect</code></td>
+            <td>OAuth callback</td>
+            <td>Maneja el flujo OAuth cuando un <em>profesional</em> conecta su cuenta MP propia. Guarda el <code>access_token</code> del profesional para pagarle directamente (split de pagos futuro).</td>
+          </tr>
+          <tr>
+            <td><code>mp-save-card</code></td>
+            <td><code>POST /mp-save-card</code></td>
+            <td>Guarda una nueva tarjeta del paciente en MP (crea <code>customer_id</code> si no existe) y registra el <code>card_id</code> en Supabase. También expone <code>GET /mp-save-card?action=config</code> para devolver la public key al frontend.</td>
+          </tr>
+          <tr>
+            <td><code>mp-payment</code></td>
+            <td><code>POST /mp-payment</code></td>
+            <td>Procesa el cobro. Recibe <code>consultationId + cardId + amount</code>, llama a MP API con el access token del servidor, y actualiza el estado de la consulta según resultado.</td>
+          </tr>
+          <tr>
+            <td><code>mp-webhook</code></td>
+            <td><code>POST /mp-webhook</code></td>
+            <td>Recibe notificaciones de MP (pagos, vinculaciones OAuth). Verifica firma HMAC con <code>MP_WEBHOOK_SECRET</code>. Actualiza <code>consultations.payment_status</code> y dispara notificaciones push.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- WEBHOOK -->
+  <section>
+    <h2>🔔 Webhook — cómo funciona</h2>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">URL registrada</div>
+        <p style="word-break: break-all; font-family: monospace; font-size: 12px; background: #f0ede8; padding: 8px; border-radius: 6px; margin-top: 8px;">
+          https://aixjejdoofervrkggbkd.supabase.co/functions/v1/mp-webhook
+        </p>
+        <br>
+        <p>Registrada en MP Developer Portal para <strong>Modo de prueba</strong> y <strong>Modo productivo</strong>. La misma URL atiende ambos — el flag <code>MP_IS_PROD</code> en la Edge Function determina cómo se procesa.</p>
+      </div>
+      <div class="card">
+        <div class="card-title">Eventos que escucha</div>
+        <ul style="list-style: none; font-size: 13px;">
+          <li style="padding: 8px 0; border-bottom: 1px solid #f0ede8;">
+            <strong>Vinculación de aplicaciones</strong><br>
+            <span style="color: #5a5550;">Cuando un profesional conecta su cuenta MP. Dispara el flujo OAuth de <code>mp-connect</code>.</span>
+          </li>
+          <li style="padding: 8px 0;">
+            <strong>Pagos (legacy)</strong><br>
+            <span style="color: #5a5550;">Notificación de cada pago procesado. Actualiza <code>payment_status</code> en Supabase y notifica al profesional.</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <div class="card-title">Verificación de firma HMAC</div>
+      <p style="font-size: 13px; margin-bottom: 12px;">Cada notificación de MP llega con el header <code>x-signature</code>. La Edge Function verifica que el cuerpo del request fue firmado con <code>MP_WEBHOOK_SECRET</code> antes de procesar — esto previene que alguien malicioso envíe requests falsos al webhook.</p>
+      <div class="secret-box">
+        <span class="comment">// Verificación en mp-webhook/index.ts</span><br>
+        <span class="key">const</span> signature = req.headers.<span class="val">get</span>(<span class="val">'x-signature'</span>)<br>
+        <span class="key">const</span> isValid = <span class="val">await</span> verifyHmac(body, signature, MP_WEBHOOK_SECRET)<br>
+        <span class="key">if</span> (!isValid) <span class="key">return</span> <span class="val">new</span> Response(<span class="val">'Unauthorized'</span>, { status: <span class="val">401</span> })
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURE FLAG IS_PROD -->
+  <section>
+    <h2>🚦 Feature flag IS_PROD</h2>
+
+    <div class="card">
+      <p style="font-size: 13.5px; margin-bottom: 16px;">El flag controla todo el ambiente. Cuando es <code>false</code>, todos los pagos usan la infraestructura de testing de MP (sin dinero real). Cuando pasa a <code>true</code>, todo el tráfico va a producción.</p>
+
+      <table>
+        <thead>
+          <tr><th>Variable</th><th>Ubicación</th><th>Efecto</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>MP_IS_PROD=false/true</code></td>
+            <td>Supabase Secrets</td>
+            <td>Edge Functions usan credenciales sandbox o prod para cobrar y verificar webhooks</td>
+          </tr>
+          <tr>
+            <td><code>VITE_MP_IS_PROD=false/true</code></td>
+            <td>Vercel Environment Variables</td>
+            <td>Frontend inicializa Checkout Bricks con la public key sandbox o prod</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="info">
+        <strong>Cómo funciona el frontend:</strong> <code>mpService.getPaymentPlatformConfig()</code> llama a la Edge Function que lee <code>MP_IS_PROD</code> y retorna <code>{ publicKey: "TEST-..." }</code> o <code>{ publicKey: "APP_USR-..." }</code>. Si la respuesta no tiene public key, <code>PaymentPage.jsx</code> muestra el badge "DEMO" y bypasea el pago real.
+      </div>
+    </div>
+  </section>
+
+  <!-- MODO DEMO -->
+  <section>
+    <h2>🎭 Modo Demo</h2>
+
+    <div class="card">
+      <div class="card-title">Cuándo activa</div>
+      <p style="font-size: 13.5px;">Cuando <code>getPaymentPlatformConfig()</code> no devuelve una public key (Edge Function caída, credenciales no configuradas, o en desarrollo sin Supabase). El componente detecta esto con:</p>
+      <div class="secret-box" style="margin-top: 12px;">
+        <span class="key">const</span> isDemoMode = !configLoading && !publicKey
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 0;">
+      <div class="card-title">Qué muestra</div>
+      <ul style="font-size: 13px; padding-left: 20px; color: #4a4540;">
+        <li style="padding: 4px 0;">Badge "DEMO" en amarillo en la sección "Método de Pago"</li>
+        <li style="padding: 4px 0;">Tarjeta "Pago de demostración — Sin cargo real" pre-seleccionada</li>
+        <li style="padding: 4px 0;">Botón primario "Confirmar y Pagar" que crea la consulta con <code>payment_status: 'demo'</code></li>
+        <li style="padding: 4px 0;">Botón secundario "Avanzar (demo)" para testing rápido del flujo post-pago</li>
+      </ul>
+      <div class="warning" style="margin-top: 12px;">
+        En modo demo se crea la consulta en la DB igual que en modo real, para que el flujo post-booking funcione completo. La diferencia es que <code>payment_status</code> queda como <code>'demo'</code> en lugar de <code>'paid'</code>.
+      </div>
+    </div>
+  </section>
+
+  <!-- PASAR A PRODUCCIÓN -->
+  <section>
+    <h2>🚀 Checklist para activar producción</h2>
+
+    <div class="card">
+      <ul class="prod-checklist">
+        <li>
+          Cambiar <code>MP_IS_PROD</code> en Supabase Secrets:<br>
+          <code>npx supabase secrets set MP_IS_PROD=true --project-ref aixjejdoofervrkggbkd</code>
+        </li>
+        <li>
+          Cambiar <code>VITE_MP_IS_PROD</code> en Vercel:<br>
+          <code>curl -X POST https://api.vercel.com/v9/projects/prj_Cd1LUNQYJjg7A5vhUkNGwVVgewRb/env -H "Authorization: Bearer $VERCEL_TOKEN" -d '{"key":"VITE_MP_IS_PROD","value":"true","type":"plain","target":["production"]}'</code>
+        </li>
+        <li>
+          Forzar redeploy en Vercel para que tome la nueva env var (o esperar al próximo push a <code>main</code>)
+        </li>
+        <li>
+          Verificar en el portal MP que la cuenta esté en modo productivo y que las credenciales de producción estén activadas
+        </li>
+        <li>
+          Hacer un pago de prueba real ($1 ARS) para confirmar que el flujo completo funciona — pago → webhook → estado en Supabase
+        </li>
+      </ul>
+    </div>
+
+    <div class="warning">
+      <strong>⚠️ Antes de activar producción:</strong> Asegurarse de que <code>MP_ACCESS_TOKEN_PROD</code> en Supabase Secrets corresponde a la cuenta que va a recibir los cobros. Verificar también que la URL de redirect OAuth esté configurada con el dominio productivo de Healthier.
+    </div>
+  </section>
+
+  <!-- DATOS QUE QUEDAN EN SUPABASE -->
+  <section>
+    <h2>🗄️ Datos de pago en Supabase</h2>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Tabla</th><th>Campo</th><th>Qué guarda</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>consultations</code></td>
+            <td><code>payment_status</code></td>
+            <td><code>pending_payment</code> → <code>paid</code> / <code>failed</code> / <code>demo</code></td>
+          </tr>
+          <tr>
+            <td><code>consultations</code></td>
+            <td><code>price_at_booking</code></td>
+            <td>Precio al momento de reservar (congelado aunque el profesional cambie su tarifa)</td>
+          </tr>
+          <tr>
+            <td><code>consultations</code></td>
+            <td><code>mp_payment_id</code></td>
+            <td>ID del pago en MP — para rastreo y disputas</td>
+          </tr>
+          <tr>
+            <td><code>profiles</code></td>
+            <td><code>mp_customer_id</code></td>
+            <td>ID del paciente como cliente en MP — necesario para tarjetas guardadas</td>
+          </tr>
+          <tr>
+            <td><code>patient_payment_methods</code></td>
+            <td>varios</td>
+            <td>Tarjetas guardadas: <code>card_id</code>, últimos 4 dígitos, vencimiento, red</td>
+          </tr>
+          <tr>
+            <td><code>professional_profiles</code></td>
+            <td><code>mp_access_token</code></td>
+            <td>(Futuro split) Access token del profesional para pagarle directamente</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  Healthier · Integración MercadoPago · Ambiente: Sandbox · App ID 7249460045458060 · Generado 2026-07-01
+</footer>
+
+</body>
+</html>

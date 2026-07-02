@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Healthier · Brief — 2026-05-15</title>
+<style>
+:root {
+  --brand: #b05a36;
+  --bg: #fef9ef;
+  --bg2: #f5eee1;
+  --text: #2a2b2f;
+  --muted: #7a7b80;
+  --mobile: #b05a36;
+  --website: #2a6b3c;
+  --cross: #2a4b8c;
+  --font-h: 'Georgia', 'Times New Roman', serif;
+  --font-b: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --r: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-b); font-size: 15px; line-height: 1.6; padding-bottom: 80px; }
+code { font-size: 12px; background: rgba(42,43,47,0.07); padding: 1px 5px; border-radius: 4px; font-family: 'Menlo', 'Monaco', monospace; }
+
+/* HEADER */
+.hdr { background: var(--text); color: #fff; padding: 24px 32px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.hdr-title { font-family: var(--font-h); font-size: 22px; font-weight: normal; letter-spacing: -0.02em; }
+.hdr-title em { color: var(--brand); }
+.hdr-meta { font-size: 13px; opacity: 0.55; text-align: right; }
+.hdr-meta strong { display: block; font-size: 16px; opacity: 1; color: #fff; }
+
+/* SUMMARY BAR */
+.summary { background: var(--bg2); border-bottom: 1px solid rgba(42,43,47,0.08); padding: 14px 32px; display: flex; gap: 28px; align-items: center; flex-wrap: wrap; }
+.s-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.s-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.s-item strong { font-size: 22px; font-weight: 700; line-height: 1; }
+.s-note { margin-left: auto; font-size: 12px; color: var(--muted); }
+
+/* MAIN LAYOUT */
+.main { max-width: 920px; margin: 32px auto; padding: 0 24px; }
+
+/* TABS — pure CSS, radio-based */
+.tabs input[type="radio"] { display: none; }
+.tab-labels { display: flex; border-bottom: 2px solid var(--bg2); margin-bottom: 28px; }
+.tab-labels label { padding: 10px 18px; cursor: pointer; font-size: 14px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color .15s; user-select: none; }
+.tab-labels label:hover { color: var(--text); }
+
+#t-all:checked  ~ .tab-labels label[for="t-all"]     { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
+#t-mob:checked  ~ .tab-labels label[for="t-mob"]     { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
+#t-web:checked  ~ .tab-labels label[for="t-web"]     { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
+#t-cross:checked ~ .tab-labels label[for="t-cross"]  { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
+
+#t-mob:checked   ~ .cards .card:not(.mobile)  { display: none; }
+#t-web:checked   ~ .cards .card:not(.website) { display: none; }
+#t-cross:checked ~ .cards .card:not(.cross)   { display: none; }
+
+/* CARDS */
+.cards { display: grid; gap: 16px; }
+.card { background: #fff; border-radius: var(--r); border: 1px solid rgba(42,43,47,0.09); overflow: hidden; box-shadow: 0 1px 4px rgba(42,43,47,0.04); }
+.card-head { padding: 16px 20px 12px; border-bottom: 1px dashed rgba(42,43,47,0.1); }
+.pill { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; color: #fff; margin-bottom: 10px; }
+.pill.mobile  { background: var(--mobile); }
+.pill.website { background: var(--website); }
+.pill.cross   { background: var(--cross); }
+.card-title { font-family: var(--font-h); font-size: 17px; font-weight: normal; line-height: 1.3; }
+.card-body { padding: 14px 20px; }
+.card-body p { font-size: 14px; color: #4a4b50; line-height: 1.7; }
+details { margin-top: 8px; }
+details summary { cursor: pointer; font-size: 13px; color: var(--brand); user-select: none; list-style: none; display: flex; align-items: center; gap: 4px; }
+details summary::-webkit-details-marker { display: none; }
+details summary::before { content: "▶"; font-size: 9px; transition: transform .15s; }
+details[open] summary::before { transform: rotate(90deg); }
+details .detail-body { margin-top: 8px; padding: 10px 14px; background: var(--bg2); border-radius: 8px; font-size: 13px; color: #4a4b50; }
+.test-hint { background: var(--bg); border-radius: 8px; padding: 11px 14px; margin-top: 14px; font-size: 13px; color: #4a4b50; border-left: 3px solid var(--brand); line-height: 1.6; }
+.test-hint strong { color: var(--text); }
+
+/* SECTION DIVIDER */
+.section-label { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 8px 0 -4px; padding: 0 4px; }
+
+/* ROADMAP */
+.roadmap { max-width: 920px; margin: 56px auto 0; padding: 0 24px; }
+.roadmap h2 { font-family: var(--font-h); font-size: 24px; font-weight: normal; margin-bottom: 6px; letter-spacing: -0.02em; }
+.roadmap .roadmap-sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+.rm-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 36px; border-radius: var(--r); overflow: hidden; box-shadow: 0 1px 4px rgba(42,43,47,0.06); }
+.rm-table th { text-align: left; padding: 11px 16px; background: var(--text); color: rgba(255,255,255,0.7); font-size: 11px; letter-spacing: .07em; text-transform: uppercase; font-weight: 600; }
+.rm-table td { padding: 12px 16px; border-bottom: 1px solid var(--bg2); vertical-align: middle; background: #fff; }
+.rm-table tr:last-child td { border-bottom: none; }
+.rm-table tr:hover td { background: #fdf7ee; }
+.rm-table td:first-child { color: var(--muted); font-size: 13px; width: 32px; }
+.badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 20px; }
+.b-done { background: #e8f5e9; color: #2e7d32; }
+.b-prog { background: #fff8e1; color: #e65100; }
+.b-pend { background: #f3f4f6; color: #6b7280; }
+.sub-tag { font-size: 11px; color: var(--muted); }
+
+/* MILESTONE CARDS */
+.milestones { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 14px; }
+.mc { background: #fff; border-radius: var(--r); border: 1px solid rgba(42,43,47,0.09); overflow: hidden; }
+.mc summary { padding: 14px 18px; cursor: pointer; font-weight: 600; font-size: 14px; list-style: none; display: flex; align-items: center; gap: 10px; user-select: none; }
+.mc summary::-webkit-details-marker { display: none; }
+.mc summary .mc-chevron { margin-left: auto; color: var(--muted); font-size: 18px; line-height: 1; }
+.mc-list { padding: 0 18px 14px; list-style: none; }
+.mc-list li { font-size: 13px; padding: 4px 0; color: #4a4b50; display: flex; gap: 8px; align-items: flex-start; }
+.mc-list li .ic { flex-shrink: 0; width: 16px; font-size: 13px; }
+.warn { background: #fff3cd; border-left: 3px solid #ffa000; padding: 10px 14px; border-radius: 6px; font-size: 13px; color: #5d4037; margin: 6px 18px 12px; }
+
+/* FOOTER */
+footer { text-align: center; padding: 32px; font-size: 12px; color: var(--muted); margin-top: 56px; border-top: 1px solid var(--bg2); }
+
+@media (max-width: 640px) {
+  .hdr { padding: 16px; }
+  .hdr-meta { text-align: left; }
+  .summary { padding: 12px 16px; gap: 16px; }
+  .s-note { display: none; }
+  .main, .roadmap { padding: 0 16px; }
+  .tab-labels label { padding: 10px 10px; font-size: 13px; }
+  .milestones { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="hdr-title">HEALTHIER · <em>Brief</em></div>
+  <div class="hdr-meta">
+    <strong>2026-05-15</strong>
+    Historial completo · Primera ejecución de /brief
+  </div>
+</header>
+
+<!-- SUMMARY BAR -->
+<div class="summary">
+  <div class="s-item">
+    <div class="s-dot" style="background:var(--mobile)"></div>
+    <strong>10</strong>&nbsp;grupos mobile
+  </div>
+  <div class="s-item">
+    <div class="s-dot" style="background:var(--website)"></div>
+    <strong>4</strong>&nbsp;grupos website
+  </div>
+  <div class="s-item">
+    <div class="s-dot" style="background:var(--cross)"></div>
+    <strong>2</strong>&nbsp;grupos cross
+  </div>
+  <div class="s-note">~112 entradas individuales en catchup.md · agrupadas por área</div>
+</div>
+
+<!-- TABS + CARDS -->
+<div class="main">
+  <div class="tabs">
+
+    <input type="radio" name="tab" id="t-all" checked>
+    <input type="radio" name="tab" id="t-mob">
+    <input type="radio" name="tab" id="t-web">
+    <input type="radio" name="tab" id="t-cross">
+
+    <div class="tab-labels">
+      <label for="t-all">Todos (16)</label>
+      <label for="t-mob">📱 Mobile (10)</label>
+      <label for="t-web">🌐 Website (4)</label>
+      <label for="t-cross">🔄 Cross (2)</label>
+    </div>
+
+    <div class="cards">
+
+      <!-- ── MOBILE ─────────────────────────────── -->
+
+      <article class="card mobile">
+        <div class="card-head">
+          <div class="pill mobile">📱 Mobile</div>
+          <h2 class="card-title">Escalado tipográfico dinámico — <code>sf()</code> en toda la app</h2>
+        </div>
+        <div class="card-body">
+          <p>Creada la utilidad <code>sf(size, factor=0.3)</code> en <code>src/lib/scaling.ts</code> (baseline 430pt, PixelRatio). Las 342 llamadas a <code>fontSize</code> en 30+ archivos fueron migradas. Se introdujo <code>FONT_SCALE = 1.1</code> para un aumento global del 10%. Todos los tokens de tipografía en <code>src/theme/typography.ts</code> usan <code>sf()</code>. Cero <code>fontSize: NUMBER</code> literales en el codebase.</p>
+          <details>
+            <summary>Ver archivos migrados</summary>
+            <div class="detail-body">Auth (5 screens), Tabs (4 screens), Bóveda (5 screens), Booking (2 screens), Consultation (4 screens), Emergency (4 screens), Shared components (6): PillButton, AddressAutocomplete, BirthDatePicker, MapArea.</div>
+          </details>
+          <div class="test-hint">
+            <strong>🧪 Dónde probar:</strong> Abrí la app móvil en simuladores de distintos tamaños (SE, 15 Pro, 15 Pro Max). El texto debe escalar proporcionalmente — ni demasiado chico en SE ni desproporcionado en Max.
+          </div>
+        </div>
+      </article>
+
+      <article class="card mobile">
+        <div class="card-head">
+          <div class="pill mobile">📱 Mobile</div>
+          <h2 class="card-title">Auth & Sesión — 6 fixes críticos resueltos</h2>
+        </div>
+        <div class="card-body">
+          <p><strong>(1)</strong> Sesión no persistía entre reinicios → chunked SecureStore adapter (1900 bytes/chunk). <strong>(2)</strong> Race condition en <code>AuthContext</code> → <code>Promise.all([getSession(), getBiometricEnabled()])</code>. <strong>(3)</strong> Logout automático al reabrir → background-timestamp approach (no más <code>setTimeout</code>). <strong>(4)</strong> Cancel de Face ID destruía la sesión → ahora solo redirige, no llama <code>signOut()</code>. <strong>(5)</strong> "Cerrar sesión" congelado → session guard en el layout de tabs. <strong>(6)</strong> Pill de último método persiste entre sign-outs.</p>
+          <div class="test-hint">
+            <strong>🧪 Dónde probar:</strong> Iniciá sesión, cerrá la app completamente, volvé a abrirla — la sesión debe persistir. Cancelá Face ID en el inicio — debe ir a login sin hacer logout. Tocá "Cerrar sesión" en Perfil — debe completarse sin congelarse.
+          </div>
+        </div>
+      </article>
+
+      <article class="card mobile">
+        <div class="card-head">
+          <div class="pill mobile">📱 Mobile</div>
+          <h2 class="card-title">Emergencias — flujo end-to-end + mapa real con ambulancia animada</h2>
+        </div>
+        <div class="card-body">
+          <p>El mapa usa <code>react-native-maps</code> con GPS real del paciente y coordenadas reales del doctor desde DB. El marcador de ambulancia interpola linealmente desde la posición del doctor hasta el paciente en cada tick de ETA. La videollamada fue movida a la fase correcta (en camino, no arrived). Post-flujo completo: la emergencia aparece en <strong>Agenda</strong> mientras está activa (ícono ambulancia + color triage), pasa a <strong>Historial</strong> al completarse, y genera un recibo en <strong>Comprobantes</strong> con código de despacho.</p>
+          <div class="test-hint">
+            <strong>🧪 Dónde probar:</strong> Iniciá un flujo SOS desde la app móvil. Verificá el mapa animado con el marcador de ambulancia. Chequeá la pestaña Agenda — debe aparecer la emergencia activa. Completala y verificá que pase a Historial y Comprobantes.
+          </div>
+        </div>
+      </article>
+
+      <article class="card mobile">
+        <div class="card-head">
+          <div class="pill mobile">📱 Mobile</div>
+          <h2 class="card-title">Bóveda — orden dinámico + BioVisor AI + NutriPlan</h2>
+        </div>
+        <div class="card-body">
+          <p>La grilla ordena las cards en runtime: con-contenido primero (borde coloreado + punto + badge "Activo"/"N docs"), vacías al final. Dos pantallas especiales nuevas: <strong>BioVisor</strong> — analizador de análisis de sangre con barras visuales, gráfico SVG histórico y extracción Gemini 2.5 Flash desde PDF. <strong>NutriPlan</strong> — plan nutricional con MealCards chequeables, notas e IA para generación de recetas.</p>
+          <div class="test-hint">
+            <strong>🧪 Dónde probar:</strong> Abrí la app móvil → pestaña Bóveda. Las cards con documentos deben aparecer primero con badge "Activo". Tocá BioVisor para el analizador o NutriPlan para el plan nutricional.
+          </div>
+        </div>
+      </article>
+
+      <article class="card mobile">
+        <div class="card-head">
+          <div class="pill mobile">📱 Mobile</div>
+          <h2 class="card-title">ProfessionalBottomSheet — card reutilizable app-wide</h2>
+        </div>
+        <div class="card-body">
+          <p>Nuevo componente <code>src/components/professional/ProfessionalBottomSheet.tsx</code> — un <code>BottomSheetModal</code> de GoRhom usado desde cualquier parte de la app para mostrar info de un profesional: avatar con iniciales coloreadas, nombre en serif, especialidad, pill "Activo", botones rápidos (WhatsApp, Llamar, Email) y CTA primaria "Pedir turno". Integrado en: NutriPlan (tocar el nombre del profesional) y Perfil → Mis Profesionales (activos e historial).</p>
+          <div class="test-hint">
+            <strong>🧪 Dónde probar:</strong> Abrí la app móvil → pestaña Perfil → sección "Mis Profesionales" → tocá cualquier profesional. Debe abrirse el sheet con las opciones de contacto y el botón "Pedir turno".
+          </div>
+        </div>
+      </article>
+
+      <article class="card mobile">
+        <div class="card-head">
+          <div class="pill mobile">📱 Mobile</div>
+          <h2 class="card-title">Face ID toggle en Perfil + NutriPlan header + Mis Profesionales</h2>
+        </div>
+        <div class="card-body">
+          <p>Toggle de Face ID / Huella digital en "Información básica" del Perfil — usa <code>useBiometric</code> hook, oculto si no hay hardware disponible. NutriPlan header rediseñado: muestra comidas completadas y kcal en tiempo real + atribución del profesional con tap para abrir ProfessionalBottomSheet. La sección "Mis Profesionales" en Perfil deduplica consultas por profesional y separa en Activos (últimos 90 días) e Historial.</p>
+          <div class="test-hint">
+            <strong>🧪 Dónde probar:</strong> Abrí la app móvil → pestaña Perfil → "Información básica" → verificá el toggle de Face ID. Navegá a Bóveda → NutriPlan y tocá el nombre del profesional en el header.
+          </div>
+        </div>
+      </article>
+
+      <article class="card mobile">
+        <div class="card-head">
+          <div class="pill mobile">📱 Mobile</div>
+          <h2 class="card-title">Agenda — polish de cards (acciones planas, fecha grande, columna izquierda)</h2>
+        </div>
+        <div class="card-body">
+          <p>Botones de acción planos sin border-radius, con un solo divider vertical entre "Cancelar" e "Ingresar". Columna izquierda: día 34px → 40px, mes con <code>marginTop: -4</code> para pegarlo al número, time pill con <code>numberOfLines={1}</code> y <code>flexShrink: 0</code>, ancho LEFT_W 82 → 90px. El patrón ícono-inline + nombre coloreado fue aplicado a las cards de consulta (vertical icon + nombre serif encima del nombre del profesional).</p>
+          <div class="test-hint">
+            <strong>🧪 Dónde probar:</strong> Abrí la app móvil → pestaña Agenda. Las cards deben mostrar la fecha grande a la izquierda, con los botones de acción planos abajo. El horario no debe hacer wrap dentro del pill.
+          </div>
+        </div>
+      </article>
+
+      <article class="card mobile">
+        <div class="card-head">
+          <div class="pill mobile">📱 Mobile</div>
+          <h2 class="card-title">EmergencyCard — componente extraído + banner persistente en Inicio</h2>
+        </div>
+        <div class="card-body">
+          <p>Extraído <code>src/components/agenda/EmergencyCard.tsx</code> con estructura: badge de ícono + columna nombre/código de despacho + línea ETA (<code>statusLabel · minETA–maxETA min</code> para estados activos). En la pantalla de Inicio, un <code>useFocusEffect</code> detecta emergencias activas al enfocar el tab y renderiza la EmergencyCard encima de "Buscar por especialidad". El strip inferior es full-bleed con el color de triage sólido.</p>
+          <div class="test-hint">
+            <strong>🧪 Dónde probar:</strong> Con una emergencia activa en DB, abrí la app móvil → pestaña Inicio. Debe aparecer el banner de emergencia con color de triage y código de despacho, encima de las especialidades.
+          </div>
+        </div>
+      </article>
+
+      <article class="card mobile">
+        <div class="card-head">
+          <div class="pill mobile">📱 Mobile</div>
+          <h2 class="card-title">"Último utilizado" pill — acceso rápido en landing y login</h2>
+        </div>
+        <div class="card-body">
+          <p>Pill de "Último utilizado" en dos lugares: en <code>landing.tsx</code> sobre el botón "Continuar con email" cuando el último método fue email; en <code>login.tsx</code> sobre el botón biométrico cuando fue Face ID o Huella digital. La preferencia sobrevive sign-outs (<code>StorageService.clear()</code> ahora solo limpia claves de sesión, no preferencias). Contenido: solo texto "Último utilizado" — sin ícono ni nombre del método.</p>
+          <div class="test-hint">
+            <strong>🧪 Dónde probar:</strong> Iniciá sesión con email, cerrá sesión, volvé a la landing. Debe aparecer el pill sobre el botón de email. Repetí con Face ID para verificar que aparece sobre el botón biométrico.
+          </div>
+        </div>
+      </article>
+
+      <article class="card mobile">
+        <div class="card-head">
+          <div class="pill mobile">📱 Mobile</div>
+          <h2 class="card-title">Mapa — gradiente top-edge + filtro "Disponibles ahora"</h2>
+        </div>
+        <div class="card-body">
+          <p><code>expo-linear-gradient</code> de 140px en el borde superior del mapa (<code>rgba(254,249,239,0.82) → transparent</code>, <code>pointerEvents="none"</code>) — cero costo de GPU, sin blur. Chip "⚡ Disponibles ahora": al activarse, los profesionales on-demand mantienen su estilo con anillo pulsante; los scheduled-only se atenúan a opacity 0.3 y se desactivan sus presses. Marcadores on-demand: círculo relleno + pulso; scheduled: círculo blanco con borde + dot azul.</p>
+          <div class="test-hint">
+            <strong>🧪 Dónde probar:</strong> Abrí la app móvil → pestaña Inicio. Verificá el gradiente suave en el borde superior del mapa. Tocá "⚡ Disponibles ahora" y verificá que los profesionales no on-demand se atenúen. <em>Nota: el gradiente requiere rebuild nativo por expo-linear-gradient.</em>
+          </div>
+        </div>
+      </article>
+
+      <!-- ── WEBSITE ─────────────────────────────── -->
+
+      <article class="card website">
+        <div class="card-head">
+          <div class="pill website">🌐 Website</div>
+          <h2 class="card-title">"Último utilizado" pill en Patient Dashboard</h2>
+        </div>
+        <div class="card-body">
+          <p>Pill de acceso rápido en la parte superior del dashboard del paciente (encima del row de vitales, tanto en sheet móvil como en panel flotante de escritorio) que aparece después de la primera navegación a cualquier especialidad. Muestra ícono de la vertical, nombre y ETA en el color de acento. Persiste en <code>localStorage</code> (<code>healthier_last_vertical</code>). El helper <code>goToVertical(v)</code> centraliza toda la navegación a OnDemand.</p>
+          <div class="test-hint">
+            <strong>🧪 Dónde probar:</strong> Abre <code>/paciente/dashboard</code> en la app web → navegá a cualquier especialidad → volvé al dashboard. El pill debe aparecer arriba del contenido con la especialidad usada. Recargá la página — el pill debe persistir.
+          </div>
+        </div>
+      </article>
+
+      <article class="card website">
+        <div class="card-head">
+          <div class="pill website">🌐 Website</div>
+          <h2 class="card-title">NutriPlan Pro — herramienta clínica completa para nutricionistas</h2>
+        </div>
+        <div class="card-body">
+          <p>Nueva página en <code>/profesional/nutriplan</code>, visible solo para <code>specialty === 'nutricion'</code>. Cuatro tabs: <strong>Paciente</strong> (formulario biométrico + BMI/BMR/TDEE/macros Mifflin-St Jeor en vivo), <strong>Dieta</strong> (barras de progreso + búsqueda en catálogo local 165 alimentos argentinos + FatSecret API + modal de alimento custom), <strong>Template</strong> (editor de slots de comida, distribución, preview del paciente), <strong>Monitoreo</strong> (tracking con date picker + historial de adherencia). Acento verde sage (#7CB38B).</p>
+          <div class="test-hint">
+            <strong>🧪 Dónde probar:</strong> Iniciá sesión con un profesional de specialty nutricion. En el sidebar debe aparecer "NutriPlan Pro". Navegá a <code>/profesional/nutriplan</code>. Con un profesional de otra especialidad, el ítem no debe aparecer.
+          </div>
+        </div>
+      </article>
+
+      <article class="card website">
+        <div class="card-head">
+          <div class="pill website">🌐 Website</div>
+          <h2 class="card-title">Sidebar — widget de perfil + sin header para profesionales + nav gateado</h2>
+        </div>
+        <div class="card-body">
+          <p>El slot inferior del Sidebar muestra avatar (o <code>UserCircle</code>) + nombre + "Ver perfil" para pacientes y profesionales — eliminando el ítem duplicado "Mi perfil". <code>AppLayout</code> ya no renderiza el <code>Header</code> cuando el rol es <code>professional</code>. La nav especializada (NutriPlan Pro) se gatea por <code>profSpecialty</code> pasado desde <code>App.jsx</code> → <code>AppLayout</code> → <code>Sidebar</code>. Admin/super_admin siguen viendo el botón de logout.</p>
+          <div class="test-hint">
+            <strong>🧪 Dónde probar:</strong> Iniciá sesión como profesional — no debe haber header y el sidebar debe mostrar el widget de perfil abajo. Como paciente, verificar que también aparece. Comparar con admin donde debe aparecer el botón de logout.
+          </div>
+        </div>
+      </article>
+
+      <article class="card website">
+        <div class="card-head">
+          <div class="pill website">🌐 Website</div>
+          <h2 class="card-title">Emergencias profesional — URL param, demo mode, síntomas en arrived</h2>
+        </div>
+        <div class="card-body">
+          <p><code>/profesional/emergencias</code> acepta <code>?id=&lt;uuid&gt;</code> para cargar una emergencia específica (deeplinks, reconexión tras cierre del browser). <strong>Demo mode:</strong> <code>?demo=standby|dispatched|in_transit|arrived</code> inyecta estado mock sin Supabase — ideal para pitching. Arrived es presencial only (se quitó videollamada). En arrived, parsea <code>emergency.notes</code> como JSON y muestra los síntomas específicos reportados por el paciente; fallback al listado completo de la categoría si no hay notas.</p>
+          <div class="test-hint">
+            <strong>🧪 Dónde probar:</strong> Abre <code>/profesional/emergencias?demo=dispatched</code> para ver la fase en camino con Google Maps. Probá <code>?demo=arrived</code> para la fase de llegada con síntomas del paciente.
+          </div>
+        </div>
+      </article>
+
+      <!-- ── CROSS ─────────────────────────────── -->
+
+      <article class="card cross">
+        <div class="card-head">
+          <div class="pill cross">🔄 Cross</div>
+          <h2 class="card-title">Triage multi-select de síntomas — DB + visible al profesional</h2>
+        </div>
+        <div class="card-body">
+          <p>En mobile, el triage reemplazó los botones SÍ/NO binarios con <strong>chips tapeables individualmente</strong>. "Ninguno de estos" siempre disponible. El recap del paso 3 lista exactamente los síntomas seleccionados. Se guardan como <code>JSON.stringify(symptoms)</code> en <code>emergencies.notes</code>. En website, la pantalla arrived del profesional parsea el JSON y muestra los síntomas exactos del paciente — con fallback al listado de categoría para registros anteriores.</p>
+          <div class="test-hint">
+            <strong>🧪 Dónde probar:</strong> Iniciá un flujo SOS en la app móvil → en el triage, seleccioná 2–3 síntomas específicos. Verificá el recap en el paso 3. En la app web, abre <code>/profesional/emergencias?demo=arrived</code> para ver los síntomas desde la perspectiva del profesional.
+          </div>
+        </div>
+      </article>
+
+      <article class="card cross">
+        <div class="card-head">
+          <div class="pill cross">🔄 Cross</div>
+          <h2 class="card-title">Pantalla de emergencias profesional + patrón mobile-first documentado</h2>
+        </div>
+        <div class="card-body">
+          <p><code>/profesional/emergencias</code> construida como ruta standalone sin sidebar (registrada antes del bloque <code>AppLayout</code> en <code>App.jsx</code>). Cuatro fases: standby (pulso realtime), incoming (alerta full-screen + "Aceptar"), en camino (Google Maps navegación + "Llegué"), arrived (cierre de caso). Migración <code>016</code>: <code>patient_latitude/longitude</code>, política UPDATE para profesionales, acceso a perfiles de pacientes en emergencias activas. Patrón mobile-first documentado en ambos <code>CLAUDE.md</code>.</p>
+          <div class="test-hint">
+            <strong>🧪 Flujo completo:</strong> (1) Iniciá SOS en la app móvil. (2) El banner en <code>/profesional/dashboard</code> debe aparecer. (3) Hacé click → <code>/profesional/emergencias</code> → aceptar. (4) Link de Google Maps con coordenadas reales. (5) "Llegué" → arrived phase. (6) "Cerrar emergencia".
+          </div>
+        </div>
+      </article>
+
+    </div><!-- /cards -->
+  </div><!-- /tabs -->
+</div><!-- /main -->
+
+
+<!-- ── ROADMAP ────────────────────────────────────────── -->
+<section class="roadmap">
+  <h2>Roadmap del proyecto</h2>
+  <p class="roadmap-sub">Auto-generado desde catchup.md el 2026-05-15. Actualizar en <code>docs/roadmap.md</code> cuando cambien las prioridades.</p>
+
+  <table class="rm-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Hito</th>
+        <th>Estado</th>
+        <th>Sub-proyectos</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><strong>MVP Scaffold &amp; Design System</strong></td>
+        <td><span class="badge b-done">✅ Completo</span></td>
+        <td><span class="sub-tag">ambos</span></td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><strong>Auth &amp; Onboarding</strong></td>
+        <td><span class="badge b-done">✅ Completo</span></td>
+        <td><span class="sub-tag">ambos</span></td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><strong>Patient Home &amp; Discovery</strong></td>
+        <td><span class="badge b-prog">🟡 En progreso</span></td>
+        <td><span class="sub-tag">ambos</span></td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><strong>Bookings &amp; Agenda</strong></td>
+        <td><span class="badge b-done">✅ Core completo</span></td>
+        <td><span class="sub-tag">ambos</span></td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td><strong>Bóveda Médica</strong></td>
+        <td><span class="badge b-prog">🟡 En progreso</span></td>
+        <td><span class="sub-tag">mobile</span></td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td><strong>Video Consulta</strong></td>
+        <td><span class="badge b-done">✅ Completo</span></td>
+        <td><span class="sub-tag">ambos</span></td>
+      </tr>
+      <tr>
+        <td>7</td>
+        <td><strong>Emergencias</strong></td>
+        <td><span class="badge b-prog">🟡 En progreso</span></td>
+        <td><span class="sub-tag">ambos</span></td>
+      </tr>
+      <tr>
+        <td>8</td>
+        <td><strong>Professional Dashboard</strong></td>
+        <td><span class="badge b-prog">🟡 En progreso</span></td>
+        <td><span class="sub-tag">website</span></td>
+      </tr>
+      <tr>
+        <td>9</td>
+        <td><strong>Design System &amp; Polish</strong></td>
+        <td><span class="badge b-prog">🟡 En progreso</span></td>
+        <td><span class="sub-tag">ambos</span></td>
+      </tr>
+      <tr>
+        <td>10</td>
+        <td><strong>Admin &amp; Super Admin</strong></td>
+        <td><span class="badge b-prog">🟡 En progreso</span></td>
+        <td><span class="sub-tag">website</span></td>
+      </tr>
+      <tr>
+        <td>11</td>
+        <td><strong>Pagos (Stripe)</strong></td>
+        <td><span class="badge b-pend">⬜ Pendiente</span></td>
+        <td><span class="sub-tag">ambos</span></td>
+      </tr>
+      <tr>
+        <td>12</td>
+        <td><strong>Push Notifications</strong></td>
+        <td><span class="badge b-pend">⬜ Pendiente</span></td>
+        <td><span class="sub-tag">mobile</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="milestones">
+
+    <details class="mc" open>
+      <summary>🔐 Auth &amp; Onboarding <span class="mc-chevron">›</span></summary>
+      <ul class="mc-list">
+        <li><span class="ic">✅</span> Landing + OAuth (Google, Apple)</li>
+        <li><span class="ic">✅</span> Login biométrico (Face ID / Touch ID)</li>
+        <li><span class="ic">✅</span> Registro multi-step 4 pasos</li>
+        <li><span class="ic">✅</span> CABA zone picker + waitlist</li>
+        <li><span class="ic">✅</span> Session persistence (chunked SecureStore)</li>
+        <li><span class="ic">✅</span> 6 fixes críticos de sesión y biométrico</li>
+        <li><span class="ic">✅</span> Patient onboarding 3-step (website)</li>
+        <li><span class="ic">✅</span> Professional onboarding 5-step (website)</li>
+        <li><span class="ic">⬜</span> Password reset / forgot password</li>
+        <li><span class="ic">⬜</span> Verificación de email</li>
+      </ul>
+    </details>
+
+    <details class="mc" open>
+      <summary>🚨 Emergencias <span class="mc-chevron">›</span></summary>
+      <ul class="mc-list">
+        <li><span class="ic">✅</span> Triage 3 pasos (ROJO/AMARILLO/VERDE)</li>
+        <li><span class="ic">✅</span> Multi-select de síntomas con chips</li>
+        <li><span class="ic">✅</span> Integración real con DB (profesional on-demand)</li>
+        <li><span class="ic">✅</span> Mapa real con GPS + ambulancia animada</li>
+        <li><span class="ic">✅</span> Pantalla profesional standalone (website)</li>
+        <li><span class="ic">✅</span> URL param ?id= + demo mode</li>
+        <li><span class="ic">✅</span> Post-flujo en Agenda, Historial, Comprobantes</li>
+        <li><span class="ic">⚠️</span> KNOWN GAP: sin resume path si el paciente cierra la app</li>
+        <li><span class="ic">⬜</span> Push notification al profesional</li>
+        <li><span class="ic">⬜</span> ETA real por distancia GPS</li>
+        <li><span class="ic">⬜</span> Cola de espera con múltiples profesionales</li>
+      </ul>
+      <div class="warn">⚠️ El estado del flujo de emergencia vive en memoria. Si el paciente cierra la app durante la emergencia, no puede retomar el flujo. Pendiente: detectar emergencia activa al abrir y redirigir al mapa.</div>
+    </details>
+
+    <details class="mc" open>
+      <summary>📱 Bóveda Médica <span class="mc-chevron">›</span></summary>
+      <ul class="mc-list">
+        <li><span class="ic">✅</span> Upload/delete de documentos por categoría</li>
+        <li><span class="ic">✅</span> BioVisor AI (análisis de sangre + Gemini)</li>
+        <li><span class="ic">✅</span> NutriPlan paciente (MealCards + IA)</li>
+        <li><span class="ic">✅</span> Orden dinámico de cards (contenido-primero)</li>
+        <li><span class="ic">⬜</span> Amigo Peludo (veterinaria) — en progreso</li>
+        <li><span class="ic">⬜</span> Sincronización bidireccional Apple Health</li>
+        <li><span class="ic">⬜</span> Compartir documentos con profesionales</li>
+      </ul>
+    </details>
+
+    <details class="mc">
+      <summary>📅 Bookings &amp; Agenda <span class="mc-chevron">›</span></summary>
+      <ul class="mc-list">
+        <li><span class="ic">✅</span> Flujo completo: mapa → pro → servicio → pago</li>
+        <li><span class="ic">✅</span> Weekly schedule editor (website) + booking (mobile)</li>
+        <li><span class="ic">✅</span> Waiting room con Supabase Realtime</li>
+        <li><span class="ic">✅</span> Agenda Hoy/Próximos/Historial + useFocusEffect</li>
+        <li><span class="ic">✅</span> Status pending_pro_close</li>
+        <li><span class="ic">✅</span> Post-consultation review (5 estrellas)</li>
+        <li><span class="ic">⬜</span> Calendly embed (diferido)</li>
+        <li><span class="ic">⬜</span> Recordatorio de turno (push)</li>
+        <li><span class="ic">⬜</span> Cancelación con reembolso</li>
+      </ul>
+    </details>
+
+    <details class="mc">
+      <summary>💼 Professional Dashboard <span class="mc-chevron">›</span></summary>
+      <ul class="mc-list">
+        <li><span class="ic">✅</span> Dashboard web con mapa realtime</li>
+        <li><span class="ic">✅</span> Agenda + franjas horarias configurables</li>
+        <li><span class="ic">✅</span> NutriPlan Pro (gateado por specialty)</li>
+        <li><span class="ic">✅</span> Emergencias standalone mobile-first</li>
+        <li><span class="ic">✅</span> Sidebar sin header + widget de perfil</li>
+        <li><span class="ic">⬜</span> Panel de estadísticas / ingresos</li>
+        <li><span class="ic">⬜</span> App móvil para profesionales</li>
+      </ul>
+    </details>
+
+    <details class="mc">
+      <summary>🎨 Design System &amp; Polish <span class="mc-chevron">›</span></summary>
+      <ul class="mc-list">
+        <li><span class="ic">✅</span> Design tokens: terracotta / cream / text</li>
+        <li><span class="ic">✅</span> sf() scaling en todas las pantallas mobile</li>
+        <li><span class="ic">✅</span> Font scale +10% (FONT_SCALE = 1.1)</li>
+        <li><span class="ic">✅</span> Inline icon+label pattern (Bóveda/Agenda/Perfil)</li>
+        <li><span class="ic">✅</span> ProfessionalBottomSheet reutilizable</li>
+        <li><span class="ic">✅</span> iOS 26 floating glass tab bar</li>
+        <li><span class="ic">✅</span> Cero fontSize literales — solo tokens</li>
+        <li><span class="ic">⬜</span> Dark mode</li>
+        <li><span class="ic">⬜</span> Componentes documentados / Storybook</li>
+      </ul>
+    </details>
+
+    <details class="mc">
+      <summary>💳 Pagos &amp; Push — Pendiente <span class="mc-chevron">›</span></summary>
+      <ul class="mc-list">
+        <li><span class="ic">⬜</span> Stripe integration (deliberadamente diferido en MVP)</li>
+        <li><span class="ic">⬜</span> Split de pagos profesional / plataforma</li>
+        <li><span class="ic">⬜</span> Facturación electrónica (AFIP)</li>
+        <li><span class="ic">⬜</span> Expo Push Notifications setup</li>
+        <li><span class="ic">⬜</span> Notificaciones: emergencia, turno, estado consulta</li>
+        <li><span class="ic">⬜</span> HIPAA BAA con Daily.co (antes de producción)</li>
+      </ul>
+    </details>
+
+    <details class="mc">
+      <summary>🔮 Backlog inferido <span class="mc-chevron">›</span></summary>
+      <ul class="mc-list">
+        <li><span class="ic">⬜</span> Password reset / forgot password</li>
+        <li><span class="ic">⬜</span> Chat directo paciente ↔ profesional</li>
+        <li><span class="ic">⬜</span> Segunda opinión médica</li>
+        <li><span class="ic">⬜</span> Vista historial médico completo (lado profesional)</li>
+        <li><span class="ic">⬜</span> Telemedicina asíncrona (consultas por escrito)</li>
+        <li><span class="ic">⬜</span> Seguimiento post-consulta (medicación, evolución)</li>
+        <li><span class="ic">⬜</span> App móvil para profesionales</li>
+      </ul>
+    </details>
+
+  </div>
+</section>
+
+<footer>
+  Generado por Claude Code · 2026-05-15 · <code>docs/brief.html</code> &nbsp;·&nbsp; Roadmap en <code>docs/roadmap.md</code>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Healthier ↔ Heural — Mapping Reference</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: #fef9ef;
+      color: #2a2b2f;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    header {
+      background: #2a2b2f;
+      color: #fef9ef;
+      padding: 28px 40px 24px;
+      border-bottom: 4px solid #b05a36;
+    }
+    header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+    header p  { margin-top: 6px; color: #a0a0a0; font-size: 13px; }
+    .badge {
+      display: inline-block;
+      background: #b05a36;
+      color: white;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-left: 8px;
+      vertical-align: middle;
+      font-weight: 600;
+    }
+    .badge.ok  { background: #2e7d50; }
+    .badge.warn{ background: #b05a36; }
+    .badge.err { background: #db0000; }
+
+    nav {
+      background: #f5eee1;
+      border-bottom: 1px solid #e5d9c8;
+      padding: 0 40px;
+      display: flex;
+      gap: 0;
+      overflow-x: auto;
+    }
+    nav a {
+      display: block;
+      padding: 12px 16px;
+      text-decoration: none;
+      color: #666;
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      border-bottom: 2px solid transparent;
+    }
+    nav a:hover { color: #2a2b2f; border-bottom-color: #b05a36; }
+
+    main { max-width: 1100px; margin: 0 auto; padding: 40px; }
+
+    section { margin-bottom: 52px; }
+    h2 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #2a2b2f;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e5d9c8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    h2 .icon { font-size: 18px; }
+    h3 { font-size: 13px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin: 24px 0 10px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+    }
+    thead tr { background: #2a2b2f; color: #fef9ef; }
+    thead th { padding: 11px 14px; text-align: left; font-weight: 600; font-size: 12px; letter-spacing: 0.3px; }
+    tbody tr { border-bottom: 1px solid #f0e9df; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #fdf7ee; }
+    tbody td { padding: 10px 14px; vertical-align: top; }
+    .col-hs  { background: #fff8f0; }
+    .col-hr  { background: #f8fff8; }
+
+    /* Column color headers */
+    thead th.col-hs { background: #b05a36; }
+    thead th.col-hr { background: #2e7d50; }
+    thead th.col-note { background: #444; }
+
+    code {
+      font-family: "SF Mono", "Fira Code", "Fira Mono", monospace;
+      font-size: 12px;
+      background: #f0e9df;
+      padding: 2px 5px;
+      border-radius: 3px;
+      color: #b05a36;
+    }
+    code.green { background: #e8f5ee; color: #2e7d50; }
+    code.gray  { background: #f0f0f0; color: #666; }
+
+    .note {
+      background: #fff8f0;
+      border-left: 3px solid #b05a36;
+      padding: 10px 14px;
+      font-size: 12.5px;
+      border-radius: 0 6px 6px 0;
+      margin: 12px 0;
+      color: #555;
+    }
+    .note strong { color: #b05a36; }
+
+    .flag-box {
+      background: white;
+      border: 1px solid #e5d9c8;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .flag-num {
+      background: #db0000;
+      color: white;
+      border-radius: 50%;
+      width: 22px; height: 22px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .flag-num.warn { background: #b05a36; }
+    .flag-num.ok   { background: #2e7d50; }
+    .flag-body strong { font-size: 13px; }
+    .flag-body p { font-size: 12.5px; color: #666; margin-top: 3px; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+    }
+    .card h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #999; margin-bottom: 10px; }
+    .card dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 12.5px; }
+    .card dt { color: #888; font-weight: 500; white-space: nowrap; }
+    .card dd { font-family: "SF Mono", monospace; font-size: 12px; color: #2a2b2f; }
+
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 14px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+    }
+    .flow-step {
+      background: #f5eee1;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 12px;
+    }
+    .flow-step strong { display: block; font-size: 11px; color: #b05a36; text-transform: uppercase; letter-spacing: 0.3px; }
+    .flow-arrow { color: #b05a36; font-size: 18px; }
+
+    @media (max-width: 700px) {
+      main { padding: 20px 16px; }
+      header { padding: 20px 16px; }
+      nav { padding: 0 16px; }
+      .two-col { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Healthier ↔ Heural — Mapping Reference</h1>
+  <p>Cómo se llaman las mismas cosas en nuestro sistema vs el de ellos · Actualizado 2026-06-02</p>
+</header>
+
+<nav>
+  <a href="#conceptos">Conceptos</a>
+  <a href="#tablas">Tablas ↔ Entidades</a>
+  <a href="#ids">IDs y formatos</a>
+  <a href="#auth">Auth</a>
+  <a href="#operaciones">Operaciones</a>
+  <a href="#enums">Enums</a>
+  <a href="#flujo">Flujo integrado</a>
+  <a href="#flags">Flags abiertos</a>
+</nav>
+
+<main>
+
+  <!-- ── CONCEPTOS ───────────────────────────────────────────────── -->
+  <section id="conceptos">
+    <h2><span class="icon">🗣</span> Terminología — el mismo concepto, dos nombres</h2>
+    <table>
+      <thead>
+        <tr>
+          <th class="col-hs">Healthier dice</th>
+          <th class="col-hr">Heural dice</th>
+          <th class="col-note">Estándar subyacente</th>
+          <th class="col-note">Notas</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-hs"><strong>Paciente</strong></td>
+          <td class="col-hr"><code class="green">Patient</code></td>
+          <td>FHIR Patient</td>
+          <td>En GraphQL: <code>patientId</code>. En FHIR: <code>/fhir/Patient/:id</code></td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Profesional / Médico</strong></td>
+          <td class="col-hr"><code class="green">Practitioner</code></td>
+          <td>FHIR Practitioner</td>
+          <td><code>practitionerId</code>. Requiere <code>active: true</code> para crear turnos.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Institución</strong> (Healthier como plataforma)</td>
+          <td class="col-hr"><code class="green">Institution</code></td>
+          <td>FHIR Organization</td>
+          <td>ID fijo: <code>E03967DE46751D21E698238E90810459</code>. Va en header <code>x-institution-id</code>.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Turno / Cita</strong></td>
+          <td class="col-hr"><code class="green">Appointment</code></td>
+          <td>FHIR Appointment</td>
+          <td><code>appointmentId</code>. Crear un appointment genera un Encounter automáticamente.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Consulta médica</strong> (la sesión clínica)</td>
+          <td class="col-hr"><code class="green">Encounter</code></td>
+          <td>FHIR Encounter</td>
+          <td><code>encounterId</code>. Se crea junto con el Appointment. Almacenamos en <code>consultations.heural_encounter_id</code>.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Pre-consulta</strong> (formulario previo)</td>
+          <td class="col-hr"><code class="green">PatientPreconsulta</code></td>
+          <td>—</td>
+          <td>Custom de Heural. El paciente envía antes de la consulta. Campo principal: <code>reason</code>.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Diagnóstico</strong></td>
+          <td class="col-hr"><code class="green">Condition</code></td>
+          <td>FHIR Condition</td>
+          <td>Código SNOMED o ICD-10. Ver FHIR <code>/fhir/Condition</code>.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Receta</strong></td>
+          <td class="col-hr"><code class="green">MedicationRequest</code></td>
+          <td>FHIR MedicationRequest</td>
+          <td><code>medicationRequestId</code>. Se comparte por WhatsApp o email. ID del meds = SNOMED conceptId string.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Medicamento</strong> (búsqueda)</td>
+          <td class="col-hr"><code class="green">SNOMED concept</code></td>
+          <td>SNOMED CT</td>
+          <td>GET <code>/hermes/v1/snomed/search?s=</code>. Devuelve <code>conceptId</code> (string). Ej: <code>"387207008"</code> = ibuprofeno.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Signo vital / Observación</strong></td>
+          <td class="col-hr"><code class="green">Observation</code></td>
+          <td>FHIR Observation</td>
+          <td><code>observationId</code>. Category: <code>VITAL_SIGNS</code>. Valor va en <code>value.quantity.{value, unit}</code>.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Alergia</strong></td>
+          <td class="col-hr"><code class="green">AllergyIntolerance</code></td>
+          <td>FHIR AllergyIntolerance</td>
+          <td><code>allergyIntoleranceId</code>. Category: <code>MEDICATION | FOOD | ENVIRONMENT | BIOLOGIC</code>.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Historia clínica</strong></td>
+          <td class="col-hr"><code class="green">Patient Summary</code></td>
+          <td>IPS (FHIR)</td>
+          <td>GET <code>/fhir/Patient/:id/$summary</code>. Bundle FHIR con toda la historia.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Vacuna</strong></td>
+          <td class="col-hr"><code class="green">Immunization</code></td>
+          <td>FHIR Immunization</td>
+          <td>GraphQL: <code>immunizations</code> query, <code>saveImmunization</code> mutation.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Ant. familiares</strong></td>
+          <td class="col-hr"><code class="green">FamilyMemberHistory</code></td>
+          <td>FHIR FamilyMemberHistory</td>
+          <td>GraphQL: <code>familyMemberHistory</code> query, <code>createFamilyMemberHistory</code> mutation.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Obra social / seguro</strong></td>
+          <td class="col-hr"><code class="green">Insurance / Coverage</code></td>
+          <td>FHIR Coverage</td>
+          <td>GET <code>/public/search-insurances</code> (sin auth).</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Informe / Estudio</strong></td>
+          <td class="col-hr"><code class="green">DiagnosticReport</code></td>
+          <td>FHIR DiagnosticReport</td>
+          <td>GET <code>/fhir/DiagnosticReport?patient=:id</code>. Soporta OCR para PDFs.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Transcripción de audio</strong></td>
+          <td class="col-hr"><code class="green">Whisper transcription</code></td>
+          <td>—</td>
+          <td>3 endpoints: upload, transcribe, upload-and-transcribe. ⚠️ 404 en UAT.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Usuario del sistema</strong></td>
+          <td class="col-hr"><code class="green">User (userId)</code></td>
+          <td>—</td>
+          <td>En login responde <code>userId</code>. Diferente de <code>patientId / practitionerId</code> de FHIR.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><strong>Membresía en institución</strong></td>
+          <td class="col-hr"><code class="green">InstitutionMembership</code></td>
+          <td>—</td>
+          <td><code>membershipId</code>. Roles: PATIENT, PRACTITIONER, OWNER, etc. El header <code>x-institution-id</code> activa el contexto de institución.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ── TABLAS ↔ ENTIDADES ──────────────────────────────────────── -->
+  <section id="tablas">
+    <h2><span class="icon">🗄</span> Tablas Supabase ↔ Entidades Heural</h2>
+
+    <div class="note">
+      <strong>Regla de integración:</strong> Healthier es dueño de identidad + marketplace (Supabase). Heural es dueño de datos clínicos. Las columnas <code>heural_*</code> en Supabase son los FK que conectan los dos mundos.
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th class="col-hs">Tabla Supabase</th>
+          <th class="col-hs">Columnas clave</th>
+          <th class="col-hr">Entidad Heural</th>
+          <th class="col-hr">Campos Heural</th>
+          <th class="col-note">Link / FK</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-hs"><code>profiles</code></td>
+          <td class="col-hs">
+            <code>id</code> UUID<br>
+            <code>email</code><br>
+            <code>full_name</code><br>
+            <code>role</code> (patient/professional)<br>
+            <code>birth_date</code><br>
+            <code>phone</code><br>
+            <code>heural_id</code> TEXT ← FK<br>
+            <code>heural_sync</code> TEXT
+          </td>
+          <td class="col-hr"><code class="green">User / Patient / Practitioner</code></td>
+          <td class="col-hr">
+            <code>userId</code> HashID<br>
+            <code>firstName</code> / <code>lastName</code><br>
+            <code>email</code><br>
+            <code>birthDate</code><br>
+            <code>phone</code><br>
+            <code>gender</code><br>
+            <code>bloodGroup</code><br>
+            <code>documentType / documentNumber</code>
+          </td>
+          <td><code>profiles.heural_id</code><br>= <code>userId</code> en Heural</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><code>professional_profiles</code></td>
+          <td class="col-hs">
+            <code>user_id</code> FK → profiles<br>
+            <code>specialty</code><br>
+            <code>session_price</code><br>
+            <code>is_verified</code><br>
+            <code>calendly_url</code>
+          </td>
+          <td class="col-hr"><code class="green">Practitioner</code></td>
+          <td class="col-hr">
+            <code>practitionerLicenseType</code> (MN/MP)<br>
+            <code>practitionerLicenseNumber</code><br>
+            <code>discipline</code> ⚠️<br>
+            <code>specialty</code> (SNOMED)
+          </td>
+          <td>Sin FK directo. El mismo <code>profiles.heural_id</code> es el practitionerId en Heural.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><code>consultations</code></td>
+          <td class="col-hs">
+            <code>id</code> UUID<br>
+            <code>patient_id</code> FK<br>
+            <code>professional_id</code> FK<br>
+            <code>status</code> (pending→completed)<br>
+            <code>scheduled_at</code><br>
+            <code>heural_encounter_id</code> TEXT ← FK<br>
+            <code>heural_appointment_id</code> TEXT ← FK<br>
+            <code>prescription_heural_ids</code> TEXT[]
+          </td>
+          <td class="col-hr">
+            <code class="green">Appointment</code><br>
+            <code class="green">Encounter</code>
+          </td>
+          <td class="col-hr">
+            <code>appointmentId</code> HashID<br>
+            <code>appointmentStart / End</code><br>
+            <code>status</code> (BOOKED, FULFILLED…)<br>
+            <code>appointmentType</code><br>
+            <code>modality</code><br>
+            ——<br>
+            <code>encounterId</code> HashID<br>
+            <code>encounterStart / End</code><br>
+            <code>status</code> (IN_PROGRESS, FINISHED…)
+          </td>
+          <td>
+            <code>heural_appointment_id</code> = <code>appointmentId</code><br>
+            <code>heural_encounter_id</code> = <code>encounterId</code>
+          </td>
+        </tr>
+        <tr>
+          <td class="col-hs"><code>emergencies</code></td>
+          <td class="col-hs">
+            <code>id</code> UUID<br>
+            <code>patient_id</code> FK<br>
+            <code>professional_id</code> FK<br>
+            <code>triage_code</code> (ROJO/AMARILLO/VERDE)<br>
+            <code>status</code> (pending→arrived)
+          </td>
+          <td class="col-hr"><code class="green">Appointment</code> (tipo EMERGENCY)</td>
+          <td class="col-hr">
+            <code>appointmentType: EMERGENCY</code><br>
+            o custom WALKIN queue
+          </td>
+          <td>Por integrar — actualmente sin <code>heural_*</code> columns.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><code>availability_slots</code></td>
+          <td class="col-hs">
+            <code>professional_id</code> FK<br>
+            <code>start_time / end_time</code><br>
+            <code>is_booked</code>
+          </td>
+          <td class="col-hr"><code class="green">Slot</code> (dentro de Appointment)</td>
+          <td class="col-hr">
+            <code>appointmentStart / End</code><br>
+            <code>minutesDuration</code>
+          </td>
+          <td>Healthier maneja disponibilidad; al confirmar reserva se crea <code>createAppointment</code> en Heural.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><code>reviews</code></td>
+          <td class="col-hs">
+            <code>rating</code>, <code>comment</code>
+          </td>
+          <td class="col-hr">—</td>
+          <td class="col-hr">Sin equivalente en Heural</td>
+          <td>Solo en Supabase.</td>
+        </tr>
+        <tr>
+          <td class="col-hs"><code>medical_documents</code></td>
+          <td class="col-hs">
+            <code>file_url</code>, <code>description</code>
+          </td>
+          <td class="col-hr"><code class="green">DiagnosticReport</code> (FHIR)</td>
+          <td class="col-hr">
+            <code>GET /fhir/DiagnosticReport</code><br>
+            OCR para PDFs de laboratorio
+          </td>
+          <td>Docs subidos por pacientes en Supabase Storage; Heural puede OCR-ear si se envían.</td>
+        </tr>
+        <tr>
+          <td class="col-hs">— (sin tabla propia)</td>
+          <td class="col-hs">Campo en <code>consultations</code></td>
+          <td class="col-hr"><code class="green">MedicationRequest</code></td>
+          <td class="col-hr">
+            <code>medicationRequestId</code><br>
+            <code>medication</code> (SNOMED string)<br>
+            <code>dosageInstruction</code><br>
+            <code>status</code>, <code>priority</code>
+          </td>
+          <td><code>prescription_heural_ids TEXT[]</code> en consultations guarda los IDs de recetas.</td>
+        </tr>
+        <tr>
+          <td class="col-hs">— (sin tabla propia)</td>
+          <td class="col-hs">—</td>
+          <td class="col-hr"><code class="green">AllergyIntolerance</code></td>
+          <td class="col-hr">
+            <code>allergyIntoleranceId</code><br>
+            <code>code</code> (SNOMED)<br>
+            <code>category</code>, <code>criticality</code><br>
+            <code>clinicalStatus</code>
+          </td>
+          <td>Solo en Heural. Se consulta al abrir el panel de consulta.</td>
+        </tr>
+        <tr>
+          <td class="col-hs">— (sin tabla propia)</td>
+          <td class="col-hs">—</td>
+          <td class="col-hr"><code class="green">Observation</code></td>
+          <td class="col-hr">
+            <code>observationId</code><br>
+            <code>heuralCode</code> (HEART_RATE, etc.)<br>
+            <code>value.quantity.{value, unit}</code>
+          </td>
+          <td>Solo en Heural. Signos vitales registrados por el profesional.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ── IDs Y FORMATOS ──────────────────────────────────────────── -->
+  <section id="ids">
+    <h2><span class="icon">🔑</span> IDs — formato</h2>
+    <div class="two-col">
+      <div class="card">
+        <h4>Healthier (Supabase)</h4>
+        <dl>
+          <dt>Tipo</dt><dd>UUID v4</dd>
+          <dt>Formato</dt><dd><code>550e8400-e29b-41d4-a716-446655440000</code></dd>
+          <dt>Columna DB</dt><dd><code>uuid</code> (PostgreSQL nativo)</dd>
+          <dt>En JS</dt><dd>string con guiones</dd>
+        </dl>
+      </div>
+      <div class="card">
+        <h4>Heural</h4>
+        <dl>
+          <dt>Tipo</dt><dd>HashID hex</dd>
+          <dt>Formato</dt><dd><code>30D75E081046ED725D512891534639D7</code></dd>
+          <dt>Longitud</dt><dd>32 caracteres, mayúsculas, sin guiones</dd>
+          <dt>Columna DB</dt><dd><code>TEXT</code> (NO usar <code>uuid</code> type)</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="note" style="margin-top: 14px;">
+      <strong>Regla:</strong> Las columnas <code>heural_id</code>, <code>heural_encounter_id</code>, <code>heural_appointment_id</code> y <code>prescription_heural_ids</code> son <code>TEXT</code> en Supabase. Nunca <code>uuid</code>.
+    </div>
+
+    <h3>IDs conocidos en UAT</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Entidad</th>
+          <th>Variable / Contexto</th>
+          <th>HashID</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Usuario (mateoaldao@gmail.com)</td>
+          <td><code>HEURAL_USER_ID</code></td>
+          <td><code>30D75E081046ED725D512891534639D7</code></td>
+        </tr>
+        <tr>
+          <td>Institución Healthier</td>
+          <td><code>VITE_HEURAL_INSTITUTION_ID</code></td>
+          <td><code>E03967DE46751D21E698238E90810459</code></td>
+        </tr>
+        <tr>
+          <td>Membresía del usuario</td>
+          <td><code>HEURAL_MEMBERSHIP_ID</code></td>
+          <td><code>36969E57395D70E279372461830D4184</code></td>
+        </tr>
+        <tr>
+          <td>Paciente demo</td>
+          <td>paciente@healthier.app</td>
+          <td><code>E9356E0718501372E33E2ED69494D834</code></td>
+        </tr>
+        <tr>
+          <td>Profesional demo</td>
+          <td>profesional@healthier.app</td>
+          <td><code>46763D504916470237732ED8537E918D</code></td>
+        </tr>
+        <tr>
+          <td>Encounter/Appointment de prueba</td>
+          <td>status: PLANNED</td>
+          <td><code>1D518E46E056972604402143D89703D8</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ── AUTH ───────────────────────────────────────────────────── -->
+  <section id="auth">
+    <h2><span class="icon">🔒</span> Auth</h2>
+    <div class="two-col">
+      <div class="card">
+        <h4>Healthier — Supabase Auth</h4>
+        <dl>
+          <dt>Login</dt><dd><code>supabase.auth.signInWithPassword()</code></dd>
+          <dt>Token</dt><dd>JWT en localStorage, Supabase lo rota solo</dd>
+          <dt>Header</dt><dd><code>Authorization: Bearer &lt;token&gt;</code></dd>
+          <dt>Roles</dt><dd><code>patient</code> / <code>professional</code> / <code>admin</code> / <code>super_admin</code></dd>
+          <dt>RLS</dt><dd>Políticas en cada tabla, función <code>get_my_role()</code></dd>
+        </dl>
+      </div>
+      <div class="card">
+        <h4>Heural</h4>
+        <dl>
+          <dt>Login</dt><dd><code>POST /auth/login</code> → recibe token + refreshToken</dd>
+          <dt>Header GQL</dt><dd><code>jwt: &lt;token&gt;</code> (preferido) o <code>Authorization: Bearer</code></dd>
+          <dt>Header FHIR</dt><dd><code>jwt: &lt;token&gt;</code> ÚNICAMENTE</dd>
+          <dt>Header extra</dt><dd><code>x-institution-id: &lt;institutionId&gt;</code> ← OBLIGATORIO en GQL + SNOMED</dd>
+          <dt>Refresh</dt><dd><code>POST /auth/token</code> — token rotation (el viejo expira)</dd>
+          <dt>Expiración</dt><dd>JWT: largo (hasta 2027). RefreshToken: corto (~7 días).</dd>
+        </dl>
+      </div>
+    </div>
+
+    <h3>Headers por tipo de request</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Tipo</th>
+          <th>Headers requeridos</th>
+          <th>Notas</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>POST /graphql</code></td>
+          <td><code>jwt: &lt;token&gt;</code> + <code>x-institution-id: &lt;id&gt;</code> + <code>Content-Type: application/json</code></td>
+          <td>Sin <code>x-institution-id</code> → UNAUTHORIZED aunque el JWT sea válido</td>
+        </tr>
+        <tr>
+          <td><code>GET /hermes/v1/snomed/search</code></td>
+          <td><code>Authorization: Bearer &lt;token&gt;</code> + <code>x-institution-id: &lt;id&gt;</code></td>
+          <td>Búsqueda de medicamentos / SNOMED</td>
+        </tr>
+        <tr>
+          <td><code>GET /fhir/...</code></td>
+          <td><code>jwt: &lt;token&gt;</code></td>
+          <td>No acepta <code>Authorization: Bearer</code>. Solo lectura.</td>
+        </tr>
+        <tr>
+          <td><code>/public/...</code>, <code>/fhir/metadata</code></td>
+          <td>—</td>
+          <td>Sin auth</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ── OPERACIONES ─────────────────────────────────────────────── -->
+  <section id="operaciones">
+    <h2><span class="icon">⚡</span> Operaciones — Healthier acción ↔ Heural endpoint</h2>
+
+    <h3>Paciente</h3>
+    <table>
+      <thead>
+        <tr>
+          <th class="col-hs">Acción en Healthier</th>
+          <th class="col-hr">Heural: endpoint / mutation</th>
+          <th class="col-note">Función en heuralService.js</th>
+          <th class="col-note">Estado UAT</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-hs">Ver historia clínica completa</td>
+          <td class="col-hr"><code>GET /fhir/Patient/:id/$summary</code></td>
+          <td><code>getPatientSummary(id)</code></td>
+          <td><span class="badge ok">✅</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Enviar pre-consulta</td>
+          <td class="col-hr"><code>submitPatientPreconsultaV2(appointmentId, {reason})</code></td>
+          <td><code>submitPreconsulta(appointmentId, formData)</code></td>
+          <td><span class="badge ok">✅</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Confirmar asistencia al turno</td>
+          <td class="col-hr"><code>confirmAppointmentAttendance(appointmentId)</code></td>
+          <td><code>confirmAppointment(id)</code></td>
+          <td><span class="badge ok">✅</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Cancelar turno</td>
+          <td class="col-hr"><code>cancelPatientAppointment(appointmentId, reason)</code></td>
+          <td><code>cancelAppointment(id, reason)</code></td>
+          <td><span class="badge ok">✅</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Ver recetas propias</td>
+          <td class="col-hr"><code>medicationRequests(patientId, institutionId)</code></td>
+          <td><code>getMedicationRequests(patientId)</code></td>
+          <td><span class="badge ok">✅</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Chat IA con médico</td>
+          <td class="col-hr"><code>doctorClinicalChat</code> (GraphQL)</td>
+          <td>No implementado aún</td>
+          <td><span class="badge err">❌ ANTHROPIC_KEY no configurada en UAT</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Profesional</h3>
+    <table>
+      <thead>
+        <tr>
+          <th class="col-hs">Acción en Healthier</th>
+          <th class="col-hr">Heural: endpoint / mutation</th>
+          <th class="col-note">Función en heuralService.js</th>
+          <th class="col-note">Estado UAT</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-hs">Ver pre-consulta del paciente</td>
+          <td class="col-hr"><code>encounterPreconsulta(encounterId, patientId)</code></td>
+          <td><code>getPreconsulta(encounterId, patientId)</code></td>
+          <td><span class="badge ok">✅</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Ver alergias del paciente</td>
+          <td class="col-hr"><code>allergyIntolerances(patientId, institutionId)</code></td>
+          <td><code>getAllergies(patientId)</code></td>
+          <td><span class="badge ok">✅</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Agregar alergia</td>
+          <td class="col-hr"><code>saveAllergyIntolerance(input)</code></td>
+          <td><code>saveAllergy(input)</code></td>
+          <td><span class="badge ok">✅</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Ver signos vitales</td>
+          <td class="col-hr"><code>observations(userId, institutionId)</code></td>
+          <td><code>getObservations(patientId)</code></td>
+          <td><span class="badge ok">✅</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Registrar signo vital</td>
+          <td class="col-hr"><code>createObservation(input)</code></td>
+          <td><code>createVital(patientId, encounterId, code, value, unit)</code></td>
+          <td><span class="badge ok">✅</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Buscar medicamento</td>
+          <td class="col-hr"><code>GET /hermes/v1/snomed/search?s=&maxHits=</code></td>
+          <td><code>searchMedication(term)</code></td>
+          <td><span class="badge ok">✅</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Crear receta</td>
+          <td class="col-hr"><code>createMedicationRequest(input)</code></td>
+          <td><code>createPrescription(input)</code></td>
+          <td><span class="badge ok">✅</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Enviar receta por WhatsApp</td>
+          <td class="col-hr"><code>sharePrescriptionByWhatsApp(input)</code></td>
+          <td><code>sendPrescriptionWhatsApp(prescriptionId, phone)</code></td>
+          <td><span class="badge ok">✅</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Enviar receta por email</td>
+          <td class="col-hr"><code>sharePrescriptionByEmail(input)</code></td>
+          <td><code>sendPrescriptionEmail(prescriptionId)</code></td>
+          <td><span class="badge ok">✅</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Transcribir audio de consulta</td>
+          <td class="col-hr"><code>POST /audio/upload-and-transcribe</code></td>
+          <td>No implementado</td>
+          <td><span class="badge err">❌ 404 en UAT</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Resumen automático de consulta</td>
+          <td class="col-hr"><code>generateEncounterSummaryV2</code></td>
+          <td>No implementado</td>
+          <td><span class="badge err">❌ PLAN_FEATURE_NOT_AVAILABLE</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Admin / Sistema</h3>
+    <table>
+      <thead>
+        <tr>
+          <th class="col-hs">Acción en Healthier</th>
+          <th class="col-hr">Heural: endpoint / mutation</th>
+          <th class="col-note">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-hs">Registrar paciente en Heural</td>
+          <td class="col-hr"><code>createUser(input)</code> con <code>userType: "PATIENT"</code></td>
+          <td><span class="badge warn">⚠️ crea usuario con active: false</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Registrar profesional en Heural</td>
+          <td class="col-hr"><code>createPractitioner(input)</code></td>
+          <td><span class="badge warn">⚠️ requiere campo discipline no documentado</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Agregar usuario a institución</td>
+          <td class="col-hr"><code>addMemberToInstitution(userId, institutionId, roles)</code></td>
+          <td><span class="badge ok">✅</span></td>
+        </tr>
+        <tr>
+          <td class="col-hs">Crear turno</td>
+          <td class="col-hr"><code>createAppointment(practitionerId, input)</code></td>
+          <td><span class="badge warn">⚠️ bloqueado por Flag 1 (active: false)</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ── ENUMS ───────────────────────────────────────────────────── -->
+  <section id="enums">
+    <h2><span class="icon">📋</span> Enums importantes</h2>
+
+    <div class="two-col">
+      <table>
+        <thead><tr><th colspan="2">consultations.status (Healthier)</th></tr></thead>
+        <tbody>
+          <tr><td><code>pending</code></td><td>Reservado, sin confirmar</td></tr>
+          <tr><td><code>confirmed</code></td><td>Confirmado por ambas partes</td></tr>
+          <tr><td><code>in_progress</code></td><td>Consulta activa</td></tr>
+          <tr><td><code>completed</code></td><td>Finalizada</td></tr>
+          <tr><td><code>cancelled</code></td><td>Cancelada</td></tr>
+        </tbody>
+      </table>
+      <table>
+        <thead><tr><th colspan="2">APPOINTMENT_STATUS (Heural)</th></tr></thead>
+        <tbody>
+          <tr><td><code>PROPOSED</code></td><td>Propuesto, sin confirmación</td></tr>
+          <tr><td><code>PENDING</code></td><td>En espera de confirmación</td></tr>
+          <tr><td><code>BOOKED</code></td><td>Confirmado ≈ confirmed</td></tr>
+          <tr><td><code>ARRIVED</code></td><td>Paciente llegó</td></tr>
+          <tr><td><code>FULFILLED</code></td><td>Realizado ≈ completed</td></tr>
+          <tr><td><code>CANCELLED</code></td><td>Cancelado</td></tr>
+          <tr><td><code>NOSHOW</code></td><td>Ausentismo</td></tr>
+          <tr><td><code>CHECKED_IN</code></td><td>Check-in realizado</td></tr>
+          <tr><td><code>PLANNED</code></td><td>Planificado (slot creado)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="two-col" style="margin-top: 16px;">
+      <table>
+        <thead><tr><th colspan="2">heuralCode (Observation)</th></tr></thead>
+        <tbody>
+          <tr><td><code>HEART_RATE</code></td><td>bpm</td></tr>
+          <tr><td><code>BLOOD_PRESSURE</code></td><td>mmHg</td></tr>
+          <tr><td><code>SPO2</code></td><td>%</td></tr>
+          <tr><td><code>WEIGHT</code></td><td>kg</td></tr>
+          <tr><td><code>HEIGHT</code></td><td>cm</td></tr>
+          <tr><td><code>TEMPERATURE</code></td><td>°C</td></tr>
+        </tbody>
+      </table>
+      <table>
+        <thead><tr><th colspan="2">INSTITUTION_ROLE (Heural)</th></tr></thead>
+        <tbody>
+          <tr><td><code>PATIENT</code></td><td>paciente</td></tr>
+          <tr><td><code>PRACTITIONER</code></td><td>profesional</td></tr>
+          <tr><td><code>NURSE</code></td><td>enfermero/a</td></tr>
+          <tr><td><code>ASSISTANT</code></td><td>asistente</td></tr>
+          <tr><td><code>MANAGER</code></td><td>gerente / coordinador</td></tr>
+          <tr><td><code>OWNER</code></td><td>dueño / super admin</td></tr>
+          <tr><td><code>AUDITOR</code></td><td>auditor</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="two-col" style="margin-top: 16px;">
+      <table>
+        <thead><tr><th colspan="2">AllergyIntolerance — category</th></tr></thead>
+        <tbody>
+          <tr><td><code>MEDICATION</code></td><td>medicamento</td></tr>
+          <tr><td><code>FOOD</code></td><td>alimento</td></tr>
+          <tr><td><code>ENVIRONMENT</code></td><td>ambiente (polvo, etc.)</td></tr>
+          <tr><td><code>BIOLOGIC</code></td><td>biológico</td></tr>
+        </tbody>
+      </table>
+      <table>
+        <thead><tr><th colspan="2">appointmentType (Heural)</th></tr></thead>
+        <tbody>
+          <tr><td><code>CHECKUP</code></td><td>control</td></tr>
+          <tr><td><code>EMERGENCY</code></td><td>emergencia</td></tr>
+          <tr><td><code>FOLLOWUP</code></td><td>seguimiento</td></tr>
+          <tr><td><code>ROUTINE</code></td><td>consulta de rutina</td></tr>
+          <tr><td><code>WALKIN</code></td><td>guardia / sin turno</td></tr>
+          <tr><td><code>NEW_PATIENT</code></td><td>primera vez</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── FLUJO INTEGRADO ─────────────────────────────────────────── -->
+  <section id="flujo">
+    <h2><span class="icon">🔄</span> Flujo de consulta end-to-end</h2>
+
+    <h3>Paciente reserva turno</h3>
+    <div class="flow">
+      <div class="flow-step"><strong>Healthier</strong>Elige profesional en marketplace</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><strong>Heural</strong><code>createAppointment()</code></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><strong>Supabase</strong>Guardar <code>heural_appointment_id</code> + <code>heural_encounter_id</code> en consultations</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><strong>Heural</strong><code>confirmAppointmentAttendance()</code></div>
+    </div>
+
+    <h3 style="margin-top: 20px;">Pre-consulta (paciente)</h3>
+    <div class="flow">
+      <div class="flow-step"><strong>Healthier</strong>PreconsultaForm.jsx — paciente completa motivo</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><strong>Heural</strong><code>submitPatientPreconsultaV2(appointmentId, {reason})</code></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><strong>Heural</strong>Profesional lee con <code>encounterPreconsulta()</code></div>
+    </div>
+
+    <h3 style="margin-top: 20px;">Consulta clínica (profesional)</h3>
+    <div class="flow">
+      <div class="flow-step"><strong>Heural</strong>Lee pre-consulta + alergias + vitales previos</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><strong>Heural</strong>Registra vitales con <code>createObservation()</code></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><strong>Heural</strong>Busca medicamento en SNOMED (<code>searchMedication()</code>)</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><strong>Heural</strong>Crea receta con <code>createMedicationRequest()</code></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><strong>Heural</strong>Envía por WA <code>sharePrescriptionByWhatsApp()</code></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><strong>Heural</strong>Cierra encounter con <code>updateEncounter({status: FINISHED})</code></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><strong>Supabase</strong>Actualiza <code>consultations.status = completed</code></div>
+    </div>
+  </section>
+
+  <!-- ── FLAGS ABIERTOS ──────────────────────────────────────────── -->
+  <section id="flags">
+    <h2><span class="icon">🚩</span> Flags abiertos — pendientes con Heural</h2>
+    <p style="margin-bottom: 16px; color: #666; font-size: 13px;">Contacto: <strong>maguirre@heural.com</strong></p>
+
+    <div class="flag-box">
+      <div class="flag-num">1</div>
+      <div class="flag-body">
+        <strong>createUser → active: false en FHIR</strong>
+        <p>Todos los usuarios creados via <code>createUser</code> quedan <code>active: false</code> en el FHIR Practitioner. Esto hace fallar <code>createAppointment</code> con <code>INVALID_PRACTITIONER</code>. Bloqueante para el flujo principal.</p>
+      </div>
+    </div>
+
+    <div class="flag-box">
+      <div class="flag-num">2</div>
+      <div class="flag-body">
+        <strong>createPractitioner requiere campo discipline no documentado</strong>
+        <p>La mutation falla sin el campo <code>discipline</code> pero no está en los docs. Necesitamos saber el tipo/enum.</p>
+      </div>
+    </div>
+
+    <div class="flag-box">
+      <div class="flag-num warn">3</div>
+      <div class="flag-body">
+        <strong>userByEmail → INSUFFICIENT_PRIVILEGES</strong>
+        <p>Con token de plataforma (rol USER), la query <code>userByEmail</code> devuelve error. Solo funciona con token de admin/owner. Limita la búsqueda de usuarios por email desde el server.</p>
+      </div>
+    </div>
+
+    <div class="flag-box">
+      <div class="flag-num ok">4</div>
+      <div class="flag-body">
+        <strong>role → roles (array) en institutionMemberships</strong>
+        <p>Los docs dicen <code>role</code> pero el schema real usa <code>roles</code> (array). Documentado, workaround aplicado.</p>
+      </div>
+    </div>
+
+    <div class="flag-box">
+      <div class="flag-num">5</div>
+      <div class="flag-body">
+        <strong>Audio transcription 404 en UAT</strong>
+        <p>Los 3 endpoints de Whisper (<code>POST /audio/upload</code>, <code>/audio/transcribe</code>, <code>/audio/upload-and-transcribe</code>) devuelven 404. No disponibles en el entorno UAT.</p>
+      </div>
+    </div>
+
+    <div class="flag-box">
+      <div class="flag-num">6</div>
+      <div class="flag-body">
+        <strong>doctorClinicalChat — ANTHROPIC_API_KEY no configurada</strong>
+        <p>El chat clínico IA devuelve error de API key. No usable en UAT.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer style="background: #2a2b2f; color: #666; text-align: center; padding: 20px; font-size: 12px; margin-top: 40px;">
+  Healthier ↔ Heural Mapping · UAT verificado 2026-06-02 · <code style="background: #333; color: #b05a36;">docs/heural-mapping.html</code>
+</footer>
+
+</body>
+</html>

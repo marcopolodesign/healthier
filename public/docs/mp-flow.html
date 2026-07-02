@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flujo de pago — Healthier × MercadoPago</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --sage: #7CB38B;
+    --sage-light: #a8cbb4;
+    --sage-dark: #5a8e6a;
+    --sage-bg: rgba(124,179,139,0.08);
+    --coral: #E8927C;
+    --ivory: #F6F5F0;
+    --card: #FDFCF9;
+    --text: #2D2A26;
+    --muted: #6B6560;
+    --border: #D8D4CE;
+    --danger: #D9534F;
+    --amber: #E4A853;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.10);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+    --radius: 12px;
+  }
+
+  body {
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background: var(--ivory);
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  /* ── Header ──────────────────────────────────────────────── */
+  .site-header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 32px 48px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .logo-mark {
+    width: 40px; height: 40px;
+    background: var(--sage);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    color: white;
+    flex-shrink: 0;
+  }
+  .site-header h1 { font-size: 22px; font-weight: 700; color: var(--text); }
+  .site-header p { font-size: 14px; color: var(--muted); margin-top: 2px; }
+  .badge-sandbox {
+    margin-left: auto;
+    background: #FEF3CD;
+    color: #856404;
+    border: 1px solid #f0cc6f;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* ── Layout ──────────────────────────────────────────────── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 32px; }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 40px 0 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0;
+  }
+
+  /* ── Steps ───────────────────────────────────────────────── */
+  .steps { display: flex; flex-direction: column; gap: 0; }
+
+  .step {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 48px;
+    align-items: start;
+    padding: 48px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .step:last-child { border-bottom: none; }
+  .step.reverse { direction: rtl; }
+  .step.reverse > * { direction: ltr; }
+
+  /* Step number badge */
+  .step-meta { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .step-number {
+    width: 28px; height: 28px;
+    background: var(--sage);
+    color: white;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  /* Step content (text side) */
+  .step-content { padding-top: 8px; }
+  .step-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--sage);
+    margin-bottom: 6px;
+  }
+  .step-content h2 { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+  .step-content p { font-size: 14px; color: var(--muted); margin-bottom: 12px; }
+  .step-content p:last-child { margin-bottom: 0; }
+
+  .info-box {
+    background: var(--sage-bg);
+    border: 1px solid rgba(124,179,139,0.3);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    font-size: 13px;
+    color: var(--text);
+    margin-top: 16px;
+  }
+  .info-box strong { color: var(--sage-dark); }
+
+  .numbered-list { margin: 8px 0 0 0; padding-left: 18px; }
+  .numbered-list li { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  .numbered-list li strong { color: var(--text); }
+  code {
+    background: rgba(0,0,0,0.06);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11.5px;
+    color: var(--sage-dark);
+  }
+
+  /* ── Phone mockup ────────────────────────────────────────── */
+  .phone-wrap { display: flex; justify-content: center; }
+  .phone {
+    width: 260px;
+    height: 563px; /* 260 × (844/390) — iPhone 14 aspect ratio */
+    border: 2px solid var(--sage);
+    border-radius: 36px;
+    background: var(--ivory);
+    overflow: hidden;
+    box-shadow: var(--shadow-lg), 0 0 0 6px rgba(124,179,139,0.10);
+    font-size: 9.5px;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .phone-notch {
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--ivory);
+    flex-shrink: 0;
+  }
+  .phone-notch-pill {
+    width: 52px; height: 7px;
+    background: #1a1a1a;
+    border-radius: 4px;
+  }
+  .phone-screen {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    background: var(--ivory);
+  }
+
+  /* ── Reusable screen components ──────────────────────────── */
+  .s-banner {
+    background: var(--sage);
+    color: white;
+    padding: 6px 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 8px;
+    flex-shrink: 0;
+  }
+  .s-banner-icon { font-size: 10px; }
+  .s-banner-text { flex: 1; line-height: 1.3; }
+  .s-banner-btn {
+    background: rgba(255,255,255,0.25);
+    border: 1px solid rgba(255,255,255,0.5);
+    color: white;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 7px;
+    white-space: nowrap;
+  }
+
+  .s-scroll { padding: 10px 10px; flex: 1; overflow: hidden; }
+
+  .s-greeting { margin-bottom: 12px; }
+  .s-greeting h3 { font-size: 15px; font-weight: 700; }
+  .s-greeting p { font-size: 8.5px; color: var(--muted); }
+
+  .s-section-label {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .s-section-label span { color: var(--sage); font-size: 7px; }
+
+  .s-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+  }
+  .s-placeholder {
+    font-size: 8px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .s-specialty-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 4px; }
+  .s-specialty-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 6px;
+    font-size: 8px;
+    font-weight: 600;
+  }
+  .s-specialty-card .icon { font-size: 13px; display: block; margin-bottom: 2px; }
+  .s-specialty-card.coming { color: var(--muted); }
+  .s-specialty-card .badge {
+    display: inline-block;
+    background: rgba(232,146,124,0.15);
+    color: var(--coral);
+    border-radius: 3px;
+    padding: 1px 4px;
+    font-size: 6px;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* Bottom nav */
+  .s-bottom-nav {
+    height: 42px;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    flex-shrink: 0;
+  }
+  .s-nav-item {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font-size: 6.5px; color: var(--muted);
+  }
+  .s-nav-item.active { color: var(--sage); }
+  .s-nav-icon { font-size: 13px; }
+
+  /* Progress dots */
+  .s-progress {
+    display: flex;
+    gap: 5px;
+    padding: 8px 10px 0;
+    flex-shrink: 0;
+  }
+  .s-dot {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+  }
+  .s-dot.active { background: var(--sage); }
+
+  /* Specialty list */
+  .s-specialty-row {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 8.5px;
+  }
+  .s-specialty-row.active { font-weight: 600; }
+  .s-specialty-row .arrow { margin-left: auto; color: var(--muted); font-size: 8px; }
+  .s-coming-badge {
+    margin-left: auto;
+    background: rgba(232,146,124,0.12);
+    color: var(--coral);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 6px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  /* Modality cards */
+  .s-modality-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 8.5px;
+  }
+  .s-modality-card.selected {
+    border-color: var(--sage);
+    background: rgba(124,179,139,0.06);
+  }
+  .s-modality-card .check { margin-left: auto; color: var(--sage); font-size: 11px; }
+  .s-modality-icon {
+    width: 24px; height: 24px;
+    background: var(--ivory);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+  .s-modality-card.selected .s-modality-icon { background: rgba(124,179,139,0.15); }
+  .s-modality-text small { display: block; color: var(--muted); font-size: 7.5px; }
+
+  /* Doctor card */
+  .s-prof-found {
+    background: rgba(124,179,139,0.1);
+    border: 1px solid rgba(124,179,139,0.3);
+    border-radius: 8px;
+    padding: 4px 8px;
+    text-align: center;
+    color: var(--sage-dark);
+    font-size: 7px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+  .s-doc-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 10px;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .s-doc-avatar {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #b8d4c0, #8fb89a);
+    margin: 0 auto 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    color: white;
+  }
+  .s-doc-card h4 { font-size: 11px; font-weight: 700; margin-bottom: 2px; }
+  .s-doc-card .spec { font-size: 8px; color: var(--muted); margin-bottom: 6px; }
+  .s-doc-meta { display: flex; justify-content: center; gap: 8px; font-size: 8px; color: var(--muted); }
+  .s-doc-meta .stars { color: #f5a623; }
+
+  /* Buttons */
+  .s-btn {
+    display: block;
+    width: 100%;
+    padding: 8px;
+    border-radius: 20px;
+    text-align: center;
+    font-size: 9px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    border: none;
+  }
+  .s-btn.primary { background: var(--sage); color: white; }
+  .s-btn.outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .s-btn.disabled { background: var(--border); color: var(--muted); }
+
+  /* Payment page components */
+  .s-pcard {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+  .s-pcard-label {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .s-doc-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 8px;
+  }
+  .s-doc-mini-avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #b8d4c0, #8fb89a);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    color: white;
+    flex-shrink: 0;
+  }
+  .s-doc-row-text { font-size: 8.5px; font-weight: 600; }
+  .s-doc-row-text small { font-weight: 400; color: var(--muted); font-size: 7.5px; display: block; }
+  .s-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--ivory);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 6px 8px;
+    font-size: 8px;
+    margin-bottom: 4px;
+  }
+  .s-info-row .icon { margin-right: 5px; }
+
+  .s-add-card-btn {
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    color: var(--muted);
+    font-size: 8.5px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .s-no-cards { text-align: center; color: var(--muted); font-size: 7.5px; margin-bottom: 8px; }
+  .s-divider { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+  .s-total-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  /* Card form */
+  .s-card-form-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .s-card-form-header span { font-size: 8.5px; font-weight: 600; }
+  .s-card-form-header a { font-size: 7.5px; color: var(--muted); text-decoration: underline; }
+  .s-form-group { margin-bottom: 7px; }
+  .s-form-label { font-size: 7.5px; font-weight: 600; margin-bottom: 3px; color: var(--text); display: block; }
+  .s-form-input {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 5px 8px;
+    font-size: 8px;
+    color: var(--muted);
+    background: var(--card);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .s-form-input.focused { border-color: var(--sage); }
+  .s-form-input.filled { color: var(--text); }
+  .s-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+
+  /* Saved card row */
+  .s-saved-card {
+    border: 1.5px solid var(--sage);
+    background: rgba(124,179,139,0.05);
+    border-radius: 10px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 6px;
+    box-shadow: 0 0 0 2px rgba(124,179,139,0.2);
+  }
+  .s-card-icon {
+    width: 24px; height: 24px;
+    background: rgba(124,179,139,0.15);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .s-card-brand { font-size: 8.5px; font-weight: 600; }
+  .s-card-num { font-size: 7.5px; color: var(--muted); }
+  .s-check { color: var(--sage); font-size: 13px; margin-left: auto; }
+  .s-trash { color: var(--muted); font-size: 11px; margin-left: 4px; }
+
+  /* Page title */
+  .s-page-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+
+  /* FAB */
+  .s-fab {
+    position: absolute;
+    bottom: 48px;
+    right: 10px;
+    width: 28px; height: 28px;
+    background: var(--sage);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: white;
+    font-size: 16px;
+    font-weight: 300;
+    box-shadow: var(--shadow-md);
+  }
+
+  /* ── Tech table ──────────────────────────────────────────── */
+  .tech-section { padding: 48px 0; }
+  .tech-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
+  .tech-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    box-shadow: var(--shadow-sm);
+  }
+  .tech-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); border-bottom: 1px solid var(--border); }
+  td { padding: 9px 12px; border-bottom: 1px solid rgba(216,212,206,0.5); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td:first-child { font-weight: 600; color: var(--text); }
+  td:last-child { color: var(--muted); }
+
+  .code-block {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    margin-top: 12px;
+    overflow-x: auto;
+  }
+  .code-block .key { color: #a6e3a1; }
+  .code-block .val { color: #f38ba8; }
+  .code-block .comment { color: #6c7086; }
+
+  .callout {
+    background: #FEF9E7;
+    border: 1px solid #f0cc6f;
+    border-left: 4px solid var(--amber);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    font-size: 13px;
+    color: #856404;
+    margin-top: 16px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+  /* ── Footer ──────────────────────────────────────────────── */
+  footer {
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    padding: 24px 48px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 32px;
+  }
+
+  @media (max-width: 768px) {
+    .step { grid-template-columns: 1fr; }
+    .step.reverse { direction: ltr; }
+    .phone-wrap { order: -1; }
+    .tech-grid { grid-template-columns: 1fr; }
+    .site-header { padding: 20px 20px; flex-wrap: wrap; }
+    .container { padding: 0 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────────────── -->
+<header class="site-header">
+  <div class="logo-mark">🌿</div>
+  <div>
+    <h1>Flujo de pago — Healthier × MercadoPago</h1>
+    <p>Cómo el paciente reserva y paga una consulta médica</p>
+  </div>
+  <span class="badge-sandbox">🟡 Ambiente: Sandbox</span>
+</header>
+
+<div class="container">
+
+  <!-- ── Section title ──────────────────────────────────────────────── -->
+  <p class="section-title">Flujo completo — 7 pasos</p>
+
+  <div class="steps">
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- STEP 1 — Dashboard -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div class="step">
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+          <div class="phone-screen">
+            <!-- Notification banner -->
+            <div class="s-banner">
+              <span class="s-banner-icon">🔔</span>
+              <span class="s-banner-text">Activá notificaciones para recibir confirmaciones de turnos</span>
+              <span class="s-banner-btn">Activar</span>
+            </div>
+            <!-- Content -->
+            <div class="s-scroll">
+              <div class="s-greeting">
+                <h3>Buenos días, María</h3>
+                <p>¿Cómo podemos ayudarte hoy?</p>
+              </div>
+              <div class="s-section-label">
+                PRÓXIMAS CONSULTAS <span>+ Reservar</span>
+              </div>
+              <div class="s-card">
+                <div class="s-placeholder">
+                  <span>📅</span>
+                  <span>Sin turnos próximos — reservá ahora</span>
+                </div>
+              </div>
+              <div class="s-section-label" style="margin-top:8px;">BUSCAR POR ESPECIALIDAD</div>
+              <div class="s-specialty-grid">
+                <div class="s-specialty-card">
+                  <span class="icon" style="color:#7CB38B;">🩺</span>
+                  Clínica
+                </div>
+                <div class="s-specialty-card coming">
+                  <span class="icon" style="color:#E8927C;">👶</span>
+                  Pediatría
+                  <span class="badge">Próximamente</span>
+                </div>
+              </div>
+            </div>
+            <!-- Bottom nav -->
+            <div class="s-bottom-nav">
+              <div class="s-nav-item active"><span class="s-nav-icon">🏠</span>Inicio</div>
+              <div class="s-nav-item"><span class="s-nav-icon">📅</span>Agenda</div>
+              <div class="s-nav-item"><span class="s-nav-icon">✨</span>IA</div>
+              <div class="s-nav-item"><span class="s-nav-icon">📁</span>Bóveda</div>
+              <div class="s-nav-item"><span class="s-nav-icon">👤</span>Perfil</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step-content">
+        <div class="step-label">Paso 1</div>
+        <h2>Dashboard del paciente</h2>
+        <p>El paciente entra al dashboard después de iniciar sesión. Ve su resumen de salud, próximas consultas y acceso rápido a especialidades.</p>
+        <p>Para reservar puede tocar <strong>"+ Reservar"</strong> en la sección de próximas consultas, o seleccionar directamente una especialidad del grid.</p>
+        <div class="info-box">
+          💡 Las notificaciones push están integradas para recordatorios de turno 24h antes y 15 minutos antes de la consulta.
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- STEP 2 — Especialidad -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div class="step reverse">
+      <div class="step-content">
+        <div class="step-label">Paso 2</div>
+        <h2>Selección de especialidad</h2>
+        <p>El paciente elige la especialidad médica que necesita. En el MVP solo <strong>Clínica</strong> (Medicina General) está activa.</p>
+        <p>Las especialidades próximas se muestran con badge "PRÓXIMAMENTE" para generar expectativa y permitir validar demanda futura.</p>
+        <div class="info-box">
+          🏗️ <strong>Stack:</strong> El wizard de reserva vive en <code>/paciente/reservar</code> como un stepper con 5 pasos gestionados por estado de React Router. No hay rutas intermedias — todo es estado local del componente <code>ReservarConsulta.jsx</code>.
+        </div>
+      </div>
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+          <div class="phone-screen">
+            <div class="s-banner" style="background:#7CB38B;">
+              <span class="s-banner-icon">🔔</span>
+              <span class="s-banner-text">Activá notificaciones para recibir confirmaciones</span>
+              <span class="s-banner-btn">Activar</span>
+            </div>
+            <!-- Progress dots -->
+            <div class="s-progress">
+              <div class="s-dot active"></div>
+              <div class="s-dot"></div>
+              <div class="s-dot"></div>
+              <div class="s-dot"></div>
+              <div class="s-dot"></div>
+            </div>
+            <div class="s-scroll">
+              <div style="font-size:14px;font-weight:700;margin-bottom:12px;">¿Qué especialidad buscás?</div>
+              <div class="s-specialty-row active">
+                <span>🩺</span> Clínica <span class="arrow">›</span>
+              </div>
+              <div class="s-specialty-row" style="color:var(--muted);">
+                <span>👶</span> Pediatría <span class="s-coming-badge">PRONTO</span>
+              </div>
+              <div class="s-specialty-row" style="color:var(--muted);">
+                <span>🥗</span> Nutrición <span class="s-coming-badge">PRONTO</span>
+              </div>
+              <div class="s-specialty-row" style="color:var(--muted);">
+                <span>🧠</span> Psicología <span class="s-coming-badge">PRONTO</span>
+              </div>
+              <div class="s-specialty-row" style="color:var(--muted);">
+                <span>💪</span> Kinesiología <span class="s-coming-badge">PRONTO</span>
+              </div>
+            </div>
+            <div class="s-bottom-nav">
+              <div class="s-nav-item"><span class="s-nav-icon">🏠</span>Inicio</div>
+              <div class="s-nav-item"><span class="s-nav-icon">📅</span>Agenda</div>
+              <div class="s-nav-item active"><span class="s-nav-icon">✨</span>IA</div>
+              <div class="s-nav-item"><span class="s-nav-icon">📁</span>Bóveda</div>
+              <div class="s-nav-item"><span class="s-nav-icon">👤</span>Perfil</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- STEP 3 — Modalidad -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div class="step">
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+          <div class="phone-screen">
+            <div class="s-banner">
+              <span class="s-banner-icon">🔔</span>
+              <span class="s-banner-text">Activá notificaciones…</span>
+              <span class="s-banner-btn">Activar</span>
+            </div>
+            <div class="s-progress">
+              <div class="s-dot active"></div>
+              <div class="s-dot active"></div>
+              <div class="s-dot"></div>
+              <div class="s-dot"></div>
+              <div class="s-dot"></div>
+            </div>
+            <div class="s-scroll">
+              <div style="font-size:14px;font-weight:700;margin-bottom:12px;">¿Cómo querés consultar?</div>
+              <div class="s-modality-card selected">
+                <div class="s-modality-icon" style="background:rgba(124,179,139,0.15);">📹</div>
+                <div class="s-modality-text">
+                  Videoconsulta
+                  <small>Desde donde estás</small>
+                </div>
+                <span class="check">✓</span>
+              </div>
+              <div class="s-modality-card">
+                <div class="s-modality-icon">📍</div>
+                <div class="s-modality-text">
+                  Presencial
+                  <small>En el consultorio</small>
+                </div>
+              </div>
+              <div style="height:10px;"></div>
+              <div class="s-btn primary">Buscar profesional</div>
+            </div>
+            <div class="s-bottom-nav">
+              <div class="s-nav-item"><span class="s-nav-icon">🏠</span>Inicio</div>
+              <div class="s-nav-item"><span class="s-nav-icon">📅</span>Agenda</div>
+              <div class="s-nav-item active"><span class="s-nav-icon">✨</span>IA</div>
+              <div class="s-nav-item"><span class="s-nav-icon">📁</span>Bóveda</div>
+              <div class="s-nav-item"><span class="s-nav-icon">👤</span>Perfil</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step-content">
+        <div class="step-label">Paso 3</div>
+        <h2>Modalidad de consulta</h2>
+        <p>El paciente elige entre <strong>Videoconsulta</strong> (desde cualquier lugar) o <strong>Presencial</strong> (en el consultorio del profesional).</p>
+        <p>Seleccionar una modalidad habilita el botón "Buscar profesional". El sistema busca un profesional verificado disponible de la especialidad y modalidad elegidas.</p>
+        <div class="info-box">
+          📋 <strong>Datos pasados al pago:</strong> <code>verticalId</code>, <code>modality</code>, <code>professionalId</code>, <code>price</code> se pasan como <strong>React Router location.state</strong> al navegar a <code>/paciente/pago</code>.
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- STEP 4 — Profesional encontrado -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div class="step reverse">
+      <div class="step-content">
+        <div class="step-label">Paso 4</div>
+        <h2>Profesional encontrado</h2>
+        <p>El sistema devuelve el mejor profesional verificado disponible. El paciente ve nombre, especialidad, rating y precio antes de confirmar.</p>
+        <p>Al tocar <strong>"Elegir y pagar"</strong> se navega a <code>/paciente/pago</code> pasando todos los datos de la consulta como estado de navegación.</p>
+        <div class="info-box">
+          ⭐ <strong>Verificación:</strong> Solo aparecen profesionales con <code>is_verified = true</code> en <code>professional_profiles</code>. El admin aprueba profesionales desde el panel <code>/admin/profesionales</code>.
+        </div>
+      </div>
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+          <div class="phone-screen">
+            <div class="s-banner">
+              <span class="s-banner-icon">🔔</span>
+              <span class="s-banner-text">Activá notificaciones…</span>
+              <span class="s-banner-btn">Activar</span>
+            </div>
+            <div class="s-scroll">
+              <div class="s-prof-found">¡Profesional encontrado!</div>
+              <div class="s-doc-card">
+                <div class="s-doc-avatar">👨‍⚕️</div>
+                <h4>Dr. Martín López</h4>
+                <div class="spec">Medicina General</div>
+                <div class="s-doc-meta">
+                  <span class="stars">★</span>
+                  <span>4.9 (256 reseñas)</span>
+                  <span>·</span>
+                  <span style="color:var(--sage);font-weight:600;">$15/consulta</span>
+                </div>
+              </div>
+              <div class="s-btn primary">Elegir y pagar</div>
+              <div class="s-btn outline">Cancelar</div>
+            </div>
+            <div class="s-bottom-nav">
+              <div class="s-nav-item"><span class="s-nav-icon">🏠</span>Inicio</div>
+              <div class="s-nav-item"><span class="s-nav-icon">📅</span>Agenda</div>
+              <div class="s-nav-item active"><span class="s-nav-icon">✨</span>IA</div>
+              <div class="s-nav-item"><span class="s-nav-icon">📁</span>Bóveda</div>
+              <div class="s-nav-item"><span class="s-nav-icon">👤</span>Perfil</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- STEP 5 — Payment page (no card) -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div class="step">
+      <div class="phone-wrap">
+        <div class="phone" style="min-height:460px;">
+          <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+          <div class="phone-screen">
+            <div class="s-scroll">
+              <div class="s-page-title">Confirmar Pago</div>
+              <!-- Resumen -->
+              <div class="s-pcard">
+                <div class="s-pcard-label">Resumen</div>
+                <div class="s-doc-row">
+                  <div class="s-doc-mini-avatar">👨‍⚕️</div>
+                  <div class="s-doc-row-text">Dr. Martín López <small>medicina_general</small></div>
+                </div>
+                <div class="s-info-row"><span><span class="icon">📹</span>Videoconsulta</span></div>
+                <div class="s-info-row" style="margin-top:4px;"><span>Precio</span><strong>$15</strong></div>
+              </div>
+              <!-- Método de pago -->
+              <div class="s-pcard">
+                <div class="s-pcard-label">Método de Pago</div>
+                <div class="s-add-card-btn">
+                  <span>+</span> Agregar nueva tarjeta
+                </div>
+                <div class="s-no-cards">No tenés tarjetas guardadas aún.</div>
+                <hr class="s-divider">
+                <div class="s-total-row"><span>A pagar hoy</span><span>$15</span></div>
+              </div>
+              <div class="s-btn disabled">Confirmar y Pagar</div>
+            </div>
+            <div class="s-bottom-nav">
+              <div class="s-nav-item active"><span class="s-nav-icon">🏠</span>Inicio</div>
+              <div class="s-nav-item"><span class="s-nav-icon">📅</span>Agenda</div>
+              <div class="s-nav-item"><span class="s-nav-icon">✨</span>IA</div>
+              <div class="s-nav-item"><span class="s-nav-icon">📁</span>Bóveda</div>
+              <div class="s-nav-item"><span class="s-nav-icon">👤</span>Perfil</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step-content">
+        <div class="step-label">Paso 5</div>
+        <h2>Página de pago</h2>
+        <p>La página de pago muestra el resumen de la consulta: profesional, modalidad y precio. Sin tarjeta guardada, el botón "Confirmar y Pagar" está deshabilitado.</p>
+        <p>El paciente debe agregar una tarjeta para proceder. La sección "Método de Pago" es manejada por el componente <code>SavedCardSelector</code>.</p>
+        <div class="info-box">
+          🔐 <strong>Sin tarjeta = sin cargo.</strong> El cobro solo ocurre al tocar "Confirmar y Pagar" después de seleccionar una tarjeta guardada. Nunca se cobra en el momento de guardar la tarjeta.
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- STEP 6 — Add card form -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div class="step reverse">
+      <div class="step-content">
+        <div class="step-label">Paso 6</div>
+        <h2>Agregar nueva tarjeta</h2>
+        <p>Los campos de la tarjeta son <strong>iframes cross-origin</strong> de MercadoPago (<code>secure-fields.mercadopago.com</code>). La app nunca accede a los datos del PAN — solo recibe el token generado por MP.</p>
+        <p>Al tocar "Guardar tarjeta", el token se envía a la Edge Function <code>mp-save-card</code> que:</p>
+        <ol class="numbered-list">
+          <li>Crea o recupera el customer en MP (<code>POST /customers</code>)</li>
+          <li>Guarda la tarjeta tokenizada (<code>POST /customers/{id}/cards</code>)</li>
+          <li>Guarda en Supabase <code>payment_methods</code> solo: <code>card_brand</code> + <code>last_four</code></li>
+        </ol>
+        <div class="info-box" style="background:rgba(232,146,124,0.08);border-color:rgba(232,146,124,0.3);">
+          🔑 <strong>Tarjeta de prueba (Sandbox):</strong><br>
+          Número: <code>5031 7557 3453 0604</code><br>
+          Nombre: <code>APRO</code> &nbsp;·&nbsp; Venc.: <code>11/30</code> &nbsp;·&nbsp; CVV: <code>123</code>
+        </div>
+      </div>
+      <div class="phone-wrap">
+        <div class="phone" style="min-height:500px;">
+          <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+          <div class="phone-screen">
+            <div class="s-scroll">
+              <div class="s-page-title">Confirmar Pago</div>
+              <div class="s-pcard">
+                <div class="s-pcard-label">Resumen</div>
+                <div class="s-info-row"><span>Dr. Martín López</span><span style="color:var(--sage);">$15</span></div>
+              </div>
+              <!-- Card form -->
+              <div class="s-pcard">
+                <div class="s-pcard-label">Método de Pago</div>
+                <div class="s-card-form-header">
+                  <span>Nueva tarjeta</span>
+                  <a href="#">Cancelar</a>
+                </div>
+                <!-- Card number -->
+                <div class="s-form-group">
+                  <span class="s-form-label" style="color:var(--sage);">Número de tarjeta</span>
+                  <div class="s-form-input focused">
+                    <span>5031 7557 3453 0604</span>
+                    <span style="color:var(--sage);font-size:9px;">💳</span>
+                  </div>
+                </div>
+                <!-- Expiry + CVV -->
+                <div class="s-form-row">
+                  <div class="s-form-group">
+                    <span class="s-form-label">Vencimiento</span>
+                    <div class="s-form-input filled"><span>11/30</span></div>
+                  </div>
+                  <div class="s-form-group">
+                    <span class="s-form-label">Cód. seguridad</span>
+                    <div class="s-form-input filled"><span>123</span></div>
+                  </div>
+                </div>
+                <!-- Name -->
+                <div class="s-form-group">
+                  <span class="s-form-label">Nombre del titular</span>
+                  <div class="s-form-input filled"><span>APRO</span></div>
+                </div>
+                <!-- DNI -->
+                <div class="s-form-group">
+                  <span class="s-form-label">Documento del titular</span>
+                  <div class="s-form-input filled">
+                    <span>DNI</span>
+                    <span style="color:var(--muted);margin:0 6px;">|</span>
+                    <span>12345678</span>
+                  </div>
+                </div>
+                <div class="s-btn primary" style="margin-top:4px;">💳 Guardar tarjeta</div>
+              </div>
+            </div>
+            <div class="s-bottom-nav">
+              <div class="s-nav-item active"><span class="s-nav-icon">🏠</span>Inicio</div>
+              <div class="s-nav-item"><span class="s-nav-icon">📅</span>Agenda</div>
+              <div class="s-nav-item"><span class="s-nav-icon">✨</span>IA</div>
+              <div class="s-nav-item"><span class="s-nav-icon">📁</span>Bóveda</div>
+              <div class="s-nav-item"><span class="s-nav-icon">👤</span>Perfil</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- STEP 7 — Saved card + pay -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div class="step">
+      <div class="phone-wrap">
+        <div class="phone" style="min-height:480px; position:relative;">
+          <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+          <div class="phone-screen">
+            <div class="s-scroll">
+              <div class="s-page-title">Confirmar Pago</div>
+              <!-- Resumen -->
+              <div class="s-pcard">
+                <div class="s-pcard-label">Resumen</div>
+                <div class="s-doc-row">
+                  <div class="s-doc-mini-avatar">👨‍⚕️</div>
+                  <div class="s-doc-row-text">Dr. Martín López <small>medicina_general</small></div>
+                </div>
+                <div class="s-info-row"><span><span class="icon">📹</span>Videoconsulta</span></div>
+                <div class="s-info-row" style="margin-top:4px;"><span>Precio</span><strong>$15</strong></div>
+              </div>
+              <!-- Saved card -->
+              <div class="s-pcard">
+                <div class="s-pcard-label">Método de Pago</div>
+                <div class="s-saved-card">
+                  <div class="s-card-icon">💳</div>
+                  <div>
+                    <div class="s-card-brand">Mastercard</div>
+                    <div class="s-card-num">•••• •••• •••• 0604</div>
+                  </div>
+                  <span class="s-check">✓</span>
+                  <span class="s-trash">🗑</span>
+                </div>
+                <div class="s-add-card-btn">
+                  <span>+</span> Agregar nueva tarjeta
+                </div>
+                <hr class="s-divider">
+                <div class="s-total-row"><span>A pagar hoy</span><strong>$15</strong></div>
+              </div>
+              <div class="s-btn primary" style="font-size:10px;padding:10px;">Confirmar y Pagar</div>
+            </div>
+            <div class="s-bottom-nav">
+              <div class="s-nav-item active"><span class="s-nav-icon">🏠</span>Inicio</div>
+              <div class="s-nav-item"><span class="s-nav-icon">📅</span>Agenda</div>
+              <div class="s-nav-item"><span class="s-nav-icon">✨</span>IA</div>
+              <div class="s-nav-item"><span class="s-nav-icon">📁</span>Bóveda</div>
+              <div class="s-nav-item"><span class="s-nav-icon">👤</span>Perfil</div>
+            </div>
+          </div>
+          <!-- FAB -->
+          <div class="s-fab">+</div>
+        </div>
+      </div>
+      <div class="step-content">
+        <div class="step-label">Paso 7</div>
+        <h2>Tarjeta guardada — confirmar pago</h2>
+        <p>En visitas posteriores, las tarjetas guardadas aparecen auto-seleccionadas. El botón "Confirmar y Pagar" queda habilitado inmediatamente.</p>
+        <p>Al tocar <strong>"Confirmar y Pagar"</strong>, la Edge Function <code>mp-payment</code> ejecuta:</p>
+        <ol class="numbered-list">
+          <li><strong>POST /payments</strong> a MP con <code>card_id</code>, <code>amount</code>, <code>payer</code></li>
+          <li>Si aprobado → crea registro en <code>consultations</code> con status <code>confirmed</code></li>
+          <li>Dispara push notification al profesional</li>
+          <li>Redirige a <code>/paciente/turno-confirmado/:id</code></li>
+        </ol>
+        <div class="info-box">
+          🔒 <strong>Seguridad:</strong> Cada pago verifica que el <code>mp_card_id</code> pertenezca al paciente autenticado (row en <code>payment_methods</code> con <code>user_id = auth.uid()</code>) antes de cobrar. El RLS de Supabase impide que un usuario acceda a tarjetas de otro.
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /steps -->
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- TECH SECTION -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div class="tech-section">
+    <p class="section-title">Datos técnicos</p>
+
+    <div class="tech-grid" style="margin-top:28px;">
+
+      <!-- Stack table -->
+      <div class="tech-card">
+        <h3>Componentes del sistema de pago</h3>
+        <table>
+          <thead>
+            <tr><th>Componente</th><th>Tecnología</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Captura de tarjeta</td><td>MP Secure Fields (iframe cross-origin)</td></tr>
+            <tr><td>Tokenización</td><td>MercadoPago SDK v2</td></tr>
+            <tr><td>Almacenamiento</td><td><code>payment_methods</code> — solo <code>card_brand</code> + <code>last_four</code></td></tr>
+            <tr><td>Guardar tarjeta</td><td>Edge Function <code>mp-save-card</code></td></tr>
+            <tr><td>Cobro</td><td>Edge Function <code>mp-payment</code> → MP Payments API</td></tr>
+            <tr><td>Webhook</td><td><code>mp-webhook</code> — HMAC-SHA256 firmado</td></tr>
+            <tr><td>Ambiente actual</td><td>🟡 Sandbox (<code>MP_IS_PROD=false</code>)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Test card + env -->
+      <div class="tech-card">
+        <h3>Tarjeta de prueba (Sandbox)</h3>
+        <div class="code-block">
+<span class="comment"># Mastercard — siempre aprobada en sandbox</span>
+<span class="key">Número:</span>   <span class="val">5031 7557 3453 0604</span>
+<span class="key">Nombre:</span>   <span class="val">APRO</span>
+<span class="key">Venc.:</span>    <span class="val">11/30</span>
+<span class="key">CVV:</span>      <span class="val">123</span>
+<span class="key">Doc.:</span>     <span class="val">DNI 12345678</span>
+
+<span class="comment"># Visa — aprobada</span>
+<span class="key">Número:</span>   <span class="val">4509 9535 6623 3704</span>
+        </div>
+
+        <div class="callout">
+          <span class="callout-icon">⚡</span>
+          <div>
+            <strong>Para activar producción:</strong><br>
+            <code>MP_IS_PROD=true</code> en Supabase Secrets<br>
+            <code>VITE_MP_IS_PROD=true</code> en Vercel env vars<br>
+            Luego redeploy automático vía <code>git push origin main</code>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tech-grid -->
+
+    <!-- Env vars reference -->
+    <div class="tech-card" style="margin-top:20px;">
+      <h3>Variables de entorno</h3>
+      <table>
+        <thead>
+          <tr><th>Variable</th><th>Ubicación</th><th>Descripción</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>MP_CLIENT_ID</code></td><td>Supabase Secrets</td><td>OAuth client ID de la app MP</td></tr>
+          <tr><td><code>MP_CLIENT_SECRET</code></td><td>Supabase Secrets</td><td>OAuth client secret</td></tr>
+          <tr><td><code>MP_ACCESS_TOKEN</code></td><td>Supabase Secrets</td><td>Token de acceso sandbox/prod</td></tr>
+          <tr><td><code>MP_IS_PROD</code></td><td>Supabase Secrets</td><td><code>false</code> = sandbox, <code>true</code> = producción</td></tr>
+          <tr><td><code>MP_WEBHOOK_SECRET</code></td><td>Supabase Secrets</td><td>Clave HMAC para verificar webhooks</td></tr>
+          <tr><td><code>VITE_MP_IS_PROD</code></td><td>Vercel env vars</td><td>Feature flag del frontend (mismo switch)</td></tr>
+          <tr><td><code>VITE_MP_PUBLIC_KEY_SANDBOX</code></td><td>Vercel env vars</td><td>Public key MP sandbox (prefijo <code>TEST-</code>)</td></tr>
+          <tr><td><code>VITE_MP_PUBLIC_KEY_PROD</code></td><td>Vercel env vars</td><td>Public key MP producción</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Webhook info -->
+    <div class="tech-card" style="margin-top:20px;">
+      <h3>Webhook registrado en MP Developer Portal</h3>
+      <table>
+        <thead>
+          <tr><th>Campo</th><th>Valor</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>URL Sandbox</td><td><code>https://aixjejdoofervrkggbkd.supabase.co/functions/v1/mp-webhook</code></td></tr>
+          <tr><td>URL Producción</td><td><code>https://aixjejdoofervrkggbkd.supabase.co/functions/v1/mp-webhook</code></td></tr>
+          <tr><td>Eventos</td><td>Vinculación de aplicaciones · Pagos (legacy)</td></tr>
+          <tr><td>Verificación</td><td>HMAC-SHA256 con <code>MP_WEBHOOK_SECRET</code></td></tr>
+          <tr><td>Estado</td><td>✅ Registrado en sandbox y productivo (2026-07-01)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div><!-- /tech-section -->
+
+</div><!-- /container -->
+
+<footer>
+  Healthier · Generado por Claude Code — Macbook Pro · 2026-07-02
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Healthier — Para profesionales de la salud</title>
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1/src/index.js" defer></script>
+<style>
+/* ===== FONTS ===== */
+@font-face{font-family:'Everett';src:url('fonts/Everett-Light.woff2') format('woff2');font-weight:300;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('fonts/Everett-Regular.woff2') format('woff2');font-weight:400 600;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('fonts/Everett-RegularItalic.woff2') format('woff2');font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:'Everett';src:url('fonts/Everett-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+
+/* ===== TOKENS ===== */
+:root{
+  --sage:#7CB38B;--sage-hover:#5f9470;--sage-muted:rgba(124,179,139,.1);--sage-muted2:rgba(124,179,139,.18);
+  --coral:#E8927C;--lavender:#9B8EC4;--danger:#D9534F;--gold:#E4A853;--sky:#6BAFCF;--green:#6BBF7B;
+  --bg-primary:#F6F5F0;--bg-secondary:#FDFCF9;--surface:#fff;
+  --text-primary:#2D2A26;--text-secondary:#6B6560;--text-tertiary:#A8A29E;
+  --border:#D8D4CE;--border-hover:#C4BFB8;
+  --radius-pill:999px;--radius-card:1.5rem;--radius-card-sm:1rem;
+  --shadow-card:0 1px 4px rgba(45,42,38,.06);--shadow-hover:0 8px 28px rgba(124,179,139,.14);
+  --transition:all .36s cubic-bezier(.4,0,.2,1);
+}
+
+/* ===== RESET ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-primary)}
+body{font-family:'Everett',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  color:var(--text-primary);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+img{max-width:100%;display:block}
+button{all:unset;cursor:pointer}
+
+/* ===== DECK SHELL ===== */
+#deck{position:fixed;inset:0;overflow:hidden}
+
+/* ===== SLIDES ===== */
+.slide{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;justify-content:center;align-items:center;
+  padding:5rem 2rem 4rem;
+  opacity:0;pointer-events:none;user-select:none;
+  transition:opacity .45s cubic-bezier(.4,0,.2,1),transform .45s cubic-bezier(.4,0,.2,1);
+  transform:translateY(24px);
+  overflow:hidden;
+}
+.slide.active{opacity:1;pointer-events:auto;user-select:auto;transform:translateY(0)}
+.slide.exit-up{opacity:0;transform:translateY(-24px)}
+.slide.enter-down{opacity:0;transform:translateY(24px)}
+@media(prefers-reduced-motion:reduce){.slide{transition:opacity .2s}}
+
+/* Backgrounds */
+.slide-ivory{background:var(--bg-primary)}
+.slide-cream{background:var(--bg-secondary)}
+.slide-white{background:var(--surface)}
+.slide-sage{background:var(--sage)}
+.slide-dark{background:#1d1e1a;color:#f9f8f5}
+.slide-sage .eyebrow,.slide-sage h1,.slide-sage p,.slide-sage .lead,.slide-sage .step-label,
+.slide-dark .eyebrow,.slide-dark h1,.slide-dark p,.slide-dark .lead{color:#fff}
+.slide-sage .eyebrow-pill{background:rgba(255,255,255,.2);color:#fff}
+.slide-sage .hero-sub{color:rgba(255,255,255,.82)}
+.slide-dark .eyebrow-pill{background:rgba(124,179,139,.22);color:#a8dbb8}
+
+/* ===== NAV BAR ===== */
+#nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.75rem 1.5rem;
+  background:rgba(246,245,240,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  height:52px;
+}
+#nav-logo{display:flex;align-items:center;gap:.5rem;opacity:.7}
+#dots{display:flex;align-items:center;gap:.35rem;flex:1;justify-content:center}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--border);transition:var(--transition);cursor:pointer}
+.dot.active{background:var(--sage);width:18px;border-radius:3px}
+.dot:hover{background:var(--text-tertiary)}
+#counter{font-size:.75rem;font-weight:600;color:var(--text-tertiary);letter-spacing:.04em;white-space:nowrap;min-width:4rem;text-align:right}
+
+/* ===== ARROW BUTTONS ===== */
+.arrow-btn{
+  position:fixed;top:50%;z-index:99;
+  transform:translateY(-50%);
+  width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.7);backdrop-filter:blur(8px);
+  border:1px solid var(--border);color:var(--text-secondary);
+  transition:var(--transition);opacity:.6;
+  font-size:1.1rem;
+}
+.arrow-btn:hover{opacity:1;background:#fff;border-color:var(--border-hover);color:var(--text-primary)}
+#btn-prev{left:.75rem}
+#btn-next{right:.75rem}
+.arrow-btn.hidden{opacity:0;pointer-events:none}
+
+/* ===== LAYOUT HELPERS ===== */
+.content{width:100%;max-width:900px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:1.5rem;text-align:center}
+.content.left{align-items:flex-start;text-align:left}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:center;width:100%;max-width:960px}
+.two-col.flip{direction:rtl}.two-col.flip > *{direction:ltr}
+
+/* ===== TYPOGRAPHY ===== */
+.eyebrow-pill{
+  display:inline-flex;align-items:center;gap:.4rem;
+  font-size:.75rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  background:var(--sage-muted);color:var(--sage);
+  padding:.3rem .85rem;border-radius:var(--radius-pill);
+}
+h1.hero{
+  font-size:clamp(2.4rem,5.5vw,4.2rem);font-weight:700;line-height:1.1;letter-spacing:-.02em;
+  max-width:18ch;
+}
+h1.hero .accent{color:var(--sage)}
+h2.section-title{
+  font-size:clamp(1.9rem,4vw,3rem);font-weight:700;line-height:1.15;letter-spacing:-.02em;
+  max-width:22ch;
+}
+h2.section-title .accent{color:var(--sage)}
+h2.section-title .accent-coral{color:var(--coral)}
+.lead{font-size:clamp(1rem,2vw,1.2rem);color:var(--text-secondary);line-height:1.6;max-width:54ch}
+.lead strong{color:var(--text-primary);font-weight:600}
+p.caption{font-size:.85rem;color:var(--text-tertiary)}
+
+/* ===== PILL TAGS ===== */
+.pill-row{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center}
+.pill-tag{
+  font-size:.8rem;font-weight:500;padding:.35rem .9rem;
+  border-radius:var(--radius-pill);border:1px solid var(--border);
+  background:var(--surface);color:var(--text-secondary);
+}
+.pill-tag.sage{background:var(--sage-muted);border-color:rgba(124,179,139,.3);color:var(--sage-hover)}
+.pill-tag.coral{background:rgba(232,146,124,.1);border-color:rgba(232,146,124,.3);color:#c2614a}
+.pill-tag.lavender{background:rgba(155,142,196,.1);border-color:rgba(155,142,196,.3);color:#6d5fa3}
+.pill-tag.gold{background:rgba(228,168,83,.1);border-color:rgba(228,168,83,.3);color:#9a6c1a}
+
+/* ===== FEATURE CARDS ===== */
+.feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;width:100%;max-width:900px}
+.feat-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:1.25rem 1.5rem;text-align:left;
+  box-shadow:var(--shadow-card);transition:var(--transition);
+}
+.feat-card:hover{box-shadow:var(--shadow-hover);border-color:rgba(124,179,139,.3);transform:translateY(-2px)}
+.feat-card .icon-wrap{
+  width:40px;height:40px;border-radius:.75rem;
+  background:var(--sage-muted);display:flex;align-items:center;justify-content:center;
+  margin-bottom:.75rem;color:var(--sage);font-size:1.2rem;
+}
+.feat-card .icon-wrap.coral{background:rgba(232,146,124,.1);color:var(--coral)}
+.feat-card .icon-wrap.lavender{background:rgba(155,142,196,.1);color:var(--lavender)}
+.feat-card .icon-wrap.gold{background:rgba(228,168,83,.1);color:var(--gold)}
+.feat-card .icon-wrap.sky{background:rgba(107,175,207,.1);color:var(--sky)}
+.feat-card h3{font-size:.95rem;font-weight:700;margin-bottom:.3rem;color:var(--text-primary)}
+.feat-card p{font-size:.82rem;color:var(--text-secondary);line-height:1.5}
+
+/* ===== MOCK PHONE FRAME ===== */
+.phone-frame{
+  width:220px;height:430px;border-radius:2.4rem;
+  background:#1a1a1a;border:6px solid #2a2a2a;
+  box-shadow:0 20px 60px rgba(0,0,0,.3);
+  overflow:hidden;position:relative;flex-shrink:0;
+}
+.phone-screen{width:100%;height:100%;background:var(--bg-primary);overflow:hidden;position:relative}
+.phone-map{
+  position:absolute;inset:0;
+  background:linear-gradient(160deg,#d4e8d4 0%,#c8dfc8 40%,#b8d4c0 70%,#a8c8b0 100%);
+}
+.map-grid{position:absolute;inset:0;opacity:.18}
+.map-grid::before,.map-grid::after{content:'';position:absolute;background:#4a7a5a}
+.map-grid::before{left:35%;top:0;bottom:0;width:1px}
+.map-grid::after{top:45%;left:0;right:0;height:1px}
+.map-road-h{position:absolute;height:3px;background:rgba(255,255,255,.6);border-radius:2px}
+.map-road-v{position:absolute;width:3px;background:rgba(255,255,255,.6);border-radius:2px}
+.pro-marker{
+  position:absolute;top:38%;left:42%;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  transform:translate(-50%,-50%);
+}
+.marker-pin{
+  width:36px;height:36px;border-radius:50%;
+  background:var(--sage);border:3px solid #fff;
+  box-shadow:0 3px 10px rgba(0,0,0,.25);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:.9rem;
+}
+.marker-label{
+  background:#fff;border-radius:var(--radius-pill);padding:.15rem .5rem;
+  font-size:.5rem;font-weight:700;color:var(--sage-hover);white-space:nowrap;
+  box-shadow:0 1px 4px rgba(0,0,0,.15);
+}
+.phone-pro-card{
+  position:absolute;bottom:0;left:0;right:0;
+  background:rgba(255,255,255,.95);backdrop-filter:blur(12px);
+  border-radius:1rem 1rem 0 0;padding:.75rem .85rem;
+  box-shadow:0 -2px 16px rgba(0,0,0,.1);
+}
+.pro-card-top{display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem}
+.pro-avatar{
+  width:34px;height:34px;border-radius:50%;
+  background:linear-gradient(135deg,var(--sage),var(--sage-hover));
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:.75rem;font-weight:700;
+}
+.pro-card-name{font-size:.65rem;font-weight:700;color:var(--text-primary)}
+.pro-card-spec{font-size:.55rem;color:var(--text-secondary)}
+.pro-card-badge{
+  display:inline-flex;align-items:center;gap:.2rem;
+  font-size:.5rem;font-weight:600;
+  background:var(--sage-muted);color:var(--sage-hover);
+  padding:.15rem .4rem;border-radius:var(--radius-pill);margin-top:.15rem;
+}
+.stars-row{display:flex;align-items:center;gap:.2rem;font-size:.55rem;color:var(--gold);font-weight:600}
+.phone-btn{
+  display:block;width:100%;margin-top:.5rem;
+  background:var(--sage);color:#fff;font-size:.6rem;font-weight:700;
+  border-radius:var(--radius-pill);padding:.4rem;text-align:center;
+}
+
+/* ===== MOCK STAT CARDS ===== */
+.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem;width:100%;max-width:420px}
+.stat-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:1rem 1.25rem;text-align:left;box-shadow:var(--shadow-card);
+}
+.stat-label{font-size:.72rem;color:var(--text-tertiary);font-weight:500;margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.05em}
+.stat-val{font-size:1.5rem;font-weight:700;color:var(--text-primary);line-height:1}
+.stat-val.sage{color:var(--sage)}
+.stat-val.coral{color:var(--coral)}
+.stat-delta{font-size:.72rem;color:var(--green);font-weight:600;margin-top:.2rem}
+.stat-delta.neg{color:var(--danger)}
+
+/* ===== TIMELINE / STEPS ===== */
+.steps{display:flex;flex-direction:column;gap:1.5rem;width:100%;max-width:560px;text-align:left}
+.step{display:flex;align-items:flex-start;gap:1rem}
+.step-num{
+  width:36px;height:36px;border-radius:50%;flex-shrink:0;
+  background:var(--sage);color:#fff;font-size:.9rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;margin-top:.1rem;
+}
+.step-body h3{font-size:1rem;font-weight:700;margin-bottom:.2rem}
+.step-body p{font-size:.88rem;color:var(--text-secondary);line-height:1.5}
+
+/* ===== VAULT MOCK ===== */
+.vault-mock{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:1.25rem 1.5rem;width:100%;max-width:380px;box-shadow:var(--shadow-card);
+}
+.vault-header{display:flex;align-items:center;gap:.6rem;margin-bottom:1rem}
+.vault-shield{
+  width:36px;height:36px;border-radius:.75rem;
+  background:rgba(107,191,123,.12);display:flex;align-items:center;justify-content:center;
+  color:var(--green);font-size:1.1rem;
+}
+.vault-title{font-size:.95rem;font-weight:700}
+.vault-sub{font-size:.75rem;color:var(--text-tertiary)}
+.vault-cats{display:flex;flex-wrap:wrap;gap:.5rem}
+.vault-cat{
+  display:flex;align-items:center;gap:.35rem;
+  font-size:.75rem;font-weight:600;padding:.4rem .75rem;
+  border-radius:var(--radius-pill);border:1px solid var(--border);
+  background:var(--bg-primary);color:var(--text-secondary);
+}
+.vault-cat .dot-cat{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* ===== FLYWHEEL ===== */
+.flywheel-wrap{position:relative;width:320px;height:320px;flex-shrink:0}
+
+/* ===== AGENDA MOCK ===== */
+.agenda-mock{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:1.25rem;width:100%;max-width:360px;box-shadow:var(--shadow-card);
+}
+.agenda-day{margin-bottom:.75rem}
+.day-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-tertiary);margin-bottom:.4rem}
+.slot-row{display:flex;gap:.4rem;flex-wrap:wrap}
+.slot{
+  font-size:.72rem;font-weight:600;padding:.3rem .65rem;border-radius:var(--radius-pill);
+  background:var(--sage-muted);color:var(--sage-hover);border:1px solid rgba(124,179,139,.25);
+}
+.ondemand-toggle{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-top:1rem;padding:.75rem 1rem;border-radius:var(--radius-card-sm);
+  background:linear-gradient(90deg,rgba(124,179,139,.08),rgba(124,179,139,.04));
+  border:1px solid rgba(124,179,139,.2);
+}
+.toggle-label{font-size:.8rem;font-weight:600;color:var(--text-primary)}
+.toggle-sub{font-size:.7rem;color:var(--text-secondary)}
+.toggle-switch{
+  width:40px;height:22px;border-radius:var(--radius-pill);background:var(--sage);
+  position:relative;flex-shrink:0;
+}
+.toggle-switch::after{
+  content:'';position:absolute;top:3px;right:3px;
+  width:16px;height:16px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.2);
+}
+
+/* ===== VIDEO CALL MOCK ===== */
+.video-mock{
+  width:280px;height:200px;border-radius:1.25rem;overflow:hidden;
+  background:#1a1a1a;position:relative;flex-shrink:0;
+  box-shadow:0 12px 40px rgba(0,0,0,.3);
+}
+.video-bg{position:absolute;inset:0;background:linear-gradient(135deg,#1e3a2f 0%,#0d1f17 100%)}
+.video-user{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  display:flex;flex-direction:column;align-items:center;gap:.5rem;
+}
+.video-avatar{
+  width:52px;height:52px;border-radius:50%;
+  background:linear-gradient(135deg,var(--sage),#4a8a60);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.4rem;font-weight:700;
+}
+.video-name{font-size:.72rem;color:rgba(255,255,255,.8);font-weight:600}
+.video-bar{
+  position:absolute;bottom:0;left:0;right:0;
+  padding:.6rem .8rem;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.video-bar-label{font-size:.65rem;color:rgba(255,255,255,.8);font-weight:600}
+.video-controls{display:flex;gap:.4rem}
+.vc-btn{
+  width:28px;height:28px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.75rem;
+}
+.vc-btn.on{background:rgba(255,255,255,.15);color:#fff}
+.vc-btn.red{background:var(--danger);color:#fff}
+.clinical-panel{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);
+  padding:.85rem 1rem;width:200px;box-shadow:var(--shadow-card);
+}
+.cp-title{font-size:.72rem;font-weight:700;color:var(--text-primary);margin-bottom:.5rem;display:flex;align-items:center;gap:.3rem}
+.cp-note{font-size:.68rem;color:var(--text-secondary);line-height:1.45;padding:.5rem;background:var(--bg-primary);border-radius:.5rem;margin-bottom:.4rem}
+.cp-badge{font-size:.62rem;background:rgba(155,142,196,.12);color:var(--lavender);padding:.2rem .5rem;border-radius:var(--radius-pill);font-weight:600}
+
+/* ===== PROFILE MOCK ===== */
+.profile-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:1.25rem;width:100%;max-width:320px;box-shadow:var(--shadow-card);
+}
+.profile-top{display:flex;align-items:center;gap:.9rem;margin-bottom:1rem}
+.profile-avatar-lg{
+  width:52px;height:52px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,var(--sage),var(--sage-hover));
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.2rem;font-weight:700;
+}
+.profile-badge{
+  display:inline-flex;align-items:center;gap:.25rem;font-size:.65rem;font-weight:700;
+  background:rgba(107,191,123,.12);color:#3a8c4e;
+  padding:.2rem .5rem;border-radius:var(--radius-pill);margin-bottom:.2rem;
+}
+.profile-name{font-size:1rem;font-weight:700}
+.profile-spec{font-size:.8rem;color:var(--text-secondary)}
+.stars-lg{display:flex;align-items:center;gap:.3rem;font-size:.82rem;font-weight:600;color:var(--gold);margin-bottom:.75rem}
+.stars-lg span{color:var(--text-secondary);font-weight:400}
+.consult-types{display:flex;flex-direction:column;gap:.5rem}
+.consult-type{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.5rem .75rem;border-radius:.75rem;border:1px solid var(--border);
+  background:var(--bg-primary);
+}
+.ct-label{font-size:.78rem;font-weight:600}
+.ct-price{font-size:.78rem;font-weight:700;color:var(--sage-hover)}
+.ct-modality{font-size:.65rem;color:var(--text-tertiary)}
+
+/* ===== HISTORIA CLINICA MOCK ===== */
+.hc-mock{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:1.25rem;width:100%;max-width:340px;box-shadow:var(--shadow-card);
+}
+.hc-entry{padding:.75rem;border-radius:.75rem;background:var(--bg-primary);margin-bottom:.6rem;text-align:left}
+.hc-meta{display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem}
+.hc-title{font-size:.78rem;font-weight:700}
+.hc-date{font-size:.65rem;color:var(--text-tertiary)}
+.hc-body{font-size:.72rem;color:var(--text-secondary);line-height:1.45}
+.hc-vis{font-size:.6rem;padding:.15rem .4rem;border-radius:var(--radius-pill);font-weight:600}
+.hc-vis.int{background:rgba(155,142,196,.12);color:var(--lavender)}
+.hc-vis.ext{background:var(--sage-muted);color:var(--sage-hover)}
+
+/* ===== PROGRESS BAR ===== */
+.progress-bar{
+  position:fixed;bottom:0;left:0;height:2px;background:var(--sage);
+  transition:width .4s cubic-bezier(.4,0,.2,1);z-index:100;
+}
+
+/* ===== CTA BUTTON ===== */
+.btn-pill{
+  display:inline-flex;align-items:center;gap:.5rem;
+  font-size:1rem;font-weight:700;
+  padding:.9rem 2.25rem;border-radius:var(--radius-pill);
+  transition:var(--transition);cursor:pointer;
+}
+.btn-pill.white{background:#fff;color:var(--sage)}
+.btn-pill.white:hover{background:rgba(255,255,255,.9);transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,.15)}
+.btn-pill.sage{background:var(--sage);color:#fff}
+.btn-pill.sage:hover{background:var(--sage-hover);transform:translateY(-1px);box-shadow:var(--shadow-hover)}
+
+/* ===== LOGO ===== */
+.logo-svg{display:block}
+
+/* ===== TRUST BADGES ===== */
+.trust-row{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center}
+.trust-badge{
+  display:flex;align-items:center;gap:.4rem;
+  font-size:.78rem;font-weight:600;
+  padding:.4rem 1rem;border-radius:var(--radius-pill);
+  background:rgba(255,255,255,.5);border:1px solid var(--border);
+  color:var(--text-secondary);
+}
+.trust-badge i{color:var(--sage);font-size:.9rem}
+
+/* ===== ACT DIVIDER ===== */
+.act-divider{display:flex;align-items:center;gap:1rem;width:100%;max-width:600px;justify-content:center}
+.act-line{flex:1;height:1px;background:var(--border)}
+
+/* ===== SUMMARY LIST ===== */
+.summary-list{display:flex;flex-direction:column;gap:.75rem;width:100%;max-width:560px;text-align:left}
+.summary-item{display:flex;align-items:flex-start;gap:.9rem;padding:.9rem 1.1rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);box-shadow:var(--shadow-card)}
+.summary-item .si-icon{width:36px;height:36px;border-radius:.65rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1rem}
+.summary-item h3{font-size:.9rem;font-weight:700;margin-bottom:.1rem}
+.summary-item p{font-size:.8rem;color:var(--text-secondary)}
+
+/* ===== ONBOARDING STEPS ===== */
+.ob-steps{display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap;width:100%;max-width:600px}
+.ob-step{
+  flex:1;min-width:90px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);
+  padding:.85rem .6rem;text-align:center;box-shadow:var(--shadow-card);
+}
+.ob-step .ob-num{
+  width:28px;height:28px;border-radius:50%;background:var(--sage);color:#fff;
+  font-size:.78rem;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto .45rem;
+}
+.ob-step h4{font-size:.72rem;font-weight:700;color:var(--text-primary);margin-bottom:.15rem}
+.ob-step p{font-size:.63rem;color:var(--text-secondary)}
+
+/* ===== CTA SECTION (final slide) ===== */
+.cta-steps{display:flex;gap:2rem;justify-content:center;flex-wrap:wrap;margin:1.5rem 0}
+.cta-step{text-align:center}
+.cta-step-num{
+  width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.2);
+  color:#fff;font-size:1.1rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;margin:0 auto .6rem;
+}
+.cta-step p{font-size:.9rem;color:rgba(255,255,255,.85);font-weight:500}
+.cta-arrow{font-size:1.5rem;color:rgba(255,255,255,.4);align-self:center;margin-top:-.4rem}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:720px){
+  .two-col{grid-template-columns:1fr;gap:1.5rem}
+  .two-col .phone-frame,.two-col .video-mock{margin:0 auto}
+  .feat-grid{grid-template-columns:1fr 1fr}
+  h1.hero{font-size:clamp(2rem,8vw,3rem)}
+  .flywheel-wrap{width:260px;height:260px}
+  .cta-steps{gap:1rem}
+  .cta-arrow{display:none}
+  .ob-steps{gap:.4rem}
+  .ob-step{min-width:80px}
+}
+@media(max-width:480px){
+  .feat-grid{grid-template-columns:1fr}
+  .stat-grid{grid-template-columns:1fr 1fr}
+  .slide{padding:4rem 1.25rem 3rem}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="nav">
+  <div id="nav-logo">
+    <!-- Healthier logo SVG (wordmark real, fill sage) -->
+    <svg width="72" height="15" viewBox="0 0 2540 545" fill="none" xmlns="http://www.w3.org/2000/svg" class="logo-svg">
+      <path d="M2448.13 177.94C2431.53 189.42 2417.82 226.52 2407.3 237.12L2406.85 203.81L2406.37 160.72C2406.55 155.87 2397.89 156.69 2395.11 155.8C2367.66 169.18 2332.68 186.41 2302.58 191.38L2302.41 206.5C2309.19 208.85 2335.7 206.6 2339.49 215.15L2295.16 329.68C2262.21 422.16 2175.28 540.94 2064.98 480.76C2028.56 458.86 2001.14 415.12 2010.64 371.86C2063.43 350.52 2169.76 304.28 2221.8 280.53L2272.79 256.5C2233.21 167.64 2121.29 120.98 2037.58 181.31C1890.93 281.28 1943.29 581.64 2149.99 540.47C2281.13 519.09 2312.97 360.92 2356.55 257.27C2353.02 309.94 2384.65 490.31 2329.97 510.45C2313.21 517.49 2296.91 509.14 2301.46 534.4L2474.8 534.39C2482.54 494.59 2409.9 535.49 2412.75 449.6C2419.64 377.61 2387.96 251.74 2465.32 210.14C2493.64 198.58 2515.86 213.39 2527.21 234.77C2540.48 240.08 2536.02 169.58 2539.02 165.78C2510.34 147.76 2472.36 154.1 2448.13 177.95V177.94ZM2046.84 226.43C2065.87 205.39 2091.38 192.99 2120.04 192.6C2159.51 191.17 2189.98 210.95 2211.81 244.15L2152.02 270.21C2022.04 326.75 1984.11 326.75 2046.84 226.43Z" fill="#7CB38B"/>
+      <path d="M1736.52 480.85C1738.98 472.73 1740.42 464.47 1740.4 455.53L1740.07 293.92C1740.04 277.6 1737.64 262.44 1732.73 247.36C1726.45 228.04 1713.47 211.82 1694.89 203.4C1676.24 194.95 1655.56 193.74 1635.69 198.26C1601.8 205.97 1574.67 240.32 1567.27 273.71L1567.19 448.53C1567.18 459.05 1567.91 468.53 1570.84 478.23C1579.22 505.88 1603.77 514.19 1631.62 516.51L1631.81 534.39H1453.71L1453.62 516.72C1476.88 514.25 1499.88 509.44 1507.64 485.82C1510.34 477.58 1512.36 468.91 1512.36 459.44L1512.17 80.1798C1512.17 69.7698 1511.14 60.6698 1509.4 50.9798C1506.95 37.3998 1497.86 27.0198 1484.58 22.7998C1475.14 19.7898 1465.67 19.0198 1455.14 17.7598L1455.27 0.00976562H1567.02L1567.26 217.12L1587.17 191.64C1607.52 169.1 1634.88 156.8 1665.29 155.36C1713.46 153.07 1756.09 174.55 1776.05 219.18C1783.68 236.26 1788.05 253.8 1788.74 272.79C1788.74 272.79 1787.49 461.06 1787.49 495.41C1787.49 508.37 1804.24 513.98 1817.44 512.71C1835.13 511.01 1858.33 493.61 1859.85 475.81L1860.65 256.56C1860.91 241.19 1854.84 216.56 1840.63 211.63C1830.77 208.2 1820.88 207.96 1810.4 206.88L1810.71 191.17C1829.49 187.1 1847.07 182.11 1864.16 173.71L1899.82 156.17C1903 155.09 1908.57 156.99 1911.76 158.7L1908.03 462.6C1906.51 482.87 1909.35 507.6 1929.5 510.8L1953.83 514.66L1955.02 534.39H1677.8L1677.89 516.65C1704.31 513.65 1728.56 507.12 1736.52 480.85Z" fill="#7CB38B"/>
+      <path d="M1470.29 483.55C1465.45 494.85 1460.69 505.1 1453.07 514.25C1434.97 535.99 1407.43 545.24 1379.54 541.82C1352.28 538.48 1331.17 521.22 1322.91 494.97C1318.46 480.8 1316.78 466.52 1316.76 451.13L1316.48 201.89L1261.87 201.83L1261.81 178.58C1273.28 174.44 1283.57 170.89 1293.9 165.2C1330.97 144.74 1343.58 105.53 1349.65 64.8901H1369.43L1368.96 99.9601V166.16L1463.86 166.36L1464 202.01L1368.95 201.97L1369.18 334.81L1369.88 445.58C1370.04 471.28 1378.83 498.53 1405.9 501.03C1418.62 502.2 1431.04 498.23 1441.06 489.79L1455.33 475.2L1470.29 483.55Z" fill="#7CB38B"/>
+      <path d="M1924.31 44.6599C1924.31 67.1499 1906.07 85.3799 1883.58 85.3799C1861.09 85.3799 1842.84 67.1499 1842.84 44.6599C1842.84 22.1699 1861.08 3.93994 1883.58 3.93994C1906.08 3.93994 1924.31 22.1699 1924.31 44.6599Z" fill="#7CB38B"/>
+      <path d="M1279.66 516.37C1268.21 515.33 1258.02 513.81 1247.88 509.27C1226.51 499.72 1221.41 478.5 1221.4 455.41L1221.24 0.02L1110.45 0L1110.31 18.04C1134.56 19.66 1159.12 24.28 1163.92 49.59C1165.84 59.74 1166.57 69.3 1166.58 80.18L1166.72 454.42C1166.72 463.75 1165.84 471.35 1163.83 480.17C1159.51 499.13 1142.7 513.9 1122.6 513.22C1109.25 512.77 1098.26 503.51 1091.89 492.34C1086.23 482.42 1083.89 471.43 1083.87 459.56L1083.62 318.85C1083.58 297.11 1081.86 276.68 1077.83 255.57C1074.33 237.23 1068.22 220.08 1057.91 204.5C1028.28 159.69 971.72 148.01 920.87 158.06C875.4 167.05 842.31 198.71 822.63 239.83C813.34 259.23 806.49 278.69 800.12 299.34L776.81 374.82C754.98 445.51 715.49 500.87 635.01 495.2C568.14 489.99 529.27 433.88 519.84 370.94L651.88 315.95L786.91 258.33C760.37 202.12 714.09 159.41 649.72 154.47C619.86 152.27 590.49 156.51 563.49 169.68C468.13 216.18 447.34 339.11 482.17 433.23C498.06 476.17 527.77 511.4 570.51 528.99C610.92 545.63 656.04 547.5 697.49 533.43C742.43 518.17 769.32 483.31 786.38 440.35C795.18 418.19 801.69 396.19 808.1 373.11C816.58 342.57 824.95 312.99 836.28 283.47C853.74 238.02 880.83 199.33 932.25 194.44C953.03 192.47 973.36 196.23 991.04 207.4C1021.81 228.43 1027.71 263.83 1028.73 299.77C991.11 303.89 955.37 312.83 920.71 326.75C906.11 332.61 893.1 339.63 880.18 348.27C863.09 359.69 849.14 374.05 838.59 391.59C819.99 422.52 817.7 465.34 835.56 496.74C844.79 512.96 857.89 525.68 875.39 533C907.82 546.57 944.51 545.78 976.2 530.17C998.07 519.4 1014.88 502.42 1028.04 481.3C1032.69 513.04 1050.27 532.21 1082.44 536.97C1095.78 538.63 1108.29 537.53 1121.71 534.42L1279.88 534.39L1279.66 516.37ZM522.54 291.54C525.91 274.81 530.81 259.11 539.27 244.35C554.73 216.33 581.35 198.08 613.06 193.27C661.29 186.03 698.5 204.61 725.13 244.55L519.22 331.36C518.92 317.24 520.38 304.68 522.54 291.54ZM1029.58 389.71L1026.88 440.83C1010.64 479.64 963.9 504.82 922.95 498.46C895.66 494.22 876.56 473.1 875.41 445.62C873.78 406.55 899.23 377.94 934.04 363.01C964.55 349.92 996.29 340.62 1029.61 334.97L1029.58 389.71Z" fill="#7CB38B"/>
+      <path d="M356.33 477.02L358.76 443.52L358.51 272.01L116.85 272.04V457.49C116.85 467.26 118.96 475.95 121.85 484.61C131.7 508.2 154.35 513.91 179.15 516.45L179.01 534.41H0.14L0 516.72L28.12 510.85C44.23 505.88 55.54 493.3 58.91 476.54C60.89 466.69 61.18 457.14 61.18 446.44L61.16 88.16C61.16 74.64 60.14 62.41 57.17 49.81C50.95 23.4 26.97 20 1.89 17.78L1.98 0H176.91L177.08 17.97C151.12 20.13 127.33 25.33 120.81 51.88C118.16 64.83 117.05 77.36 117.03 91.07L116.82 238.01H358.51L358.59 90.07C358.6 76.98 357.53 65.04 355.21 52.59C349.36 24.33 326.68 20.09 299.46 17.86L299.55 0L474.04 0.02L474.18 17.91C448.41 19.45 422.24 26.03 417.51 52.61C415.26 65.24 414.33 77.34 414.32 90.56L414.11 426.45L414.65 455.72C414.8 464.19 415.62 472.6 417.82 480.71C424.75 506.34 448.09 514.62 474.69 516.41L474.82 534.39H297.59L297.87 516.06C326.87 512.7 349.44 506.94 356.33 477.02Z" fill="#7CB38B"/>
+    </svg>
+  </div>
+  <div id="dots"></div>
+  <div id="counter">01 / 18</div>
+</nav>
+
+<!-- ARROW BUTTONS -->
+<button class="arrow-btn hidden" id="btn-prev" aria-label="Anterior">&#8592;</button>
+<button class="arrow-btn" id="btn-next" aria-label="Siguiente">&#8594;</button>
+
+<!-- PROGRESS BAR -->
+<div class="progress-bar" id="progress-bar" style="width:5.56%"></div>
+
+<!-- ======================== SLIDES ======================== -->
+<div id="deck">
+
+  <!-- 1. PORTADA -->
+  <section class="slide slide-ivory active" data-slide="1">
+    <div class="content">
+      <span class="eyebrow-pill">Para profesionales de la salud &nbsp;·&nbsp; Buenos Aires</span>
+      <h1 class="hero">Tu consultorio,<br>sin <span class="accent">las paredes.</span></h1>
+      <p class="lead">Pacientes verificados que te buscan a vos.<br>Herramientas clínicas reales. Cero marketing.</p>
+      <div class="pill-row" style="margin-top:.5rem">
+        <span class="pill-tag sage">Médicos</span>
+        <span class="pill-tag sage">Nutricionistas</span>
+        <span class="pill-tag sage">Psicólogos</span>
+        <span class="pill-tag sage">Kinesiólogos</span>
+        <span class="pill-tag sage">Entrenadores</span>
+        <span class="pill-tag sage">Veterinarios</span>
+      </div>
+      <p class="caption" style="margin-top:1.5rem">→ Navegá con las flechas o la barra espaciadora</p>
+    </div>
+  </section>
+
+  <!-- 2. EL PROBLEMA -->
+  <section class="slide slide-cream" data-slide="2">
+    <div class="content">
+      <span class="eyebrow-pill">El problema</span>
+      <h2 class="section-title">Atendés pacientes. No deberías ser tu propio equipo de <span class="accent">marketing.</span></h2>
+      <p class="lead">Conseguir pacientes nuevos lleva horas y plata. La agenda se fragmenta entre WhatsApp, planillas y llamadas. El seguimiento clínico se pierde entre consultorios.</p>
+      <div class="feat-grid" style="margin-top:1rem">
+        <div class="feat-card">
+          <div class="icon-wrap coral"><i class="ph ph-clock"></i></div>
+          <h3>Agenda manual</h3>
+          <p>Coordinar turnos por WhatsApp consume tiempo que debería ir a los pacientes.</p>
+        </div>
+        <div class="feat-card">
+          <div class="icon-wrap coral"><i class="ph ph-megaphone-simple"></i></div>
+          <h3>Marketing sin retorno</h3>
+          <p>Invertís en redes y no sabés cuántos pacientes genuinos generan.</p>
+        </div>
+        <div class="feat-card">
+          <div class="icon-wrap coral"><i class="ph ph-folder-dashed"></i></div>
+          <h3>Historial disperso</h3>
+          <p>La historia clínica del paciente se fragmenta entre distintos profesionales.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. LA PROMESA -->
+  <section class="slide slide-white" data-slide="3">
+    <div class="content">
+      <span class="eyebrow-pill">La propuesta</span>
+      <h2 class="section-title">Sumá pacientes,<br>no horas de <span class="accent">marketing.</span></h2>
+      <p class="lead">Healthier es el marketplace de salud que trabaja para vos. Aparecés donde los pacientes te buscan, con las herramientas clínicas que necesitás.</p>
+      <div class="feat-grid" style="margin-top:1rem;grid-template-columns:repeat(2,1fr)">
+        <div class="feat-card">
+          <div class="icon-wrap"><i class="ph ph-users-three"></i></div>
+          <h3>Pacientes que llegan solos</h3>
+          <p>Tu perfil verificado aparece en búsquedas y mapa en tiempo real.</p>
+        </div>
+        <div class="feat-card">
+          <div class="icon-wrap lavender"><i class="ph ph-stethoscope"></i></div>
+          <h3>Herramientas clínicas</h3>
+          <p>Historia clínica, recetas digitales, videoconsultas y más.</p>
+        </div>
+        <div class="feat-card">
+          <div class="icon-wrap gold"><i class="ph ph-currency-circle-dollar"></i></div>
+          <h3>Ganancias transparentes</h3>
+          <p>Fijás tus precios. Dashboard de ingresos en ARS. Sin comisiones abusivas.</p>
+        </div>
+        <div class="feat-card">
+          <div class="icon-wrap sky"><i class="ph ph-seal-check"></i></div>
+          <h3>Verificación que genera confianza</h3>
+          <p>Tu badge vale. Los pacientes solo ven profesionales aprobados.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. PACIENTES QUE TE BUSCAN -->
+  <section class="slide slide-ivory" data-slide="4">
+    <div class="two-col">
+      <div style="display:flex;flex-direction:column;gap:1.25rem">
+        <span class="eyebrow-pill">Discovery</span>
+        <h2 class="section-title">Los pacientes<br>te <span class="accent">encuentran.</span></h2>
+        <p class="lead">Aparecés en el mapa y en la búsqueda por especialidad. Con tu rating, reseñas y disponibilidad en tiempo real.</p>
+        <div style="display:flex;flex-direction:column;gap:.6rem">
+          <div style="display:flex;align-items:center;gap:.6rem;font-size:.88rem;color:var(--text-secondary)">
+            <span style="width:24px;height:24px;border-radius:50%;background:var(--sage-muted);display:flex;align-items:center;justify-content:center;color:var(--sage);flex-shrink:0"><i class="ph ph-map-pin"></i></span>
+            Ubicación real del consultorio en el mapa
+          </div>
+          <div style="display:flex;align-items:center;gap:.6rem;font-size:.88rem;color:var(--text-secondary)">
+            <span style="width:24px;height:24px;border-radius:50%;background:var(--sage-muted);display:flex;align-items:center;justify-content:center;color:var(--sage);flex-shrink:0"><i class="ph ph-lightning"></i></span>
+            Toggle <strong style="color:var(--text-primary)">Consulta inmediata</strong> — pacientes on-demand
+          </div>
+          <div style="display:flex;align-items:center;gap:.6rem;font-size:.88rem;color:var(--text-secondary)">
+            <span style="width:24px;height:24px;border-radius:50%;background:var(--sage-muted);display:flex;align-items:center;justify-content:center;color:var(--sage);flex-shrink:0"><i class="ph ph-star"></i></span>
+            Rating y reseñas reales de cada consulta
+          </div>
+        </div>
+      </div>
+      <!-- Phone mock -->
+      <div style="display:flex;justify-content:center">
+        <div class="phone-frame">
+          <div class="phone-screen">
+            <div class="phone-map">
+              <div class="map-grid"></div>
+              <div class="map-road-h" style="top:30%;left:0;right:0"></div>
+              <div class="map-road-h" style="top:62%;left:0;right:0"></div>
+              <div class="map-road-v" style="left:25%;top:0;bottom:0"></div>
+              <div class="map-road-v" style="left:68%;top:0;bottom:0"></div>
+              <!-- Other markers -->
+              <div style="position:absolute;top:22%;left:60%;width:22px;height:22px;border-radius:50%;background:#9B8EC4;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.2)"></div>
+              <div style="position:absolute;top:55%;left:18%;width:22px;height:22px;border-radius:50%;background:#E4A853;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.2)"></div>
+              <!-- Main marker -->
+              <div class="pro-marker">
+                <div class="marker-pin"><i class="ph ph-stethoscope" style="font-size:.8rem"></i></div>
+                <div class="marker-label">Disponible ahora</div>
+              </div>
+            </div>
+            <!-- Pro card at bottom -->
+            <div class="phone-pro-card">
+              <div class="pro-card-top">
+                <div class="pro-avatar">DR</div>
+                <div>
+                  <div class="pro-card-name">Dra. Valentina Ríos</div>
+                  <div class="pro-card-spec">Medicina General</div>
+                  <div class="pro-card-badge"><i class="ph ph-seal-check" style="font-size:.55rem"></i> Verificada</div>
+                </div>
+                <div style="margin-left:auto">
+                  <div class="stars-row">★ 4.9</div>
+                  <div style="font-size:.5rem;color:var(--text-tertiary)">48 reseñas</div>
+                </div>
+              </div>
+              <div style="font-size:.6rem;color:var(--text-secondary);margin-bottom:.4rem">Videoconsulta · $8.500 / Presencial · $12.000</div>
+              <div class="phone-btn">Reservar turno</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. TU AGENDA INTEGRADA -->
+  <section class="slide slide-cream" data-slide="5">
+    <div class="two-col flip">
+      <div style="display:flex;flex-direction:column;gap:1.25rem">
+        <span class="eyebrow-pill">Agenda</span>
+        <h2 class="section-title">Tu agenda,<br><span class="accent">integrada.</span></h2>
+        <p class="lead">Definís tus franjas horarias y los pacientes ven tu disponibilidad real al reservar. Activás el modo <strong>on-demand</strong> cuando querés atender al instante.</p>
+        <p class="lead" style="font-size:.88rem">Sin idas y vueltas por WhatsApp. Sin dobles turnos.</p>
+      </div>
+      <!-- Agenda mock -->
+      <div style="display:flex;justify-content:center">
+        <div class="agenda-mock">
+          <div style="font-size:.8rem;font-weight:700;margin-bottom:1rem;color:var(--text-primary)">Mi disponibilidad</div>
+          <div class="agenda-day">
+            <div class="day-label">Lunes</div>
+            <div class="slot-row">
+              <span class="slot">09:00</span><span class="slot">10:00</span><span class="slot">11:30</span><span class="slot">16:00</span>
+            </div>
+          </div>
+          <div class="agenda-day">
+            <div class="day-label">Miércoles</div>
+            <div class="slot-row">
+              <span class="slot">09:00</span><span class="slot">10:00</span><span class="slot">14:00</span>
+            </div>
+          </div>
+          <div class="agenda-day">
+            <div class="day-label">Viernes</div>
+            <div class="slot-row">
+              <span class="slot">09:00</span><span class="slot">11:00</span>
+            </div>
+          </div>
+          <div class="ondemand-toggle">
+            <div>
+              <div class="toggle-label">Consulta inmediata</div>
+              <div class="toggle-sub">Aparecés disponible ahora mismo</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. ATENDÉ COMO QUIERAS -->
+  <section class="slide slide-white" data-slide="6">
+    <div class="two-col">
+      <div style="display:flex;flex-direction:column;gap:1.25rem">
+        <span class="eyebrow-pill">Modalidades</span>
+        <h2 class="section-title">Atendé<br>como <span class="accent">querés.</span></h2>
+        <p class="lead"><strong>Videoconsulta real</strong> con Daily.co — con panel clínico integrado para tomar notas en vivo. <strong>Presencial</strong> desbloqueada con código seguro del paciente.</p>
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+          <span class="pill-tag sage">Video HD</span>
+          <span class="pill-tag sage">Notas en consulta</span>
+          <span class="pill-tag">Código 4 dígitos</span>
+          <span class="pill-tag">Historia clínica en vivo</span>
+        </div>
+      </div>
+      <!-- Video mock + clinical panel -->
+      <div style="display:flex;flex-direction:column;gap:.75rem;align-items:center">
+        <div class="video-mock">
+          <div class="video-bg"></div>
+          <div class="video-user">
+            <div class="video-avatar">MG</div>
+            <div class="video-name">Martina González</div>
+          </div>
+          <div class="video-bar">
+            <span class="video-bar-label">En consulta · 18:24</span>
+            <div class="video-controls">
+              <div class="vc-btn on"><i class="ph ph-microphone" style="font-size:.7rem"></i></div>
+              <div class="vc-btn on"><i class="ph ph-camera" style="font-size:.7rem"></i></div>
+              <div class="vc-btn red"><i class="ph ph-phone-slash" style="font-size:.7rem"></i></div>
+            </div>
+          </div>
+        </div>
+        <div class="clinical-panel">
+          <div class="cp-title"><i class="ph ph-note-pencil" style="color:var(--sage)"></i> Historia clínica</div>
+          <div class="cp-note">Paciente refiere dolor lumbar desde hace 3 días. Sin fiebre. Evaluando origen muscular vs. disco.</div>
+          <span class="cp-badge">Interna · solo profesionales</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. TU PERFIL ES TU VIDRIERA -->
+  <section class="slide slide-ivory" data-slide="7">
+    <div class="two-col flip">
+      <div style="display:flex;flex-direction:column;gap:1.25rem">
+        <span class="eyebrow-pill">Perfil público</span>
+        <h2 class="section-title">Tu perfil<br>es tu <span class="accent">vidriera.</span></h2>
+        <p class="lead">Fijás tus propios precios por tipo de consulta. Las reseñas reales construyen tu reputación. <strong>Sin comisiones abusivas</strong> que te coman el margen.</p>
+        <p class="lead" style="font-size:.88rem">Cuantas más consultas hacés, mejor tu ranking — el algoritmo trabaja para vos.</p>
+      </div>
+      <!-- Profile card mock -->
+      <div style="display:flex;justify-content:center">
+        <div class="profile-card">
+          <div class="profile-top">
+            <div class="profile-avatar-lg">DR</div>
+            <div>
+              <div class="profile-badge"><i class="ph ph-seal-check" style="font-size:.6rem"></i> Verificado</div>
+              <div class="profile-name">Dr. Rodrigo Méndez</div>
+              <div class="profile-spec">Nutricionista · Buenos Aires</div>
+            </div>
+          </div>
+          <div class="stars-lg">★★★★★ <span>4.8 (63 reseñas)</span></div>
+          <div style="font-size:.75rem;font-weight:700;margin-bottom:.5rem">Tipos de consulta</div>
+          <div class="consult-types">
+            <div class="consult-type">
+              <div><div class="ct-label">Consulta inicial</div><div class="ct-modality">Videollamada</div></div>
+              <div class="ct-price">$9.500</div>
+            </div>
+            <div class="consult-type">
+              <div><div class="ct-label">Seguimiento mensual</div><div class="ct-modality">Video o Presencial</div></div>
+              <div class="ct-price">$6.000</div>
+            </div>
+            <div class="consult-type">
+              <div><div class="ct-label">Plan NutriPlan Pro</div><div class="ct-modality">Videollamada</div></div>
+              <div class="ct-price">$14.000</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. HERRAMIENTAS CLÍNICAS -->
+  <section class="slide slide-cream" data-slide="8">
+    <div class="content">
+      <span class="eyebrow-pill">Herramientas clínicas</span>
+      <h2 class="section-title">Todo lo que necesitás<br>para <span class="accent">atender bien.</span></h2>
+      <div class="feat-grid" style="margin-top:1rem">
+        <div class="feat-card">
+          <div class="icon-wrap lavender"><i class="ph ph-file-text"></i></div>
+          <h3>Historia clínica compartida</h3>
+          <p>Notas internas (solo profesionales) y externas (visibles al paciente). Cronología por fecha.</p>
+        </div>
+        <div class="feat-card">
+          <div class="icon-wrap"><i class="ph ph-pill"></i></div>
+          <h3>Recetas digitales</h3>
+          <p>Generá y enviá recetas al teléfono del paciente. Integración con EHR Heural.</p>
+        </div>
+        <div class="feat-card">
+          <div class="icon-wrap gold"><i class="ph ph-clipboard-text"></i></div>
+          <h3>Órdenes y derivaciones</h3>
+          <p>Adjuntá órdenes de análisis o derivaciones directamente desde la consulta.</p>
+        </div>
+        <div class="feat-card">
+          <div class="icon-wrap sky"><i class="ph ph-chart-bar"></i></div>
+          <h3>NutriPlan Pro</h3>
+          <p>Generador de planes nutricionales con IA. Exclusivo para nutricionistas.</p>
+        </div>
+        <div class="feat-card">
+          <div class="icon-wrap"><i class="ph ph-users"></i></div>
+          <h3>Mis pacientes</h3>
+          <p>Historial completo de consultas por paciente. Buscable, con fechas y modalidad.</p>
+        </div>
+        <div class="feat-card">
+          <div class="icon-wrap coral"><i class="ph ph-robot"></i></div>
+          <h3>Companion IA</h3>
+          <p>"Hola, Dra. López. Hoy tenés 4 consultas. La primera es a las 09:00 con Martina."</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9. GANANCIAS CLARAS -->
+  <section class="slide slide-white" data-slide="9">
+    <div class="two-col">
+      <div style="display:flex;flex-direction:column;gap:1.25rem">
+        <span class="eyebrow-pill">Ganancias</span>
+        <h2 class="section-title">Números<br><span class="accent">claros.</span></h2>
+        <p class="lead">Dashboard de ingresos en ARS con desglose por modalidad, evolución mensual y estado de cada pago. <strong>Vos fijás los precios</strong>, Healthier no te come el margen.</p>
+      </div>
+      <!-- Stat cards mock -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:1rem">
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-label">Este mes</div>
+            <div class="stat-val sage">$186.000</div>
+            <div class="stat-delta">↑ 24% vs. mes anterior</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Esta semana</div>
+            <div class="stat-val">$43.500</div>
+            <div class="stat-delta">↑ 12%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Consultas hoy</div>
+            <div class="stat-val coral">6</div>
+            <div class="stat-delta">2 presencial · 4 video</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total histórico</div>
+            <div class="stat-val">$1.24M</div>
+            <div class="stat-delta">184 consultas</div>
+          </div>
+        </div>
+        <!-- Mini bar chart -->
+        <div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-card);padding:1rem 1.25rem;width:100%;max-width:420px">
+          <div style="font-size:.72rem;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem">Evolución mensual</div>
+          <div style="display:flex;align-items:flex-end;gap:.5rem;height:60px">
+            <div style="flex:1;background:var(--sage-muted2);border-radius:.25rem .25rem 0 0" class="bar" data-h="45"></div>
+            <div style="flex:1;background:var(--sage-muted2);border-radius:.25rem .25rem 0 0" class="bar" data-h="60"></div>
+            <div style="flex:1;background:var(--sage-muted2);border-radius:.25rem .25rem 0 0" class="bar" data-h="50"></div>
+            <div style="flex:1;background:var(--sage-muted2);border-radius:.25rem .25rem 0 0" class="bar" data-h="75"></div>
+            <div style="flex:1;background:var(--sage);border-radius:.25rem .25rem 0 0;opacity:.85" class="bar" data-h="90"></div>
+          </div>
+          <div style="display:flex;gap:.5rem;margin-top:.25rem">
+            <div style="flex:1;font-size:.6rem;text-align:center;color:var(--text-tertiary)">Feb</div>
+            <div style="flex:1;font-size:.6rem;text-align:center;color:var(--text-tertiary)">Mar</div>
+            <div style="flex:1;font-size:.6rem;text-align:center;color:var(--text-tertiary)">Abr</div>
+            <div style="flex:1;font-size:.6rem;text-align:center;color:var(--text-tertiary)">May</div>
+            <div style="flex:1;font-size:.6rem;text-align:center;color:var(--sage);font-weight:700">Jun</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10. VERIFICADO Y CONFIABLE -->
+  <section class="slide slide-ivory" data-slide="10">
+    <div class="content">
+      <span class="eyebrow-pill">Verificación</span>
+      <h2 class="section-title">En 24–48 hs,<br>aprobado y <span class="accent">visible.</span></h2>
+      <p class="lead">Onboarding guiado en 5 pasos. Credenciales cifradas. Badge de verificación que pesa en el ranking.</p>
+      <div class="ob-steps" style="margin-top:.5rem">
+        <div class="ob-step">
+          <div class="ob-num">1</div>
+          <h4>Especialidad</h4>
+          <p>Medicina, Nutrición, Psicología…</p>
+        </div>
+        <div class="ob-step">
+          <div class="ob-num">2</div>
+          <h4>Presentación</h4>
+          <p>Foto y bio clínica (500 chars)</p>
+        </div>
+        <div class="ob-step">
+          <div class="ob-num">3</div>
+          <h4>Tarifas</h4>
+          <p>Precio por sesión + dirección</p>
+        </div>
+        <div class="ob-step">
+          <div class="ob-num">4</div>
+          <h4>Documentación</h4>
+          <p>Título · Matrícula · DNI cifrados</p>
+        </div>
+        <div class="ob-step">
+          <div class="ob-num">5</div>
+          <h4>Revisión</h4>
+          <p>Aprobado en 24–48 hs hábiles</p>
+        </div>
+      </div>
+      <div class="trust-row" style="margin-top:1rem">
+        <span class="trust-badge"><i class="ph ph-lock-key"></i> Datos cifrados</span>
+        <span class="trust-badge"><i class="ph ph-seal-check"></i> Admin aprueba credenciales</span>
+        <span class="trust-badge"><i class="ph ph-star"></i> Badge en tu perfil público</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11. TRANSICIÓN / ACT 2 -->
+  <section class="slide slide-dark" data-slide="11">
+    <div class="content">
+      <div class="act-divider" style="margin-bottom:1.5rem">
+        <div class="act-line" style="background:rgba(255,255,255,.12)"></div>
+        <span style="font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.35);white-space:nowrap;padding:0 .75rem">Acto II</span>
+        <div class="act-line" style="background:rgba(255,255,255,.12)"></div>
+      </div>
+      <h2 class="section-title" style="color:#fff;font-size:clamp(2rem,4.5vw,3.2rem)">¿De dónde vienen<br>tus pacientes?</h2>
+      <p style="font-size:clamp(1.1rem,2.2vw,1.4rem);color:rgba(255,255,255,.65);line-height:1.55;max-width:44ch;margin-top:.75rem">
+        De una plataforma en la que <span style="color:var(--sage);font-weight:700">confían.</span>
+      </p>
+      <p class="lead" style="color:rgba(255,255,255,.5);font-size:.92rem;margin-top:.75rem">Un paciente convencido reserva. Un paciente que confía vuelve.</p>
+    </div>
+  </section>
+
+  <!-- 12. EL LADO DEL PACIENTE -->
+  <section class="slide slide-ivory" data-slide="12">
+    <div class="content">
+      <span class="eyebrow-pill">La plataforma del paciente</span>
+      <h2 class="section-title">"Tu salud,<br>cuando la <span class="accent">necesitás."</span></h2>
+      <p class="lead">Esa es la promesa que ve el paciente. Una app móvil y web que lo guía desde la búsqueda hasta el seguimiento — y que lo trae de vuelta a vos.</p>
+      <!-- Social proof -->
+      <div style="display:flex;gap:2rem;flex-wrap:wrap;justify-content:center;margin-top:.5rem">
+        <div style="text-align:center">
+          <div style="font-size:2.5rem;font-weight:700;color:var(--sage)">+500</div>
+          <div style="font-size:.82rem;color:var(--text-secondary)">profesionales activos</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:2.5rem;font-weight:700;color:var(--coral)">4.9/5</div>
+          <div style="font-size:.82rem;color:var(--text-secondary)">satisfacción promedio</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:2.5rem;font-weight:700;color:var(--lavender)">6</div>
+          <div style="font-size:.82rem;color:var(--text-secondary)">especialidades</div>
+        </div>
+      </div>
+      <div class="pill-row" style="margin-top:.75rem">
+        <span class="pill-tag sage">Buenos Aires</span>
+        <span class="pill-tag">Web + iOS + Android</span>
+        <span class="pill-tag">Español argentino</span>
+        <span class="pill-tag sage">Mercado Pago</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13. CONFIANZA = RESERVAS -->
+  <section class="slide slide-cream" data-slide="13">
+    <div class="two-col">
+      <div style="display:flex;flex-direction:column;gap:1.25rem">
+        <span class="eyebrow-pill">Confianza</span>
+        <h2 class="section-title">Confianza<br>= <span class="accent">reservas.</span></h2>
+        <p class="lead">Los pacientes <strong>solo ven profesionales verificados</strong>. Cada reseña es real y atada a una consulta pagada. El sistema filtra lo que no cumple.</p>
+        <div class="trust-row" style="justify-content:flex-start">
+          <span class="trust-badge"><i class="ph ph-shield-check"></i> Cumple HIPAA</span>
+          <span class="trust-badge"><i class="ph ph-lock-key"></i> Datos cifrados en tránsito</span>
+          <span class="trust-badge"><i class="ph ph-fingerprint"></i> Login biométrico</span>
+        </div>
+        <p class="lead" style="font-size:.88rem">Por eso reservan sin dudar — y la reserva llega a vos.</p>
+      </div>
+      <!-- HC mock to illustrate shared clinical record -->
+      <div style="display:flex;justify-content:center">
+        <div class="hc-mock">
+          <div style="font-size:.8rem;font-weight:700;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem">
+            <i class="ph ph-seal-check" style="color:var(--sage)"></i> Solo profesionales verificados
+          </div>
+          <div style="font-size:.72rem;color:var(--text-secondary);margin-bottom:.75rem">El paciente reserva sabiendo que la plataforma revisó tus credenciales.</div>
+          <div class="hc-entry">
+            <div class="hc-meta">
+              <span class="hc-title">Reseña verificada · 5 ★</span>
+              <span class="hc-vis ext">Post-consulta</span>
+            </div>
+            <div class="hc-body">"Excelente atención, muy puntual y claro con el diagnóstico."</div>
+          </div>
+          <div class="hc-entry">
+            <div class="hc-meta">
+              <span class="hc-title">Reseña verificada · 5 ★</span>
+              <span class="hc-vis ext">Post-consulta</span>
+            </div>
+            <div class="hc-body">"Super rápido. Me mandó la receta en el momento. Recomiendo."</div>
+          </div>
+          <div style="font-size:.65rem;color:var(--text-tertiary);margin-top:.5rem">Solo aparecen reseñas de consultas completadas y pagadas.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14. FEATURES QUE LOS TRAEN DE VUELTA -->
+  <section class="slide slide-white" data-slide="14">
+    <div class="content">
+      <span class="eyebrow-pill">Retención de pacientes</span>
+      <h2 class="section-title">Features que los traen<br>de <span class="accent">vuelta.</span></h2>
+      <p class="lead">Una plataforma completa hace que el paciente no necesite buscar en otro lado. Y cuando vuelve, vuelve a vos.</p>
+      <div class="feat-grid" style="margin-top:.75rem">
+        <div class="feat-card">
+          <div class="icon-wrap"><i class="ph ph-vault"></i></div>
+          <h3>Bóveda médica</h3>
+          <p>Historial, análisis, recetas y plan nutricional en un lugar seguro. El paciente lo lleva a cada consulta.</p>
+        </div>
+        <div class="feat-card">
+          <div class="icon-wrap sky"><i class="ph ph-chart-line"></i></div>
+          <h3>Biovisor</h3>
+          <p>Biomarcadores con análisis por IA y rangos de referencia. El paciente monitorea su progreso.</p>
+        </div>
+        <div class="feat-card">
+          <div class="icon-wrap gold"><i class="ph ph-fork-knife"></i></div>
+          <h3>NutriPlan paciente</h3>
+          <p>Plan nutricional del día con recetas. Si lo generaste vos, el paciente lo tiene en la app.</p>
+        </div>
+        <div class="feat-card">
+          <div class="icon-wrap lavender"><i class="ph ph-heart"></i></div>
+          <h3>Apple Health</h3>
+          <p>"Sincronizado" — el paciente comparte datos de salud en tiempo real. Mejor contexto clínico para vos.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 15. DE PUNTA A PUNTA -->
+  <section class="slide slide-ivory" data-slide="15">
+    <div class="two-col flip">
+      <div style="display:flex;flex-direction:column;gap:1.25rem">
+        <span class="eyebrow-pill">Plataforma completa</span>
+        <h2 class="section-title">De punta a punta,<br>sin <span class="accent">fricción.</span></h2>
+        <p class="lead">El paciente paga con Mercado Pago, entra a la videollamada real (Daily.co) y cierra la consulta. Todo en la misma app. Sin apps externas ni links de Google Meet.</p>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <h3>Reserva y pago</h3>
+              <p>Mercado Pago tokenizado. El cobro se confirma antes de la consulta.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--lavender)">2</div>
+            <div class="step-body">
+              <h3>Sala de espera → Video HD</h3>
+              <p>Daily.co con acceso por token. El paciente entra desde el celular.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--coral)">3</div>
+            <div class="step-body">
+              <h3>Cierre + reseña</h3>
+              <p>Al finalizar, el paciente deja su reseña verificada. Construye tu reputación automáticamente.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Vault mock -->
+      <div style="display:flex;justify-content:center">
+        <div class="vault-mock">
+          <div class="vault-header">
+            <div class="vault-shield"><i class="ph ph-shield-check"></i></div>
+            <div>
+              <div class="vault-title">Bóveda</div>
+              <div class="vault-sub">Tu historial médico seguro</div>
+            </div>
+          </div>
+          <div class="vault-cats">
+            <div class="vault-cat"><span class="dot-cat" style="background:var(--sage)"></span>Recetas digitales</div>
+            <div class="vault-cat"><span class="dot-cat" style="background:var(--sky)"></span>Análisis</div>
+            <div class="vault-cat"><span class="dot-cat" style="background:var(--gold)"></span>Plan Nutricional</div>
+            <div class="vault-cat"><span class="dot-cat" style="background:var(--sky)"></span>Rehab y Físico</div>
+            <div class="vault-cat"><span class="dot-cat" style="background:var(--lavender)"></span>Historial</div>
+            <div class="vault-cat"><span class="dot-cat" style="background:var(--coral)"></span>Amigo Peludo</div>
+          </div>
+          <div style="margin-top:1rem;padding:.75rem;background:var(--bg-primary);border-radius:.75rem">
+            <div style="font-size:.7rem;font-weight:600;color:var(--text-tertiary);margin-bottom:.3rem;display:flex;align-items:center;gap:.3rem">
+              <i class="ph ph-lock-key" style="color:var(--green)"></i> Almacenamiento cifrado · Supabase
+            </div>
+            <div style="font-size:.68rem;color:var(--text-secondary)">Los documentos del paciente son privados. Solo accede quien tiene permiso.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 16. EL FLYWHEEL -->
+  <section class="slide slide-cream" data-slide="16">
+    <div class="two-col">
+      <div style="display:flex;flex-direction:column;gap:1.25rem">
+        <span class="eyebrow-pill">El motor de crecimiento</span>
+        <h2 class="section-title">El círculo que<br>te trae <span class="accent">pacientes.</span></h2>
+        <p class="lead">Una plataforma sólida genera demanda de pacientes. Más pacientes atraen mejores profesionales. Mejores profesionales traen más pacientes. <strong>El ciclo trabaja para vos.</strong></p>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);padding:.85rem 1rem;margin-top:.25rem">
+          <div style="font-size:.78rem;font-weight:700;margin-bottom:.4rem;color:var(--sage-hover)">Motor de seguimiento</div>
+          <div style="font-size:.78rem;color:var(--text-secondary)">"Agendar próxima consulta" — un tap al cerrar la consulta. El paciente vuelve sin esfuerzo.</div>
+        </div>
+      </div>
+      <!-- Flywheel SVG -->
+      <div class="flywheel-wrap" style="display:flex;align-items:center;justify-content:center">
+        <svg viewBox="0 0 320 320" width="300" height="300" xmlns="http://www.w3.org/2000/svg">
+          <!-- Outer ring -->
+          <circle cx="160" cy="160" r="130" fill="none" stroke="var(--border)" stroke-width="1.5"/>
+          <!-- Arrow arcs -->
+          <path d="M 160 30 A 130 130 0 0 1 276 235" fill="none" stroke="var(--sage)" stroke-width="3" stroke-linecap="round" marker-end="url(#arrow-sage)"/>
+          <path d="M 276 235 A 130 130 0 0 1 44 235" fill="none" stroke="var(--sage)" stroke-width="3" stroke-linecap="round" marker-end="url(#arrow-sage2)"/>
+          <path d="M 44 235 A 130 130 0 0 1 160 30" fill="none" stroke="var(--sage)" stroke-width="3" stroke-linecap="round" marker-end="url(#arrow-sage3)"/>
+          <!-- Arrow markers -->
+          <defs>
+            <marker id="arrow-sage" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="var(--sage)"/>
+            </marker>
+            <marker id="arrow-sage2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="var(--sage)"/>
+            </marker>
+            <marker id="arrow-sage3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="var(--sage)"/>
+            </marker>
+          </defs>
+          <!-- Center circle -->
+          <circle cx="160" cy="160" r="50" fill="var(--sage)" opacity=".12"/>
+          <circle cx="160" cy="160" r="38" fill="var(--sage)" opacity=".2"/>
+          <text x="160" y="155" text-anchor="middle" font-family="Everett,sans-serif" font-size="11" font-weight="700" fill="var(--sage-hover)">Healthier</text>
+          <text x="160" y="171" text-anchor="middle" font-family="Everett,sans-serif" font-size="9" fill="var(--text-tertiary)">marketplace</text>
+          <!-- Node labels -->
+          <!-- Top: Plataforma sólida -->
+          <circle cx="160" cy="22" r="28" fill="white" stroke="var(--border)" stroke-width="1.5"/>
+          <text x="160" y="19" text-anchor="middle" font-family="Everett,sans-serif" font-size="8.5" font-weight="700" fill="var(--text-primary)">Plataforma</text>
+          <text x="160" y="30" text-anchor="middle" font-family="Everett,sans-serif" font-size="8.5" font-weight="700" fill="var(--sage)">sólida</text>
+          <!-- Bottom right: Demanda pacientes -->
+          <circle cx="280" cy="248" r="28" fill="white" stroke="var(--border)" stroke-width="1.5"/>
+          <text x="280" y="245" text-anchor="middle" font-family="Everett,sans-serif" font-size="8.5" font-weight="700" fill="var(--text-primary)">Demanda</text>
+          <text x="280" y="256" text-anchor="middle" font-family="Everett,sans-serif" font-size="8.5" font-weight="700" fill="var(--coral)">pacientes</text>
+          <!-- Bottom left: Mejores pros -->
+          <circle cx="40" cy="248" r="28" fill="white" stroke="var(--border)" stroke-width="1.5"/>
+          <text x="40" y="245" text-anchor="middle" font-family="Everett,sans-serif" font-size="8.5" font-weight="700" fill="var(--text-primary)">Mejores</text>
+          <text x="40" y="256" text-anchor="middle" font-family="Everett,sans-serif" font-size="8.5" font-weight="700" fill="var(--lavender)">profesionales</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- 17. RESUMEN -->
+  <section class="slide slide-white" data-slide="17">
+    <div class="content">
+      <span class="eyebrow-pill">Todo lo que recibís</span>
+      <h2 class="section-title">La oferta<br>en una <span class="accent">pantalla.</span></h2>
+      <div class="summary-list" style="margin-top:.5rem">
+        <div class="summary-item">
+          <div class="si-icon" style="background:var(--sage-muted);color:var(--sage)"><i class="ph ph-users-three"></i></div>
+          <div><h3>Pacientes sin marketing</h3><p>Aparecés en búsqueda y mapa. Consulta inmediata on-demand. Reservas directas.</p></div>
+        </div>
+        <div class="summary-item">
+          <div class="si-icon" style="background:rgba(232,146,124,.1);color:var(--coral)"><i class="ph ph-calendar-check"></i></div>
+          <div><h3>Agenda integrada</h3><p>Franjas semanales, modo on-demand y seguimiento automático de próximas consultas.</p></div>
+        </div>
+        <div class="summary-item">
+          <div class="si-icon" style="background:rgba(155,142,196,.1);color:var(--lavender)"><i class="ph ph-stethoscope"></i></div>
+          <div><h3>Herramientas clínicas reales</h3><p>Historia clínica, recetas digitales, videollamada HD, órdenes y NutriPlan Pro.</p></div>
+        </div>
+        <div class="summary-item">
+          <div class="si-icon" style="background:rgba(228,168,83,.1);color:var(--gold)"><i class="ph ph-currency-circle-dollar"></i></div>
+          <div><h3>Ganancias transparentes</h3><p>Precios propios en ARS. Dashboard completo. Sin comisiones abusivas.</p></div>
+        </div>
+        <div class="summary-item">
+          <div class="si-icon" style="background:rgba(107,191,123,.12);color:var(--green)"><i class="ph ph-seal-check"></i></div>
+          <div><h3>Verificado y confiable</h3><p>Badge que pesa en el ranking. Aprobado en 24–48 hs. Solo ves pacientes reales.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 18. CTA -->
+  <section class="slide slide-sage" data-slide="18">
+    <div class="content">
+      <!-- Logo inverted -->
+      <svg width="90" height="19" viewBox="0 0 2540 545" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:.9;margin-bottom:.5rem">
+        <path d="M2448.13 177.94C2431.53 189.42 2417.82 226.52 2407.3 237.12L2406.85 203.81L2406.37 160.72C2406.55 155.87 2397.89 156.69 2395.11 155.8C2367.66 169.18 2332.68 186.41 2302.58 191.38L2302.41 206.5C2309.19 208.85 2335.7 206.6 2339.49 215.15L2295.16 329.68C2262.21 422.16 2175.28 540.94 2064.98 480.76C2028.56 458.86 2001.14 415.12 2010.64 371.86C2063.43 350.52 2169.76 304.28 2221.8 280.53L2272.79 256.5C2233.21 167.64 2121.29 120.98 2037.58 181.31C1890.93 281.28 1943.29 581.64 2149.99 540.47C2281.13 519.09 2312.97 360.92 2356.55 257.27C2353.02 309.94 2384.65 490.31 2329.97 510.45C2313.21 517.49 2296.91 509.14 2301.46 534.4L2474.8 534.39C2482.54 494.59 2409.9 535.49 2412.75 449.6C2419.64 377.61 2387.96 251.74 2465.32 210.14C2493.64 198.58 2515.86 213.39 2527.21 234.77C2540.48 240.08 2536.02 169.58 2539.02 165.78C2510.34 147.76 2472.36 154.1 2448.13 177.95V177.94ZM2046.84 226.43C2065.87 205.39 2091.38 192.99 2120.04 192.6C2159.51 191.17 2189.98 210.95 2211.81 244.15L2152.02 270.21C2022.04 326.75 1984.11 326.75 2046.84 226.43Z" fill="white"/>
+        <path d="M1736.52 480.85C1738.98 472.73 1740.42 464.47 1740.4 455.53L1740.07 293.92C1740.04 277.6 1737.64 262.44 1732.73 247.36C1726.45 228.04 1713.47 211.82 1694.89 203.4C1676.24 194.95 1655.56 193.74 1635.69 198.26C1601.8 205.97 1574.67 240.32 1567.27 273.71L1567.19 448.53C1567.18 459.05 1567.91 468.53 1570.84 478.23C1579.22 505.88 1603.77 514.19 1631.62 516.51L1631.81 534.39H1453.71L1453.62 516.72C1476.88 514.25 1499.88 509.44 1507.64 485.82C1510.34 477.58 1512.36 468.91 1512.36 459.44L1512.17 80.1798C1512.17 69.7698 1511.14 60.6698 1509.4 50.9798C1506.95 37.3998 1497.86 27.0198 1484.58 22.7998C1475.14 19.7898 1465.67 19.0198 1455.14 17.7598L1455.27 0.00976562H1567.02L1567.26 217.12L1587.17 191.64C1607.52 169.1 1634.88 156.8 1665.29 155.36C1713.46 153.07 1756.09 174.55 1776.05 219.18C1783.68 236.26 1788.05 253.8 1788.74 272.79C1788.74 272.79 1787.49 461.06 1787.49 495.41C1787.49 508.37 1804.24 513.98 1817.44 512.71C1835.13 511.01 1858.33 493.61 1859.85 475.81L1860.65 256.56C1860.91 241.19 1854.84 216.56 1840.63 211.63C1830.77 208.2 1820.88 207.96 1810.4 206.88L1810.71 191.17C1829.49 187.1 1847.07 182.11 1864.16 173.71L1899.82 156.17C1903 155.09 1908.57 156.99 1911.76 158.7L1908.03 462.6C1906.51 482.87 1909.35 507.6 1929.5 510.8L1953.83 514.66L1955.02 534.39H1677.8L1677.89 516.65C1704.31 513.65 1728.56 507.12 1736.52 480.85Z" fill="white"/>
+        <path d="M1470.29 483.55C1465.45 494.85 1460.69 505.1 1453.07 514.25C1434.97 535.99 1407.43 545.24 1379.54 541.82C1352.28 538.48 1331.17 521.22 1322.91 494.97C1318.46 480.8 1316.78 466.52 1316.76 451.13L1316.48 201.89L1261.87 201.83L1261.81 178.58C1273.28 174.44 1283.57 170.89 1293.9 165.2C1330.97 144.74 1343.58 105.53 1349.65 64.8901H1369.43L1368.96 99.9601V166.16L1463.86 166.36L1464 202.01L1368.95 201.97L1369.18 334.81L1369.88 445.58C1370.04 471.28 1378.83 498.53 1405.9 501.03C1418.62 502.2 1431.04 498.23 1441.06 489.79L1455.33 475.2L1470.29 483.55Z" fill="white"/>
+        <path d="M1924.31 44.6599C1924.31 67.1499 1906.07 85.3799 1883.58 85.3799C1861.09 85.3799 1842.84 67.1499 1842.84 44.6599C1842.84 22.1699 1861.08 3.93994 1883.58 3.93994C1906.08 3.93994 1924.31 22.1699 1924.31 44.6599Z" fill="white"/>
+        <path d="M1279.66 516.37C1268.21 515.33 1258.02 513.81 1247.88 509.27C1226.51 499.72 1221.41 478.5 1221.4 455.41L1221.24 0.02L1110.45 0L1110.31 18.04C1134.56 19.66 1159.12 24.28 1163.92 49.59C1165.84 59.74 1166.57 69.3 1166.58 80.18L1166.72 454.42C1166.72 463.75 1165.84 471.35 1163.83 480.17C1159.51 499.13 1142.7 513.9 1122.6 513.22C1109.25 512.77 1098.26 503.51 1091.89 492.34C1086.23 482.42 1083.89 471.43 1083.87 459.56L1083.62 318.85C1083.58 297.11 1081.86 276.68 1077.83 255.57C1074.33 237.23 1068.22 220.08 1057.91 204.5C1028.28 159.69 971.72 148.01 920.87 158.06C875.4 167.05 842.31 198.71 822.63 239.83C813.34 259.23 806.49 278.69 800.12 299.34L776.81 374.82C754.98 445.51 715.49 500.87 635.01 495.2C568.14 489.99 529.27 433.88 519.84 370.94L651.88 315.95L786.91 258.33C760.37 202.12 714.09 159.41 649.72 154.47C619.86 152.27 590.49 156.51 563.49 169.68C468.13 216.18 447.34 339.11 482.17 433.23C498.06 476.17 527.77 511.4 570.51 528.99C610.92 545.63 656.04 547.5 697.49 533.43C742.43 518.17 769.32 483.31 786.38 440.35C795.18 418.19 801.69 396.19 808.1 373.11C816.58 342.57 824.95 312.99 836.28 283.47C853.74 238.02 880.83 199.33 932.25 194.44C953.03 192.47 973.36 196.23 991.04 207.4C1021.81 228.43 1027.71 263.83 1028.73 299.77C991.11 303.89 955.37 312.83 920.71 326.75C906.11 332.61 893.1 339.63 880.18 348.27C863.09 359.69 849.14 374.05 838.59 391.59C819.99 422.52 817.7 465.34 835.56 496.74C844.79 512.96 857.89 525.68 875.39 533C907.82 546.57 944.51 545.78 976.2 530.17C998.07 519.4 1014.88 502.42 1028.04 481.3C1032.69 513.04 1050.27 532.21 1082.44 536.97C1095.78 538.63 1108.29 537.53 1121.71 534.42L1279.88 534.39L1279.66 516.37ZM522.54 291.54C525.91 274.81 530.81 259.11 539.27 244.35C554.73 216.33 581.35 198.08 613.06 193.27C661.29 186.03 698.5 204.61 725.13 244.55L519.22 331.36C518.92 317.24 520.38 304.68 522.54 291.54ZM1029.58 389.71L1026.88 440.83C1010.64 479.64 963.9 504.82 922.95 498.46C895.66 494.22 876.56 473.1 875.41 445.62C873.78 406.55 899.23 377.94 934.04 363.01C964.55 349.92 996.29 340.62 1029.61 334.97L1029.58 389.71Z" fill="white"/>
+        <path d="M356.33 477.02L358.76 443.52L358.51 272.01L116.85 272.04V457.49C116.85 467.26 118.96 475.95 121.85 484.61C131.7 508.2 154.35 513.91 179.15 516.45L179.01 534.41H0.14L0 516.72L28.12 510.85C44.23 505.88 55.54 493.3 58.91 476.54C60.89 466.69 61.18 457.14 61.18 446.44L61.16 88.16C61.16 74.64 60.14 62.41 57.17 49.81C50.95 23.4 26.97 20 1.89 17.78L1.98 0H176.91L177.08 17.97C151.12 20.13 127.33 25.33 120.81 51.88C118.16 64.83 117.05 77.36 117.03 91.07L116.82 238.01H358.51L358.59 90.07C358.6 76.98 357.53 65.04 355.21 52.59C349.36 24.33 326.68 20.09 299.46 17.86L299.55 0L474.04 0.02L474.18 17.91C448.41 19.45 422.24 26.03 417.51 52.61C415.26 65.24 414.33 77.34 414.32 90.56L414.11 426.45L414.65 455.72C414.8 464.19 415.62 472.6 417.82 480.71C424.75 506.34 448.09 514.62 474.69 516.41L474.82 534.39H297.59L297.87 516.06C326.87 512.7 349.44 506.94 356.33 477.02Z" fill="white"/>
+      </svg>
+      <h1 class="hero" style="color:#fff;font-size:clamp(2.2rem,5vw,3.8rem)">Unite a <span style="opacity:.75">Healthier.</span></h1>
+      <p style="font-size:1.1rem;color:rgba(255,255,255,.8);line-height:1.6;max-width:44ch">Completá tu perfil, subiremos tus credenciales y en 24–48 hs empezás a recibir pacientes.</p>
+      <!-- Steps CTA -->
+      <div class="cta-steps">
+        <div class="cta-step">
+          <div class="cta-step-num">1</div>
+          <p>Completá<br>tu perfil</p>
+        </div>
+        <div class="cta-arrow">→</div>
+        <div class="cta-step">
+          <div class="cta-step-num">2</div>
+          <p>Verificación<br>24–48 hs</p>
+        </div>
+        <div class="cta-arrow">→</div>
+        <div class="cta-step">
+          <div class="cta-step-num">3</div>
+          <p>Empezá a recibir<br>pacientes</p>
+        </div>
+      </div>
+      <button class="btn-pill white" onclick="alert('healthier.com.ar/registro')">Registrarme como profesional →</button>
+      <p style="font-size:.8rem;color:rgba(255,255,255,.5);margin-top:.5rem">Gratis para comenzar · Sin permanencia mínima</p>
+    </div>
+  </section>
+
+</div><!-- /#deck -->
+
+<script>
+// ===== SLIDE DECK ENGINE =====
+const TOTAL = 18;
+// EDIT: social proof metrics in one place
+const SOCIAL_PROOF = { pros: '+500', rating: '4.9/5', specialties: 6 };
+
+let current = 1;
+const slides = document.querySelectorAll('.slide');
+const dots = document.getElementById('dots');
+const counter = document.getElementById('counter');
+const progress = document.getElementById('progress-bar');
+const btnPrev = document.getElementById('btn-prev');
+const btnNext = document.getElementById('btn-next');
+
+// Build dots
+slides.forEach((_, i) => {
+  const d = document.createElement('button');
+  d.className = 'dot' + (i === 0 ? ' active' : '');
+  d.setAttribute('aria-label', `Slide ${i+1}`);
+  d.addEventListener('click', () => goTo(i+1));
+  dots.appendChild(d);
+});
+
+function goTo(n, dir) {
+  if (n < 1 || n > TOTAL || n === current) return;
+  const prev = current;
+  current = n;
+
+  // Update slides
+  slides[prev-1].classList.remove('active');
+  slides[current-1].classList.add('active');
+
+  // Dots
+  document.querySelectorAll('.dot').forEach((d,i) => d.classList.toggle('active', i === current-1));
+
+  // Counter
+  const pad = n => String(n).padStart(2,'0');
+  counter.textContent = `${pad(current)} / ${pad(TOTAL)}`;
+
+  // Progress
+  progress.style.width = `${(current/TOTAL)*100}%`;
+
+  // Arrows
+  btnPrev.classList.toggle('hidden', current === 1);
+  btnNext.classList.toggle('hidden', current === TOTAL);
+
+  // Hash
+  history.replaceState(null,'',`#${current}`);
+
+  // Nav bg on dark/sage slides
+  const slide = slides[current-1];
+  const isDark = slide.classList.contains('slide-dark') || slide.classList.contains('slide-sage');
+  document.getElementById('nav').style.background = isDark
+    ? 'rgba(0,0,0,.25)' : 'rgba(246,245,240,.82)';
+  document.getElementById('nav').style.borderBottomColor = isDark
+    ? 'rgba(255,255,255,.1)' : 'var(--border)';
+  counter.style.color = isDark ? 'rgba(255,255,255,.45)' : 'var(--text-tertiary)';
+  document.querySelectorAll('.dot').forEach(d => {
+    d.style.background = isDark
+      ? (d.classList.contains('active') ? '#fff' : 'rgba(255,255,255,.25)')
+      : (d.classList.contains('active') ? 'var(--sage)' : 'var(--border)');
+  });
+  document.getElementById('nav-logo').style.opacity = isDark ? '0.85' : '0.7';
+
+  // Slide bar heights
+  slides[current-1].querySelectorAll('.bar[data-h]').forEach(b => {
+    b.style.height = b.dataset.h + '%';
+  });
+}
+
+function next() { goTo(current + 1); }
+function prev() { goTo(current - 1); }
+
+btnNext.addEventListener('click', next);
+btnPrev.addEventListener('click', prev);
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); next(); }
+  else if (e.key === 'ArrowLeft' || e.key === 'Backspace') { e.preventDefault(); prev(); }
+  else if (e.key === 'Home') { e.preventDefault(); goTo(1); }
+  else if (e.key === 'End') { e.preventDefault(); goTo(TOTAL); }
+  else if (e.key === 'f' || e.key === 'F') {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  }
+});
+
+// Click zones
+document.getElementById('deck').addEventListener('click', e => {
+  if (e.target.closest('button') || e.target.closest('a')) return;
+  const x = e.clientX / window.innerWidth;
+  if (x < 0.25) prev();
+  else if (x > 0.75) next();
+});
+
+// Touch / swipe
+let touchX = 0;
+document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; }, {passive:true});
+document.addEventListener('touchend', e => {
+  const dx = touchX - e.changedTouches[0].clientX;
+  if (Math.abs(dx) > 50) dx > 0 ? next() : prev();
+}, {passive:true});
+
+// Hash deep-link
+const hash = parseInt(location.hash.replace('#',''));
+const startSlide = (hash >= 1 && hash <= TOTAL) ? hash : 1;
+
+// Init
+function init() {
+  slides.forEach((s,i) => { s.classList.toggle('active', i === startSlide-1); });
+  current = startSlide;
+  const pad = n => String(n).padStart(2,'0');
+  counter.textContent = `${pad(current)} / ${pad(TOTAL)}`;
+  progress.style.width = `${(current/TOTAL)*100}%`;
+  btnPrev.classList.toggle('hidden', current === 1);
+  btnNext.classList.toggle('hidden', current === TOTAL);
+  document.querySelectorAll('.dot').forEach((d,i) => d.classList.toggle('active', i === current-1));
+
+  // Init bar charts
+  document.querySelectorAll('.slide.active .bar[data-h]').forEach(b => {
+    b.style.height = b.dataset.h + '%';
+  });
+}
+
+init();
+</script>
+</body>
+</html>

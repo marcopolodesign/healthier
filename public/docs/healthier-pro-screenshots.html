@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Healthier — Plataforma real para profesionales</title>
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1/src/index.js" defer></script>
+<style>
+@font-face{font-family:'Everett';src:url('fonts/Everett-Light.woff2') format('woff2');font-weight:300;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('fonts/Everett-Regular.woff2') format('woff2');font-weight:400 600;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('fonts/Everett-RegularItalic.woff2') format('woff2');font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:'Everett';src:url('fonts/Everett-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+
+:root{
+  --sage:#7CB38B;--sage-hover:#5f9470;--sage-muted:rgba(124,179,139,.1);--sage-muted2:rgba(124,179,139,.18);
+  --coral:#E8927C;--lavender:#9B8EC4;--danger:#D9534F;--gold:#E4A853;--sky:#6BAFCF;--green:#6BBF7B;
+  --bg-primary:#F6F5F0;--bg-secondary:#FDFCF9;--surface:#fff;
+  --text-primary:#2D2A26;--text-secondary:#6B6560;--text-tertiary:#A8A29E;
+  --border:#D8D4CE;--border-hover:#C4BFB8;
+  --radius-pill:999px;--radius-card:1.5rem;--radius-card-sm:1rem;
+  --shadow-card:0 1px 4px rgba(45,42,38,.06);--shadow-hover:0 8px 28px rgba(124,179,139,.14);
+  --t:all .36s cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-primary)}
+body{font-family:'Everett',-apple-system,BlinkMacSystemFont,sans-serif;color:var(--text-primary);-webkit-font-smoothing:antialiased}
+button{all:unset;cursor:pointer}
+
+/* DECK */
+#deck{position:fixed;inset:0;overflow:hidden}
+.slide{
+  position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;
+  padding:5rem 2rem 4rem;opacity:0;pointer-events:none;
+  transition:opacity .42s cubic-bezier(.4,0,.2,1),transform .42s cubic-bezier(.4,0,.2,1);
+  transform:translateY(20px);overflow:hidden;
+}
+.slide.active{opacity:1;pointer-events:auto;transform:translateY(0)}
+@media(prefers-reduced-motion:reduce){.slide{transition:opacity .15s}}
+
+.slide-ivory{background:var(--bg-primary)}
+.slide-cream{background:var(--bg-secondary)}
+.slide-white{background:var(--surface)}
+.slide-sage{background:var(--sage)}
+.slide-dark{background:#1c1d19;color:#f9f8f5}
+
+/* NAV */
+#nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.75rem 1.5rem;height:52px;
+  background:rgba(246,245,240,.82);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  transition:background .3s,border-color .3s;
+}
+#dots{display:flex;align-items:center;gap:.35rem;flex:1;justify-content:center}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--border);transition:var(--t);cursor:pointer}
+.dot.active{background:var(--sage);width:18px;border-radius:3px}
+#counter{font-size:.75rem;font-weight:600;color:var(--text-tertiary);letter-spacing:.04em;min-width:4rem;text-align:right}
+
+.arrow-btn{
+  position:fixed;top:50%;z-index:99;transform:translateY(-50%);
+  width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.7);backdrop-filter:blur(8px);
+  border:1px solid var(--border);color:var(--text-secondary);
+  transition:var(--t);opacity:.55;font-size:1.1rem;
+}
+.arrow-btn:hover{opacity:1;background:#fff;color:var(--text-primary)}
+#btn-prev{left:.75rem}
+#btn-next{right:.75rem}
+.arrow-btn.hidden{opacity:0;pointer-events:none}
+.progress-bar{position:fixed;bottom:0;left:0;height:2px;background:var(--sage);transition:width .4s cubic-bezier(.4,0,.2,1);z-index:100}
+
+/* LAYOUT */
+.content{width:100%;max-width:840px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:1.5rem;text-align:center}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:2.5rem;align-items:center;width:100%;max-width:1000px}
+.two-col.r{direction:rtl}.two-col.r>*{direction:ltr}
+@media(max-width:640px){.two-col{grid-template-columns:1fr}.two-col.r{direction:ltr}}
+
+/* TYPOGRAPHY */
+.eyebrow{display:inline-flex;align-items:center;gap:.4rem;font-size:.75rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;background:var(--sage-muted);color:var(--sage);padding:.3rem .85rem;border-radius:var(--radius-pill)}
+.eyebrow.coral{background:rgba(232,146,124,.1);color:#c2614a}
+.eyebrow.lavender{background:rgba(155,142,196,.1);color:#6d5fa3}
+.eyebrow.gold{background:rgba(228,168,83,.1);color:#9a6c1a}
+.eyebrow.white{background:rgba(255,255,255,.25);color:#fff}
+h1.hero{font-size:clamp(2.4rem,5.5vw,4.2rem);font-weight:700;line-height:1.1;letter-spacing:-.02em;max-width:18ch}
+h1.hero .a{color:var(--sage)}
+h1.hero.inv .a{color:rgba(255,255,255,.7)}
+h2.st{font-size:clamp(1.75rem,3.5vw,2.6rem);font-weight:700;line-height:1.15;letter-spacing:-.02em;max-width:22ch}
+h2.st .a{color:var(--sage)}
+h2.st .ac{color:var(--coral)}
+h2.st .al{color:var(--lavender)}
+h2.st .ag{color:var(--gold)}
+h2.st .ask{color:var(--sky)}
+.lead{font-size:clamp(.88rem,1.6vw,1.05rem);color:var(--text-secondary);line-height:1.65;max-width:48ch}
+.lead strong{color:var(--text-primary);font-weight:600}
+.lead.inv{color:rgba(255,255,255,.75)}
+.lead.inv strong{color:#fff}
+
+/* FEATURE GRID */
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.85rem;width:100%;max-width:900px}
+.fc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:1.1rem 1.3rem;text-align:left;box-shadow:var(--shadow-card);transition:var(--t)}
+.fc:hover{box-shadow:var(--shadow-hover);border-color:rgba(124,179,139,.3);transform:translateY(-2px)}
+.ic{width:38px;height:38px;border-radius:.7rem;display:flex;align-items:center;justify-content:center;margin-bottom:.65rem;font-size:1.1rem}
+.ic.s{background:var(--sage-muted);color:var(--sage)}
+.ic.c{background:rgba(232,146,124,.1);color:var(--coral)}
+.ic.l{background:rgba(155,142,196,.1);color:var(--lavender)}
+.ic.g{background:rgba(228,168,83,.1);color:var(--gold)}
+.ic.k{background:rgba(107,175,207,.1);color:var(--sky)}
+.ic.gr{background:rgba(107,191,123,.12);color:var(--green)}
+.fc h3{font-size:.9rem;font-weight:700;margin-bottom:.25rem}
+.fc p{font-size:.8rem;color:var(--text-secondary);line-height:1.5}
+
+/* BULLETS */
+.bullets{display:flex;flex-direction:column;gap:.5rem;text-align:left}
+.bullet{display:flex;align-items:flex-start;gap:.55rem;font-size:.88rem;color:var(--text-secondary);line-height:1.5}
+.bullet i{color:var(--sage);font-size:1rem;flex-shrink:0;margin-top:.1rem}
+.bullet strong{color:var(--text-primary)}
+
+/* BROWSER FRAME */
+.browser-frame{
+  background:var(--surface);
+  border-radius:1.3rem;
+  overflow:hidden;
+  box-shadow:0 20px 60px rgba(45,42,38,.18),0 4px 16px rgba(45,42,38,.08);
+  border:1px solid var(--border);
+  width:100%;
+  max-width:560px;
+  flex-shrink:0;
+}
+.browser-bar{
+  background:#EDEAE4;
+  border-bottom:1px solid var(--border);
+  padding:.55rem .9rem;
+  display:flex;
+  align-items:center;
+  gap:.65rem;
+}
+.b-dots{display:flex;gap:.3rem}
+.b-dots span{width:9px;height:9px;border-radius:50%}
+.b-dots span:nth-child(1){background:#FF5F57}
+.b-dots span:nth-child(2){background:#FFBD2E}
+.b-dots span:nth-child(3){background:#28C840}
+.b-url{
+  flex:1;max-width:200px;margin:0 auto;
+  background:#fff;border:1px solid var(--border);
+  border-radius:.42rem;padding:.22rem .65rem;
+  font-size:.68rem;color:var(--text-tertiary);text-align:center;
+}
+.browser-frame img{
+  width:100%;display:block;
+  object-fit:cover;object-position:top center;
+  max-height:420px;
+}
+.browser-frame.dark-frame{
+  border-color:rgba(255,255,255,.1);
+  box-shadow:0 20px 60px rgba(0,0,0,.5),0 4px 16px rgba(0,0,0,.3);
+}
+.browser-frame.dark-frame .browser-bar{
+  background:#2a2a27;border-color:rgba(255,255,255,.08)
+}
+.browser-frame.dark-frame .b-url{
+  background:#1c1d19;border-color:rgba(255,255,255,.1);color:rgba(255,255,255,.3)
+}
+
+/* CTA BUTTON */
+.cta-pill{
+  display:inline-flex;align-items:center;gap:.5rem;
+  background:#fff;color:var(--sage-hover);
+  font-size:1rem;font-weight:700;
+  padding:.85rem 2.2rem;border-radius:var(--radius-pill);
+  box-shadow:0 4px 16px rgba(0,0,0,.12);
+  transition:var(--t);
+}
+.cta-pill:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.18)}
+
+/* STEPS */
+.steps{display:flex;gap:1.25rem;justify-content:center;flex-wrap:wrap}
+.step{display:flex;align-items:center;gap:.75rem;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);border-radius:1.1rem;padding:.75rem 1.1rem}
+.step-num{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;color:#fff;flex-shrink:0}
+.step-text{text-align:left}
+.step-text strong{display:block;font-size:.85rem;font-weight:700;color:#fff;line-height:1.2}
+.step-text span{font-size:.75rem;color:rgba(255,255,255,.75)}
+
+/* CAPTION */
+.screen-caption{font-size:.72rem;color:var(--text-tertiary);margin-top:.4rem;text-align:center;letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+.screen-caption.inv{color:rgba(255,255,255,.45)}
+
+/* SUMMARY GRID */
+.sum-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;width:100%;max-width:780px}
+@media(max-width:600px){.sum-grid{grid-template-columns:1fr 1fr}}
+.sg{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);padding:1rem 1.1rem;text-align:left;box-shadow:var(--shadow-card)}
+.sg-icon{width:36px;height:36px;border-radius:.65rem;display:flex;align-items:center;justify-content:center;font-size:1rem;margin-bottom:.55rem}
+.sg h4{font-size:.88rem;font-weight:700;margin-bottom:.2rem}
+.sg p{font-size:.76rem;color:var(--text-secondary);line-height:1.45}
+</style>
+</head>
+<body>
+
+<!-- NAVIGATION -->
+<nav id="nav">
+  <svg width="72" height="15" viewBox="0 0 2540 545" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M2448.13 177.94C2431.53 189.42 2417.82 226.52 2407.3 237.12L2406.85 203.81L2406.37 160.72C2406.55 155.87 2397.89 156.69 2395.11 155.8C2367.66 169.18 2332.68 186.41 2302.58 191.38L2302.41 206.5C2309.19 208.85 2335.7 206.6 2339.49 215.15L2295.16 329.68C2262.21 422.16 2175.28 540.94 2064.98 480.76C2028.56 458.86 2001.14 415.12 2010.64 371.86C2063.43 350.52 2169.76 304.28 2221.8 280.53L2272.79 256.5C2233.21 167.64 2121.29 120.98 2037.58 181.31C1890.93 281.28 1943.29 581.64 2149.99 540.47C2281.13 519.09 2312.97 360.92 2356.55 257.27C2353.02 309.94 2384.65 490.31 2329.97 510.45C2313.21 517.49 2296.91 509.14 2301.46 534.4L2474.8 534.39C2482.54 494.59 2409.9 535.49 2412.75 449.6C2419.64 377.61 2387.96 251.74 2465.32 210.14C2493.64 198.58 2515.86 213.39 2527.21 234.77C2540.48 240.08 2536.02 169.58 2539.02 165.78C2510.34 147.76 2472.36 154.1 2448.13 177.95V177.94ZM2046.84 226.43C2065.87 205.39 2091.38 192.99 2120.04 192.6C2159.51 191.17 2189.98 210.95 2211.81 244.15L2152.02 270.21C2022.04 326.75 1984.11 326.75 2046.84 226.43Z" fill="#7CB38B"/>
+    <path d="M1736.52 480.85C1738.98 472.73 1740.42 464.47 1740.4 455.53L1740.07 293.92C1740.04 277.6 1737.64 262.44 1732.73 247.36C1726.45 228.04 1713.47 211.82 1694.89 203.4C1676.24 194.95 1655.56 193.74 1635.69 198.26C1601.8 205.97 1574.67 240.32 1567.27 273.71L1567.19 448.53C1567.18 459.05 1567.91 468.53 1570.84 478.23C1579.22 505.88 1603.77 514.19 1631.62 516.51L1631.81 534.39H1453.71L1453.62 516.72C1476.88 514.25 1499.88 509.44 1507.64 485.82C1510.34 477.58 1512.36 468.91 1512.36 459.44L1512.17 80.18C1512.17 69.77 1511.14 60.67 1509.4 50.98C1506.95 37.4 1497.86 27.02 1484.58 22.8C1475.14 19.79 1465.67 19.02 1455.14 17.76L1455.27 0H1567.02L1567.26 217.12L1587.17 191.64C1607.52 169.1 1634.88 156.8 1665.29 155.36C1713.46 153.07 1756.09 174.55 1776.05 219.18C1783.68 236.26 1788.05 253.8 1788.74 272.79L1787.49 495.41C1787.49 508.37 1804.24 513.98 1817.44 512.71C1835.13 511.01 1858.33 493.61 1859.85 475.81L1860.65 256.56C1860.91 241.19 1854.84 216.56 1840.63 211.63C1830.77 208.2 1820.88 207.96 1810.4 206.88L1810.71 191.17C1829.49 187.1 1847.07 182.11 1864.16 173.71L1899.82 156.17C1903 155.09 1908.57 156.99 1911.76 158.7L1908.03 462.6C1906.51 482.87 1909.35 507.6 1929.5 510.8L1953.83 514.66L1955.02 534.39H1677.8L1677.89 516.65C1704.31 513.65 1728.56 507.12 1736.52 480.85Z" fill="#7CB38B"/>
+    <path d="M1470.29 483.55C1465.45 494.85 1460.69 505.1 1453.07 514.25C1434.97 535.99 1407.43 545.24 1379.54 541.82C1352.28 538.48 1331.17 521.22 1322.91 494.97C1318.46 480.8 1316.78 466.52 1316.76 451.13L1316.48 201.89L1261.87 201.83L1261.81 178.58C1273.28 174.44 1283.57 170.89 1293.9 165.2C1330.97 144.74 1343.58 105.53 1349.65 64.89H1369.43L1368.96 99.96V166.16L1463.86 166.36L1464 202.01L1368.95 201.97L1369.18 334.81L1369.88 445.58C1370.04 471.28 1378.83 498.53 1405.9 501.03C1418.62 502.2 1431.04 498.23 1441.06 489.79L1455.33 475.2L1470.29 483.55Z" fill="#7CB38B"/>
+    <path d="M1924.31 44.66C1924.31 67.15 1906.07 85.38 1883.58 85.38C1861.09 85.38 1842.84 67.15 1842.84 44.66C1842.84 22.17 1861.08 3.94 1883.58 3.94C1906.08 3.94 1924.31 22.17 1924.31 44.66Z" fill="#7CB38B"/>
+    <path d="M1279.66 516.37C1268.21 515.33 1258.02 513.81 1247.88 509.27C1226.51 499.72 1221.41 478.5 1221.4 455.41L1221.24 0.02L1110.45 0L1110.31 18.04C1134.56 19.66 1159.12 24.28 1163.92 49.59C1165.84 59.74 1166.57 69.3 1166.58 80.18L1166.72 454.42C1166.72 463.75 1165.84 471.35 1163.83 480.17C1159.51 499.13 1142.7 513.9 1122.6 513.22C1109.25 512.77 1098.26 503.51 1091.89 492.34C1086.23 482.42 1083.89 471.43 1083.87 459.56L1083.62 318.85C1083.58 297.11 1081.86 276.68 1077.83 255.57C1074.33 237.23 1068.22 220.08 1057.91 204.5C1028.28 159.69 971.72 148.01 920.87 158.06C875.4 167.05 842.31 198.71 822.63 239.83C813.34 259.23 806.49 278.69 800.12 299.34L776.81 374.82C754.98 445.51 715.49 500.87 635.01 495.2C568.14 489.99 529.27 433.88 519.84 370.94L651.88 315.95L786.91 258.33C760.37 202.12 714.09 159.41 649.72 154.47C619.86 152.27 590.49 156.51 563.49 169.68C468.13 216.18 447.34 339.11 482.17 433.23C498.06 476.17 527.77 511.4 570.51 528.99C610.92 545.63 656.04 547.5 697.49 533.43C742.43 518.17 769.32 483.31 786.38 440.35C795.18 418.19 801.69 396.19 808.1 373.11C816.58 342.57 824.95 312.99 836.28 283.47C853.74 238.02 880.83 199.33 932.25 194.44C953.03 192.47 973.36 196.23 991.04 207.4C1021.81 228.43 1027.71 263.83 1028.73 299.77C991.11 303.89 955.37 312.83 920.71 326.75C906.11 332.61 893.1 339.63 880.18 348.27C863.09 359.69 849.14 374.05 838.59 391.59C819.99 422.52 817.7 465.34 835.56 496.74C844.79 512.96 857.89 525.68 875.39 533C907.82 546.57 944.51 545.78 976.2 530.17C998.07 519.4 1014.88 502.42 1028.04 481.3C1032.69 513.04 1050.27 532.21 1082.44 536.97C1095.78 538.63 1108.29 537.53 1121.71 534.42L1279.88 534.39L1279.66 516.37ZM522.54 291.54C525.91 274.81 530.81 259.11 539.27 244.35C554.73 216.33 581.35 198.08 613.06 193.27C661.29 186.03 698.5 204.61 725.13 244.55L519.22 331.36C518.92 317.24 520.38 304.68 522.54 291.54ZM1029.58 389.71L1026.88 440.83C1010.64 479.64 963.9 504.82 922.95 498.46C895.66 494.22 876.56 473.1 875.41 445.62C873.78 406.55 899.23 377.94 934.04 363.01C964.55 349.92 996.29 340.62 1029.61 334.97L1029.58 389.71Z" fill="#7CB38B"/>
+    <path d="M356.33 477.02L358.76 443.52L358.51 272.01L116.85 272.04V457.49C116.85 467.26 118.96 475.95 121.85 484.61C131.7 508.2 154.35 513.91 179.15 516.45L179.01 534.41H0.14L0 516.72L28.12 510.85C44.23 505.88 55.54 493.3 58.91 476.54C60.89 466.69 61.18 457.14 61.18 446.44L61.16 88.16C61.16 74.64 60.14 62.41 57.17 49.81C50.95 23.4 26.97 20 1.89 17.78L1.98 0H176.91L177.08 17.97C151.12 20.13 127.33 25.33 120.81 51.88C118.16 64.83 117.05 77.36 117.03 91.07L116.82 238.01H358.51L358.59 90.07C358.6 76.98 357.53 65.04 355.21 52.59C349.36 24.33 326.68 20.09 299.46 17.86L299.55 0L474.04 0.02L474.18 17.91C448.41 19.45 422.24 26.03 417.51 52.61C415.26 65.24 414.33 77.34 414.32 90.56L414.11 426.45L414.65 455.72C414.8 464.19 415.62 472.6 417.82 480.71C424.75 506.34 448.09 514.62 474.69 516.41L474.82 534.39H297.59L297.87 516.06C326.87 512.7 349.44 506.94 356.33 477.02Z" fill="#7CB38B"/>
+  </svg>
+  <div id="dots"></div>
+  <span id="counter">01 / 12</span>
+</nav>
+<button class="arrow-btn hidden" id="btn-prev" aria-label="Anterior"><i class="ph ph-arrow-left"></i></button>
+<button class="arrow-btn" id="btn-next" aria-label="Siguiente"><i class="ph ph-arrow-right"></i></button>
+<div class="progress-bar" id="progress-bar" style="width:8.33%"></div>
+
+<div id="deck">
+
+<!-- 1. PORTADA -->
+<section class="slide slide-sage active" data-slide="1">
+  <div class="content" style="gap:1.75rem">
+    <svg width="130" height="28" viewBox="0 0 2540 545" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:.92">
+      <path d="M2448.13 177.94C2431.53 189.42 2417.82 226.52 2407.3 237.12L2406.85 203.81L2406.37 160.72C2406.55 155.87 2397.89 156.69 2395.11 155.8C2367.66 169.18 2332.68 186.41 2302.58 191.38L2302.41 206.5C2309.19 208.85 2335.7 206.6 2339.49 215.15L2295.16 329.68C2262.21 422.16 2175.28 540.94 2064.98 480.76C2028.56 458.86 2001.14 415.12 2010.64 371.86C2063.43 350.52 2169.76 304.28 2221.8 280.53L2272.79 256.5C2233.21 167.64 2121.29 120.98 2037.58 181.31C1890.93 281.28 1943.29 581.64 2149.99 540.47C2281.13 519.09 2312.97 360.92 2356.55 257.27C2353.02 309.94 2384.65 490.31 2329.97 510.45C2313.21 517.49 2296.91 509.14 2301.46 534.4L2474.8 534.39C2482.54 494.59 2409.9 535.49 2412.75 449.6C2419.64 377.61 2387.96 251.74 2465.32 210.14C2493.64 198.58 2515.86 213.39 2527.21 234.77C2540.48 240.08 2536.02 169.58 2539.02 165.78C2510.34 147.76 2472.36 154.1 2448.13 177.95V177.94ZM2046.84 226.43C2065.87 205.39 2091.38 192.99 2120.04 192.6C2159.51 191.17 2189.98 210.95 2211.81 244.15L2152.02 270.21C2022.04 326.75 1984.11 326.75 2046.84 226.43Z" fill="white"/>
+      <path d="M1736.52 480.85C1738.98 472.73 1740.42 464.47 1740.4 455.53L1740.07 293.92C1740.04 277.6 1737.64 262.44 1732.73 247.36C1726.45 228.04 1713.47 211.82 1694.89 203.4C1676.24 194.95 1655.56 193.74 1635.69 198.26C1601.8 205.97 1574.67 240.32 1567.27 273.71L1567.19 448.53C1567.18 459.05 1567.91 468.53 1570.84 478.23C1579.22 505.88 1603.77 514.19 1631.62 516.51L1631.81 534.39H1453.71L1453.62 516.72C1476.88 514.25 1499.88 509.44 1507.64 485.82C1510.34 477.58 1512.36 468.91 1512.36 459.44L1512.17 80.18C1512.17 69.77 1511.14 60.67 1509.4 50.98C1506.95 37.4 1497.86 27.02 1484.58 22.8C1475.14 19.79 1465.67 19.02 1455.14 17.76L1455.27 0H1567.02L1567.26 217.12L1587.17 191.64C1607.52 169.1 1634.88 156.8 1665.29 155.36C1713.46 153.07 1756.09 174.55 1776.05 219.18C1783.68 236.26 1788.05 253.8 1788.74 272.79L1787.49 495.41C1787.49 508.37 1804.24 513.98 1817.44 512.71C1835.13 511.01 1858.33 493.61 1859.85 475.81L1860.65 256.56C1860.91 241.19 1854.84 216.56 1840.63 211.63C1830.77 208.2 1820.88 207.96 1810.4 206.88L1810.71 191.17C1829.49 187.1 1847.07 182.11 1864.16 173.71L1899.82 156.17C1903 155.09 1908.57 156.99 1911.76 158.7L1908.03 462.6C1906.51 482.87 1909.35 507.6 1929.5 510.8L1953.83 514.66L1955.02 534.39H1677.8L1677.89 516.65C1704.31 513.65 1728.56 507.12 1736.52 480.85Z" fill="white"/>
+      <path d="M1470.29 483.55C1465.45 494.85 1460.69 505.1 1453.07 514.25C1434.97 535.99 1407.43 545.24 1379.54 541.82C1352.28 538.48 1331.17 521.22 1322.91 494.97C1318.46 480.8 1316.78 466.52 1316.76 451.13L1316.48 201.89L1261.87 201.83L1261.81 178.58C1273.28 174.44 1283.57 170.89 1293.9 165.2C1330.97 144.74 1343.58 105.53 1349.65 64.89H1369.43L1368.96 99.96V166.16L1463.86 166.36L1464 202.01L1368.95 201.97L1369.18 334.81L1369.88 445.58C1370.04 471.28 1378.83 498.53 1405.9 501.03C1418.62 502.2 1431.04 498.23 1441.06 489.79L1455.33 475.2L1470.29 483.55Z" fill="white"/>
+      <path d="M1924.31 44.66C1924.31 67.15 1906.07 85.38 1883.58 85.38C1861.09 85.38 1842.84 67.15 1842.84 44.66C1842.84 22.17 1861.08 3.94 1883.58 3.94C1906.08 3.94 1924.31 22.17 1924.31 44.66Z" fill="white"/>
+      <path d="M1279.66 516.37C1268.21 515.33 1258.02 513.81 1247.88 509.27C1226.51 499.72 1221.41 478.5 1221.4 455.41L1221.24 0.02L1110.45 0L1110.31 18.04C1134.56 19.66 1159.12 24.28 1163.92 49.59C1165.84 59.74 1166.57 69.3 1166.58 80.18L1166.72 454.42C1166.72 463.75 1165.84 471.35 1163.83 480.17C1159.51 499.13 1142.7 513.9 1122.6 513.22C1109.25 512.77 1098.26 503.51 1091.89 492.34C1086.23 482.42 1083.89 471.43 1083.87 459.56L1083.62 318.85C1083.58 297.11 1081.86 276.68 1077.83 255.57C1074.33 237.23 1068.22 220.08 1057.91 204.5C1028.28 159.69 971.72 148.01 920.87 158.06C875.4 167.05 842.31 198.71 822.63 239.83C813.34 259.23 806.49 278.69 800.12 299.34L776.81 374.82C754.98 445.51 715.49 500.87 635.01 495.2C568.14 489.99 529.27 433.88 519.84 370.94L651.88 315.95L786.91 258.33C760.37 202.12 714.09 159.41 649.72 154.47C619.86 152.27 590.49 156.51 563.49 169.68C468.13 216.18 447.34 339.11 482.17 433.23C498.06 476.17 527.77 511.4 570.51 528.99C610.92 545.63 656.04 547.5 697.49 533.43C742.43 518.17 769.32 483.31 786.38 440.35C795.18 418.19 801.69 396.19 808.1 373.11C816.58 342.57 824.95 312.99 836.28 283.47C853.74 238.02 880.83 199.33 932.25 194.44C953.03 192.47 973.36 196.23 991.04 207.4C1021.81 228.43 1027.71 263.83 1028.73 299.77C991.11 303.89 955.37 312.83 920.71 326.75C906.11 332.61 893.1 339.63 880.18 348.27C863.09 359.69 849.14 374.05 838.59 391.59C819.99 422.52 817.7 465.34 835.56 496.74C844.79 512.96 857.89 525.68 875.39 533C907.82 546.57 944.51 545.78 976.2 530.17C998.07 519.4 1014.88 502.42 1028.04 481.3C1032.69 513.04 1050.27 532.21 1082.44 536.97C1095.78 538.63 1108.29 537.53 1121.71 534.42L1279.88 534.39L1279.66 516.37Z" fill="white"/>
+      <path d="M356.33 477.02L358.76 443.52L358.51 272.01L116.85 272.04V457.49C116.85 467.26 118.96 475.95 121.85 484.61C131.7 508.2 154.35 513.91 179.15 516.45L179.01 534.41H0.14L0 516.72L28.12 510.85C44.23 505.88 55.54 493.3 58.91 476.54C60.89 466.69 61.18 457.14 61.18 446.44L61.16 88.16C61.16 74.64 60.14 62.41 57.17 49.81C50.95 23.4 26.97 20 1.89 17.78L1.98 0H176.91L177.08 17.97C151.12 20.13 127.33 25.33 120.81 51.88C118.16 64.83 117.05 77.36 117.03 91.07L116.82 238.01H358.51L358.59 90.07C358.6 76.98 357.53 65.04 355.21 52.59C349.36 24.33 326.68 20.09 299.46 17.86L299.55 0L474.04 0.02L474.18 17.91C448.41 19.45 422.24 26.03 417.51 52.61C415.26 65.24 414.33 77.34 414.32 90.56L414.11 426.45L414.65 455.72C414.8 464.19 415.62 472.6 417.82 480.71C424.75 506.34 448.09 514.62 474.69 516.41L474.82 534.39H297.59L297.87 516.06C326.87 512.7 349.44 506.94 356.33 477.02Z" fill="white"/>
+    </svg>
+    <span class="eyebrow white"><i class="ph ph-device-mobile"></i> Plataforma real · Para profesionales · Buenos Aires</span>
+    <h1 class="hero" style="color:#fff;max-width:16ch">La plataforma, <span style="color:rgba(255,255,255,.65)">tal como es.</span></h1>
+    <p class="lead" style="color:rgba(255,255,255,.8);max-width:44ch">Capturas reales de la app, tomadas en vivo. Lo que ves a continuación ya está construido y funcionando.</p>
+    <p style="font-size:.78rem;color:rgba(255,255,255,.5);margin-top:.5rem">← → para navegar · Space · Swipe</p>
+  </div>
+</section>
+
+<!-- 2. DASHBOARD -->
+<section class="slide slide-white" data-slide="2">
+  <div class="two-col">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow"><i class="ph ph-squares-four"></i> Dashboard</span>
+      <h2 class="st">Tu agenda del día,<br>de un <span class="a">vistazo.</span></h2>
+      <div class="bullets">
+        <div class="bullet"><i class="ph ph-chart-bar"></i><span>Stats en tiempo real: consultas de hoy, calificación acumulada y reseñas de pacientes</span></div>
+        <div class="bullet"><i class="ph ph-trend-up"></i><span>Ganancias del mes con historial de consultas y desglose por modalidad</span></div>
+        <div class="bullet"><i class="ph ph-calendar-check"></i><span>Próximas consultas del día con acceso directo a la sala o historial del paciente</span></div>
+        <div class="bullet"><i class="ph ph-warning-circle" style="color:var(--coral)"></i><span><strong>Alerta de emergencia activa</strong> — si llega un S.O.S. en tu zona, aparece al instante</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <div class="b-dots"><span></span><span></span><span></span></div>
+          <div class="b-url">healthier.app/profesional/dashboard</div>
+        </div>
+        <img src="screenshots/01-dashboard.jpg" alt="Dashboard profesional">
+      </div>
+      <p class="screen-caption">Dr. Martín López — Dashboard real</p>
+    </div>
+  </div>
+</section>
+
+<!-- 3. AGENDA -->
+<section class="slide slide-ivory" data-slide="3">
+  <div class="two-col r">
+    <div>
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <div class="b-dots"><span></span><span></span><span></span></div>
+          <div class="b-url">healthier.app/profesional/agenda</div>
+        </div>
+        <img src="screenshots/02-agenda.jpg" alt="Mi agenda semanal">
+      </div>
+      <p class="screen-caption">Agenda semanal con Consulta Inmediata activada</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow"><i class="ph ph-calendar"></i> Mi agenda</span>
+      <h2 class="st">Vos controlás<br>tus <span class="a">horarios.</span></h2>
+      <div class="bullets">
+        <div class="bullet"><i class="ph ph-calendar-blank"></i><span>Editor de franjas semanales por día — los pacientes ven exactamente estos horarios al reservar</span></div>
+        <div class="bullet"><i class="ph ph-lightning"></i><span><strong>Consulta inmediata</strong> — activá el toggle y aparecés como disponible para consultas al instante en el mapa</span></div>
+        <div class="bullet"><i class="ph ph-lock-open"></i><span>Podés configurar, pausar o reactivar tu disponibilidad en cualquier momento</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4. PERFIL PROFESIONAL -->
+<section class="slide slide-cream" data-slide="4">
+  <div class="two-col">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow coral"><i class="ph ph-user-circle"></i> Perfil profesional</span>
+      <h2 class="st">Tu perfil es tu<br><span class="ac">vidriera.</span></h2>
+      <div class="bullets">
+        <div class="bullet"><i class="ph ph-camera" style="color:var(--coral)"></i><span>Foto de perfil, bio, especialidad y dirección del consultorio visibles para los pacientes</span></div>
+        <div class="bullet"><i class="ph ph-currency-dollar-simple" style="color:var(--sage)"></i><span>Definís vos tus precios por tipo de consulta — videollamada y presencial por separado</span></div>
+        <div class="bullet"><i class="ph ph-seal-check" style="color:var(--sage)"></i><span>Badge de verificado aparece en tu tarjeta del mapa y en la búsqueda</span></div>
+        <div class="bullet"><i class="ph ph-star" style="color:var(--gold)"></i><span>Rating de pacientes acumulado, mostrado públicamente en tu perfil</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <div class="b-dots"><span></span><span></span><span></span></div>
+          <div class="b-url">healthier.app/profesional/perfil</div>
+        </div>
+        <img src="screenshots/06-perfil.jpg" alt="Perfil profesional">
+      </div>
+      <p class="screen-caption">Edición de perfil — datos visibles para pacientes</p>
+    </div>
+  </div>
+</section>
+
+<!-- 5. MIS PACIENTES -->
+<section class="slide slide-white" data-slide="5">
+  <div class="two-col r">
+    <div>
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <div class="b-dots"><span></span><span></span><span></span></div>
+          <div class="b-url">healthier.app/profesional/pacientes</div>
+        </div>
+        <img src="screenshots/05-pacientes.jpg" alt="Mis pacientes">
+      </div>
+      <p class="screen-caption">Listado de pacientes con historial de consultas</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow lavender"><i class="ph ph-users"></i> Mis pacientes</span>
+      <h2 class="st">Todos tus pacientes,<br><span class="al">organizados.</span></h2>
+      <div class="bullets">
+        <div class="bullet"><i class="ph ph-magnifying-glass" style="color:var(--lavender)"></i><span>Buscador instantáneo por nombre — encontrás cualquier paciente en segundos</span></div>
+        <div class="bullet"><i class="ph ph-clock-counter-clockwise" style="color:var(--lavender)"></i><span>Historial de consultas por paciente: fecha, modalidad y estado</span></div>
+        <div class="bullet"><i class="ph ph-arrow-right" style="color:var(--lavender)"></i><span>Acceso al perfil completo del paciente, historial clínico y sus próximas citas</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. HISTORIAL DE CONSULTAS -->
+<section class="slide slide-ivory" data-slide="6">
+  <div class="two-col">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow"><i class="ph ph-clock-counter-clockwise"></i> Historial</span>
+      <h2 class="st">Cada consulta,<br><span class="a">registrada.</span></h2>
+      <div class="bullets">
+        <div class="bullet"><i class="ph ph-funnel"></i><span>Filtrá por Todas, Completadas o Canceladas con buscador por nombre de paciente</span></div>
+        <div class="bullet"><i class="ph ph-video-camera"></i><span>Cada entrada muestra fecha, hora, modalidad (video / presencial) y estado</span></div>
+        <div class="bullet"><i class="ph ph-file-text"></i><span>Hacé click en cualquier consulta para ver notas clínicas, recetas emitidas y diagnósticos</span></div>
+        <div class="bullet"><i class="ph ph-export"></i><span>Base histórica para facturación y auditorías — todo en un solo lugar</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <div class="b-dots"><span></span><span></span><span></span></div>
+          <div class="b-url">healthier.app/profesional/historial</div>
+        </div>
+        <img src="screenshots/04-historial.jpg" alt="Historial de consultas">
+      </div>
+      <p class="screen-caption">Consulta completada — María González, VideoCamera</p>
+    </div>
+  </div>
+</section>
+
+<!-- 7. GANANCIAS -->
+<section class="slide slide-cream" data-slide="7">
+  <div class="two-col r">
+    <div>
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <div class="b-dots"><span></span><span></span><span></span></div>
+          <div class="b-url">healthier.app/profesional/ganancias</div>
+        </div>
+        <img src="screenshots/07-ganancias.jpg" alt="Ganancias">
+      </div>
+      <p class="screen-caption">Panel de ganancias con evolución mensual y detalle de pagos</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow gold"><i class="ph ph-trend-up"></i> Ganancias</span>
+      <h2 class="st">Tus cobros,<br><span class="ag">transparentes.</span></h2>
+      <div class="bullets">
+        <div class="bullet"><i class="ph ph-calendar" style="color:var(--gold)"></i><span>Tres vistas: <strong>Este mes</strong>, Esta semana y Total histórico — con contador de consultas</span></div>
+        <div class="bullet"><i class="ph ph-chart-bar" style="color:var(--gold)"></i><span>Gráfico de evolución mensual: cobrado vs. mes en curso</span></div>
+        <div class="bullet"><i class="ph ph-list-checks" style="color:var(--gold)"></i><span>Historial de pagos por paciente con monto, fecha y estado (Cobrado / Pendiente)</span></div>
+        <div class="bullet"><i class="ph ph-lock" style="color:var(--sage)"></i><span>Pagos vía <strong>Mercado Pago</strong> — cobro real, directo a tu cuenta</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8. HERRAMIENTAS CLÍNICAS -->
+<section class="slide slide-white" data-slide="8">
+  <div class="content">
+    <span class="eyebrow lavender"><i class="ph ph-stethoscope"></i> Herramientas clínicas</span>
+    <h2 class="st" style="text-align:center">Todo lo que necesitás<br>en la <span class="al">consulta.</span></h2>
+    <div class="fg" style="max-width:860px">
+      <div class="fc">
+        <div class="ic l"><i class="ph ph-file-text"></i></div>
+        <h3>Historia clínica</h3>
+        <p>Notas internas y externas con timeline por paciente. Varios profesionales pueden anotar en el mismo historial.</p>
+      </div>
+      <div class="fc">
+        <div class="ic s"><i class="ph ph-prescription"></i></div>
+        <h3>Recetas digitales</h3>
+        <p>Emití recetas médicas durante la consulta. El paciente las recibe por WhatsApp o email en segundos.</p>
+      </div>
+      <div class="fc">
+        <div class="ic c"><i class="ph ph-video-camera"></i></div>
+        <h3>Videollamada HD</h3>
+        <p>Video real con Daily.co — sin apps externas. Panel clínico lateral disponible durante la llamada.</p>
+      </div>
+      <div class="fc">
+        <div class="ic g"><i class="ph ph-fork-knife"></i></div>
+        <h3>NutriPlan Pro</h3>
+        <p>Módulo exclusivo para nutricionistas. Generá planes nutricionales personalizados desde el panel.</p>
+      </div>
+      <div class="fc">
+        <div class="ic k"><i class="ph ph-buildings"></i></div>
+        <h3>EHR Heural</h3>
+        <p>Integración con Heural: alergias, vitales, medicación, SNOMED y derivaciones digitales.</p>
+      </div>
+      <div class="fc">
+        <div class="ic gr"><i class="ph ph-shield-check"></i></div>
+        <h3>Datos cifrados</h3>
+        <p>Credenciales y documentos clínicos almacenados con cifrado en reposo. Cumplimiento HIPAA.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 9. HEALTHY IA COMPANION -->
+<section class="slide slide-ivory" data-slide="9">
+  <div class="two-col">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow lavender"><i class="ph ph-sparkle"></i> Healthy IA</span>
+      <h2 class="st">Tu asistente<br>clínico con <span class="al">IA.</span></h2>
+      <div class="bullets">
+        <div class="bullet"><i class="ph ph-sparkle" style="color:var(--lavender)"></i><span>Panel deslizable disponible en todo el dashboard — accedés con un click</span></div>
+        <div class="bullet"><i class="ph ph-calendar-check" style="color:var(--lavender)"></i><span><strong>Saludo contextual</strong> con tu agenda real del día: sabe cuántas consultas tenés y cuándo</span></div>
+        <div class="bullet"><i class="ph ph-lightning" style="color:var(--lavender)"></i><span>Acciones rápidas: "¿Qué tengo hoy?", "Próximo paciente", "Pendientes"</span></div>
+        <div class="bullet"><i class="ph ph-chat-text" style="color:var(--lavender)"></i><span>Chat libre — preguntale cualquier cosa sobre tu práctica, pacientes o agenda</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <div class="b-dots"><span></span><span></span><span></span></div>
+          <div class="b-url">healthier.app/profesional/dashboard</div>
+        </div>
+        <img src="screenshots/10-ai-companion.jpg" alt="Healthy IA companion">
+      </div>
+      <p class="screen-caption">Panel "Healthy" abierto — asistente contextual con agenda</p>
+    </div>
+  </div>
+</section>
+
+<!-- 10. EMERGENCIAS -->
+<section class="slide slide-dark" data-slide="10">
+  <div class="two-col">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow coral"><i class="ph ph-siren"></i> Emergencias S.O.S</span>
+      <h2 class="st" style="color:#f9f8f5">Llegás antes.<br>El paciente lo <span class="ac">siente.</span></h2>
+      <div class="bullets">
+        <div class="bullet" style="color:rgba(249,248,245,.75)"><i class="ph ph-warning" style="color:var(--coral)"></i><span>Cuando un paciente activa S.O.S., los profesionales cercanos reciben alerta en su dashboard</span></div>
+        <div class="bullet" style="color:rgba(249,248,245,.75)"><i class="ph ph-first-aid-kit" style="color:var(--coral)"></i><span>Pantalla dedicada con síntomas urgentes reportados: dolor severo, fiebre, traumatismo</span></div>
+        <div class="bullet" style="color:rgba(249,248,245,.75)"><i class="ph ph-map-pin" style="color:var(--sage)"></i><span>Código de despacho único (UTM-1887) y datos del paciente disponibles al instante</span></div>
+        <div class="bullet" style="color:rgba(249,248,245,.75)"><i class="ph ph-check-circle" style="color:var(--sage)"></i><span>UI de alto contraste diseñada para usar en campo — "¡Llegaste!" confirma la atención</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="browser-frame dark-frame">
+        <div class="browser-bar">
+          <div class="b-dots"><span></span><span></span><span></span></div>
+          <div class="b-url">healthier.app/profesional/emergencias</div>
+        </div>
+        <img src="screenshots/09-emergencias.jpg" alt="Emergencias S.O.S" style="max-height:380px">
+      </div>
+      <p class="screen-caption inv">Pantalla de emergencia — standalone, alta visibilidad</p>
+    </div>
+  </div>
+</section>
+
+<!-- 11. RESUMEN -->
+<section class="slide slide-cream" data-slide="11">
+  <div class="content" style="gap:1.75rem">
+    <span class="eyebrow"><i class="ph ph-check-circle"></i> Todo incluido</span>
+    <h2 class="st" style="text-align:center">Una plataforma. <span class="a">Todo construido.</span></h2>
+    <div class="sum-grid">
+      <div class="sg">
+        <div class="sg-icon" style="background:var(--sage-muted);color:var(--sage)"><i class="ph ph-users-three"></i></div>
+        <h4>Pacientes directos</h4>
+        <p>Aparecés en el mapa y la búsqueda. Los pacientes te encuentran y reservan sin intermediarios.</p>
+      </div>
+      <div class="sg">
+        <div class="sg-icon" style="background:rgba(228,168,83,.1);color:var(--gold)"><i class="ph ph-calendar"></i></div>
+        <h4>Agenda propia</h4>
+        <p>Franjas semanales + consulta inmediata on-demand. Vos decidís cuándo y cómo atendés.</p>
+      </div>
+      <div class="sg">
+        <div class="sg-icon" style="background:rgba(155,142,196,.1);color:var(--lavender)"><i class="ph ph-stethoscope"></i></div>
+        <h4>Herramientas clínicas</h4>
+        <p>Historia clínica, recetas digitales, videollamada HD, NutriPlan y EHR Heural.</p>
+      </div>
+      <div class="sg">
+        <div class="sg-icon" style="background:rgba(107,191,123,.12);color:var(--green)"><i class="ph ph-currency-circle-dollar"></i></div>
+        <h4>Cobros transparentes</h4>
+        <p>Mercado Pago real, directo a tu cuenta. Dashboard con evolución mensual y detalle por paciente.</p>
+      </div>
+      <div class="sg">
+        <div class="sg-icon" style="background:rgba(107,175,207,.1);color:var(--sky)"><i class="ph ph-shield-check"></i></div>
+        <h4>Verificado y confiable</h4>
+        <p>Credenciales revisadas, datos cifrados, badge en el mapa. Los pacientes ven solo profesionales aprobados.</p>
+      </div>
+      <div class="sg">
+        <div class="sg-icon" style="background:rgba(232,146,124,.1);color:var(--coral)"><i class="ph ph-siren"></i></div>
+        <h4>Emergencias S.O.S</h4>
+        <p>Alertas de urgencia en tu zona. Pantalla dedicada, alta visibilidad, código de despacho.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 12. CTA -->
+<section class="slide slide-sage" data-slide="12">
+  <div class="content" style="gap:2rem">
+    <svg width="120" height="26" viewBox="0 0 2540 545" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:.9">
+      <path d="M2448.13 177.94C2431.53 189.42 2417.82 226.52 2407.3 237.12L2406.85 203.81L2406.37 160.72C2406.55 155.87 2397.89 156.69 2395.11 155.8C2367.66 169.18 2332.68 186.41 2302.58 191.38L2302.41 206.5C2309.19 208.85 2335.7 206.6 2339.49 215.15L2295.16 329.68C2262.21 422.16 2175.28 540.94 2064.98 480.76C2028.56 458.86 2001.14 415.12 2010.64 371.86C2063.43 350.52 2169.76 304.28 2221.8 280.53L2272.79 256.5C2233.21 167.64 2121.29 120.98 2037.58 181.31C1890.93 281.28 1943.29 581.64 2149.99 540.47C2281.13 519.09 2312.97 360.92 2356.55 257.27C2353.02 309.94 2384.65 490.31 2329.97 510.45C2313.21 517.49 2296.91 509.14 2301.46 534.4L2474.8 534.39C2482.54 494.59 2409.9 535.49 2412.75 449.6C2419.64 377.61 2387.96 251.74 2465.32 210.14C2493.64 198.58 2515.86 213.39 2527.21 234.77C2540.48 240.08 2536.02 169.58 2539.02 165.78C2510.34 147.76 2472.36 154.1 2448.13 177.95V177.94ZM2046.84 226.43C2065.87 205.39 2091.38 192.99 2120.04 192.6C2159.51 191.17 2189.98 210.95 2211.81 244.15L2152.02 270.21C2022.04 326.75 1984.11 326.75 2046.84 226.43Z" fill="white"/>
+      <path d="M1736.52 480.85C1738.98 472.73 1740.42 464.47 1740.4 455.53L1740.07 293.92C1740.04 277.6 1737.64 262.44 1732.73 247.36C1726.45 228.04 1713.47 211.82 1694.89 203.4C1676.24 194.95 1655.56 193.74 1635.69 198.26C1601.8 205.97 1574.67 240.32 1567.27 273.71L1567.19 448.53C1567.18 459.05 1567.91 468.53 1570.84 478.23C1579.22 505.88 1603.77 514.19 1631.62 516.51L1631.81 534.39H1453.71L1453.62 516.72C1476.88 514.25 1499.88 509.44 1507.64 485.82C1510.34 477.58 1512.36 468.91 1512.36 459.44L1512.17 80.18C1512.17 69.77 1511.14 60.67 1509.4 50.98C1506.95 37.4 1497.86 27.02 1484.58 22.8C1475.14 19.79 1465.67 19.02 1455.14 17.76L1455.27 0H1567.02L1567.26 217.12L1587.17 191.64C1607.52 169.1 1634.88 156.8 1665.29 155.36C1713.46 153.07 1756.09 174.55 1776.05 219.18C1783.68 236.26 1788.05 253.8 1788.74 272.79L1787.49 495.41C1787.49 508.37 1804.24 513.98 1817.44 512.71C1835.13 511.01 1858.33 493.61 1859.85 475.81L1860.65 256.56C1860.91 241.19 1854.84 216.56 1840.63 211.63C1830.77 208.2 1820.88 207.96 1810.4 206.88L1810.71 191.17C1829.49 187.1 1847.07 182.11 1864.16 173.71L1899.82 156.17C1903 155.09 1908.57 156.99 1911.76 158.7L1908.03 462.6C1906.51 482.87 1909.35 507.6 1929.5 510.8L1953.83 514.66L1955.02 534.39H1677.8L1677.89 516.65C1704.31 513.65 1728.56 507.12 1736.52 480.85Z" fill="white"/>
+      <path d="M1470.29 483.55C1465.45 494.85 1460.69 505.1 1453.07 514.25C1434.97 535.99 1407.43 545.24 1379.54 541.82C1352.28 538.48 1331.17 521.22 1322.91 494.97C1318.46 480.8 1316.78 466.52 1316.76 451.13L1316.48 201.89L1261.87 201.83L1261.81 178.58C1273.28 174.44 1283.57 170.89 1293.9 165.2C1330.97 144.74 1343.58 105.53 1349.65 64.89H1369.43L1368.96 99.96V166.16L1463.86 166.36L1464 202.01L1368.95 201.97L1369.18 334.81L1369.88 445.58C1370.04 471.28 1378.83 498.53 1405.9 501.03C1418.62 502.2 1431.04 498.23 1441.06 489.79L1455.33 475.2L1470.29 483.55Z" fill="white"/>
+      <path d="M1924.31 44.66C1924.31 67.15 1906.07 85.38 1883.58 85.38C1861.09 85.38 1842.84 67.15 1842.84 44.66C1842.84 22.17 1861.08 3.94 1883.58 3.94C1906.08 3.94 1924.31 22.17 1924.31 44.66Z" fill="white"/>
+      <path d="M1279.66 516.37C1268.21 515.33 1258.02 513.81 1247.88 509.27C1226.51 499.72 1221.41 478.5 1221.4 455.41L1221.24 0.02L1110.45 0L1110.31 18.04C1134.56 19.66 1159.12 24.28 1163.92 49.59C1165.84 59.74 1166.57 69.3 1166.58 80.18L1166.72 454.42C1166.72 463.75 1165.84 471.35 1163.83 480.17C1159.51 499.13 1142.7 513.9 1122.6 513.22C1109.25 512.77 1098.26 503.51 1091.89 492.34C1086.23 482.42 1083.89 471.43 1083.87 459.56L1083.62 318.85C1083.58 297.11 1081.86 276.68 1077.83 255.57C1074.33 237.23 1068.22 220.08 1057.91 204.5C1028.28 159.69 971.72 148.01 920.87 158.06C875.4 167.05 842.31 198.71 822.63 239.83C813.34 259.23 806.49 278.69 800.12 299.34L776.81 374.82C754.98 445.51 715.49 500.87 635.01 495.2C568.14 489.99 529.27 433.88 519.84 370.94L651.88 315.95L786.91 258.33C760.37 202.12 714.09 159.41 649.72 154.47C619.86 152.27 590.49 156.51 563.49 169.68C468.13 216.18 447.34 339.11 482.17 433.23C498.06 476.17 527.77 511.4 570.51 528.99C610.92 545.63 656.04 547.5 697.49 533.43C742.43 518.17 769.32 483.31 786.38 440.35C795.18 418.19 801.69 396.19 808.1 373.11C816.58 342.57 824.95 312.99 836.28 283.47C853.74 238.02 880.83 199.33 932.25 194.44C953.03 192.47 973.36 196.23 991.04 207.4C1021.81 228.43 1027.71 263.83 1028.73 299.77C991.11 303.89 955.37 312.83 920.71 326.75C906.11 332.61 893.1 339.63 880.18 348.27C863.09 359.69 849.14 374.05 838.59 391.59C819.99 422.52 817.7 465.34 835.56 496.74C844.79 512.96 857.89 525.68 875.39 533C907.82 546.57 944.51 545.78 976.2 530.17C998.07 519.4 1014.88 502.42 1028.04 481.3C1032.69 513.04 1050.27 532.21 1082.44 536.97C1095.78 538.63 1108.29 537.53 1121.71 534.42L1279.88 534.39L1279.66 516.37Z" fill="white"/>
+      <path d="M356.33 477.02L358.76 443.52L358.51 272.01L116.85 272.04V457.49C116.85 467.26 118.96 475.95 121.85 484.61C131.7 508.2 154.35 513.91 179.15 516.45L179.01 534.41H0.14L0 516.72L28.12 510.85C44.23 505.88 55.54 493.3 58.91 476.54C60.89 466.69 61.18 457.14 61.18 446.44L61.16 88.16C61.16 74.64 60.14 62.41 57.17 49.81C50.95 23.4 26.97 20 1.89 17.78L1.98 0H176.91L177.08 17.97C151.12 20.13 127.33 25.33 120.81 51.88C118.16 64.83 117.05 77.36 117.03 91.07L116.82 238.01H358.51L358.59 90.07C358.6 76.98 357.53 65.04 355.21 52.59C349.36 24.33 326.68 20.09 299.46 17.86L299.55 0L474.04 0.02L474.18 17.91C448.41 19.45 422.24 26.03 417.51 52.61C415.26 65.24 414.33 77.34 414.32 90.56L414.11 426.45L414.65 455.72C414.8 464.19 415.62 472.6 417.82 480.71C424.75 506.34 448.09 514.62 474.69 516.41L474.82 534.39H297.59L297.87 516.06C326.87 512.7 349.44 506.94 356.33 477.02Z" fill="white"/>
+    </svg>
+    <h1 class="hero" style="color:#fff;text-align:center">Unite a Healthier</h1>
+    <p class="lead" style="color:rgba(255,255,255,.82);text-align:center;max-width:42ch">Completá tu perfil, pasá la verificación y empezá a recibir pacientes. Todo desde la misma plataforma.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <strong>Completá tu perfil</strong>
+          <span>Foto, bio, especialidad y precios</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          <strong>Verificación</strong>
+          <span>Revisamos tus credenciales en 24–48 hs</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          <strong>Recibí pacientes</strong>
+          <span>Aparecés en el mapa y la búsqueda</span>
+        </div>
+      </div>
+    </div>
+    <a href="https://healthier.com.ar/registro" class="cta-pill">
+      <i class="ph ph-user-plus"></i> Crear mi perfil profesional
+    </a>
+  </div>
+</section>
+
+</div><!-- /deck -->
+
+<script>
+const TOTAL=12;
+let current=1;
+const slides=document.querySelectorAll('.slide');
+const dotsEl=document.getElementById('dots');
+const counter=document.getElementById('counter');
+const progress=document.getElementById('progress-bar');
+const btnPrev=document.getElementById('btn-prev');
+const btnNext=document.getElementById('btn-next');
+for(let i=1;i<=TOTAL;i++){const d=document.createElement('button');d.className='dot'+(i===1?' active':'');d.setAttribute('aria-label',`Slide ${i}`);d.addEventListener('click',()=>goTo(i));dotsEl.appendChild(d)}
+function pad(n){return String(n).padStart(2,'0')}
+function goTo(n){
+  if(n<1||n>TOTAL||n===current)return;
+  slides[current-1].classList.remove('active');
+  dotsEl.children[current-1].classList.remove('active');
+  current=n;
+  slides[current-1].classList.add('active');
+  dotsEl.children[current-1].classList.add('active');
+  counter.textContent=`${pad(current)} / ${pad(TOTAL)}`;
+  progress.style.width=`${(current/TOTAL)*100}%`;
+  btnPrev.classList.toggle('hidden',current===1);
+  btnNext.classList.toggle('hidden',current===TOTAL);
+  const s=slides[current-1];
+  const dark=s.classList.contains('slide-dark')||s.classList.contains('slide-sage');
+  const nav=document.getElementById('nav');
+  if(dark){
+    nav.style.background='rgba(30,31,27,.85)';
+    nav.style.borderColor='rgba(255,255,255,.1)';
+    nav.querySelectorAll('path').forEach(p=>p.setAttribute('fill','#fff'));
+    counter.style.color='rgba(255,255,255,.4)';
+    dotsEl.querySelectorAll('.dot:not(.active)').forEach(d=>d.style.background='rgba(255,255,255,.3)');
+  }else{
+    nav.style.background='rgba(246,245,240,.82)';
+    nav.style.borderColor='var(--border)';
+    nav.querySelectorAll('path').forEach(p=>p.setAttribute('fill','#7CB38B'));
+    counter.style.color='var(--text-tertiary)';
+    dotsEl.querySelectorAll('.dot:not(.active)').forEach(d=>d.style.background='var(--border)');
+  }
+  history.replaceState(null,'',`#${current}`);
+}
+btnPrev.addEventListener('click',()=>goTo(current-1));
+btnNext.addEventListener('click',()=>goTo(current+1));
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='Enter'){e.preventDefault();goTo(current+1)}
+  else if(e.key==='ArrowLeft'){e.preventDefault();goTo(current-1)}
+  else if(e.key==='Home'){e.preventDefault();goTo(1)}
+  else if(e.key==='End'){e.preventDefault();goTo(TOTAL)}
+  else if(e.key==='f'||e.key==='F'){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}
+});
+let tx=0;
+document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX},{passive:true});
+document.addEventListener('touchend',e=>{
+  const dx=tx-e.changedTouches[0].clientX;
+  if(Math.abs(dx)>40){goTo(dx>0?current+1:current-1)}
+},{passive:true});
+document.addEventListener('click',e=>{
+  const x=e.clientX/window.innerWidth;
+  if(x<.25)goTo(current-1);
+  else if(x>.75)goTo(current+1);
+});
+const hash=parseInt(location.hash.replace('#',''));
+const start=(hash>=1&&hash<=TOTAL)?hash:1;
+if(start!==1){
+  slides[0].classList.remove('active');
+  slides[start-1].classList.add('active');
+  dotsEl.children[0].classList.remove('active');
+  dotsEl.children[start-1].classList.add('active');
+  current=start;
+  counter.textContent=`${pad(start)} / ${pad(TOTAL)}`;
+  progress.style.width=`${(start/TOTAL)*100}%`;
+  btnPrev.classList.toggle('hidden',start===1);
+  btnNext.classList.toggle('hidden',start===TOTAL);
+}
+</script>
+</body>
+</html>

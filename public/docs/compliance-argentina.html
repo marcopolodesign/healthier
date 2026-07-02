@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Healthier — Compliance Argentina & Estrategia Técnica</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --brand: #7CB38B;
+      --brand-dark: #5a8f6a;
+      --coral: #E8927C;
+      --lavender: #9B8EC4;
+      --bg: #F6F5F0;
+      --bg2: #FDFCF9;
+      --text: #2D2A26;
+      --text2: #6b6560;
+      --border: #e0ddd8;
+      --green: #22c55e;
+      --red: #ef4444;
+      --amber: #f59e0b;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .page { max-width: 900px; margin: 0 auto; padding: 48px 24px 80px; }
+
+    /* Header */
+    .header {
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 48px; padding-bottom: 32px;
+      border-bottom: 2px solid var(--brand);
+    }
+    .logo-mark {
+      width: 48px; height: 48px; border-radius: 12px;
+      background: var(--brand); display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 800; color: white; letter-spacing: -1px;
+      flex-shrink: 0;
+    }
+    .header-text h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+    .header-text p { color: var(--text2); font-size: 14px; margin-top: 2px; }
+    .badge {
+      margin-left: auto; background: var(--brand); color: white;
+      font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+      letter-spacing: 0.5px; white-space: nowrap;
+    }
+
+    /* Sections */
+    h2 {
+      font-size: 20px; font-weight: 700; margin-bottom: 16px; margin-top: 48px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    h2 .num {
+      width: 28px; height: 28px; border-radius: 50%; background: var(--brand);
+      color: white; font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    h3 { font-size: 15px; font-weight: 600; margin-bottom: 10px; color: var(--text); }
+    p { color: var(--text2); font-size: 14px; line-height: 1.7; margin-bottom: 12px; }
+    p:last-child { margin-bottom: 0; }
+
+    /* Cards */
+    .card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px; margin-bottom: 16px;
+    }
+    .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 0; }
+    @media (max-width: 640px) { .card-grid { grid-template-columns: 1fr; } }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 0; }
+    th {
+      background: var(--bg); padding: 10px 14px; text-align: left;
+      font-weight: 600; font-size: 12px; color: var(--text2);
+      border-bottom: 2px solid var(--border); letter-spacing: 0.3px;
+    }
+    td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    td:first-child { font-weight: 500; color: var(--text); }
+
+    /* Status icons */
+    .ok::before  { content: '✅ '; }
+    .warn::before { content: '⚠️ '; }
+    .no::before  { content: '❌ '; }
+    .dot-green { color: var(--green); font-weight: 700; }
+    .dot-red   { color: var(--red); font-weight: 700; }
+    .dot-amber { color: var(--amber); font-weight: 700; }
+
+    /* Pills */
+    .pill {
+      display: inline-block; padding: 2px 9px; border-radius: 999px;
+      font-size: 11px; font-weight: 600; margin: 2px;
+    }
+    .pill-green { background: #dcfce7; color: #166534; }
+    .pill-red   { background: #fee2e2; color: #991b1b; }
+    .pill-amber { background: #fef3c7; color: #92400e; }
+    .pill-blue  { background: #dbeafe; color: #1e40af; }
+    .pill-gray  { background: #f3f4f6; color: #4b5563; }
+
+    /* Alert box */
+    .alert {
+      border-radius: 12px; padding: 16px 20px; margin-bottom: 16px;
+      display: flex; gap: 12px; align-items: flex-start;
+    }
+    .alert-green { background: #f0fdf4; border: 1px solid #bbf7d0; }
+    .alert-amber { background: #fffbeb; border: 1px solid #fde68a; }
+    .alert-red   { background: #fef2f2; border: 1px solid #fecaca; }
+    .alert-icon  { font-size: 18px; line-height: 1; margin-top: 2px; flex-shrink: 0; }
+    .alert-body  { font-size: 13px; color: var(--text); line-height: 1.6; }
+    .alert-body strong { display: block; font-weight: 700; margin-bottom: 3px; }
+
+    /* Steps */
+    .steps { list-style: none; counter-reset: step; }
+    .steps li {
+      counter-increment: step; display: flex; gap: 14px;
+      align-items: flex-start; margin-bottom: 16px;
+    }
+    .steps li::before {
+      content: counter(step); width: 26px; height: 26px; border-radius: 50%;
+      background: var(--text); color: white; font-size: 12px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+    }
+    .steps li .step-body { flex: 1; }
+    .steps li .step-title { font-weight: 600; font-size: 14px; color: var(--text); margin-bottom: 3px; }
+    .steps li .step-desc  { font-size: 13px; color: var(--text2); line-height: 1.6; }
+    .steps li .step-tags  { margin-top: 6px; }
+
+    /* Divider */
+    hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+    /* Footer */
+    .footer {
+      margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border);
+      text-align: center; font-size: 12px; color: var(--text2);
+    }
+
+    /* Highlight row */
+    tr.highlight td { background: #f0fdf4; }
+
+    /* Winner badge */
+    .winner {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: var(--brand); color: white; font-size: 11px; font-weight: 700;
+      padding: 2px 8px; border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-mark">H</div>
+    <div class="header-text">
+      <h1>Compliance Argentina &amp; Estrategia Técnica</h1>
+      <p>Healthier — Sesión de análisis · Junio 2026</p>
+    </div>
+    <span class="badge">CONFIDENCIAL</span>
+  </div>
+
+  <!-- Context -->
+  <div class="alert alert-amber">
+    <div class="alert-icon">⚡</div>
+    <div class="alert-body">
+      <strong>Contexto</strong>
+      Heural no continúa. Este documento resume la investigación técnica y legal para definir el nuevo stack de backend clínico y el camino de compliance para operar en Argentina.
+    </div>
+  </div>
+
+  <!-- 1. Marco Legal -->
+  <h2><span class="num">1</span> Marco Legal — Argentina</h2>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:200px">Ley</th>
+          <th>Qué regula</th>
+          <th style="width:140px">Impacto en Healthier</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Ley 25.326<br><span style="font-size:11px;color:var(--text2)">Protección de Datos Personales</span></td>
+          <td>Datos de salud = "datos sensibles" (máxima protección). Requiere consentimiento explícito, registro en AAIP, habeas data.</td>
+          <td><span class="pill pill-amber">Acción requerida</span></td>
+        </tr>
+        <tr>
+          <td>Ley 26.529<br><span style="font-size:11px;color:var(--text2)">Derechos del Paciente / HC</span></td>
+          <td>HC append-only, 10 años desde última entrada, paciente dueño, copia en 48hs, log de accesos, firma profesional con matrícula.</td>
+          <td><span class="pill pill-amber">Acción requerida</span></td>
+        </tr>
+        <tr>
+          <td>Ley 27.706 + Dec. 393/2023<br><span style="font-size:11px;color:var(--text2)">HCE Unificada Nacional</span></td>
+          <td>Sistema nacional de HCE en construcción. Interoperabilidad futura obligatoria. Nadie certificado todavía.</td>
+          <td><span class="pill pill-blue">Monitorear</span></td>
+        </tr>
+        <tr>
+          <td>Ley 27.553<br><span style="font-size:11px;color:var(--text2)">Recetas Electrónicas</span></td>
+          <td>Solo recetas electrónicas válidas desde ene 2025. Plataformas deben registrarse en MSAL.</td>
+          <td><span class="pill pill-red">Solo si hay recetas</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="alert alert-green">
+    <div class="alert-icon">🏛️</div>
+    <div class="alert-body">
+      <strong>Residencia de datos — No hay obligación legal en Argentina</strong>
+      Ley 25.326 no exige servidores físicos en Argentina. Supabase en São Paulo (Brasil) es válido — Brasil tiene LGPD (equivalente estructural). Ninguna empresa argentina ha sido sancionada por usar infraestructura cloud brasileña.
+    </div>
+  </div>
+
+  <div class="alert alert-green">
+    <div class="alert-icon">📅</div>
+    <div class="alert-body">
+      <strong>Los 10 años — desde la última actuación, no desde el registro</strong>
+      Ley 26.529 Art. 18: "mínimo 10 años contados desde la última actuación." Si un paciente consulta en 2026 y de nuevo en 2031, el contador se reinicia. Implementación: nunca borrar registros clínicos (solo soft delete), política de purga a los 10 años de inactividad.
+    </div>
+  </div>
+
+  <hr />
+
+  <!-- 2. Comparativa OpenEMR vs Supabase -->
+  <h2><span class="num">2</span> Comparativa — OpenEMR (Open IMR) vs Schema Propio en Supabase</h2>
+
+  <p>El Dr. Felgueras mencionó "Open IMR" en la reunión. Investigación confirma que es el mismo producto: <strong>OpenEMR</strong> localizado para Argentina (CIE-10 en español, formatos de recetas locales). No existe certificación oficial de MSAL — la "validación" es informal (paper UNLP, uso en clínicas argentinas).</p>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:200px">Criterio</th>
+          <th>OpenEMR</th>
+          <th>Schema propio en Supabase <span class="winner">✓ Recomendado</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Infraestructura</td>
+          <td class="no">Servidor PHP adicional a hostear y mantener</td>
+          <td class="ok">Ya corre en Supabase — sin cambios</td>
+        </tr>
+        <tr>
+          <td>Complejidad de integración</td>
+          <td class="no">2 backends distintos (Supabase + OpenEMR)</td>
+          <td class="ok">Un solo backend, mismos servicios</td>
+        </tr>
+        <tr>
+          <td>Tiempo de implementación</td>
+          <td class="warn">Semanas (setup + adaptación API)</td>
+          <td class="ok">3–4 días (schema + migrations)</td>
+        </tr>
+        <tr>
+          <td>Audit log</td>
+          <td class="ok">Built-in</td>
+          <td class="ok">Postgres triggers (~1 día de trabajo)</td>
+        </tr>
+        <tr>
+          <td>Append-only records</td>
+          <td class="ok">Built-in</td>
+          <td class="ok">RLS + trigger de bloqueo (~1 día)</td>
+        </tr>
+        <tr>
+          <td>Certificación MSAL</td>
+          <td class="warn">No — validación informal</td>
+          <td class="warn">No — pero tampoco OpenEMR la tiene</td>
+        </tr>
+        <tr>
+          <td>Compliance legal que aporta</td>
+          <td class="warn">Cero ventaja legal sobre schema propio</td>
+          <td class="ok">Igual — depende de tu registro AAIP</td>
+        </tr>
+        <tr>
+          <td>Recetas (Ley 27.553)</td>
+          <td class="no">No cubre — necesitás RCTA igual</td>
+          <td class="ok">Integrar RCTA directamente</td>
+        </tr>
+        <tr>
+          <td>Cobertura de features necesarias</td>
+          <td class="warn">~90% innecesario para un marketplace</td>
+          <td class="ok">100% match al caso de uso</td>
+        </tr>
+        <tr class="highlight">
+          <td><strong>Veredicto</strong></td>
+          <td><span class="pill pill-red">Descartar</span></td>
+          <td><span class="pill pill-green">Proceder</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr />
+
+  <!-- 3. RCTA -->
+  <h2><span class="num">3</span> RCTA — Solución para Recetas Electrónicas</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3>Qué es</h3>
+      <p>Plataforma de prescripción electrónica operada por <strong>Innovamed</strong>. Registrada en el Registro Nacional de Plataformas Digitales de Salud (MSAL). Cumple Ley 27.553.</p>
+    </div>
+    <div class="card">
+      <h3>Cobertura</h3>
+      <p>Conecta con <strong>Farmalink</strong> — red que incluye OSDE, Swiss Medical, PAMI y ~2.000 obras sociales. QR + barcode por receta.</p>
+    </div>
+    <div class="card">
+      <h3>API disponible</h3>
+      <p><strong>QBI2 API</strong> — diseñada específicamente para integrar recetas electrónicas en sistemas de HC. Contacto: <code>innovamed.com.ar/rcta-institucional</code></p>
+    </div>
+    <div class="card">
+      <h3>Costo</h3>
+      <p>~$50.000 ARS/mes por médico para integración institucional vía API (confirmar con Innovamed). Free para uso individual del médico en la app.</p>
+    </div>
+  </div>
+
+  <div class="alert alert-green">
+    <div class="alert-icon">💊</div>
+    <div class="alert-body">
+      <strong>Decisión</strong>
+      Integrar RCTA vía QBI2 API para toda la verticalidad de prescripciones. No construir sistema de recetas propio — es una obligación legal con validación externa, no un feature.
+    </div>
+  </div>
+
+  <hr />
+
+  <!-- 4. Seguridad -->
+  <h2><span class="num">4</span> Estado de Seguridad — Supabase Actual</h2>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <table>
+      <thead>
+        <tr><th>Capa</th><th>Estado</th><th>Acción</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Cifrado en reposo (AES-256 via AWS)</td>
+          <td><span class="pill pill-green">✓ Activo</span></td>
+          <td>Nada</td>
+        </tr>
+        <tr>
+          <td>Cifrado en tránsito (TLS 1.3)</td>
+          <td><span class="pill pill-green">✓ Activo</span></td>
+          <td>Nada</td>
+        </tr>
+        <tr>
+          <td>Row Level Security (RLS)</td>
+          <td><span class="pill pill-green">✓ Habilitado en todas las tablas</span></td>
+          <td>Nada</td>
+        </tr>
+        <tr>
+          <td>Tokens mobile en Secure Enclave (iOS)</td>
+          <td><span class="pill pill-green">✓ SecureStore</span></td>
+          <td>Nada</td>
+        </tr>
+        <tr>
+          <td>Storage privado (patient-docs, professional-docs)</td>
+          <td><span class="pill pill-green">✓ Buckets privados</span></td>
+          <td>Nada</td>
+        </tr>
+        <tr>
+          <td>Cifrado a nivel columna (pgcrypto)</td>
+          <td><span class="pill pill-gray">No implementado</span></td>
+          <td>No requerido por ley argentina — omitir en MVP</td>
+        </tr>
+        <tr>
+          <td>Acceso admin a notas clínicas</td>
+          <td><span class="pill pill-green">✓ Eliminado (migration 032)</span></td>
+          <td>Resuelto en esta sesión</td>
+        </tr>
+        <tr>
+          <td>Consentimiento acceso equipo tratante</td>
+          <td><span class="pill pill-green">✓ Agregado (consent v2.1)</span></td>
+          <td>Resuelto en esta sesión</td>
+        </tr>
+        <tr>
+          <td>Audit log de accesos clínicos</td>
+          <td><span class="pill pill-amber">Pendiente</span></td>
+          <td>Incluir en rediseño de schema clínico</td>
+        </tr>
+        <tr>
+          <td>HC append-only (sin UPDATE)</td>
+          <td><span class="pill pill-amber">Pendiente</span></td>
+          <td>Incluir en rediseño de schema clínico</td>
+        </tr>
+        <tr>
+          <td>Paciente ve todas sus notas (Ley 26.529)</td>
+          <td><span class="pill pill-amber">Pendiente</span></td>
+          <td>Incluir en rediseño de schema clínico</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr />
+
+  <!-- 5. Próximos Pasos -->
+  <h2><span class="num">5</span> Próximos Pasos — Prioridad</h2>
+
+  <ol class="steps">
+    <li>
+      <div class="step-body">
+        <div class="step-title">Registro AAIP — RNBD</div>
+        <div class="step-desc">
+          Registrar la base de datos de Healthier en el Registro Nacional de Bases de Datos de la AAIP. Obligatorio para cualquier app que almacene datos sensibles de salud. Trámite administrativo, 1–2 semanas. Independiente del stack técnico — hacerlo ya.
+        </div>
+        <div class="step-tags">
+          <span class="pill pill-red">Bloqueante para producción real</span>
+          <span class="pill pill-gray">aaip.gob.ar</span>
+        </div>
+      </div>
+    </li>
+    <li>
+      <div class="step-body">
+        <div class="step-title">Rediseño del schema clínico en Supabase</div>
+        <div class="step-desc">
+          Crear tablas <code>encounters</code>, <code>encounter_entries</code> (append-only via trigger), <code>conditions</code>, <code>allergies</code>, <code>medications</code> con RLS completo, audit log de accesos y campos de matrícula profesional. Reemplaza el schema de Heural. Descarta OpenEMR.
+        </div>
+        <div class="step-tags">
+          <span class="pill pill-blue">3–4 días</span>
+          <span class="pill pill-gray">Migrations + services</span>
+        </div>
+      </div>
+    </li>
+    <li>
+      <div class="step-body">
+        <div class="step-title">Contactar Innovamed para QBI2 API (RCTA)</div>
+        <div class="step-desc">
+          Solicitar acceso a la QBI2 API para integración institucional de recetas electrónicas. Confirmar pricing por médico. URL: <code>innovamed.com.ar/rcta-institucional</code>. Necesario para cualquier profesional que emita recetas en la plataforma.
+        </div>
+        <div class="step-tags">
+          <span class="pill pill-amber">Requerido para recetas</span>
+          <span class="pill pill-gray">Ley 27.553</span>
+        </div>
+      </div>
+    </li>
+    <li>
+      <div class="step-body">
+        <div class="step-title">HC descargable en PDF por paciente</div>
+        <div class="step-desc">
+          Endpoint que genera PDF de historia clínica del paciente bajo demanda. Cumple Art. 15 Ley 26.529 (paciente recibe copia en 48hs). Solución MVP antes de tener interfaz completa de visualización.
+        </div>
+        <div class="step-tags">
+          <span class="pill pill-blue">2 días</span>
+          <span class="pill pill-gray">Ley 26.529 Art. 15</span>
+        </div>
+      </div>
+    </li>
+    <li>
+      <div class="step-body">
+        <div class="step-title">Actualizar T&amp;C con lenguaje de equipo tratante</div>
+        <div class="step-desc">
+          Los términos y condiciones deben explicitar que profesionales que atiendan al mismo paciente pueden acceder a la historia clínica compartida. La pantalla de consentimiento (v2.1) ya cubre esto en la app mobile — hay que reflejarlo en los T&amp;C formales.
+        </div>
+        <div class="step-tags">
+          <span class="pill pill-amber">Legal</span>
+          <span class="pill pill-gray">Ley 25.326 Art. 11</span>
+        </div>
+      </div>
+    </li>
+    <li>
+      <div class="step-body">
+        <div class="step-title">Monitorear Decreto 393/2023 — Sistema HCE unificado</div>
+        <div class="step-desc">
+          El registro nacional de HCE está en construcción. Nadie está formalmente certificado todavía. Cuando MSAL finalice los procedimientos operativos, evaluar registro. Por ahora: diseñar el schema con FHIR en mente (facilita migración futura).
+        </div>
+        <div class="step-tags">
+          <span class="pill pill-gray">Largo plazo</span>
+          <span class="pill pill-gray">No bloqueante</span>
+        </div>
+      </div>
+    </li>
+  </ol>
+
+  <hr />
+
+  <!-- Summary Box -->
+  <div class="card" style="background: linear-gradient(135deg, #f0fdf4 0%, #fdfcf9 100%); border-color: var(--brand);">
+    <h3 style="color: var(--brand-dark); margin-bottom: 16px;">Resumen Ejecutivo</h3>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+      <div>
+        <p style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text2); margin-bottom:8px;">Backend Clínico</p>
+        <p style="font-size:14px; color:var(--text); margin:0"><strong>Schema propio en Supabase.</strong> OpenEMR descartado — overkill, sin ventaja legal, servidor PHP adicional innecesario.</p>
+      </div>
+      <div>
+        <p style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text2); margin-bottom:8px;">Recetas</p>
+        <p style="font-size:14px; color:var(--text); margin:0"><strong>RCTA via QBI2 API (Innovamed).</strong> Legalmente registrado, cubre todas las obras sociales. No construir propio.</p>
+      </div>
+      <div>
+        <p style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text2); margin-bottom:8px;">Seguridad</p>
+        <p style="font-size:14px; color:var(--text); margin:0"><strong>Supabase ya cumple.</strong> AES-256 + TLS + RLS satisfacen Ley 25.326 Art. 9. No se necesita cifrado adicional.</p>
+      </div>
+      <div>
+        <p style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text2); margin-bottom:8px;">Acción inmediata</p>
+        <p style="font-size:14px; color:var(--text); margin:0"><strong>Registro AAIP (RNBD).</strong> Independiente del stack. Bloqueante para tener pacientes reales en el sistema.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Healthier · Compliance Argentina · Generado: Junio 2026 · Sesión Alan × Mateo
+  </div>
+
+</div>
+</body>
+</html>

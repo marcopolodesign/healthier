@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Healthier — Flujo de Pago (Mockup)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  :root{--brand:#7CB38B;--brand-hover:#5f9470;--coral:#E8927C;--lavender:#9B8EC4;--bg-primary:#F6F5F0;--bg-secondary:#FDFCF9;--text:#2a2b2f;--gray-400:#9CA3AF;--gray-500:#6B7280;--emerald:#10B981;--danger:#D9534F;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',sans-serif;background:#e8e6e0;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;padding:24px 16px;gap:24px;flex-wrap:wrap;}
+  .phone{width:390px;background:var(--bg-primary);border-radius:40px;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,.25);position:relative;flex-shrink:0;}
+  .phone-label{text-align:center;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#666;margin-bottom:10px;}
+  .bottom-nav{position:absolute;bottom:0;left:0;right:0;height:72px;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);border-top:1px solid rgba(255,255,255,.8);display:flex;align-items:center;justify-content:space-around;padding:0 8px 8px;z-index:10;}
+  .nav-item{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--gray-400);font-weight:500;width:60px;}
+  .nav-item.active{color:var(--brand);}
+  .nav-icon{font-size:20px;}
+  .page-content{min-height:700px;padding-bottom:80px;overflow-y:auto;}
+  .page-header{padding:20px 20px 16px;display:flex;align-items:center;justify-content:space-between;}
+  .page-title{font-size:22px;font-weight:900;color:var(--text);}
+  .page-subtitle{font-size:13px;color:var(--gray-500);margin-top:2px;}
+  .sheet-overlay{position:absolute;inset:0;background:rgba(0,0,0,.35);z-index:20;display:flex;align-items:flex-end;}
+  .sheet{background:white;border-radius:28px 28px 0 0;width:100%;max-height:88%;overflow-y:auto;padding:0 0 24px;}
+  .sheet-handle{width:36px;height:4px;background:#e0e0e0;border-radius:2px;margin:12px auto 4px;}
+  .sheet-header{padding:8px 20px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f0f0f0;}
+  .sheet-title{font-size:16px;font-weight:800;color:var(--text);}
+  .close-btn{width:32px;height:32px;border-radius:50%;background:#f5f5f5;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--gray-500);}
+  .steps{display:flex;padding:14px 20px 0;gap:6px;}
+  .step-dot{height:4px;border-radius:2px;flex:1;background:#e0e0e0;}
+  .step-dot.active{background:var(--brand);}
+  .step-dot.done{background:var(--brand);opacity:.5;}
+  .step-label{font-size:11px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:.08em;padding:10px 20px 0;}
+  .pro-list{padding:12px 20px;display:flex;flex-direction:column;gap:10px;}
+  .pro-card{display:flex;align-items:center;gap:12px;padding:12px;border-radius:16px;border:2px solid #f0f0f0;cursor:pointer;}
+  .pro-card.selected{border-color:var(--brand);background:rgba(124,179,139,.06);}
+  .pro-avatar{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--brand),var(--lavender));display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:white;flex-shrink:0;}
+  .pro-info{flex:1;}
+  .pro-name{font-size:14px;font-weight:800;color:var(--text);}
+  .pro-specialty{font-size:12px;color:var(--gray-500);margin-top:1px;}
+  .pro-price{font-size:13px;font-weight:800;color:var(--brand);}
+  .pro-check{font-size:18px;color:var(--brand);}
+  .slots-section{padding:12px 20px;}
+  .slots-label{font-size:12px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;}
+  .slots-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .slot{padding:10px 4px;border-radius:12px;text-align:center;font-size:13px;font-weight:700;border:1.5px solid #e5e7eb;background:white;color:var(--text);cursor:pointer;}
+  .slot.selected{background:var(--emerald);color:white;border-color:var(--emerald);}
+  .payment-section{padding:14px 20px;display:flex;flex-direction:column;gap:14px;}
+  .summary-card{background:var(--bg-primary);border-radius:20px;padding:16px;border:1px solid #e9e9e5;}
+  .summary-title{font-size:10px;font-weight:800;color:var(--gray-400);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px;}
+  .summary-pro{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+  .summary-pro-name{font-size:16px;font-weight:900;color:var(--text);line-height:1.2;}
+  .summary-pro-spec{font-size:13px;color:var(--gray-500);margin-top:2px;}
+  .summary-rows{display:flex;flex-direction:column;gap:8px;}
+  .summary-row{background:white;border-radius:12px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;border:1px solid #f0f0f0;font-size:13px;font-weight:700;color:var(--text);}
+  .summary-row-left{display:flex;align-items:center;gap:8px;}
+  .payment-card{background:white;border-radius:20px;padding:16px;border:1px solid #e9e9e5;}
+  .payment-card-title{font-size:10px;font-weight:800;color:var(--gray-400);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px;}
+  .card-option{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;border:2px solid #f0f0f0;margin-bottom:8px;cursor:pointer;}
+  .card-option.selected{border-color:var(--brand);background:rgba(124,179,139,.05);}
+  .card-brand-icon{width:40px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:white;flex-shrink:0;}
+  .card-brand-icon.visa{background:#1a1f71;}
+  .card-brand-icon.mc{background:linear-gradient(90deg,#eb001b,#f79e1b);}
+  .card-info{flex:1;}
+  .card-number{font-size:14px;font-weight:700;color:var(--text);}
+  .card-exp{font-size:11px;color:var(--gray-500);margin-top:1px;}
+  .card-radio{width:18px;height:18px;border-radius:50%;border:2px solid var(--brand);display:flex;align-items:center;justify-content:center;}
+  .card-radio-dot{width:8px;height:8px;border-radius:50%;background:var(--brand);}
+  .add-card-btn{display:flex;align-items:center;gap:10px;padding:12px;border-radius:14px;border:2px dashed #ddd;cursor:pointer;color:var(--gray-500);font-size:13px;font-weight:600;margin-bottom:0;}
+  .mp-form{display:flex;flex-direction:column;gap:12px;margin-top:4px;}
+  .mp-field{display:flex;flex-direction:column;gap:5px;}
+  .mp-label{font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.05em;}
+  .mp-input{padding:12px 14px;border-radius:12px;border:1.5px solid #e0e0e0;font-size:14px;font-weight:600;color:var(--text);background:var(--bg-primary);outline:none;font-family:'Inter',sans-serif;}
+  .mp-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .mp-secure-badge{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--gray-400);padding:4px 0;}
+  .mp-logo{font-size:10px;font-weight:900;color:#009ee3;background:#f0f8ff;padding:2px 6px;border-radius:4px;}
+  .amount-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0 0;border-top:1px solid #f0f0f0;margin-top:6px;}
+  .amount-label{font-size:13px;font-weight:700;color:var(--gray-500);}
+  .amount-value{font-size:26px;font-weight:900;color:var(--text);}
+  .cta-btn{width:100%;padding:18px;border-radius:20px;border:none;font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:4px;}
+  .cta-btn.primary{background:var(--brand);color:white;}
+  .cta-btn.success{background:var(--emerald);color:white;}
+  .continue-btn{width:calc(100% - 40px);margin:12px 20px 0;padding:16px;border-radius:20px;border:none;font-size:15px;font-weight:800;background:var(--brand);color:white;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .section-wrap{display:flex;flex-direction:column;gap:8px;align-items:center;}
+  .success-icon{font-size:48px;text-align:center;margin:20px 0 8px;}
+  .success-title{font-size:20px;font-weight:900;color:var(--text);text-align:center;}
+  .success-sub{font-size:13px;color:var(--gray-500);text-align:center;margin-top:4px;}
+  .success-details{background:var(--bg-primary);border-radius:16px;padding:14px 16px;margin:16px 20px;font-size:13px;}
+  .success-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eeede8;}
+  .success-row:last-child{border-bottom:none;}
+  .success-row-label{color:var(--gray-500);font-weight:600;}
+  .success-row-val{font-weight:800;color:var(--text);}
+  .info-panel{width:280px;flex-shrink:0;display:flex;flex-direction:column;gap:16px;padding-top:32px;}
+  .info-card{background:white;border-radius:16px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.07);}
+  .info-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--brand);margin-bottom:10px;}
+  .info-step{display:flex;gap:10px;margin-bottom:8px;align-items:flex-start;}
+  .info-num{width:20px;height:20px;border-radius:50%;background:var(--brand);color:white;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+  .info-text{font-size:12px;color:#444;line-height:1.5;}
+  .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;}
+  .tag-orange{background:#FFF3E0;color:#E65100;}
+  .tag-green{background:#E8F5E9;color:#2E7D32;}
+</style>
+</head>
+<body>
+
+<div class="info-panel">
+  <div class="info-card">
+    <div class="info-title">Flujo de Booking</div>
+    <div class="info-step"><div class="info-num">1</div><div class="info-text"><strong>Elegir Profesional</strong> — lista con precio y especialidad</div></div>
+    <div class="info-step"><div class="info-num">2</div><div class="info-text"><strong>Elegir Horario</strong> — slots + videollamada/presencial</div></div>
+    <div class="info-step"><div class="info-num">3</div><div class="info-text"><strong>Confirmar Pago</strong> — acá aparece la tarjeta:</div></div>
+    <div style="padding-left:30px;font-size:11px;color:#555;line-height:1.9;">
+      <span class="tag tag-orange">Sin tarjeta guardada</span> → formulario MP<br>
+      <span class="tag tag-green">Con tarjeta guardada</span> → selector + botón pagar
+    </div>
+  </div>
+  <div class="info-card">
+    <div class="info-title">Marketplace Split</div>
+    <div style="font-size:12px;color:#444;line-height:1.6;">Healthier retiene <strong>15%</strong> de comisión. El <strong>85%</strong> va directo a la cuenta MP del profesional via <code style="background:#f5f5f5;padding:1px 4px;border-radius:3px;">collector_id</code>.</div>
+  </div>
+  <div class="info-card">
+    <div class="info-title">⚠️ Nota SDK</div>
+    <div style="font-size:12px;color:#444;line-height:1.6;">El formulario de tarjeta (paso 3A) en realidad lo renderiza el <strong>SDK de MP en un iframe</strong>. El estilo exacto depende del tema de MP — revisar opciones de theming para alinear con la paleta sage/cream.</div>
+  </div>
+  <div class="info-card">
+    <div class="info-title">Lo que falta definir</div>
+    <div style="font-size:12px;color:#444;line-height:1.9;">☐ ¿El profesional ve el pago en tiempo real?<br>☐ ¿Email de confirmación al paciente?<br>☐ ¿Política de cancelación y reembolso?<br>☐ ¿DNI/CUIT del profesional para el marketplace?</div>
+  </div>
+</div>
+
+<!-- PASO 1 -->
+<div class="section-wrap">
+  <div class="phone-label">Paso 1 — Elegir profesional</div>
+  <div class="phone">
+    <div class="page-content">
+      <div class="page-header"><div><div class="page-title">Mis Consultas</div><div class="page-subtitle">Reservá con un profesional</div></div><div style="width:36px;height:36px;border-radius:50%;background:var(--brand);display:flex;align-items:center;justify-content:center;font-size:18px;color:white;">+</div></div>
+      <div class="sheet-overlay"><div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header"><div class="sheet-title">Nueva consulta</div><button class="close-btn">✕</button></div>
+        <div class="steps"><div class="step-dot active"></div><div class="step-dot"></div><div class="step-dot"></div></div>
+        <div class="step-label">Elegir profesional</div>
+        <div class="pro-list">
+          <div class="pro-card selected"><div class="pro-avatar">MS</div><div class="pro-info"><div class="pro-name">Dra. María Suárez</div><div class="pro-specialty">Medicina General · ⭐ 4.9</div><div class="pro-price">$8.500 / consulta</div></div><div class="pro-check">✓</div></div>
+          <div class="pro-card"><div class="pro-avatar" style="background:linear-gradient(135deg,var(--coral),var(--lavender));">AR</div><div class="pro-info"><div class="pro-name">Dr. Andrés Ríos</div><div class="pro-specialty">Cardiología · ⭐ 4.7</div><div class="pro-price">$12.000 / consulta</div></div></div>
+          <div class="pro-card"><div class="pro-avatar" style="background:linear-gradient(135deg,var(--lavender),#7FBBCC);">LP</div><div class="pro-info"><div class="pro-name">Lic. Laura Petit</div><div class="pro-specialty">Nutrición · ⭐ 5.0</div><div class="pro-price">$7.200 / consulta</div></div></div>
+        </div>
+        <button class="continue-btn">Continuar →</button>
+      </div></div>
+    </div>
+    <div class="bottom-nav"><div class="nav-item"><div class="nav-icon">🏠</div>Inicio</div><div class="nav-item active"><div class="nav-icon">🩺</div>Consultas</div><div class="nav-item"><div class="nav-icon">📄</div>Docs</div><div class="nav-item"><div class="nav-icon">👤</div>Perfil</div></div>
+  </div>
+</div>
+
+<!-- PASO 2 -->
+<div class="section-wrap">
+  <div class="phone-label">Paso 2 — Elegir horario</div>
+  <div class="phone">
+    <div class="page-content">
+      <div class="page-header"><div><div class="page-title">Mis Consultas</div></div></div>
+      <div class="sheet-overlay"><div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header"><div class="sheet-title">Nueva consulta</div><button class="close-btn">✕</button></div>
+        <div class="steps"><div class="step-dot done"></div><div class="step-dot active"></div><div class="step-dot"></div></div>
+        <div class="step-label">Elegir horario · Dra. María Suárez</div>
+        <div style="padding:10px 20px 6px;"><div style="display:flex;gap:8px;margin-bottom:14px;"><div style="padding:6px 14px;border-radius:20px;background:var(--brand);color:white;font-size:12px;font-weight:700;">Videollamada</div><div style="padding:6px 14px;border-radius:20px;background:#f0f0f0;color:var(--gray-500);font-size:12px;font-weight:700;">Presencial</div></div></div>
+        <div class="slots-section"><div class="slots-label">Lunes 9 de junio</div><div class="slots-grid"><div class="slot">09:00</div><div class="slot selected">10:30</div><div class="slot">11:00</div><div class="slot" style="opacity:.4">12:00</div></div></div>
+        <div class="slots-section" style="margin-top:8px;"><div class="slots-label">Martes 10 de junio</div><div class="slots-grid"><div class="slot">09:30</div><div class="slot">14:00</div><div class="slot">15:30</div><div class="slot">17:00</div></div></div>
+        <button class="continue-btn">Continuar al Pago →</button>
+      </div></div>
+    </div>
+    <div class="bottom-nav"><div class="nav-item"><div class="nav-icon">🏠</div>Inicio</div><div class="nav-item active"><div class="nav-icon">🩺</div>Consultas</div><div class="nav-item"><div class="nav-icon">📄</div>Docs</div><div class="nav-item"><div class="nav-icon">👤</div>Perfil</div></div>
+  </div>
+</div>
+
+<!-- PASO 3A -->
+<div class="section-wrap">
+  <div class="phone-label">Paso 3A — Sin tarjeta guardada</div>
+  <div class="phone">
+    <div class="page-content">
+      <div class="page-header"><div><div class="page-title">Mis Consultas</div></div></div>
+      <div class="sheet-overlay"><div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header"><div class="sheet-title">Confirmar Pago</div><button class="close-btn">✕</button></div>
+        <div class="steps"><div class="step-dot done"></div><div class="step-dot done"></div><div class="step-dot active"></div></div>
+        <div class="payment-section">
+          <div class="summary-card">
+            <div class="summary-title">Resumen</div>
+            <div class="summary-pro"><div class="pro-avatar" style="width:44px;height:44px;font-size:15px;">MS</div><div><div class="summary-pro-name">Dra. María Suárez</div><div class="summary-pro-spec">Medicina General</div></div></div>
+            <div class="summary-rows"><div class="summary-row"><div class="summary-row-left"><span>📹</span>Cita Videollamada</div></div><div class="summary-row"><div class="summary-row-left"><span>📅</span>Lun 9 junio</div><div style="font-weight:800;">⏰ 10:30</div></div></div>
+          </div>
+          <div class="payment-card">
+            <div class="payment-card-title">Método de Pago</div>
+            <div class="mp-form">
+              <div class="mp-field"><div class="mp-label">Número de tarjeta</div><input class="mp-input" placeholder="1234 5678 9012 3456"></div>
+              <div class="mp-field"><div class="mp-label">Titular</div><input class="mp-input" placeholder="Como figura en la tarjeta"></div>
+              <div class="mp-row"><div class="mp-field"><div class="mp-label">Vencimiento</div><input class="mp-input" placeholder="MM/AA"></div><div class="mp-field"><div class="mp-label">CVV</div><input class="mp-input" placeholder="123"></div></div>
+              <div class="mp-field"><div class="mp-label">DNI del titular</div><input class="mp-input" placeholder="30.123.456"></div>
+              <div class="mp-secure-badge"><span>🔒</span> Pago seguro con <span class="mp-logo">mercadopago</span></div>
+            </div>
+            <div class="amount-row"><div class="amount-label">A pagar hoy</div><div class="amount-value">$8.500</div></div>
+          </div>
+          <button class="cta-btn primary">Confirmar y Pagar</button>
+        </div>
+      </div></div>
+    </div>
+    <div class="bottom-nav"><div class="nav-item"><div class="nav-icon">🏠</div>Inicio</div><div class="nav-item active"><div class="nav-icon">🩺</div>Consultas</div><div class="nav-item"><div class="nav-icon">📄</div>Docs</div><div class="nav-item"><div class="nav-icon">👤</div>Perfil</div></div>
+  </div>
+</div>
+
+<!-- PASO 3B -->
+<div class="section-wrap">
+  <div class="phone-label">Paso 3B — Con tarjeta guardada</div>
+  <div class="phone">
+    <div class="page-content">
+      <div class="page-header"><div><div class="page-title">Mis Consultas</div></div></div>
+      <div class="sheet-overlay"><div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header"><div class="sheet-title">Confirmar Pago</div><button class="close-btn">✕</button></div>
+        <div class="steps"><div class="step-dot done"></div><div class="step-dot done"></div><div class="step-dot active"></div></div>
+        <div class="payment-section">
+          <div class="summary-card">
+            <div class="summary-title">Resumen</div>
+            <div class="summary-pro"><div class="pro-avatar" style="width:44px;height:44px;font-size:15px;">MS</div><div><div class="summary-pro-name">Dra. María Suárez</div><div class="summary-pro-spec">Medicina General</div></div></div>
+            <div class="summary-rows"><div class="summary-row"><div class="summary-row-left"><span>📹</span>Cita Videollamada</div></div><div class="summary-row"><div class="summary-row-left"><span>📅</span>Lun 9 junio</div><div style="font-weight:800;">⏰ 10:30</div></div></div>
+          </div>
+          <div class="payment-card">
+            <div class="payment-card-title">Método de Pago</div>
+            <div class="card-option selected"><div class="card-brand-icon visa">VISA</div><div class="card-info"><div class="card-number">•••• •••• •••• 4242</div><div class="card-exp">Vence 08/28</div></div><div class="card-radio"><div class="card-radio-dot"></div></div></div>
+            <div class="card-option"><div class="card-brand-icon mc">MC</div><div class="card-info"><div class="card-number">•••• •••• •••• 7891</div><div class="card-exp">Vence 03/27</div></div><div class="card-radio"></div></div>
+            <div class="add-card-btn"><span>＋</span> Agregar nueva tarjeta</div>
+            <div class="amount-row"><div class="amount-label">A pagar hoy</div><div class="amount-value">$8.500</div></div>
+          </div>
+          <button class="cta-btn primary">Confirmar y Pagar</button>
+        </div>
+      </div></div>
+    </div>
+    <div class="bottom-nav"><div class="nav-item"><div class="nav-icon">🏠</div>Inicio</div><div class="nav-item active"><div class="nav-icon">🩺</div>Consultas</div><div class="nav-item"><div class="nav-icon">📄</div>Docs</div><div class="nav-item"><div class="nav-icon">👤</div>Perfil</div></div>
+  </div>
+</div>
+
+<!-- PASO 4 -->
+<div class="section-wrap">
+  <div class="phone-label">Paso 4 — Turno confirmado ✅</div>
+  <div class="phone">
+    <div class="page-content">
+      <div class="page-header"><div><div class="page-title">Mis Consultas</div></div></div>
+      <div class="sheet-overlay"><div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header"><div class="sheet-title">¡Listo!</div><button class="close-btn">✕</button></div>
+        <div class="success-icon">✅</div>
+        <div class="success-title">Turno confirmado</div>
+        <div class="success-sub">El pago fue acreditado exitosamente</div>
+        <div class="success-details">
+          <div class="success-row"><span class="success-row-label">Profesional</span><span class="success-row-val">Dra. María Suárez</span></div>
+          <div class="success-row"><span class="success-row-label">Fecha</span><span class="success-row-val">Lun 9 jun · 10:30</span></div>
+          <div class="success-row"><span class="success-row-label">Modalidad</span><span class="success-row-val">📹 Videollamada</span></div>
+          <div class="success-row"><span class="success-row-label">Pagado</span><span class="success-row-val" style="color:var(--emerald);">$8.500</span></div>
+          <div class="success-row"><span class="success-row-label">Tarjeta</span><span class="success-row-val">VISA ••••4242</span></div>
+        </div>
+        <div style="padding:0 20px;display:flex;flex-direction:column;gap:10px;">
+          <button class="cta-btn success">Ver mis turnos</button>
+          <button class="cta-btn" style="background:#f0f0f0;color:var(--gray-500);">Agregar al calendario</button>
+        </div>
+      </div></div>
+    </div>
+    <div class="bottom-nav"><div class="nav-item"><div class="nav-icon">🏠</div>Inicio</div><div class="nav-item active"><div class="nav-icon">🩺</div>Consultas</div><div class="nav-item"><div class="nav-icon">📄</div>Docs</div><div class="nav-item"><div class="nav-icon">👤</div>Perfil</div></div>
+  </div>
+</div>
+
+</body>
+</html>

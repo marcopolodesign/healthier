@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Healthier — Docs</title>
+  <style>
+    :root {
+      --sage:   #7CB38B;
+      --coral:  #E8927C;
+      --ivory:  #F6F5F0;
+      --bg2:    #FDFCF9;
+      --text:   #2D2A26;
+      --muted:  #6B6760;
+      --border: #E2DFD8;
+      --shadow: 0 1px 3px rgba(0,0,0,.07), 0 4px 16px rgba(0,0,0,.05);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--ivory);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: white;
+      border-bottom: 1px solid var(--border);
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .logo {
+      width: 36px; height: 36px;
+      background: var(--sage);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 18px;
+    }
+    header h1 { font-size: 18px; font-weight: 600; }
+    header p  { font-size: 13px; color: var(--muted); margin-top: 1px; }
+
+    /* ── Layout ── */
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    /* ── Section ── */
+    section { margin-bottom: 40px; }
+    section h2 {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Card grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+
+    /* ── Doc card ── */
+    a.card {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      text-decoration: none;
+      color: inherit;
+      box-shadow: var(--shadow);
+      transition: border-color .15s, box-shadow .15s, transform .15s;
+    }
+    a.card:hover {
+      border-color: var(--sage);
+      box-shadow: 0 2px 8px rgba(124,179,139,.15), 0 6px 24px rgba(0,0,0,.07);
+      transform: translateY(-2px);
+    }
+    .card-icon {
+      font-size: 22px;
+      line-height: 1;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    .card-desc {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .card-badge {
+      display: inline-block;
+      margin-top: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      padding: 2px 7px;
+      border-radius: 20px;
+      background: var(--ivory);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      align-self: flex-start;
+    }
+    .badge-payments { background: #EEF7F1; color: #3D8A56; border-color: #C3DFC9; }
+    .badge-product  { background: #EEF3FD; color: #3D5FA8; border-color: #C3D1F0; }
+    .badge-strategy { background: #FDF2EE; color: #A85A3D; border-color: #F0C8B8; }
+    .badge-slides   { background: #F5F0FD; color: #6A3DAB; border-color: #D4C3F2; }
+
+    @media (max-width: 600px) {
+      header { padding: 16px 20px; }
+      main { padding: 28px 16px 60px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🌿</div>
+  <div>
+    <h1>Healthier — Docs</h1>
+    <p>Documentación técnica, flujos y presentaciones del proyecto</p>
+  </div>
+</header>
+
+<main>
+
+  <!-- Pagos -->
+  <section>
+    <h2>Pagos &amp; MercadoPago</h2>
+    <div class="grid">
+
+      <a class="card" href="mp-flow.html">
+        <div class="card-icon">📱</div>
+        <div class="card-title">Flujo de pago — Sandbox</div>
+        <div class="card-desc">7 pasos con CSS phone mockups: dashboard → especialidad → profesional → nueva tarjeta → tarjeta guardada.</div>
+        <span class="card-badge badge-payments">MP Sandbox</span>
+      </a>
+
+      <a class="card" href="mp-integration-docs.html">
+        <div class="card-icon">🔌</div>
+        <div class="card-title">Documentación integración MP</div>
+        <div class="card-desc">Arquitectura, Edge Functions, webhooks, credenciales sandbox/prod y checklist de activación.</div>
+        <span class="card-badge badge-payments">MP Integración</span>
+      </a>
+
+      <a class="card" href="payment-flow-mockup.html">
+        <div class="card-icon">💳</div>
+        <div class="card-title">Flujo de pago (Mockup v1)</div>
+        <div class="card-desc">Primer mockup del flujo de pago con Checkout Bricks. Referencia de diseño inicial.</div>
+        <span class="card-badge badge-payments">Mockup</span>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- Producto -->
+  <section>
+    <h2>Producto &amp; Técnico</h2>
+    <div class="grid">
+
+      <a class="card" href="brief.html">
+        <div class="card-icon">📋</div>
+        <div class="card-title">Brief del producto</div>
+        <div class="card-desc">Decisiones de diseño, sistema tipográfico <code>sf()</code>, tokens, y roadmap técnico al 2026-05-15.</div>
+        <span class="card-badge badge-product">Brief</span>
+      </a>
+
+      <a class="card" href="emergency-flow.html">
+        <div class="card-icon">🚨</div>
+        <div class="card-title">Flujo de Emergencias S.O.S</div>
+        <div class="card-desc">Arquitectura y UX del sistema de despacho de emergencias para pacientes y profesionales.</div>
+        <span class="card-badge badge-product">Feature</span>
+      </a>
+
+      <a class="card" href="heural-mapping.html">
+        <div class="card-icon">🧠</div>
+        <div class="card-title">Healthier ↔ Heural Mapping</div>
+        <div class="card-desc">Referencia de mapeo entre entidades del sistema Healthier y la API de Heural.</div>
+        <span class="card-badge badge-product">Integración</span>
+      </a>
+
+      <a class="card" href="compliance-argentina.html">
+        <div class="card-icon">⚖️</div>
+        <div class="card-title">Compliance Argentina</div>
+        <div class="card-desc">Estrategia técnica y legal para operar telemedicina en Argentina (Ley 27.553, PDPA, datos de salud).</div>
+        <span class="card-badge badge-product">Legal / Técnico</span>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- Estrategia -->
+  <section>
+    <h2>Estrategia</h2>
+    <div class="grid">
+
+      <a class="card" href="council-report-20260521.html">
+        <div class="card-icon">📊</div>
+        <div class="card-title">Value Proposition &amp; Go-to-Market</div>
+        <div class="card-desc">Council report con propuesta de valor, TAM/SAM/SOM, canales de adquisición y modelo de ingresos.</div>
+        <span class="card-badge badge-strategy">Mayo 2026</span>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- Presentaciones -->
+  <section>
+    <h2>Presentaciones</h2>
+    <div class="grid">
+
+      <a class="card" href="healthier-pro-plataforma.html">
+        <div class="card-icon">🖥️</div>
+        <div class="card-title">Plataforma para profesionales</div>
+        <div class="card-desc">Slide deck: agenda, pacientes, ganancias y herramientas clínicas en un solo lugar.</div>
+        <span class="card-badge badge-slides">Deck</span>
+      </a>
+
+      <a class="card" href="healthier-profesionales.html">
+        <div class="card-icon">🩺</div>
+        <div class="card-title">Para profesionales de la salud</div>
+        <div class="card-desc">Propuesta de valor para médicos: consultorio sin paredes, pacientes online, cobros automáticos.</div>
+        <span class="card-badge badge-slides">Deck</span>
+      </a>
+
+      <a class="card" href="healthier-pro-screenshots.html">
+        <div class="card-icon">📸</div>
+        <div class="card-title">Plataforma real — Screenshots</div>
+        <div class="card-desc">Capturas reales de la plataforma profesional: dashboard, agenda, historia clínica, NutriPlan Pro.</div>
+        <span class="card-badge badge-slides">Deck</span>
+      </a>
+
+    </div>
+  </section>
+
+</main>
+
+</body>
+</html>

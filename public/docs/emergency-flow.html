@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Healthier — Flujo de Emergencias</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --brand: #b05a36;
+      --bg: #fef9ef;
+      --bg2: #f5eee1;
+      --text: #2a2b2f;
+      --text2: #515151;
+      --border: #d1c9bf;
+      --red: #F43F5E;
+      --amber: #F59E0B;
+      --green: #10B981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+    header { background: var(--text); color: #fff; padding: 2rem 3rem; }
+    header h1 { font-size: 2rem; font-weight: 900; letter-spacing: -0.5px; }
+    header p { color: #aaa; margin-top: 4px; }
+    nav { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 3rem; display: flex; gap: 0; }
+    nav a { display: block; padding: 1rem 1.5rem; text-decoration: none; font-weight: 600; font-size: 0.9rem; color: var(--text2); border-bottom: 3px solid transparent; transition: all 0.15s; }
+    nav a:hover, nav a.active { color: var(--brand); border-bottom-color: var(--brand); }
+    main { max-width: 1100px; margin: 0 auto; padding: 2.5rem 2rem; }
+    section { margin-bottom: 4rem; }
+    h2 { font-size: 1.5rem; font-weight: 800; color: var(--text); margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--border); }
+    h3 { font-size: 1.1rem; font-weight: 700; color: var(--text); margin: 2rem 0 1rem; }
+    p { color: var(--text2); margin-bottom: 1rem; }
+    .diagram-wrap { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 2rem; margin: 1.5rem 0; overflow-x: auto; }
+    .badges { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 1.5rem 0; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; }
+    .badge-red    { background: rgba(244,63,94,0.12);  color: var(--red);   border: 1px solid rgba(244,63,94,0.3);  }
+    .badge-amber  { background: rgba(245,158,11,0.12); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+    .badge-green  { background: rgba(16,185,129,0.12); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+    .badge-brand  { background: rgba(176,90,54,0.10);  color: var(--brand); border: 1px solid rgba(176,90,54,0.3); }
+    .badge-dark   { background: rgba(42,43,47,0.08);   color: var(--text);  border: 1px solid rgba(42,43,47,0.2);  }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { background: var(--bg2); color: var(--text); font-weight: 700; padding: 10px 14px; text-align: left; border: 1px solid var(--border); }
+    td { padding: 9px 14px; border: 1px solid var(--border); color: var(--text2); vertical-align: top; }
+    tr:hover td { background: var(--bg); }
+    .note { background: rgba(176,90,54,0.08); border-left: 4px solid var(--brand); padding: 1rem 1.25rem; border-radius: 0 10px 10px 0; margin: 1.5rem 0; font-size: 0.9rem; }
+    .todo { background: rgba(245,158,11,0.10); border-left: 4px solid var(--amber); padding: 1rem 1.25rem; border-radius: 0 10px 10px 0; margin: 1.5rem 0; font-size: 0.9rem; }
+    footer { background: var(--bg2); border-top: 1px solid var(--border); padding: 1.5rem 3rem; font-size: 0.8rem; color: var(--text2); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Healthier — Flujo de Emergencias S.O.S</h1>
+  <p>Vista del paciente · Vista del profesional · Arquitectura técnica y DB</p>
+</header>
+
+<nav>
+  <a href="#paciente" class="active">Paciente</a>
+  <a href="#profesional">Profesional</a>
+  <a href="#tecnico">Técnico / DB</a>
+  <a href="#db-schema">Schema</a>
+  <a href="#todos">TODOs</a>
+</nav>
+
+<main>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<section id="paciente">
+  <h2>1. Vista del Paciente (App Mobile — iOS/Android)</h2>
+  <p>El paciente inicia el flujo desde la app nativa. Toda la navegación usa Expo Router con rutas bajo <code>/emergency/</code>.</p>
+
+  <div class="badges">
+    <span class="badge badge-red">Código ROJO — ambulancia inmediata</span>
+    <span class="badge badge-amber">Código AMARILLO — despacho urgente</span>
+    <span class="badge badge-green">Código VERDE → booking presencial</span>
+  </div>
+
+  <div class="diagram-wrap">
+    <div class="mermaid">
+flowchart TD
+    A([🏠 Home / Tab]) --> B["/emergency/triage\nTriage Rápido"]
+    B --> C{Síntomas ROJO\nseleccionados?}
+    C -->|Sí — selección múltiple| D[Código ROJO]
+    C -->|No| E{Síntomas AMARILLO\nseleccionados?}
+    E -->|Sí| F[Código AMARILLO]
+    E -->|No| G[Código VERDE]
+
+    D --> H["/emergency/payment\n?triageCode=ROJO\n&symptoms=[...]"]
+    F --> H2["/emergency/payment\n?triageCode=AMARILLO\n&symptoms=[...]"]
+    G --> I(["/booking/selecting-service\nverticalId=clinica"])
+
+    H --> J["/emergency/map\n?triageCode=ROJO"]
+    H2 --> J
+
+    J --> K{Fase}
+    K -->|dispatching| L[Spinner: localizando médico]
+    K -->|matched| M[Mapa con ambulancia animada\n+ Videollamada al médico]
+    K -->|arriving| N[¡Ambulancia llegando!]
+    K -->|arrived| O[¡El médico llegó!\nFinalizar consulta]
+
+    M --> |video call| VC(["/consultation/video"])
+    O --> P([Agenda: Completado\nComprobante generado])
+
+    style D fill:#fee2e2,stroke:#f43f5e,color:#b91c1c
+    style F fill:#fef3c7,stroke:#f59e0b,color:#92400e
+    style G fill:#d1fae5,stroke:#10b981,color:#065f46
+    </div>
+  </div>
+
+  <h3>Síntomas — selección múltiple</h3>
+  <p>El paciente toca cada síntoma individualmente. Los seleccionados se almacenan como JSON en <code>emergencies.notes</code> y se muestran al profesional al llegar.</p>
+
+  <table>
+    <tr><th>Paso</th><th>Screen</th><th>Qué ocurre</th></tr>
+    <tr><td>1</td><td><code>/emergency/triage</code></td><td>Chips seleccionables — síntomas rojos primero, amarillos si no hay rojos</td></tr>
+    <tr><td>2</td><td><code>/emergency/payment</code></td><td>Resumen $45 · tarjeta guardada · "Pagar y solicitar"</td></tr>
+    <tr><td>3</td><td><code>/emergency/map</code></td><td>Mapa real (react-native-maps) · ambulancia animada desde coords del médico · video call disponible</td></tr>
+    <tr><td>4</td><td>Overlay arrived</td><td>"¡El médico llegó!" · Consulta presencial · Finalizar</td></tr>
+    <tr><td>5</td><td><code>/(tabs)/agenda</code></td><td>Emergencia aparece en Próximos mientras activa, pasa a Historial cuando completed</td></tr>
+    <tr><td>6</td><td><code>/(tabs)/comprobantes</code></td><td>Recibo con dispatch code, fecha, $45, estado</td></tr>
+  </table>
+</section>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<section id="profesional">
+  <h2>2. Vista del Profesional (Website — Mobile-First)</h2>
+  <p>El profesional accede vía browser en su teléfono. La ruta <code>/profesional/emergencias</code> es una página standalone — sin sidebar, sin AppLayout. Usa Supabase Realtime para recibir notificaciones instantáneas.</p>
+
+  <div class="diagram-wrap">
+    <div class="mermaid">
+flowchart TD
+    DA([Dashboard\n/profesional/dashboard]) -->|Banner rojo aparece| EB["/profesional/emergencias\nStandby: En guardia"]
+    EB -->|Supabase Realtime INSERT| IC[Código ROJO/AMARILLO\nIncoming Alert — pulso]
+    IC -->|Aceptar emergencia| EN[En camino\ndispatched → in_transit]
+    EN --> NAV["Navegar al paciente\n→ Google Maps ?q=lat,lng"]
+    EN --> CALL["Llamar al paciente\ntel: link"]
+    NAV --> AR[Llegué al paciente\nin_transit → arrived]
+    CALL --> AR
+    AR --> SYM[Síntomas reportados\nLeídos de emergencies.notes]
+    SYM --> CL[Cerrar emergencia\narrived → completed]
+    CL --> DASH([/profesional/dashboard])
+
+    DB[Dashboard carga] -->|getActiveForProfessional| BAN{Emergencia activa?}
+    BAN -->|Sí| BANNER[Banner rojo con dispatch code]
+    BANNER --> EB
+
+    style IC fill:#fee2e2,stroke:#f43f5e,color:#b91c1c
+    style EN fill:#fef3c7,stroke:#f59e0b,color:#92400e
+    style AR fill:#d1fae5,stroke:#10b981,color:#065f46
+    </div>
+  </div>
+
+  <h3>Las 4 fases de la pantalla</h3>
+  <table>
+    <tr><th>Fase</th><th>URL demo</th><th>Qué ve el profesional</th><th>Acción</th></tr>
+    <tr>
+      <td><span class="badge badge-green">Standby</span></td>
+      <td><code>?demo=standby</code></td>
+      <td>"En guardia" + pulso verde "Escuchando en tiempo real"</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-red">Incoming</span></td>
+      <td><code>?demo=dispatched</code></td>
+      <td>Alerta a pantalla completa con pulsación · código · paciente · tiempo transcurrido</td>
+      <td>Aceptar emergencia</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-amber">En camino</span></td>
+      <td><code>?demo=in_transit</code></td>
+      <td>Header oscuro · "Navegar al paciente" → Google Maps · "Llamar al paciente" tel:</td>
+      <td>Llegué al paciente</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-brand">Llegaste</span></td>
+      <td><code>?demo=arrived</code></td>
+      <td>"¡Llegaste!" + síntomas exactos que reportó el paciente + info del turno</td>
+      <td>Cerrar emergencia</td>
+    </tr>
+  </table>
+
+  <div class="note">
+    <strong>Deeplink / reconexión:</strong> Si el profesional cierra el browser, puede volver a la emergencia con
+    <code>/profesional/emergencias?id=&lt;emergencia_id&gt;</code>. El mismo link puede enviarse vía WhatsApp.
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<section id="tecnico">
+  <h2>3. Vista Técnica — Arquitectura</h2>
+
+  <div class="diagram-wrap">
+    <div class="mermaid">
+flowchart LR
+    subgraph Mobile["📱 Mobile (Expo Router / React Native)"]
+        TRI["triage.tsx\nChips multi-select"]
+        PAY["payment.tsx\n?triageCode &symptoms"]
+        MAP["map.tsx\nuseLocation\nMapView animado"]
+        AGE["agenda.tsx\nEmergencyService.getByPatient"]
+        COM["comprobantes.tsx\nrecibos de emergencia"]
+    end
+
+    subgraph Website["🌐 Website (React / Vite)"]
+        DASH["Dashboard.jsx\nRealtime banner"]
+        EMG["Emergencias.jsx\nStandalone route"]
+        SVC["emergencyService.js\ngetActiveForProfessional\nupdateStatus\nsubscribe"]
+    end
+
+    subgraph Supabase["🗄️ Supabase (sa-east-1)"]
+        DB[("emergencies\npatient_id\nprofessional_id\ntriage_code\nstatus\ndispatch_code\nnotes / symptoms JSON\npatient_lat/lng")]
+        RT["Realtime\nPostgres Changes\nprofessional_id filter"]
+        PRO[("professional_profiles\nlatitude / longitude\nis_on_demand")]
+        PROF[("profiles\nfull_name\navatar_url")]
+    end
+
+    TRI -->|triageCode + symptoms| PAY
+    PAY -->|params| MAP
+    MAP -->|createEmergency| SVC2["EmergencyService.ts"]
+    SVC2 -->|INSERT| DB
+    SVC2 -->|findOnCallDoctor| PRO
+    AGE -->|getByPatient| DB
+    COM -->|getByPatient| DB
+
+    DB -->|INSERT trigger| RT
+    RT -->|onChange| DASH
+    RT -->|onChange| EMG
+    EMG --> SVC
+    SVC -->|SELECT/UPDATE| DB
+    SVC -->|subscribe| RT
+
+    DB --- PROF
+    PRO --- PROF
+    </div>
+  </div>
+
+  <h3>Flujo de datos completo — creación de emergencia</h3>
+  <div class="diagram-wrap">
+    <div class="mermaid">
+sequenceDiagram
+    participant P as Paciente (mobile)
+    participant ES as EmergencyService.ts
+    participant SB as Supabase DB
+    participant RT as Supabase Realtime
+    participant PR as Profesional (browser)
+
+    P->>P: Selecciona síntomas (triage.tsx)
+    P->>P: Pago confirmado (payment.tsx)
+    P->>ES: createEmergency(ROJO, location, symptoms[])
+    ES->>SB: findOnCallDoctor() → Dr. Martín López
+    ES->>SB: INSERT emergencies { patient_id, professional_id, triage_code: ROJO, status: dispatched, notes: ["Dolor en el pecho",...], patient_lat/lng, dispatch_code: UTM-XXXX }
+    SB-->>ES: { id, dispatch_code }
+    ES-->>P: EmergencyRecord { doctorName, dispatchCode, doctorLat/lng }
+    P->>P: Muestra mapa con ambulancia animada
+
+    SB->>RT: postgres_changes INSERT emergencies
+    RT->>PR: onChange(emergency)
+    PR->>PR: Muestra alerta Código ROJO (dispatched)
+    PR->>SB: updateStatus(id, in_transit)
+    PR->>PR: Navega con Google Maps
+    PR->>SB: updateStatus(id, arrived)
+    PR->>PR: Lee notes → muestra síntomas exactos
+    PR->>SB: updateStatus(id, completed)
+    SB-->>P: (agenda polling) status=completed → Historial
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<section id="db-schema">
+  <h2>4. Schema de la DB — tabla emergencies</h2>
+
+  <div class="diagram-wrap">
+    <div class="mermaid">
+erDiagram
+    profiles {
+        uuid id PK
+        text full_name
+        text avatar_url
+        text phone
+        text role
+    }
+
+    professional_profiles {
+        uuid user_id FK
+        text specialty
+        bool is_on_demand
+        bool is_verified
+        bool is_active
+        numeric latitude
+        numeric longitude
+        numeric average_rating
+    }
+
+    emergencies {
+        uuid id PK
+        uuid patient_id FK
+        uuid professional_id FK
+        text triage_code "ROJO | AMARILLO | VERDE"
+        text status "pending | dispatched | in_transit | arrived | cancelled | completed"
+        text dispatch_code "UTM-XXXX"
+        text notes "JSON symptoms array"
+        numeric patient_latitude
+        numeric patient_longitude
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    profiles ||--o{ emergencies : "patient_id"
+    profiles ||--o{ emergencies : "professional_id"
+    profiles ||--o{ professional_profiles : "user_id"
+    </div>
+  </div>
+
+  <h3>Migraciones aplicadas</h3>
+  <table>
+    <tr><th>Migración</th><th>Descripción</th></tr>
+    <tr><td><code>015_emergencies_table.sql</code></td><td>Tabla emergencies + RLS base (patient INSERT/SELECT, professional SELECT)</td></tr>
+    <tr><td><code>016_emergencies_pro_access.sql</code></td><td>patient_latitude/longitude + professional UPDATE policy + policy de lectura de profiles para emergencias activas</td></tr>
+  </table>
+
+  <h3>RLS — Políticas activas</h3>
+  <table>
+    <tr><th>Tabla</th><th>Política</th><th>Quién</th><th>Condición</th></tr>
+    <tr><td>emergencies</td><td>INSERT</td><td>Paciente autenticado</td><td><code>patient_id = auth.uid()</code></td></tr>
+    <tr><td>emergencies</td><td>SELECT</td><td>Paciente autenticado</td><td><code>patient_id = auth.uid()</code></td></tr>
+    <tr><td>emergencies</td><td>SELECT</td><td>Profesional asignado</td><td><code>professional_id = auth.uid()</code></td></tr>
+    <tr><td>emergencies</td><td>UPDATE</td><td>Paciente (cancelar)</td><td><code>patient_id = auth.uid()</code></td></tr>
+    <tr><td>emergencies</td><td>UPDATE</td><td>Profesional (cambiar status)</td><td><code>professional_id = auth.uid()</code></td></tr>
+    <tr><td>profiles</td><td>SELECT</td><td>Profesional con emergencia activa</td><td>EXISTS en emergencies con patient_id matching</td></tr>
+  </table>
+</section>
+
+<!-- ════════════════════════════════════════════════════════ -->
+<section id="todos">
+  <h2>5. TODOs y gaps conocidos</h2>
+
+  <div class="todo">
+    <strong>📱 Resume path — app cerrada:</strong> Si el paciente cierra la app con una emergencia activa (<code>status = dispatched/in_transit</code>), no hay mecanismo automático para volver al mapa. <strong>Fix:</strong> al cargar el home, llamar a <code>EmergencyService.getActiveByPatient(userId)</code>; si existe, mostrar banner rojo "Emergencia activa" → <code>/emergency/map?triageCode=X</code>.
+  </div>
+
+  <div class="todo">
+    <strong>💬 WhatsApp al profesional:</strong> La subscripción Realtime solo funciona si el browser está abierto. Cuando llega una emergencia, enviar un mensaje WhatsApp con deeplink <code>/profesional/emergencias?id=UUID</code>. <strong>Stack:</strong> Supabase Edge Function en ON INSERT emergencies → Twilio/Meta Cloud API → professional.phone.
+  </div>
+
+  <div class="todo">
+    <strong>💳 Pago real:</strong> El pago sigue siendo un mock (<code>setTimeout 1500ms</code>). Integrar Mercado Pago o Stripe. El comprobante debe generarse al confirmar el pago, no al crear la emergencia.
+  </div>
+
+  <div class="todo">
+    <strong>📍 ETA real:</strong> El countdown es simulado (4 min). Integrar Google Routes API o similar para calcular ETA real desde las coordenadas del profesional hasta las del paciente, y actualizarlo en tiempo real.
+  </div>
+
+  <div class="todo">
+    <strong>🔔 Push notifications (mobile):</strong> Cuando la emergencia cambia a <code>arrived</code> o <code>completed</code>, el paciente debería recibir una push notification incluso con la app cerrada. Stack: Expo Notifications + Supabase Edge Function.
+  </div>
+
+  <table>
+    <tr><th>Gap</th><th>Impacto</th><th>Complejidad</th></tr>
+    <tr><td>Resume path (app cerrada)</td><td>🔴 Alto — seguridad del paciente</td><td>Baja — un query en home mount</td></tr>
+    <tr><td>WhatsApp al profesional</td><td>🔴 Alto — confiabilidad del despacho</td><td>Media — Edge Function + API</td></tr>
+    <tr><td>Pago real</td><td>🟡 Medio — blocker para producción</td><td>Alta — integración de pagos</td></tr>
+    <tr><td>ETA real</td><td>🟡 Medio — UX</td><td>Baja-Media — Google Routes API</td></tr>
+    <tr><td>Push notifications</td><td>🟡 Medio — UX</td><td>Media — Expo Notifications</td></tr>
+  </table>
+</section>
+
+</main>
+
+<footer>
+  Healthier — Documentación interna · Generado por Claude Code · 2026-05-15
+</footer>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { primaryColor: '#fef9ef', primaryBorderColor: '#d1c9bf', primaryTextColor: '#2a2b2f', lineColor: '#b05a36', secondaryColor: '#f5eee1', tertiaryColor: '#fef9ef' } });
+
+  // Simple tab highlighting
+  document.querySelectorAll('nav a').forEach(a => {
+    a.addEventListener('click', function() {
+      document.querySelectorAll('nav a').forEach(x => x.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  // Highlight active section on scroll
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('nav a');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => { if (window.scrollY >= s.offsetTop - 100) current = s.id; });
+    navLinks.forEach(a => { a.classList.toggle('active', a.getAttribute('href') === '#' + current); });
+  });
+</script>
+</body>
+</html>
