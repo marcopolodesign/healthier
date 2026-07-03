@@ -2,21 +2,21 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ShieldCheck, Star, MagnifyingGlass, Calendar, Heart,
-  ArrowRight, Stethoscope, Brain, Baby, Lightning,
+  ArrowRight, Stethoscope, Lightning,
   ClipboardText, ChartLine, Pill, Robot, CheckCircle,
-  Barbell, Users, CurrencyDollar, DeviceMobile, ChatText,
+  Users, CurrencyDollar, DeviceMobile,
 } from '@phosphor-icons/react'
 import { CompanyLogo } from '../components/common/CompanyLogo'
 import { captureUtms } from '../lib/utms'
 
-// Specialty cards — forhers category grid style (tall gradient cards)
+// Specialty cards — forhers /about category grid: studio photo blends into card tint
 const SPECIALTIES = [
-  { icon: Stethoscope,   label: 'Medicina General', from: 'from-brand/20',          to: 'to-brand/45' },
-  { icon: Brain,         label: 'Psicología',       from: 'from-brand-tertiary/20', to: 'to-brand-tertiary/45' },
-  { icon: ClipboardText, label: 'Nutrición',        from: 'from-amber-100',         to: 'to-amber-200' },
-  { icon: Baby,          label: 'Pediatría',        from: 'from-sky-100',           to: 'to-sky-200' },
-  { icon: Lightning,     label: 'Urgencias',        from: 'from-accent/20',         to: 'to-accent/45' },
-  { icon: Barbell,       label: 'Entrenamiento',    from: 'from-emerald-100',       to: 'to-emerald-200' },
+  { img: '/images/landing/esp-medicina.jpg',      label: 'Medicina General', tint: 'from-brand/25' },
+  { img: '/images/landing/esp-psicologia.jpg',    label: 'Psicología',       tint: 'from-brand-tertiary/25' },
+  { img: '/images/landing/esp-nutricion.jpg',     label: 'Nutrición',        tint: 'from-amber-200/40' },
+  { img: '/images/landing/esp-pediatria.jpg',     label: 'Pediatría',        tint: 'from-sky-200/40' },
+  { img: '/images/landing/esp-urgencias.jpg',     label: 'Urgencias',        tint: 'from-accent/25' },
+  { img: '/images/landing/esp-entrenamiento.jpg', label: 'Entrenamiento',    tint: 'from-emerald-200/40' },
 ]
 
 // Feature cards with gradient fills (forhers card style)
@@ -66,103 +66,76 @@ const PRO_BENEFITS = [
   { icon: DeviceMobile,   text: 'App y web — desde cualquier dispositivo' },
 ]
 
-// forhers dr-quote style — large gradient card with testimonial
+// forhers dr-quote style — gradient card, portrait in rounded frame, centered quote
 function QuoteCard() {
   return (
-    <div className="relative bg-gradient-to-br from-brand/50 to-brand rounded-3xl p-8 sm:p-12 overflow-hidden">
+    <div className="relative bg-gradient-to-br from-brand/50 to-brand rounded-3xl p-8 sm:p-14 overflow-hidden">
       <div className="absolute -top-16 -right-16 w-64 h-64 bg-white/5 rounded-full" />
       <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-white/5 rounded-full" />
-      <div className="relative">
-        <div className="w-14 h-14 rounded-2xl bg-white/20 border border-white/30 flex items-center justify-center mb-6">
-          <ChatText className="h-7 w-7 text-white" />
+      <div className="relative max-w-2xl mx-auto text-center">
+        <div className="w-24 h-28 rounded-2xl overflow-hidden border-2 border-white/40 mx-auto mb-7 shadow-lg">
+          <img
+            src="/images/landing/quote-valentina.jpg"
+            alt="Valentina R., paciente de Healthier"
+            loading="lazy"
+            className="w-full h-full object-cover"
+          />
         </div>
-        <p className="text-white/40 text-5xl font-bold leading-none mb-2 select-none">"</p>
-        <blockquote className="text-white text-xl sm:text-2xl font-medium leading-relaxed mb-8 -mt-4">
-          Empecé a usar Healthier para una consulta rápida y terminé usando el Biovisor para entender mis análisis de rutina. Tener todo en un solo lugar cambió cómo cuido mi salud.
+        <blockquote className="text-white text-xl sm:text-2xl font-medium leading-relaxed mb-6">
+          "Empecé a usar Healthier para una consulta rápida y terminé usando el Biovisor para entender mis análisis de rutina. Tener todo en un solo lugar cambió cómo cuido mi salud."
         </blockquote>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-white/30 to-white/10 border border-white/30" />
-          <div>
-            <p className="text-white font-semibold text-sm">Valentina R.</p>
-            <p className="text-white/60 text-xs">Paciente · Buenos Aires</p>
-          </div>
-          <div className="ml-auto flex gap-0.5">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} weight="fill" className="h-3.5 w-3.5 text-white/70" />
-            ))}
-          </div>
+        <p className="text-white font-semibold text-sm">Valentina R.</p>
+        <p className="text-white/60 text-xs mb-3">Paciente · Buenos Aires</p>
+        <div className="flex gap-0.5 justify-center">
+          {[...Array(5)].map((_, i) => (
+            <Star key={i} weight="fill" className="h-3.5 w-3.5 text-white/70" />
+          ))}
         </div>
       </div>
     </div>
   )
 }
 
-// Hero right — gradient card (forhers "built for you" card translated to our system)
+// Hero right — real photo with floating glass cards (forhers photo-forward hero)
 function HeroCard() {
   return (
     <div className="relative">
       <div className="absolute -inset-6 bg-brand/8 rounded-[2.5rem]" />
-      <div className="relative bg-gradient-to-b from-brand/15 to-brand/35 rounded-3xl overflow-hidden border border-brand/20">
-        {/* Header bar */}
-        <div className="bg-white/90 backdrop-blur-sm p-5 flex items-center gap-3 border-b border-border-default/40">
-          <div className="w-10 h-10 rounded-full bg-brand/15 flex items-center justify-center">
+      <div className="relative rounded-3xl overflow-hidden border border-brand/15">
+        <img
+          src="/images/landing/hero-main.jpg"
+          alt="Paciente en videoconsulta desde su casa"
+          className="w-full h-[520px] object-cover"
+        />
+      </div>
+
+      {/* Floating verified badge */}
+      <div className="absolute top-5 right-5 bg-white/90 backdrop-blur-[20px] border border-white/80 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.1)] px-3.5 py-2 flex items-center gap-2">
+        <ShieldCheck className="h-4 w-4 text-brand" weight="fill" />
+        <span className="text-xs font-medium text-text-primary">Profesional verificado</span>
+      </div>
+
+      {/* Floating doctor card */}
+      <div className="absolute bottom-5 -left-5 bg-white/90 backdrop-blur-[20px] border border-white/80 rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.1)] p-4 w-[300px]">
+        <div className="flex items-center gap-3 mb-2.5">
+          <div className="w-10 h-10 rounded-full bg-brand/15 flex items-center justify-center shrink-0">
             <Stethoscope className="h-5 w-5 text-brand" />
           </div>
           <div className="flex-1">
             <p className="font-semibold text-text-primary text-sm">Dra. Laura Méndez</p>
             <p className="text-xs text-brand">Medicina General</p>
           </div>
-          <span className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-medium border border-emerald-100">
+          <span className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded-full font-medium border border-emerald-100">
             <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
             Online
           </span>
         </div>
-
-        {/* Gradient body */}
-        <div className="p-6 space-y-4">
-          <div className="flex gap-2 flex-wrap">
-            {['HTA controlada', 'Sin alergias conocidas', '3 consultas este año'].map(tag => (
-              <span key={tag} className="text-xs bg-white/60 text-text-primary px-2.5 py-1 rounded-full border border-white/80">{tag}</span>
-            ))}
-          </div>
-
-          <div className="bg-white/55 backdrop-blur-sm rounded-2xl p-4 flex items-center justify-between border border-white/70">
-            <div>
-              <p className="text-xs text-text-secondary mb-0.5">Próxima consulta</p>
-              <p className="text-sm font-semibold text-text-primary">Mañana, 10:30 AM</p>
-            </div>
-            <span className="text-xs bg-white text-brand border border-brand/20 px-3 py-1.5 rounded-xl font-medium shadow-sm">
-              Ver sala
-            </span>
-          </div>
-
-          <div className="bg-white/55 backdrop-blur-sm rounded-2xl p-4 border border-white/70">
-            <p className="text-xs text-text-secondary mb-2.5">Historial reciente</p>
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-2 h-2 rounded-full bg-brand shrink-0" />
-                <span className="text-xs text-text-primary">Análisis de rutina — hace 2 semanas</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <div className="w-2 h-2 rounded-full bg-brand/40 shrink-0" />
-                <span className="text-xs text-text-secondary">Presión arterial: normal</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} weight="fill" className="h-3.5 w-3.5 text-yellow-500" />
-            ))}
-            <span className="text-xs text-text-secondary ml-1">4.9 · 127 reseñas</span>
-          </div>
+        <div className="flex items-center gap-1.5">
+          {[...Array(5)].map((_, i) => (
+            <Star key={i} weight="fill" className="h-3.5 w-3.5 text-yellow-500" />
+          ))}
+          <span className="text-xs text-text-secondary ml-1">4.9 · 127 reseñas</span>
         </div>
-      </div>
-
-      {/* Floating badge */}
-      <div className="absolute -bottom-4 -left-4 bg-white rounded-xl shadow-lg px-4 py-2.5 flex items-center gap-2 border border-border-default">
-        <ShieldCheck className="h-4 w-4 text-brand" weight="fill" />
-        <span className="text-xs font-medium text-text-primary">Profesional verificado</span>
       </div>
     </div>
   )
@@ -257,12 +230,18 @@ export default function Landing() {
               <Link
                 key={s.label}
                 to="/registro"
-                className={`flex flex-col items-start justify-between p-4 rounded-2xl bg-gradient-to-b ${s.from} ${s.to} hover:opacity-90 transition-opacity min-h-[150px] border border-black/5`}
+                className="relative rounded-2xl overflow-hidden min-h-[210px] border border-black/5 group"
               >
-                <div className="w-10 h-10 rounded-xl bg-white/50 backdrop-blur-sm border border-white/70 flex items-center justify-center">
-                  <s.icon className="h-5 w-5 text-text-primary" />
-                </div>
-                <span className="text-xs font-semibold text-text-primary leading-snug">{s.label}</span>
+                <img
+                  src={s.img}
+                  alt={s.label}
+                  loading="lazy"
+                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500"
+                />
+                <div className={`absolute inset-0 bg-gradient-to-b ${s.tint} to-transparent`} />
+                <span className="absolute top-3 left-3 text-sm font-semibold text-text-primary leading-snug drop-shadow-sm">
+                  {s.label}
+                </span>
               </Link>
             ))}
           </div>
@@ -373,8 +352,14 @@ export default function Landing() {
               </Link>
             </div>
 
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
-              <div className="space-y-3.5">
+            <div className="rounded-3xl overflow-hidden border border-white/20">
+              <img
+                src="/images/landing/pro-doctor.jpg"
+                alt="Profesional de la salud en Healthier"
+                loading="lazy"
+                className="w-full h-56 object-cover object-top"
+              />
+              <div className="bg-white/10 backdrop-blur-sm p-6 space-y-3.5">
                 {PRO_BENEFITS.map(b => (
                   <div key={b.text} className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center shrink-0">

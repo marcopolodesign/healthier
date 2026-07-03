@@ -106,7 +106,7 @@ export default function LandingSinObraSocial() {
             <h2 className="text-2xl font-bold text-text-primary mb-8 leading-tight">
               La salud no debería ser complicada ni impredecible.
             </h2>
-            <ul className="space-y-4">
+            <ul className="space-y-4 mb-8">
               {PAIN_ITEMS.map(item => (
                 <li key={item} className="flex items-start gap-3 text-text-secondary">
                   <X size={16} weight="bold" className="text-accent mt-0.5 shrink-0" />
@@ -114,6 +114,14 @@ export default function LandingSinObraSocial() {
                 </li>
               ))}
             </ul>
+            <div className="rounded-3xl overflow-hidden border border-border-default">
+              <img
+                src="/images/landing/persona-celular.jpg"
+                alt="Paciente reservando una consulta desde su celular"
+                loading="lazy"
+                className="w-full h-64 object-cover"
+              />
+            </div>
           </div>
           <div>
             <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-3">Healthier es diferente</p>

@@ -99,6 +99,11 @@ export default function LandingMedicoOnline() {
             <div className="relative">
               <div className="absolute -inset-4 bg-brand/6 rounded-[2rem]" />
               <div className="relative bg-gradient-to-b from-brand/15 to-brand/35 rounded-3xl overflow-hidden border border-brand/20">
+                <img
+                  src="/images/landing/doctora-online.jpg"
+                  alt="Doctora saludando en videoconsulta"
+                  className="w-full h-52 object-cover object-[50%_40%]"
+                />
                 <div className="bg-white/90 backdrop-blur-sm px-6 py-4 border-b border-border-default/30">
                   <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest">Especialidades disponibles</p>
                 </div>

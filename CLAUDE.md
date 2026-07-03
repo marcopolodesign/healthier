@@ -2,6 +2,8 @@
 
 This document provides context for Claude Code when working on this React/Supabase project.
 
+> **🚀 MANDATORY — Vercel deploy check:** After every `git push`, verify the deploy succeeded via Vercel API before reporting the task as done. Run: `source ~/Local/.env && curl -s "https://api.vercel.com/v6/deployments?projectId=prj_Cd1LUNQYJjg7A5vhUkNGwVVgewRb&limit=1&teamId=marco-polos-projects-1eab697a" -H "Authorization: Bearer $VERCEL_TOKEN" | python3 -c "import sys,json; d=json.load(sys.stdin)['deployments'][0]; print(d['state'], d['uid'])"`. If state is ERROR, fetch the build logs and fix before reporting done.
+
 > **📝 MANDATORY:** After completing ANY implementation, add a `[website]`-tagged entry at the top of **`~/Local/Healthier/catchup.md`** (the single unified log). Do NOT write to `website/catchup.md` — it is a stub. Do NOT ask the user — just do it.
 >
 > **Source tagging & pull rule:** Every catchup entry MUST include a `**Source:**` line (e.g. `Claude Code — Macbook Pro`, `Claude App — iPhone`, `Claude.ai — web`). Before writing the entry, read the most recent entry's `**Source:**` field. If it differs from the current session's source, run `git pull origin main` first.
