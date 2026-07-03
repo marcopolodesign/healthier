@@ -1,19 +1,19 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ShieldCheck, Tag, Clock, Lock, Check, ArrowRight,
-  MapPin, FileText, Stethoscope, Brain, AppleLogo, Baby, FirstAid,
-  MagnifyingGlass, Calendar, ClipboardText,
+  ShieldCheck, Tag, Clock, Lock, ArrowRight,
+  MapPin, FileText, Stethoscope, Brain, Baby, FirstAid,
+  ClipboardText,
 } from '@phosphor-icons/react'
 import { CompanyLogo } from '../../components/common/CompanyLogo'
 import { captureUtms } from '../../lib/utms'
 
 const SPECIALTIES = [
-  { icon: Stethoscope, label: 'clínica general' },
-  { icon: Brain,       label: 'psicología' },
-  { icon: AppleLogo,   label: 'nutrición' },
-  { icon: FileText,    label: 'recetas digitales' },
-  { icon: FirstAid,    label: 'consultas urgentes' },
+  { icon: Stethoscope, label: 'Clínica general',     from: 'from-brand/20',          to: 'to-brand/40' },
+  { icon: Brain,       label: 'Psicología',           from: 'from-brand-tertiary/20', to: 'to-brand-tertiary/40' },
+  { icon: FileText,    label: 'Nutrición',            from: 'from-amber-100',         to: 'to-amber-200' },
+  { icon: ClipboardText, label: 'Recetas digitales', from: 'from-emerald-100',        to: 'to-emerald-200' },
+  { icon: FirstAid,    label: 'Consultas urgentes',  from: 'from-accent/20',         to: 'to-accent/40' },
 ]
 
 const PAINS = [
@@ -26,11 +26,11 @@ const PAINS = [
 ]
 
 const FEATURES = [
-  { icon: Tag,           title: 'Precio visible',           desc: 'Sabés cuánto pagás antes de reservar.' },
-  { icon: ShieldCheck,   title: 'Profesionales verificados', desc: 'Título, matrícula y perfil confiable.' },
-  { icon: FileText,      title: 'Receta digital',            desc: 'La recibís al instante, sin volver al consultorio.' },
-  { icon: MapPin,        title: 'Acceso desde cualquier ciudad', desc: 'Consultá desde donde estés.' },
-  { icon: ClipboardText, title: 'Historial centralizado',    desc: 'Toda tu información clínica en un solo lugar.' },
+  { icon: Tag,           title: 'Precio visible',           desc: 'Sabés cuánto pagás antes de reservar.', from: 'from-amber-50',          to: 'to-amber-100' },
+  { icon: ShieldCheck,   title: 'Profesionales verificados', desc: 'Título, matrícula y perfil confiable.', from: 'from-brand/8',           to: 'to-brand/20' },
+  { icon: FileText,      title: 'Receta digital',            desc: 'La recibís al instante, sin volver al consultorio.', from: 'from-emerald-50', to: 'to-emerald-100' },
+  { icon: MapPin,        title: 'Desde cualquier ciudad',    desc: 'Consultá desde donde estés.',           from: 'from-sky-50',            to: 'to-sky-100' },
+  { icon: ClipboardText, title: 'Historial centralizado',    desc: 'Toda tu información clínica en un solo lugar.', from: 'from-brand-tertiary/8', to: 'to-brand-tertiary/20' },
 ]
 
 const SINS = [
@@ -40,120 +40,116 @@ const SINS = [
   { title: 'Sin cobertura médica', desc: 'Accedé igual, cuando lo necesitás.' },
 ]
 
-const TRUST = [
-  [Tag,         'Precio transparente',  'Lo ves antes de reservar'],
-  [Clock,       'Respuesta rápida',     'Consultas en minutos'],
-  [Lock,        'Seguro y confidencial','Tus datos protegidos'],
-]
-
 export default function LandingMedicoOnline() {
   useEffect(() => { captureUtms() }, [])
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg-primary)] font-sans">
+    <div className="min-h-screen bg-bg-primary">
 
       {/* Navbar */}
-      <nav className="fixed top-0 inset-x-0 z-50 bg-white/90 backdrop-blur border-b border-neutral-100">
+      <nav className="fixed top-0 inset-x-0 z-50 bg-bg-primary/95 backdrop-blur border-b border-border-default">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/"><CompanyLogo className="h-6" /></Link>
+          <Link to="/"><CompanyLogo size="sm" /></Link>
           <div className="flex items-center gap-3">
-            <span className="hidden sm:block text-sm text-[var(--color-text-secondary)]">Médicos verificados online</span>
+            <span className="hidden sm:block text-sm text-text-secondary">Médicos verificados online</span>
             <Link to="/registro" className="btn-accent rounded-full text-sm px-5 py-2">Reservar consulta</Link>
           </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="pt-24 pb-16 bg-[var(--color-bg-secondary)]">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="grid lg:grid-cols-2 gap-12 items-start">
-            {/* Left */}
+      <section className="pt-28 pb-20 px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
             <div>
-              <p className="text-xs font-semibold tracking-widest text-[var(--color-brand)] uppercase mb-4 flex items-center gap-2">
-                <span className="inline-block w-8 h-px bg-[var(--color-brand)]" />
+              <p className="text-xs font-semibold tracking-widest text-brand uppercase mb-5 flex items-center gap-2">
+                <span className="inline-block w-8 h-px bg-brand" />
                 Médico online sin obra social
               </p>
-              <h1 className="text-4xl sm:text-5xl font-bold leading-tight text-[var(--color-text-primary)] mb-6">
+              <h1 className="text-4xl sm:text-5xl font-bold leading-tight text-text-primary mb-6">
                 Sin obra social no debería significar sin atención médica
               </h1>
-              <p className="text-lg text-[var(--color-text-secondary)] mb-8 leading-relaxed">
-                Elegí médico. Mirá el precio. Reservá en minutos.<br/>
+              <p className="text-lg text-text-secondary mb-8 leading-relaxed">
+                Elegí médico. Mirá el precio. Reservá en minutos.<br />
                 Profesionales verificados disponibles online.
               </p>
               <div className="flex flex-wrap gap-3 mb-10">
-                <Link to="/registro" className="btn-accent rounded-full px-7 py-3 text-base font-semibold flex items-center gap-2">
+                <Link to="/registro" className="btn-accent rounded-full px-7 py-3 text-base font-semibold inline-flex items-center gap-2">
                   Reservar consulta <ArrowRight weight="bold" size={16} />
                 </Link>
-                <span className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)] border border-neutral-200 rounded-full px-5 py-3 bg-white">
-                  <MapPin size={15} weight="duotone" className="text-[var(--color-brand)]" />
+                <span className="inline-flex items-center gap-2 text-sm text-text-secondary border border-border-default rounded-full px-5 py-3 bg-white">
+                  <MapPin size={15} className="text-brand" />
                   Disponible desde cualquier ciudad
                 </span>
               </div>
-              {/* Trust bar */}
-              <div className="flex flex-wrap gap-5 text-sm text-[var(--color-text-secondary)]">
-                {TRUST.map(([Icon, label, sub]) => (
+              <div className="flex flex-wrap gap-6 text-sm text-text-secondary">
+                {[[Tag, 'Precio transparente', 'Lo ves antes de reservar'], [Clock, 'Respuesta rápida', 'Consultas en minutos'], [Lock, 'Seguro y confidencial', 'Tus datos protegidos']].map(([Icon, label, sub]) => (
                   <div key={label} className="flex items-center gap-2">
-                    <Icon size={18} weight="duotone" className="text-[var(--color-brand)]" />
+                    <Icon size={18} className="text-brand shrink-0" />
                     <div>
-                      <div className="font-medium text-[var(--color-text-primary)]">{label}</div>
-                      <div className="text-xs">{sub}</div>
+                      <div className="font-medium text-text-primary text-xs">{label}</div>
+                      <div className="text-xs text-text-tertiary">{sub}</div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Right — specialty panel */}
-            <div className="bg-white rounded-2xl border border-neutral-100 shadow-sm p-6 lg:mt-4">
-              <p className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-widest mb-4">Consultas para:</p>
-              <ul className="space-y-3 mb-6">
-                {SPECIALTIES.map(({ icon: Icon, label }) => (
-                  <li key={label}>
+            {/* Right — specialty panel as forhers gradient card */}
+            <div className="relative">
+              <div className="absolute -inset-4 bg-brand/6 rounded-[2rem]" />
+              <div className="relative bg-gradient-to-b from-brand/15 to-brand/35 rounded-3xl overflow-hidden border border-brand/20">
+                <div className="bg-white/90 backdrop-blur-sm px-6 py-4 border-b border-border-default/30">
+                  <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest">Especialidades disponibles</p>
+                </div>
+                <div className="p-5 grid grid-cols-1 gap-2">
+                  {SPECIALTIES.map(({ icon: Icon, label, from, to }) => (
                     <Link
+                      key={label}
                       to="/registro"
-                      className="flex items-center gap-3 text-[var(--color-text-primary)] hover:text-[var(--color-brand)] transition-colors group"
+                      className={`flex items-center gap-3 bg-gradient-to-r ${from} ${to} rounded-2xl px-4 py-3 border border-white/60 hover:opacity-90 transition-opacity group`}
                     >
-                      <span className="w-8 h-8 rounded-full bg-[var(--color-brand)]/10 flex items-center justify-center shrink-0 group-hover:bg-[var(--color-brand)]/20 transition-colors">
-                        <Icon size={16} weight="duotone" className="text-[var(--color-brand)]" />
-                      </span>
-                      <span className="text-sm font-medium">{label}</span>
+                      <div className="w-8 h-8 rounded-xl bg-white/60 border border-white/80 flex items-center justify-center shrink-0">
+                        <Icon size={15} className="text-text-primary" />
+                      </div>
+                      <span className="text-sm font-semibold text-text-primary">{label}</span>
+                      <ArrowRight size={13} className="text-text-tertiary ml-auto group-hover:text-brand transition-colors" />
                     </Link>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-xs font-semibold text-[var(--color-brand)]">Sin trámites. Sin sorpresas.</p>
+                  ))}
+                  <div className="pt-1 px-1">
+                    <span className="text-xs font-semibold text-brand/80">Sin trámites · Sin sorpresas</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Pain + Features side by side */}
-      <section className="py-16 bg-[var(--color-bg-primary)]">
-        <div className="max-w-6xl mx-auto px-6 grid lg:grid-cols-2 gap-16">
-          {/* Pain */}
+      {/* Pain + Features */}
+      <section className="py-20 px-6 bg-white">
+        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-16">
           <div>
-            <p className="text-sm font-semibold text-[var(--color-text-secondary)] mb-5">Sabemos lo que pasa</p>
+            <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-3">Sabemos lo que pasa</p>
             <ul className="space-y-4">
               {PAINS.map((pain, i) => (
                 <li key={pain} className="flex items-start gap-4">
-                  <span className="text-xs font-semibold text-[var(--color-brand)] w-5 pt-0.5 shrink-0">
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <span className="text-[var(--color-text-primary)] font-medium">{pain}</span>
+                  <span className="text-xs font-bold text-brand w-5 pt-0.5 shrink-0">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="text-text-primary font-medium">{pain}</span>
                 </li>
               ))}
             </ul>
           </div>
-
-          {/* Features */}
           <div>
-            <p className="text-sm font-semibold text-[var(--color-text-secondary)] mb-2">Atención médica transparente cuando la necesitás</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-5">
-              {FEATURES.map(({ icon: Icon, title, desc }) => (
-                <div key={title} className="bg-white rounded-xl border border-neutral-100 p-4">
-                  <Icon size={22} weight="duotone" className="text-[var(--color-brand)] mb-3" />
-                  <p className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">{title}</p>
-                  <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">{desc}</p>
+            <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-3">Atención médica transparente cuando la necesitás</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-5">
+              {FEATURES.map(({ icon: Icon, title, desc, from, to }) => (
+                <div key={title} className={`bg-gradient-to-br ${from} ${to} rounded-2xl border border-black/5 p-4`}>
+                  <div className="w-9 h-9 rounded-xl bg-white/70 border border-white/80 flex items-center justify-center mb-3">
+                    <Icon size={18} className="text-brand" />
+                  </div>
+                  <p className="text-sm font-semibold text-text-primary mb-1">{title}</p>
+                  <p className="text-xs text-text-secondary leading-relaxed">{desc}</p>
                 </div>
               ))}
             </div>
@@ -162,35 +158,35 @@ export default function LandingMedicoOnline() {
       </section>
 
       {/* Sin row */}
-      <section className="py-12 bg-white border-t border-b border-neutral-100">
-        <div className="max-w-6xl mx-auto px-6 grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
+      <section className="py-14 px-6 bg-bg-primary border-t border-border-default">
+        <div className="max-w-6xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-6 text-center">
           {SINS.map(({ title, desc }) => (
-            <div key={title}>
-              <p className="font-semibold text-sm text-[var(--color-text-primary)] mb-1">{title}</p>
-              <p className="text-xs text-[var(--color-text-secondary)]">{desc}</p>
+            <div key={title} className="bg-white rounded-2xl border border-border-default p-4">
+              <p className="font-semibold text-sm text-text-primary mb-1">{title}</p>
+              <p className="text-xs text-text-secondary">{desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* CTA final */}
-      <section className="py-16 bg-[var(--color-brand)]">
-        <div className="max-w-4xl mx-auto px-6 flex flex-col sm:flex-row items-center gap-8">
-          <div className="shrink-0 w-24 h-24 rounded-full border-4 border-white/40 flex flex-col items-center justify-center text-white">
+      <section className="py-20 px-6 bg-gradient-to-br from-brand to-brand-hover">
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center gap-8">
+          <div className="shrink-0 w-24 h-24 rounded-full border-4 border-white/30 bg-white/10 flex flex-col items-center justify-center text-white">
             <span className="text-xs font-medium uppercase tracking-wider text-white/70 mb-0.5">Atención</span>
             <span className="text-2xl font-bold leading-none">5</span>
-            <span className="text-xs font-medium uppercase tracking-wider">min</span>
+            <span className="text-xs font-medium uppercase tracking-wider text-white/70">min</span>
           </div>
           <div className="text-center sm:text-left">
             <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
               Tu próxima consulta puede empezar hoy
             </h2>
-            <p className="text-white/80 mb-6 text-sm">Accedé desde cualquier ciudad, sin guardias ni trámites.</p>
+            <p className="text-white/75 mb-6 text-sm">Accedé desde cualquier ciudad, sin guardias ni trámites.</p>
             <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
-              <Link to="/registro" className="bg-white text-[var(--color-brand)] font-semibold rounded-full px-7 py-3 text-sm hover:bg-neutral-50 transition-colors flex items-center gap-2">
+              <Link to="/registro" className="bg-white text-brand font-semibold rounded-xl px-7 py-3 text-sm hover:bg-gray-50 transition-colors inline-flex items-center gap-2">
                 Reservar consulta <ArrowRight weight="bold" size={14} />
               </Link>
-              <Link to="/login" className="border border-white/40 text-white font-semibold rounded-full px-7 py-3 text-sm hover:bg-white/10 transition-colors">
+              <Link to="/login" className="border border-white/30 text-white font-semibold rounded-xl px-7 py-3 text-sm hover:bg-white/10 transition-colors">
                 Ya tengo cuenta
               </Link>
             </div>
@@ -199,15 +195,15 @@ export default function LandingMedicoOnline() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-[var(--color-text-primary)] py-8">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <CompanyLogo className="h-5 invert opacity-80" />
-          <div className="flex gap-6 text-sm text-white/50">
-            <Link to="/terminos" className="hover:text-white/80 transition-colors">Términos y condiciones</Link>
-            <Link to="/login" className="hover:text-white/80 transition-colors">Iniciar sesión</Link>
-            <Link to="/registro?tipo=profesional" className="hover:text-white/80 transition-colors">¿Sos profesional?</Link>
+      <footer className="bg-midnight py-8 px-6">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <CompanyLogo size="sm" inverted />
+          <div className="flex gap-6 text-sm text-gray-500">
+            <Link to="/terminos" className="hover:text-white transition-colors">Términos y condiciones</Link>
+            <Link to="/login" className="hover:text-white transition-colors">Iniciar sesión</Link>
+            <Link to="/registro?tipo=profesional" className="hover:text-white transition-colors">¿Sos profesional?</Link>
           </div>
-          <p className="text-xs text-white/30">© 2026 Healthier · Buenos Aires</p>
+          <p className="text-xs text-gray-700">© 2026 Healthier · Buenos Aires</p>
         </div>
       </footer>
 

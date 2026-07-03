@@ -3,18 +3,18 @@ import { Link } from 'react-router-dom'
 import {
   ShieldCheck, Clock, Lock, Check, ArrowRight,
   Thermometer, Drop, Smiley, Sun, Baby,
-  MagnifyingGlass, Calendar, Video, FileText, Clipboard,
-  Users, Car, Cards, ClipboardText,
+  Calendar, FileText, Clipboard, ClipboardText,
+  Users, Car, Cards,
 } from '@phosphor-icons/react'
 import { CompanyLogo } from '../../components/common/CompanyLogo'
 import { captureUtms } from '../../lib/utms'
 
 const SYMPTOMS = [
-  { icon: Thermometer, label: 'fiebre' },
-  { icon: Drop,        label: 'lactancia' },
-  { icon: Smiley,      label: 'cólicos' },
-  { icon: Sun,         label: 'erupciones' },
-  { icon: Baby,        label: 'dudas de recién nacidos' },
+  { icon: Thermometer, label: 'Fiebre alta' },
+  { icon: Drop,        label: 'Problemas de lactancia' },
+  { icon: Smiley,      label: 'Cólicos y llanto' },
+  { icon: Sun,         label: 'Erupciones y piel' },
+  { icon: Baby,        label: 'Dudas de recién nacido' },
 ]
 
 const PAINS = [
@@ -27,11 +27,11 @@ const PAINS = [
 ]
 
 const FEATURES = [
-  { icon: ShieldCheck, title: 'Pediatras verificados',  desc: 'Matrícula, título y mala praxis verificados.' },
-  { icon: Calendar,    title: 'Turnos en minutos',       desc: 'Elegís horario y consultás desde donde estés.' },
-  { icon: FileText,    title: 'Receta digital',          desc: 'La recibís al instante y válida en todo el país.' },
-  { icon: Clipboard,   title: 'Seguimiento',             desc: 'Controles y alertas para cuidar a tu bebé siempre.' },
-  { icon: ClipboardText, title: 'Historial centralizado', desc: 'Toda su historia clínica en un solo lugar.' },
+  { icon: ShieldCheck,  title: 'Pediatras verificados',    desc: 'Matrícula, título y mala praxis verificados.', from: 'from-brand/8',          to: 'to-brand/20' },
+  { icon: Calendar,     title: 'Turnos en minutos',        desc: 'Elegís horario y consultás desde donde estés.', from: 'from-emerald-50',     to: 'to-emerald-100' },
+  { icon: FileText,     title: 'Receta digital',           desc: 'La recibís al instante y válida en todo el país.', from: 'from-amber-50',    to: 'to-amber-100' },
+  { icon: Clipboard,    title: 'Seguimiento',              desc: 'Controles y alertas para cuidar a tu bebé siempre.', from: 'from-brand-tertiary/8', to: 'to-brand-tertiary/20' },
+  { icon: ClipboardText, title: 'Historial centralizado', desc: 'Toda su historia clínica en un solo lugar.',    from: 'from-sky-50',          to: 'to-sky-100' },
 ]
 
 const SINS = [
@@ -45,108 +45,107 @@ export default function LandingPediatria() {
   useEffect(() => { captureUtms() }, [])
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg-primary)] font-sans">
+    <div className="min-h-screen bg-bg-primary">
 
       {/* Navbar */}
-      <nav className="fixed top-0 inset-x-0 z-50 bg-white/90 backdrop-blur border-b border-neutral-100">
+      <nav className="fixed top-0 inset-x-0 z-50 bg-bg-primary/95 backdrop-blur border-b border-border-default">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/"><CompanyLogo className="h-6" /></Link>
+          <Link to="/"><CompanyLogo size="sm" /></Link>
           <div className="flex items-center gap-3">
-            <span className="hidden sm:block text-sm text-[var(--color-text-secondary)]">Pediatras verificados online</span>
+            <span className="hidden sm:block text-sm text-text-secondary">Pediatras verificados online</span>
             <Link to="/registro" className="btn-accent rounded-full text-sm px-5 py-2">Hablar con un pediatra</Link>
           </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="pt-24 pb-16 bg-[var(--color-bg-secondary)]">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="grid lg:grid-cols-2 gap-12 items-start">
-            {/* Left */}
+      <section className="pt-28 pb-20 px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
             <div>
-              <p className="text-xs font-semibold tracking-widest text-[var(--color-brand)] uppercase mb-4 flex items-center gap-2">
-                <span className="inline-block w-8 h-px bg-[var(--color-brand)]" />
+              <p className="text-xs font-semibold tracking-widest text-brand uppercase mb-5 flex items-center gap-2">
+                <span className="inline-block w-8 h-px bg-brand" />
                 Pediatría online 24/7
               </p>
-              <h1 className="text-4xl sm:text-5xl font-bold leading-tight text-[var(--color-text-primary)] mb-6">
+              <h1 className="text-4xl sm:text-5xl font-bold leading-tight text-text-primary mb-6">
                 Cuando tu bebé tiene fiebre a las&nbsp;2&nbsp;AM
               </h1>
-              <p className="text-lg text-[var(--color-text-secondary)] mb-8 leading-relaxed">
-                No necesitás esperar a la guardia.<br/>
+              <p className="text-lg text-text-secondary mb-8 leading-relaxed">
+                No necesitás esperar a la guardia.<br />
                 Pediatras verificados disponibles online.
               </p>
-              <div className="flex flex-wrap gap-3 mb-8">
-                <Link to="/registro" className="btn-accent rounded-full px-7 py-3 text-base font-semibold flex items-center gap-2">
+              <div className="flex flex-wrap gap-3 mb-10">
+                <Link to="/registro" className="btn-accent rounded-full px-7 py-3 text-base font-semibold inline-flex items-center gap-2">
                   Hablar con un pediatra <ArrowRight weight="bold" size={16} />
                 </Link>
-                <span className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)] border border-neutral-200 rounded-full px-5 py-3 bg-white">
-                  <Clock size={15} weight="duotone" className="text-[var(--color-brand)]" />
+                <span className="inline-flex items-center gap-2 text-sm text-text-secondary border border-border-default rounded-full px-5 py-3 bg-white">
+                  <Clock size={15} className="text-brand" />
                   Disponible 24/7
                 </span>
               </div>
-              {/* Trust bar */}
-              <div className="flex flex-wrap gap-5 text-sm text-[var(--color-text-secondary)]">
-                {[
-                  [ShieldCheck, 'Pediatras verificados', 'Matrícula + verificación'],
-                  [Clock,       'Respuesta rápida',      'En minutos'],
-                  [Lock,        'Seguro y confidencial', 'Tus datos protegidos'],
-                ].map(([Icon, label, sub]) => (
+              <div className="flex flex-wrap gap-6 text-sm text-text-secondary">
+                {[[ShieldCheck, 'Pediatras verificados', 'Matrícula + verificación'], [Clock, 'Respuesta rápida', 'En minutos'], [Lock, 'Seguro y confidencial', 'Tus datos protegidos']].map(([Icon, label, sub]) => (
                   <div key={label} className="flex items-center gap-2">
-                    <Icon size={18} weight="duotone" className="text-[var(--color-brand)]" />
+                    <Icon size={18} className="text-brand shrink-0" />
                     <div>
-                      <div className="font-medium text-[var(--color-text-primary)]">{label}</div>
-                      <div className="text-xs">{sub}</div>
+                      <div className="font-medium text-text-primary text-xs">{label}</div>
+                      <div className="text-xs text-text-tertiary">{sub}</div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Right — symptom panel */}
-            <div className="bg-white rounded-2xl border border-neutral-100 shadow-sm p-6 lg:mt-4">
-              <p className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-widest mb-4">Consultas para:</p>
-              <ul className="space-y-3 mb-6">
-                {SYMPTOMS.map(({ icon: Icon, label }) => (
-                  <li key={label} className="flex items-center gap-3 text-[var(--color-text-primary)]">
-                    <span className="w-8 h-8 rounded-full bg-[var(--color-brand)]/10 flex items-center justify-center shrink-0">
-                      <Icon size={16} weight="duotone" className="text-[var(--color-brand)]" />
-                    </span>
-                    <span className="text-sm font-medium">{label}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-xs font-semibold text-[var(--color-brand)]">Disponible 24/7.</p>
+            {/* Right — symptom panel as gradient card */}
+            <div className="relative">
+              <div className="absolute -inset-4 bg-brand/6 rounded-[2rem]" />
+              <div className="relative bg-gradient-to-b from-brand/15 to-brand/35 rounded-3xl overflow-hidden border border-brand/20">
+                <div className="bg-white/90 backdrop-blur-sm px-6 py-4 border-b border-border-default/30">
+                  <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest">Consultas más frecuentes</p>
+                </div>
+                <div className="p-6 space-y-3">
+                  {SYMPTOMS.map(({ icon: Icon, label }) => (
+                    <div key={label} className="flex items-center gap-3 bg-white/55 backdrop-blur-sm rounded-2xl px-4 py-3 border border-white/70">
+                      <div className="w-8 h-8 rounded-xl bg-white/60 border border-white/80 flex items-center justify-center shrink-0">
+                        <Icon size={16} className="text-brand" />
+                      </div>
+                      <span className="text-sm font-medium text-text-primary">{label}</span>
+                    </div>
+                  ))}
+                  <div className="pt-1">
+                    <span className="text-xs font-semibold text-brand/80">Disponible 24/7 — sin turno previo</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Pain section */}
-      <section className="py-16 bg-[var(--color-bg-primary)]">
-        <div className="max-w-6xl mx-auto px-6 grid lg:grid-cols-2 gap-12">
+      {/* Pain + Features */}
+      <section className="py-20 px-6 bg-white">
+        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-16">
           <div>
-            <p className="text-xs font-semibold tracking-widest text-[var(--color-text-secondary)] uppercase mb-4">Sabemos cómo se siente</p>
+            <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-5">Sabemos cómo se siente</p>
             <ul className="space-y-4">
               {PAINS.map((pain, i) => (
                 <li key={pain} className="flex items-start gap-4">
-                  <span className="text-xs font-semibold text-[var(--color-brand)] w-5 pt-0.5 shrink-0">
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <span className="text-[var(--color-text-primary)] font-medium">{pain}</span>
+                  <span className="text-xs font-bold text-brand w-5 pt-0.5 shrink-0">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="text-text-primary font-medium">{pain}</span>
                 </li>
               ))}
             </ul>
           </div>
           <div>
-            <p className="text-xs font-semibold tracking-widest text-[var(--color-text-secondary)] uppercase mb-4">
-              Atención pediátrica cuando la necesitás
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {FEATURES.map(({ icon: Icon, title, desc }) => (
-                <div key={title} className="bg-white rounded-xl border border-neutral-100 p-4">
-                  <Icon size={24} weight="duotone" className="text-[var(--color-brand)] mb-3" />
-                  <p className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">{title}</p>
-                  <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">{desc}</p>
+            <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-5">Atención pediátrica cuando la necesitás</p>
+            <div className="grid grid-cols-2 gap-3">
+              {FEATURES.map(({ icon: Icon, title, desc, from, to }) => (
+                <div key={title} className={`bg-gradient-to-br ${from} ${to} rounded-2xl border border-black/5 p-4`}>
+                  <div className="w-9 h-9 rounded-xl bg-white/70 border border-white/80 flex items-center justify-center mb-3">
+                    <Icon size={18} className="text-brand" />
+                  </div>
+                  <p className="text-sm font-semibold text-text-primary mb-1">{title}</p>
+                  <p className="text-xs text-text-secondary leading-relaxed">{desc}</p>
                 </div>
               ))}
             </div>
@@ -155,57 +154,56 @@ export default function LandingPediatria() {
       </section>
 
       {/* Sin row */}
-      <section className="py-12 bg-white border-t border-b border-neutral-100">
-        <div className="max-w-6xl mx-auto px-6 grid grid-cols-2 lg:grid-cols-4 gap-8">
+      <section className="py-14 px-6 bg-bg-primary border-t border-border-default">
+        <div className="max-w-6xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-6">
           {SINS.map(({ icon: Icon, title, desc }) => (
             <div key={title} className="flex items-start gap-3">
-              <span className="w-9 h-9 rounded-full bg-[var(--color-brand)]/10 flex items-center justify-center shrink-0">
-                <Icon size={18} weight="duotone" className="text-[var(--color-brand)]" />
-              </span>
+              <div className="w-9 h-9 rounded-xl bg-brand-muted flex items-center justify-center shrink-0">
+                <Icon size={18} className="text-brand" />
+              </div>
               <div>
-                <p className="font-semibold text-sm text-[var(--color-text-primary)]">{title}</p>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{desc}</p>
+                <p className="font-semibold text-sm text-text-primary">{title}</p>
+                <p className="text-xs text-text-secondary mt-0.5">{desc}</p>
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* CTA final */}
-      <section className="py-16 bg-[var(--color-brand)]">
-        <div className="max-w-4xl mx-auto px-6 flex flex-col sm:flex-row items-center gap-8">
-          {/* 5 min badge */}
-          <div className="shrink-0 w-24 h-24 rounded-full border-4 border-white/40 flex flex-col items-center justify-center text-white">
+      {/* CTA final — forhers profesionales section style */}
+      <section className="py-20 px-6 bg-gradient-to-br from-brand to-brand-hover">
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center gap-8">
+          <div className="shrink-0 w-24 h-24 rounded-full border-4 border-white/30 bg-white/10 flex flex-col items-center justify-center text-white">
             <span className="text-2xl font-bold leading-none">5</span>
-            <span className="text-xs font-medium uppercase tracking-wider">min</span>
+            <span className="text-xs font-medium uppercase tracking-wider text-white/70">min</span>
           </div>
           <div className="text-center sm:text-left">
-            <p className="text-xs font-semibold text-white/70 uppercase tracking-widest mb-2">Atención inmediata</p>
-            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
+            <p className="text-xs font-semibold text-white/60 uppercase tracking-widest mb-3">Atención inmediata</p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-5">
               Una respuesta médica puede estar a menos de 5 minutos
             </h2>
             <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
-              <Link to="/registro" className="bg-white text-[var(--color-brand)] font-semibold rounded-full px-7 py-3 text-sm hover:bg-neutral-50 transition-colors">
-                Hablar con un pediatra
+              <Link to="/registro" className="bg-white text-brand font-semibold rounded-xl px-7 py-3 text-sm hover:bg-gray-50 transition-colors inline-flex items-center gap-2">
+                Hablar con un pediatra <ArrowRight size={14} />
               </Link>
-              <p className="flex items-center gap-2 text-sm text-white/80 self-center">
-                <span>Accedé desde tu celular, sin guardias ni trámites.</span>
-              </p>
+              <Link to="/login" className="border border-white/30 text-white font-semibold rounded-xl px-7 py-3 text-sm hover:bg-white/10 transition-colors">
+                Ya tengo cuenta
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-[var(--color-text-primary)] py-8">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <CompanyLogo className="h-5 invert opacity-80" />
-          <div className="flex gap-6 text-sm text-white/50">
-            <Link to="/terminos" className="hover:text-white/80 transition-colors">Términos y condiciones</Link>
-            <Link to="/login" className="hover:text-white/80 transition-colors">Iniciar sesión</Link>
-            <Link to="/registro?tipo=profesional" className="hover:text-white/80 transition-colors">¿Sos profesional?</Link>
+      <footer className="bg-midnight py-8 px-6">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <CompanyLogo size="sm" inverted />
+          <div className="flex gap-6 text-sm text-gray-500">
+            <Link to="/terminos" className="hover:text-white transition-colors">Términos y condiciones</Link>
+            <Link to="/login" className="hover:text-white transition-colors">Iniciar sesión</Link>
+            <Link to="/registro?tipo=profesional" className="hover:text-white transition-colors">¿Sos profesional?</Link>
           </div>
-          <p className="text-xs text-white/30">© 2026 Healthier · Buenos Aires</p>
+          <p className="text-xs text-gray-700">© 2026 Healthier · Buenos Aires</p>
         </div>
       </footer>
 
