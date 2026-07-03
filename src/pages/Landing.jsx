@@ -7,6 +7,7 @@ import {
   CheckCircle, Users, CurrencyDollar, DeviceMobile,
 } from '@phosphor-icons/react'
 import { CompanyLogo } from '../components/common/CompanyLogo'
+import { LandingFooter } from '../components/landing/LandingFooter'
 import { captureUtms } from '../lib/utms'
 
 const SPECIALTIES = [
@@ -104,7 +105,7 @@ export default function Landing() {
       {/* ── Hero: big headline + bento grid (forhers home) ── */}
       <section className="pt-10 pb-6 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-text-primary tracking-tight leading-[1.02] mb-10">
+          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-light text-text-primary tracking-tight leading-[1.02] mb-10">
             El cuidado que<br />siempre mereciste
           </h1>
 
@@ -153,7 +154,7 @@ export default function Landing() {
                 className="flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-br from-bg-primary to-brand/10 border border-black/5 p-5 group"
               >
                 <span className="text-text-primary text-sm sm:text-base">
-                  {c.pre} <span className="font-bold">{c.bold}</span>
+                  {c.pre} <span className="font-light">{c.bold}</span>
                 </span>
                 <span className="flex items-center gap-2 shrink-0">
                   <span className="w-12 h-12 rounded-xl overflow-hidden img-grain hidden sm:block">
@@ -168,7 +169,7 @@ export default function Landing() {
               className="flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-br from-bg-primary to-brand/10 border border-black/5 p-5 group"
             >
               <span className="text-text-primary text-sm sm:text-base">
-                ¿No sabés por dónde empezar?<br /><span className="font-bold">Empezá acá</span>
+                ¿No sabés por dónde empezar?<br /><span className="font-light">Empezá acá</span>
               </span>
               <span className="flex items-center gap-2 shrink-0">
                 <span className="w-12 h-12 rounded-xl overflow-hidden img-grain hidden sm:block">
@@ -188,7 +189,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-end justify-between mb-8">
             <div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-text-primary mb-2">Especialidades disponibles</h2>
+              <h2 className="text-2xl sm:text-3xl font-light text-text-primary mb-2">Especialidades disponibles</h2>
               <p className="text-text-secondary">Médicos, psicólogos, nutricionistas y más</p>
             </div>
             <Link to="/registro" className="hidden sm:inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:text-brand-hover transition-colors">
@@ -217,7 +218,7 @@ export default function Landing() {
         <div className="absolute inset-0 bg-[linear-gradient(115deg,#26331F_0%,#26331F_28%,#D9E6BC_52%,#26331F_78%,#26331F_100%)] opacity-90" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(38,51,31,0.55)_100%)]" />
         <div className="relative max-w-4xl mx-auto text-center">
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight mb-6">
+          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-light leading-tight mb-6">
             <span className="text-white drop-shadow-md">Tu historia clínica</span><br />
             <span className="text-[#C9E489] drop-shadow-md">digital ya está acá</span>
           </h2>
@@ -243,7 +244,7 @@ export default function Landing() {
             className="absolute inset-0 w-full h-full object-cover"
           />
           <div className="relative z-[2] pt-24 px-4 text-center">
-            <h2 className="text-4xl sm:text-5xl font-bold text-white drop-shadow-lg leading-tight mb-10">
+            <h2 className="text-4xl sm:text-5xl font-light text-white drop-shadow-lg leading-tight mb-10">
               Tu médico,<br />sin salir de casa
             </h2>
             <div className="flex flex-wrap gap-3 justify-center">
@@ -292,12 +293,12 @@ export default function Landing() {
         {/* Solid continuation — same hue as the glass tint */}
         <div className="bg-[#5F7A6D] pt-40 pb-24 px-4 sm:px-6">
           <div className="max-w-6xl mx-auto">
-            <h2 className="text-3xl font-bold text-white mb-3">¿Cómo funciona?</h2>
+            <h2 className="text-3xl font-light text-white mb-3">¿Cómo funciona?</h2>
             <p className="text-white/70 mb-12">Tres pasos para cuidar tu salud</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
               {STEPS.map(step => (
                 <div key={step.num}>
-                  <div className="text-6xl font-bold text-white/10 mb-4 leading-none select-none">{step.num}</div>
+                  <div className="text-6xl font-light text-white/10 mb-4 leading-none select-none">{step.num}</div>
                   <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mb-4">
                     <step.icon className="h-7 w-7 text-[#C9E489]" />
                   </div>
@@ -310,31 +311,33 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── Para profesionales ── */}
-      <section className="py-24 px-4 sm:px-6 bg-gradient-to-br from-brand to-brand-hover">
-        <div className="max-w-5xl mx-auto">
+      {/* ── Para profesionales — dark olive with light beam, lime accents ── */}
+      <section className="relative overflow-hidden py-28 px-4 sm:px-6 bg-[#26331F]">
+        <div className="absolute inset-0 bg-[linear-gradient(115deg,transparent_25%,rgba(217,230,188,0.32)_55%,transparent_80%)]" />
+        <div className="relative max-w-6xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
-              <span className="text-sm font-semibold text-white/60 uppercase tracking-widest mb-4 block">Para profesionales</span>
-              <h2 className="text-3xl sm:text-4xl font-bold text-white mb-5 leading-tight">
-                Hacé crecer tu práctica con Healthier
+              <span className="text-sm text-[#C9E489] uppercase tracking-widest mb-5 block">Para profesionales</span>
+              <h2 className="text-4xl sm:text-5xl font-light text-white mb-6 leading-tight">
+                Hacé crecer tu práctica<br />
+                <span className="text-[#C9E489]">con Healthier</span>
               </h2>
               <p className="text-white/75 mb-5 leading-relaxed">
                 Gestioná tu agenda, ofrecé consultas inmediatas y construí tu reputación online. Con historia clínica integrada, recetas digitales y pagos automáticos.
               </p>
-              <p className="text-white/55 mb-8 leading-relaxed text-sm">
+              <p className="text-white/50 mb-9 leading-relaxed text-sm">
                 Más de 500 profesionales ya atienden en Healthier. Tu matrícula se verifica antes de publicar tu perfil.
               </p>
               <Link
                 to="/registro?tipo=profesional"
-                className="bg-white text-brand font-semibold px-7 py-3 rounded-full hover:bg-gray-50 transition-colors inline-flex items-center gap-2"
+                className="bg-white text-[#26331F] font-semibold px-8 py-3.5 rounded-full hover:bg-gray-100 transition-colors inline-flex items-center gap-2 text-sm"
               >
                 Sumá tu práctica
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
 
-            <div className="rounded-3xl overflow-hidden border border-white/20">
+            <div className="rounded-3xl overflow-hidden border border-white/15">
               <div className="img-grain">
                 <img
                   src="/images/landing/pro-doctor.jpg"
@@ -343,14 +346,14 @@ export default function Landing() {
                   className="w-full h-56 object-cover object-top"
                 />
               </div>
-              <div className="bg-white/10 backdrop-blur-sm p-6 space-y-3.5">
+              <div className="bg-white/5 backdrop-blur-xl p-6 space-y-3.5 border-t border-white/10">
                 {PRO_BENEFITS.map(b => (
                   <div key={b.text} className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center shrink-0">
-                      <b.icon className="h-4 w-4 text-white" />
+                    <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
+                      <b.icon className="h-4 w-4 text-[#C9E489]" />
                     </div>
-                    <span className="text-sm text-white/90 flex-1">{b.text}</span>
-                    <CheckCircle className="h-4 w-4 text-white/40 shrink-0" weight="fill" />
+                    <span className="text-sm text-white/85 flex-1">{b.text}</span>
+                    <CheckCircle className="h-4 w-4 text-[#C9E489]/60 shrink-0" weight="fill" />
                   </div>
                 ))}
               </div>
@@ -365,7 +368,7 @@ export default function Landing() {
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-5">
             Empezá hoy · Es gratis
           </span>
-          <h2 className="text-3xl sm:text-4xl font-bold text-text-primary mb-4">
+          <h2 className="text-3xl sm:text-4xl font-light text-text-primary mb-4">
             Tu salud, cuando la necesitás
           </h2>
           <p className="text-text-secondary text-lg mb-10 max-w-xl mx-auto leading-relaxed">
@@ -390,23 +393,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── Footer ── */}
-      <footer className="bg-midnight text-gray-400 py-10 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-8">
-            <CompanyLogo size="sm" inverted />
-            <div className="flex flex-wrap gap-6 text-sm">
-              <Link to="/terminos" className="hover:text-white transition-colors">Términos y condiciones</Link>
-              <Link to="/login" className="hover:text-white transition-colors">Iniciar sesión</Link>
-              <Link to="/registro?tipo=profesional" className="hover:text-white transition-colors">Profesionales</Link>
-            </div>
-          </div>
-          <div className="border-t border-gray-800 pt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-            <p>© {new Date().getFullYear()} Healthier. Todos los derechos reservados. Buenos Aires, Argentina.</p>
-            <p className="text-gray-600">Ley 26.529 · Ley 27.553 · Ley 25.326</p>
-          </div>
-        </div>
-      </footer>
+      <LandingFooter />
 
     </div>
   )

@@ -7,6 +7,7 @@ import {
   Users, Car, Cards,
 } from '@phosphor-icons/react'
 import { CompanyLogo } from '../../components/common/CompanyLogo'
+import { LandingFooter } from '../../components/landing/LandingFooter'
 import { captureUtms } from '../../lib/utms'
 
 const SYMPTOMS = [
@@ -67,7 +68,7 @@ export default function LandingPediatria() {
                 <span className="inline-block w-8 h-px bg-brand" />
                 Pediatría online 24/7
               </p>
-              <h1 className="text-4xl sm:text-5xl font-bold leading-tight text-text-primary mb-6">
+              <h1 className="text-4xl sm:text-5xl font-light leading-tight text-text-primary mb-6">
                 Cuando tu bebé tiene fiebre a las&nbsp;2&nbsp;AM
               </h1>
               <p className="text-lg text-text-secondary mb-8 leading-relaxed">
@@ -100,11 +101,13 @@ export default function LandingPediatria() {
             <div className="relative">
               <div className="absolute -inset-4 bg-brand/6 rounded-[2rem]" />
               <div className="relative bg-gradient-to-b from-brand/15 to-brand/35 rounded-3xl overflow-hidden border border-brand/20">
-                <img
-                  src="/images/landing/pediatria-hero.jpg"
-                  alt="Mamá con su bebé en casa"
-                  className="w-full h-48 object-cover"
-                />
+                <div className="img-grain">
+                  <img
+                    src="/images/landing/pediatria-hero.jpg"
+                    alt="Mamá con su bebé en casa"
+                    className="w-full h-48 object-cover"
+                  />
+                </div>
                 <div className="bg-white/90 backdrop-blur-sm px-6 py-4 border-b border-border-default/30">
                   <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest">Consultas más frecuentes</p>
                 </div>
@@ -135,7 +138,7 @@ export default function LandingPediatria() {
             <ul className="space-y-4">
               {PAINS.map((pain, i) => (
                 <li key={pain} className="flex items-start gap-4">
-                  <span className="text-xs font-bold text-brand w-5 pt-0.5 shrink-0">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="text-xs font-light text-brand w-5 pt-0.5 shrink-0">{String(i + 1).padStart(2, '0')}</span>
                   <span className="text-text-primary font-medium">{pain}</span>
                 </li>
               ))}
@@ -176,19 +179,20 @@ export default function LandingPediatria() {
       </section>
 
       {/* CTA final — forhers profesionales section style */}
-      <section className="py-20 px-6 bg-gradient-to-br from-brand to-brand-hover">
-        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center gap-8">
+      <section className="relative overflow-hidden py-24 px-6 bg-[#26331F]">
+        <div className="absolute inset-0 bg-[linear-gradient(115deg,transparent_25%,rgba(217,230,188,0.32)_55%,transparent_80%)]" />
+        <div className="relative max-w-4xl mx-auto flex flex-col sm:flex-row items-center gap-8">
           <div className="shrink-0 w-24 h-24 rounded-full border-4 border-white/30 bg-white/10 flex flex-col items-center justify-center text-white">
-            <span className="text-2xl font-bold leading-none">5</span>
+            <span className="text-2xl font-light leading-none">5</span>
             <span className="text-xs font-medium uppercase tracking-wider text-white/70">min</span>
           </div>
           <div className="text-center sm:text-left">
             <p className="text-xs font-semibold text-white/60 uppercase tracking-widest mb-3">Atención inmediata</p>
-            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-5">
+            <h2 className="text-2xl sm:text-3xl font-light text-white mb-5">
               Una respuesta médica puede estar a menos de 5 minutos
             </h2>
             <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
-              <Link to="/registro" className="bg-white text-brand font-semibold rounded-xl px-7 py-3 text-sm hover:bg-gray-50 transition-colors inline-flex items-center gap-2">
+              <Link to="/registro" className="bg-white text-[#26331F] font-semibold rounded-xl px-7 py-3 text-sm hover:bg-gray-50 transition-colors inline-flex items-center gap-2">
                 Hablar con un pediatra <ArrowRight size={14} />
               </Link>
               <Link to="/login" className="border border-white/30 text-white font-semibold rounded-xl px-7 py-3 text-sm hover:bg-white/10 transition-colors">
@@ -199,18 +203,7 @@ export default function LandingPediatria() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-midnight py-8 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <CompanyLogo size="sm" inverted />
-          <div className="flex gap-6 text-sm text-gray-500">
-            <Link to="/terminos" className="hover:text-white transition-colors">Términos y condiciones</Link>
-            <Link to="/login" className="hover:text-white transition-colors">Iniciar sesión</Link>
-            <Link to="/registro?tipo=profesional" className="hover:text-white transition-colors">¿Sos profesional?</Link>
-          </div>
-          <p className="text-xs text-gray-700">© 2026 Healthier · Buenos Aires</p>
-        </div>
-      </footer>
+      <LandingFooter />
 
     </div>
   )
