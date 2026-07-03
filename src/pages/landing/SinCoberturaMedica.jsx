@@ -31,7 +31,7 @@ const STEPS = [
   { n: '04', icon: FileText,        title: 'Recibís tu receta',  desc: 'Receta digital y resumen en tu historial al instante.' },
 ]
 
-export default function LandingSinObraSocial() {
+export default function LandingSinCoberturaMedica() {
   useEffect(() => { captureUtms() }, [])
 
   return (
@@ -54,7 +54,7 @@ export default function LandingSinObraSocial() {
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
             <div>
               <h1 className="text-4xl sm:text-5xl font-light leading-tight text-text-primary mb-6">
-                Sin obra social no debería significar sin atención médica.
+                Sin cobertura médica no debería significar sin atención médica.
               </h1>
               <p className="text-lg text-text-secondary mb-8 leading-relaxed">
                 Médicos verificados. Precios claros.<br />

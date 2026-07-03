@@ -65,10 +65,10 @@ export default function LandingMedicoOnline() {
             <div>
               <p className="text-xs font-semibold tracking-widest text-brand uppercase mb-5 flex items-center gap-2">
                 <span className="inline-block w-8 h-px bg-brand" />
-                Médico online sin obra social
+                Médico online sin cobertura médica
               </p>
               <h1 className="text-4xl sm:text-5xl font-light leading-tight text-text-primary mb-6">
-                Sin obra social no debería significar sin atención médica
+                Sin cobertura médica no debería significar sin atención médica
               </h1>
               <p className="text-lg text-text-secondary mb-8 leading-relaxed">
                 Elegí médico. Mirá el precio. Reservá en minutos.<br />

@@ -38,7 +38,7 @@ const FEATURES = [
 const SINS = [
   { icon: Users, title: 'Sin salas de espera', desc: 'Consultá desde tu casa, sin filas ni esperas.' },
   { icon: Car,   title: 'Sin traslados',        desc: 'Evitá viajes y traslados innecesarios.' },
-  { icon: Cards, title: 'Sin obra social',      desc: 'Accedé sin obra social o prepaga.' },
+  { icon: Cards, title: 'Sin cobertura médica', desc: 'Accedé sin cobertura médica o prepaga.' },
   { icon: ClipboardText, title: 'Sin autorizaciones', desc: 'Sin trámites ni autorizaciones previas.' },
 ]
 
