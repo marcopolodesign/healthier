@@ -54,6 +54,17 @@ set -a; source ~/Local/.env; set +a
 python3 scripts/gen-landing-image.py public/images/landing/out.jpg "prompt"
 ```
 
+## Anti-look-IA (obligatorio)
+
+Las imágenes generadas "limpias" se ven artificiales. Dos capas para que lean como reales:
+
+1. **Prompt**: agregar siempre a fotos lifestyle/full-bleed: *"Shot on 35mm analog film,
+   Kodak Portra 400, visible natural film grain, slightly soft focus, authentic
+   documentary feel, imperfect natural lighting, NOT digital, NOT retouched."*
+2. **CSS**: aplicar la utility `img-grain` (definida en `src/index.css`) al contenedor
+   posicionado del `<img>` — overlay de ruido SVG `feTurbulence` con `mix-blend-mode:
+   overlay` a 45%. Se aplica a TODAS las imágenes de landing.
+
 ## Quality gate (rúbrica Awwwards)
 
 Antes de deployar, evaluar la página con: Design 40% · Usability 30% · Creativity 20% ·
