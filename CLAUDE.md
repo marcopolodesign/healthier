@@ -122,6 +122,8 @@ Key principles to follow:
 
 > **Typography invariant:** The ONLY font in this project is **TWK Everett** — GT Super Display has been removed. `font-serif` and `font-sans` both resolve to Everett via `--font-serif` / `--font-sans` tokens in `src/index.css`.
 
+> **Weight invariant:** NEVER use Everett Bold (`font-bold` / 700). Display headlines use **Everett Light** (`font-light`); everything else uses **Regular** (`font-normal` through `font-semibold` all render the Regular file — its @font-face covers 400–600). Mateo's explicit rule (2026-07-03).
+
 > **No inline styles — ever.** Never use `style={{ ... }}` on any element. All styling must go through Tailwind utility classes or `@utility` / `@layer` blocks in `src/index.css`. Inline styles fight the design system, bypass the theme tokens, and are impossible to audit. If a value isn't in the theme, add it as a token first.
 
 ---
