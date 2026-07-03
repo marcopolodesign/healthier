@@ -59,7 +59,7 @@ export default function LandingMedicoOnline() {
       </nav>
 
       {/* Hero */}
-      <section className="pt-28 pb-20 px-6">
+      <section className="pt-28 pb-20 px-6 rounded-t-3xl">
         <div className="max-w-6xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
             <div>
@@ -135,7 +135,7 @@ export default function LandingMedicoOnline() {
       </section>
 
       {/* Pain + Features */}
-      <section className="py-20 px-6 bg-white">
+      <section className="py-20 px-6 bg-white rounded-t-3xl">
         <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-16">
           <div>
             <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-3">Sabemos lo que pasa</p>
@@ -166,7 +166,7 @@ export default function LandingMedicoOnline() {
       </section>
 
       {/* Sin row */}
-      <section className="py-14 px-6 bg-bg-primary border-t border-border-default">
+      <section className="py-14 px-6 bg-bg-primary border-t border-border-default rounded-t-3xl">
         <div className="max-w-6xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-6 text-center">
           {SINS.map(({ title, desc }) => (
             <div key={title} className="bg-white rounded-2xl border border-border-default p-4">
@@ -178,7 +178,7 @@ export default function LandingMedicoOnline() {
       </section>
 
       {/* CTA final */}
-      <section className="relative overflow-hidden py-24 px-6 bg-[#26331F]">
+      <section className="relative overflow-hidden py-24 px-6 bg-[#26331F] rounded-t-3xl">
         <div className="absolute inset-0 bg-[linear-gradient(115deg,transparent_25%,rgba(217,230,188,0.32)_55%,transparent_80%)]" />
         <div className="relative max-w-4xl mx-auto flex flex-col sm:flex-row items-center gap-8">
           <div className="shrink-0 w-24 h-24 rounded-full border-4 border-white/30 bg-white/10 flex flex-col items-center justify-center text-white">

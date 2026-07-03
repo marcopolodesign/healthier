@@ -103,7 +103,7 @@ export default function Landing() {
       </nav>
 
       {/* ── Hero: big headline + bento grid (forhers home) ── */}
-      <section className="pt-10 pb-6 px-4 sm:px-6">
+      <section className="pt-10 pb-6 px-4 sm:px-6 rounded-t-3xl">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-light text-text-primary tracking-tight leading-[1.02] mb-10">
             El cuidado que<br />siempre mereciste
@@ -185,7 +185,7 @@ export default function Landing() {
       </section>
 
       {/* ── Especialidades — photo category grid ── */}
-      <section className="py-16 px-4 sm:px-6 bg-white">
+      <section className="py-16 px-4 sm:px-6 bg-white rounded-t-3xl">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-end justify-between mb-8">
             <div>
@@ -214,7 +214,7 @@ export default function Landing() {
       </section>
 
       {/* ── Breakthrough — full-bleed dark gradient with light beam (forhers) ── */}
-      <section className="relative overflow-hidden bg-[#26331F] py-32 sm:py-44 px-4">
+      <section className="relative overflow-hidden bg-[#26331F] py-32 sm:py-44 px-4 rounded-t-3xl">
         <div className="absolute inset-0 bg-[linear-gradient(115deg,#26331F_0%,#26331F_28%,#D9E6BC_52%,#26331F_78%,#26331F_100%)] opacity-90" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(38,51,31,0.55)_100%)]" />
         <div className="relative max-w-4xl mx-auto text-center">
@@ -235,7 +235,7 @@ export default function Landing() {
       </section>
 
       {/* ── Full-screen photo + blur transition to solid (forhers hair page) ── */}
-      <section className="relative">
+      <section className="relative rounded-t-3xl">
         {/* Photo zone */}
         <div className="relative min-h-[95vh] flex flex-col img-grain">
           <img
@@ -312,7 +312,7 @@ export default function Landing() {
       </section>
 
       {/* ── Para profesionales — dark olive with light beam, lime accents ── */}
-      <section className="relative overflow-hidden py-28 px-4 sm:px-6 bg-[#26331F]">
+      <section className="relative overflow-hidden py-28 px-4 sm:px-6 bg-[#26331F] rounded-t-3xl">
         <div className="absolute inset-0 bg-[linear-gradient(115deg,transparent_25%,rgba(217,230,188,0.32)_55%,transparent_80%)]" />
         <div className="relative max-w-6xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -363,7 +363,7 @@ export default function Landing() {
       </section>
 
       {/* ── CTA final ── */}
-      <section className="py-20 px-4 bg-bg-primary">
+      <section className="py-20 px-4 bg-bg-primary rounded-t-3xl">
         <div className="max-w-3xl mx-auto text-center">
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-5">
             Empezá hoy · Es gratis

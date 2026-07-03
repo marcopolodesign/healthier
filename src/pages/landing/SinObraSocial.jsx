@@ -49,7 +49,7 @@ export default function LandingSinObraSocial() {
       </nav>
 
       {/* Hero */}
-      <section className="pt-28 pb-20 px-6">
+      <section className="pt-28 pb-20 px-6 rounded-t-3xl">
         <div className="max-w-6xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
             <div>
@@ -100,7 +100,7 @@ export default function LandingSinObraSocial() {
       </section>
 
       {/* Pain + Features */}
-      <section className="py-20 px-6 bg-white">
+      <section className="py-20 px-6 bg-white rounded-t-3xl">
         <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-16">
           <div>
             <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-3">Sabemos lo que vivís</p>
@@ -147,7 +147,7 @@ export default function LandingSinObraSocial() {
       </section>
 
       {/* How it works */}
-      <section id="como-funciona" className="py-20 px-6 bg-bg-primary">
+      <section id="como-funciona" className="py-20 px-6 bg-bg-primary rounded-t-3xl">
         <div className="max-w-6xl mx-auto">
           <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase text-center mb-3">¿Cómo funciona?</p>
           <h2 className="text-3xl font-light text-text-primary text-center mb-14">En 4 pasos, sin complicaciones.</h2>
@@ -167,7 +167,7 @@ export default function LandingSinObraSocial() {
       </section>
 
       {/* CTA final */}
-      <section className="relative overflow-hidden py-24 px-6 bg-[#26331F]">
+      <section className="relative overflow-hidden py-24 px-6 bg-[#26331F] rounded-t-3xl">
         <div className="absolute inset-0 bg-[linear-gradient(115deg,transparent_25%,rgba(217,230,188,0.32)_55%,transparent_80%)]" />
         <div className="relative max-w-4xl mx-auto text-center">
           <p className="text-xs font-semibold text-white/60 uppercase tracking-widest mb-4">Tu próxima consulta</p>
