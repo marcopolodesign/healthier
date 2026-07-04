@@ -129,9 +129,12 @@ export default function AdminProfessionals() {
                 )}
 
                 {[
-                  { label: 'Título profesional', url: selected.titleDocumentUrl },
-                  { label: 'Matrícula',           url: selected.licenseDocumentUrl },
-                  { label: 'DNI',                 url: selected.dniDocumentUrl },
+                  { label: 'Título profesional',        url: selected.titleDocumentUrl },
+                  { label: 'Matrícula',                  url: selected.licenseDocumentUrl },
+                  { label: 'DNI',                        url: selected.dniDocumentUrl },
+                  { label: 'Seguro de mala praxis',      url: selected.malpracticeInsuranceDocumentUrl },
+                  { label: 'Certificado de especialista', url: selected.specialistCertificateDocumentUrl },
+                  { label: 'CUIT / Monotributo',         url: selected.cuitDocumentUrl },
                 ].map(doc => (
                   doc.url && (
                     <div key={doc.label}>

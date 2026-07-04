@@ -27,13 +27,16 @@ export default function Onboarding({ profile }) {
   const [form, setForm] = useState({
     specialty: '', subSpecialty: '', bio: '', sessionPrice: '',
     address: '', latitude: null, longitude: null,
-    licenseType: 'MN', licenseNumber: '',
+    licenseType: 'MN', licenseNumber: '', cuitNumber: '',
   })
-  const [avatarFile, setAvatarFile]   = useState(null)
+  const [avatarFile, setAvatarFile]     = useState(null)
   const [avatarPreview, setAvatarPreview] = useState(null)
-  const [titleFile, setTitleFile]     = useState(null)
-  const [licenseFile, setLicenseFile] = useState(null)
-  const [dniFile, setDniFile]         = useState(null)
+  const [titleFile, setTitleFile]       = useState(null)
+  const [licenseFile, setLicenseFile]   = useState(null)
+  const [dniFile, setDniFile]           = useState(null)
+  const [malpracticeFile, setMalpracticeFile]         = useState(null)
+  const [specialistCertFile, setSpecialistCertFile]   = useState(null)
+  const [cuitFile, setCuitFile]                       = useState(null)
 
   useEffect(() => {
     if (!isResubmit || !profile?.id) return
@@ -49,6 +52,7 @@ export default function Onboarding({ profile }) {
         longitude:     p.longitude     || null,
         licenseType:   p.licenseType   || 'MN',
         licenseNumber: p.licenseNumber || '',
+        cuitNumber:    p.cuitNumber    || '',
       })
     })
   }, [isResubmit, profile?.id])
@@ -77,12 +81,20 @@ export default function Onboarding({ profile }) {
       if (licenseFile) licenseUrl = await professionalService.uploadDocument(profile.id, licenseFile, 'professional-docs', 'matricula')
       if (dniFile)     dniUrl     = await professionalService.uploadDocument(profile.id, dniFile,     'professional-docs', 'dni')
 
+      let malpracticeUrl = '', specialistCertUrl = '', cuitUrl = ''
+      if (malpracticeFile)     malpracticeUrl     = await professionalService.uploadDocument(profile.id, malpracticeFile,     'professional-docs', 'seguro_mala_praxis')
+      if (specialistCertFile)  specialistCertUrl  = await professionalService.uploadDocument(profile.id, specialistCertFile,  'professional-docs', 'certificado_especialista')
+      if (cuitFile)             cuitUrl            = await professionalService.uploadDocument(profile.id, cuitFile,           'professional-docs', 'cuit')
+
       const payload = {
         ...form,
         sessionPrice:       form.sessionPrice ? Number(form.sessionPrice) : null,
         titleDocumentUrl:   titleUrl   || undefined,
         licenseDocumentUrl: licenseUrl || undefined,
         dniDocumentUrl:     dniUrl     || undefined,
+        malpracticeInsuranceDocumentUrl:  malpracticeUrl    || undefined,
+        specialistCertificateDocumentUrl: specialistCertUrl || undefined,
+        cuitDocumentUrl:                  cuitUrl           || undefined,
         license_type:       form.licenseType,
         license_number:     form.licenseNumber,
         isVerified:         false,
@@ -303,6 +315,40 @@ export default function Onboarding({ profile }) {
                   label={dniFile ? dniFile.name : 'Subir DNI (PDF o imagen)'}
                 />
               </div>
+              <div>
+                <label className="form-label">Seguro de mala praxis <span className="text-text-tertiary text-xs">(recomendado)</span></label>
+                <FileUpload
+                  onFile={setMalpracticeFile}
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  label={malpracticeFile ? malpracticeFile.name : 'Subir póliza de responsabilidad civil profesional'}
+                />
+              </div>
+              {form.subSpecialty && (
+                <div>
+                  <label className="form-label">Certificado de especialista <span className="text-text-tertiary text-xs">(requerido si declarás sub-especialidad)</span></label>
+                  <FileUpload
+                    onFile={setSpecialistCertFile}
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    label={specialistCertFile ? specialistCertFile.name : `Subir certificado de especialista en ${form.subSpecialty}`}
+                  />
+                  <p className="text-xs text-text-tertiary mt-1">La matrícula acredita el título general — para ejercer como especialista se requiere el certificado emitido por el Ministerio de Salud o el colegio profesional correspondiente.</p>
+                </div>
+              )}
+              <div>
+                <label className="form-label">CUIT / Monotributo <span className="text-text-tertiary text-xs">(para facturación)</span></label>
+                <input
+                  type="text"
+                  value={form.cuitNumber}
+                  onChange={e => setForm(p => ({ ...p, cuitNumber: e.target.value }))}
+                  className="form-input mb-2"
+                  placeholder="Ej: 20-12345678-9"
+                />
+                <FileUpload
+                  onFile={setCuitFile}
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  label={cuitFile ? cuitFile.name : 'Subir constancia de CUIT/Monotributo (AFIP)'}
+                />
+              </div>
             </>
           )}
 
@@ -321,6 +367,9 @@ export default function Onboarding({ profile }) {
                   ['Título',           titleFile   ? titleFile.name   : '—'],
                   ['Doc. matrícula',   licenseFile ? licenseFile.name : '—'],
                   ['DNI',              dniFile     ? dniFile.name     : '—'],
+                  ['Seguro mala praxis', malpracticeFile ? malpracticeFile.name : '—'],
+                  ...(form.subSpecialty ? [['Cert. especialista', specialistCertFile ? specialistCertFile.name : '—']] : []),
+                  ['CUIT/Monotributo', form.cuitNumber || cuitFile ? [form.cuitNumber, cuitFile?.name].filter(Boolean).join(' — ') : '—'],
                 ].map(([label, value]) => (
                   <div key={label} className="flex items-start gap-3 px-4 py-2.5">
                     <span className="font-medium text-text-primary w-36 shrink-0">{label}</span>

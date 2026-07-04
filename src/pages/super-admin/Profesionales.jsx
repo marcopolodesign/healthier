@@ -346,6 +346,9 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
                     { label: 'Título', url: d?.title_document_url },
                     { label: 'Matrícula', url: d?.license_document_url },
                     { label: 'DNI', url: d?.dni_document_url },
+                    { label: 'Seguro de mala praxis', url: d?.malpractice_insurance_document_url },
+                    { label: 'Certificado de especialista', url: d?.specialist_certificate_document_url },
+                    { label: 'CUIT / Monotributo', url: d?.cuit_document_url },
                   ].map(({ label, url }) => (
                     <div key={label} className="flex items-center justify-between text-sm">
                       <span className="text-gray-600">{label}</span>
