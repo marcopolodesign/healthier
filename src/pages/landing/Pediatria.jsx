@@ -49,7 +49,7 @@ export default function LandingPediatria() {
     <div className="min-h-screen bg-bg-primary">
 
       {/* Navbar */}
-      <nav className="fixed top-0 inset-x-0 z-50 bg-bg-primary/95 backdrop-blur border-b border-border-default">
+      <nav className="fixed top-0 inset-x-0 z-50 bg-bg-primary/95 backdrop-blur border-b border-border-default rounded-b-3xl">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link to="/"><CompanyLogo size="sm" /></Link>
           <div className="flex items-center gap-3">

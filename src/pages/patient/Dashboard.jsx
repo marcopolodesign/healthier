@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
+import PatientBottomNav from '../../components/patient/PatientBottomNav'
 import {
   MapPin, Clock, CaretRight, Star, VideoCamera,
   Heartbeat, Plus, Siren, Pulse,
@@ -394,6 +395,11 @@ export default function PatientDashboard({ profile }) {
             {healthSnapshotLink}
             {specialtyGrid}
             <div className="flex flex-col gap-3">{sosButton}</div>
+          </div>
+
+          {/* Panel footer — fixed nav, part of the floating container */}
+          <div className="flex-shrink-0 px-5 py-3 border-t border-gray-100/80 bg-white/90">
+            <PatientBottomNav />
           </div>
 
         </div>
