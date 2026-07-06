@@ -12,7 +12,7 @@ import { Bell, X } from '@phosphor-icons/react'
 
 const HIDE_PROF_NAV_PREFIXES = ['/profesional/videollamada', '/profesional/consulta']
 
-export default function AppLayout({ profile, profSpecialty, onOpenSidecart }) {
+export default function AppLayout({ profile, profSpecialty }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [companionOpen, setCompanionOpen] = useState(false)
   const [showPushBanner, setShowPushBanner] = useState(false)
@@ -81,7 +81,6 @@ export default function AppLayout({ profile, profSpecialty, onOpenSidecart }) {
         profSpecialty={profSpecialty}
         mobileOpen={mobileOpen}
         onClose={() => setMobileOpen(false)}
-        onLogoClick={onOpenSidecart}
         companionOpen={companionOpen}
         onOpenCompanion={() => setCompanionOpen(true)}
       />
@@ -94,7 +93,7 @@ export default function AppLayout({ profile, profSpecialty, onOpenSidecart }) {
         {/* CONTENT PANEL: card on desktop, full-bleed on mobile */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden lg:rounded-2xl lg:bg-bg-surface lg:border lg:border-border-default lg:shadow-[4px_4px_32px_rgba(0,0,0,0.10)]">
           {!isProfessional && (
-            <Header profile={profile} onMenuToggle={() => setMobileOpen(true)} onLogoClick={onOpenSidecart} />
+            <Header profile={profile} onMenuToggle={() => setMobileOpen(true)} />
           )}
 
           {/* Push opt-in banner for professionals */}

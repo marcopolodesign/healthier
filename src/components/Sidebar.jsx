@@ -43,7 +43,7 @@ const NAV_BY_ROLE = {
   ],
 }
 
-export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onClose, onLogoClick, companionOpen, onOpenCompanion }) {
+export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onClose, companionOpen, onOpenCompanion }) {
   const navigate = useNavigate()
   const allItems = NAV_BY_ROLE[role] || []
   const items = allItems.filter(item => !item.specialty || item.specialty === profSpecialty)
@@ -68,12 +68,9 @@ export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onCl
         lg:top-3 lg:left-3 lg:bottom-3 lg:h-auto lg:translate-x-0 lg:rounded-2xl lg:overflow-hidden lg:shadow-[4px_4px_32px_rgba(0,0,0,0.10)]
       `}>
         {/* Logo */}
-        <button
-          onClick={onLogoClick}
-          className="flex items-center px-4 py-5 border-b border-border-default w-full hover:bg-bg-surface transition-colors"
-        >
+        <div className="flex items-center px-4 py-5 border-b border-border-default w-full">
           <CompanyLogo size="sm" />
-        </button>
+        </div>
 
         {/* Nav items */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

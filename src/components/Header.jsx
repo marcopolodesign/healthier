@@ -5,7 +5,7 @@ import { authService } from '../services/authService'
 import { toast } from './Toast'
 import { CompanyLogo } from './common/CompanyLogo'
 
-export default function Header({ profile, onMenuToggle, onLogoClick }) {
+export default function Header({ profile, onMenuToggle }) {
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const navigate = useNavigate()
 
@@ -30,9 +30,7 @@ export default function Header({ profile, onMenuToggle, onLogoClick }) {
       </button>
 
       {/* Logo */}
-      <button onClick={onLogoClick} className="hover:opacity-70 transition-opacity">
-        <CompanyLogo size="sm" />
-      </button>
+      <CompanyLogo size="sm" />
 
 
       {/* User menu */}

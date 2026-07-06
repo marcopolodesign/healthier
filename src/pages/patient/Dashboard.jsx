@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
 import {
   MapPin, Clock, CaretRight, Star, VideoCamera,
-  Heartbeat, Calendar, Plus, Siren, Pulse,
+  Heartbeat, Plus, Siren, Pulse,
 } from '@phosphor-icons/react'
 
 const LAST_VERTICAL_KEY = 'healthier_last_vertical'
@@ -256,8 +256,9 @@ export default function PatientDashboard({ profile }) {
     </div>
   )
 
-  // Upcoming consultations section — shown at the top of the dashboard sheet
-  const upcomingSection = (
+  // Upcoming consultations section — shown at the top of the dashboard sheet.
+  // Hidden entirely once loaded if there's nothing pending/confirmed/in_progress.
+  const upcomingSection = (!upcomingLoading && upcomingConsultations.length === 0) ? null : (
     <div className="flex flex-col gap-2">
       {/* Section header with "Reservar" CTA */}
       <div className="flex items-center justify-between">
@@ -275,16 +276,6 @@ export default function PatientDashboard({ profile }) {
 
       {upcomingLoading ? (
         <div className="h-16 bg-bg-primary rounded-[16px] border border-border-default animate-pulse" />
-      ) : upcomingConsultations.length === 0 ? (
-        <div
-          onClick={() => navigate('/paciente/consultas')}
-          className="flex items-center gap-3 px-4 py-3 rounded-[16px] bg-bg-primary border border-dashed border-border-default cursor-pointer hover:border-brand/40 transition-colors group"
-        >
-          <Calendar className="w-5 h-5 text-text-muted group-hover:text-brand transition-colors flex-shrink-0" />
-          <span className="text-[13px] text-text-tertiary font-medium group-hover:text-text-primary transition-colors">
-            Sin turnos próximos — reservá ahora
-          </span>
-        </div>
       ) : (
         upcomingConsultations.map(c => {
           const isVirtual = c.modality === 'video'
@@ -437,8 +428,14 @@ export default function PatientDashboard({ profile }) {
             </div>
           </div>
 
-          {/* Scrollable content */}
-          <div className="px-6 flex-1 overflow-y-auto pb-56 scrollbar-hide bg-bg-secondary mt-2 flex flex-col gap-5">
+          {/* Content — only scrolls internally when fully expanded; otherwise drags the sheet */}
+          <div
+            className={`px-6 flex-1 pb-56 scrollbar-hide bg-bg-secondary mt-2 flex flex-col gap-5 ${sheet.state === 'expanded' ? 'overflow-y-auto' : 'overflow-hidden touch-none'}`}
+            onPointerDown={sheet.state !== 'expanded' ? sheet.onPointerDown : undefined}
+            onPointerMove={sheet.state !== 'expanded' ? sheet.onPointerMove : undefined}
+            onPointerUp={sheet.state !== 'expanded' ? sheet.onPointerUp : undefined}
+            onPointerCancel={sheet.state !== 'expanded' ? sheet.onPointerUp : undefined}
+          >
             {upcomingSection}
             {healthSnapshotLink}
             {specialtyGrid}

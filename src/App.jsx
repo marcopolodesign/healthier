@@ -4,7 +4,6 @@ import { ToastContainer } from './components/Toast'
 import AppLayout from './layouts/AppLayout'
 import AuthLayout from './layouts/AuthLayout'
 import PatientMobileLayout from './layouts/PatientMobileLayout'
-import IndexSidecart from './components/IndexSidecart'
 import { authService } from './services/authService'
 import { supabase } from './lib/supabase'
 import { professionalService } from './services/professionalService'
@@ -102,7 +101,6 @@ export default function App() {
   const [profile, setProfile] = useState(null)
   const [profSpecialty, setProfSpecialty] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [sidecartOpen, setSidecartOpen] = useState(false)
 
   const loadProfSpecialty = async (userId) => {
     try {
@@ -161,15 +159,6 @@ export default function App() {
   return (
     <Router>
       <ToastContainer />
-      <IndexSidecart isOpen={sidecartOpen} onClose={() => setSidecartOpen(false)} />
-      {/* Floating trigger — always visible */}
-      <button
-        onClick={() => setSidecartOpen(true)}
-        title="Índice de pantallas"
-        className="fixed bottom-5 right-5 z-30 w-10 h-10 bg-brand text-white rounded-full shadow-lg flex items-center justify-center hover:bg-brand/90 transition-colors text-xs font-bold"
-      >
-        #
-      </button>
       <Routes>
         {/* Public */}
         <Route path="/" element={<Landing />} />
@@ -238,7 +227,7 @@ export default function App() {
         {/* Professional */}
         <Route element={
           <RequireRole profile={profile} allowed={['professional']}>
-            <AppLayout profile={profile} profSpecialty={profSpecialty} onOpenSidecart={() => setSidecartOpen(true)} />
+            <AppLayout profile={profile} profSpecialty={profSpecialty} />
           </RequireRole>
         }>
           <Route path="/profesional/dashboard" element={<ProfessionalDashboard profile={profile} />} />
@@ -258,7 +247,7 @@ export default function App() {
         {/* Admin */}
         <Route element={
           <RequireRole profile={profile} allowed={['admin', 'super_admin']}>
-            <AppLayout profile={profile} onOpenSidecart={() => setSidecartOpen(true)} />
+            <AppLayout profile={profile} />
           </RequireRole>
         }>
           <Route path="/admin/profesionales" element={<AdminProfessionals />} />
@@ -269,7 +258,7 @@ export default function App() {
         {/* Super Admin */}
         <Route element={
           <RequireRole profile={profile} allowed={['super_admin']}>
-            <AppLayout profile={profile} onOpenSidecart={() => setSidecartOpen(true)} />
+            <AppLayout profile={profile} />
           </RequireRole>
         }>
           <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
