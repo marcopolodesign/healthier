@@ -27,7 +27,7 @@ export default function PatientMobileLayout({ profile }) {
   const isDashboard = pathname.startsWith('/paciente/dashboard')
 
   return (
-    <div className="h-dvh bg-bg-primary relative overflow-hidden">
+    <div className="h-dvh bg-bg-primary relative overflow-hidden overscroll-none">
       {/* Push notification opt-in banner */}
       {showPushBanner && (
         <div className="absolute top-0 left-0 right-0 z-[70] bg-brand text-white flex items-center gap-3 px-4 py-3 shadow-lg">

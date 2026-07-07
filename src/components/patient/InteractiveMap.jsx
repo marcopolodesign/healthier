@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Crosshair } from '@phosphor-icons/react';
 import TopDownAmbulance from './TopDownAmbulance'
 
@@ -15,6 +15,20 @@ export default function InteractiveMap({ appState, sheetState, verticales, marke
   const [startPos, setStartPos] = useState({ x: 0, y: 0 })
   const [ambPos, setAmbPos] = useState({ x: 180, y: -220 })
   const [ambRotation, setAmbRotation] = useState(0)
+  const containerRef = useRef(null)
+
+  // Prevent Safari from hijacking map touches as tab-switch gestures
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const prevent = e => e.preventDefault()
+    el.addEventListener('touchmove', prevent, { passive: false })
+    el.addEventListener('touchstart', prevent, { passive: false })
+    return () => {
+      el.removeEventListener('touchmove', prevent)
+      el.removeEventListener('touchstart', prevent)
+    }
+  }, [])
 
   useEffect(() => {
     let raf
@@ -47,6 +61,7 @@ export default function InteractiveMap({ appState, sheetState, verticales, marke
 
   return (
     <div
+      ref={containerRef}
       className="absolute inset-0 overflow-hidden z-0 touch-none cursor-grab active:cursor-grabbing select-none bg-[#E5E3DF]"
       onPointerDown={onPtrDown} onPointerMove={onPtrMove} onPointerUp={onPtrUp} onPointerCancel={onPtrUp}
     >
