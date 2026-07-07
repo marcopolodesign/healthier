@@ -8,7 +8,7 @@ export const historiaClinicaService = {
     const [encountersRes, entriesRes, conditionsRes, allergiesRes, medicationsRes] = await Promise.all([
       supabase
         .from('clinical_encounters')
-        .select('*, professional:profiles!professional_id(full_name, avatar_url, professional_profiles(specialty))')
+        .select('*, professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty))')
         .eq('patient_id', patientId)
         .in('status', ['in_progress', 'finished'])
         .order('created_at', { ascending: false }),
@@ -57,7 +57,7 @@ export const historiaClinicaService = {
   async getPatientNotes(patientId) {
     const { data, error } = await supabase
       .from('clinical_notes')
-      .select('*, professional:profiles!professional_id(full_name, avatar_url, professional_profiles(specialty))')
+      .select('*, professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty))')
       .eq('patient_id', patientId)
       .order('created_at', { ascending: false })
     if (error) throw error
