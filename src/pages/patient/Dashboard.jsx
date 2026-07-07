@@ -34,7 +34,7 @@ const FALLBACK_SLOTS = [
 
 export default function PatientDashboard({ profile }) {
   const navigate = useNavigate()
-  const sheet = useBottomSheet('half')
+  const sheet = useBottomSheet('collapsed')
 
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 640)
   const [appState, setAppState] = useState('home')

@@ -37,7 +37,7 @@ export function useBottomSheet(initial = 'half') {
   }
 
   const getTransform = () => {
-    const base = state === 'expanded' ? 0 : state === 'half' ? 30 : 72
+    const base = state === 'expanded' ? 0 : state === 'half' ? 35 : 70
     if (dragging) return `translateY(calc(${base}% + ${offset}px))`
     return `translateY(${base}%)`
   }
