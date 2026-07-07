@@ -39,7 +39,7 @@ Deno.serve(async (req: Request) => {
         patient:profiles!patient_id(id, full_name, dni, gender, birth_date, phone),
         professional:profiles!professional_id(
           id, full_name, dni, gender, birth_date, phone,
-          professional_profiles!professional_profiles_user_id_fkey(specialty, license_type, license_number)
+          professional_profiles!professional_profiles_user_id_fkey(specialty, license_type, license_number, address)
         )
       `)
       .eq('id', medicationId)
@@ -75,9 +75,10 @@ Deno.serve(async (req: Request) => {
 
     // ── Build QBI2 "Receta" request payload ───────────────────────────────────
     // Real contract: POST /apirecipe/Receta — see website/docs/rcta-integration.md
-    const prof = med.professional?.professional_profiles?.[0] ?? {}
+    const prof = med.professional?.professional_profiles ?? {}
     const { nombre: pacienteNombre, apellido: pacienteApellido } = splitName(med.patient?.full_name)
     const { nombre: medicoNombre, apellido: medicoApellido } = splitName(med.professional?.full_name)
+    const nombreConsultorio = medicoApellido ? `Consultorio Dr. ${medicoApellido}` : null
 
     const payload = {
       clienteAppId: Number(RCTA_CLIENT_APP_ID),
@@ -117,8 +118,18 @@ Deno.serve(async (req: Request) => {
           numero: med.professional_license_number ?? prof.license_number ?? '',
           especialidad: prof.specialty ?? '',
         },
+        lugarAtencion: prof.address ?? null,
       },
       indicaciones: med.notes ?? null,
+      // QBI248 ("DEBE INFORMAR EL DOMICILIO DONDE SE REALIZÓ LA ATENCIÓN") requires the
+      // consultation address — sent on every plausible field since Innovamed's swagger
+      // doesn't document which one is actually checked.
+      direccionConsultorio: prof.address ?? null,
+      nombreConsultorio: nombreConsultorio,
+      lugarAtencion: prof.address ? {
+        nombreConsultorio,
+        domicilio: { ...parseAddress(prof.address), direccion: prof.address },
+      } : undefined,
     }
 
     // ── Call QBI2 API ─────────────────────────────────────────────────────────
@@ -205,4 +216,18 @@ function mapSexo(gender: string | null | undefined): 'F' | 'M' | 'X' {
   if (gender === 'femenino') return 'F'
   if (gender === 'masculino') return 'M'
   return 'X'
+}
+
+// professional_profiles.address is one free-text string (e.g. "Av. Santa Fe 1900, Recoleta, Buenos Aires").
+// RCTA's DomicilioDto wants calle/numero/localidad/provincia split out — best-effort parse.
+function parseAddress(address: string) {
+  const [streetPart, localidad, provincia] = address.split(',').map(s => s.trim())
+  const match = streetPart?.match(/^(.*\S)\s+(\d+)$/)
+  return {
+    calle: match ? match[1] : streetPart ?? null,
+    numero: match ? match[2] : null,
+    localidad: localidad ?? null,
+    provincia: provincia ?? null,
+    pais: 'Argentina',
+  }
 }

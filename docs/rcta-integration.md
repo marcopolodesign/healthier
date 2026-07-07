@@ -158,6 +158,11 @@ All paths are prefixed `/apirecipe`.
 `MensajeInvalidoDto`: `{ error, mensaje, medicamento: [] }`
 `MensajeInvalidoResponse`: `{ error, mensaje, requestId }` (used by admin endpoints)
 
+### Business-rule errors discovered by live testing (not documented in swagger)
+
+- **`QBI248` — "DEBE INFORMAR EL DOMICILIO DONDE SE REALIZÓ LA ATENCIÓN"**: the sandbox rejects a `Receta` if no consultation address is present. Swagger doesn't say which field it checks, so `rcta-issue` sends the professional's `professional_profiles.address` on every plausible field (`medico.lugarAtencion` as a string, top-level `direccionConsultorio`/`nombreConsultorio` strings, and the full `lugarAtencion` object with a best-effort parsed `domicilio`) — confirmed this clears the error.
+- **`QBI105` — "CODIGO INFORMADO INEXISTENTE (PRODUCTO / DROGA / PRESENTACION)"**: `medicamentos[].regNo` must be a real product code from Innovamed's catalog (`GET /apirecipe/GetMedicamento/{search}`) — free-text medication names are rejected. **Healthier does not currently capture `regNo`** (`clinical_medications` has no such column, and `PrescriptionCreator.jsx` uses a free-text medication field). Confirmed the full happy path works end-to-end with a real `regNo` (tested directly against the sandbox: `AMIXEN 500mg comp.x21`, `regNo: "35771"` → `200 OK`, real `idReceta` + PDF `s3Link` returned). **Next step to fully unblock `rcta-issue` in production**: replace the free-text medication input in `PrescriptionCreator.jsx` with an autocomplete against `GetMedicamento`, store the selected `regNo` on `clinical_medications`, and have `rcta-issue` send it instead of a client-generated string.
+
 ## 5. Healthier ↔ RCTA field mapping
 
 | Healthier source | RCTA field | Notes |
@@ -176,6 +181,8 @@ All paths are prefixed `/apirecipe`.
 | `clinical_medications.quantity` | `medicamentos[].cantidad` | Must coerce to `int`; Healthier stores it as free text (e.g. "30 comp."). |
 | `clinical_medications.cie10_code` / `cie10_display` | `medicamentos[].codigoDiagnostico` / `diagnostico` | |
 | `clinical_medications.notes` | `medicamentos[].posologia` / `observaciones` | |
+| `professional_profiles.address` | `medico.lugarAtencion` (string) + top-level `direccionConsultorio`/`lugarAtencion.domicilio` (object) | Required — see `QBI248` in §4.1. `professional_profiles.user_id` is `unique`, so PostgREST embeds it as a single object, not an array — index it directly (`med.professional.professional_profiles`), not `[0]`. |
+| — (not captured) | `medicamentos[].regNo` | Required — see `QBI105` in §4.1. Needs a `GetMedicamento` autocomplete + a new `regNo` column (future work). |
 
 ## 6. Gap vs. the pre-existing `rcta-issue` scaffold (fixed as part of this integration)
 
