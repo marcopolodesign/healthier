@@ -17,17 +17,14 @@ export default function InteractiveMap({ appState, sheetState, verticales, marke
   const [ambRotation, setAmbRotation] = useState(0)
   const containerRef = useRef(null)
 
-  // Prevent Safari from hijacking map touches as tab-switch gestures
+  // Prevent Safari from hijacking single-finger map pans as tab-switch gestures.
+  // Multi-touch (pinch-to-zoom) is allowed through.
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const prevent = e => e.preventDefault()
+    const prevent = e => { if (e.touches.length === 1) e.preventDefault() }
     el.addEventListener('touchmove', prevent, { passive: false })
-    el.addEventListener('touchstart', prevent, { passive: false })
-    return () => {
-      el.removeEventListener('touchmove', prevent)
-      el.removeEventListener('touchstart', prevent)
-    }
+    return () => el.removeEventListener('touchmove', prevent)
   }, [])
 
   useEffect(() => {

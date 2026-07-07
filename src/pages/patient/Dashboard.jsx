@@ -93,7 +93,10 @@ export default function PatientDashboard({ profile }) {
       watchId = navigator.geolocation.watchPosition(
         async pos => {
           const { latitude: lat, longitude: lng } = pos.coords
-          setUserLocation({ lat, lng })
+          setUserLocation(prev => {
+            if (prev && Math.abs(prev.lat - lat) < 0.0001 && Math.abs(prev.lng - lng) < 0.0001) return prev
+            return { lat, lng }
+          })
           if (isLocating) {
             const name = await reverseGeocode(lat, lng).catch(() => null)
             setAddressName(name || 'Ubicación Actual')
