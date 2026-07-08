@@ -223,12 +223,12 @@ export const mpService = {
     try {
       const { data, error } = await supabase
         .from('mp_accounts')
-        .select('id, seller_email, connected_at')
+        .select('id, mp_user_id, connected_at')
         .eq('professional_id', professionalId)
         .maybeSingle()
 
       if (error) return { data: { connected: false, email: null }, error: error.message }
-      return { data: { connected: !!data, email: data?.seller_email ?? null }, error: null }
+      return { data: { connected: !!data, email: null }, error: null }
     } catch (err) {
       return { data: { connected: false, email: null }, error: err.message }
     }
