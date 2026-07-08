@@ -4,7 +4,7 @@ export const professionalService = {
   async getByUserId(userId) {
     const { data, error } = await supabase
       .from('professional_profiles')
-      .select('*, profiles(*)')
+      .select('*, profiles!user_id(*)')
       .eq('user_id', userId)
       .single()
     if (error) return null
@@ -36,7 +36,7 @@ export const professionalService = {
   async getDashboardPool() {
     const { data, error } = await supabase
       .from('professional_profiles')
-      .select('*, profiles(full_name, avatar_url, email)')
+      .select('*, profiles!user_id(full_name, avatar_url, email)')
       .eq('is_verified', true)
       .eq('is_active', true)
       .order('average_rating', { ascending: false })
@@ -47,7 +47,7 @@ export const professionalService = {
   async search(filters = {}) {
     let query = supabase
       .from('professional_profiles')
-      .select('*, profiles(full_name, avatar_url, email)')
+      .select('*, profiles!user_id(full_name, avatar_url, email)')
       .eq('is_verified', true)
       .eq('is_active', true)
 
@@ -69,7 +69,7 @@ export const professionalService = {
   async getPublicProfile(professionalId) {
     const { data, error } = await supabase
       .from('professional_profiles')
-      .select('*, profiles(full_name, avatar_url, email)')
+      .select('*, profiles!user_id(full_name, avatar_url, email)')
       .eq('id', professionalId)
       .single()
     if (error) throw error
@@ -100,7 +100,7 @@ export const professionalService = {
   async getPendingVerification() {
     const { data, error } = await supabase
       .from('professional_profiles')
-      .select('*, profiles(full_name, email, avatar_url)')
+      .select('*, profiles!user_id(full_name, email, avatar_url)')
       .eq('is_verified', false)
       .is('rejected_at', null)
       .order('created_at', { ascending: true })

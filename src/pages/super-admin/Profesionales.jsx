@@ -477,7 +477,7 @@ export default function SuperAdminProfesionales() {
       const [profResult, consultResult] = await Promise.all([
         supabase
           .from('professional_profiles')
-          .select('id, specialty, is_verified, verification_source, sisa_status, average_rating, total_reviews, created_at, profiles(id, full_name, email, created_at, utm_source)')
+          .select('id, specialty, is_verified, verification_source, sisa_status, average_rating, total_reviews, created_at, profiles!user_id(id, full_name, email, created_at, utm_source)')
           .order('created_at', { ascending: false }),
         supabase.from('consultations').select('professional_id'),
       ])
@@ -597,7 +597,7 @@ export default function SuperAdminProfesionales() {
                   const name = pro.profiles?.full_name ?? '—'
                   const email = pro.profiles?.email ?? '—'
                   const specialtyLabel = SPECIALTY_LABELS[pro.specialty] ?? pro.specialty ?? '—'
-                  const consultCount = consultationMap[pro.id] ?? 0
+                  const consultCount = consultationMap[pro.profiles?.id] ?? 0
                   const isSelected = selected?.id === pro.id
 
                   return (

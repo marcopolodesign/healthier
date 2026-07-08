@@ -54,7 +54,7 @@ export default function SuperAdminDashboard() {
           supabase.from('consultations').select('*', { count: 'exact', head: true }).gte('created_at', monthStart),
           supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'patient').gte('created_at', monthStart),
           supabase.from('consultations').select('id, status, scheduled_at, price_at_booking').order('scheduled_at', { ascending: false }).limit(500),
-          supabase.from('professional_profiles').select('*, profiles(full_name)').eq('is_verified', true).order('average_rating', { ascending: false }).limit(5),
+          supabase.from('professional_profiles').select('*, profiles!user_id(full_name)').eq('is_verified', true).order('average_rating', { ascending: false }).limit(5),
           supabase.from('reviews').select('rating'),
           supabase.from('consultations').select('id, status, scheduled_at, modality, profiles!patient_id(full_name), professional:profiles!professional_id(full_name)').order('created_at', { ascending: false }).limit(8),
           supabase.from('profiles').select('utm_source, role'),
