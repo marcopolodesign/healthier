@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Star, SealCheck } from '@phosphor-icons/react'
+import { Star, SealCheck, Warning } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
 import { reviewsService } from '../../services/reviewsService'
 import { toast } from '../../components/Toast'
@@ -84,6 +84,36 @@ export default function ConsultationReview({ profile }) {
     return (
       <div className="absolute inset-0 bg-bg-primary flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  // ── Cancellation state — professional never joined the call ────────────────
+  // (status auto-set to 'no_show' by expire-stale-appointments cron, the patient's
+  // "Marcar profesional ausente" button, or the patient hanging up before the
+  // professional's Daily.co participant ever joined.)
+  if (consultation?.status === 'no_show') {
+    const refundPending = consultation?.refundPending || consultation?.paymentStatus === 'paid'
+    return (
+      <div className="absolute inset-0 bg-bg-primary flex flex-col items-center justify-center px-6 text-center">
+        <div className="w-24 h-24 rounded-full bg-red-50 flex items-center justify-center mb-6">
+          <Warning className="w-10 h-10 text-red-400" weight="fill" />
+        </div>
+        <h1 className="text-[28px] text-text-primary mb-2">El profesional no se unió a la consulta</h1>
+        <p className="text-[15px] text-text-secondary leading-relaxed mb-4 max-w-xs">
+          Lamentamos el inconveniente. Podés reservar un nuevo turno cuando quieras.
+        </p>
+        {refundPending && (
+          <p className="text-[13px] text-text-tertiary leading-relaxed mb-6 max-w-xs">
+            Como ya habías pagado esta consulta, nuestro equipo está revisando tu reembolso.
+          </p>
+        )}
+        <button
+          onClick={() => navigate('/paciente/consultas')}
+          className="px-8 py-4 rounded-full bg-brand text-white font-bold text-[16px] hover:bg-brand-hover active:scale-95 transition-all shadow-md"
+        >
+          Volver a mis consultas
+        </button>
       </div>
     )
   }

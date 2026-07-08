@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   PhoneSlash, CircleNotch, SealCheck, User,
-  Microphone, MicrophoneSlash, Camera, CameraSlash,
+  Microphone, MicrophoneSlash, Camera, CameraSlash, Warning,
 } from '@phosphor-icons/react'
 import DailyIframe from '@daily-co/daily-js'
 import { supabase } from '../../lib/supabase'
 import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
 import PreconsultaForm from '../../components/patient/PreconsultaForm'
+
+const NO_SHOW_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes — mirrors professional/VideoCall.jsx
 
 // ── Audio element for remote participant (invisible) ──────────────────────────
 function AudioPlayer({ track }) {
@@ -50,12 +52,18 @@ export default function PatientVideoCall() {
   const navigate = useNavigate()
   const callRef = useRef(null)
   const channelRef = useRef(null)
+  const noShowTimerRef = useRef(null)
+  // Set true only when the professional's Daily.co participant actually joins the
+  // call (distinct from bothReady, which only means both sides are in the presence
+  // waiting room). Used to decide review vs. cancellation screen on hangup.
+  const professionalJoinedRef = useRef(false)
 
   const [consultation, setConsultation] = useState(null)
   const [loadingConsultation, setLoadingConsultation] = useState(true)
   // bothReady: both patient + professional are in the presence waiting room
   const [bothReady, setBothReady] = useState(false)
   const [joining, setJoining] = useState(false)
+  const [noShowBanner, setNoShowBanner] = useState(false)
 
   // Validation code overlay
   const [validationCode, setValidationCode] = useState(null)
@@ -113,17 +121,30 @@ export default function PatientVideoCall() {
       if (destroyed) return
       const state = ch.presenceState()
       const roles = Object.values(state).flat().map(p => p.role)
-      setBothReady(roles.includes('professional') && roles.includes('patient'))
+      const ready = roles.includes('professional') && roles.includes('patient')
+      setBothReady(prev => {
+        if (!prev && ready) {
+          // Professional just arrived — cancel no-show timer
+          clearTimeout(noShowTimerRef.current)
+          setNoShowBanner(false)
+        }
+        return ready
+      })
     })
 
     ch.subscribe(async (status) => {
       if (status === 'SUBSCRIBED' && !destroyed) {
         await ch.track({ role: 'patient' })
+        // Start 5-minute no-show countdown (mirrors professional/VideoCall.jsx)
+        noShowTimerRef.current = setTimeout(() => {
+          if (!destroyed) setNoShowBanner(true)
+        }, NO_SHOW_TIMEOUT_MS)
       }
     })
 
     return () => {
       destroyed = true
+      clearTimeout(noShowTimerRef.current)
       ch.untrack().catch(() => {})
       supabase.removeChannel(ch)
       channelRef.current = null
@@ -165,6 +186,9 @@ export default function PatientVideoCall() {
 
         call.on('participant-joined', ({ participant }) => {
           if (destroyed || participant.local) return
+          // The professional's Daily.co participant actually joined the call —
+          // distinct from bothReady (which only tracks the presence waiting room).
+          professionalJoinedRef.current = true
           setRemote({
             videoTrack: participant.tracks?.video?.persistentTrack ?? null,
             audioTrack: participant.tracks?.audio?.persistentTrack ?? null,
@@ -192,8 +216,7 @@ export default function PatientVideoCall() {
         call.on('left-meeting', async () => {
           if (destroyed) return
           if (consultationId) {
-            try { await consultationsService.finalize(consultationId, 'patient') } catch { /* non-blocking */ }
-            navigate(`/paciente/consulta/review/${consultationId}`)
+            await goToPostCallScreen(consultationId)
           } else {
             navigate('/paciente/consultas')
           }
@@ -243,11 +266,50 @@ export default function PatientVideoCall() {
     callRef.current?.destroy()
     callRef.current = null
     if (consultationId) {
-      try { await consultationsService.finalize(consultationId, 'patient') } catch { /* non-blocking */ }
+      await goToPostCallScreen(consultationId)
+    } else {
+      navigate('/paciente/consultas')
+    }
+  }
+
+  // Decide review (professional joined) vs. cancellation (professional never joined)
+  // screen on hangup. Defensively re-checks DB status too, since the professional's
+  // own "Marcar como ausente" button or the expire-stale-appointments cron job could
+  // have already flipped the consultation to 'no_show'.
+  async function goToPostCallScreen(consultationId) {
+    if (!professionalJoinedRef.current) {
+      try {
+        const latest = await consultationsService.getById(consultationId)
+        if (latest?.status !== 'no_show' && latest?.status !== 'cancelled') {
+          await consultationsService.updateStatus(consultationId, 'no_show')
+        }
+      } catch { /* non-blocking */ }
+      navigate(`/paciente/consulta/review/${consultationId}`)
+      return
+    }
+    try { await consultationsService.finalize(consultationId, 'patient') } catch { /* non-blocking */ }
+    navigate(`/paciente/consulta/review/${consultationId}`)
+  }
+
+  async function handleProfessionalNoShow() {
+    const consultationId = id === '1' ? null : id
+    if (consultationId) {
+      try { await consultationsService.updateStatus(consultationId, 'no_show') } catch { /* non-blocking */ }
+    }
+    callRef.current?.leave().catch(() => {})
+    callRef.current?.destroy()
+    callRef.current = null
+    if (consultationId) {
       navigate(`/paciente/consulta/review/${consultationId}`)
     } else {
       navigate('/paciente/consultas')
     }
+  }
+
+  function handleKeepWaitingForProfessional() {
+    setNoShowBanner(false)
+    // Reset 5-minute timer
+    noShowTimerRef.current = setTimeout(() => setNoShowBanner(true), NO_SHOW_TIMEOUT_MS)
   }
 
   const handlePreconsultaSubmitted = () => { setShowPreconsulta(false); setPreconsultaDone(true) }
@@ -313,6 +375,30 @@ export default function PatientVideoCall() {
           </button>
         </div>
       </div>
+
+      {/* No-show banner — professional hasn't joined the waiting room after 5 min */}
+      {noShowBanner && (
+        <div className="shrink-0 flex items-center justify-between gap-4 px-5 py-3 bg-amber-900/60 border-b border-amber-700/40 z-10">
+          <div className="flex items-center gap-2 text-amber-200 text-sm">
+            <Warning className="h-4 w-4 shrink-0" />
+            <span>El profesional no se unió a la consulta.</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleKeepWaitingForProfessional}
+              className="text-xs px-3 py-1.5 rounded-full border border-amber-600/60 text-amber-300 hover:bg-amber-800/40 transition-colors"
+            >
+              Seguir esperando
+            </button>
+            <button
+              onClick={handleProfessionalNoShow}
+              className="text-xs px-3 py-1.5 rounded-full bg-amber-600 hover:bg-amber-500 text-white font-medium transition-colors"
+            >
+              Marcar profesional ausente
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Video area */}
       <div className="flex-1 relative">

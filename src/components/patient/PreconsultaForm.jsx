@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, CircleNotch, ClipboardText, Heart, Scales, Ruler, Drop, Wind } from '@phosphor-icons/react'
+import { X, CircleNotch, ClipboardText } from '@phosphor-icons/react'
 import PatientSheet from './PatientSheet'
 import { toast } from '../Toast'
 import { supabase } from '../../lib/supabase'
@@ -21,12 +21,6 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
   const [form, setForm] = useState({
     mainComplaint: '',
     symptoms: '',
-    weight: '',
-    height: '',
-    systolicPressure: '',
-    diastolicPressure: '',
-    heartRate: '',
-    oxygenSaturation: '',
     currentMedications: '',
   })
 
@@ -45,12 +39,6 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
     const payload = {
       main_complaint: form.mainComplaint || null,
       symptoms: form.symptoms || null,
-      weight: form.weight ? parseFloat(form.weight) : null,
-      height: form.height ? parseFloat(form.height) : null,
-      systolic_pressure: form.systolicPressure ? parseInt(form.systolicPressure, 10) : null,
-      diastolic_pressure: form.diastolicPressure ? parseInt(form.diastolicPressure, 10) : null,
-      heart_rate: form.heartRate ? parseInt(form.heartRate, 10) : null,
-      oxygen_saturation: form.oxygenSaturation ? parseFloat(form.oxygenSaturation) : null,
       current_medications: form.currentMedications || null,
     }
 
@@ -123,116 +111,6 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
               placeholder="Describí tus síntomas"
               className="w-full bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors resize-none"
             />
-          </div>
-        </div>
-
-        {/* Signo vitales section */}
-        <div>
-          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-            <Heart className="w-3.5 h-3.5 text-red-400" />
-            Signos Vitales
-            <span className="normal-case tracking-normal font-medium text-gray-300">(opcional)</span>
-          </p>
-
-          {/* Row 1: Peso + Talla */}
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div>
-              <label className="text-[11px] font-semibold text-gray-400 block mb-1">
-                <Scales className="w-3 h-3 inline mr-1" />Peso (kg)
-              </label>
-              <input
-                type="number"
-                inputMode="decimal"
-                value={form.weight}
-                onChange={set('weight')}
-                placeholder="70"
-                min="1"
-                max="300"
-                step="0.1"
-                className="w-full bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-semibold text-gray-400 block mb-1">
-                <Ruler className="w-3 h-3 inline mr-1" />Talla (cm)
-              </label>
-              <input
-                type="number"
-                inputMode="decimal"
-                value={form.height}
-                onChange={set('height')}
-                placeholder="170"
-                min="50"
-                max="250"
-                step="0.5"
-                className="w-full bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors"
-              />
-            </div>
-          </div>
-
-          {/* Row 2: Presión arterial */}
-          <div className="mb-3">
-            <label className="text-[11px] font-semibold text-gray-400 block mb-1">
-              <Drop className="w-3 h-3 inline mr-1" />Presión arterial (mmHg)
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                inputMode="numeric"
-                value={form.systolicPressure}
-                onChange={set('systolicPressure')}
-                placeholder="Sistólica"
-                min="50"
-                max="250"
-                className="flex-1 bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors"
-              />
-              <span className="text-gray-300 font-bold text-lg select-none">/</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={form.diastolicPressure}
-                onChange={set('diastolicPressure')}
-                placeholder="Diastólica"
-                min="30"
-                max="180"
-                className="flex-1 bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors"
-              />
-            </div>
-          </div>
-
-          {/* Row 3: FC + SpO2 */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[11px] font-semibold text-gray-400 block mb-1">
-                <Heart className="w-3 h-3 inline mr-1" />Frec. cardíaca (bpm)
-              </label>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={form.heartRate}
-                onChange={set('heartRate')}
-                placeholder="72"
-                min="20"
-                max="250"
-                className="w-full bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-semibold text-gray-400 block mb-1">
-                <Wind className="w-3 h-3 inline mr-1" />Saturación O2 (%)
-              </label>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={form.oxygenSaturation}
-                onChange={set('oxygenSaturation')}
-                placeholder="98"
-                min="50"
-                max="100"
-                step="0.1"
-                className="w-full bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors"
-              />
-            </div>
           </div>
         </div>
 
