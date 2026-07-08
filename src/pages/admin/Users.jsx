@@ -35,7 +35,7 @@ export default function AdminUsers() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary">Usuarios</h1>
+        <h1 className="page-title">Usuarios</h1>
         <p className="text-text-secondary mt-1">{users.length} usuarios registrados</p>
       </div>
 

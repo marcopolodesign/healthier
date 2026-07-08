@@ -189,7 +189,7 @@ export default function ConsultationDetail({ profile }) {
       </button>
 
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-text-primary">Detalle de consulta</h1>
+        <h1 className="page-title">Detalle de consulta</h1>
         <div className="flex items-center gap-2 flex-wrap">
           {consultation.consultationType && (
             <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-muted text-brand">
@@ -213,7 +213,7 @@ export default function ConsultationDetail({ profile }) {
         <h2 className="font-semibold text-text-primary mb-4">Paciente</h2>
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-full bg-brand-muted flex items-center justify-center">
-            <span className="text-brand font-bold text-lg">{patientName?.[0]}</span>
+            <span className="text-brand font-semibold text-lg">{patientName?.[0]}</span>
           </div>
           <div>
             <p className="font-semibold text-text-primary">{patientName || '—'}</p>
@@ -400,7 +400,7 @@ export default function ConsultationDetail({ profile }) {
               className="flex items-start justify-between gap-3 py-2 border-b border-border-default last:border-0"
             >
               <div className="flex-1 min-w-0">
-                <span className={`text-[11px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full mr-2 ${ORDER_TYPE_COLORS[order.orderType] ?? 'bg-gray-100 text-gray-700'}`}>
+                <span className={`text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full mr-2 ${ORDER_TYPE_COLORS[order.orderType] ?? 'bg-gray-100 text-gray-700'}`}>
                   {ORDER_TYPE_LABELS[order.orderType] ?? order.orderType}
                 </span>
                 <span className="text-sm text-text-primary">{order.description}</span>

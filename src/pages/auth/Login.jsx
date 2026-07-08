@@ -33,7 +33,8 @@ export default function Login({ onLogin }) {
   return (
     <div className="card">
       <div className="text-center mb-8">
-        <h1 className="text-2xl font-bold text-text-primary mb-1">Iniciar sesión</h1>
+        <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-2">Bienvenido de nuevo</p>
+        <h1 className="text-3xl sm:text-4xl font-light tracking-tight text-text-primary mb-1">Iniciar sesión</h1>
         <p className="text-text-secondary text-sm">Bienvenido/a de vuelta a Healthier</p>
       </div>
 

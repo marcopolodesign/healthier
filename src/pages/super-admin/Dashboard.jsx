@@ -7,6 +7,13 @@ import { SPECIALTY_LABELS } from '../../lib/verticals'
 
 const STATUS_COLORS = { completed: '#7CB38B', confirmed: '#9B8EC4', pending: '#E8927C', cancelled: '#d1d5db', in_progress: '#60a5fa' }
 const STATUS_LABELS = { completed: 'Completadas', confirmed: 'Confirmadas', pending: 'Pendientes', cancelled: 'Canceladas', in_progress: 'En curso' }
+const STATUS_BADGE_CLASSES = {
+  completed: 'bg-emerald-50 text-emerald-600',
+  confirmed: 'bg-purple-50 text-purple-600',
+  pending: 'bg-orange-50 text-orange-600',
+  cancelled: 'bg-gray-100 text-gray-500',
+  in_progress: 'bg-blue-50 text-blue-600',
+}
 
 export default function SuperAdminDashboard() {
   const [stats, setStats] = useState({ users: 0, professionals: 0, pendingVerification: 0, completedConsultations: 0, revenue: 0, walkInWaiting: 0, walkInAvailable: 0, avgRating: null, consultationsThisMonth: 0, newPatientsThisMonth: 0 })
@@ -161,7 +168,7 @@ export default function SuperAdminDashboard() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
+        <h1 className="page-title-lg">Dashboard</h1>
         <p className="text-text-secondary mt-1">Métricas generales de la plataforma</p>
       </div>
 
@@ -172,7 +179,7 @@ export default function SuperAdminDashboard() {
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${c.color}`}>
               <c.icon className="h-5 w-5" />
             </div>
-            <p className="text-2xl font-bold text-text-primary">
+            <p className="text-2xl font-semibold text-text-primary">
               {loading ? '—' : c.raw ? c.value : typeof c.value === 'number' ? c.value.toLocaleString() : c.value}
             </p>
             <p className="text-xs text-text-secondary mt-0.5">{c.label}</p>
@@ -191,7 +198,7 @@ export default function SuperAdminDashboard() {
                 <button
                   key={d}
                   onClick={() => setChartDays(d)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${chartDays === d ? 'bg-brand text-white' : 'bg-bg-primary text-text-tertiary hover:text-text-primary'}`}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${chartDays === d ? 'bg-brand text-white' : 'bg-bg-primary text-text-tertiary hover:text-text-primary'}`}
                 >{d}d</button>
               ))}
             </div>
@@ -232,24 +239,24 @@ export default function SuperAdminDashboard() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border-default">
-                  <th className="text-left py-2 pr-4 text-text-tertiary font-medium text-xs">Nombre</th>
-                  <th className="text-left py-2 pr-4 text-text-tertiary font-medium text-xs">Especialidad</th>
-                  <th className="text-right py-2 pr-4 text-text-tertiary font-medium text-xs">Rating</th>
-                  <th className="text-right py-2 text-text-tertiary font-medium text-xs">Reseñas</th>
+                <tr>
+                  <th className="table-header">Nombre</th>
+                  <th className="table-header">Especialidad</th>
+                  <th className="table-header text-right">Rating</th>
+                  <th className="table-header text-right">Reseñas</th>
                 </tr>
               </thead>
               <tbody>
                 {topPros.map((p, i) => (
-                  <tr key={i} className="border-b border-border-default/50 last:border-0 hover:bg-bg-primary/50">
-                    <td className="py-2.5 pr-4 font-medium text-text-primary truncate max-w-[160px]">{p.name}</td>
-                    <td className="py-2.5 pr-4 text-text-secondary">{p.specialty}</td>
-                    <td className="py-2.5 pr-4 text-right">
-                      <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[11px] font-bold">
+                  <tr key={i} className="table-row">
+                    <td className="table-cell font-medium text-text-primary truncate max-w-[160px]">{p.name}</td>
+                    <td className="table-cell text-text-secondary">{p.specialty}</td>
+                    <td className="table-cell text-right">
+                      <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[11px] font-semibold">
                         ★ {p.rating}
                       </span>
                     </td>
-                    <td className="py-2.5 text-right text-text-tertiary">{p.totalReviews}</td>
+                    <td className="table-cell text-right text-text-tertiary">{p.totalReviews}</td>
                   </tr>
                 ))}
               </tbody>
@@ -273,20 +280,20 @@ export default function SuperAdminDashboard() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border-default">
-                    <th className="text-left py-2 pr-4 text-text-tertiary font-medium text-xs">Fuente</th>
-                    <th className="text-right py-2 pr-4 text-text-tertiary font-medium text-xs">Pacientes</th>
-                    <th className="text-right py-2 pr-4 text-text-tertiary font-medium text-xs">Profesionales</th>
-                    <th className="text-right py-2 text-text-tertiary font-medium text-xs">Total</th>
+                  <tr>
+                    <th className="table-header">Fuente</th>
+                    <th className="table-header text-right">Pacientes</th>
+                    <th className="table-header text-right">Profesionales</th>
+                    <th className="table-header text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {acquisitionData.map((row) => (
-                    <tr key={row.source} className="border-b border-border-default/50 last:border-0 hover:bg-bg-primary/50">
-                      <td className="py-2.5 pr-4 font-medium text-text-primary truncate max-w-[160px]">{row.source}</td>
-                      <td className="py-2.5 pr-4 text-right text-text-secondary">{row.patients}</td>
-                      <td className="py-2.5 pr-4 text-right text-text-secondary">{row.professionals}</td>
-                      <td className="py-2.5 text-right font-bold text-text-primary">{row.total}</td>
+                    <tr key={row.source} className="table-row">
+                      <td className="table-cell font-medium text-text-primary truncate max-w-[160px]">{row.source}</td>
+                      <td className="table-cell text-right text-text-secondary">{row.patients}</td>
+                      <td className="table-cell text-right text-text-secondary">{row.professionals}</td>
+                      <td className="table-cell text-right font-semibold text-text-primary">{row.total}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -312,27 +319,27 @@ export default function SuperAdminDashboard() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border-default">
-                  <th className="text-left py-2 pr-4 text-text-tertiary font-medium text-xs">Paciente</th>
-                  <th className="text-left py-2 pr-4 text-text-tertiary font-medium text-xs">Profesional</th>
-                  <th className="text-left py-2 pr-4 text-text-tertiary font-medium text-xs">Fecha</th>
-                  <th className="text-left py-2 pr-2 text-text-tertiary font-medium text-xs">Modalidad</th>
-                  <th className="text-left py-2 text-text-tertiary font-medium text-xs">Estado</th>
+                <tr>
+                  <th className="table-header">Paciente</th>
+                  <th className="table-header">Profesional</th>
+                  <th className="table-header">Fecha</th>
+                  <th className="table-header">Modalidad</th>
+                  <th className="table-header">Estado</th>
                 </tr>
               </thead>
               <tbody>
                 {recentConsultations.map((c) => (
-                  <tr key={c.id} className="border-b border-border-default/50 last:border-0 hover:bg-bg-primary/50">
-                    <td className="py-2.5 pr-4 font-medium text-text-primary truncate max-w-[140px]">{c.patient}</td>
-                    <td className="py-2.5 pr-4 text-text-secondary truncate max-w-[140px]">{c.professional}</td>
-                    <td className="py-2.5 pr-4 text-text-tertiary whitespace-nowrap">{c.date}</td>
-                    <td className="py-2.5 pr-2">
-                      <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full ${c.modality === 'video' ? 'bg-brand-muted text-brand' : 'bg-emerald-50 text-emerald-600'}`}>
+                  <tr key={c.id} className="table-row">
+                    <td className="table-cell font-medium text-text-primary truncate max-w-[140px]">{c.patient}</td>
+                    <td className="table-cell text-text-secondary truncate max-w-[140px]">{c.professional}</td>
+                    <td className="table-cell text-text-tertiary whitespace-nowrap">{c.date}</td>
+                    <td className="table-cell">
+                      <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${c.modality === 'video' ? 'bg-brand-muted text-brand' : 'bg-emerald-50 text-emerald-600'}`}>
                         {c.modality === 'video' ? 'Video' : 'Presencial'}
                       </span>
                     </td>
-                    <td className="py-2.5">
-                      <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full ${STATUS_COLORS[c.status] ? '' : ''}`} style={{ backgroundColor: (STATUS_COLORS[c.status] ?? '#e5e7eb') + '20', color: STATUS_COLORS[c.status] ?? '#6b7280' }}>
+                    <td className="table-cell">
+                      <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${STATUS_BADGE_CLASSES[c.status] ?? 'bg-gray-100 text-gray-500'}`}>
                         {STATUS_LABELS[c.status] ?? c.status}
                       </span>
                     </td>

@@ -84,8 +84,8 @@ export default function PatientOnboarding({ profile }) {
 
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-text-primary">Completá tu perfil</h1>
-          <p className="text-text-secondary mt-1.5 text-sm">
+          <h1 className="text-4xl sm:text-5xl font-light leading-tight text-text-primary tracking-tight">Completá tu perfil</h1>
+          <p className="text-text-secondary mt-3 text-sm">
             {step === 1 ? 'Paso 2 de 3 — Salud general' : 'Paso 3 de 3 — Información médica'}
           </p>
         </div>
@@ -101,8 +101,8 @@ export default function PatientOnboarding({ profile }) {
                 <div className="flex flex-col items-center gap-1">
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-colors ${
                     done    ? 'bg-brand border-brand text-white'
-                    : current ? 'bg-white border-brand text-brand'
-                    : 'bg-white border-border-default text-text-tertiary'
+                    : current ? 'bg-bg-surface border-brand text-brand'
+                    : 'bg-bg-surface border-border-default text-text-tertiary'
                   }`}>
                     {done ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
                   </div>

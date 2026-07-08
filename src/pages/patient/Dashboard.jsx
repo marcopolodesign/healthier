@@ -183,17 +183,17 @@ export default function PatientDashboard({ profile }) {
     return (
       <button
         onClick={() => goToVertical(v)}
-        className="w-full flex items-center gap-3 px-4 py-3 rounded-[20px] bg-white border border-gray-100 shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left"
+        className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left"
         style={{ boxShadow: `0 4px 16px ${v.shadow}` }}
       >
         <div className="w-9 h-9 rounded-[12px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: v.bg }}>
           <v.icon className="w-[18px] h-[18px]" style={{ color: v.color }} />
         </div>
         <div className="flex flex-col flex-1 min-w-0">
-          <span className="text-[10px] font-bold text-gray-400 tracking-widest uppercase leading-none mb-0.5">Último utilizado</span>
-          <span className="font-black text-[15px] text-gray-900 leading-tight truncate">{v.nombre}</span>
+          <span className="text-[10px] font-semibold text-gray-400 tracking-widest uppercase leading-none mb-0.5">Último utilizado</span>
+          <span className="font-semibold text-[15px] text-gray-900 leading-tight truncate">{v.nombre}</span>
         </div>
-        <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-bold flex-shrink-0" style={{ backgroundColor: v.bg, color: v.color }}>
+        <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-semibold flex-shrink-0" style={{ backgroundColor: v.bg, color: v.color }}>
           <Clock className="w-3 h-3" />
           <span>{v.eta}</span>
         </div>
@@ -223,7 +223,7 @@ export default function PatientDashboard({ profile }) {
               >{v.nombre}</span>
             </div>
             {v.comingSoon && (
-              <span className="text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full self-start" style={{ backgroundColor: v.bg, color: v.color }}>
+              <span className="text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full self-start" style={{ backgroundColor: v.bg, color: v.color }}>
                 Próximamente
               </span>
             )}
@@ -237,23 +237,21 @@ export default function PatientDashboard({ profile }) {
     <div className="flex flex-col gap-2">
       <div
         onClick={() => navigate('/paciente/sos')}
-        className="w-full py-5 px-5 rounded-[24px] flex items-center gap-4 cursor-pointer active:scale-95 transition-all"
-        style={{ backgroundColor: '#db0000' }}
+        className="w-full py-5 px-5 rounded-2xl bg-danger flex items-center gap-4 cursor-pointer active:scale-95 transition-all"
       >
         <Heartbeat className="w-7 h-7 text-white flex-shrink-0" />
         <div className="flex flex-col">
-          <span className="font-bold text-[15px] text-white leading-none">EMERGENCIA S.O.S</span>
+          <span className="font-semibold text-[15px] text-white leading-none">EMERGENCIA S.O.S</span>
           <span className="text-[12px] text-white/80 mt-0.5">Solicitar ambulancia de inmediato</span>
         </div>
       </div>
       <div
         onClick={() => navigate('/paciente/urgente')}
-        className="w-full py-4 px-5 rounded-[24px] flex items-center gap-4 cursor-pointer active:scale-95 transition-all"
-        style={{ backgroundColor: '#E8927C' }}
+        className="w-full py-4 px-5 rounded-2xl bg-brand-secondary flex items-center gap-4 cursor-pointer active:scale-95 transition-all"
       >
         <Siren className="w-6 h-6 text-white flex-shrink-0" />
         <div className="flex flex-col">
-          <span className="font-bold text-[14px] text-white leading-none">Consulta urgente</span>
+          <span className="font-semibold text-[14px] text-white leading-none">Consulta urgente</span>
           <span className="text-[11px] text-white/80 mt-0.5">Ver a un médico sin turno previo</span>
         </div>
       </div>
@@ -271,7 +269,7 @@ export default function PatientDashboard({ profile }) {
         </span>
         <button
           onClick={() => navigate('/paciente/consultas')}
-          className="flex items-center gap-1 text-[12px] font-bold text-brand hover:text-brand-hover transition-colors"
+          className="flex items-center gap-1 text-[12px] font-semibold text-brand hover:text-brand-hover transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
           Reservar
@@ -306,12 +304,12 @@ export default function PatientDashboard({ profile }) {
               {/* Modality dot */}
               <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isVirtual ? 'bg-brand' : 'bg-emerald-500'}`} />
               <div className="flex-1 min-w-0">
-                <p className="text-[14px] font-bold text-text-primary truncate leading-tight">{proName}</p>
+                <p className="text-[14px] font-semibold text-text-primary truncate leading-tight">{proName}</p>
                 <p className="text-[12px] text-text-secondary font-medium mt-0.5">
                   {isVirtual ? 'Videoconsulta' : 'Presencial'} · {dateLabel} {timeLabel}
                 </p>
               </div>
-              <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold flex-shrink-0" style={{ backgroundColor: isVirtual ? '#e8f4ec' : '#ecfdf5', color: isVirtual ? '#7CB38B' : '#059669' }}>
+              <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0 ${isVirtual ? 'bg-brand-muted text-brand' : 'bg-emerald-50 text-emerald-600'}`}>
                 {isVirtual ? <VideoCamera className="w-3 h-3" /> : <MapPin className="w-3 h-3" />}
               </div>
             </div>
@@ -326,11 +324,11 @@ export default function PatientDashboard({ profile }) {
       onClick={() => navigate('/paciente/salud')}
       className="w-full flex items-center gap-3 px-4 py-3 rounded-[14px] bg-bg-primary border border-border-default hover:border-brand/30 active:opacity-80 transition-all group text-left"
     >
-      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#7CB38B18' }}>
-        <Pulse className="w-4 h-4" style={{ color: '#7CB38B' }} />
+      <div className="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center flex-shrink-0">
+        <Pulse className="w-4 h-4 text-brand" />
       </div>
       <div className="flex-1">
-        <p className="text-[13px] font-bold text-text-primary leading-tight">Resumen de salud</p>
+        <p className="text-[13px] font-semibold text-text-primary leading-tight">Resumen de salud</p>
         <p className="text-[11px] text-text-secondary font-medium mt-0.5">Condiciones · Medicamentos · Alergias</p>
       </div>
       <CaretRight className="w-4 h-4 text-text-tertiary group-hover:text-text-secondary transition-colors flex-shrink-0" />
@@ -338,7 +336,7 @@ export default function PatientDashboard({ profile }) {
   )
 
   const avatarEl = (
-    <div className="w-11 h-11 rounded-full overflow-hidden border-2 flex-shrink-0" style={{ backgroundColor: '#b05a36', borderColor: '#f5eee1' }}>
+    <div className="w-11 h-11 rounded-full overflow-hidden border-2 flex-shrink-0 bg-[#b05a36] border-[#f5eee1]">
       {profile?.avatarUrl
         ? <img src={profile.avatarUrl} alt="Perfil" className="w-full h-full object-cover" />
         : <div className="w-full h-full flex items-center justify-center text-white font-semibold text-[15px] tracking-wide">{firstName[0]}</div>
@@ -366,7 +364,7 @@ export default function PatientDashboard({ profile }) {
       <div className="absolute top-4 sm:top-6 right-6 z-30">
         <button
           onClick={() => setAvailableNow(v => !v)}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold shadow-[0_4px_16px_rgba(0,0,0,0.10)] border transition-all backdrop-blur-[12px] ${
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.10)] border transition-all backdrop-blur-[12px] ${
             availableNow
               ? 'bg-emerald-500 border-emerald-400 text-white'
               : 'bg-white/80 border-white/60 text-gray-700 hover:bg-white'
@@ -380,13 +378,12 @@ export default function PatientDashboard({ profile }) {
       {/* ── Desktop: Google Maps-style floating panel (bottom-left) ── */}
       {isDesktop && (
         <div
-          className="absolute left-4 z-40 w-[360px] bg-white/90 backdrop-blur-[20px] rounded-[28px] shadow-[0_8px_40px_rgba(0,0,0,0.12)] flex flex-col border border-white/80 overflow-hidden"
-          style={{ bottom: '16px', maxHeight: 'calc(100dvh - 32px)' }}
+          className="absolute left-4 bottom-4 z-40 w-[360px] max-h-[calc(100dvh-32px)] bg-white/90 backdrop-blur-[20px] rounded-[28px] shadow-[0_8px_40px_rgba(0,0,0,0.12)] flex flex-col border border-white/80 overflow-hidden"
         >
           {/* Panel header */}
           <div className="px-5 pt-5 pb-3 flex justify-between items-center flex-shrink-0 border-b border-gray-100/80">
             <div>
-              <h2 className="text-[22px] font-black tracking-tight text-gray-900 leading-none">{getGreeting()}, {firstName}</h2>
+              <h2 className="text-[22px] font-light tracking-tight text-gray-900 leading-none">{getGreeting()}, {firstName}</h2>
               <p className="text-[13px] font-medium text-gray-500 mt-0.5">¿Cómo podemos ayudarte hoy?</p>
             </div>
             {avatarEl}
@@ -411,8 +408,8 @@ export default function PatientDashboard({ profile }) {
       {/* ── Mobile: drag-to-expand bottom sheet ── */}
       {!isDesktop && (
         <div
-          className={`absolute left-0 w-full bg-bg-secondary shadow-[0_-15px_40px_rgba(0,0,0,0.08)] z-40 flex flex-col border-t border-border-default ${sheet.state === 'expanded' ? 'rounded-t-none' : 'rounded-t-[40px]'} ${!sheet.dragging ? 'transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]' : ''}`}
-          style={{ height: '100%', bottom: 0, transform: sheet.getTransform() }}
+          className={`absolute left-0 bottom-0 w-full h-full bg-bg-secondary shadow-[0_-15px_40px_rgba(0,0,0,0.08)] z-40 flex flex-col border-t border-border-default ${sheet.state === 'expanded' ? 'rounded-t-none' : 'rounded-t-[40px]'} ${!sheet.dragging ? 'transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]' : ''}`}
+          style={{ transform: sheet.getTransform() }}
         >
           {/* Drag handle + greeting */}
           <div
@@ -428,7 +425,7 @@ export default function PatientDashboard({ profile }) {
                 <h2 className="text-[28px] tracking-tight text-text-primary leading-none font-light">{getGreeting()}, {firstName}</h2>
                 <p className="text-[14px] font-medium text-text-secondary mt-1">¿Cómo podemos ayudarte hoy?</p>
               </div>
-              <div className="w-12 h-12 rounded-full overflow-hidden border-2 flex-shrink-0" style={{ backgroundColor: '#b05a36', borderColor: '#f5eee1' }}>
+              <div className="w-12 h-12 rounded-full overflow-hidden border-2 flex-shrink-0 bg-[#b05a36] border-[#f5eee1]">
                 {profile?.avatarUrl
                   ? <img src={profile.avatarUrl} alt="Perfil" className="w-full h-full object-cover" />
                   : <div className="w-full h-full flex items-center justify-center text-white font-semibold text-[17px] tracking-wide">{firstName[0]}</div>
@@ -469,24 +466,24 @@ export default function PatientDashboard({ profile }) {
               </div>
               <div className="bg-bg-primary rounded-[28px] p-5 border border-gray-100 flex items-center gap-5 mb-6">
                 {selectedMapPro.img
-                  ? <img src={selectedMapPro.img} alt={selectedMapPro.name} className="w-20 h-20 rounded-[20px] object-cover border-2 border-white shadow-sm flex-shrink-0" />
-                  : <div className="w-20 h-20 rounded-[20px] border-2 border-white shadow-sm flex-shrink-0 flex items-center justify-center text-3xl font-black" style={{ backgroundColor: selectedMapPro.bg, color: selectedMapPro.color }}>{selectedMapPro.name[0]}</div>
+                  ? <img src={selectedMapPro.img} alt={selectedMapPro.name} className="w-20 h-20 rounded-2xl object-cover border-2 border-white shadow-sm flex-shrink-0" />
+                  : <div className="w-20 h-20 rounded-2xl border-2 border-white shadow-sm flex-shrink-0 flex items-center justify-center text-3xl font-semibold" style={{ backgroundColor: selectedMapPro.bg, color: selectedMapPro.color }}>{selectedMapPro.name[0]}</div>
                 }
                 <div>
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                    <span className="text-[10px] font-black text-emerald-600 tracking-widest uppercase">Disponible ahora</span>
+                    <span className="text-[10px] font-semibold text-emerald-600 tracking-widest uppercase">Disponible ahora</span>
                   </div>
-                  <h4 className="font-black text-[20px] text-gray-900 leading-tight">{selectedMapPro.name}</h4>
+                  <h4 className="font-semibold text-[20px] text-gray-900 leading-tight">{selectedMapPro.name}</h4>
                   <p className="text-[14px] text-gray-500 font-medium mt-0.5">{selectedMapPro.specialty}</p>
                   <div className="flex items-center gap-1 mt-1.5">
                     <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-                    <span className="font-bold text-[13px] text-gray-800">{selectedMapPro.rating}</span>
+                    <span className="font-semibold text-[13px] text-gray-800">{selectedMapPro.rating}</span>
                     <span className="text-[12px] text-gray-400">({selectedMapPro.reviews})</span>
                   </div>
                 </div>
               </div>
-              <h3 className="font-black text-[18px] text-gray-900 mb-4">¿Cómo preferís atenderte?</h3>
+              <h3 className="font-semibold text-[18px] text-gray-900 mb-4">¿Cómo preferís atenderte?</h3>
               <div className="space-y-3">
                 {[
                   { label: 'Virtual (En Vivo)', sub: 'Conectá por videollamada al instante.', mod: 'Videollamada', icon: VideoCamera, color: 'text-brand', bg: 'bg-blue-50' },
@@ -495,13 +492,13 @@ export default function PatientDashboard({ profile }) {
                   <div
                     key={opt.mod}
                     onClick={() => handleMapModalitySelect(opt.mod === 'Videollamada' ? 'virtual' : 'presencial')}
-                    className="bg-white p-5 rounded-[24px] shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:border-brand transition-all group"
+                    className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:border-brand transition-all group"
                   >
                     <div className={`w-14 h-14 ${opt.bg} rounded-[16px] flex items-center justify-center group-hover:scale-110 transition-transform`}>
                       <opt.icon className={`w-6 h-6 ${opt.color}`} />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-black text-[17px] text-gray-900">{opt.label}</h3>
+                      <h3 className="font-semibold text-[17px] text-gray-900">{opt.label}</h3>
                       <p className="text-[13px] text-gray-500 font-medium mt-0.5">{opt.sub}</p>
                     </div>
                     <CaretRight className="w-5 h-5 text-gray-300 group-hover:text-brand transition-colors" />

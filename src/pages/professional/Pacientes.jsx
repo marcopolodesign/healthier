@@ -63,7 +63,7 @@ export default function Pacientes({ profile }) {
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary">Mis pacientes</h1>
+        <h1 className="page-title">Mis pacientes</h1>
         <p className="text-text-secondary mt-1">Todos los pacientes con los que tuviste consultas</p>
       </div>
 

@@ -43,89 +43,89 @@ export default function MagnifyingGlass() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary">Buscar profesionales</h1>
-        <p className="text-text-secondary mt-1">Encontrá el especialista que necesitás</p>
-      </div>
+    <div className="absolute inset-0 bg-bg-primary pt-6 sm:pt-8 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
+      <div className="max-w-5xl mx-auto space-y-6">
+        <div>
+          <h1 className="page-title">Buscar profesionales</h1>
+          <p className="text-text-secondary mt-1">Encontrá el especialista que necesitás</p>
+        </div>
 
-      {/* Filters */}
-      <div className="card">
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px]">
-            <label className="form-label">Especialidad</label>
-            <select
-              value={filters.specialty}
-              onChange={e => handleFilter('specialty', e.target.value)}
-              className="form-select"
-            >
-              {SPECIALTIES.map(s => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="min-w-[160px]">
-            <label className="form-label">Calificación mínima</label>
-            <select
-              value={filters.minRating}
-              onChange={e => handleFilter('minRating', Number(e.target.value))}
-              className="form-select"
-            >
-              <option value={0}>Cualquier calificación</option>
-              <option value={3}>3+ estrellas</option>
-              <option value={4}>4+ estrellas</option>
-              <option value={4.5}>4.5+ estrellas</option>
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2 pb-0.5">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <div
-                onClick={() => handleFilter('onDemand', !filters.onDemand)}
-                className={`w-10 h-6 rounded-full transition-colors relative ${filters.onDemand ? 'bg-brand' : 'bg-gray-300'}`}
+        {/* Filters */}
+        <div className="card">
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="flex-1 min-w-[200px]">
+              <label className="form-label">Especialidad</label>
+              <select
+                value={filters.specialty}
+                onChange={e => handleFilter('specialty', e.target.value)}
+                className="form-select"
               >
-                <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${filters.onDemand ? 'translate-x-5' : 'translate-x-1'}`} />
-              </div>
-              <span className="text-sm text-text-primary flex items-center gap-1">
-                <Lightning className="h-4 w-4 text-accent" />
-                Disponible ahora
-              </span>
-            </label>
+                {SPECIALTIES.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="min-w-[160px]">
+              <label className="form-label">Calificación mínima</label>
+              <select
+                value={filters.minRating}
+                onChange={e => handleFilter('minRating', Number(e.target.value))}
+                className="form-select"
+              >
+                <option value={0}>Cualquier calificación</option>
+                <option value={3}>3+ estrellas</option>
+                <option value={4}>4+ estrellas</option>
+                <option value={4.5}>4.5+ estrellas</option>
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleFilter('onDemand', !filters.onDemand)}
+              className={`flex items-center gap-1.5 px-6 py-3 rounded-full text-sm font-medium border transition-all ${
+                filters.onDemand
+                  ? 'bg-brand text-white border-brand hover:bg-brand-hover'
+                  : 'bg-transparent text-text-primary border-border-default hover:bg-bg-surface hover:border-border-hover'
+              }`}
+            >
+              <Lightning className={`h-4 w-4 ${filters.onDemand ? 'text-white' : 'text-accent'}`} />
+              Disponible ahora
+            </button>
+
+            <button onClick={search} className="btn-primary flex items-center gap-2">
+              <SearchIcon className="h-4 w-4" />
+              Buscar
+            </button>
           </div>
+        </div>
 
-          <button onClick={search} className="btn-primary flex items-center gap-2">
-            <SearchIcon className="h-4 w-4" />
-            Buscar
-          </button>
-        </div>
-      </div>
-
-      {/* Results */}
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1,2,3,4,5,6].map(i => <div key={i} className="h-64 bg-bg-surface rounded-xl animate-pulse" />)}
-        </div>
-      ) : results.length === 0 && searched ? (
-        <div className="text-center py-16 card">
-          <SlidersHorizontal className="h-12 w-12 text-text-muted mx-auto mb-3" />
-          <p className="text-text-secondary font-medium">No encontramos profesionales con esos filtros</p>
-          <p className="text-sm text-text-tertiary mt-1">Probá cambiando los criterios de búsqueda</p>
-        </div>
-      ) : (
-        <>
-          <p className="text-sm text-text-secondary">{results.length} profesional{results.length !== 1 ? 'es' : ''} encontrado{results.length !== 1 ? 's' : ''}</p>
+        {/* Results */}
+        {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {results.map(p => (
-              <ProfessionalCard
-                key={p.id}
-                pro={p}
-                onSelect={() => navigate(`/paciente/profesional/${p.id}`)}
-              />
-            ))}
+            {[1,2,3,4,5,6].map(i => <div key={i} className="h-64 bg-bg-surface rounded-2xl border border-black/5 animate-pulse" />)}
           </div>
-        </>
-      )}
+        ) : results.length === 0 && searched ? (
+          <div className="text-center py-16 card">
+            <SlidersHorizontal className="h-12 w-12 text-text-muted mx-auto mb-3" />
+            <p className="text-text-secondary font-medium">No encontramos profesionales con esos filtros</p>
+            <p className="text-sm text-text-tertiary mt-1">Probá cambiando los criterios de búsqueda</p>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm text-text-secondary">{results.length} profesional{results.length !== 1 ? 'es' : ''} encontrado{results.length !== 1 ? 's' : ''}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {results.map(p => (
+                <ProfessionalCard
+                  key={p.id}
+                  pro={p}
+                  onSelect={() => navigate(`/paciente/profesional/${p.id}`)}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }

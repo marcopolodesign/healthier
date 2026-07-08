@@ -316,6 +316,72 @@
   border-radius: var(--radius-card-lg);
 }
 
+/* ── Editorial page title — replaces raw "text-2xl font-bold" headers used
+   across Professional/Admin/Super-admin/Auth. font-bold is banned by the
+   weight invariant, so this is a correctness fix as much as a visual one.
+   Two sizes: page-title for standard headers, page-title-lg for
+   dashboard/auth-card-scale headers. ── */
+@utility page-title {
+  font-size: 1.5rem;              /* 24px, same footprint as old text-2xl */
+  font-weight: 300;                /* font-light */
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+}
+
+@utility page-title-lg {
+  font-size: 1.875rem;            /* 30px */
+  font-weight: 300;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  color: var(--color-text-primary);
+}
+
+/* ── Pill-shaped nav item — editorial counterpart to nav-item-active/
+   inactive (kept untouched, additive only). Used exclusively by
+   Sidebar.jsx (nav list + profile link + logout). ── */
+@utility nav-pill-active {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 1rem;
+  border-radius: 999px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  background-color: var(--color-brand-muted);
+  color: var(--color-brand);
+  transition: all 150ms;
+}
+
+@utility nav-pill-inactive {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 1rem;
+  border-radius: 999px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  transition: all 150ms;
+  &:hover {
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-surface);
+  }
+}
+
+/* ── Frosted floating nav shell — consolidates AppLayout's professional
+   bottom-nav one-off and upgrades PatientMobileLayout's flat full-bleed
+   bar to the same standard already documented in website/CLAUDE.md
+   ("Patient-area frosted glass style": bg-white/90 backdrop-blur-[20px]
+   border border-white/80 rounded-[28px] shadow-[0_8px_30px_rgba(0,0,0,0.1)]). ── */
+@utility nav-shell-frosted {
+  background-color: rgba(255, 255, 255, 0.90);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.80);
+  border-radius: 1.75rem; /* 28px */
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+}
+
 /* Film-grain overlay for photos — makes AI-generated imagery read as analog.
    Apply to the <img>'s positioned, overflow-hidden container. */
 @utility img-grain {

@@ -140,7 +140,7 @@ export default function Agenda({ profile }) {
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary">Mi agenda</h1>
+        <h1 className="page-title">Mi agenda</h1>
         <p className="text-text-secondary mt-1">Configurá tus franjas horarias por día de la semana</p>
       </div>
 
@@ -203,7 +203,7 @@ export default function Agenda({ profile }) {
           <>
             {/* Horizontal day columns */}
             <div className="overflow-x-auto -mx-1 px-1 pb-1">
-              <div className="flex gap-3" style={{ minWidth: 'max-content' }}>
+              <div className="flex gap-3 min-w-max">
                 {DAYS.map(day => {
                   const entries = scheduleByDay[day.value] || []
                   const hasEntries = entries.length > 0
@@ -217,7 +217,7 @@ export default function Agenda({ profile }) {
                       {/* Day header */}
                       <div className={`flex items-center justify-between px-3 py-2.5 ${hasEntries ? 'bg-brand-muted/40' : 'bg-bg-surface'}`}>
                         <div>
-                          <p className={`text-xs font-bold ${hasEntries ? 'text-brand' : 'text-text-tertiary'}`}>{day.short}</p>
+                          <p className={`text-xs font-semibold ${hasEntries ? 'text-brand' : 'text-text-tertiary'}`}>{day.short}</p>
                           <p className="text-xs text-text-secondary leading-tight">{day.label}</p>
                         </div>
                         <button

@@ -129,7 +129,7 @@ export default function AppLayout({ profile, profSpecialty }) {
       {/* Mobile bottom nav — professional only */}
       {showProfNav && (
         <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-4 sm:px-8 sm:pb-6 lg:hidden">
-          <div className="bg-white/90 backdrop-blur-[20px] border border-white/80 shadow-[0_8px_30px_rgba(0,0,0,0.1)] rounded-[28px] px-6 py-4 max-w-lg mx-auto">
+          <div className="nav-shell-frosted px-6 py-4 max-w-lg mx-auto">
             <ProfessionalBottomNav profile={profile} profSpecialty={profSpecialty} />
           </div>
         </div>

@@ -9,24 +9,21 @@ import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { consultationsService } from '../../services/consultationsService'
 
 const CONDITION_STATUS = {
-  active:   { label: 'Activo',  bg: '#fef2f2', color: '#b91c1c' },
-  chronic:  { label: 'Crónico', bg: '#fffbeb', color: '#b45309' },
-  resolved: { label: 'Resuelto', bg: '#f0fdf4', color: '#15803d' },
+  active:   { label: 'Activo',   classes: 'bg-rose-50 text-rose-700' },
+  chronic:  { label: 'Crónico',  classes: 'bg-amber-50 text-amber-700' },
+  resolved: { label: 'Resuelto', classes: 'bg-emerald-50 text-emerald-700' },
 }
 
 const MED_STATUS = {
-  active:    { label: 'Activo',     bg: '#f0fdf4', color: '#15803d' },
-  completed: { label: 'Completado', bg: '#f0f9ff', color: '#0284c7' },
-  stopped:   { label: 'Suspendido', bg: '#f9fafb', color: '#6b7280' },
+  active:    { label: 'Activo',     classes: 'bg-emerald-50 text-emerald-700' },
+  completed: { label: 'Completado', classes: 'bg-sky-50 text-sky-700' },
+  stopped:   { label: 'Suspendido', classes: 'bg-gray-50 text-gray-500' },
 }
 
 function StatusBadge({ map, value }) {
-  const s = map[value] ?? { label: value, bg: '#f3f4f6', color: '#374151' }
+  const s = map[value] ?? { label: value, classes: 'bg-gray-100 text-gray-700' }
   return (
-    <span
-      className="text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full flex-shrink-0"
-      style={{ backgroundColor: s.bg, color: s.color }}
-    >
+    <span className={`status-badge tracking-wide uppercase flex-shrink-0 ${s.classes}`}>
       {s.label}
     </span>
   )
@@ -36,15 +33,15 @@ function SectionHeader({ title, count, onViewAll, viewAllLabel = 'Ver todos' }) 
   return (
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center gap-2">
-        <span className="text-[13px] font-bold text-text-primary">{title}</span>
+        <span className="text-[13px] font-semibold text-text-primary">{title}</span>
         {count != null && (
-          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{count}</span>
+          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{count}</span>
         )}
       </div>
       {onViewAll && (
         <button
           onClick={onViewAll}
-          className="flex items-center gap-1 text-[12px] font-bold text-brand hover:text-brand-hover transition-colors"
+          className="flex items-center gap-1 text-[12px] font-semibold text-brand hover:text-brand-hover transition-colors"
         >
           {viewAllLabel}
           <CaretRight className="w-3 h-3" />
@@ -114,9 +111,9 @@ export default function HealthSnapshot({ profile }) {
   const encounterCount = timeline?.encounters?.filter(e => e.status === 'finished').length ?? 0
 
   const STATS = [
-    { label: 'Consultas totales', value: loading ? '—' : completedCount, icon: Stethoscope, color: '#7CB38B' },
-    { label: `En ${thisYear}`,    value: loading ? '—' : thisYearCount,  icon: Calendar,   color: '#9B8EC4' },
-    { label: 'Con HC',  value: loading ? '—' : encounterCount, icon: ClipboardText, color: '#E8927C' },
+    { label: 'Consultas totales', value: loading ? '—' : completedCount, icon: Stethoscope,   colorClass: 'text-brand' },
+    { label: `En ${thisYear}`,    value: loading ? '—' : thisYearCount,  icon: Calendar,       colorClass: 'text-brand-tertiary' },
+    { label: 'Con HC',            value: loading ? '—' : encounterCount, icon: ClipboardText,  colorClass: 'text-brand-secondary' },
   ]
 
   return (
@@ -128,7 +125,7 @@ export default function HealthSnapshot({ profile }) {
           <ArrowLeft className="w-5 h-5 text-text-primary" />
         </button>
         <div>
-          <h1 className="text-[18px] font-bold text-text-primary leading-tight">Resumen de salud</h1>
+          <h1 className="text-xl sm:text-2xl font-light tracking-tight text-text-primary leading-tight">Resumen de salud</h1>
           <p className="text-[12px] text-text-secondary">Condiciones, medicamentos y turnos</p>
         </div>
       </div>
@@ -139,15 +136,15 @@ export default function HealthSnapshot({ profile }) {
         <div className="grid grid-cols-3 gap-2.5">
           {STATS.map((s, i) => (
             <div key={i} className="bg-white rounded-[16px] border border-border-default p-3 flex flex-col gap-1">
-              <s.icon className="w-4 h-4" style={{ color: s.color }} />
-              <span className="text-[22px] font-black text-text-primary leading-none">{s.value}</span>
+              <s.icon className={`w-4 h-4 ${s.colorClass}`} />
+              <span className="text-[22px] font-semibold text-text-primary leading-none">{s.value}</span>
               <span className="text-[10px] font-semibold text-text-tertiary leading-tight">{s.label}</span>
             </div>
           ))}
         </div>
 
         {/* Next appointment */}
-        <div className="bg-white rounded-[20px] border border-border-default p-4">
+        <div className="bg-white rounded-2xl border border-border-default p-4">
           <SectionHeader
             title="Próximo turno"
             onViewAll={() => navigate('/paciente/consultas')}
@@ -164,16 +161,15 @@ export default function HealthSnapshot({ profile }) {
                   navigate('/paciente/consultas')
                 }
               }}
-              className="flex items-center gap-3 px-4 py-3 rounded-[14px] border border-brand/20 cursor-pointer hover:border-brand/40 transition-colors"
-              style={{ backgroundColor: '#f0f7f3' }}
+              className="flex items-center gap-3 px-4 py-3 rounded-[14px] border border-brand/20 cursor-pointer hover:border-brand/40 transition-colors bg-brand/5"
             >
-              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#7CB38B' }}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-brand">
                 {nextConsultation.modality === 'video'
                   ? <VideoCamera className="w-5 h-5 text-white" />
                   : <MapPin className="w-5 h-5 text-white" />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[14px] font-bold text-text-primary leading-tight truncate">
+                <p className="text-[14px] font-semibold text-text-primary leading-tight truncate">
                   {nextConsultation.professional?.fullName ?? 'Profesional'}
                 </p>
                 <p className="text-[12px] text-text-secondary mt-0.5">
@@ -204,7 +200,7 @@ export default function HealthSnapshot({ profile }) {
         </div>
 
         {/* Active conditions */}
-        <div className="bg-white rounded-[20px] border border-border-default p-4">
+        <div className="bg-white rounded-2xl border border-border-default p-4">
           <SectionHeader
             title="Condiciones"
             count={loading ? null : activeConditions.length}
@@ -236,7 +232,7 @@ export default function HealthSnapshot({ profile }) {
               {activeConditions.length > 5 && (
                 <button
                   onClick={() => navigate('/paciente/historia-clinica')}
-                  className="text-[12px] font-bold text-brand hover:text-brand-hover text-center py-1 transition-colors"
+                  className="text-[12px] font-semibold text-brand hover:text-brand-hover text-center py-1 transition-colors"
                 >
                   +{activeConditions.length - 5} más — Ver HC completa
                 </button>
@@ -246,7 +242,7 @@ export default function HealthSnapshot({ profile }) {
         </div>
 
         {/* Active medications */}
-        <div className="bg-white rounded-[20px] border border-border-default p-4">
+        <div className="bg-white rounded-2xl border border-border-default p-4">
           <SectionHeader
             title="Medicamentos"
             count={loading ? null : activeMedications.length}
@@ -280,7 +276,7 @@ export default function HealthSnapshot({ profile }) {
               {activeMedications.length > 5 && (
                 <button
                   onClick={() => navigate('/paciente/historia-clinica')}
-                  className="text-[12px] font-bold text-brand hover:text-brand-hover text-center py-1 transition-colors"
+                  className="text-[12px] font-semibold text-brand hover:text-brand-hover text-center py-1 transition-colors"
                 >
                   +{activeMedications.length - 5} más — Ver HC completa
                 </button>
@@ -290,7 +286,7 @@ export default function HealthSnapshot({ profile }) {
         </div>
 
         {/* Allergies */}
-        <div className="bg-white rounded-[20px] border border-border-default p-4">
+        <div className="bg-white rounded-2xl border border-border-default p-4">
           <SectionHeader
             title="Alergias conocidas"
             count={loading ? null : allergies.length}
@@ -317,22 +313,22 @@ export default function HealthSnapshot({ profile }) {
         </div>
 
         {/* Quick links */}
-        <div className="bg-white rounded-[20px] border border-border-default p-4">
+        <div className="bg-white rounded-2xl border border-border-default p-4">
           <SectionHeader title="Accesos rápidos" />
           <div className="flex flex-col gap-2">
             {[
-              { label: 'Historia Clínica completa', icon: ClipboardText, to: '/paciente/historia-clinica', color: '#7CB38B' },
-              { label: 'Análisis de laboratorio (BioVisor)', icon: Pulse, to: '/paciente/biovisor', color: '#9B8EC4' },
-              { label: 'Plan nutricional', icon: Heartbeat, to: '/paciente/nutriplan', color: '#E8927C' },
-              { label: 'Reservar turno', icon: Calendar, to: '/paciente/reservar', color: '#6366f1' },
+              { label: 'Historia Clínica completa', icon: ClipboardText, to: '/paciente/historia-clinica', colorClass: 'bg-brand/10 text-brand' },
+              { label: 'Análisis de laboratorio (BioVisor)', icon: Pulse, to: '/paciente/biovisor', colorClass: 'bg-brand-tertiary/10 text-brand-tertiary' },
+              { label: 'Plan nutricional', icon: Heartbeat, to: '/paciente/nutriplan', colorClass: 'bg-brand-secondary/10 text-brand-secondary' },
+              { label: 'Reservar turno', icon: Calendar, to: '/paciente/reservar', colorClass: 'bg-indigo-500/10 text-indigo-500' },
             ].map((l, i) => (
               <button
                 key={i}
                 onClick={() => navigate(l.to)}
                 className="flex items-center gap-3 px-3 py-3 rounded-[12px] hover:bg-bg-primary transition-colors group text-left"
               >
-                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: l.color + '18' }}>
-                  <l.icon className="w-4 h-4" style={{ color: l.color }} />
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${l.colorClass}`}>
+                  <l.icon className="w-4 h-4" />
                 </div>
                 <span className="text-[14px] font-medium text-text-primary flex-1">{l.label}</span>
                 <CaretRight className="w-4 h-4 text-text-tertiary group-hover:text-text-secondary transition-colors" />

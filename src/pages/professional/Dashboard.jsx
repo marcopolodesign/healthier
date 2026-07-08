@@ -179,7 +179,7 @@ export default function ProfessionalDashboard({ profile }) {
     return (
       <div className="space-y-6 animate-fade-in">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">Hola, {profile?.fullName?.split(' ')[0]}</h1>
+          <h1 className="page-title">Hola, {profile?.fullName?.split(' ')[0]}</h1>
         </div>
 
         {isRejected ? (
@@ -245,7 +245,7 @@ export default function ProfessionalDashboard({ profile }) {
         >
           <Siren className="w-5 h-5 shrink-0 animate-pulse" />
           <div className="flex-1 min-w-0">
-            <p className="font-black text-sm leading-tight">Emergencia activa</p>
+            <p className="font-semibold text-sm leading-tight">Emergencia activa</p>
             <p className="text-xs opacity-80 truncate">
               {activeEmergency.dispatch_code} · {activeEmergency.triage_code} · {
                 activeEmergency.status === 'dispatched' ? 'Esperando confirmación'
@@ -254,23 +254,23 @@ export default function ProfessionalDashboard({ profile }) {
               }
             </p>
           </div>
-          <span className="text-sm font-bold shrink-0">Ver →</span>
+          <span className="text-sm font-semibold shrink-0">Ver →</span>
         </Link>
       )}
 
       <div>
-        <h1 className="text-2xl font-bold text-text-primary">Hola, {profile?.fullName?.split(' ')[0]} 👋</h1>
+        <h1 className="page-title">Hola, {profile?.fullName?.split(' ')[0]} 👋</h1>
         <p className="text-text-secondary mt-1">Tu agenda de hoy</p>
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map(s => (
-          <div key={s.label} className="card">
+          <div key={s.label} className="card bg-gradient-to-br from-bg-primary to-brand/10">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${s.color}`}>
               <s.icon className="h-5 w-5" />
             </div>
-            <p className="text-2xl font-bold text-text-primary">{loading ? '—' : s.value}</p>
+            <p className="text-2xl font-semibold text-text-primary">{loading ? '—' : s.value}</p>
             <p className="text-xs text-text-secondary mt-0.5">{s.label}</p>
           </div>
         ))}
@@ -283,7 +283,7 @@ export default function ProfessionalDashboard({ profile }) {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs text-text-secondary font-medium uppercase tracking-wide">Ganancias este mes</p>
-          <p className="text-2xl font-bold text-text-primary mt-0.5">
+          <p className="text-2xl font-semibold text-text-primary mt-0.5">
             {loading ? <span className="text-text-muted">—</span> : formatARS(thisMonthEarnings)}
           </p>
           {!loading && earningsData.length > 0 && (
@@ -338,7 +338,7 @@ export default function ProfessionalDashboard({ profile }) {
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold text-amber-800">
               Turnos pendientes
-              <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-600 text-white text-xs font-bold">
+              <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-600 text-white text-xs font-semibold">
                 {pendingBookings.length}
               </span>
             </h2>
@@ -393,7 +393,7 @@ export default function ProfessionalDashboard({ profile }) {
             <h2 className="font-semibold text-brand">
               Consultas urgentes
               {walkInQueue.length > 0 && (
-                <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full bg-brand text-white text-xs font-bold">
+                <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full bg-brand text-white text-xs font-semibold">
                   {walkInQueue.length}
                 </span>
               )}

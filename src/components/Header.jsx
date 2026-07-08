@@ -54,7 +54,7 @@ export default function Header({ profile, onMenuToggle }) {
         {userMenuOpen && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setUserMenuOpen(false)} />
-            <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg border border-border-default shadow-lg z-20 py-1">
+            <div className="absolute right-0 mt-1 w-48 bg-white rounded-2xl border border-border-default shadow-lg z-20 py-1">
               <button
                 onClick={handleLogout}
                 className="w-full text-left px-4 py-2 text-sm text-error hover:bg-red-50 transition-colors"

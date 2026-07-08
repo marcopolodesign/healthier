@@ -79,7 +79,7 @@ export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onCl
               key={item.to}
               to={item.to}
               onClick={onClose}
-              className={({ isActive }) => isActive ? 'nav-item-active' : 'nav-item-inactive'}
+              className={({ isActive }) => isActive ? 'nav-pill-active' : 'nav-pill-inactive'}
             >
               <item.icon className="h-[22px] w-[22px] shrink-0" />
               {item.label}
@@ -113,11 +113,7 @@ export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onCl
             <NavLink
               to={PROFILE_ROUTES[role]}
               onClick={onClose}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg w-full transition-colors ${
-                  isActive ? 'bg-brand-muted text-brand' : 'text-text-secondary hover:bg-bg-surface hover:text-text-primary'
-                }`
-              }
+              className={({ isActive }) => isActive ? 'nav-pill-active' : 'nav-pill-inactive'}
             >
               {profile?.avatarUrl ? (
                 <img src={profile.avatarUrl} alt={profile.fullName} className="h-8 w-8 rounded-full object-cover shrink-0" />
@@ -131,7 +127,7 @@ export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onCl
           ) : (
             <button
               onClick={handleLogout}
-              className="nav-item-inactive w-full text-left text-error hover:bg-red-50 hover:text-error"
+              className="nav-pill-inactive w-full text-left text-error hover:bg-red-50 hover:text-error"
             >
               <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

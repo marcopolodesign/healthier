@@ -23,12 +23,12 @@ const ESPECIALIDADES = {
   veterinaria: ['Clínica General Veterinaria', 'Vacunación', 'Urgencias 24h'],
 }
 
-const STATUS_STYLE = {
-  confirmed:   'bg-emerald-50 text-emerald-600',
-  pending:     'bg-amber-50 text-amber-600',
-  cancelled:   'bg-gray-100 text-gray-500',
-  completed:   'bg-gray-100 text-gray-500',
-  in_progress: 'bg-blue-50 text-brand',
+const STATUS_CLASS = {
+  confirmed:   'status-confirmed',
+  pending:     'status-pending',
+  cancelled:   'status-cancelled',
+  completed:   'status-completed',
+  in_progress: 'status-in-progress',
 }
 const STATUS_LABEL = {
   confirmed: 'Confirmado', pending: 'Pendiente',
@@ -378,7 +378,12 @@ export default function PatientConsultations({ profile }) {
   const past     = turnos.filter(t =>  ['completed', 'cancelled'].includes(t.status))
   const shown    = view === 'upcoming' ? upcoming : past
 
-  const TRIAGE_COLORS = { ROJO: '#F43F5E', AMARILLO: '#F59E0B', VERDE: '#10B981' }
+  const TRIAGE_CLASSES = {
+    ROJO:     { border: 'border-rose-500/25',    bg: 'bg-rose-500/5',    chip: 'bg-rose-500/20',    icon: 'text-rose-500',    solid: 'bg-rose-500' },
+    AMARILLO: { border: 'border-amber-500/25',   bg: 'bg-amber-500/5',   chip: 'bg-amber-500/20',   icon: 'text-amber-500',   solid: 'bg-amber-500' },
+    VERDE:    { border: 'border-emerald-500/25', bg: 'bg-emerald-500/5', chip: 'bg-emerald-500/20', icon: 'text-emerald-500', solid: 'bg-emerald-500' },
+  }
+  const DEFAULT_TRIAGE = TRIAGE_CLASSES.ROJO
   const activeEmergencies = emergencies.filter(e => ['pending', 'dispatched', 'in_transit', 'arrived'].includes(e.status))
   const pastEmergencies   = emergencies.filter(e => ['completed', 'cancelled'].includes(e.status))
 
@@ -390,7 +395,7 @@ export default function PatientConsultations({ profile }) {
     <div className="absolute inset-0 bg-bg-primary pt-6 sm:pt-8 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
       <div className="max-w-2xl mx-auto">
       <div className="mb-8 mt-4">
-        <h1 className="text-[32px] font-black text-gray-900 tracking-tight leading-none">Mi Agenda</h1>
+        <h1 className="text-2xl sm:text-3xl font-light text-gray-900 tracking-tight leading-none">Mi Agenda</h1>
         <p className="text-gray-500 font-medium text-[15px] mt-2 flex items-center gap-1.5">
           <Calendar className="w-4 h-4 text-gray-400" /> Reservá tu turno
         </p>
@@ -408,16 +413,16 @@ export default function PatientConsultations({ profile }) {
             <v.icon className="w-[18px] h-[18px] shrink-0" style={{ color: v.color }} />
             <span className="text-[14px] font-light whitespace-nowrap" style={{ color: v.color }}>{v.nombre}</span>
             {v.comingSoon && (
-              <span className="text-[9px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded-full ml-0.5" style={{ backgroundColor: v.bg, color: v.color }}>Pronto</span>
+              <span className="text-[9px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded-full ml-0.5" style={{ backgroundColor: v.bg, color: v.color }}>Pronto</span>
             )}
           </button>
         ))}
       </div>
 
       {/* Segment control — matches mobile style */}
-      <div className="flex bg-bg-secondary border border-border-default p-1 rounded-[32px] mb-5">
+      <div className="flex bg-bg-secondary border border-border-default p-1 rounded-2xl mb-5">
         {['upcoming', 'past'].map(tab => (
-          <button key={tab} onClick={() => setView(tab)} className={`flex-1 py-2 text-[14px] rounded-[28px] transition-all ${view === tab ? 'bg-white font-bold text-text-primary shadow-sm' : 'font-medium text-text-tertiary'}`}>
+          <button key={tab} onClick={() => setView(tab)} className={`flex-1 py-2 text-[14px] rounded-[28px] transition-all ${view === tab ? 'bg-white font-semibold text-text-primary shadow-sm' : 'font-medium text-text-tertiary'}`}>
             {tab === 'upcoming' ? 'Próximos' : 'Historial'}
           </button>
         ))}
@@ -425,18 +430,18 @@ export default function PatientConsultations({ profile }) {
 
       {/* Active emergency banners — always at top of Próximos */}
       {view === 'upcoming' && activeEmergencies.map(emg => {
-        const triageColor = TRIAGE_COLORS[emg.triage_code] ?? '#F43F5E'
+        const triage = TRIAGE_CLASSES[emg.triage_code] ?? DEFAULT_TRIAGE
         const fecha = new Date(emg.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
         return (
-          <div key={emg.id} className="mb-3 rounded-[32px] border p-4 flex items-center gap-4 cursor-pointer active:opacity-80 transition-opacity" style={{ borderColor: triageColor + '40', backgroundColor: triageColor + '08' }} onClick={() => navigate('/paciente/sos')}>
-            <div className="w-12 h-12 rounded-[14px] flex items-center justify-center shrink-0" style={{ backgroundColor: triageColor + '20' }}>
-              <Ambulance className="w-6 h-6" style={{ color: triageColor }} />
+          <div key={emg.id} className={`mb-3 rounded-2xl border p-4 flex items-center gap-4 cursor-pointer active:opacity-80 transition-opacity ${triage.border} ${triage.bg}`} onClick={() => navigate('/paciente/sos')}>
+            <div className={`w-12 h-12 rounded-[14px] flex items-center justify-center shrink-0 ${triage.chip}`}>
+              <Ambulance className={`w-6 h-6 ${triage.icon}`} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-bold text-[15px] text-gray-900">Emergencia S.O.S</p>
+              <p className="font-semibold text-[15px] text-gray-900">Emergencia S.O.S</p>
               <p className="text-[13px] text-gray-500 font-medium">{fecha} · {emg.dispatch_code ?? '—'}</p>
             </div>
-            <div className="px-2.5 py-1 rounded-md text-[10px] font-black tracking-widest uppercase text-white" style={{ backgroundColor: triageColor }}>
+            <div className={`px-2.5 py-1 rounded-md text-[10px] font-semibold tracking-widest uppercase text-white ${triage.solid}`}>
               {emg.triage_code ?? 'ACTIVA'}
             </div>
           </div>
@@ -445,18 +450,17 @@ export default function PatientConsultations({ profile }) {
 
       {/* Past emergencies in Historial */}
       {view === 'past' && pastEmergencies.map(emg => {
-        const triageColor = TRIAGE_COLORS[emg.triage_code] ?? '#F43F5E'
         const fecha = new Date(emg.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
         return (
-          <div key={emg.id} className="mb-3 bg-bg-secondary rounded-[32px] border border-border-default p-4 flex items-center gap-4">
+          <div key={emg.id} className="mb-3 bg-bg-secondary rounded-2xl border border-border-default p-4 flex items-center gap-4">
             <div className="w-12 h-12 rounded-[14px] bg-gray-50 flex items-center justify-center shrink-0">
               <Ambulance className="w-6 h-6 text-gray-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-bold text-[15px] text-gray-900">Emergencia S.O.S · {emg.triage_code}</p>
+              <p className="font-semibold text-[15px] text-gray-900">Emergencia S.O.S · {emg.triage_code}</p>
               <p className="text-[13px] text-gray-500 font-medium">{fecha} · {emg.dispatch_code ?? '—'}</p>
             </div>
-            <div className="px-2.5 py-1 rounded-md text-[10px] font-black bg-gray-100 text-gray-500 uppercase tracking-wider">
+            <div className="px-2.5 py-1 rounded-md text-[10px] font-semibold bg-gray-100 text-gray-500 uppercase tracking-wider">
               Finalizado
             </div>
           </div>
@@ -466,9 +470,9 @@ export default function PatientConsultations({ profile }) {
       {/* Consultation list */}
       <div className="space-y-3">
         {loading ? (
-          [1, 2].map(i => <div key={i} className="h-32 bg-bg-secondary rounded-[32px] animate-pulse border border-border-default" />)
+          [1, 2].map(i => <div key={i} className="h-32 bg-bg-secondary rounded-2xl animate-pulse border border-border-default" />)
         ) : shown.length === 0 && (view === 'upcoming' ? activeEmergencies : pastEmergencies).length === 0 ? (
-          <div className="bg-bg-secondary p-8 rounded-[32px] border border-border-default text-center flex flex-col items-center justify-center">
+          <div className="bg-bg-secondary p-8 rounded-2xl border border-border-default text-center flex flex-col items-center justify-center">
             <Calendar className="w-10 h-10 text-text-muted mb-3" />
             <p className="font-medium text-[14px] text-text-tertiary">Sin turnos en esta sección</p>
           </div>
@@ -481,13 +485,13 @@ export default function PatientConsultations({ profile }) {
           const orders = t.consultationOrders ?? []
           const hasActions = isUpcomingActive || isInProgressVideo || (view === 'past' && t.status === 'completed')
           return (
-            <div key={t.id} className="bg-bg-secondary rounded-[32px] border border-border-default overflow-hidden">
+            <div key={t.id} className="bg-bg-secondary rounded-2xl border border-border-default overflow-hidden">
               <div className="flex">
                 {/* Left: date column */}
                 <div className="w-[88px] shrink-0 border-r border-border-default flex flex-col items-center justify-center py-5 gap-0.5">
                   {date ? (
                     <>
-                      <span className="text-[28px] font-black text-text-primary leading-none">
+                      <span className="text-[28px] font-semibold text-text-primary leading-none">
                         {date.toLocaleDateString('es-AR', { day: '2-digit' })}
                       </span>
                       <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wide">
@@ -523,7 +527,7 @@ export default function PatientConsultations({ profile }) {
                       {t.modality === 'video' ? <VideoCamera className="w-3 h-3" /> : <MapPin className="w-3 h-3" />}
                       {t.modality === 'video' ? 'Videollamada' : 'Presencial'}
                     </div>
-                    <div className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${STATUS_STYLE[t.status] || STATUS_STYLE.pending}`}>
+                    <div className={`status-badge uppercase tracking-wide ${STATUS_CLASS[t.status] || STATUS_CLASS.pending}`}>
                       {STATUS_LABEL[t.status] || t.status}
                     </div>
                   </div>
@@ -588,7 +592,7 @@ export default function PatientConsultations({ profile }) {
                     </button>
                   )}
                   {view === 'past' && t.status === 'completed' && hasReview && (
-                    <div className="flex-1 py-3 flex items-center justify-center gap-1 text-[13px] text-amber-500 font-bold">
+                    <div className="flex-1 py-3 flex items-center justify-center gap-1 text-[13px] text-amber-500 font-semibold">
                       <Star className="w-4 h-4 fill-amber-400" /> {patientReviewMap[t.id]?.rating}/5
                     </div>
                   )}
@@ -604,8 +608,8 @@ export default function PatientConsultations({ profile }) {
       <PatientSheet open={modalOpen && !!selVertical} onClose={() => setModalOpen(false)}>
         <div className="px-6 pt-4 pb-2 flex justify-between items-center flex-shrink-0">
           <div>
-            <h2 className="text-[24px] font-black text-gray-900 leading-none tracking-tight">{STEP_TITLES[step]}</h2>
-            <p className="text-[13px] font-bold text-gray-500 tracking-widest uppercase mt-1">
+            <h2 className="text-[24px] font-semibold text-gray-900 leading-none tracking-tight">{STEP_TITLES[step]}</h2>
+            <p className="text-[13px] font-semibold text-gray-500 tracking-widest uppercase mt-1">
               {selVertical?.nombre}{modality ? ` • ${modality}` : ''}
             </p>
           </div>
@@ -621,12 +625,12 @@ export default function PatientConsultations({ profile }) {
                 { label: 'Virtual', sub: 'Videollamada segura en la app', mod: 'Videollamada', icon: VideoCamera, bg: 'bg-blue-50', color: 'text-brand' },
                 { label: 'Presencial', sub: 'En el consultorio del profesional', mod: 'Presencial', icon: MapPin, bg: 'bg-emerald-50', color: 'text-emerald-600' },
               ].map(opt => (
-                <div key={opt.mod} onClick={() => { setModality(opt.mod); ESPECIALIDADES[selVertical.id] ? setStep('specialty') : advanceToProfessional(selVertical.id) }} className="bg-bg-primary p-5 rounded-[24px] shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:border-brand transition-all group">
+                <div key={opt.mod} onClick={() => { setModality(opt.mod); ESPECIALIDADES[selVertical.id] ? setStep('specialty') : advanceToProfessional(selVertical.id) }} className="bg-bg-primary p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:border-brand transition-all group">
                   <div className={`w-14 h-14 ${opt.bg} rounded-full flex items-center justify-center group-hover:scale-110 transition-transform`}>
                     <opt.icon className={`w-7 h-7 ${opt.color}`} />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-black text-[18px] text-gray-900">{opt.label}</h3>
+                    <h3 className="font-semibold text-[18px] text-gray-900">{opt.label}</h3>
                     <p className="text-[13px] text-gray-500 font-medium mt-0.5">{opt.sub}</p>
                   </div>
                   <CaretRight className="w-5 h-5 text-gray-300 group-hover:text-brand transition-colors" />
@@ -638,8 +642,8 @@ export default function PatientConsultations({ profile }) {
           {step === 'specialty' && (
             <div className="space-y-3 pb-6">
               {(ESPECIALIDADES[selVertical.id] || []).map(esp => (
-                <div key={esp} onClick={() => { setSpecialty(esp); advanceToProfessional(selVertical.id) }} className="bg-white p-4 rounded-[20px] shadow-sm border border-gray-100 flex justify-between items-center cursor-pointer hover:border-brand hover:bg-bg-primary transition-all group">
-                  <span className="font-bold text-[16px] text-gray-800">{esp}</span>
+                <div key={esp} onClick={() => { setSpecialty(esp); advanceToProfessional(selVertical.id) }} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center cursor-pointer hover:border-brand hover:bg-bg-primary transition-all group">
+                  <span className="font-semibold text-[16px] text-gray-800">{esp}</span>
                   <CaretRight className="w-5 h-5 text-gray-300 group-hover:text-brand transition-colors" />
                 </div>
               ))}
@@ -649,30 +653,30 @@ export default function PatientConsultations({ profile }) {
           {step === 'professional' && (
             <div className="space-y-4 pb-6">
               {prosLoading ? (
-                [1, 2].map(i => <div key={i} className="h-24 bg-white rounded-[24px] animate-pulse border border-gray-100" />)
+                [1, 2].map(i => <div key={i} className="h-24 bg-white rounded-2xl animate-pulse border border-gray-100" />)
               ) : pros.length === 0 ? (
                 <p className="text-center text-gray-400 font-medium py-8">No hay profesionales disponibles para esta especialidad.</p>
               ) : pros.map(p => {
                 const proName = p.profiles?.fullName || 'Profesional'
                 const proAvatar = p.profiles?.avatarUrl || null
                 return (
-                  <div key={p.userId ?? p.id} onClick={() => selectProfessional(p)} className="bg-bg-primary p-4 rounded-[24px] shadow-sm border border-gray-100 flex gap-4 cursor-pointer hover:border-brand transition-all group">
+                  <div key={p.userId ?? p.id} onClick={() => selectProfessional(p)} className="bg-bg-primary p-4 rounded-2xl shadow-sm border border-gray-100 flex gap-4 cursor-pointer hover:border-brand transition-all group">
                     {proAvatar
                       ? <img src={proAvatar} alt={proName} className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm flex-shrink-0" />
-                      : <div className="w-16 h-16 rounded-full border-2 border-white shadow-sm flex-shrink-0 flex items-center justify-center text-2xl font-black bg-gray-100 text-gray-400">{proName[0]}</div>
+                      : <div className="w-16 h-16 rounded-full border-2 border-white shadow-sm flex-shrink-0 flex items-center justify-center text-2xl font-semibold bg-gray-100 text-gray-400">{proName[0]}</div>
                     }
                     <div className="flex-1 flex flex-col justify-center">
-                      <h4 className="font-black text-[17px] text-gray-900 leading-tight">{proName}</h4>
+                      <h4 className="font-semibold text-[17px] text-gray-900 leading-tight">{proName}</h4>
                       <div className="flex items-center gap-1.5 mt-1">
                         <div className="flex items-center gap-1 bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded text-[12px]">
                           <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
-                          <span className="font-bold">{String(p.averageRating ?? '—')}</span>
+                          <span className="font-semibold">{String(p.averageRating ?? '—')}</span>
                         </div>
                         <span className="text-[12px] font-medium text-gray-400">({p.totalReviews ?? 0} reseñas)</span>
                       </div>
                     </div>
                     <div className="flex items-center justify-center pr-2">
-                      <div className="bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full text-[11px] font-bold group-hover:bg-brand group-hover:text-white transition-colors">ELEGIR</div>
+                      <div className="bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full text-[11px] font-semibold group-hover:bg-brand group-hover:text-white transition-colors">ELEGIR</div>
                     </div>
                   </div>
                 )
@@ -683,34 +687,34 @@ export default function PatientConsultations({ profile }) {
           {step === 'datetime' && (
             <div className="pb-6">
               {slotsLoading ? (
-                <div className="h-32 bg-white rounded-[24px] animate-pulse border border-gray-100" />
+                <div className="h-32 bg-white rounded-2xl animate-pulse border border-gray-100" />
               ) : availableDates.length === 0 ? (
-                <div className="bg-bg-primary rounded-[24px] p-5 shadow-sm border border-gray-100 text-center">
+                <div className="bg-bg-primary rounded-2xl p-5 shadow-sm border border-gray-100 text-center">
                   <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                  <p className="font-bold text-[15px] text-gray-500 mb-1">Sin franjas disponibles</p>
+                  <p className="font-semibold text-[15px] text-gray-500 mb-1">Sin franjas disponibles</p>
                   <p className="text-[13px] text-gray-400">Este profesional no tiene horarios libres por el momento.</p>
                 </div>
               ) : (
-                <div className="bg-bg-primary rounded-[24px] p-5 shadow-sm border border-gray-100 mb-6">
-                  <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Día</h4>
+                <div className="bg-bg-primary rounded-2xl p-5 shadow-sm border border-gray-100 mb-6">
+                  <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Día</h4>
                   <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide -mx-2 px-2">
                     {availableDates.map(d => (
-                      <div key={d} onClick={() => { setSelectedDate(d); setSelectedSlot(null) }} className={`flex-shrink-0 px-4 py-2 rounded-xl cursor-pointer font-bold text-[14px] transition-colors border ${selectedDate === d ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{d}</div>
+                      <div key={d} onClick={() => { setSelectedDate(d); setSelectedSlot(null) }} className={`flex-shrink-0 px-4 py-2 rounded-xl cursor-pointer font-semibold text-[14px] transition-colors border ${selectedDate === d ? 'bg-brand text-white border-brand' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{d}</div>
                     ))}
                   </div>
-                  <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3 mt-2">Hora</h4>
+                  <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3 mt-2">Hora</h4>
                   <div className="grid grid-cols-3 gap-2">
                     {timeSlotsForDate.map(slot => {
                       const t = new Date(slot.startTime).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
                       const isSelected = selectedSlot?.id === slot.id
                       return (
-                        <div key={slot.id} onClick={() => setSelectedSlot(slot)} className={`px-2 py-3 rounded-xl cursor-pointer font-bold text-[13px] text-center transition-colors border ${isSelected ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}>{t}</div>
+                        <div key={slot.id} onClick={() => setSelectedSlot(slot)} className={`px-2 py-3 rounded-xl cursor-pointer font-semibold text-[13px] text-center transition-colors border ${isSelected ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}>{t}</div>
                       )
                     })}
                   </div>
                 </div>
               )}
-              <button onClick={() => setStep('payment')} disabled={!selectedSlot} className={`w-full py-5 rounded-[20px] font-bold text-[17px] shadow-sm transition-all flex justify-center items-center gap-2 ${selectedSlot ? 'bg-brand text-white hover:bg-brand-hover active:scale-95' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+              <button onClick={() => setStep('payment')} disabled={!selectedSlot} className="btn-primary w-full py-5 text-[17px] flex justify-center items-center gap-2">
                 Continuar al Pago
               </button>
             </div>
@@ -718,39 +722,39 @@ export default function PatientConsultations({ profile }) {
 
           {step === 'payment' && selectedSlot && (
             <div className="pb-6 animate-fade-in">
-              <div className="bg-bg-primary rounded-[24px] p-5 shadow-sm border border-gray-100 mb-4">
-                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">Resumen</h4>
+              <div className="bg-bg-primary rounded-2xl p-5 shadow-sm border border-gray-100 mb-4">
+                <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-4">Resumen</h4>
                 <div className="flex gap-4 items-center mb-5">
                   {professional?.img
                     ? <img src={professional.img} alt={professional.name} className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm" />
-                    : <div className="w-14 h-14 rounded-full border-2 border-white shadow-sm bg-gray-100 flex items-center justify-center font-black text-gray-400 text-xl">{professional?.name?.[0] || '?'}</div>
+                    : <div className="w-14 h-14 rounded-full border-2 border-white shadow-sm bg-gray-100 flex items-center justify-center font-semibold text-gray-400 text-xl">{professional?.name?.[0] || '?'}</div>
                   }
                   <div>
-                    <h4 className="font-black text-[17px] text-gray-900 leading-tight">{professional?.name}</h4>
+                    <h4 className="font-semibold text-[17px] text-gray-900 leading-tight">{professional?.name}</h4>
                     {specialty && <p className="text-[14px] text-gray-500 font-medium mt-0.5">{specialty}</p>}
                   </div>
                 </div>
                 <div className="space-y-2">
                   <div className="bg-white rounded-xl p-3 flex justify-center items-center border border-gray-100">
-                    <span className="font-bold text-[14px] text-gray-800 flex items-center gap-2">
+                    <span className="font-semibold text-[14px] text-gray-800 flex items-center gap-2">
                       {modality === 'Videollamada' ? <VideoCamera className="w-4 h-4 text-brand" /> : <MapPin className="w-4 h-4 text-emerald-600" />}
                       Cita {modality}
                     </span>
                   </div>
                   <div className="bg-white rounded-xl p-3 flex justify-between items-center border border-gray-100">
-                    <span className="font-bold text-[14px] text-gray-800 flex items-center gap-2">
+                    <span className="font-semibold text-[14px] text-gray-800 flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-gray-400" />
                       {new Date(selectedSlot.startTime).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' })}
                     </span>
-                    <span className="font-black text-[14px] text-gray-900 flex items-center gap-2">
+                    <span className="font-semibold text-[14px] text-gray-900 flex items-center gap-2">
                       <Clock className="w-4 h-4 text-gray-400" />
                       {new Date(selectedSlot.startTime).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 </div>
               </div>
-              <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100 mb-6">
-                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Método de Pago</h4>
+              <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-6">
+                <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Método de Pago</h4>
                 {mpConfigLoading ? (
                   <div className="flex items-center justify-center gap-2 py-6 text-gray-400">
                     <CircleNotch className="w-5 h-5 animate-spin" />
@@ -766,14 +770,14 @@ export default function PatientConsultations({ profile }) {
                 )}
                 {paymentAmount != null && (
                   <div className="flex justify-between items-center mt-5 pt-5 border-t border-gray-100">
-                    <span className="font-bold text-gray-500">A pagar hoy</span>
-                    <span className="font-black text-[24px] text-gray-900">
+                    <span className="font-semibold text-gray-500">A pagar hoy</span>
+                    <span className="font-semibold text-[24px] text-gray-900">
                       ${paymentAmount.toLocaleString('es-AR')}
                     </span>
                   </div>
                 )}
               </div>
-              <button onClick={confirmPay} disabled={paying || paid || !selectedCardId} className={`w-full py-5 rounded-[20px] font-bold text-[17px] shadow-sm transition-all flex justify-center items-center gap-3 ${paid ? 'bg-emerald-500 text-white scale-[1.02]' : (paying || !selectedCardId) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-brand text-white hover:bg-brand-hover active:scale-95'}`}>
+              <button onClick={confirmPay} disabled={paying || paid || !selectedCardId} className={`btn-primary w-full py-5 text-[17px] flex justify-center items-center gap-3 ${paid ? '!bg-emerald-500 !opacity-100 scale-[1.02]' : ''}`}>
                 {paying ? <><CircleNotch className="w-5 h-5 animate-spin" /> Procesando...</>
                  : paid  ? <><Check className="w-6 h-6 text-white animate-bounce" strokeWidth={3} /> ¡Turno Confirmado!</>
                  : <>Confirmar y Pagar</>}
@@ -790,12 +794,12 @@ export default function PatientConsultations({ profile }) {
           <button onClick={() => setCancelTarget(null)} className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50">
             <X className="w-5 h-5 text-gray-700" />
           </button>
-          <h2 className="text-[20px] font-black text-gray-900">Cancelar turno</h2>
+          <h2 className="text-[20px] font-semibold text-gray-900">Cancelar turno</h2>
         </div>
         <div className="px-6 flex-1 overflow-y-auto pb-8">
           <p className="text-gray-500 text-[14px] mb-5 mt-2">¿Estás seguro/a que querés cancelar este turno?</p>
           <div className="mb-5">
-            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 block">Motivo (opcional)</label>
+            <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5 block">Motivo (opcional)</label>
             <textarea
               value={cancelReason}
               onChange={e => setCancelReason(e.target.value)}
@@ -805,8 +809,8 @@ export default function PatientConsultations({ profile }) {
             />
           </div>
           <div className="flex gap-3">
-            <button onClick={() => setCancelTarget(null)} className="flex-1 py-3.5 rounded-[20px] font-bold text-[15px] border border-gray-200 text-gray-700 hover:bg-gray-50">No, volver</button>
-            <button onClick={handleCancel} disabled={cancelling} className="flex-1 py-3.5 rounded-[20px] font-bold text-[15px] bg-red-500 text-white hover:bg-red-600 transition-colors">
+            <button onClick={() => setCancelTarget(null)} className="btn-secondary flex-1 py-3.5 text-[15px]">No, volver</button>
+            <button onClick={handleCancel} disabled={cancelling} className="btn-danger flex-1 py-3.5 text-[15px]">
               {cancelling ? 'Cancelando...' : 'Sí, cancelar'}
             </button>
           </div>
@@ -819,11 +823,11 @@ export default function PatientConsultations({ profile }) {
           <button onClick={() => setReviewTarget(null)} className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50">
             <X className="w-5 h-5 text-gray-700" />
           </button>
-          <h2 className="text-[20px] font-black text-gray-900">Dejá tu reseña</h2>
+          <h2 className="text-[20px] font-semibold text-gray-900">Dejá tu reseña</h2>
         </div>
         <div className="px-6 flex-1 overflow-y-auto pb-8">
           <p className="text-gray-500 text-[14px] mb-5 mt-2">
-            ¿Cómo fue tu experiencia con <span className="font-bold text-gray-800">{reviewTarget?.professional?.fullName || 'el profesional'}</span>?
+            ¿Cómo fue tu experiencia con <span className="font-semibold text-gray-800">{reviewTarget?.professional?.fullName || 'el profesional'}</span>?
           </p>
           {/* Star picker */}
           <div className="flex gap-2 justify-center mb-6">
@@ -834,7 +838,7 @@ export default function PatientConsultations({ profile }) {
             ))}
           </div>
           <div className="mb-5">
-            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 block">Comentario (opcional)</label>
+            <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5 block">Comentario (opcional)</label>
             <textarea
               value={reviewComment}
               onChange={e => setReviewComment(e.target.value)}
@@ -843,7 +847,7 @@ export default function PatientConsultations({ profile }) {
               className="w-full bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 focus:border-brand"
             />
           </div>
-          <button onClick={submitReview} disabled={!reviewRating || submittingReview} className={`w-full py-4 rounded-[20px] font-bold text-[16px] transition-all ${reviewRating ? 'bg-brand text-white hover:bg-brand-hover active:scale-95' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+          <button onClick={submitReview} disabled={!reviewRating || submittingReview} className="btn-primary w-full py-4 text-[16px]">
             {submittingReview ? 'Enviando...' : 'Enviar reseña'}
           </button>
         </div>

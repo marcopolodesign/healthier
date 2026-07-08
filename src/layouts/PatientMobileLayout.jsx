@@ -47,8 +47,10 @@ export default function PatientMobileLayout({ profile }) {
 
       {/* Bottom navigation */}
       {!hideNav && (
-        <div className={`fixed bottom-0 left-0 w-full z-50 bg-white/90 backdrop-blur-[20px] border-t border-gray-200 px-6 py-4 ${isDashboard ? 'sm:hidden' : ''}`}>
-          <PatientBottomNav />
+        <div className={`fixed bottom-0 left-0 right-0 z-50 px-4 pb-4 sm:px-8 sm:pb-6 ${isDashboard ? 'sm:hidden' : ''}`}>
+          <div className="nav-shell-frosted px-6 py-4 max-w-lg mx-auto">
+            <PatientBottomNav />
+          </div>
         </div>
       )}
     </div>

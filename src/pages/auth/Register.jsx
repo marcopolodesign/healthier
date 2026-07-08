@@ -72,7 +72,8 @@ export default function Register({ onLogin }) {
   return (
     <div className="card">
       <div className="text-center mb-8">
-        <h1 className="text-2xl font-bold text-text-primary mb-1">Crear cuenta</h1>
+        <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-2">Creá tu cuenta</p>
+        <h1 className="text-3xl sm:text-4xl font-light tracking-tight text-text-primary mb-1">Crear cuenta</h1>
         <p className="text-text-secondary text-sm">Sumate a Healthier hoy</p>
       </div>
 
