@@ -64,7 +64,7 @@ export default function Agenda({ profile }) {
           d.getDate() === now.getDate()
       })
       setTodayConsultations(today)
-    }).catch(() => {})
+    }).catch(() => toast.error('Error al cargar las consultas de hoy'))
   }, [profile?.id])
 
   const save = async () => {
