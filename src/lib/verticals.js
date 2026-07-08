@@ -19,7 +19,7 @@ export const SPECIALTY_LABELS = {
 // Dashboard; price for the booking wizard; comingSoon gates interactivity.
 export const VERTICALS = [
   { id: 'clinica',     nombre: 'Clínica',          icon: Stethoscope, color: '#b05a36', bg: '#fef9ef', shadow: 'rgba(176,90,54,0.15)',  eta: '3 min'  },
-  { id: 'pediatria',   nombre: 'Pediatría',         icon: Baby,        color: '#DB2777', bg: '#FDF2F8', shadow: 'rgba(219,39,119,0.15)', eta: '10 min', comingSoon: true },
+  { id: 'pediatria',   nombre: 'Pediatría',         icon: Baby,        color: '#DB2777', bg: '#FDF2F8', shadow: 'rgba(219,39,119,0.15)', eta: '10 min' },
   { id: 'nutricion',   nombre: 'Nutrición',         icon: AppleLogo,   color: '#059669', bg: '#ECFDF5', shadow: 'rgba(5,150,105,0.15)',  eta: '10 min', comingSoon: true },
   { id: 'mente',       nombre: 'Psicología',        icon: Brain,       color: '#7C3AED', bg: '#F5F3FF', shadow: 'rgba(124,58,237,0.15)', eta: '15 min', comingSoon: true },
   { id: 'fisico',      nombre: 'Kinesiología',      icon: Barbell,     color: '#EA580C', bg: '#FFF7ED', shadow: 'rgba(234,88,12,0.15)',  eta: '5 min',  comingSoon: true },
@@ -36,7 +36,7 @@ export const SPECIALTIES = Object.entries(SPECIALTY_LABELS).map(([value, label])
 
 // Maps dashboard vertical IDs → professional_profiles.specialty slug(s)
 export const VERTICAL_SPECIALTIES = {
-  clinica:     ['medicina_general', 'cardiologia', 'dermatologia', 'otra'],
+  clinica:     ['medicina_general'],
   pediatria:   ['pediatria'],
   nutricion:   ['nutricion'],
   mente:       ['psicologia'],

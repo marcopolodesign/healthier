@@ -81,7 +81,7 @@ function AiAnalysis({ parameters }) {
   const [error, setError] = useState('')
 
   async function analyze() {
-    if (!GEMINI_KEY) { setError('Configurá VITE_GEMINI_API_KEY para usar el análisis IA.'); return }
+    if (!GEMINI_KEY) { setError('Configurá VITE_GEMINI_API_KEY para usar el análisis.'); return }
     setLoading(true); setError(''); setAnalysis('')
     try {
       const summary = parameters.map(p => `${p.name}: ${p.value} ${p.unit} (normal ${p.min}–${p.max})`).join('\n')
@@ -106,7 +106,7 @@ function AiAnalysis({ parameters }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Sparkle size={16} className="text-brand" />
-          <span className="font-semibold text-text-primary text-sm">Análisis con IA</span>
+          <span className="font-semibold text-text-primary text-sm">Análisis</span>
         </div>
         <button onClick={analyze} disabled={loading} className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1">
           {loading ? <CircleNotch size={12} className="animate-spin" /> : <Sparkle size={12} />}
@@ -330,7 +330,7 @@ export default function PatientBiovisor({ profile }) {
           <ArrowLeft size={20} className="text-text-secondary" />
         </button>
         <div>
-          <h1 className="font-bold text-text-primary">BioVisor AI</h1>
+          <h1 className="font-bold text-text-primary">BioVisor</h1>
           <p className="text-xs text-text-secondary">Mis parámetros de salud</p>
         </div>
       </div>
@@ -349,7 +349,7 @@ export default function PatientBiovisor({ profile }) {
       {uploading && (
         <div className="flex items-center gap-2 px-4 py-2.5 bg-brand/10 border-b border-brand/20">
           <CircleNotch size={14} className="animate-spin text-brand" />
-          <p className="text-xs text-brand font-medium">Analizando documento con IA…</p>
+          <p className="text-xs text-brand font-medium">Analizando documento…</p>
         </div>
       )}
 
@@ -515,7 +515,7 @@ export default function PatientBiovisor({ profile }) {
             <div className="card p-4 space-y-3">
               <div>
                 <p className="font-semibold text-text-primary text-sm">Analizar nuevo documento</p>
-                <p className="text-xs text-text-secondary mt-1">BioVisor usa Gemini AI para extraer automáticamente los biomarcadores de tu análisis de sangre (PDF o imagen).</p>
+                <p className="text-xs text-text-secondary mt-1">BioVisor extrae automáticamente los biomarcadores de tu análisis de sangre (PDF o imagen).</p>
               </div>
               <button
                 onClick={() => fileInputRef.current?.click()}

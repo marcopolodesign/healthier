@@ -4,7 +4,7 @@ import PatientSheet from '../../components/patient/PatientSheet'
 import PatientBottomNav from '../../components/patient/PatientBottomNav'
 import {
   MapPin, Clock, CaretRight, Star, VideoCamera,
-  Heartbeat, Plus, Siren, Pulse,
+  Heartbeat, Plus, ClipboardText,
 } from '@phosphor-icons/react'
 
 const LAST_VERTICAL_KEY = 'healthier_last_vertical'
@@ -234,27 +234,38 @@ export default function PatientDashboard({ profile }) {
   )
 
   const sosButton = (
+    <div
+      onClick={() => navigate('/paciente/sos')}
+      className="w-full py-5 px-5 rounded-2xl bg-danger flex items-center gap-4 cursor-pointer active:scale-95 transition-all"
+    >
+      <Heartbeat className="w-7 h-7 text-white flex-shrink-0" />
+      <div className="flex flex-col">
+        <span className="font-semibold text-[15px] text-white leading-none">EMERGENCIA S.O.S</span>
+        <span className="text-[12px] text-white/80 mt-0.5">Solicitar ambulancia de inmediato</span>
+      </div>
+    </div>
+  )
+
+  // Deliberately separated from sosButton — this is NOT an emergency flow.
+  // Different icon, calmer palette (brand-tertiary lavender, not coral/danger),
+  // plus clarifying copy so patients don't mistake this for S.O.S.
+  const urgentCareSection = (
     <div className="flex flex-col gap-2">
       <div
-        onClick={() => navigate('/paciente/sos')}
-        className="w-full py-5 px-5 rounded-2xl bg-danger flex items-center gap-4 cursor-pointer active:scale-95 transition-all"
-      >
-        <Heartbeat className="w-7 h-7 text-white flex-shrink-0" />
-        <div className="flex flex-col">
-          <span className="font-semibold text-[15px] text-white leading-none">EMERGENCIA S.O.S</span>
-          <span className="text-[12px] text-white/80 mt-0.5">Solicitar ambulancia de inmediato</span>
-        </div>
-      </div>
-      <div
         onClick={() => navigate('/paciente/urgente')}
-        className="w-full py-4 px-5 rounded-2xl bg-brand-secondary flex items-center gap-4 cursor-pointer active:scale-95 transition-all"
+        className="w-full py-4 px-5 rounded-2xl bg-bg-primary border border-border-default flex items-center gap-4 cursor-pointer hover:border-brand-tertiary/40 active:scale-95 transition-all"
       >
-        <Siren className="w-6 h-6 text-white flex-shrink-0" />
+        <div className="w-10 h-10 rounded-full bg-brand-tertiary/10 flex items-center justify-center flex-shrink-0">
+          <ClipboardText className="w-5 h-5 text-brand-tertiary" />
+        </div>
         <div className="flex flex-col">
-          <span className="font-semibold text-[14px] text-white leading-none">Consulta urgente</span>
-          <span className="text-[11px] text-white/80 mt-0.5">Ver a un médico sin turno previo</span>
+          <span className="font-semibold text-[14px] text-text-primary leading-none">Consulta urgente</span>
+          <span className="text-[11px] text-text-secondary mt-0.5">Ver a un médico sin turno previo</span>
         </div>
       </div>
+      <p className="text-[11px] text-text-tertiary px-1 leading-snug">
+        No es una emergencia médica — para eso usá el botón de S.O.S.
+      </p>
     </div>
   )
 
@@ -319,22 +330,6 @@ export default function PatientDashboard({ profile }) {
     </div>
   )
 
-  const healthSnapshotLink = (
-    <button
-      onClick={() => navigate('/paciente/salud')}
-      className="w-full flex items-center gap-3 px-4 py-3 rounded-[14px] bg-bg-primary border border-border-default hover:border-brand/30 active:opacity-80 transition-all group text-left"
-    >
-      <div className="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center flex-shrink-0">
-        <Pulse className="w-4 h-4 text-brand" />
-      </div>
-      <div className="flex-1">
-        <p className="text-[13px] font-semibold text-text-primary leading-tight">Resumen de salud</p>
-        <p className="text-[11px] text-text-secondary font-medium mt-0.5">Condiciones · Medicamentos · Alergias</p>
-      </div>
-      <CaretRight className="w-4 h-4 text-text-tertiary group-hover:text-text-secondary transition-colors flex-shrink-0" />
-    </button>
-  )
-
   const avatarEl = (
     <div className="w-11 h-11 rounded-full overflow-hidden border-2 flex-shrink-0 bg-[#b05a36] border-[#f5eee1]">
       {profile?.avatarUrl
@@ -392,9 +387,9 @@ export default function PatientDashboard({ profile }) {
           {/* Scrollable body — all sections always visible */}
           <div className="overflow-y-auto scrollbar-hide flex-1 px-5 pt-4 pb-4 flex flex-col gap-4">
             {upcomingSection}
-            {healthSnapshotLink}
             {specialtyGrid}
-            <div className="flex flex-col gap-3">{sosButton}</div>
+            {urgentCareSection}
+            {sosButton}
           </div>
 
           {/* Panel footer — fixed nav, part of the floating container */}
@@ -443,8 +438,8 @@ export default function PatientDashboard({ profile }) {
             onPointerCancel={sheet.state !== 'expanded' ? sheet.onPointerUp : undefined}
           >
             {upcomingSection}
-            {healthSnapshotLink}
             {specialtyGrid}
+            {urgentCareSection}
             <div className="mb-8">{sosButton}</div>
           </div>
         </div>
