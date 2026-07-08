@@ -16,6 +16,17 @@ export function latLngToPixel(user, pro, zoom = 15) {
   return { x: dLng / mpp, y: -dLat / mpp }
 }
 
+// Inverse of latLngToPixel — reconstructs an approximate { lat, lng } from a
+// pixel offset relative to a reference point (usually the user's location).
+// Used to place real markers on an interactive map (Leaflet) when the only
+// data available is a legacy pixel offset (e.g. from a fallback slot).
+export function pixelToLatLng(user, { x, y }, zoom = 15) {
+  const mpp = metersPerPixel(user.lat, zoom)
+  const dLat = (-y * mpp) / 111320
+  const dLng = (x * mpp) / (111320 * Math.cos((user.lat * Math.PI) / 180))
+  return { lat: user.lat + dLat, lng: user.lng + dLng }
+}
+
 // Nominatim address autocomplete — Argentine addresses only.
 // Returns [{ displayName, lat, lng }]
 export async function searchAddresses(query, signal) {

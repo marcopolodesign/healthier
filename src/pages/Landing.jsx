@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ShieldCheck, Star, MagnifyingGlass, Calendar, Heart,
-  ArrowRight, CaretRight, ArrowDown, Plus, List,
+  ArrowRight, CaretRight, ArrowDown, Plus,
   Lightning, ClipboardText, ChartLine, Pill, Robot,
   CheckCircle, Users, CurrencyDollar, DeviceMobile,
 } from '@phosphor-icons/react'
@@ -92,11 +92,11 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <CompanyLogo size="sm" />
           <div className="flex items-center gap-3">
-            <Link to="/login" className="bg-white border border-border-default hover:border-border-hover transition-colors rounded-full px-5 py-2 text-sm font-semibold text-text-primary shadow-sm">
-              Iniciar sesión
+            <Link to="/registro" className="bg-white border border-border-default hover:border-border-hover transition-colors rounded-full px-5 py-2 text-sm font-semibold text-text-primary shadow-sm">
+              Registrarse
             </Link>
-            <Link to="/registro" aria-label="Menú" className="p-2 text-text-primary">
-              <List size={22} weight="bold" />
+            <Link to="/login" className="bg-brand hover:bg-brand-hover transition-colors rounded-full px-5 py-2 text-sm font-semibold text-white shadow-sm">
+              Iniciar sesión
             </Link>
           </div>
         </div>
