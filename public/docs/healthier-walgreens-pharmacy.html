@@ -22,6 +22,8 @@
   --radius-pill:999px;--radius-card:1.5rem;--radius-card-sm:1rem;
   --shadow-card:0 1px 4px rgba(45,42,38,.06);--shadow-hover:0 8px 28px rgba(124,179,139,.14);
   --transition:all .36s cubic-bezier(.4,0,.2,1);
+  /* landing-page signature palette */
+  --olive:#26331F;--olive-glass:#5F7A6D;--lime:#C9E489;
 }
 
 /* ===== RESET ===== */
@@ -56,11 +58,62 @@ button{all:unset;cursor:pointer}
 .slide-white{background:var(--surface)}
 .slide-sage{background:var(--sage)}
 .slide-dark{background:#1d1e1a;color:#f9f8f5}
+
+/* Dark olive gradient — the landing page's signature "breakthrough" section:
+   diagonal light beam + radial vignette over deep olive, lime accent */
+.slide-olive{background:var(--olive);color:#fff}
+.slide-olive::before{
+  content:'';position:absolute;inset:0;z-index:0;
+  background:linear-gradient(115deg,transparent 25%,rgba(217,230,188,.32) 55%,transparent 80%);
+  pointer-events:none;
+}
+.slide-olive::after{
+  content:'';position:absolute;inset:0;z-index:0;
+  background:radial-gradient(ellipse at center,transparent 30%,rgba(38,51,31,.55) 100%);
+  pointer-events:none;
+}
+.slide-olive .content,.slide-olive .two-col{position:relative;z-index:1}
+.slide-olive .lime{color:var(--lime);font-weight:500}
+.slide-olive .btn-pill.white{color:var(--olive)}
+
 .slide-sage .eyebrow,.slide-sage h1,.slide-sage p,.slide-sage .lead,.slide-sage .step-label,
-.slide-dark .eyebrow,.slide-dark h1,.slide-dark p,.slide-dark .lead{color:#fff}
+.slide-dark .eyebrow,.slide-dark h1,.slide-dark p,.slide-dark .lead,
+.slide-olive .eyebrow,.slide-olive h1,.slide-olive h2,.slide-olive p,.slide-olive .lead{color:#fff}
 .slide-sage .eyebrow-pill{background:rgba(255,255,255,.2);color:#fff}
 .slide-sage .hero-sub{color:rgba(255,255,255,.82)}
+.slide-olive .lead{color:rgba(255,255,255,.78)}
 .slide-dark .eyebrow-pill{background:rgba(124,179,139,.22);color:#a8dbb8}
+.slide-olive .eyebrow,.slide-olive .eyebrow .dash{color:var(--lime)}
+.slide-olive .eyebrow .dash{background:rgba(201,228,137,.6)}
+.slide-olive .eyebrow-pill{background:rgba(255,255,255,.1);color:var(--lime);border:1px solid rgba(255,255,255,.2)}
+
+/* Grain overlay — same film-grain treatment the landing applies to photos */
+.grain{position:relative}
+.grain::after{
+  content:'';position:absolute;inset:0;z-index:2;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size:240px 240px;mix-blend-mode:overlay;opacity:.45;
+}
+
+/* Bento gradient card — same corner-tint treatment as the landing's small nav cards */
+.bento{background:linear-gradient(135deg,var(--bg-primary),rgba(124,179,139,.12));border:1px solid rgba(0,0,0,.05)}
+
+/* Glass card — the frosted AppCard / quote-card treatment from the dark landing sections */
+.rx-card.glass-card,.pharm-card.glass-card{
+  background:rgba(95,122,109,.55);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  border:1px solid rgba(255,255,255,.12);color:#fff;
+}
+.glass-card .pharm-name,.glass-card .rx-title{color:#fff}
+.glass-card .pharm-addr,.glass-card .rx-sub{color:rgba(255,255,255,.55)}
+.glass-card .pharm-item,.glass-card .rx-item{background:rgba(255,255,255,.08)}
+.glass-card .pharm-item .n,.glass-card .rx-item .name{color:#fff}
+.glass-card .pharm-item .q,.glass-card .rx-item .dose{color:rgba(255,255,255,.55)}
+.glass-card .pharm-opt{border-color:rgba(255,255,255,.2);color:rgba(255,255,255,.7)}
+.glass-card .pharm-opt.selected{background:var(--lime);border-color:var(--lime);color:var(--olive)}
+.glass-card .rx-status{background:rgba(201,228,137,.16);color:var(--lime)}
+
+/* Decorative trend-line — the Biovisor motif from the landing's AppCard/graph accents */
+.trend-line{position:absolute;pointer-events:none;color:var(--lime);opacity:.55}
 
 /* ===== NAV BAR ===== */
 #nav{
@@ -242,9 +295,14 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
 
 /* ===== VIDEO CALL MOCK ===== */
 .video-mock{
-  width:280px;height:200px;border-radius:1.25rem;overflow:hidden;
+  width:280px;height:200px;border-radius:1.5rem;overflow:hidden;
   background:#1a1a1a;position:relative;flex-shrink:0;
-  box-shadow:0 12px 40px rgba(0,0,0,.3);
+  box-shadow:0 12px 40px rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.12);
+}
+.video-mock::after{
+  content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size:240px 240px;mix-blend-mode:overlay;opacity:.35;
 }
 .video-bg{position:absolute;inset:0;background:linear-gradient(135deg,#1e3a2f 0%,#0d1f17 100%)}
 .video-user{
@@ -277,7 +335,7 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
 .flow-step{display:flex;flex-direction:column;align-items:center;gap:.75rem;flex:1;max-width:210px;text-align:center}
 .flow-icon{
   width:64px;height:64px;border-radius:1.25rem;flex-shrink:0;
-  background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow-card);
+  background:linear-gradient(135deg,var(--bg-primary),rgba(124,179,139,.14));border:1px solid rgba(0,0,0,.05);box-shadow:var(--shadow-card);
   display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:var(--sage);
 }
 .flow-step h4{font-size:.92rem;font-weight:700;color:var(--text-primary)}
@@ -286,7 +344,7 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
 
 /* ===== RX / PRESCRIPTION CARD ===== */
 .rx-card{
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  background:linear-gradient(160deg,#fff 0%,rgba(155,142,196,.07) 100%);border:1px solid var(--border);border-radius:1.75rem;
   padding:1.25rem 1.4rem;width:100%;max-width:320px;box-shadow:var(--shadow-card);text-align:left;
 }
 .rx-top{display:flex;align-items:center;gap:.6rem;margin-bottom:1rem}
@@ -305,7 +363,7 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
 
 /* ===== PHARMACY ORDER CARD ===== */
 .pharm-card{
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  background:var(--surface);border:1px solid var(--border);border-radius:1.75rem;
   padding:1.25rem 1.4rem;width:100%;max-width:340px;box-shadow:var(--shadow-card);text-align:left;
 }
 .pharm-top{display:flex;align-items:center;gap:.7rem;margin-bottom:1rem}
@@ -422,12 +480,16 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
 <div id="deck">
 
   <!-- 1. COVER -->
-  <section class="slide slide-ivory active" data-slide="1">
+  <section class="slide slide-olive active" data-slide="1">
+    <svg class="trend-line" viewBox="0 0 400 120" fill="none" preserveAspectRatio="none" style="left:0;right:0;bottom:0;width:100%;height:110px;opacity:.35" aria-hidden="true">
+      <path d="M0 95 C55 90, 85 62, 135 64 S 225 82, 275 54 S 355 24, 400 18 L400 120 L0 120 Z" fill="currentColor" opacity="0.35"/>
+      <path d="M0 95 C55 90, 85 62, 135 64 S 225 82, 275 54 S 355 24, 400 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
     <div class="content">
       <span class="eyebrow"><span class="dash"></span>Healthier × Pharmacy</span>
-      <h1 class="hero">A prescription that already knows <span class="accent">where it's going.</span></h1>
+      <h1 class="hero">A prescription that already knows <span class="lime">where it's going.</span></h1>
       <p class="lead">Healthier connects patients with verified doctors — and every prescription that comes out of a consultation can route straight to a pharmacy counter, ready for pickup or delivery.</p>
-      <p class="caption" style="margin-top:1.5rem">→ Navigate with the arrows or spacebar</p>
+      <p class="caption" style="margin-top:1.5rem;color:rgba(255,255,255,.4)">→ Navigate with the arrows or spacebar</p>
     </div>
   </section>
 
@@ -566,20 +628,20 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
   </section>
 
   <!-- 6. STEP 4: THE PHARMACY LAYER -->
-  <section class="slide slide-white" data-slide="6">
+  <section class="slide slide-olive" data-slide="6">
     <div class="two-col">
       <div style="display:flex;flex-direction:column;gap:1.25rem">
         <span class="eyebrow"><span class="dash"></span>Step 4 — the pharmacy layer</span>
-        <h2 class="section-title">The pharmacy<br>already <span class="accent-coral" style="color:var(--coral);font-weight:500">knows.</span></h2>
-        <p class="lead">The prescription lands at the nearest Walgreens before the patient even leaves the call. The patient simply chooses <strong>pickup</strong> at the counter or <strong>delivery</strong> to their door.</p>
+        <h2 class="section-title">The pharmacy<br>already <span class="lime">knows.</span></h2>
+        <p class="lead">The prescription lands at the nearest Walgreens before the patient even leaves the call. The patient simply chooses <strong style="color:#fff">pickup</strong> at the counter or <strong style="color:#fff">delivery</strong> to their door.</p>
         <div style="display:flex;gap:.75rem;flex-wrap:wrap">
-          <span class="pill-tag coral">Instant routing</span>
-          <span class="pill-tag sage">Pickup or delivery</span>
-          <span class="pill-tag">No re-entry at counter</span>
+          <span class="pill-tag" style="background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:var(--lime)">Instant routing</span>
+          <span class="pill-tag" style="background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff">Pickup or delivery</span>
+          <span class="pill-tag" style="background:transparent;border-color:rgba(255,255,255,.2);color:rgba(255,255,255,.7)">No re-entry at counter</span>
         </div>
       </div>
       <div style="display:flex;justify-content:center">
-        <div class="pharm-card">
+        <div class="pharm-card glass-card">
           <div class="pharm-top">
             <div class="pharm-logo">W</div>
             <div>
@@ -628,24 +690,28 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
   </section>
 
   <!-- 8. CLOSING / CTA -->
-  <section class="slide slide-sage" data-slide="8">
+  <section class="slide slide-olive" data-slide="8">
+    <svg class="trend-line" viewBox="0 0 400 120" fill="none" preserveAspectRatio="none" style="left:0;right:0;bottom:0;width:100%;height:110px;opacity:.3" aria-hidden="true">
+      <path d="M0 95 C55 90, 85 62, 135 64 S 225 82, 275 54 S 355 24, 400 18 L400 120 L0 120 Z" fill="currentColor" opacity="0.35"/>
+      <path d="M0 95 C55 90, 85 62, 135 64 S 225 82, 275 54 S 355 24, 400 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
     <div class="content">
       <span class="eyebrow-pill">Let's build it together</span>
-      <h1 class="hero" style="color:#fff;font-weight:300">The pharmacy layer,<br><span style="font-weight:600">ready when you are.</span></h1>
-      <p class="lead hero-sub">A focused pilot — one or two verticals, one neighborhood, real prescriptions routing to real Walgreens locations.</p>
+      <h1 class="hero" style="color:#fff;font-weight:300">The pharmacy layer,<br><span class="lime" style="font-weight:600">ready when you are.</span></h1>
+      <p class="lead">A focused pilot — one or two verticals, one neighborhood, real prescriptions routing to real Walgreens locations.</p>
       <div class="cta-steps">
         <div class="cta-step">
-          <div class="cta-step-num">1</div>
+          <div class="cta-step-num" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:var(--lime)">1</div>
           <p>Define the pilot<br>vertical &amp; zone</p>
         </div>
         <div class="cta-arrow">→</div>
         <div class="cta-step">
-          <div class="cta-step-num">2</div>
+          <div class="cta-step-num" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:var(--lime)">2</div>
           <p>Connect prescription<br>routing</p>
         </div>
         <div class="cta-arrow">→</div>
         <div class="cta-step">
-          <div class="cta-step-num">3</div>
+          <div class="cta-step-num" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:var(--lime)">3</div>
           <p>Go live with<br>real patients</p>
         </div>
       </div>
@@ -694,8 +760,12 @@ function goTo(n) {
 
   history.replaceState(null,'',`#${current}`);
 
+  applyNavTheme();
+}
+
+function applyNavTheme() {
   const slide = slides[current-1];
-  const isDark = slide.classList.contains('slide-dark') || slide.classList.contains('slide-sage');
+  const isDark = slide.classList.contains('slide-dark') || slide.classList.contains('slide-sage') || slide.classList.contains('slide-olive');
   document.getElementById('nav').style.background = isDark
     ? 'rgba(0,0,0,.25)' : 'rgba(246,245,240,.82)';
   document.getElementById('nav').style.borderBottomColor = isDark
@@ -752,6 +822,7 @@ function init() {
   btnPrev.classList.toggle('hidden', current === 1);
   btnNext.classList.toggle('hidden', current === TOTAL);
   document.querySelectorAll('.dot').forEach((d,i) => d.classList.toggle('active', i === current-1));
+  applyNavTheme();
 }
 
 init();
