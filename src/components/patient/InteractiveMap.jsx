@@ -143,8 +143,10 @@ export default function InteractiveMap({ appState, sheetState, verticales, marke
           className="absolute inset-0 w-full h-full"
         >
           <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+            attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+            subdomains="abcd"
+            maxZoom={20}
           />
           <MapController userLocation={userLocation} onReady={m => { mapRef.current = m }} />
 
