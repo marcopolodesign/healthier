@@ -14,7 +14,7 @@ const SPECIALTIES = [
   { icon: Brain,       label: 'Psicología',           from: 'from-brand-tertiary/20', to: 'to-brand-tertiary/40' },
   { icon: FileText,    label: 'Nutrición',            from: 'from-amber-100',         to: 'to-amber-200' },
   { icon: ClipboardText, label: 'Recetas digitales', from: 'from-emerald-100',        to: 'to-emerald-200' },
-  { icon: FirstAid,    label: 'Consultas urgentes',  from: 'from-accent/20',         to: 'to-accent/40' },
+  { icon: FirstAid,    label: 'Fastpass',             from: 'from-accent/20',         to: 'to-accent/40' },
 ]
 
 const PAINS = [

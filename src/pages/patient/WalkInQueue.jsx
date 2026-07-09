@@ -129,7 +129,7 @@ export default function WalkInQueue({ profile }) {
           <ArrowLeft size={20} className="text-text-secondary" />
         </button>
         <div>
-          <h1 className="font-bold text-text-primary">Consulta urgente</h1>
+          <h1 className="font-bold text-text-primary">Fastpass</h1>
           <p className="text-xs text-text-secondary">Sin turno previo</p>
         </div>
       </div>

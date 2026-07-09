@@ -200,7 +200,7 @@ export default function App() {
           <Route path="/paciente/consulta/review/:consultationId" element={<ConsultationReview profile={profile} />} />
           <Route path="/paciente/historia-clinica" element={<HistoriaClinicaPaciente profile={profile} />} />
           <Route path="/paciente/ia"              element={<PatientAIChat           profile={profile} />} />
-          <Route path="/paciente/urgente"         element={<WalkInQueue             profile={profile} />} />
+          <Route path="/paciente/fastpass"        element={<WalkInQueue             profile={profile} />} />
           <Route path="/paciente/salud"           element={<HealthSnapshot          profile={profile} />} />
           <Route path="/paciente/turno-confirmado/:consultationId" element={<BookingConfirmed profile={profile} />} />
         </Route>

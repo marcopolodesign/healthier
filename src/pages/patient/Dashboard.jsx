@@ -252,15 +252,15 @@ export default function PatientDashboard({ profile }) {
   const urgentCareSection = (
     <div className="flex flex-col gap-2">
       <div
-        onClick={() => navigate('/paciente/urgente')}
+        onClick={() => navigate('/paciente/fastpass')}
         className="w-full py-4 px-5 rounded-2xl bg-bg-primary border border-border-default flex items-center gap-4 cursor-pointer hover:border-brand-tertiary/40 active:scale-95 transition-all"
       >
         <div className="w-10 h-10 rounded-full bg-brand-tertiary/10 flex items-center justify-center flex-shrink-0">
           <ClipboardText className="w-5 h-5 text-brand-tertiary" />
         </div>
         <div className="flex flex-col">
-          <span className="font-semibold text-[14px] text-text-primary leading-none">Consulta urgente</span>
-          <span className="text-[11px] text-text-secondary mt-0.5">Ver a un médico sin turno previo</span>
+          <span className="font-semibold text-[14px] text-text-primary leading-none">Fastpass</span>
+          <span className="text-[11px] text-text-secondary mt-0.5">Ver a un médico sin turno previo, salteando la fila</span>
         </div>
       </div>
       <p className="text-[11px] text-text-tertiary px-1 leading-snug">

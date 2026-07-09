@@ -4,7 +4,7 @@ import PatientBottomNav from '../components/patient/PatientBottomNav'
 import { Bell, X } from '@phosphor-icons/react'
 import { notificationService } from '../services/notificationService'
 
-const HIDE_NAV_PREFIXES = ['/paciente/sos', '/paciente/ondemand', '/paciente/videollamada', '/paciente/reservar', '/paciente/sala-espera', '/paciente/consulta/review', '/paciente/urgente']
+const HIDE_NAV_PREFIXES = ['/paciente/sos', '/paciente/ondemand', '/paciente/videollamada', '/paciente/reservar', '/paciente/sala-espera', '/paciente/consulta/review', '/paciente/fastpass']
 
 export default function PatientMobileLayout({ profile }) {
   const { pathname } = useLocation()

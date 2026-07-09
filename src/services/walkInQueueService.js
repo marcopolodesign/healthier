@@ -62,7 +62,7 @@ export const walkInQueueService = {
         body: {
           userId: data.patient_id,
           title:  '¡Un profesional te atenderá ahora!',
-          body:   'Tu consulta urgente fue tomada. Ingresá a la videollamada.',
+          body:   'Tu Fastpass fue tomado. Ingresá a la videollamada.',
           url:    `/paciente/sala-espera/${consultationId}`,
         },
       }).catch(() => {})

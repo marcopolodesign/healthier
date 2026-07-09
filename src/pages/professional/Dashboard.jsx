@@ -138,7 +138,7 @@ export default function ProfessionalDashboard({ profile }) {
       const next = !availableWalkIn
       await walkInQueueService.setAvailability(profile.id, next)
       setAvailableWalkIn(next)
-      toast.success(next ? 'Disponible para consultas urgentes' : 'No disponible para consultas urgentes')
+      toast.success(next ? 'Disponible para Fastpass' : 'No disponible para Fastpass')
     } catch {
       toast.error('Error al cambiar disponibilidad')
     } finally {
@@ -391,7 +391,7 @@ export default function ProfessionalDashboard({ profile }) {
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-brand" />
             <h2 className="font-semibold text-brand">
-              Consultas urgentes
+              Fastpass
               {walkInQueue.length > 0 && (
                 <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full bg-brand text-white text-xs font-semibold">
                   {walkInQueue.length}
@@ -408,7 +408,7 @@ export default function ProfessionalDashboard({ profile }) {
           </button>
         </div>
         <p className="text-xs text-text-secondary mb-3">
-          {availableWalkIn ? '✅ Disponible para atender consultas urgentes sin turno' : 'Activá para recibir consultas urgentes sin turno previo'}
+          {availableWalkIn ? '✅ Disponible para atender Fastpass sin turno' : 'Activá para recibir Fastpass sin turno previo'}
         </p>
 
       {walkInQueue.length > 0 && (
