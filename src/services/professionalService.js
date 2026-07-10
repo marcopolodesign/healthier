@@ -12,7 +12,11 @@ export const professionalService = {
   },
 
   async upsert(userId, profileData) {
-    const payload = { ...toSnakeCase(profileData), user_id: userId }
+    // `profiles` is a read-only join added by getByUserId()'s `select('*, profiles!user_id(*)')` —
+    // callers often spread the whole record back in (e.g. Configuracion.jsx's saveTarifas/saveCuenta),
+    // and sending it here 400s the whole upsert since it isn't a real column.
+    const { profiles, ...rest } = profileData
+    const payload = { ...toSnakeCase(rest), user_id: userId }
     const { data, error } = await supabase
       .from('professional_profiles')
       .upsert(payload, { onConflict: 'user_id' })

@@ -1,9 +1,19 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash, Clock, CurrencyCircleDollar, Bank } from '@phosphor-icons/react'
+import { Plus, Trash, Clock, CurrencyCircleDollar, Bank, VideoCamera, Buildings, MapPin } from '@phosphor-icons/react'
 import { professionalService } from '../../services/professionalService'
 import { consultationTypesService } from '../../services/consultationTypesService'
 import { availabilityService } from '../../services/availabilityService'
+import { zonesService } from '../../services/zonesService'
 import { toast } from '../../components/Toast'
+
+const MODALITIES = [
+  { id: 'virtual',    label: 'Solo virtual',        icon: VideoCamera },
+  { id: 'presencial', label: 'Solo presencial',      icon: Buildings   },
+  { id: 'ambas',      label: 'Virtual y presencial', icon: MapPin      },
+]
+
+// Rango sugerido por zona — mismo valor que Onboarding.jsx (pedido de Nacho Arteaga, 2026-07-08)
+const SUGGESTED_PRICE_RANGE = { min: 20000, max: 35000, recommended: 25000 }
 
 const DAYS = [
   { key: 1, label: 'Lunes' },
@@ -97,6 +107,9 @@ export default function Configuracion({ profile }) {
   // ── Tarifas state ───────────────────────────────────────────
   const [profData, setProfData] = useState(null)
   const [tarifas, setTarifas] = useState({ pricePresencial: '', priceVideo: '' })
+  const [modalityPreference, setModalityPreference] = useState('ambas')
+  const [zoneId, setZoneId] = useState('')
+  const [zones, setZones] = useState([])
   const [consultationTypes, setConsultationTypes] = useState([])
   const [savingTarifas, setSavingTarifas] = useState(false)
 
@@ -110,7 +123,8 @@ export default function Configuracion({ profile }) {
       availabilityService.getSchedule(profile.id),
       professionalService.getByUserId(profile.id),
       consultationTypesService.getByProfessional(profile.id),
-    ]).then(([sched, prof, types]) => {
+      zonesService.getActive(),
+    ]).then(([sched, prof, types, zonesList]) => {
       setSchedules(sched || [])
       setProfData(prof)
       if (prof) {
@@ -118,12 +132,15 @@ export default function Configuracion({ profile }) {
           pricePresencial: prof.pricePresencial ?? prof.sessionPrice ?? '',
           priceVideo:      prof.priceVideo      ?? prof.sessionPrice ?? '',
         })
+        setModalityPreference(prof.modalityPreference || 'ambas')
+        setZoneId(prof.zoneId || '')
         setCuenta({
           cbu:      prof.cbu      || '',
           cbuAlias: prof.cbuAlias || '',
         })
       }
       setConsultationTypes(types || [])
+      setZones(zonesList || [])
     }).finally(() => setLoading(false))
   }, [profile?.id])
 
@@ -176,9 +193,11 @@ export default function Configuracion({ profile }) {
       await Promise.all([
         professionalService.upsert(profile.id, {
           ...profData,
-          pricePresencial: pres,
-          priceVideo:      vid,
-          sessionPrice:    pres ?? vid ?? null,
+          pricePresencial:     pres,
+          priceVideo:          vid,
+          sessionPrice:        pres ?? vid ?? null,
+          modalityPreference,
+          zoneId:              modalityPreference !== 'virtual' ? (zoneId || null) : null,
         }),
         consultationTypesService.saveTypes(profile.id, consultationTypes),
       ])
@@ -335,6 +354,47 @@ export default function Configuracion({ profile }) {
         <form onSubmit={saveTarifas} className="space-y-6">
           <div className="card space-y-5">
             <div>
+              <h2 className="font-semibold text-text-primary">Modalidad y zona</h2>
+              <p className="text-xs text-text-secondary mt-0.5">
+                Controla si aparecés en búsquedas presenciales de tu barrio.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {MODALITIES.map(m => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setModalityPreference(m.id)}
+                  className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border text-center transition-colors ${
+                    modalityPreference === m.id
+                      ? 'bg-brand text-white border-brand'
+                      : 'bg-white border-border-default text-text-secondary'
+                  }`}
+                >
+                  <m.icon className="h-5 w-5" />
+                  <span className="text-[11px] font-medium leading-tight">{m.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {modalityPreference !== 'virtual' && (
+              <div>
+                <label className="text-xs text-text-secondary mb-1 block">Zona de atención presencial</label>
+                <select
+                  value={zoneId}
+                  onChange={e => setZoneId(e.target.value)}
+                  className="form-select"
+                >
+                  <option value="">Seleccioná tu barrio</option>
+                  {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="card space-y-5">
+            <div>
               <h2 className="font-semibold text-text-primary">Precio base por modalidad</h2>
               <p className="text-xs text-text-secondary mt-0.5">
                 Usado cuando no se selecciona un tipo de consulta específico.
@@ -355,6 +415,9 @@ export default function Configuracion({ profile }) {
                     className="form-input pl-7"
                   />
                 </div>
+                <p className="text-[11px] text-blue-700 mt-1.5">
+                  Sugerido: ${SUGGESTED_PRICE_RANGE.min.toLocaleString('es-AR')}–${SUGGESTED_PRICE_RANGE.max.toLocaleString('es-AR')} · <span className="font-semibold">recomendado ${SUGGESTED_PRICE_RANGE.recommended.toLocaleString('es-AR')}</span>
+                </p>
               </div>
               <div>
                 <label className="text-xs text-text-secondary mb-1 block">Videollamada (ARS)</label>

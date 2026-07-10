@@ -1,13 +1,24 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Check, Stethoscope, User, MapPin, FileText, ClipboardText } from '@phosphor-icons/react';
+import { Check, Stethoscope, User, MapPin, FileText, ClipboardText, VideoCamera, Buildings } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import { profilesService } from '../../services/profilesService'
+import { zonesService } from '../../services/zonesService'
 import { SPECIALTIES } from '../../lib/verticals'
 import AddressAutocomplete from '../../components/common/AddressAutocomplete'
 import FileUpload from '../../components/FileUpload'
 import { geocodeAddress } from '../../lib/geo'
 import { toast } from '../../components/Toast'
+
+const MODALITIES = [
+  { id: 'virtual',    label: 'Solo virtual',        icon: VideoCamera },
+  { id: 'presencial', label: 'Solo presencial',      icon: Buildings   },
+  { id: 'ambas',      label: 'Virtual y presencial', icon: MapPin      },
+]
+
+// Rango sugerido por zona — valor recomendado destacado (pedido de Nacho Arteaga, 2026-07-08).
+// Sin datos de mercado por barrio todavía, se usa un rango razonable único para el MVP.
+const SUGGESTED_PRICE_RANGE = { min: 20000, max: 35000, recommended: 25000 }
 
 const STEPS = [
   { label: 'Especialidad',      short: 'Especialidad',   icon: Stethoscope  },
@@ -28,7 +39,9 @@ export default function Onboarding({ profile }) {
     specialty: '', subSpecialty: '', bio: '', sessionPrice: '',
     address: '', latitude: null, longitude: null,
     licenseType: 'MN', licenseNumber: '', cuitNumber: '',
+    modalityPreference: 'ambas', zoneId: '',
   })
+  const [zones, setZones] = useState([])
   const [avatarFile, setAvatarFile]     = useState(null)
   const [avatarPreview, setAvatarPreview] = useState(null)
   const [titleFile, setTitleFile]       = useState(null)
@@ -37,6 +50,10 @@ export default function Onboarding({ profile }) {
   const [malpracticeFile, setMalpracticeFile]         = useState(null)
   const [specialistCertFile, setSpecialistCertFile]   = useState(null)
   const [cuitFile, setCuitFile]                       = useState(null)
+
+  useEffect(() => {
+    zonesService.getActive().then(setZones).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!isResubmit || !profile?.id) return
@@ -53,6 +70,8 @@ export default function Onboarding({ profile }) {
         licenseType:   p.licenseType   || 'MN',
         licenseNumber: p.licenseNumber || '',
         cuitNumber:    p.cuitNumber    || '',
+        modalityPreference: p.modalityPreference || 'ambas',
+        zoneId:        p.zoneId        || '',
       })
     })
   }, [isResubmit, profile?.id])
@@ -89,6 +108,7 @@ export default function Onboarding({ profile }) {
       const payload = {
         ...form,
         sessionPrice:       form.sessionPrice ? Number(form.sessionPrice) : null,
+        zoneId:             form.zoneId || null,
         titleDocumentUrl:   titleUrl   || undefined,
         licenseDocumentUrl: licenseUrl || undefined,
         dniDocumentUrl:     dniUrl     || undefined,
@@ -260,6 +280,27 @@ export default function Onboarding({ profile }) {
           {step === 2 && (
             <>
               <div>
+                <label className="form-label">Modalidad de atención</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {MODALITIES.map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setForm(p => ({ ...p, modalityPreference: m.id }))}
+                      className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border text-center transition-colors ${
+                        form.modalityPreference === m.id
+                          ? 'bg-brand text-white border-brand'
+                          : 'bg-white border-border-default text-text-secondary'
+                      }`}
+                    >
+                      <m.icon className="h-5 w-5" />
+                      <span className="text-[11px] font-medium leading-tight">{m.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
                 <label className="form-label">Precio por sesión (ARS) <span className="text-text-tertiary text-xs">(opcional)</span></label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary text-sm font-medium">$</span>
@@ -273,15 +314,44 @@ export default function Onboarding({ profile }) {
                     autoFocus
                   />
                 </div>
+                <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2">
+                  <p className="text-xs text-blue-700">
+                    Rango sugerido: ${SUGGESTED_PRICE_RANGE.min.toLocaleString('es-AR')}–${SUGGESTED_PRICE_RANGE.max.toLocaleString('es-AR')} ·{' '}
+                    <span className="font-semibold">recomendado ${SUGGESTED_PRICE_RANGE.recommended.toLocaleString('es-AR')}</span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setForm(p => ({ ...p, sessionPrice: String(SUGGESTED_PRICE_RANGE.recommended) }))}
+                    className="text-xs font-semibold text-blue-700 hover:text-blue-900 whitespace-nowrap"
+                  >
+                    Usar
+                  </button>
+                </div>
               </div>
-              <AddressAutocomplete
-                label="Dirección del consultorio (opcional)"
-                value={{ address: form.address, latitude: form.latitude, longitude: form.longitude }}
-                onChange={({ address, latitude, longitude }) =>
-                  setForm(p => ({ ...p, address, latitude, longitude }))
-                }
-                placeholder="Ej: Av. Santa Fe 1900, Buenos Aires"
-              />
+
+              {form.modalityPreference !== 'virtual' && (
+                <>
+                  <div>
+                    <label className="form-label">Zona de atención presencial</label>
+                    <select
+                      value={form.zoneId}
+                      onChange={e => setForm(p => ({ ...p, zoneId: e.target.value }))}
+                      className="form-select"
+                    >
+                      <option value="">Seleccioná tu barrio</option>
+                      {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                    </select>
+                  </div>
+                  <AddressAutocomplete
+                    label="Dirección del consultorio (opcional)"
+                    value={{ address: form.address, latitude: form.latitude, longitude: form.longitude }}
+                    onChange={({ address, latitude, longitude }) =>
+                      setForm(p => ({ ...p, address, latitude, longitude }))
+                    }
+                    placeholder="Ej: Av. Santa Fe 1900, Buenos Aires"
+                  />
+                </>
+              )}
             </>
           )}
 
@@ -362,6 +432,10 @@ export default function Onboarding({ profile }) {
                   ['Matrícula',         form.licenseNumber ? `${form.licenseType} ${form.licenseNumber}` : '—'],
                   ['Bio',               form.bio ? form.bio.slice(0, 100) + (form.bio.length > 100 ? '…' : '') : '—'],
                   ['Precio por sesión', form.sessionPrice ? `$${form.sessionPrice} ARS` : '—'],
+                  ['Modalidad',         MODALITIES.find(m => m.id === form.modalityPreference)?.label || '—'],
+                  ...(form.modalityPreference !== 'virtual'
+                    ? [['Zona',         zones.find(z => z.id === form.zoneId)?.name || '—']]
+                    : []),
                   ['Consultorio',       form.address || '—'],
                   ['Foto de perfil',    avatarFile ? avatarFile.name : '—'],
                   ['Título',           titleFile   ? titleFile.name   : '—'],
