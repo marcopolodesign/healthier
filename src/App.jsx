@@ -240,7 +240,7 @@ export default function App() {
           <Route path="/profesional/nutriplan" element={<NutriPlan profile={profile} />} />
           <Route path="/profesional/historia-clinica/:patientId" element={<HistoriaClinica profile={profile} />} />
           <Route path="/profesional/historial" element={<ProfessionalHistorial profile={profile} />} />
-          <Route path="/profesional/paciente/:patientId" element={<ProfessionalPatientProfile />} />
+          <Route path="/profesional/paciente/:patientId" element={<ProfessionalPatientProfile profile={profile} />} />
           <Route path="/profesional/pacientes" element={<ProfessionalPacientes profile={profile} />} />
           <Route path="/profesional/ganancias" element={<ProfessionalGanancias profile={profile} />} />
           <Route path="/profesional/configuracion" element={<ProfessionalConfiguracion profile={profile} />} />
