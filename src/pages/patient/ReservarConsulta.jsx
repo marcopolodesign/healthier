@@ -15,6 +15,37 @@ const AUTO_MATCH_VERTICALS = ['clinica']
 
 const SPECIES = ['Perro', 'Gato', 'Conejo', 'Ave', 'Otro']
 
+// 15-min slots instead of a whole schedule block — 4 patients/hour with
+// margin for delays, per Nacho Arteaga (2026-07-08).
+const SLOT_DURATION_MINUTES = 15
+const ACTIVE_CONSULTATION_STATUSES = ['pending', 'confirmed', 'in_progress']
+
+function addMinutes(hhmmss, minutes) {
+  const [h, m] = hhmmss.split(':').map(Number)
+  const total = h * 60 + m + minutes
+  const hh = String(Math.floor(total / 60) % 24).padStart(2, '0')
+  const mm = String(total % 60).padStart(2, '0')
+  return `${hh}:${mm}:00`
+}
+
+// Splits each schedule range ("franja") for the selected day into 15-min
+// slots, skipping any that already have an active consultation booked.
+function buildTimeSlots(franjasForDay, bookedTimes) {
+  const slots = []
+  franjasForDay.forEach(fr => {
+    let cursor = fr.startTime
+    while (cursor < fr.endTime) {
+      const end = addMinutes(cursor, SLOT_DURATION_MINUTES)
+      if (end > fr.endTime) break
+      if (!bookedTimes.has(cursor.slice(0, 5))) {
+        slots.push({ id: `${fr.id}-${cursor}`, startTime: cursor, endTime: end })
+      }
+      cursor = end
+    }
+  })
+  return slots
+}
+
 // ── Date helpers ─────────────────────────────────────────────
 function buildDateOptions(n = 14) {
   const days   = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
@@ -98,6 +129,7 @@ export default function ReservarConsulta({ profile }) {
   const [selectedPro, setSelectedPro]   = useState(null)
   const [schedule, setSchedule]         = useState([])
   const [loadingSchedule, setLoadingSchedule] = useState(false)
+  const [existingConsultations, setExistingConsultations] = useState([])
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedFranja, setSelectedFranja] = useState(null)
   const [processing, setProcessing]     = useState(false)
@@ -111,6 +143,17 @@ export default function ReservarConsulta({ profile }) {
   const availableDates = ALL_DATES.filter(d => scheduledDays.has(d.dayOfWeek))
   const selectedDow    = selectedDate ? new Date(selectedDate + 'T12:00:00').getDay() : -1
   const franjas        = schedule.filter(e => e.dayOfWeek === selectedDow)
+  const bookedTimesForDate = new Set(
+    existingConsultations
+      .filter(c => ACTIVE_CONSULTATION_STATUSES.includes(c.status) && c.scheduledAt)
+      .map(c => new Date(c.scheduledAt))
+      .filter(d => {
+        const yyyy = d.getFullYear(), mm = String(d.getMonth() + 1).padStart(2, '0'), dd = String(d.getDate()).padStart(2, '0')
+        return `${yyyy}-${mm}-${dd}` === selectedDate
+      })
+      .map(d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
+  )
+  const timeSlots = selectedDate ? buildTimeSlots(franjas, bookedTimesForDate) : []
 
   // ── Pre-load pro when coming from a marker / sheet ────────
   useEffect(() => {
@@ -151,15 +194,19 @@ export default function ReservarConsulta({ profile }) {
     return () => clearTimeout(t)
   }, [step, selectedVertical])
 
-  // ── Pre-fetch schedule whenever a pro is selected ─────────
+  // ── Pre-fetch schedule + existing bookings whenever a pro is selected ────
   useEffect(() => {
     if (!selectedPro) return
     setLoadingSchedule(true)
     setSchedule([])
+    setExistingConsultations([])
     setSelectedDate('')
     setSelectedFranja(null)
-    availabilityService.getSchedule(selectedPro.id)
-      .then(setSchedule)
+    Promise.all([
+      availabilityService.getSchedule(selectedPro.id),
+      consultationsService.getByProfessional(selectedPro.id).catch(() => []),
+    ])
+      .then(([sched, cons]) => { setSchedule(sched); setExistingConsultations(cons) })
       .catch(() => setSchedule([]))
       .finally(() => setLoadingSchedule(false))
   }, [selectedPro?.id])
@@ -669,18 +716,18 @@ export default function ReservarConsulta({ profile }) {
                 {selectedDate && (
                   <>
                     <p className="text-[13px] font-semibold text-text-secondary mt-2">
-                      Franjas disponibles
+                      Horarios disponibles
                     </p>
-                    {franjas.length === 0 ? (
-                      <p className="text-text-tertiary text-[14px]">Sin franjas para este día.</p>
+                    {timeSlots.length === 0 ? (
+                      <p className="text-text-tertiary text-[14px]">Sin horarios disponibles para este día.</p>
                     ) : (
                       <div className="flex flex-wrap gap-2">
-                        {franjas.map(fr => {
-                          const isActive = selectedFranja?.id === fr.id
+                        {timeSlots.map(slot => {
+                          const isActive = selectedFranja?.id === slot.id
                           return (
                             <button
-                              key={fr.id}
-                              onClick={() => setSelectedFranja(fr)}
+                              key={slot.id}
+                              onClick={() => setSelectedFranja(slot)}
                               className={`px-4 py-2 rounded-full border text-[13px] font-medium transition-all ${
                                 isActive
                                   ? 'text-white border-transparent'
@@ -688,7 +735,7 @@ export default function ReservarConsulta({ profile }) {
                               }`}
                               style={isActive ? { backgroundColor: '#7CB38B', borderColor: '#7CB38B' } : {}}
                             >
-                              {fmtTime(fr.startTime)} – {fmtTime(fr.endTime)}
+                              {fmtTime(slot.startTime)}
                             </button>
                           )
                         })}
