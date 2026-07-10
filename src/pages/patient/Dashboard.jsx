@@ -1,20 +1,16 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
-import PatientBottomNav from '../../components/patient/PatientBottomNav'
 import {
-  MapPin, Clock, CaretRight, Star, VideoCamera,
-  Heartbeat, Plus, ClipboardText,
+  MapPin, MapTrifold, CaretRight, Star, VideoCamera,
+  Heartbeat, ClipboardText, X,
 } from '@phosphor-icons/react'
 
 const LAST_VERTICAL_KEY = 'healthier_last_vertical'
 import InteractiveMap from '../../components/patient/InteractiveMap'
-import { useBottomSheet } from '../../components/patient/useBottomSheet'
 import { professionalService } from '../../services/professionalService'
-import { consultationsService } from '../../services/consultationsService'
-import { toast } from '../../components/Toast'
 import { VERTICALS, SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
-import { latLngToPixel, reverseGeocode } from '../../lib/geo'
+import { latLngToPixel } from '../../lib/geo'
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -34,24 +30,12 @@ const FALLBACK_SLOTS = [
 
 export default function PatientDashboard({ profile }) {
   const navigate = useNavigate()
-  const sheet = useBottomSheet('collapsed')
 
-  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 640)
-  const [appState, setAppState] = useState('home')
   const [userLocation, setUserLocation] = useState(null)
-  const [addressName, setAddressName] = useState('Buscando ubicación...')
-  const [isLocating, setIsLocating] = useState(true)
+  const [showMap, setShowMap] = useState(false)
   const [mapProFlow, setMapProFlow] = useState(null)
   const [selectedMapPro, setSelectedMapPro] = useState(null)
   const [proPool, setProPool] = useState([])
-  const [availableNow, setAvailableNow] = useState(false)
-  const [lastUsed, setLastUsed] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(LAST_VERTICAL_KEY)) } catch { return null }
-  })
-
-  // Upcoming consultations — shown prominently in the dashboard sheet
-  const [upcomingConsultations, setUpcomingConsultations] = useState([])
-  const [upcomingLoading, setUpcomingLoading] = useState(false)
 
   // One pro per vertical, keyed by vertical id
   const markersByVertical = useMemo(() => {
@@ -79,44 +63,29 @@ export default function PatientDashboard({ profile }) {
     [markersByVertical, userLocation]
   )
 
-  // Respond to viewport resizes
-  useEffect(() => {
-    const handler = () => setIsDesktop(window.innerWidth >= 640)
-    window.addEventListener('resize', handler)
-    return () => window.removeEventListener('resize', handler)
-  }, [])
+  // Only specialties bookable right now (no "próximamente") get the on-demand hero treatment
+  const onDemandVerticals = useMemo(() => VERTICALS.filter(v => !v.comingSoon), [])
 
   // Geolocation
   useEffect(() => {
     let watchId
     if ('geolocation' in navigator) {
       watchId = navigator.geolocation.watchPosition(
-        async pos => {
+        pos => {
           const { latitude: lat, longitude: lng } = pos.coords
           setUserLocation(prev => {
             if (prev && Math.abs(prev.lat - lat) < 0.0001 && Math.abs(prev.lng - lng) < 0.0001) return prev
             return { lat, lng }
           })
-          if (isLocating) {
-            const name = await reverseGeocode(lat, lng).catch(() => null)
-            setAddressName(name || 'Ubicación Actual')
-            setIsLocating(false)
-          }
         },
-        () => {
-          setUserLocation({ lat: -34.5956, lng: -58.3843 })
-          setAddressName('Av. Santa Fe 1234')
-          setIsLocating(false)
-        },
+        () => setUserLocation({ lat: -34.5956, lng: -58.3843 }),
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
       )
     } else {
       setUserLocation({ lat: -34.5956, lng: -58.3843 })
-      setAddressName('Ubicación no soportada')
-      setIsLocating(false)
     }
     return () => { if (watchId !== undefined) navigator.geolocation.clearWatch(watchId) }
-  }, [isLocating])
+  }, [])
 
   // Load verified professionals for map markers
   useEffect(() => {
@@ -124,20 +93,6 @@ export default function PatientDashboard({ profile }) {
       .then(data => setProPool(data))
       .catch(() => {}) // silent — map just shows no markers
   }, [])
-
-  // Load upcoming consultations for the dashboard card (top 3, soonest first)
-  useEffect(() => {
-    if (!profile?.id) return
-    setUpcomingLoading(true)
-    consultationsService.getByPatient(profile.id)
-      .then(data => {
-        const active = data.filter(c => ['pending', 'confirmed', 'in_progress'].includes(c.status))
-        active.sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt))
-        setUpcomingConsultations(active.slice(0, 3))
-      })
-      .catch(() => {})
-      .finally(() => setUpcomingLoading(false))
-  }, [profile?.id])
 
   const handleMarkerClick = type => {
     const pro = markersByVertical[type]
@@ -168,7 +123,6 @@ export default function PatientDashboard({ profile }) {
   const goToVertical = v => {
     const entry = { id: v.id, nombre: v.nombre }
     localStorage.setItem(LAST_VERTICAL_KEY, JSON.stringify(entry))
-    setLastUsed(entry)
     navigate(`/paciente/reservar?vertical=${v.id}`)
   }
 
@@ -176,30 +130,27 @@ export default function PatientDashboard({ profile }) {
 
   // ── Shared content blocks ────────────────────────────────
 
-  const lastUsedPill = (() => {
-    if (!lastUsed) return null
-    const v = VERTICALS.find(x => x.id === lastUsed.id)
-    if (!v) return null
-    return (
-      <button
-        onClick={() => goToVertical(v)}
-        className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left"
-        style={{ boxShadow: `0 4px 16px ${v.shadow}` }}
-      >
-        <div className="w-9 h-9 rounded-[12px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: v.bg }}>
-          <v.icon className="w-[18px] h-[18px]" style={{ color: v.color }} />
-        </div>
-        <div className="flex flex-col flex-1 min-w-0">
-          <span className="text-[10px] font-semibold text-gray-400 tracking-widest uppercase leading-none mb-0.5">Último utilizado</span>
-          <span className="font-semibold text-[15px] text-gray-900 leading-tight truncate">{v.nombre}</span>
-        </div>
-        <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-semibold flex-shrink-0" style={{ backgroundColor: v.bg, color: v.color }}>
-          <Clock className="w-3 h-3" />
-          <span>{v.eta}</span>
-        </div>
-      </button>
-    )
-  })()
+  const onDemandHero = (
+    <div className="rounded-[28px] bg-gradient-to-br from-brand to-brand-hover p-6 flex flex-col gap-4 text-white shadow-[0_12px_32px_rgba(124,179,139,0.35)]">
+      <div>
+        <span className="text-[11px] font-semibold tracking-widest uppercase text-white/70">Consulta on demand</span>
+        <h2 className="text-[22px] font-light leading-tight mt-1">Hablá con un médico ahora</h2>
+        <p className="text-[13px] text-white/80 mt-1">Sin turno previo · Videollamada en minutos</p>
+      </div>
+      <div className="flex gap-2">
+        {onDemandVerticals.map(v => (
+          <button
+            key={v.id}
+            onClick={() => navigate(`/paciente/ondemand/${v.id}`)}
+            className="flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-white/15 hover:bg-white/25 active:scale-95 transition-all font-semibold text-[14px]"
+          >
+            <v.icon className="w-[18px] h-[18px]" />
+            {v.nombre}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 
   const specialtyGrid = (
     <div className="flex flex-col gap-3">
@@ -231,6 +182,22 @@ export default function PatientDashboard({ profile }) {
         ))}
       </div>
     </div>
+  )
+
+  const mapCta = (
+    <button
+      onClick={() => setShowMap(true)}
+      className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl bg-bg-secondary border border-border-default hover:border-brand/40 active:scale-[0.98] transition-all text-left"
+    >
+      <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0">
+        <MapTrifold className="w-5 h-5 text-brand" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <span className="font-semibold text-[14px] text-text-primary leading-none">Ver mapa</span>
+        <p className="text-[11px] text-text-secondary mt-0.5 truncate">Profesionales disponibles cerca tuyo</p>
+      </div>
+      <CaretRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+    </button>
   )
 
   const sosButton = (
@@ -269,67 +236,6 @@ export default function PatientDashboard({ profile }) {
     </div>
   )
 
-  // Upcoming consultations section — shown at the top of the dashboard sheet.
-  // Hidden entirely once loaded if there's nothing pending/confirmed/in_progress.
-  const upcomingSection = (!upcomingLoading && upcomingConsultations.length === 0) ? null : (
-    <div className="flex flex-col gap-2">
-      {/* Section header with "Reservar" CTA */}
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold text-text-secondary tracking-wide uppercase">
-          Próximas consultas
-        </span>
-        <button
-          onClick={() => navigate('/paciente/consultas')}
-          className="flex items-center gap-1 text-[12px] font-semibold text-brand hover:text-brand-hover transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Reservar
-        </button>
-      </div>
-
-      {upcomingLoading ? (
-        <div className="h-16 bg-bg-primary rounded-[16px] border border-border-default animate-pulse" />
-      ) : (
-        upcomingConsultations.map(c => {
-          const isVirtual = c.modality === 'video'
-          const proName = c.professional?.fullName ?? 'Profesional'
-          const d = c.scheduledAt ? new Date(c.scheduledAt) : null
-          const dateLabel = d
-            ? d.toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' })
-            : '—'
-          const timeLabel = d
-            ? d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-            : '—:—'
-          return (
-            <div
-              key={c.id}
-              onClick={() => {
-                if (c.modality === 'video') {
-                  navigate(`/paciente/sala-espera/${c.id}`)
-                } else {
-                  navigate('/paciente/consultas')
-                }
-              }}
-              className="flex items-center gap-3 px-4 py-3 rounded-[16px] bg-bg-primary border border-border-default cursor-pointer hover:border-brand/40 active:opacity-80 transition-all group"
-            >
-              {/* Modality dot */}
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isVirtual ? 'bg-brand' : 'bg-emerald-500'}`} />
-              <div className="flex-1 min-w-0">
-                <p className="text-[14px] font-semibold text-text-primary truncate leading-tight">{proName}</p>
-                <p className="text-[12px] text-text-secondary font-medium mt-0.5">
-                  {isVirtual ? 'Videoconsulta' : 'Presencial'} · {dateLabel} {timeLabel}
-                </p>
-              </div>
-              <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0 ${isVirtual ? 'bg-brand-muted text-brand' : 'bg-emerald-50 text-emerald-600'}`}>
-                {isVirtual ? <VideoCamera className="w-3 h-3" /> : <MapPin className="w-3 h-3" />}
-              </div>
-            </div>
-          )
-        })
-      )}
-    </div>
-  )
-
   const avatarEl = (
     <div className="w-11 h-11 rounded-full overflow-hidden border-2 flex-shrink-0 bg-[#b05a36] border-[#f5eee1]">
       {profile?.avatarUrl
@@ -343,104 +249,45 @@ export default function PatientDashboard({ profile }) {
 
   return (
     <div className="absolute inset-0">
-      {/* Map */}
-      <InteractiveMap
-        sheetState={sheet.state}
-        appState={appState}
-        verticales={VERTICALS}
-        markers={mapMarkers}
-        onMarkerClick={handleMarkerClick}
-        userLocation={userLocation}
-        availableNow={availableNow}
-      />
+      <div className="absolute inset-0 overflow-y-auto scrollbar-hide bg-bg-secondary">
+        <div className="px-6 pt-6 sm:pt-8 pb-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-[28px] tracking-tight text-text-primary leading-none font-light">{getGreeting()}, {firstName}</h1>
+            <p className="text-[14px] font-medium text-text-secondary mt-1">¿Cómo podemos ayudarte hoy?</p>
+          </div>
+          {avatarEl}
+        </div>
 
-
-      {/* Filter chip — top right */}
-      <div className="absolute top-4 sm:top-6 right-6 z-30">
-        <button
-          onClick={() => setAvailableNow(v => !v)}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.10)] border transition-all backdrop-blur-[12px] ${
-            availableNow
-              ? 'bg-emerald-500 border-emerald-400 text-white'
-              : 'bg-white/80 border-white/60 text-gray-700 hover:bg-white'
-          }`}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${availableNow ? 'bg-white animate-pulse' : 'bg-emerald-500'}`} />
-          Disponibles ahora
-        </button>
+        <div className="px-6 pb-32 flex flex-col gap-5 max-w-[520px] mx-auto sm:mx-0">
+          {onDemandHero}
+          {specialtyGrid}
+          {mapCta}
+          {urgentCareSection}
+          {sosButton}
+        </div>
       </div>
 
-      {/* ── Desktop: Google Maps-style floating panel (bottom-left) ── */}
-      {isDesktop && (
-        <div
-          className="absolute left-4 bottom-4 z-40 w-[360px] max-h-[calc(100dvh-32px)] bg-white/90 backdrop-blur-[20px] rounded-[28px] shadow-[0_8px_40px_rgba(0,0,0,0.12)] flex flex-col border border-white/80 overflow-hidden"
-        >
-          {/* Panel header */}
-          <div className="px-5 pt-5 pb-3 flex justify-between items-center flex-shrink-0 border-b border-gray-100/80">
-            <div>
-              <h2 className="text-[22px] font-light tracking-tight text-gray-900 leading-none">{getGreeting()}, {firstName}</h2>
-              <p className="text-[13px] font-medium text-gray-500 mt-0.5">¿Cómo podemos ayudarte hoy?</p>
-            </div>
-            {avatarEl}
-          </div>
+      {/* Full-screen map — secondary view, opened from mapCta. InteractiveMap owns its
+          own "Disponibles ahora" + especialidad filters internally (MapFilters). */}
+      {showMap && (
+        <div className="fixed inset-0 z-[60]">
+          <InteractiveMap
+            appState="home"
+            sheetState="collapsed"
+            verticales={VERTICALS}
+            markers={mapMarkers}
+            onMarkerClick={handleMarkerClick}
+            userLocation={userLocation}
+          />
 
-          {/* Scrollable body — all sections always visible */}
-          <div className="overflow-y-auto scrollbar-hide flex-1 px-5 pt-4 pb-4 flex flex-col gap-4">
-            {upcomingSection}
-            {specialtyGrid}
-            {urgentCareSection}
-            {sosButton}
-          </div>
-
-          {/* Panel footer — fixed nav, part of the floating container */}
-          <div className="flex-shrink-0 px-5 py-3 border-t border-gray-100/80 bg-white/90">
-            <PatientBottomNav />
-          </div>
-
-        </div>
-      )}
-
-      {/* ── Mobile: drag-to-expand bottom sheet ── */}
-      {!isDesktop && (
-        <div
-          className={`absolute left-0 bottom-0 w-full h-full bg-bg-secondary shadow-[0_-15px_40px_rgba(0,0,0,0.08)] z-40 flex flex-col border-t border-border-default ${sheet.state === 'expanded' ? 'rounded-t-none' : 'rounded-t-[40px]'} ${!sheet.dragging ? 'transition-all duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)]' : ''}`}
-          style={{ transform: sheet.getTransform() }}
-        >
-          {/* Drag handle + greeting */}
-          <div
-            className={`w-full flex flex-col items-center pt-4 pb-2 cursor-grab active:cursor-grabbing touch-none bg-bg-secondary ${sheet.state === 'expanded' ? 'rounded-t-none' : 'rounded-t-[40px]'}`}
-            onPointerDown={sheet.onPointerDown}
-            onPointerMove={sheet.onPointerMove}
-            onPointerUp={sheet.onPointerUp}
-            onPointerCancel={sheet.onPointerUp}
-          >
-            <div className="w-12 h-1.5 bg-gray-200 rounded-full mb-5 pointer-events-none" />
-            <div className="w-full px-6 flex justify-between items-center pointer-events-none mb-2">
-              <div>
-                <h2 className="text-[28px] tracking-tight text-text-primary leading-none font-light">{getGreeting()}, {firstName}</h2>
-                <p className="text-[14px] font-medium text-text-secondary mt-1">¿Cómo podemos ayudarte hoy?</p>
-              </div>
-              <div className="w-12 h-12 rounded-full overflow-hidden border-2 flex-shrink-0 bg-[#b05a36] border-[#f5eee1]">
-                {profile?.avatarUrl
-                  ? <img src={profile.avatarUrl} alt="Perfil" className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center text-white font-semibold text-[17px] tracking-wide">{firstName[0]}</div>
-                }
-              </div>
-            </div>
-          </div>
-
-          {/* Content — only scrolls internally when fully expanded; otherwise drags the sheet */}
-          <div
-            className={`px-6 flex-1 pb-56 scrollbar-hide bg-bg-secondary mt-2 flex flex-col gap-5 ${sheet.state === 'expanded' ? 'overflow-y-auto' : 'overflow-hidden touch-none'}`}
-            onPointerDown={sheet.state !== 'expanded' ? sheet.onPointerDown : undefined}
-            onPointerMove={sheet.state !== 'expanded' ? sheet.onPointerMove : undefined}
-            onPointerUp={sheet.state !== 'expanded' ? sheet.onPointerUp : undefined}
-            onPointerCancel={sheet.state !== 'expanded' ? sheet.onPointerUp : undefined}
-          >
-            {upcomingSection}
-            {specialtyGrid}
-            {urgentCareSection}
-            <div className="mb-8">{sosButton}</div>
+          {/* Close button — top right, matching the slot MapFilters already reserves (right-[76px] on its own row) */}
+          <div className="absolute top-4 sm:top-6 right-6 z-30">
+            <button
+              onClick={() => setShowMap(false)}
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-white/80 border border-white/60 shadow-[0_4px_16px_rgba(0,0,0,0.10)] backdrop-blur-[12px] hover:bg-white transition-all"
+            >
+              <X className="w-5 h-5 text-gray-700" />
+            </button>
           </div>
         </div>
       )}
@@ -455,7 +302,7 @@ export default function PatientDashboard({ profile }) {
             <div className="px-6 pt-4">
               <div className="flex justify-end mb-3">
                 <button
-                  onClick={() => { setMapProFlow(null); setSelectedMapPro(null); setSelectedMapModality(null) }}
+                  onClick={() => { setMapProFlow(null); setSelectedMapPro(null) }}
                   className="w-10 h-10 bg-white border border-gray-200 shadow-sm rounded-full flex items-center justify-center hover:bg-gray-50"
                 >✕</button>
               </div>

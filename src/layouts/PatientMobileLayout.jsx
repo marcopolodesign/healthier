@@ -23,8 +23,6 @@ export default function PatientMobileLayout({ profile }) {
   }
 
   const hideNav = HIDE_NAV_PREFIXES.some(p => pathname.startsWith(p))
-  // Dashboard renders its own nav inside the desktop floating panel — hide the global bar there from `sm:` up
-  const isDashboard = pathname.startsWith('/paciente/dashboard')
 
   return (
     <div className="h-dvh bg-bg-primary relative overflow-hidden overscroll-none">
@@ -47,7 +45,7 @@ export default function PatientMobileLayout({ profile }) {
 
       {/* Bottom navigation */}
       {!hideNav && (
-        <div className={`fixed bottom-0 left-0 right-0 z-50 px-4 pb-4 sm:px-8 sm:pb-6 ${isDashboard ? 'sm:hidden' : ''}`}>
+        <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-4 sm:px-8 sm:pb-6">
           <div className="nav-shell-frosted px-6 py-4 max-w-lg mx-auto">
             <PatientBottomNav />
           </div>
