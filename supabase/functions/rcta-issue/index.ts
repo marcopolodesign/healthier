@@ -187,6 +187,10 @@ Deno.serve(async (req: Request) => {
       })
       .eq('id', medicationId)
 
+    // ── Pharmacy stock match + patient notification (best-effort — a failure here
+    // must never fail the RCTA response, the prescription was already issued) ──
+    await notifyPharmacyMatch(supabase, med).catch(err => console.error('pharmacy match failed:', err))
+
     return json({ prescriptionId, pdfUrl, issuedAt })
 
   } catch (err) {
@@ -199,6 +203,41 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...CORS, 'Content-Type': 'application/json' },
+  })
+}
+
+// Farmacia — matches the just-issued prescription's medication against
+// pharmacy_products.medication_match (comma-separated keywords, ILIKE) and
+// notifies the patient if there's in-stock coverage. Requested by Nacho
+// Arteaga (2026-07-08): "webhook al confirmar medicamento en RCTA → match
+// con stock de farmacia → notificación al paciente".
+// deno-lint-ignore no-explicit-any
+async function notifyPharmacyMatch(supabase: any, med: any) {
+  const medicationName = (med.medication_name ?? '').trim()
+  const patientId = med.patient?.id
+  if (!medicationName || !patientId) return
+
+  const { data: products, error } = await supabase
+    .from('pharmacy_products')
+    .select('id, name, medication_match')
+    .eq('in_stock', true)
+    .not('medication_match', 'is', null)
+
+  if (error || !products?.length) return
+
+  const needle = medicationName.toLowerCase()
+  const match = products.find((p: { medication_match: string }) =>
+    p.medication_match.split(',').some(kw => needle.includes(kw.trim().toLowerCase()))
+  )
+  if (!match) return
+
+  await supabase.functions.invoke('send-push-notification', {
+    body: {
+      userId: patientId,
+      title:  'Tu receta ya está disponible en farmacia',
+      body:   `${match.name} — retirá o pedí delivery desde la sección Farmacia.`,
+      url:    '/paciente/farmacia',
+    },
   })
 }
 

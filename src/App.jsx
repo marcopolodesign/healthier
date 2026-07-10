@@ -44,6 +44,7 @@ import ProfessionalGanancias from './pages/professional/Ganancias'
 import ProfessionalConfiguracion from './pages/professional/Configuracion'
 import PatientBiovisor from './pages/patient/Biovisor'
 import PatientNutriPlan from './pages/patient/NutriPlan'
+import PatientPharmacy from './pages/patient/Pharmacy'
 import PatientComprobantes from './pages/patient/Comprobantes'
 import PatientVideoCall from './pages/patient/VideoCall'
 import HistoriaClinicaPaciente from './pages/paciente/HistoriaClinicaPaciente'
@@ -191,6 +192,7 @@ export default function App() {
           <Route path="/paciente/agendar/:id"      element={<BookConsultation    profile={profile} />} />
           <Route path="/paciente/biovisor"         element={<PatientBiovisor     profile={profile} />} />
           <Route path="/paciente/nutriplan"        element={<PatientNutriPlan    profile={profile} />} />
+          <Route path="/paciente/farmacia"         element={<PatientPharmacy     profile={profile} />} />
           <Route path="/paciente/comprobantes"     element={<PatientComprobantes profile={profile} />} />
           <Route path="/paciente/videollamada/:id" element={<PatientVideoCall    profile={profile} />} />
           <Route path="/paciente/reservar"            element={<ReservarConsulta   profile={profile} />} />
