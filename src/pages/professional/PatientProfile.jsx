@@ -34,14 +34,14 @@ function Section({ icon: Icon, title, iconColor = 'text-brand', bgColor = 'bg-br
 }
 
 const BLOOD_TYPE_COLORS = {
-  'O Positivo': 'bg-red-50 text-red-700 border-red-200',
-  'O Negativo': 'bg-red-50 text-red-700 border-red-200',
-  'A Positivo': 'bg-blue-50 text-blue-700 border-blue-200',
-  'A Negativo': 'bg-blue-50 text-blue-700 border-blue-200',
-  'B Positivo': 'bg-purple-50 text-purple-700 border-purple-200',
-  'B Negativo': 'bg-purple-50 text-purple-700 border-purple-200',
-  'AB Positivo': 'bg-amber-50 text-amber-700 border-amber-200',
-  'AB Negativo': 'bg-amber-50 text-amber-700 border-amber-200',
+  'O+':  'bg-red-50 text-red-700 border-red-200',
+  'O-':  'bg-red-50 text-red-700 border-red-200',
+  'A+':  'bg-blue-50 text-blue-700 border-blue-200',
+  'A-':  'bg-blue-50 text-blue-700 border-blue-200',
+  'B+':  'bg-purple-50 text-purple-700 border-purple-200',
+  'B-':  'bg-purple-50 text-purple-700 border-purple-200',
+  'AB+': 'bg-amber-50 text-amber-700 border-amber-200',
+  'AB-': 'bg-amber-50 text-amber-700 border-amber-200',
 }
 
 export default function ProfessionalPatientProfile({ profile }) {

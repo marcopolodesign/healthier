@@ -20,7 +20,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
     telefono:         profile?.phone         || '',
     domicilio:        profile?.address       || '',
     dni:              profile?.dni           || '',
-    sangre:           profile?.bloodType     || 'O Positivo',
+    sangre:           profile?.bloodType     || '',
     obraSocial:       profile?.insuranceName || '',
     numeroSocio:      profile?.insuranceNum  || '',
     emergenciaNombre: profile?.emergencyName || '',
@@ -67,7 +67,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           full_name: userData.nombre,
           phone: userData.telefono,
           address: userData.domicilio,
-          blood_type: userData.sangre,
+          blood_type: userData.sangre || null,
           insurance_name: userData.obraSocial,
           insurance_num: userData.numeroSocio,
           emergency_name: userData.emergenciaNombre,
@@ -178,9 +178,10 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
               <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Sangre</label>
               {editing
                 ? <select value={userData.sangre} onChange={e => setUserData(p => ({ ...p, sangre: e.target.value }))} className="bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3.5 outline-none text-[16px] font-medium text-gray-900 focus:border-brand">
-                    {['O Positivo', 'O Negativo', 'A Positivo', 'A Negativo', 'B Positivo', 'B Negativo', 'AB Positivo', 'AB Negativo'].map(b => <option key={b}>{b}</option>)}
+                    <option value="">Seleccioná</option>
+                    {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(b => <option key={b}>{b}</option>)}
                   </select>
-                : <div className="px-1 py-1 text-[17px] font-medium text-gray-900">{userData.sangre}</div>
+                : <div className="px-1 py-1 text-[17px] font-medium text-gray-900">{userData.sangre || '—'}</div>
               }
             </div>
           </div>

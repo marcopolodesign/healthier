@@ -41,6 +41,19 @@ export default function PatientOnboarding({ profile }) {
   })
 
   const saveStep1 = async () => {
+    if (health.heightCm && !Number.isInteger(Number(health.heightCm))) {
+      toast.error('La altura debe ser un número entero en centímetros (ej: 165).')
+      return
+    }
+    if (health.heightCm && (Number(health.heightCm) <= 0 || Number(health.heightCm) >= 300)) {
+      toast.error('La altura debe estar entre 1 y 299 cm.')
+      return
+    }
+    if (health.weightKg && (Number(health.weightKg) <= 0 || Number(health.weightKg) >= 700)) {
+      toast.error('El peso debe estar entre 1 y 699 kg.')
+      return
+    }
+
     setSaving(true)
     try {
       await profilesService.update(profile.id, {
