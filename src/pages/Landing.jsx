@@ -92,6 +92,9 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <CompanyLogo size="sm" />
           <div className="flex items-center gap-3">
+            <Link to="/landing/profesionales" className="hidden sm:block text-sm font-medium text-text-secondary hover:text-text-primary transition-colors mr-1">
+              Para profesionales
+            </Link>
             <Link to="/registro" className="bg-white border border-border-default hover:border-border-hover transition-colors rounded-full px-5 py-2 text-sm font-semibold text-text-primary shadow-sm">
               Registrarse
             </Link>
@@ -328,13 +331,21 @@ export default function Landing() {
               <p className="text-white/50 mb-9 leading-relaxed text-sm">
                 Más de 500 profesionales ya atienden en Healthier. Tu matrícula se verifica antes de publicar tu perfil.
               </p>
-              <Link
-                to="/registro?tipo=profesional"
-                className="bg-white text-[#26331F] font-semibold px-8 py-3.5 rounded-full hover:bg-gray-100 transition-colors inline-flex items-center gap-2 text-sm"
-              >
-                Sumá tu práctica
-                <ArrowRight className="h-4 w-4" />
-              </Link>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  to="/landing/profesionales"
+                  className="bg-white text-[#26331F] font-semibold px-8 py-3.5 rounded-full hover:bg-gray-100 transition-colors inline-flex items-center gap-2 text-sm"
+                >
+                  Conocé más
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  to="/registro?tipo=profesional"
+                  className="bg-white/10 backdrop-blur-md border border-white/25 text-white font-semibold px-8 py-3.5 rounded-full hover:bg-white/20 transition-colors text-sm"
+                >
+                  Sumá tu práctica
+                </Link>
+              </div>
             </div>
 
             <div className="rounded-3xl overflow-hidden border border-white/15">

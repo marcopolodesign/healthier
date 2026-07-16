@@ -13,6 +13,7 @@ import Landing from './pages/Landing'
 import LandingPediatria from './pages/landing/Pediatria'
 import LandingSinCoberturaMedica from './pages/landing/SinCoberturaMedica'
 import LandingMedicoOnline from './pages/landing/MedicoOnline'
+import LandingProfesionales from './pages/landing/Profesionales'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
 import TerminosYCondiciones from './pages/TerminosYCondiciones'
@@ -166,6 +167,7 @@ export default function App() {
         <Route path="/landing/pediatria"       element={<LandingPediatria />} />
         <Route path="/landing/sin-cobertura-medica" element={<LandingSinCoberturaMedica />} />
         <Route path="/landing/medico-online"   element={<LandingMedicoOnline />} />
+        <Route path="/landing/profesionales"   element={<LandingProfesionales />} />
         <Route path="/terminos" element={<TerminosYCondiciones />} />
 
         {/* Auth */}

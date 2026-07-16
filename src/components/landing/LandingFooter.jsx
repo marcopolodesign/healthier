@@ -11,7 +11,7 @@ export function LandingFooter() {
           <div className="flex flex-wrap gap-x-7 gap-y-2 text-sm">
             <Link to="/terminos" className="hover:text-white transition-colors">Términos y condiciones</Link>
             <Link to="/login" className="hover:text-white transition-colors">Iniciar sesión</Link>
-            <Link to="/registro?tipo=profesional" className="hover:text-white transition-colors">Profesionales</Link>
+            <Link to="/landing/profesionales" className="hover:text-white transition-colors">Profesionales</Link>
           </div>
           <div className="text-xs text-white/30 sm:text-right leading-relaxed">
             <p>© {new Date().getFullYear()} Healthier · Buenos Aires, Argentina</p>

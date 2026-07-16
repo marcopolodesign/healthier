@@ -573,6 +573,90 @@
   animation-delay: 400ms;
 }
 
+/* ── Letter-by-letter headline reveal (Tandem Health-style hero animation) ── */
+@keyframes letterReveal {
+  0%   { opacity: 0; transform: translateY(0.4em); color: var(--color-accent-reveal, #C9E489); }
+  60%  { color: var(--color-accent-reveal, #C9E489); }
+  100% { opacity: 1; transform: translateY(0); color: currentColor; }
+}
+
+@utility letter-reveal {
+  display: inline-block;
+  white-space: pre;
+  opacity: 0;
+  animation: letterReveal 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Word wrapper — keeps each word intact (no mid-word line breaks) while its
+   letters stay individually animatable atomic inline boxes */
+@utility letter-reveal-word {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* Discrete per-letter delays (index assigned in JS, not DOM position) —
+   supports headlines up to 60 letters. Avoids inline styles/style tags. */
+@utility letter-delay-0 { animation-delay: 0ms; }
+@utility letter-delay-1 { animation-delay: 26ms; }
+@utility letter-delay-2 { animation-delay: 52ms; }
+@utility letter-delay-3 { animation-delay: 78ms; }
+@utility letter-delay-4 { animation-delay: 104ms; }
+@utility letter-delay-5 { animation-delay: 130ms; }
+@utility letter-delay-6 { animation-delay: 156ms; }
+@utility letter-delay-7 { animation-delay: 182ms; }
+@utility letter-delay-8 { animation-delay: 208ms; }
+@utility letter-delay-9 { animation-delay: 234ms; }
+@utility letter-delay-10 { animation-delay: 260ms; }
+@utility letter-delay-11 { animation-delay: 286ms; }
+@utility letter-delay-12 { animation-delay: 312ms; }
+@utility letter-delay-13 { animation-delay: 338ms; }
+@utility letter-delay-14 { animation-delay: 364ms; }
+@utility letter-delay-15 { animation-delay: 390ms; }
+@utility letter-delay-16 { animation-delay: 416ms; }
+@utility letter-delay-17 { animation-delay: 442ms; }
+@utility letter-delay-18 { animation-delay: 468ms; }
+@utility letter-delay-19 { animation-delay: 494ms; }
+@utility letter-delay-20 { animation-delay: 520ms; }
+@utility letter-delay-21 { animation-delay: 546ms; }
+@utility letter-delay-22 { animation-delay: 572ms; }
+@utility letter-delay-23 { animation-delay: 598ms; }
+@utility letter-delay-24 { animation-delay: 624ms; }
+@utility letter-delay-25 { animation-delay: 650ms; }
+@utility letter-delay-26 { animation-delay: 676ms; }
+@utility letter-delay-27 { animation-delay: 702ms; }
+@utility letter-delay-28 { animation-delay: 728ms; }
+@utility letter-delay-29 { animation-delay: 754ms; }
+@utility letter-delay-30 { animation-delay: 780ms; }
+@utility letter-delay-31 { animation-delay: 806ms; }
+@utility letter-delay-32 { animation-delay: 832ms; }
+@utility letter-delay-33 { animation-delay: 858ms; }
+@utility letter-delay-34 { animation-delay: 884ms; }
+@utility letter-delay-35 { animation-delay: 910ms; }
+@utility letter-delay-36 { animation-delay: 936ms; }
+@utility letter-delay-37 { animation-delay: 962ms; }
+@utility letter-delay-38 { animation-delay: 988ms; }
+@utility letter-delay-39 { animation-delay: 1014ms; }
+@utility letter-delay-40 { animation-delay: 1040ms; }
+@utility letter-delay-41 { animation-delay: 1066ms; }
+@utility letter-delay-42 { animation-delay: 1092ms; }
+@utility letter-delay-43 { animation-delay: 1118ms; }
+@utility letter-delay-44 { animation-delay: 1144ms; }
+@utility letter-delay-45 { animation-delay: 1170ms; }
+@utility letter-delay-46 { animation-delay: 1196ms; }
+@utility letter-delay-47 { animation-delay: 1222ms; }
+@utility letter-delay-48 { animation-delay: 1248ms; }
+@utility letter-delay-49 { animation-delay: 1274ms; }
+@utility letter-delay-50 { animation-delay: 1300ms; }
+@utility letter-delay-51 { animation-delay: 1326ms; }
+@utility letter-delay-52 { animation-delay: 1352ms; }
+@utility letter-delay-53 { animation-delay: 1378ms; }
+@utility letter-delay-54 { animation-delay: 1404ms; }
+@utility letter-delay-55 { animation-delay: 1430ms; }
+@utility letter-delay-56 { animation-delay: 1456ms; }
+@utility letter-delay-57 { animation-delay: 1482ms; }
+@utility letter-delay-58 { animation-delay: 1508ms; }
+@utility letter-delay-59 { animation-delay: 1534ms; }
+
 /* ── Scrollbar hide (mobile panels) ── */
 @utility scrollbar-hide {
   scrollbar-width: none;
