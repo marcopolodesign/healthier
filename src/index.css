@@ -31,7 +31,22 @@
   font-display: swap;
 }
 
-/* Healthier — Natural Editorial Theme (v3: sage/coral/lavender, Everett everywhere) */
+@font-face {
+  font-family: 'Plex';
+  src: url('/fonts/IBMPlexSans-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Plex';
+  src: url('/fonts/IBMPlexSans-Medium.woff2') format('woff2');
+  font-weight: 500 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Healthier — Natural Editorial Theme (v4: sage/coral/lavender, Everett en títulos, Plex en cuerpo) */
 @theme {
   /* Brand — Sage (primary) */
   --color-brand: #7CB38B;
@@ -103,9 +118,9 @@
   --color-v-fisico: #6BAFCF;
   --color-v-veterinaria: #E8927C;
 
-  /* Typography — Everett is the ONLY font */
+  /* Typography — Everett en títulos (font-serif), Plex (IBM Plex Sans) en cuerpo (font-sans) */
   --font-serif: 'Everett', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-sans: 'Everett', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Plex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
   /* Radii */
   --radius-pill: 999px;
@@ -119,7 +134,7 @@
   }
 
   body {
-    font-family: 'Everett', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: var(--font-sans);
     background-color: var(--color-bg-primary);
     color: var(--color-text-primary);
     -webkit-font-smoothing: antialiased;
@@ -127,7 +142,7 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Everett', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: var(--font-serif);
   }
 
   * {
@@ -656,6 +671,39 @@
 @utility letter-delay-57 { animation-delay: 1482ms; }
 @utility letter-delay-58 { animation-delay: 1508ms; }
 @utility letter-delay-59 { animation-delay: 1534ms; }
+
+/* ── Tag/chip cascade reveal (specialty picker, onboarding) ── */
+@keyframes chipReveal {
+  0%   { opacity: 0; transform: scale(0.85) translateY(0.25em); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@utility chip-reveal {
+  opacity: 0;
+  animation: chipReveal 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Discrete per-chip delays (index assigned in JS) — supports up to 20 chips. */
+@utility chip-delay-0 { animation-delay: 0ms; }
+@utility chip-delay-1 { animation-delay: 60ms; }
+@utility chip-delay-2 { animation-delay: 120ms; }
+@utility chip-delay-3 { animation-delay: 180ms; }
+@utility chip-delay-4 { animation-delay: 240ms; }
+@utility chip-delay-5 { animation-delay: 300ms; }
+@utility chip-delay-6 { animation-delay: 360ms; }
+@utility chip-delay-7 { animation-delay: 420ms; }
+@utility chip-delay-8 { animation-delay: 480ms; }
+@utility chip-delay-9 { animation-delay: 540ms; }
+@utility chip-delay-10 { animation-delay: 600ms; }
+@utility chip-delay-11 { animation-delay: 660ms; }
+@utility chip-delay-12 { animation-delay: 720ms; }
+@utility chip-delay-13 { animation-delay: 780ms; }
+@utility chip-delay-14 { animation-delay: 840ms; }
+@utility chip-delay-15 { animation-delay: 900ms; }
+@utility chip-delay-16 { animation-delay: 960ms; }
+@utility chip-delay-17 { animation-delay: 1020ms; }
+@utility chip-delay-18 { animation-delay: 1080ms; }
+@utility chip-delay-19 { animation-delay: 1140ms; }
 
 /* ── Scrollbar hide (mobile panels) ── */
 @utility scrollbar-hide {

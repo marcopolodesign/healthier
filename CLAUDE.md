@@ -84,6 +84,7 @@ Some professional pages are designed exclusively for phone use and must never be
 | Route | File | Why phone-only |
 |-------|------|----------------|
 | `/profesional/emergencias` | `pages/professional/Emergencias.jsx` | Operated on the street, requires large touch targets and full-screen urgency UI |
+| `/profesional/onboarding` | `pages/professional/Onboarding.jsx` | Full-bleed split-screen wizard with a live preview panel (2026-07-16) — no sidebar/nav chrome, needs the full viewport width for the two-column layout |
 
 **Rules for mobile-first professional screens:**
 - Root must be `min-h-screen` (not inside AppLayout — no sidebar).
@@ -120,7 +121,7 @@ Key principles to follow:
 - **Clean CTAs:** Pill-shaped buttons (`border-radius: 999px`) with clear primary/secondary hierarchy.
 - **Trust signals:** Star ratings, verification badges, and professional avatars used like Function Health uses lab test logos and physician credentials.
 
-> **Typography invariant:** The ONLY font in this project is **TWK Everett** — GT Super Display has been removed. `font-serif` and `font-sans` both resolve to Everett via `--font-serif` / `--font-sans` tokens in `src/index.css`.
+> **Typography invariant (updated 2026-07-16):** **TWK Everett** for headings only (`h1`-`h6`, and anywhere `font-serif` is applied explicitly) — GT Super Display has been removed. **IBM Plex Sans** ("Plex" font-family) for body text/forms/UI — resolves via `--font-sans`; this is the `body` default in `@layer base`, so most non-heading elements get Plex automatically without any class. `--font-serif` still resolves to Everett. Never mix via inline `style={{fontFamily}}` — always through the `--font-serif`/`--font-sans` tokens or explicit `font-serif`/`font-sans` Tailwind classes.
 
 > **Weight invariant:** NEVER use Everett Bold (`font-bold` / 700). Display headlines use **Everett Light** (`font-light`); everything else uses **Regular** (`font-normal` through `font-semibold` all render the Regular file — its @font-face covers 400–600). Mateo's explicit rule (2026-07-03).
 
@@ -136,7 +137,7 @@ Key principles to follow:
 - **Danger:** `#D9534F` — `var(--color-danger)` · S.O.S / destructive actions
 - **bg-primary:** `#F6F5F0` (warm ivory) · **bg-secondary:** `#FDFCF9`
 - All `@theme` tokens and `@utility` blocks defined in `src/index.css`
-- Font: **TWK Everett only** — licensed woff2 in `public/fonts/`. GT Super Display has been removed.
+- Fonts: **TWK Everett** (headings/`font-serif`) + **IBM Plex Sans** (body/`font-sans`) — licensed/open-source woff2 in `public/fonts/`. GT Super Display has been removed.
 
 ### Button & form utilities
 

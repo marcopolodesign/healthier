@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Check, Stethoscope, User, MapPin, FileText, ClipboardText, VideoCamera, Buildings } from '@phosphor-icons/react';
+import { Check, Stethoscope, User, MapPin, FileText, ClipboardText, VideoCamera, Buildings, LockKey, MagnifyingGlass } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import { profilesService } from '../../services/profilesService'
 import { zonesService } from '../../services/zonesService'
-import { SPECIALTIES } from '../../lib/verticals'
+import { SPECIALTY_LABELS, PROFESSION_CATEGORIES, specialtiesForCategory, categoryForSpecialty } from '../../lib/verticals'
 import AddressAutocomplete from '../../components/common/AddressAutocomplete'
+import { AnimatedTagCascade } from '../../components/common/AnimatedTagCascade'
 import FileUpload from '../../components/FileUpload'
 import { geocodeAddress } from '../../lib/geo'
 import { toast } from '../../components/Toast'
+import OnboardingPreview from '../../components/professional/OnboardingPreview'
 
 const MODALITIES = [
   { id: 'virtual',    label: 'Solo virtual',        icon: VideoCamera },
@@ -25,6 +27,7 @@ const STEPS = [
   { label: 'Tu presentación',   short: 'Perfil',         icon: User         },
   { label: 'Tarifas y lugar',   short: 'Tarifas',        icon: MapPin       },
   { label: 'Documentación',     short: 'Documentos',     icon: FileText    },
+  { label: 'Datos y privacidad', short: 'Privacidad',    icon: LockKey      },
   { label: 'Revisión y envío',  short: 'Revisión',       icon: ClipboardText},
 ]
 
@@ -50,6 +53,9 @@ export default function Onboarding({ profile }) {
   const [malpracticeFile, setMalpracticeFile]         = useState(null)
   const [specialistCertFile, setSpecialistCertFile]   = useState(null)
   const [cuitFile, setCuitFile]                       = useState(null)
+  const [categoryId, setCategoryId]     = useState(null)
+  const [specialtySearch, setSpecialtySearch] = useState('')
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
 
   useEffect(() => {
     zonesService.getActive().then(setZones).catch(() => {})
@@ -73,6 +79,7 @@ export default function Onboarding({ profile }) {
         modalityPreference: p.modalityPreference || 'ambas',
         zoneId:        p.zoneId        || '',
       })
+      if (p.specialty) setCategoryId(categoryForSpecialty(p.specialty))
     })
   }, [isResubmit, profile?.id])
 
@@ -83,7 +90,8 @@ export default function Onboarding({ profile }) {
 
   // Per-step validation
   const canAdvance = () => {
-    if (step === 0) return !!form.specialty && form.licenseNumber.length > 0
+    if (step === 0) return !!categoryId && !!form.specialty && form.licenseNumber.length > 0
+    if (step === 4) return privacyAccepted
     return true
   }
 
@@ -93,17 +101,20 @@ export default function Onboarding({ profile }) {
   const submit = async () => {
     setLoading(true)
     try {
-      if (avatarFile) await profilesService.uploadAvatar(profile.id, avatarFile)
+      // Independent uploads to different storage paths — no data dependency
+      // between them, so run concurrently instead of serializing round-trips.
+      const uploadDoc = (file, fileName) =>
+        file ? professionalService.uploadDocument(profile.id, file, 'professional-docs', fileName) : Promise.resolve('')
 
-      let titleUrl = '', licenseUrl = '', dniUrl = ''
-      if (titleFile)   titleUrl   = await professionalService.uploadDocument(profile.id, titleFile,   'professional-docs', 'titulo')
-      if (licenseFile) licenseUrl = await professionalService.uploadDocument(profile.id, licenseFile, 'professional-docs', 'matricula')
-      if (dniFile)     dniUrl     = await professionalService.uploadDocument(profile.id, dniFile,     'professional-docs', 'dni')
-
-      let malpracticeUrl = '', specialistCertUrl = '', cuitUrl = ''
-      if (malpracticeFile)     malpracticeUrl     = await professionalService.uploadDocument(profile.id, malpracticeFile,     'professional-docs', 'seguro_mala_praxis')
-      if (specialistCertFile)  specialistCertUrl  = await professionalService.uploadDocument(profile.id, specialistCertFile,  'professional-docs', 'certificado_especialista')
-      if (cuitFile)             cuitUrl            = await professionalService.uploadDocument(profile.id, cuitFile,           'professional-docs', 'cuit')
+      const [, titleUrl, licenseUrl, dniUrl, malpracticeUrl, specialistCertUrl, cuitUrl] = await Promise.all([
+        avatarFile ? profilesService.uploadAvatar(profile.id, avatarFile) : Promise.resolve(null),
+        uploadDoc(titleFile, 'titulo'),
+        uploadDoc(licenseFile, 'matricula'),
+        uploadDoc(dniFile, 'dni'),
+        uploadDoc(malpracticeFile, 'seguro_mala_praxis'),
+        uploadDoc(specialistCertFile, 'certificado_especialista'),
+        uploadDoc(cuitFile, 'cuit'),
+      ])
 
       const payload = {
         ...form,
@@ -140,7 +151,9 @@ export default function Onboarding({ profile }) {
   }
 
   return (
-    <div className="min-h-screen bg-bg-primary py-10 px-4">
+    <div className="min-h-screen bg-bg-primary grid lg:grid-cols-2">
+      {/* Left — form wizard */}
+      <div className="py-10 px-4 overflow-y-auto">
       <div className="max-w-lg mx-auto">
 
         {/* Header */}
@@ -196,16 +209,48 @@ export default function Onboarding({ profile }) {
           {step === 0 && (
             <>
               <div>
-                <label className="form-label">Especialidad <span className="text-danger">*</span></label>
-                <select
-                  value={form.specialty}
-                  onChange={e => setForm(p => ({ ...p, specialty: e.target.value }))}
-                  className="form-select"
-                  autoFocus
-                >
-                  <option value="">Seleccioná una especialidad</option>
-                  {SPECIALTIES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
+                <label className="form-label">¿Cuál es tu profesión? <span className="text-danger">*</span></label>
+                <div className="mb-4">
+                  <AnimatedTagCascade
+                    animate={false}
+                    items={PROFESSION_CATEGORIES.map(c => ({ value: c.id, label: c.label, icon: c.icon }))}
+                    value={categoryId}
+                    onSelect={id => {
+                      if (id === categoryId) return
+                      setCategoryId(id)
+                      setSpecialtySearch('')
+                      setForm(p => ({ ...p, specialty: '' }))
+                    }}
+                  />
+                </div>
+
+                {categoryId && (() => {
+                  const catSpecialties = specialtiesForCategory(categoryId)
+                  return (
+                    <>
+                      {catSpecialties.length > 4 && (
+                        <div className="relative mb-3">
+                          <MagnifyingGlass className="h-4 w-4 text-text-tertiary absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            value={specialtySearch}
+                            onChange={e => setSpecialtySearch(e.target.value)}
+                            className="form-input pl-9"
+                            placeholder="Buscar especialidad..."
+                          />
+                        </div>
+                      )}
+                      <AnimatedTagCascade
+                        items={catSpecialties.filter(s =>
+                          s.label.toLowerCase().includes(specialtySearch.toLowerCase())
+                        )}
+                        value={form.specialty}
+                        onSelect={value => setForm(p => ({ ...p, specialty: value }))}
+                        cascadeKey={categoryId}
+                      />
+                    </>
+                  )
+                })()}
               </div>
               <div>
                 <label className="form-label">Sub-especialidad <span className="text-text-tertiary text-xs">(opcional)</span></label>
@@ -422,12 +467,36 @@ export default function Onboarding({ profile }) {
             </>
           )}
 
-          {/* ── Step 4: Revisión ─────────────────────────────────── */}
+          {/* ── Step 4: Datos y privacidad ───────────────────────── */}
           {step === 4 && (
+            <>
+              <p className="text-sm text-text-secondary -mt-1">
+                Nos tomamos muy en serio la privacidad, cumpliendo con la Ley 25.326 y la Ley 26.529 de derechos
+                del paciente. Obtené más información en nuestros{' '}
+                <a href="/terminos" target="_blank" rel="noreferrer" className="text-brand font-medium underline">Términos y Condiciones</a>.
+              </p>
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-border-default cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={privacyAccepted}
+                  onChange={e => setPrivacyAccepted(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-brand"
+                />
+                <span className="text-sm text-text-secondary">
+                  Acepto los{' '}
+                  <a href="/terminos" target="_blank" rel="noreferrer" className="text-brand font-medium underline">Términos del servicio</a>
+                  {' '}y el manejo de datos personales conforme a la Ley 25.326.
+                </span>
+              </label>
+            </>
+          )}
+
+          {/* ── Step 5: Revisión ─────────────────────────────────── */}
+          {step === 5 && (
             <div className="space-y-4 text-sm">
               <div className="rounded-xl bg-bg-surface divide-y divide-border-default border border-border-default overflow-hidden">
                 {[
-                  ['Especialidad',      form.specialty || '—'],
+                  ['Especialidad',      SPECIALTY_LABELS[form.specialty] || '—'],
                   ['Sub-especialidad',  form.subSpecialty || '—'],
                   ['Matrícula',         form.licenseNumber ? `${form.licenseType} ${form.licenseNumber}` : '—'],
                   ['Bio',               form.bio ? form.bio.slice(0, 100) + (form.bio.length > 100 ? '…' : '') : '—'],
@@ -486,6 +555,12 @@ export default function Onboarding({ profile }) {
             Completar más tarde →
           </button>
         )}
+      </div>
+      </div>
+
+      {/* Right — live preview panel */}
+      <div className="hidden lg:flex bg-bg-secondary p-8">
+        <OnboardingPreview step={step} form={form} profile={profile} avatarPreview={avatarPreview} />
       </div>
     </div>
   )

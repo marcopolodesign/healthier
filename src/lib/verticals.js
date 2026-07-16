@@ -1,4 +1,4 @@
-import { Stethoscope, AppleLogo, Brain, Barbell, PawPrint, Pulse, Baby } from '@phosphor-icons/react'
+import { Stethoscope, AppleLogo, Brain, Barbell, PawPrint, Pulse, Baby, Question } from '@phosphor-icons/react'
 
 // Single source of truth for specialty labels, vertical mappings, and options.
 
@@ -33,6 +33,46 @@ export const isComingSoon = id => !!VERTICALS_BY_ID[id]?.comingSoon
 
 // Option list for select inputs (used in Onboarding and Profile)
 export const SPECIALTIES = Object.entries(SPECIALTY_LABELS).map(([value, label]) => ({ value, label }))
+
+// ── Profession categories — presentation-only grouping over SPECIALTY_LABELS ──
+// Purely for the onboarding UX (category chips → cascading specialty tags,
+// Tandem Health-style). Does NOT change what's persisted: form.specialty still
+// stores the exact same flat slug (e.g. 'pediatria') that professionalService,
+// admin approval, and every patient-facing page already expect. No DB/schema
+// change, no blast radius — see catchup.md 2026-07-16 for the reasoning.
+export const PROFESSION_CATEGORIES = [
+  { id: 'medico',        label: 'Médico',              icon: Stethoscope, specialtyValues: ['medicina_general', 'pediatria', 'cardiologia', 'dermatologia'] },
+  { id: 'nutricion',     label: 'Nutrición',            icon: AppleLogo,   specialtyValues: ['nutricion'] },
+  { id: 'psicologia',    label: 'Psicología',           icon: Brain,       specialtyValues: ['psicologia'] },
+  { id: 'entrenamiento', label: 'Entrenamiento Físico', icon: Barbell,     specialtyValues: ['entrenamiento'] },
+  { id: 'veterinaria',   label: 'Veterinaria',          icon: PawPrint,    specialtyValues: ['veterinaria'] },
+  { id: 'otra',          label: 'Otra',                 icon: Question,    specialtyValues: ['otra'] },
+]
+
+// Drift guard: PROFESSION_CATEGORIES must partition every SPECIALTY_LABELS key
+// exactly once. If someone adds a specialty without updating the category
+// grouping above, it silently becomes unselectable in onboarding — warn loudly
+// in dev instead of failing silently in production.
+if (import.meta.env.DEV) {
+  const covered = new Set(PROFESSION_CATEGORIES.flatMap(c => c.specialtyValues))
+  const missing = Object.keys(SPECIALTY_LABELS).filter(k => !covered.has(k))
+  if (missing.length) {
+    console.warn(`[verticals.js] PROFESSION_CATEGORIES no cubre: ${missing.join(', ')} — quedarán ocultas en el onboarding de profesionales.`)
+  }
+}
+
+// Specialty options for a given category id, in SPECIALTIES {value,label} shape
+export function specialtiesForCategory(categoryId) {
+  const category = PROFESSION_CATEGORIES.find(c => c.id === categoryId)
+  if (!category) return []
+  return category.specialtyValues.map(value => ({ value, label: SPECIALTY_LABELS[value] }))
+}
+
+// Reverse lookup — which category a given specialty slug belongs to (used to
+// preselect the category chip when resubmitting/editing an existing profile)
+export function categoryForSpecialty(specialtyValue) {
+  return PROFESSION_CATEGORIES.find(c => c.specialtyValues.includes(specialtyValue))?.id ?? null
+}
 
 // Maps dashboard vertical IDs → professional_profiles.specialty slug(s)
 export const VERTICAL_SPECIALTIES = {

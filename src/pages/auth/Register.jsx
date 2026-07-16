@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { User, Envelope, Lock, Briefcase, Heart, Check } from '@phosphor-icons/react';
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
@@ -25,7 +25,9 @@ const CONSENT_ITEMS = [
 ]
 
 export default function Register({ onLogin }) {
-  const [form, setForm] = useState({ fullName: '', email: '', password: '', role: '' })
+  const [searchParams] = useSearchParams()
+  const initialRole = searchParams.get('tipo') === 'profesional' ? 'professional' : ''
+  const [form, setForm] = useState({ fullName: '', email: '', password: '', role: initialRole })
   const [consents, setConsents] = useState({ hipaa: false, ley25326: false, equipo_tratante: false })
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()

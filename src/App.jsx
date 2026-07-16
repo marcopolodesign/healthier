@@ -227,6 +227,11 @@ export default function App() {
             <ProfessionalVideoCall profile={profile} />
           </RequireRole>
         } />
+        <Route path="/profesional/onboarding" element={
+          <RequireRole profile={profile} allowed={['professional']}>
+            <ProfessionalOnboarding profile={profile} />
+          </RequireRole>
+        } />
 
         {/* Professional */}
         <Route element={
@@ -235,7 +240,6 @@ export default function App() {
           </RequireRole>
         }>
           <Route path="/profesional/dashboard" element={<ProfessionalDashboard profile={profile} />} />
-          <Route path="/profesional/onboarding" element={<ProfessionalOnboarding profile={profile} />} />
           <Route path="/profesional/agenda" element={<ProfessionalAgenda profile={profile} />} />
           <Route path="/profesional/consulta/:id" element={<ConsultationDetail profile={profile} />} />
           <Route path="/profesional/perfil" element={<ProfessionalProfileEdit profile={profile} onProfileUpdate={setProfile} />} />
