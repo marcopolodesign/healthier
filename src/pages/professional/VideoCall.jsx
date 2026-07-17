@@ -3,12 +3,15 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, PhoneSlash, ClipboardText, ArrowsOut, ArrowsIn,
   Plus, Check, CircleNotch, User, Microphone, MicrophoneSlash,
-  Camera, CameraSlash, Warning, Sparkle,
+  Camera, CameraSlash, Warning, Sparkle, ClockCounterClockwise,
+  IdentificationCard, Drop, Phone, Envelope, MapPin, Heartbeat,
 } from '@phosphor-icons/react'
 import DailyIframe from '@daily-co/daily-js'
 import { supabase } from '../../lib/supabase'
 import { consultationsService } from '../../services/consultationsService'
 import { clinicalService } from '../../services/clinicalService'
+import { historiaClinicaService } from '../../services/historiaClinicaService'
+import { profilesService } from '../../services/profilesService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import CloseConsultationModal from '../../components/CloseConsultationModal'
 import ScribeSession from '../../components/professional/ScribeSession'
@@ -21,6 +24,172 @@ const ENTRY_TYPE_LABELS = {
   diagnosis: 'Diagnóstico',
   indication: 'Indicación',
   addendum: 'Addendum',
+}
+
+const PANEL_TABS = [
+  { id: 'nota', label: 'Hoy', icon: ClipboardText },
+  { id: 'historia', label: 'Historia', icon: ClockCounterClockwise },
+  { id: 'datos', label: 'Datos', icon: IdentificationCard },
+]
+
+const BLOOD_TYPE_COLORS = {
+  'O+': 'bg-red-50 text-red-700 border-red-200',
+  'O-': 'bg-red-50 text-red-700 border-red-200',
+  'A+': 'bg-blue-50 text-blue-700 border-blue-200',
+  'A-': 'bg-blue-50 text-blue-700 border-blue-200',
+  'B+': 'bg-purple-50 text-purple-700 border-purple-200',
+  'B-': 'bg-purple-50 text-purple-700 border-purple-200',
+  'AB+': 'bg-amber-50 text-amber-700 border-amber-200',
+  'AB-': 'bg-amber-50 text-amber-700 border-amber-200',
+}
+
+// ── Full clinical history tab — every past encounter for this patient ─────────
+function HistoriaTab({ loading, encounters, allergies }) {
+  if (loading) {
+    return (
+      <div className="flex justify-center py-8">
+        <CircleNotch className="h-5 w-5 animate-spin text-brand" />
+      </div>
+    )
+  }
+  if (encounters.length === 0 && allergies.length === 0) {
+    return (
+      <div className="text-center py-8 text-text-secondary">
+        <ClockCounterClockwise className="h-8 w-8 mx-auto mb-2 opacity-30" />
+        <p className="text-xs">Sin historia clínica previa</p>
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-3">
+      {allergies.length > 0 && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-2.5">
+          <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide mb-1.5">Alergias activas</p>
+          <div className="flex flex-wrap gap-1">
+            {allergies.map(a => (
+              <span key={a.id} className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-red-200 text-red-700">
+                {a.substance}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {encounters.map(enc => (
+        <div key={enc.id} className="rounded-lg border border-border-default bg-bg-surface p-2.5 space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wide shrink-0">
+              {new Date(enc.createdAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+            <span className="text-[10px] text-text-tertiary truncate">{enc.professional?.fullName}</span>
+          </div>
+          {enc.chiefComplaint && (
+            <p className="text-xs font-medium text-text-primary">{enc.chiefComplaint}</p>
+          )}
+          {enc.entries?.map(entry => (
+            <p key={entry.id} className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">
+              <span className="font-semibold text-brand">{ENTRY_TYPE_LABELS[entry.entryType] ?? entry.entryType}: </span>
+              {entry.content}
+            </p>
+          ))}
+          {(enc.conditions?.length > 0 || enc.medications?.length > 0) && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              {enc.conditions?.map(c => (
+                <span key={c.id} className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                  {c.icd10Display || c.icd10Code}
+                </span>
+              ))}
+              {enc.medications?.map(m => (
+                <span key={m.id} className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                  {m.medicationName}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Basic patient data tab — profile, contact, emergency contact ──────────────
+function DatosTab({ loading, patient }) {
+  if (loading) {
+    return (
+      <div className="flex justify-center py-8">
+        <CircleNotch className="h-5 w-5 animate-spin text-brand" />
+      </div>
+    )
+  }
+  if (!patient) {
+    return (
+      <div className="text-center py-8 text-text-secondary">
+        <IdentificationCard className="h-8 w-8 mx-auto mb-2 opacity-30" />
+        <p className="text-xs">No se pudo cargar el perfil</p>
+      </div>
+    )
+  }
+  const bloodTypeClass = BLOOD_TYPE_COLORS[patient.bloodType] ?? 'bg-bg-surface text-text-primary border-border-default'
+  const age = patient.birthDate
+    ? Math.floor((Date.now() - new Date(patient.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+    : null
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center shrink-0 overflow-hidden">
+          {patient.avatarUrl
+            ? <img src={patient.avatarUrl} alt={patient.fullName} className="w-full h-full object-cover" />
+            : <User className="h-5 w-5 text-brand" />
+          }
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-text-primary truncate">{patient.fullName || '—'}</p>
+          <p className="text-[11px] text-text-secondary">{age != null ? `${age} años` : '—'}</p>
+        </div>
+      </div>
+
+      {patient.bloodType && (
+        <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border w-fit ${bloodTypeClass}`}>
+          <Drop className="h-3 w-3" /> Grupo {patient.bloodType}
+        </span>
+      )}
+
+      <div className="rounded-lg border border-border-default bg-bg-surface p-2.5 space-y-1.5">
+        <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Contacto</p>
+        {patient.phone && (
+          <p className="flex items-center gap-1.5 text-xs text-text-secondary"><Phone className="h-3 w-3 shrink-0" /> {patient.phone}</p>
+        )}
+        {patient.email && (
+          <p className="flex items-center gap-1.5 text-xs text-text-secondary"><Envelope className="h-3 w-3 shrink-0" /> {patient.email}</p>
+        )}
+        {patient.address && (
+          <p className="flex items-center gap-1.5 text-xs text-text-secondary"><MapPin className="h-3 w-3 shrink-0" /> {patient.address}</p>
+        )}
+      </div>
+
+      {(patient.dni || patient.insuranceName) && (
+        <div className="rounded-lg border border-border-default bg-bg-surface p-2.5 space-y-1.5">
+          <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide flex items-center gap-1">
+            <Heartbeat className="h-3 w-3" /> Perfil clínico
+          </p>
+          {patient.dni && <p className="text-xs text-text-secondary">DNI: {patient.dni}</p>}
+          {patient.insuranceName && (
+            <p className="text-xs text-text-secondary">
+              {patient.insuranceName}{patient.insuranceNum ? ` · N° ${patient.insuranceNum}` : ''}
+            </p>
+          )}
+        </div>
+      )}
+
+      {(patient.emergencyName || patient.emergencyPhone) && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 space-y-1.5">
+          <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide">Contacto de emergencia</p>
+          {patient.emergencyName && <p className="text-xs text-red-700">{patient.emergencyName}{patient.emergencyRel ? ` (${patient.emergencyRel})` : ''}</p>}
+          {patient.emergencyPhone && <p className="text-xs text-red-700">{patient.emergencyPhone}</p>}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Audio-only element for remote participant ─────────────────────────────────
@@ -65,6 +234,11 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
   const [form, setForm] = useState({ entryType: 'note', content: '' })
   const [submitting, setSubmitting] = useState(false)
   const [showScribe, setShowScribe] = useState(false)
+  const [activeTab, setActiveTab] = useState('nota')
+  const [historia, setHistoria] = useState({ encounters: [], allergies: [] })
+  const [loadingHistoria, setLoadingHistoria] = useState(true)
+  const [patientData, setPatientData] = useState(null)
+  const [loadingPatientData, setLoadingPatientData] = useState(true)
 
   const { encounterId, ensureEncounter } = useClinicalEncounter({
     consultationId: consultation?.id,
@@ -91,6 +265,23 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
       .catch(() => { /* leave empty */ })
       .finally(() => setLoadingEntries(false))
   }, [consultation?.id])
+
+  // Full history + basic patient data — loaded once so both new tabs are ready
+  // by the time the professional switches to them, no extra click-to-load lag.
+  useEffect(() => {
+    if (!patientId) return
+    setLoadingHistoria(true)
+    historiaClinicaService.getPatientTimeline(patientId)
+      .then(setHistoria)
+      .catch(() => { /* leave empty */ })
+      .finally(() => setLoadingHistoria(false))
+
+    setLoadingPatientData(true)
+    profilesService.getById(patientId)
+      .then(setPatientData)
+      .catch(() => { /* leave empty */ })
+      .finally(() => setLoadingPatientData(false))
+  }, [patientId])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -124,23 +315,41 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
           <ClipboardText className="h-4 w-4 text-brand" />
           <span className="font-semibold text-sm text-text-primary">Historia Clínica</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setShowScribe(s => !s)}
-            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full bg-brand text-white hover:bg-brand/90"
-          >
-            <Sparkle weight="fill" className="h-3 w-3" /> IA
-          </button>
-          <button
-            onClick={() => setShowForm(s => !s)}
-            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border border-border-default text-text-secondary hover:bg-bg-surface-hover"
-          >
-            <Plus className="h-3 w-3" /> Nota
-          </button>
-        </div>
+        {activeTab === 'nota' && (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setShowScribe(s => !s)}
+              className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full bg-brand text-white hover:bg-brand/90"
+            >
+              <Sparkle weight="fill" className="h-3 w-3" /> IA
+            </button>
+            <button
+              onClick={() => setShowForm(s => !s)}
+              className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border border-border-default text-text-secondary hover:bg-bg-surface-hover"
+            >
+              <Plus className="h-3 w-3" /> Nota
+            </button>
+          </div>
+        )}
       </div>
 
-      {showScribe && (
+      <div className="flex border-b border-border-default shrink-0 bg-bg-surface">
+        {PANEL_TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 flex items-center justify-center gap-1 text-xs py-2 border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? 'border-brand text-brand font-semibold'
+                : 'border-transparent text-text-tertiary hover:text-text-secondary'
+            }`}
+          >
+            <tab.icon className="h-3.5 w-3.5" /> {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'nota' && showScribe && (
         <div className="p-3 border-b border-border-default shrink-0">
           <ScribeSession
             patientId={patientId}
@@ -157,7 +366,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
         </div>
       )}
 
-      {showForm && (
+      {activeTab === 'nota' && showForm && (
         <form onSubmit={handleSubmit} className="p-3 border-b border-border-default space-y-2 shrink-0 bg-bg-subtle">
           <select
             className="form-select text-xs py-1 w-full"
@@ -189,39 +398,51 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
       )}
 
       <div className="flex-1 overflow-y-auto px-3 py-4">
-        {loadingEntries && (
-          <div className="flex justify-center py-8">
-            <CircleNotch className="h-5 w-5 animate-spin text-brand" />
-          </div>
+        {activeTab === 'nota' && (
+          <>
+            {loadingEntries && (
+              <div className="flex justify-center py-8">
+                <CircleNotch className="h-5 w-5 animate-spin text-brand" />
+              </div>
+            )}
+            {!loadingEntries && entries.length === 0 && (
+              <div className="text-center py-8 text-text-secondary">
+                <ClipboardText className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                <p className="text-xs">Sin notas clínicas</p>
+                <p className="text-xs opacity-60">Agregá la primera con el botón de arriba</p>
+              </div>
+            )}
+            {entries.length > 0 && (
+              <ol className="relative">
+                <span className="absolute left-[5px] top-2 bottom-2 w-px bg-border-default" />
+                {entries.map((entry, i) => {
+                  const date = new Date(entry.createdAt)
+                  const dateLabel = date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
+                  const timeLabel = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+                  return (
+                    <li key={entry.id} className={`relative pl-5 ${i < entries.length - 1 ? 'pb-4' : ''}`}>
+                      <span className="absolute left-0 top-1.5 w-[11px] h-[11px] rounded-full border-2 border-white bg-brand ring-1 ring-border-default" />
+                      <p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wide mb-1.5">
+                        {dateLabel} · {timeLabel}
+                      </p>
+                      <div className="rounded-lg border border-border-default bg-bg-surface p-2.5 space-y-1.5">
+                        <span className="text-xs font-semibold text-brand">{ENTRY_TYPE_LABELS[entry.entryType] ?? entry.entryType}</span>
+                        <p className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">{entry.content}</p>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ol>
+            )}
+          </>
         )}
-        {!loadingEntries && entries.length === 0 && (
-          <div className="text-center py-8 text-text-secondary">
-            <ClipboardText className="h-8 w-8 mx-auto mb-2 opacity-30" />
-            <p className="text-xs">Sin notas clínicas</p>
-            <p className="text-xs opacity-60">Agregá la primera con el botón de arriba</p>
-          </div>
+
+        {activeTab === 'historia' && (
+          <HistoriaTab loading={loadingHistoria} encounters={historia.encounters} allergies={historia.allergies} />
         )}
-        {entries.length > 0 && (
-          <ol className="relative">
-            <span className="absolute left-[5px] top-2 bottom-2 w-px bg-border-default" />
-            {entries.map((entry, i) => {
-              const date = new Date(entry.createdAt)
-              const dateLabel = date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
-              const timeLabel = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-              return (
-                <li key={entry.id} className={`relative pl-5 ${i < entries.length - 1 ? 'pb-4' : ''}`}>
-                  <span className="absolute left-0 top-1.5 w-[11px] h-[11px] rounded-full border-2 border-white bg-brand ring-1 ring-border-default" />
-                  <p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wide mb-1.5">
-                    {dateLabel} · {timeLabel}
-                  </p>
-                  <div className="rounded-lg border border-border-default bg-bg-surface p-2.5 space-y-1.5">
-                    <span className="text-xs font-semibold text-brand">{ENTRY_TYPE_LABELS[entry.entryType] ?? entry.entryType}</span>
-                    <p className="text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">{entry.content}</p>
-                  </div>
-                </li>
-              )
-            })}
-          </ol>
+
+        {activeTab === 'datos' && (
+          <DatosTab loading={loadingPatientData} patient={patientData} />
         )}
       </div>
     </div>
