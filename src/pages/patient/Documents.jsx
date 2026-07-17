@@ -4,7 +4,6 @@ import {
   ShieldCheck, CaretRight, ArrowLeft, Eye, Plus,
   CloudArrowUp, Camera, CircleNotch, Pulse, Check,
   FileText, FolderOpen, AppleLogo, Barbell, PawPrint, Sparkle, ClipboardText,
-  ShoppingBag,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
@@ -122,16 +121,7 @@ export default function PatientDocuments({ profile }) {
           <p className="font-semibold text-[15px] leading-tight">NutriPlan</p>
           <p className="text-[11px] opacity-80 mt-0.5">Mi plan nutricional</p>
         </button>
-        <button
-          onClick={() => navigate('/paciente/farmacia')}
-          className="col-span-2 bg-gradient-to-br from-sky-500 to-blue-700 rounded-2xl p-4 text-left text-white shadow-md hover:shadow-lg active:scale-95 transition-all flex items-center gap-4"
-        >
-          <ShoppingBag className="w-7 h-7 opacity-90 flex-shrink-0" />
-          <div>
-            <p className="font-semibold text-[15px] leading-tight">Farmacia</p>
-            <p className="text-[11px] opacity-80 mt-0.5">Productos, medicamentos y recetas</p>
-          </div>
-        </button>
+        {/* Farmacia card hidden 2026-07-16 at Mateo's request — /paciente/farmacia route + data intact, just not linked from Bóveda */}
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-8">
