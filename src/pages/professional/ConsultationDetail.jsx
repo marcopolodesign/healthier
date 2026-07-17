@@ -658,7 +658,7 @@ export default function ConsultationDetail({ profile }) {
               className="form-input"
             />
           </div>
-          <div className="flex gap-3 pt-2">
+          <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
             <button onClick={() => setReagendarOpen(false)} className="btn-secondary flex-1">Cancelar</button>
             <button onClick={handleReagendar} disabled={savingReagendar} className="btn-primary flex-1">
               {savingReagendar ? 'Agendando…' : 'Confirmar'}

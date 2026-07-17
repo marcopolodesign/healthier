@@ -158,10 +158,10 @@ export default function Onboarding({ profile }) {
 
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-text-primary">
+          <h1 className="page-title-lg text-text-primary">
             {isResubmit ? 'Corregir y reenviar' : 'Completá tu perfil clínico'}
           </h1>
-          <p className="text-text-secondary mt-1.5 text-sm">
+          <p className="text-text-secondary mt-1.5 text-base">
             {isResubmit
               ? 'Actualizá la información solicitada y volvé a enviar.'
               : `Paso ${step + 1} de ${STEPS.length} — ${STEPS[step].label}`}
@@ -187,7 +187,7 @@ export default function Onboarding({ profile }) {
                   }`}>
                     {done ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
                   </div>
-                  <span className={`text-[10px] font-medium hidden sm:block ${current ? 'text-brand' : done ? 'text-text-secondary' : 'text-text-tertiary'}`}>
+                  <span className={`text-xs font-medium hidden sm:block ${current ? 'text-brand' : done ? 'text-text-secondary' : 'text-text-tertiary'}`}>
                     {s.short}
                   </span>
                 </button>
@@ -201,7 +201,7 @@ export default function Onboarding({ profile }) {
 
         {/* Step card */}
         <div className="card space-y-5">
-          <h2 className="font-semibold text-text-primary text-lg border-b border-border-default pb-3">
+          <h2 className="font-semibold text-text-primary text-xl border-b border-border-default pb-3">
             {STEPS[step].label}
           </h2>
 
@@ -339,7 +339,7 @@ export default function Onboarding({ profile }) {
                       }`}
                     >
                       <m.icon className="h-5 w-5" />
-                      <span className="text-[11px] font-medium leading-tight">{m.label}</span>
+                      <span className="text-xs font-medium leading-tight">{m.label}</span>
                     </button>
                   ))}
                 </div>
@@ -360,7 +360,7 @@ export default function Onboarding({ profile }) {
                   />
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2">
-                  <p className="text-xs text-blue-700">
+                  <p className="text-sm text-blue-700">
                     Rango sugerido: ${SUGGESTED_PRICE_RANGE.min.toLocaleString('es-AR')}–${SUGGESTED_PRICE_RANGE.max.toLocaleString('es-AR')} ·{' '}
                     <span className="font-semibold">recomendado ${SUGGESTED_PRICE_RANGE.recommended.toLocaleString('es-AR')}</span>
                   </p>
@@ -403,7 +403,7 @@ export default function Onboarding({ profile }) {
           {/* ── Step 3: Documentación ────────────────────────────── */}
           {step === 3 && (
             <>
-              <p className="text-sm text-text-secondary -mt-1">
+              <p className="text-base text-text-secondary -mt-1">
                 Necesitamos verificar tus credenciales antes de habilitarte. Todos los archivos se almacenan de forma cifrada.
               </p>
               <div>
@@ -470,7 +470,7 @@ export default function Onboarding({ profile }) {
           {/* ── Step 4: Datos y privacidad ───────────────────────── */}
           {step === 4 && (
             <>
-              <p className="text-sm text-text-secondary -mt-1">
+              <p className="text-base text-text-secondary -mt-1">
                 Nos tomamos muy en serio la privacidad, cumpliendo con la Ley 25.326 y la Ley 26.529 de derechos
                 del paciente. Obtené más información en nuestros{' '}
                 <a href="/terminos" target="_blank" rel="noreferrer" className="text-brand font-medium underline">Términos y Condiciones</a>.
@@ -527,7 +527,7 @@ export default function Onboarding({ profile }) {
           )}
 
           {/* Navigation */}
-          <div className="flex gap-3 pt-2 border-t border-border-default">
+          <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2 border-t border-border-default">
             {step > 0 && (
               <button onClick={prev} className="btn-secondary flex-1">
                 ← Anterior
@@ -549,10 +549,11 @@ export default function Onboarding({ profile }) {
           </div>
         </div>
 
-        {/* Skip option for optional steps (1 and 2) */}
-        {(step === 1 || step === 2) && (
+        {/* Skip option for optional steps (1, 2 and 3 — documentación ya se puede enviar sin
+            archivos, esto solo lo hace explícito para que no parezca un paso bloqueante) */}
+        {(step === 1 || step === 2 || step === 3) && (
           <button onClick={next} className="mt-3 w-full text-center text-sm text-text-tertiary hover:text-text-secondary transition-colors">
-            Completar más tarde →
+            {step === 3 ? 'Subo los documentos después →' : 'Completar más tarde →'}
           </button>
         )}
       </div>

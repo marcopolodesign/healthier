@@ -39,7 +39,6 @@ export default function ProfessionalBottomNav({ profile, profSpecialty, classNam
     ...(profSpecialty === 'nutricion' ? [
       { path: '/profesional/nutriplan', icon: ForkKnife, label: 'NutriPlan Pro', sub: 'Planes nutricionales' },
     ] : []),
-    { path: '/profesional/perfil',     icon: User,                  label: 'Mi perfil',   sub: 'Datos y configuración' },
   ]
 
   return (

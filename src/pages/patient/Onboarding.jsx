@@ -277,7 +277,7 @@ export default function PatientOnboarding({ profile }) {
           )}
 
           {/* Navigation */}
-          <div className="flex gap-3 pt-2 border-t border-border-default">
+          <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2 border-t border-border-default">
             {step === 2 && (
               <button onClick={() => setStep(1)} className="btn-secondary flex-1">
                 ← Anterior

@@ -460,14 +460,20 @@ export default function Configuracion({ profile }) {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="grid grid-cols-[1fr_110px_130px_32px] gap-2 px-1">
+                  {/* Column headers only make sense once the row is an actual grid (sm:+) */}
+                  <div className="hidden sm:grid grid-cols-[1fr_110px_130px_32px] gap-2 px-1">
                     <span className="text-xs text-text-muted">Nombre</span>
                     <span className="text-xs text-text-muted">Precio (ARS)</span>
                     <span className="text-xs text-text-muted">Modalidad</span>
                     <span />
                   </div>
                   {consultationTypes.map((t, i) => (
-                    <div key={t.id || i} className="grid grid-cols-[1fr_110px_130px_32px] gap-2 items-center">
+                    // Mobile: stacked card (name on its own row, price/modalidad/borrar share a row).
+                    // sm:+: sm:contents on the inner wrapper flattens it back into the 4-col grid.
+                    <div
+                      key={t.id || i}
+                      className="rounded-xl border border-border-default p-3 space-y-2 sm:border-0 sm:p-0 sm:space-y-0 sm:grid sm:grid-cols-[1fr_110px_130px_32px] sm:gap-2 sm:items-center"
+                    >
                       <input
                         type="text"
                         value={t.name}
@@ -475,33 +481,35 @@ export default function Configuracion({ profile }) {
                         placeholder="Ej: Consulta inicial"
                         className="form-input"
                       />
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={t.price || ''}
-                          onChange={e => updateType(i, 'price', e.target.value)}
-                          placeholder="0"
-                          className="form-input pl-7"
-                        />
+                      <div className="flex gap-2 sm:contents">
+                        <div className="relative flex-1 sm:flex-none">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={t.price || ''}
+                            onChange={e => updateType(i, 'price', e.target.value)}
+                            placeholder="0"
+                            className="form-input pl-7"
+                          />
+                        </div>
+                        <select
+                          value={t.modality || ''}
+                          onChange={e => updateType(i, 'modality', e.target.value)}
+                          className="form-select flex-1 sm:flex-none"
+                        >
+                          <option value="">Ambas</option>
+                          <option value="presencial">Presencial</option>
+                          <option value="video">Videollamada</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => removeType(i)}
+                          className="p-1.5 text-text-muted hover:text-danger transition-colors shrink-0"
+                        >
+                          <Trash className="h-4 w-4" />
+                        </button>
                       </div>
-                      <select
-                        value={t.modality || ''}
-                        onChange={e => updateType(i, 'modality', e.target.value)}
-                        className="form-select"
-                      >
-                        <option value="">Ambas</option>
-                        <option value="presencial">Presencial</option>
-                        <option value="video">Videollamada</option>
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => removeType(i)}
-                        className="p-1.5 text-text-muted hover:text-danger transition-colors"
-                      >
-                        <Trash className="h-4 w-4" />
-                      </button>
                     </div>
                   ))}
                 </div>
