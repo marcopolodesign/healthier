@@ -1,7 +1,6 @@
 import { CheckCircle, ShieldCheck, CalendarCheck, VideoCamera, FileText, Prescription } from '@phosphor-icons/react'
 import { AnimatedTagCascade } from '../common/AnimatedTagCascade'
 import { SPECIALTY_LABELS } from '../../lib/verticals'
-import { LAWS } from '../../lib/laws'
 
 // Illustrative clinical-note sections — teases the AI Scribe feature (Fase 3)
 // while doubling as the "tags cascading in" preview for Step 0. Not real data.
@@ -19,6 +18,12 @@ const FEATURES = [
   { icon: VideoCamera,   label: 'Consultas on-demand', desc: 'Video y presencial desde el mismo panel' },
   { icon: FileText,      label: 'Historia clínica compartida', desc: 'Tus pacientes ven su historial en un lugar' },
   { icon: Prescription,  label: 'Receta electrónica', desc: 'Emisión digital vía RCTA' },
+]
+
+const LAWS = [
+  { code: 'Ley 26.529', label: 'Derechos del paciente' },
+  { code: 'Ley 25.326', label: 'Protección de datos' },
+  { code: 'Ley 27.553', label: 'Teleconsulta' },
 ]
 
 export default function OnboardingPreview({ step, form, profile, avatarPreview }) {
@@ -56,14 +61,16 @@ export default function OnboardingPreview({ step, form, profile, avatarPreview }
 
       {step === 2 && (
         <div className="animate-fade-in-up">
-          <h3 className="font-serif text-2xl text-text-primary mb-1">Funcionalidades de Healthier para tu práctica</h3>
+          <h3 className="font-serif text-2xl text-text-primary mb-1">Todo lo que ya tenés listo</h3>
           <p className="text-text-tertiary text-sm mb-6">Sos de los primeros profesionales en Healthier — así se ve tu panel apenas te aprobemos.</p>
-          <div className="flex flex-row flex-wrap gap-3">
+          <div className="space-y-3">
             {FEATURES.map(f => (
-              <div key={f.label} className="flex flex-col items-center justify-center text-center gap-1.5 p-4 w-[calc(50%-0.375rem)] rounded-xl bg-bg-surface-hover">
-                <f.icon className="h-6 w-6 text-brand" />
-                <p className="text-sm font-medium text-text-primary">{f.label}</p>
-                <p className="text-xs text-text-tertiary">{f.desc}</p>
+              <div key={f.label} className="flex items-start gap-3 p-3 rounded-xl bg-bg-surface-hover">
+                <f.icon className="h-5 w-5 text-brand shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-text-primary">{f.label}</p>
+                  <p className="text-xs text-text-tertiary">{f.desc}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -82,21 +89,12 @@ export default function OnboardingPreview({ step, form, profile, avatarPreview }
 
       {step === 4 && (
         <div className="animate-fade-in-up mt-auto mb-auto">
-          <div className="space-y-2.5 mb-8">
+          <div className="grid grid-cols-3 gap-3 mb-8">
             {LAWS.map(l => (
-              <a
-                key={l.code}
-                href={l.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center justify-between gap-3 rounded-xl bg-white border border-border-default p-3 hover:border-brand/40 transition-colors group"
-              >
-                <div>
-                  <p className="text-xs font-semibold text-text-primary">{l.code} <span className="font-normal text-text-tertiary">— {l.label}</span></p>
-                  <p className="text-[11px] text-text-tertiary mt-0.5">{l.desc}</p>
-                </div>
-                <span className="text-[11px] font-medium text-brand shrink-0 group-hover:underline">Ver texto →</span>
-              </a>
+              <div key={l.code} className="rounded-xl bg-white border border-border-default p-3 text-center">
+                <p className="text-xs font-semibold text-text-primary">{l.code}</p>
+                <p className="text-[10px] text-text-tertiary mt-0.5">{l.label}</p>
+              </div>
             ))}
           </div>
           <p className="font-serif text-xl text-text-primary text-center leading-snug">
