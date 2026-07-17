@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle, X, CircleNotch } from '@phosphor-icons/react';
+import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle, X, CircleNotch, WhatsappLogo } from '@phosphor-icons/react';
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
 import { emergencyService } from '../../services/emergencyService'
 import { mpService } from '../../services/mpService'
 import { walkInQueueService } from '../../services/walkInQueueService'
 import { supabase } from '../../lib/supabase'
+import { supportWhatsAppLink } from '../../lib/support'
 import StatusBadge from '../../components/StatusBadge'
 import { toast } from '../../components/Toast'
 import { useNavigate } from 'react-router-dom'
@@ -226,6 +227,14 @@ export default function ProfessionalDashboard({ profile }) {
                 <p className="text-sm text-text-secondary mt-1">
                   Tu documentación está siendo verificada por nuestro equipo. Te notificaremos cuando esté aprobado (24-48 hs).
                 </p>
+                <a
+                  href={supportWhatsAppLink('Hola, tengo una consulta sobre la verificación de mi perfil profesional en Healthier:')}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-brand mt-3"
+                >
+                  <WhatsappLogo weight="fill" className="h-4 w-4" /> ¿Alguna duda? Escribinos por WhatsApp
+                </a>
               </div>
             </div>
           </div>

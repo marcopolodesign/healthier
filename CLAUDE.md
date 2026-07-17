@@ -28,7 +28,7 @@ Healthier — Health-services marketplace MVP connecting patients with healthcar
 - **Icons:** `@phosphor-icons/react` ONLY — https://phosphoricons.com. Do NOT use lucide-react or any other icon library.
 - **Language:** All UI copy in Spanish (Argentine)
 - **Payments:** Deferred — no Stripe
-- **Scheduling:** Calendly inline embed (professional agenda)
+- **Scheduling:** Healthier's own availability system (`professional_schedules`, 15-min slots, anti-double-booking) — Calendly removed 2026-07-17. Future: sync booked consultations to the professional's own Google Calendar (not yet built, see nextsteps.md).
 
 ---
 

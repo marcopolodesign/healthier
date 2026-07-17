@@ -7,32 +7,6 @@ import StarRating from '../../components/StarRating'
 import { toast } from '../../components/Toast'
 import { SPECIALTY_LABELS } from '../../lib/verticals'
 
-function CalendlyWidget({ url }) {
-  useEffect(() => {
-    if (!url) return
-    const existing = document.getElementById('calendly-script')
-    if (!existing) {
-      const script = document.createElement('script')
-      script.id = 'calendly-script'
-      script.src = 'https://assets.calendly.com/assets/external/widget.js'
-      script.async = true
-      document.head.appendChild(script)
-    }
-  }, [url])
-
-  if (!url) return null
-
-  return (
-    <div className="card">
-      <h2 className="font-semibold text-text-primary mb-4">Agenda una cita</h2>
-      <div
-        className="calendly-inline-widget rounded-xl overflow-hidden"
-        data-url={url}
-        style={{ minWidth: '320px', height: '700px' }}
-      />
-    </div>
-  )
-}
 
 export default function ProfessionalProfile() {
   const { id } = useParams()
@@ -127,7 +101,6 @@ export default function ProfessionalProfile() {
       </div>
 
       {/* Calendly widget (only shown if the professional has a calendly_url) */}
-      {professional.calendlyUrl && <CalendlyWidget url={professional.calendlyUrl} />}
 
       {/* Reviews */}
       <div className="card">

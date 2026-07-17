@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   House, Calendar, Users, Plus, X,
-  ClockCounterClockwise, TrendUp, ForkKnife, User, SignOut,
+  ClockCounterClockwise, TrendUp, ForkKnife, User, SignOut, Question,
 } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
@@ -39,6 +39,7 @@ export default function ProfessionalBottomNav({ profile, profSpecialty, classNam
     ...(profSpecialty === 'nutricion' ? [
       { path: '/profesional/nutriplan', icon: ForkKnife, label: 'NutriPlan Pro', sub: 'Planes nutricionales' },
     ] : []),
+    { path: '/profesional/ayuda', icon: Question, label: 'Centro de ayuda', sub: 'FAQ y contacto' },
   ]
 
   return (
