@@ -58,6 +58,22 @@ export default function SuperAdminZones() {
     toast.success(`${zone.name} eliminada`)
   }
 
+  // Local-only edit while typing — persisted on blur (persistZonePricing) to
+  // avoid a write per keystroke.
+  const editZonePricingField = (zoneId, field, rawValue) => {
+    const value = rawValue === '' ? null : Number(rawValue)
+    setZones(prev => prev.map(z => z.id === zoneId ? { ...z, [field]: value } : z))
+  }
+
+  const persistZonePricing = async (zone) => {
+    const { error } = await supabase.from('zones').update({
+      suggested_price_min:         zone.suggested_price_min,
+      suggested_price_max:         zone.suggested_price_max,
+      suggested_price_recommended: zone.suggested_price_recommended,
+    }).eq('id', zone.id)
+    if (error) toast.error('Error al guardar el precio sugerido')
+  }
+
   const markNotified = async (entry) => {
     const { error } = await supabase.from('waitlist').update({ notified: true }).eq('id', entry.id)
     if (error) { toast.error('Error'); return }
@@ -120,29 +136,66 @@ export default function SuperAdminZones() {
           {/* Zone list */}
           <div className="card divide-y divide-border">
             {zones.map(zone => (
-              <div key={zone.id} className="flex items-center gap-3 py-3">
-                <MapPin className="h-4 w-4 text-text-tertiary shrink-0" />
-                <span className="flex-1 text-sm font-medium text-text-primary">{zone.name}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  zone.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                }`}>
-                  {zone.active ? 'Activa' : 'Inactiva'}
-                </span>
-                {/* Toggle */}
-                <button
-                  onClick={() => toggleZone(zone)}
-                  className={`w-11 h-6 rounded-full transition-colors relative shrink-0 ${zone.active ? 'bg-brand' : 'bg-gray-300'}`}
-                  title={zone.active ? 'Desactivar' : 'Activar'}
-                >
-                  <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform shadow-sm ${zone.active ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
-                <button
-                  onClick={() => deleteZone(zone)}
-                  className="p-1 text-text-tertiary hover:text-danger transition-colors"
-                  title="Eliminar zona"
-                >
-                  <Trash className="h-4 w-4" />
-                </button>
+              <div key={zone.id} className="py-3 space-y-2">
+                <div className="flex items-center gap-3">
+                  <MapPin className="h-4 w-4 text-text-tertiary shrink-0" />
+                  <span className="flex-1 text-sm font-medium text-text-primary">{zone.name}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    zone.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {zone.active ? 'Activa' : 'Inactiva'}
+                  </span>
+                  {/* Toggle */}
+                  <button
+                    onClick={() => toggleZone(zone)}
+                    className={`w-11 h-6 rounded-full transition-colors relative shrink-0 ${zone.active ? 'bg-brand' : 'bg-gray-300'}`}
+                    title={zone.active ? 'Desactivar' : 'Activar'}
+                  >
+                    <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform shadow-sm ${zone.active ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                  <button
+                    onClick={() => deleteZone(zone)}
+                    className="p-1 text-text-tertiary hover:text-danger transition-colors"
+                    title="Eliminar zona"
+                  >
+                    <Trash className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Precio sugerido — se muestra en el onboarding profesional al elegir esta zona */}
+                <div className="flex items-center gap-2 pl-7 text-xs text-text-tertiary">
+                  <span className="w-20 shrink-0">Precio sugerido</span>
+                  <span className="text-text-tertiary">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={zone.suggested_price_min ?? ''}
+                    onChange={e => editZonePricingField(zone.id, 'suggested_price_min', e.target.value)}
+                    onBlur={() => persistZonePricing(zone)}
+                    placeholder="Mín"
+                    className="form-input py-1 px-2 text-xs w-20"
+                  />
+                  <span>–</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={zone.suggested_price_max ?? ''}
+                    onChange={e => editZonePricingField(zone.id, 'suggested_price_max', e.target.value)}
+                    onBlur={() => persistZonePricing(zone)}
+                    placeholder="Máx"
+                    className="form-input py-1 px-2 text-xs w-20"
+                  />
+                  <span className="ml-2">Recomendado</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={zone.suggested_price_recommended ?? ''}
+                    onChange={e => editZonePricingField(zone.id, 'suggested_price_recommended', e.target.value)}
+                    onBlur={() => persistZonePricing(zone)}
+                    placeholder="Recomendado"
+                    className="form-input py-1 px-2 text-xs w-24"
+                  />
+                </div>
               </div>
             ))}
           </div>

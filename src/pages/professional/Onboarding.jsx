@@ -11,6 +11,7 @@ import FileUpload from '../../components/FileUpload'
 import { geocodeAddress } from '../../lib/geo'
 import { toast } from '../../components/Toast'
 import OnboardingPreview from '../../components/professional/OnboardingPreview'
+import { LAWS } from '../../lib/laws'
 
 const MODALITIES = [
   { id: 'virtual',    label: 'Solo virtual',        icon: VideoCamera },
@@ -32,11 +33,18 @@ const STEPS = [
 ]
 
 export default function Onboarding({ profile }) {
-  const [step, setStep] = useState(0)
-  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const isResubmit = searchParams.get('resubmit') === '1'
+
+  // Deep-link into a specific step (e.g. Dashboard's "faltan documentos"
+  // banner sends ?resubmit=1&step=3 to jump straight to Documentación).
+  const requestedStep = Number(searchParams.get('step'))
+  const initialStep = Number.isInteger(requestedStep) && requestedStep > 0 && requestedStep < STEPS.length
+    ? requestedStep
+    : 0
+  const [step, setStep] = useState(initialStep)
+  const [loading, setLoading] = useState(false)
 
   const [form, setForm] = useState({
     specialty: '', subSpecialty: '', bio: '', sessionPrice: '',
@@ -91,6 +99,7 @@ export default function Onboarding({ profile }) {
   // Per-step validation
   const canAdvance = () => {
     if (step === 0) return !!categoryId && !!form.specialty && form.licenseNumber.length > 0
+    if (step === 2) return form.modalityPreference === 'virtual' || form.address.trim().length > 0
     if (step === 4) return privacyAccepted
     return true
   }
@@ -322,60 +331,44 @@ export default function Onboarding({ profile }) {
           )}
 
           {/* ── Step 2: Tarifas y consultorio ────────────────────── */}
-          {step === 2 && (
-            <>
-              <div>
-                <label className="form-label">Modalidad de atención</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {MODALITIES.map(m => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setForm(p => ({ ...p, modalityPreference: m.id }))}
-                      className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border text-center transition-colors ${
-                        form.modalityPreference === m.id
-                          ? 'bg-brand text-white border-brand'
-                          : 'bg-white border-border-default text-text-secondary'
-                      }`}
-                    >
-                      <m.icon className="h-5 w-5" />
-                      <span className="text-xs font-medium leading-tight">{m.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+          {step === 2 && (() => {
+            const isVirtualOnly = form.modalityPreference === 'virtual'
+            const addressRequired = !isVirtualOnly // presencial + ambas
+            const selectedZone = zones.find(z => z.id === form.zoneId)
+            const zonePricing = selectedZone?.suggestedPriceMin != null
+              && selectedZone?.suggestedPriceMax != null
+              && selectedZone?.suggestedPriceRecommended != null
+              ? { min: selectedZone.suggestedPriceMin, max: selectedZone.suggestedPriceMax, recommended: selectedZone.suggestedPriceRecommended }
+              : null
+            // Zone-specific range once a zone with configured pricing is picked
+            // (presencial/ambas); global fallback otherwise (virtual, or a zone
+            // super_admin hasn't priced yet).
+            const priceRange = (!isVirtualOnly && zonePricing) ? zonePricing : SUGGESTED_PRICE_RANGE
 
-              <div>
-                <label className="form-label">Precio por sesión (ARS) <span className="text-text-tertiary text-xs">(opcional)</span></label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary text-sm font-medium">$</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.sessionPrice}
-                    onChange={e => setForm(p => ({ ...p, sessionPrice: e.target.value }))}
-                    className="form-input pl-7"
-                    placeholder="Ej: 15000"
-                    autoFocus
-                  />
+            return (
+              <>
+                <div>
+                  <label className="form-label">Modalidad de atención</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {MODALITIES.map(m => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setForm(p => ({ ...p, modalityPreference: m.id }))}
+                        className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border text-center transition-colors ${
+                          form.modalityPreference === m.id
+                            ? 'bg-brand text-white border-brand'
+                            : 'bg-white border-border-default text-text-secondary'
+                        }`}
+                      >
+                        <m.icon className="h-5 w-5" />
+                        <span className="text-xs font-medium leading-tight">{m.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2">
-                  <p className="text-sm text-blue-700">
-                    Rango sugerido: ${SUGGESTED_PRICE_RANGE.min.toLocaleString('es-AR')}–${SUGGESTED_PRICE_RANGE.max.toLocaleString('es-AR')} ·{' '}
-                    <span className="font-semibold">recomendado ${SUGGESTED_PRICE_RANGE.recommended.toLocaleString('es-AR')}</span>
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setForm(p => ({ ...p, sessionPrice: String(SUGGESTED_PRICE_RANGE.recommended) }))}
-                    className="text-xs font-semibold text-blue-700 hover:text-blue-900 whitespace-nowrap"
-                  >
-                    Usar
-                  </button>
-                </div>
-              </div>
 
-              {form.modalityPreference !== 'virtual' && (
-                <>
+                {!isVirtualOnly && (
                   <div>
                     <label className="form-label">Zona de atención presencial</label>
                     <select
@@ -387,18 +380,52 @@ export default function Onboarding({ profile }) {
                       {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
                     </select>
                   </div>
-                  <AddressAutocomplete
-                    label="Dirección del consultorio (opcional)"
-                    value={{ address: form.address, latitude: form.latitude, longitude: form.longitude }}
-                    onChange={({ address, latitude, longitude }) =>
-                      setForm(p => ({ ...p, address, latitude, longitude }))
-                    }
-                    placeholder="Ej: Av. Santa Fe 1900, Buenos Aires"
-                  />
-                </>
-              )}
-            </>
-          )}
+                )}
+
+                <div>
+                  <label className="form-label">Precio por sesión (ARS) <span className="text-text-tertiary text-xs">(opcional)</span></label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary text-sm font-medium">$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.sessionPrice}
+                      onChange={e => setForm(p => ({ ...p, sessionPrice: e.target.value }))}
+                      className="form-input pl-7"
+                      placeholder="Ej: 15000"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2">
+                    <p className="text-sm text-blue-700">
+                      {!isVirtualOnly && !zonePricing && form.zoneId && (
+                        <span className="block text-xs text-blue-500 mb-0.5">Sin precio configurado para esta zona todavía — mostrando el rango general</span>
+                      )}
+                      Rango sugerido: ${priceRange.min.toLocaleString('es-AR')}–${priceRange.max.toLocaleString('es-AR')} ·{' '}
+                      <span className="font-semibold">recomendado ${priceRange.recommended.toLocaleString('es-AR')}</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setForm(p => ({ ...p, sessionPrice: String(priceRange.recommended) }))}
+                      className="text-xs font-semibold text-blue-700 hover:text-blue-900 whitespace-nowrap"
+                    >
+                      Usar
+                    </button>
+                  </div>
+                </div>
+
+                <AddressAutocomplete
+                  label={isVirtualOnly ? 'Dirección (opcional)' : 'Dirección del consultorio'}
+                  required={addressRequired}
+                  value={{ address: form.address, latitude: form.latitude, longitude: form.longitude }}
+                  onChange={({ address, latitude, longitude }) =>
+                    setForm(p => ({ ...p, address, latitude, longitude }))
+                  }
+                  placeholder="Ej: Av. Santa Fe 1900, Buenos Aires"
+                />
+              </>
+            )
+          })()}
 
           {/* ── Step 3: Documentación ────────────────────────────── */}
           {step === 3 && (
@@ -471,8 +498,27 @@ export default function Onboarding({ profile }) {
           {step === 4 && (
             <>
               <p className="text-base text-text-secondary -mt-1">
-                Nos tomamos muy en serio la privacidad, cumpliendo con la Ley 25.326 y la Ley 26.529 de derechos
-                del paciente. Obtené más información en nuestros{' '}
+                Nos tomamos muy en serio la privacidad de tus pacientes y la tuya. Así te protege cada norma:
+              </p>
+              <div className="space-y-2">
+                {LAWS.map(l => (
+                  <a
+                    key={l.code}
+                    href={l.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-start justify-between gap-3 p-3 rounded-xl border border-border-default hover:border-brand/40 transition-colors group"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-text-primary">{l.code} <span className="font-normal text-text-secondary">— {l.label}</span></p>
+                      <p className="text-xs text-text-tertiary mt-0.5">{l.desc}</p>
+                    </div>
+                    <span className="text-xs font-medium text-brand shrink-0 group-hover:underline whitespace-nowrap">Ver texto →</span>
+                  </a>
+                ))}
+              </div>
+              <p className="text-sm text-text-secondary">
+                Obtené más información en nuestros{' '}
                 <a href="/terminos" target="_blank" rel="noreferrer" className="text-brand font-medium underline">Términos y Condiciones</a>.
               </p>
               <label className="flex items-start gap-3 p-3 rounded-xl border border-border-default cursor-pointer">
@@ -550,8 +596,10 @@ export default function Onboarding({ profile }) {
         </div>
 
         {/* Skip option for optional steps (1, 2 and 3 — documentación ya se puede enviar sin
-            archivos, esto solo lo hace explícito para que no parezca un paso bloqueante) */}
-        {(step === 1 || step === 2 || step === 3) && (
+            archivos, esto solo lo hace explícito para que no parezca un paso bloqueante).
+            Step 2 only offers it once its mandatory field (address, when not virtual-only)
+            is already satisfied — otherwise it'd be a no-op click with no feedback. */}
+        {(step === 1 || (step === 2 && canAdvance()) || step === 3) && (
           <button onClick={next} className="mt-3 w-full text-center text-sm text-text-tertiary hover:text-text-secondary transition-colors">
             {step === 3 ? 'Subo los documentos después →' : 'Completar más tarde →'}
           </button>
@@ -559,8 +607,10 @@ export default function Onboarding({ profile }) {
       </div>
       </div>
 
-      {/* Right — live preview panel */}
-      <div className="hidden lg:flex bg-bg-secondary p-8">
+      {/* Right — live preview panel. Sticky + self-start so it stays pinned to
+          the viewport instead of stretching to match the left form's height
+          (which grows a lot on steps like Documentación/Revisión). */}
+      <div className="hidden lg:flex lg:sticky lg:top-0 lg:h-screen lg:self-start bg-bg-secondary p-8">
         <OnboardingPreview step={step} form={form} profile={profile} avatarPreview={avatarPreview} />
       </div>
     </div>

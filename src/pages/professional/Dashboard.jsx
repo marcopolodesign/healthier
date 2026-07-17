@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle, X, CircleNotch, WhatsappLogo } from '@phosphor-icons/react';
+import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle, X, CircleNotch, WhatsappLogo, FileText } from '@phosphor-icons/react';
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
 import { emergencyService } from '../../services/emergencyService'
@@ -176,6 +176,11 @@ export default function ProfessionalDashboard({ profile }) {
 
   if (!profProfile?.isVerified && !loading) {
     const isRejected = !!profProfile?.rejectedAt
+    // Submitted via "Subo los documentos después" (onboarding step Documentación) —
+    // nothing for an admin to review yet, so this is a distinct state that
+    // precedes "Perfil en revisión", not the same thing.
+    const isMissingDocs = !isRejected && !!profProfile
+      && !profProfile.titleDocumentUrl && !profProfile.licenseDocumentUrl && !profProfile.dniDocumentUrl
 
     return (
       <div className="space-y-6 animate-fade-in">
@@ -214,6 +219,21 @@ export default function ProfessionalDashboard({ profile }) {
                 </p>
                 <Link to="/profesional/onboarding" className="btn-primary text-sm mt-3 inline-flex">
                   Completar perfil
+                </Link>
+              </div>
+            </div>
+          </div>
+        ) : isMissingDocs ? (
+          <div className="card border-blue-200 bg-blue-50">
+            <div className="flex items-start gap-3">
+              <FileText className="h-6 w-6 text-blue-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-text-primary">Te faltan subir documentos</p>
+                <p className="text-sm text-text-secondary mt-1">
+                  Enviaste tu perfil sin título, matrícula o DNI — la verificación todavía no arrancó porque necesitamos esos documentos para revisarte. Subilos cuando puedas, no hace falta hacerlo todo de una vez.
+                </p>
+                <Link to="/profesional/onboarding?resubmit=1&step=3" className="btn-primary text-sm mt-3 inline-flex">
+                  Subir documentos
                 </Link>
               </div>
             </div>

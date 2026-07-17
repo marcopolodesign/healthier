@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { MapPin, CircleNotch } from '@phosphor-icons/react';
 import { searchAddresses } from '../../lib/geo'
 
-export default function AddressAutocomplete({ value, onChange, label = 'Dirección', placeholder = 'Ej: Av. Santa Fe 1900, Buenos Aires', className = '' }) {
+export default function AddressAutocomplete({ value, onChange, label = 'Dirección', required = false, placeholder = 'Ej: Av. Santa Fe 1900, Buenos Aires', className = '' }) {
   const [query, setQuery] = useState(value?.address || '')
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
@@ -58,7 +58,11 @@ export default function AddressAutocomplete({ value, onChange, label = 'Direcci�
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
-      {label && <label className="form-label">{label}</label>}
+      {label && (
+        <label className="form-label">
+          {label} {required && <span className="text-danger">*</span>}
+        </label>
+      )}
       <div className="relative">
         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary pointer-events-none" />
         <input
