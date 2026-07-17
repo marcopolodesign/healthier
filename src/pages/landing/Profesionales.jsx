@@ -15,25 +15,25 @@ const FEATURES = [
     icon: Calendar,
     title: 'Agenda integrada y configurable',
     desc: 'Definí tus horarios de atención, modalidades y duración de consulta. Tus pacientes reservan directo, sin idas y vueltas por WhatsApp.',
-    img: '/images/landing/pro-doctor.jpg',
+    img: '/images/landing/pro-agenda.jpg',
   },
   {
     icon: Lightning,
     title: 'Consultas on-demand e inmediatas',
     desc: 'Sumate a la guardia online y atendé consultas urgentes apenas entran. Cada consulta atendida construye tu reputación y tu base de pacientes.',
-    img: '/images/landing/esp-urgencias.jpg',
+    img: '/images/landing/pro-ondemand.jpg',
   },
   {
     icon: ClipboardText,
     title: 'Historia clínica digital compartida',
     desc: 'Accedé al historial completo del paciente antes de atenderlo: antecedentes, medicación, alergias y consultas previas. Sin repetir preguntas.',
-    img: '/images/landing/esp-medicina.jpg',
+    img: '/images/landing/pro-historia-clinica.jpg',
   },
   {
     icon: Pill,
     title: 'Receta electrónica',
     desc: 'Emitís la receta al cierre de la consulta y llega al instante al paciente, válida en todo el país. Sin papel, sin demoras.',
-    img: '/images/landing/esp-nutricion.jpg',
+    img: '/images/landing/pro-receta.jpg',
   },
 ]
 
@@ -169,7 +169,7 @@ export default function LandingProfesionales() {
             </blockquote>
             <div className="flex items-center gap-3">
               <span className="w-12 h-12 rounded-xl overflow-hidden img-grain shrink-0">
-                <img src="/images/landing/pro-doctor.jpg" alt="Profesional de Healthier" loading="lazy" className="w-full h-full object-cover object-top" />
+                <img src="/images/landing/pro-testimonial.jpg" alt="Dr. Martín Suárez" loading="lazy" className="w-full h-full object-cover object-top" />
               </span>
               <div>
                 <p className="font-semibold text-sm">Dr. Martín Suárez</p>
