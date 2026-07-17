@@ -1,15 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, PhoneSlash, ClipboardText, ArrowsOut, ArrowsIn,
   Plus, Check, CircleNotch, User, Microphone, MicrophoneSlash,
-  Camera, CameraSlash, Warning,
+  Camera, CameraSlash, Warning, Sparkle,
 } from '@phosphor-icons/react'
 import DailyIframe from '@daily-co/daily-js'
 import { supabase } from '../../lib/supabase'
 import { consultationsService } from '../../services/consultationsService'
 import { clinicalService } from '../../services/clinicalService'
+import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import CloseConsultationModal from '../../components/CloseConsultationModal'
+import ScribeSession from '../../components/professional/ScribeSession'
 import { toast } from '../../components/Toast'
 
 const NO_SHOW_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
@@ -49,7 +51,7 @@ function VideoTile({ track, muted = false, mirror = false, className = '' }) {
 }
 
 // ── Clinical notes panel (unchanged) ─────────────────────────────────────────
-function ClinicalPanel({ consultation, profile }) {
+function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrack }) {
   const patientId = consultation?.patientId
   const professionalId = consultation?.professionalId
   const pp = profile?.professionalProfiles?.[0]
@@ -57,30 +59,37 @@ function ClinicalPanel({ consultation, profile }) {
   const licenseNumber = pp?.licenseNumber ?? '0'
   const specialty = pp?.specialty ?? 'otra'
 
-  const [encounterId, setEncounterId] = useState(null)
   const [entries, setEntries] = useState([])
   const [loadingEntries, setLoadingEntries] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ entryType: 'note', content: '' })
   const [submitting, setSubmitting] = useState(false)
+  const [showScribe, setShowScribe] = useState(false)
+
+  const { encounterId, ensureEncounter } = useClinicalEncounter({
+    consultationId: consultation?.id,
+    patientId, professionalId, specialty,
+    modality: consultation?.modality,
+    licenseType, licenseNumber,
+  })
+
+  // Combines Daily.co's already-live local mic + remote participant audio
+  // tracks into one MediaStream — no separate getUserMedia() call needed,
+  // ScribeSession stays agnostic of where the stream comes from.
+  const getAudioStream = useCallback(async () => {
+    const tracks = [localAudioTrack, remoteAudioTrack].filter(Boolean)
+    if (tracks.length === 0) throw new Error('No hay audio disponible en la llamada todavía')
+    return new MediaStream(tracks)
+  }, [localAudioTrack, remoteAudioTrack])
 
   useEffect(() => {
     if (!consultation?.id) return
-    async function load() {
-      try {
-        const existing = await clinicalService.getEncounterByConsultationIdSafe(consultation.id)
-        if (existing) {
-          setEncounterId(existing.id)
-          const detail = await clinicalService.getEncounterWithDetail(existing.id)
-          setEntries(detail.entries)
-        }
-      } catch {
-        // leave empty
-      } finally {
-        setLoadingEntries(false)
-      }
-    }
-    load()
+    setLoadingEntries(true)
+    clinicalService.getEncounterByConsultationIdSafe(consultation.id)
+      .then(existing => existing ? clinicalService.getEncounterWithDetail(existing.id) : null)
+      .then(detail => { if (detail) setEntries(detail.entries) })
+      .catch(() => { /* leave empty */ })
+      .finally(() => setLoadingEntries(false))
   }, [consultation?.id])
 
   async function handleSubmit(e) {
@@ -88,20 +97,7 @@ function ClinicalPanel({ consultation, profile }) {
     if (!form.content.trim()) return
     setSubmitting(true)
     try {
-      let eid = encounterId
-      if (!eid) {
-        const enc = await clinicalService.createEncounter({
-          patientId,
-          professionalId,
-          consultationId: consultation.id,
-          specialty,
-          modality: consultation.modality,
-          licenseType,
-          licenseNumber,
-        })
-        eid = enc.id
-        setEncounterId(eid)
-      }
+      const eid = await ensureEncounter()
       const entry = await clinicalService.addEntry(eid, {
         patientId,
         professionalId,
@@ -128,13 +124,38 @@ function ClinicalPanel({ consultation, profile }) {
           <ClipboardText className="h-4 w-4 text-brand" />
           <span className="font-semibold text-sm text-text-primary">Historia Clínica</span>
         </div>
-        <button
-          onClick={() => setShowForm(s => !s)}
-          className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full bg-brand text-white hover:bg-brand/90"
-        >
-          <Plus className="h-3 w-3" /> Nota
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setShowScribe(s => !s)}
+            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full bg-brand text-white hover:bg-brand/90"
+          >
+            <Sparkle weight="fill" className="h-3 w-3" /> IA
+          </button>
+          <button
+            onClick={() => setShowForm(s => !s)}
+            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border border-border-default text-text-secondary hover:bg-bg-surface-hover"
+          >
+            <Plus className="h-3 w-3" /> Nota
+          </button>
+        </div>
       </div>
+
+      {showScribe && (
+        <div className="p-3 border-b border-border-default shrink-0">
+          <ScribeSession
+            patientId={patientId}
+            professionalId={professionalId}
+            specialty={specialty}
+            licenseType={licenseType}
+            licenseNumber={licenseNumber}
+            encounterId={encounterId}
+            ensureEncounter={ensureEncounter}
+            getAudioStream={getAudioStream}
+            onFinalized={entry => setEntries(prev => [...prev, entry])}
+            onClose={() => setShowScribe(false)}
+          />
+        </div>
+      )}
 
       {showForm && (
         <form onSubmit={handleSubmit} className="p-3 border-b border-border-default space-y-2 shrink-0 bg-bg-subtle">
@@ -228,6 +249,7 @@ export default function ProfessionalVideoCall({ profile }) {
   const [camOn, setCamOn] = useState(true)
   const [micOn, setMicOn] = useState(true)
   const [localVideoTrack, setLocalVideoTrack] = useState(null)
+  const [localAudioTrack, setLocalAudioTrack] = useState(null)
 
   // Remote participant
   const [remote, setRemote] = useState(null)
@@ -305,6 +327,7 @@ export default function ProfessionalVideoCall({ profile }) {
           consultationsService.updateStatus(id, 'in_progress').catch(() => {})
           const local = call.participants().local
           setLocalVideoTrack(local?.tracks?.video?.persistentTrack ?? null)
+          setLocalAudioTrack(local?.tracks?.audio?.persistentTrack ?? null)
           setCamOn(local?.tracks?.video?.state === 'playable')
           setMicOn(local?.tracks?.audio?.state !== 'off')
         })
@@ -321,6 +344,7 @@ export default function ProfessionalVideoCall({ profile }) {
           if (destroyed) return
           if (participant.local) {
             setLocalVideoTrack(participant.tracks?.video?.persistentTrack ?? null)
+            setLocalAudioTrack(participant.tracks?.audio?.persistentTrack ?? null)
             setCamOn(participant.tracks?.video?.state === 'playable')
             setMicOn(participant.tracks?.audio?.state !== 'off')
           } else {
@@ -571,7 +595,12 @@ export default function ProfessionalVideoCall({ profile }) {
         {/* Historia Clínica panel */}
         {splitScreen && consultation && (
           <div className="w-80 shrink-0 overflow-hidden">
-            <ClinicalPanel consultation={consultation} profile={profile} />
+            <ClinicalPanel
+              consultation={consultation}
+              profile={profile}
+              localAudioTrack={localAudioTrack}
+              remoteAudioTrack={remote?.audioTrack}
+            />
           </div>
         )}
       </div>

@@ -51,7 +51,7 @@ export const clinicalService = {
     return toCamelCase(data)
   },
 
-  async addEntry(encounterId, { patientId, professionalId, entryType, content, icdCode, licenseType, licenseNumber }) {
+  async addEntry(encounterId, { patientId, professionalId, entryType, content, data: entryData, correctsEntryId, icdCode, licenseType, licenseNumber }) {
     const payload = toSnakeCase({
       encounterId,
       patientId,
@@ -61,6 +61,8 @@ export const clinicalService = {
     })
     payload.professional_license_type = licenseType ?? 'MN'
     payload.professional_license_number = licenseNumber ?? '0'
+    if (entryData !== undefined) payload.data = entryData
+    if (correctsEntryId !== undefined) payload.corrects_entry_id = correctsEntryId
     if (icdCode !== undefined) payload.icd_code = icdCode
 
     const { data, error } = await supabase

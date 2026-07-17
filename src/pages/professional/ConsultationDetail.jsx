@@ -3,11 +3,11 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, FileText, Paperclip, VideoCamera, ClipboardText, User,
   Clock, Plus, Trash, CalendarPlus, Key, ShieldCheck, Tag, PencilSimple, Check, X,
-  FirstAidKit, Heartbeat, Pill,
+  FirstAidKit, Heartbeat, Pill, Sparkle,
 } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
-import { supabase } from '../../lib/supabase'
+import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import StatusBadge from '../../components/StatusBadge'
 import CloseConsultationModal from '../../components/CloseConsultationModal'
 import Modal from '../../components/Modal'
@@ -15,6 +15,7 @@ import FileUpload from '../../components/FileUpload'
 import AllergyPanel from '../../components/professional/AllergyPanel'
 import VitalsPanel from '../../components/professional/VitalsPanel'
 import PrescriptionCreator from '../../components/professional/PrescriptionCreator'
+import ScribeSession from '../../components/professional/ScribeSession'
 import { toast } from '../../components/Toast'
 
 const ORDER_TYPE_LABELS = { orden: 'Orden', receta: 'Receta', derivacion: 'Derivación' }
@@ -47,7 +48,13 @@ export default function ConsultationDetail({ profile }) {
   const [coverageForm, setCoverageForm] = useState({ obraSocialName: '', affiliateNumber: '' })
   const [savingCoverage, setSavingCoverage] = useState(false)
 
-  const [clinicalEncounterId, setClinicalEncounterId] = useState(null)
+  const [profProfile, setProfProfile] = useState(null)
+  const [showScribe, setShowScribe] = useState(false)
+
+  useEffect(() => {
+    if (!profile?.id) return
+    professionalService.getByUserId(profile.id).then(setProfProfile).catch(() => {})
+  }, [profile?.id])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -65,15 +72,18 @@ export default function ConsultationDetail({ profile }) {
         obraSocialName: consultation.obraSocialName || '',
         affiliateNumber: consultation.affiliateNumber || '',
       })
-      // Load clinical encounter for this consultation
-      supabase
-        .from('clinical_encounters')
-        .select('id')
-        .eq('consultation_id', consultation.id)
-        .maybeSingle()
-        .then(({ data }) => { if (data) setClinicalEncounterId(data.id) })
     }
   }, [consultation?.id])
+
+  const { encounterId: clinicalEncounterId, ensureEncounter } = useClinicalEncounter({
+    consultationId: consultation?.id,
+    patientId: consultation?.patientId,
+    professionalId: profile.id,
+    specialty: profProfile?.specialty,
+    modality: consultation?.modality,
+    licenseType: profProfile?.licenseType,
+    licenseNumber: profProfile?.licenseNumber,
+  })
 
   const saveCoverage = async () => {
     setSavingCoverage(true)
@@ -510,15 +520,41 @@ export default function ConsultationDetail({ profile }) {
 
       {/* Historia Clínica */}
       <div className="card space-y-5">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-brand-muted flex items-center justify-center shrink-0">
-            <FirstAidKit className="h-4 w-4 text-brand" />
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-brand-muted flex items-center justify-center shrink-0">
+              <FirstAidKit className="h-4 w-4 text-brand" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-text-primary">Historia Clínica</h2>
+              <p className="text-xs text-text-secondary">Esta consulta</p>
+            </div>
           </div>
-          <div>
-            <h2 className="font-semibold text-text-primary">Historia Clínica</h2>
-            <p className="text-xs text-text-secondary">Esta consulta</p>
-          </div>
+          {isPresencial && !showScribe && (
+            <button
+              onClick={() => setShowScribe(true)}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-brand text-white hover:bg-brand/90"
+            >
+              <Sparkle weight="fill" className="h-3.5 w-3.5" /> Nota con IA
+            </button>
+          )}
         </div>
+
+        {isPresencial && showScribe && (
+          <ScribeSession
+            patientId={consultation.patientId}
+            professionalId={profile.id}
+            specialty={profProfile?.specialty}
+            licenseType={profProfile?.licenseType}
+            licenseNumber={profProfile?.licenseNumber}
+            encounterId={clinicalEncounterId}
+            ensureEncounter={ensureEncounter}
+            getAudioStream={() => navigator.mediaDevices.getUserMedia({ audio: true })}
+            stopStream={stream => stream.getTracks().forEach(t => t.stop())}
+            onFinalized={() => {}}
+            onClose={() => setShowScribe(false)}
+          />
+        )}
 
         {/* Allergies subsection */}
         <div>

@@ -106,6 +106,14 @@ function EncounterCard({ encounter }) {
   const medications = encounter.medications ?? []
   const totalItems = entries.length + conditions.length + medications.length
 
+  const rootEntries = entries.filter(e => !e.correctsEntryId)
+  const addendaByParent = entries
+    .filter(e => e.correctsEntryId)
+    .reduce((acc, e) => {
+      (acc[e.correctsEntryId] ??= []).push(e)
+      return acc
+    }, {})
+
   return (
     <div className="card p-0 overflow-hidden">
       {/* Encounter header */}
@@ -129,18 +137,34 @@ function EncounterCard({ encounter }) {
 
       {open && (
         <div className="border-t border-border-default px-4 py-3 space-y-3">
-          {/* Entries */}
-          {entries.map(entry => {
+          {/* Entries — addenda render nested under the entry they correct
+              (clinical_entries is append-only, so a correction is always a
+              new row referencing corrects_entry_id, not an edit in place) */}
+          {rootEntries.map(entry => {
             const color = ENTRY_COLORS[entry.entryType] ?? SAGE
+            const addenda = addendaByParent[entry.id] ?? []
             return (
-              <div key={entry.id} className="flex gap-2.5">
-                <span className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ background: color }} />
-                <div className="min-w-0">
-                  <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
-                    {ENTRY_TYPE_LABELS[entry.entryType] ?? entry.entryType}
-                  </span>
-                  <p className="text-sm text-text-primary whitespace-pre-wrap mt-0.5">{entry.content}</p>
+              <div key={entry.id}>
+                <div className="flex gap-2.5">
+                  <span className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ background: color }} />
+                  <div className="min-w-0">
+                    <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                      {ENTRY_TYPE_LABELS[entry.entryType] ?? entry.entryType}
+                    </span>
+                    <p className="text-sm text-text-primary whitespace-pre-wrap mt-0.5">{entry.content}</p>
+                  </div>
                 </div>
+                {addenda.map(addendum => (
+                  <div key={addendum.id} className="flex gap-2.5 ml-6 mt-2 pl-2.5 border-l-2 border-border-default">
+                    <span className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ background: ENTRY_COLORS.addendum }} />
+                    <div className="min-w-0">
+                      <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                        {ENTRY_TYPE_LABELS.addendum} — corrige la nota de arriba
+                      </span>
+                      <p className="text-sm text-text-primary whitespace-pre-wrap mt-0.5">{addendum.content}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             )
           })}
