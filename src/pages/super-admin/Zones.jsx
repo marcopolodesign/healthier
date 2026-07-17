@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { MapPin, Plus, Trash, Users } from '@phosphor-icons/react';
 import { supabase } from '../../lib/supabase'
 import { toast } from '../../components/Toast'
@@ -10,6 +10,7 @@ export default function SuperAdminZones() {
   const [tab, setTab] = useState('zones')
   const [newZoneName, setNewZoneName] = useState('')
   const [adding, setAdding] = useState(false)
+  const pricingSaveTimers = useRef({})
 
   useEffect(() => { load() }, [])
 
@@ -58,11 +59,22 @@ export default function SuperAdminZones() {
     toast.success(`${zone.name} eliminada`)
   }
 
-  // Local-only edit while typing — persisted on blur (persistZonePricing) to
-  // avoid a write per keystroke.
+  // Debounced auto-save (600ms after the last edit to THIS zone's pricing),
+  // triggered from the state updater itself rather than onBlur — an onBlur-only
+  // approach is fragile here: moving focus between the Mín/Máx/Recomendado
+  // inputs of the same row blurs the previous field before the next one's own
+  // edit has landed in state, so that blur persists a stale/partial snapshot
+  // and the last field's value never gets saved. Reading the freshly-computed
+  // zone straight out of the updater sidesteps that race entirely.
   const editZonePricingField = (zoneId, field, rawValue) => {
     const value = rawValue === '' ? null : Number(rawValue)
-    setZones(prev => prev.map(z => z.id === zoneId ? { ...z, [field]: value } : z))
+    setZones(prev => {
+      const next = prev.map(z => z.id === zoneId ? { ...z, [field]: value } : z)
+      const updatedZone = next.find(z => z.id === zoneId)
+      clearTimeout(pricingSaveTimers.current[zoneId])
+      pricingSaveTimers.current[zoneId] = setTimeout(() => persistZonePricing(updatedZone), 600)
+      return next
+    })
   }
 
   const persistZonePricing = async (zone) => {
@@ -171,7 +183,6 @@ export default function SuperAdminZones() {
                     min="0"
                     value={zone.suggested_price_min ?? ''}
                     onChange={e => editZonePricingField(zone.id, 'suggested_price_min', e.target.value)}
-                    onBlur={() => persistZonePricing(zone)}
                     placeholder="Mín"
                     className="form-input py-1 px-2 text-xs w-20"
                   />
@@ -181,7 +192,6 @@ export default function SuperAdminZones() {
                     min="0"
                     value={zone.suggested_price_max ?? ''}
                     onChange={e => editZonePricingField(zone.id, 'suggested_price_max', e.target.value)}
-                    onBlur={() => persistZonePricing(zone)}
                     placeholder="Máx"
                     className="form-input py-1 px-2 text-xs w-20"
                   />
@@ -191,7 +201,6 @@ export default function SuperAdminZones() {
                     min="0"
                     value={zone.suggested_price_recommended ?? ''}
                     onChange={e => editZonePricingField(zone.id, 'suggested_price_recommended', e.target.value)}
-                    onBlur={() => persistZonePricing(zone)}
                     placeholder="Recomendado"
                     className="form-input py-1 px-2 text-xs w-24"
                   />
