@@ -41,7 +41,7 @@ const TRUST = [
   { icon: ShieldCheck, title: 'Matrícula verificada', desc: 'Validamos tu matrícula, título y antecedentes antes de publicar tu perfil.' },
   { icon: FileText,    title: 'Historia clínica según Ley 26.529', desc: 'Registro clínico digital conforme a la normativa de derechos del paciente.' },
   { icon: Lock,        title: 'Datos protegidos — Ley 25.326', desc: 'La información de tus pacientes se almacena y procesa de forma segura.' },
-  { icon: CurrencyDollar, title: 'Cobros seguros vía MercadoPago', desc: 'Tus honorarios se liquidan automáticamente, sin gestión manual de pagos.' },
+  { icon: CurrencyDollar, title: 'Cobrás al instante vía MercadoPago', desc: 'Tus honorarios se acreditan apenas termina la consulta — no esperás días ni gestionás pagos manualmente.' },
 ]
 
 const STATS = [
@@ -71,18 +71,24 @@ export default function LandingProfesionales() {
         </div>
       </nav>
 
-      {/* Hero — animated headline, dark olive gradient beam (brand's "para profesionales" language) */}
+      {/* Hero — full-bleed photo background, animated headline, dark overlay for legibility */}
       <section className="relative overflow-hidden bg-[#26331F] pt-40 pb-28 px-4 sm:px-6 rounded-t-3xl">
-        <div className="absolute inset-0 bg-[linear-gradient(115deg,#26331F_0%,#26331F_28%,#D9E6BC_52%,#26331F_78%,#26331F_100%)] opacity-90" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(38,51,31,0.55)_100%)]" />
+        <img
+          src="/images/landing/pro-hero-remote.jpg"
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover img-grain"
+        />
+        <div className="absolute inset-0 bg-[#182116]/70" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_20%,rgba(24,33,22,0.75)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(115deg,transparent_20%,rgba(217,230,188,0.18)_50%,transparent_75%)]" />
         <div className="relative max-w-4xl mx-auto text-center">
           <span className="text-sm text-[#C9E489] uppercase tracking-widest mb-6 block">Para profesionales de la salud</span>
           <AnimatedHeadline
-            text="Hacé crecer tu práctica, sin fricción"
+            text="Trabajá de donde quieras, cuando quieras"
             className="text-4xl sm:text-6xl lg:text-7xl font-light text-white leading-[1.05] mb-6 drop-shadow-md"
           />
           <p className="text-white/80 text-lg max-w-xl mx-auto mb-10 leading-relaxed">
-            Agenda, historia clínica, recetas y cobros en una sola plataforma. Tu matrícula se verifica antes de publicar tu perfil.
+            Agenda, historia clínica, recetas y cobros al instante en una sola plataforma. Tu matrícula se verifica antes de publicar tu perfil.
           </p>
           <div className="flex flex-wrap gap-3 justify-center mb-14">
             <Link to="/registro?tipo=profesional" className="bg-white text-[#26331F] font-semibold rounded-full px-8 py-3.5 text-sm hover:bg-gray-100 transition-colors inline-flex items-center gap-2">
