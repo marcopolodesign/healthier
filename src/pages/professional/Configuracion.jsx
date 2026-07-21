@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Plus, Trash, Clock, CurrencyCircleDollar, Bank, VideoCamera, Buildings, MapPin } from '@phosphor-icons/react'
 import { professionalService } from '../../services/professionalService'
 import { consultationTypesService } from '../../services/consultationTypesService'
@@ -94,8 +95,12 @@ function buildScheduleSummary(schedules) {
   return lines.join(' · ')
 }
 
+const VALID_TABS = TABS.map(t => t.id)
+
 export default function Configuracion({ profile }) {
-  const [tab, setTab] = useState('horarios')
+  const [searchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const [tab, setTab] = useState(VALID_TABS.includes(tabParam) ? tabParam : 'horarios')
   const [loading, setLoading] = useState(true)
 
   // ── Horarios state ──────────────────────────────────────────

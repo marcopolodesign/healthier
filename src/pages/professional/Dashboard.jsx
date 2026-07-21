@@ -6,9 +6,11 @@ import { professionalService } from '../../services/professionalService'
 import { emergencyService } from '../../services/emergencyService'
 import { mpService } from '../../services/mpService'
 import { walkInQueueService } from '../../services/walkInQueueService'
+import { availabilityService } from '../../services/availabilityService'
 import { supabase } from '../../lib/supabase'
 import { supportWhatsAppLink } from '../../lib/support'
 import StatusBadge from '../../components/StatusBadge'
+import ProfileCompletenessCard from '../../components/professional/ProfileCompletenessCard'
 import { toast } from '../../components/Toast'
 import { useNavigate } from 'react-router-dom'
 
@@ -41,6 +43,7 @@ export default function ProfessionalDashboard({ profile }) {
   const [claimingId, setClaimingId] = useState(null)
   const [availableWalkIn, setAvailableWalkIn] = useState(false)
   const [togglingAvail, setTogglingAvail] = useState(false)
+  const [schedules, setSchedules] = useState([])
 
   useEffect(() => {
     if (!profile?.id) return
@@ -50,12 +53,14 @@ export default function ProfessionalDashboard({ profile }) {
       emergencyService.getActiveForProfessional(profile.id),
       consultationsService.getEarningsData(profile.id),
       mpService.getConnectionStatus(profile.id),
-    ]).then(([cons, prof, emg, earnings, mp]) => {
+      availabilityService.getSchedule(profile.id),
+    ]).then(([cons, prof, emg, earnings, mp, sched]) => {
       setConsultations(cons)
       setProfProfile(prof)
       setActiveEmergency(emg)
       setEarningsData(earnings)
       setMpStatus(mp.data)
+      setSchedules(sched)
     }).catch(() => toast.error('Error al cargar datos'))
     .finally(() => setLoading(false))
 
@@ -291,6 +296,8 @@ export default function ProfessionalDashboard({ profile }) {
         <h1 className="page-title">Hola, {profile?.fullName?.split(' ')[0]} 👋</h1>
         <p className="text-text-secondary mt-1">Tu agenda de hoy</p>
       </div>
+
+      {!loading && <ProfileCompletenessCard profProfile={profProfile} schedules={schedules} />}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
