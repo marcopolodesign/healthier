@@ -271,6 +271,20 @@ export default function ProfessionalDashboard({ profile }) {
             </div>
           </div>
         )}
+
+        {/* Get Started — let a not-yet-verified professional set price/horarios/zona/avatar
+            while they wait, instead of losing that time. Shown regardless of isRejected/
+            isMissingDocs/pending state as long as a profile row exists to derive it from;
+            excludes the "documentos" step (includeVerification=false) since it's not
+            actionable here and the card above already explains that state. */}
+        {!!profProfile && (
+          <ProfileCompletenessCard
+            profProfile={profProfile}
+            schedules={schedules}
+            includeVerification={false}
+            title="Adelantá tu perfil mientras esperás"
+          />
+        )}
       </div>
     )
   }

@@ -2,13 +2,24 @@
 // schedules loaded from its own Promise.all. Derived entirely from data that
 // already exists, so no new DB column/migration is needed: a step is "done"
 // exactly when the field it represents is actually populated.
-export function getProfileCompleteness(profProfile, schedules) {
-  const steps = [
-    {
+//
+// `includeVerification` defaults to true (post-verification Dashboard usage,
+// where isVerified is always already true there so this step is never
+// actually pending). Pass false when showing this checklist to a
+// not-yet-verified professional (e.g. "Perfil en revisión") — verification
+// isn't something they can act on, it has no `href`, and the surrounding
+// banner already explains that state, so including it there would just be
+// confusing dead weight in the list.
+export function getProfileCompleteness(profProfile, schedules, { includeVerification = true } = {}) {
+  const steps = []
+  if (includeVerification) {
+    steps.push({
       key: 'documentos',
       label: 'Documentación verificada',
       done: !!profProfile?.isVerified,
-    },
+    })
+  }
+  steps.push(
     {
       key: 'precio',
       label: 'Precio de consulta',
@@ -33,7 +44,7 @@ export function getProfileCompleteness(profProfile, schedules) {
       done: !!profProfile?.profiles?.avatarUrl,
       href: '/profesional/perfil',
     },
-  ]
+  )
 
   const completed = steps.filter(s => s.done).length
   const total = steps.length

@@ -2,14 +2,14 @@ import { Link } from 'react-router-dom'
 import { ArrowRight } from '@phosphor-icons/react'
 import { getProfileCompleteness } from '../../lib/profileCompleteness'
 
-// Persistent "steps N/5" checklist for a newly-verified professional who
-// hasn't finished setting up price/availability yet — nothing in Dashboard.jsx
-// used to point that out, so a professional could get approved and never
-// realize patients can't actually book them without a schedule loaded.
+// Persistent "steps N/total" checklist so a professional can't finish
+// onboarding (or sit in "Perfil en revisión") and never realize patients
+// can't actually book them without a price/schedule/zone/avatar loaded.
 // Fully derived from real data (no "dismissed" flag in DB) — disappears on
-// its own once every step is done.
-export default function ProfileCompletenessCard({ profProfile, schedules }) {
-  const { steps, completed, total, isComplete } = getProfileCompleteness(profProfile, schedules)
+// its own once every step is done. `includeVerification: false` is passed
+// by the not-yet-verified Dashboard states — see profileCompleteness.js.
+export default function ProfileCompletenessCard({ profProfile, schedules, title = 'Completá tu perfil', includeVerification = true }) {
+  const { steps, completed, total, isComplete } = getProfileCompleteness(profProfile, schedules, { includeVerification })
   if (isComplete) return null
 
   const pending = steps.filter(s => !s.done)
@@ -17,7 +17,7 @@ export default function ProfileCompletenessCard({ profProfile, schedules }) {
   return (
     <div className="card border-brand/20 bg-brand-muted/20">
       <div className="flex items-center justify-between mb-1">
-        <p className="font-semibold text-text-primary">Completá tu perfil</p>
+        <p className="font-semibold text-text-primary">{title}</p>
         <span className="text-sm font-medium text-brand shrink-0">{completed}/{total}</span>
       </div>
       <div className="h-1.5 rounded-full bg-white overflow-hidden mb-3">
