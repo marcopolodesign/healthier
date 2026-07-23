@@ -16,6 +16,13 @@ import { useNavigate } from 'react-router-dom'
 
 const CODE_COLORS = { ROJO: 'bg-red-600', AMARILLO: 'bg-amber-500', VERDE: 'bg-emerald-600' }
 
+// Temporarily disabled 2026-07-23 — claiming a walk-in entry throws "Error al
+// atender la consulta" for at least one freshly-created professional account.
+// Root cause not yet confirmed (handleClaimEntry swallows the real Postgres/
+// Supabase error into a generic toast). Hidden as a precaution rather than
+// fixed blind — see nextsteps.md before flipping this back to true.
+const FASTPASS_ENABLED = false
+
 function formatARS(amount) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(amount || 0)
 }
@@ -422,6 +429,7 @@ export default function ProfessionalDashboard({ profile }) {
       )}
 
       {/* Walk-in availability toggle + queue */}
+      {FASTPASS_ENABLED && (
       <div className="card border-brand/30 bg-brand/5">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -481,6 +489,7 @@ export default function ProfessionalDashboard({ profile }) {
         </div>
       )}
       </div>
+      )}
 
       {/* Today's consultations */}
       <div className="card">
