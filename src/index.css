@@ -32,21 +32,21 @@
 }
 
 @font-face {
-  font-family: 'Plex';
-  src: url('/fonts/IBMPlexSans-Regular.woff2') format('woff2');
+  font-family: 'GeneralSans';
+  src: url('/fonts/GeneralSans-Regular.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'Plex';
-  src: url('/fonts/IBMPlexSans-Medium.woff2') format('woff2');
+  font-family: 'GeneralSans';
+  src: url('/fonts/GeneralSans-Medium.woff2') format('woff2');
   font-weight: 500 700;
   font-style: normal;
   font-display: swap;
 }
 
-/* Healthier — Natural Editorial Theme (v4: sage/coral/lavender, Everett en títulos, Plex en cuerpo) */
+/* Healthier — Natural Editorial Theme (v4: sage/coral/lavender, Everett en títulos, General Sans en cuerpo) */
 @theme {
   /* Brand — Sage (primary) */
   --color-brand: #7CB38B;
@@ -118,9 +118,9 @@
   --color-v-fisico: #6BAFCF;
   --color-v-veterinaria: #E8927C;
 
-  /* Typography — Everett en títulos (font-serif), Plex (IBM Plex Sans) en cuerpo (font-sans) */
+  /* Typography — Everett en títulos (font-serif), General Sans en cuerpo (font-sans) */
   --font-serif: 'Everett', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-sans: 'Plex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'GeneralSans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
   /* Radii */
   --radius-pill: 999px;
