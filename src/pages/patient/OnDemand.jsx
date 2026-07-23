@@ -39,7 +39,9 @@ export default function OnDemand({ profile }) {
         Promise.all([
           new Promise(r => setTimeout(r, 3500)),
           fetchPro,
-        ]).then(async ([, pros]) => {
+        ]).then(async ([, prosRaw]) => {
+          // Only match professionals who can actually receive paid bookings (spec D4)
+          const pros = (prosRaw ?? []).filter(p => p.mpConnected !== false)
           const pro = pros[0] ?? null
           if (pro && profile?.id) {
             try {

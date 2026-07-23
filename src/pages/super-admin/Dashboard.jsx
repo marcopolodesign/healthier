@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Users, Calendar, ShieldCheck, CurrencyDollar, Lightning, ClockCountdown, SealCheck, Star, ChartBar } from '@phosphor-icons/react'
+import { Users, Calendar, ShieldCheck, CurrencyDollar, Lightning, ClockCountdown, SealCheck, Star, ChartBar, Sparkle } from '@phosphor-icons/react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { supabase } from '../../lib/supabase'
+import { paymentsService } from '../../services/paymentsService'
 import { toast } from '../../components/Toast'
 import { SPECIALTY_LABELS } from '../../lib/verticals'
 
@@ -16,7 +17,8 @@ const STATUS_BADGE_CLASSES = {
 }
 
 export default function SuperAdminDashboard() {
-  const [stats, setStats] = useState({ users: 0, professionals: 0, pendingVerification: 0, completedConsultations: 0, revenue: 0, walkInWaiting: 0, walkInAvailable: 0, avgRating: null, consultationsThisMonth: 0, newPatientsThisMonth: 0 })
+  const [stats, setStats] = useState({ users: 0, professionals: 0, pendingVerification: 0, completedConsultations: 0, walkInWaiting: 0, walkInAvailable: 0, avgRating: null, consultationsThisMonth: 0, newPatientsThisMonth: 0 })
+  const [paymentsSummary, setPaymentsSummary] = useState({ grossTotal: 0, platformFeeTotal: 0, mpFeeTotal: 0, netProfessionalTotal: 0 })
   const [chartData, setChartData] = useState([])
   const [statusData, setStatusData] = useState([])
   const [topPros, setTopPros] = useState([])
@@ -45,6 +47,7 @@ export default function SuperAdminDashboard() {
           { data: reviews },
           { data: recentRaw },
           { data: utmProfiles },
+          summary,
         ] = await Promise.all([
           supabase.from('profiles').select('*', { count: 'exact', head: true }),
           supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('is_verified', true),
@@ -58,11 +61,10 @@ export default function SuperAdminDashboard() {
           supabase.from('reviews').select('rating'),
           supabase.from('consultations').select('id, status, scheduled_at, modality, profiles!patient_id(full_name), professional:profiles!professional_id(full_name)').order('created_at', { ascending: false }).limit(8),
           supabase.from('profiles').select('utm_source, role'),
+          paymentsService.getPaymentsSummary().catch(() => ({ grossTotal: 0, platformFeeTotal: 0, mpFeeTotal: 0, netProfessionalTotal: 0 })),
         ])
 
-        // Revenue: sum price_at_booking for completed consultations
         const completed = (consultations ?? []).filter(c => c.status === 'completed')
-        const revenue = completed.reduce((acc, c) => acc + Number(c.price_at_booking || 0), 0)
 
         // Platform-wide average rating
         const allRatings = (reviews ?? []).map(r => Number(r.rating)).filter(r => !isNaN(r))
@@ -75,12 +77,21 @@ export default function SuperAdminDashboard() {
           professionals: professionals ?? 0,
           pendingVerification: pending ?? 0,
           completedConsultations: completed.length,
-          revenue,
           walkInWaiting: walkInWaiting ?? 0,
           walkInAvailable: walkInAvailable ?? 0,
           avgRating,
           consultationsThisMonth: consultationsThisMonth ?? 0,
           newPatientsThisMonth: newPatientsThisMonth ?? 0,
+        })
+
+        // Real revenue — from the payments table, not an estimate off consultations
+        setPaymentsSummary({
+          grossTotal: summary?.grossTotal ?? 0,
+          // "Revenue Healthier" = platform_fee + mp_fee_estimated (the commission
+          // portion of gross, before MP's own cut) — spec D6.
+          platformFeeTotal: (summary?.platformFeeTotal ?? 0) + (summary?.mpFeeTotal ?? 0),
+          mpFeeTotal: summary?.mpFeeTotal ?? 0,
+          netProfessionalTotal: summary?.netProfessionalTotal ?? 0,
         })
 
         setRecentConsultations((recentRaw ?? []).map(c => ({
@@ -156,7 +167,8 @@ export default function SuperAdminDashboard() {
     { label: 'Usuarios totales',          value: stats.users,                                     icon: Users,          color: 'text-brand bg-brand-muted' },
     { label: 'Profesionales verificados', value: stats.professionals,                              icon: ShieldCheck,    color: 'text-purple-600 bg-purple-50' },
     { label: 'Consultas completadas',     value: stats.completedConsultations,                    icon: Calendar,       color: 'text-blue-600 bg-blue-50' },
-    { label: 'Revenue estimado',          value: `$${stats.revenue.toLocaleString('es-AR')}`,    icon: CurrencyDollar, color: 'text-emerald-600 bg-emerald-50', raw: true },
+    { label: 'Facturado (bruto pago)',    value: `$${paymentsSummary.grossTotal.toLocaleString('es-AR')}`,        icon: CurrencyDollar, color: 'text-blue-600 bg-blue-50', raw: true },
+    { label: 'Revenue Healthier (comisión)', value: `$${paymentsSummary.platformFeeTotal.toLocaleString('es-AR')}`, icon: Sparkle,        color: 'text-emerald-600 bg-emerald-50', raw: true },
     { label: 'Consultas este mes',        value: stats.consultationsThisMonth,                    icon: ClockCountdown, color: 'text-indigo-500 bg-indigo-50' },
     { label: 'Pacientes nuevos (mes)',    value: stats.newPatientsThisMonth,                      icon: Users,          color: 'text-teal-600 bg-teal-50' },
     { label: 'Pendientes verificación',   value: stats.pendingVerification,                       icon: SealCheck,      color: 'text-amber-600 bg-amber-50' },

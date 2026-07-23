@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import {
   Calendar, Clock, VideoCamera, MapPin, Star, CaretRight, ArrowLeft, CircleNotch, Check,
-  X, FileText, Ambulance, ClipboardText, Pill, UserCircle,
+  X, FileText, Ambulance, ClipboardText, Pill, UserCircle, Sparkle, Warning,
 } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
@@ -10,6 +10,8 @@ import { availabilityService } from '../../services/availabilityService'
 import { reviewsService } from '../../services/reviewsService'
 import { emergencyService } from '../../services/emergencyService'
 import { mpService } from '../../services/mpService'
+import { paymentsService } from '../../services/paymentsService'
+import { isRefundEligible } from '../../lib/businessHours'
 import { VERTICALS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
@@ -83,6 +85,15 @@ export default function PatientConsultations({ profile }) {
   const [mpPublicKey, setMpPublicKey] = useState(null)
   const [mpConfigLoading, setMpConfigLoading] = useState(false)
   const [paymentAmount, setPaymentAmount] = useState(null)
+  const [pendingConsultationId, setPendingConsultationId] = useState(null)
+  const [addCardMode, setAddCardMode] = useState(false)
+  const cardSelectorRef = useRef(null)
+
+  // Healthy Credits (spec Sección D3/D7)
+  const [creditBalance, setCreditBalance] = useState(0)
+  const [useCredits, setUseCredits] = useState(true)
+  const [refundWindowHours, setRefundWindowHours] = useState(48)
+  const [convertingId, setConvertingId] = useState(null)
 
   // Cancel modal state
   const [cancelTarget, setCancelTarget] = useState(null)
@@ -110,6 +121,14 @@ export default function PatientConsultations({ profile }) {
       .catch(() => toast.error('Error al cargar consultas'))
       .finally(() => setLoading(false))
   }, [profile?.id])
+
+  // Healthy Credits balance + refund eligibility window (D7 / D3)
+  useEffect(() => {
+    mpService.getCreditBalance().then(({ data }) => setCreditBalance(data || 0)).catch(() => {})
+    paymentsService.getPlatformSettings()
+      .then(s => setRefundWindowHours(s?.refundWindowBusinessHours ?? 48))
+      .catch(() => {})
+  }, [])
 
   // Load patient's reviews to know which consultations have been reviewed
   const [patientReviewMap, setPatientReviewMap] = useState({})
@@ -220,6 +239,7 @@ export default function PatientConsultations({ profile }) {
     setStep('modality'); setModality(null); setSpecialty(null); setProfessional(null)
     setAvailableSlots([]); setSelectedDate(null); setSelectedSlot(null)
     setPaying(false); setPaid(false); setSelectedCardId(null); setPaymentAmount(null); setPros([]); setProsLoading(false)
+    setPendingConsultationId(null); setAddCardMode(false); setUseCredits(true)
     setModalOpen(true)
   }
 
@@ -256,6 +276,7 @@ export default function PatientConsultations({ profile }) {
   }
 
   const selectProfessional = pro => {
+    if (pro.mpConnected === false) return
     const proObj = {
       id:      pro.userId,
       name:    pro.profiles?.fullName || 'Profesional',
@@ -265,6 +286,7 @@ export default function PatientConsultations({ profile }) {
       // Price resolved later in payment step based on modality
       pricePresencial: pro.pricePresencial ?? null,
       priceVideo:      pro.priceVideo ?? null,
+      mpConnected:     pro.mpConnected !== false,
     }
     setProfessional(proObj)
     loadSlots(pro.userId)
@@ -279,66 +301,135 @@ export default function PatientConsultations({ profile }) {
     else setModalOpen(false)
   }
 
-  const confirmPay = async () => {
-    if (!selectedSlot || !selectedCardId) return
-    setPaying(true)
-    try {
-      // 1. Create the consultation record first (DB write before UI confirmation)
-      const consultation = await consultationsService.create({
-        patientId:      profile.id,
-        professionalId: professional.id,
-        scheduledAt:    selectedSlot.startTime,
-        modality:       modality === 'Videollamada' ? 'video' : 'presencial',
-        status:         'pending',
-      })
+  const creditsApplied = useCredits ? Math.min(creditBalance, paymentAmount ?? 0) : 0
+  const chargeAmount   = Math.max(0, (paymentAmount ?? 0) - creditsApplied)
 
-      // 2. Book the slot
-      await availabilityService.bookSlot(selectedSlot.id)
+  // Creates the consultation + books the slot exactly once, no matter which
+  // payment sub-flow (credits-only, saved card, new card) ends up charging it.
+  const ensureConsultationForBooking = async () => {
+    if (pendingConsultationId) return pendingConsultationId
+    const consultation = await consultationsService.create({
+      patientId:      profile.id,
+      professionalId: professional.id,
+      scheduledAt:    selectedSlot.startTime,
+      modality:       modality === 'Videollamada' ? 'video' : 'presencial',
+      status:         'pending',
+      paymentStatus:  'pending_payment',
+      priceAtBooking: paymentAmount ?? null,
+    })
+    await availabilityService.bookSlot(selectedSlot.id)
+    setPendingConsultationId(consultation.id)
+    return consultation.id
+  }
 
-      // 3. Charge via Mercado Pago
-      const { data: paymentData, error: paymentError } = await mpService.createPayment({
-        consultationId: consultation.id,
-        amount:         paymentAmount ?? 0,
-        cardId:         selectedCardId,
-        professionalId: professional.id,
-        description:    `Consulta Healthier — ${professional.name}`,
-      })
-
-      if (paymentError) {
-        // Payment failed — cancel the consultation and surface the error
-        await consultationsService.cancel(consultation.id, profile.id, 'Pago rechazado')
-        throw new Error(paymentError)
-      }
-
-      // 4. Mark consultation confirmed if MP returned approved
-      if (paymentData?.status === 'approved') {
-        await consultationsService.updateStatus(consultation.id, 'confirmed')
-      }
-
+  const finalizePaymentResult = (data, consultationId) => {
+    const status = data?.status
+    if (data?.approved || status === 'paid' || status === 'approved') {
+      consultationsService.updateStatus(consultationId, 'confirmed').catch(() => {})
       setPaid(true)
-      const confirmedId = consultation.id
       const isVirtual = modality === 'Videollamada'
       setTimeout(() => {
         setModalOpen(false)
         if (isVirtual) {
-          navigate(`/paciente/videollamada/${confirmedId}`)
+          navigate(`/paciente/videollamada/${consultationId}`)
         } else {
           toast.success('¡Turno confirmado y pago acreditado!')
           loadTurnos()
         }
       }, 800)
+    } else if (status === 'in_process' || status === 'pending') {
+      toast.info('Tu pago está siendo procesado. Te avisaremos cuando se confirme.')
+      setModalOpen(false)
+      loadTurnos()
+    } else {
+      toast.error('El pago no pudo procesarse. Intentá con otra tarjeta.')
+      setPaying(false)
+    }
+  }
+
+  const confirmPay = async () => {
+    if (!selectedSlot || paying || paid || addCardMode) return
+    if (chargeAmount > 0 && !selectedCardId) return
+    setPaying(true)
+    try {
+      const consultationId = await ensureConsultationForBooking()
+
+      if (chargeAmount === 0) {
+        const { data, error } = await mpService.createPayment({
+          consultationId, useCredits: true, description: `Consulta Healthier — ${professional.name}`,
+        })
+        if (error) throw new Error(error)
+        finalizePaymentResult(data, consultationId)
+        return
+      }
+
+      const chargeInfo = await cardSelectorRef.current?.getSavedCardCharge()
+      const { data, error } = await mpService.createPayment({
+        consultationId, ...chargeInfo, useCredits, description: `Consulta Healthier — ${professional.name}`,
+      })
+      if (error) throw new Error(error)
+      finalizePaymentResult(data, consultationId)
     } catch (err) {
       toast.error(err?.message ?? 'Error al confirmar el turno')
       setPaying(false)
     }
   }
 
+  // Triggered by the "add new card" Brick's own submit button.
+  const handleNewCardCharge = async (chargeInfo) => {
+    if (paying) return
+    setPaying(true)
+    try {
+      const consultationId = await ensureConsultationForBooking()
+      const { data, error } = await mpService.createPayment({
+        consultationId, ...chargeInfo, useCredits, description: `Consulta Healthier — ${professional.name}`,
+      })
+      if (error) throw new Error(error)
+      finalizePaymentResult(data, consultationId)
+    } catch (err) {
+      toast.error(err?.message ?? 'Error al confirmar el turno')
+      setPaying(false)
+    }
+  }
+
+  // Patient asks to convert a Healthy Credits refund into a real MP refund.
+  const handleRequestConversion = async (consultationId) => {
+    setConvertingId(consultationId)
+    try {
+      const { data, error } = await mpService.requestMpConversion(consultationId)
+      if (error) throw new Error(error)
+      toast.success('Solicitud enviada — un administrador la revisará pronto.')
+      loadTurnos()
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos enviar la solicitud.')
+    } finally {
+      setConvertingId(null)
+    }
+  }
+
+  // Refund eligibility mirrors the server (mp-refund action=cancel-refund) —
+  // ≥ refund_window_business_hours business hours between now and scheduled_at,
+  // and the consultation must actually have been paid via MP (spec D3).
+  const cancelEligible = !!cancelTarget
+    && cancelTarget.paymentStatus === 'paid'
+    && isRefundEligible(cancelTarget.scheduledAt, refundWindowHours)
+
   const handleCancel = async () => {
     if (!cancelTarget) return
     setCancelling(true)
     try {
       await consultationsService.cancel(cancelTarget.id, profile.id, cancelReason)
-      toast.info('Turno cancelado')
+      if (cancelEligible) {
+        const { data, error } = await mpService.requestCancelRefund(cancelTarget.id)
+        if (error) {
+          toast.warning('Turno cancelado, pero no pudimos acreditar el reintegro automáticamente. Contactanos por soporte.')
+        } else {
+          toast.success('Turno cancelado — te acreditamos Healthy Credits.')
+          mpService.getCreditBalance().then(({ data: bal }) => setCreditBalance(bal || 0)).catch(() => {})
+        }
+      } else {
+        toast.info('Turno cancelado')
+      }
       setCancelTarget(null)
       setCancelReason('')
       loadTurnos()
@@ -400,6 +491,11 @@ export default function PatientConsultations({ profile }) {
         <p className="text-gray-500 font-medium text-[15px] mt-2 flex items-center gap-1.5">
           <Calendar className="w-4 h-4 text-gray-400" /> Reservá tu turno
         </p>
+        {creditBalance > 0 && (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-muted text-brand text-[12px] font-semibold mt-3 w-fit">
+            <Sparkle className="w-3.5 h-3.5" weight="fill" /> Healthy Credits: ${creditBalance.toLocaleString('es-AR')}
+          </div>
+        )}
       </div>
 
       {/* Specialty chips — naked icon + vertical-color label (mobile pattern) */}
@@ -484,7 +580,9 @@ export default function PatientConsultations({ profile }) {
           const isUpcomingActive = view === 'upcoming' && ['confirmed', 'pending'].includes(t.status)
           const isInProgressVideo = view === 'upcoming' && t.status === 'in_progress' && t.modality === 'video'
           const orders = t.consultationOrders ?? []
-          const hasActions = isUpcomingActive || isInProgressVideo || (view === 'past' && t.status === 'completed')
+          const paymentRow = Array.isArray(t.payment) ? t.payment[0] : t.payment
+          const isRefundedCredit = view === 'past' && t.paymentStatus === 'refunded' && paymentRow?.refundType === 'credit'
+          const hasActions = isUpcomingActive || isInProgressVideo || (view === 'past' && t.status === 'completed') || isRefundedCredit
           return (
             <div key={t.id} className="bg-bg-secondary rounded-2xl border border-border-default overflow-hidden">
               <div className="flex">
@@ -597,6 +695,22 @@ export default function PatientConsultations({ profile }) {
                       <Star className="w-4 h-4 fill-amber-400" /> {patientReviewMap[t.id]?.rating}/5
                     </div>
                   )}
+                  {/* Refunded-as-credit — offer to escalate to a real MP refund (spec D3) */}
+                  {isRefundedCredit && paymentRow?.refundConversionRequestedAt && !paymentRow?.refundConversionResolvedAt && (
+                    <div className="flex-1 py-3 flex items-center justify-center gap-1.5 text-[12px] text-amber-600 font-semibold text-center px-2">
+                      <Clock className="w-4 h-4 shrink-0" /> Devolución solicitada — pendiente de aprobación
+                    </div>
+                  )}
+                  {isRefundedCredit && !paymentRow?.refundConversionRequestedAt && (
+                    <button
+                      onClick={() => handleRequestConversion(t.id)}
+                      disabled={convertingId === t.id}
+                      className="flex-1 py-3 text-[13px] font-semibold text-brand flex items-center justify-center gap-1.5 hover:bg-brand-muted transition-colors disabled:opacity-50"
+                    >
+                      {convertingId === t.id ? <CircleNotch className="w-4 h-4 animate-spin" /> : <Sparkle className="w-4 h-4" />}
+                      Pedir devolución por Mercado Pago
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -660,8 +774,13 @@ export default function PatientConsultations({ profile }) {
               ) : pros.map(p => {
                 const proName = p.profiles?.fullName || 'Profesional'
                 const proAvatar = p.profiles?.avatarUrl || null
+                const connected = p.mpConnected !== false
                 return (
-                  <div key={p.userId ?? p.id} onClick={() => selectProfessional(p)} className="bg-bg-primary p-4 rounded-2xl shadow-sm border border-gray-100 flex gap-4 cursor-pointer hover:border-brand transition-all group">
+                  <div
+                    key={p.userId ?? p.id}
+                    onClick={connected ? () => selectProfessional(p) : undefined}
+                    className={`bg-bg-primary p-4 rounded-2xl shadow-sm border border-gray-100 flex gap-4 transition-all group ${connected ? 'cursor-pointer hover:border-brand' : 'opacity-50 cursor-not-allowed'}`}
+                  >
                     {proAvatar
                       ? <img src={proAvatar} alt={proName} className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm flex-shrink-0" />
                       : <div className="w-16 h-16 rounded-full border-2 border-white shadow-sm flex-shrink-0 flex items-center justify-center text-2xl font-semibold bg-gray-100 text-gray-400">{proName[0]}</div>
@@ -675,10 +794,15 @@ export default function PatientConsultations({ profile }) {
                         </div>
                         <span className="text-[12px] font-medium text-gray-400">({p.totalReviews ?? 0} reseñas)</span>
                       </div>
+                      {!connected && (
+                        <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full mt-1.5 w-fit">No disponible para reservas online</span>
+                      )}
                     </div>
-                    <div className="flex items-center justify-center pr-2">
-                      <div className="bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full text-[11px] font-semibold group-hover:bg-brand group-hover:text-white transition-colors">ELEGIR</div>
-                    </div>
+                    {connected && (
+                      <div className="flex items-center justify-center pr-2">
+                        <div className="bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full text-[11px] font-semibold group-hover:bg-brand group-hover:text-white transition-colors">ELEGIR</div>
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -754,6 +878,29 @@ export default function PatientConsultations({ profile }) {
                   </div>
                 </div>
               </div>
+              {professional?.mpConnected === false ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-3">
+                  <Warning className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-[14px] text-amber-700 font-medium">
+                    Este profesional no está disponible para reservas online en este momento.
+                  </p>
+                </div>
+              ) : (
+              <>
+              {creditBalance > 0 && (
+                <div className="bg-white rounded-2xl p-4 shadow-sm border border-brand/25 mb-4 flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-brand-muted flex items-center justify-center shrink-0">
+                    <Sparkle className="w-4 h-4 text-brand" weight="fill" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-gray-900">Healthy Credits: ${creditBalance.toLocaleString('es-AR')}</p>
+                    <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                      <input type="checkbox" checked={useCredits} onChange={e => setUseCredits(e.target.checked)} className="h-4 w-4 accent-brand" />
+                      <span className="text-[13px] text-gray-600">Usar mis créditos en este pago</span>
+                    </label>
+                  </div>
+                </div>
+              )}
               <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-6">
                 <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Método de Pago</h4>
                 {mpConfigLoading ? (
@@ -761,28 +908,56 @@ export default function PatientConsultations({ profile }) {
                     <CircleNotch className="w-5 h-5 animate-spin" />
                     <span className="text-[13px]">Cargando métodos de pago…</span>
                   </div>
+                ) : chargeAmount === 0 ? (
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-brand/30 bg-brand-muted">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-white">
+                      <Sparkle className="w-4 h-4 text-brand" weight="fill" />
+                    </div>
+                    <p className="text-[13px] font-semibold text-gray-900 flex-1">Se cubre por completo con tus Healthy Credits</p>
+                  </div>
                 ) : (
                   <SavedCardSelector
+                    ref={cardSelectorRef}
                     selectedCardId={selectedCardId}
                     onCardSelected={setSelectedCardId}
                     publicKey={mpPublicKey}
                     payerEmail={profile?.email ?? ''}
+                    amount={chargeAmount}
+                    disabled={paying || paid}
+                    onNewCardCharge={handleNewCardCharge}
+                    onAddCardModeChange={setAddCardMode}
                   />
                 )}
                 {paymentAmount != null && (
-                  <div className="flex justify-between items-center mt-5 pt-5 border-t border-gray-100">
-                    <span className="font-semibold text-gray-500">A pagar hoy</span>
-                    <span className="font-semibold text-[24px] text-gray-900">
-                      ${paymentAmount.toLocaleString('es-AR')}
-                    </span>
+                  <div className="mt-5 pt-5 border-t border-gray-100 space-y-1.5">
+                    {creditsApplied > 0 && (
+                      <>
+                        <div className="flex justify-between items-center text-[13px] text-gray-500">
+                          <span>Precio</span><span>${paymentAmount.toLocaleString('es-AR')}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[13px] text-brand font-semibold">
+                          <span>Créditos aplicados</span><span>-${creditsApplied.toLocaleString('es-AR')}</span>
+                        </div>
+                      </>
+                    )}
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-gray-500">A pagar hoy</span>
+                      <span className="font-semibold text-[24px] text-gray-900">
+                        ${chargeAmount.toLocaleString('es-AR')}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
-              <button onClick={confirmPay} disabled={paying || paid || !selectedCardId} className={`btn-primary w-full py-5 text-[17px] flex justify-center items-center gap-3 ${paid ? '!bg-emerald-500 !opacity-100 scale-[1.02]' : ''}`}>
-                {paying ? <><CircleNotch className="w-5 h-5 animate-spin" /> Procesando...</>
-                 : paid  ? <><Check className="w-6 h-6 text-white animate-bounce" strokeWidth={3} /> ¡Turno Confirmado!</>
-                 : <>Confirmar y Pagar</>}
-              </button>
+              {!addCardMode && (
+                <button onClick={confirmPay} disabled={paying || paid || (chargeAmount > 0 && !selectedCardId)} className={`btn-primary w-full py-5 text-[17px] flex justify-center items-center gap-3 ${paid ? '!bg-emerald-500 !opacity-100 scale-[1.02]' : ''}`}>
+                  {paying ? <><CircleNotch className="w-5 h-5 animate-spin" /> Procesando...</>
+                   : paid  ? <><Check className="w-6 h-6 text-white animate-bounce" strokeWidth={3} /> ¡Turno Confirmado!</>
+                   : <>Confirmar y Pagar</>}
+                </button>
+              )}
+              </>
+              )}
             </div>
           )}
         </div>
@@ -799,6 +974,19 @@ export default function PatientConsultations({ profile }) {
         </div>
         <div className="px-6 flex-1 overflow-y-auto pb-8">
           <p className="text-gray-500 text-[14px] mb-5 mt-2">¿Estás seguro/a que querés cancelar este turno?</p>
+          {cancelTarget?.paymentStatus === 'paid' && (
+            cancelEligible ? (
+              <div className="mb-4 flex items-start gap-2 bg-brand-muted rounded-xl px-3 py-2.5">
+                <Sparkle className="w-4 h-4 text-brand mt-0.5 shrink-0" weight="fill" />
+                <p className="text-[12px] text-brand">Cancelás con más de {refundWindowHours}hs hábiles de anticipación — recibirás el 100% como Healthy Credits.</p>
+              </div>
+            ) : (
+              <div className="mb-4 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                <Warning className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-[12px] text-amber-700">Cancelación sin reintegro (menos de {refundWindowHours}hs hábiles de anticipación).</p>
+              </div>
+            )
+          )}
           <div className="mb-5">
             <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5 block">Motivo (opcional)</label>
             <textarea
@@ -812,7 +1000,7 @@ export default function PatientConsultations({ profile }) {
           <div className="flex gap-3">
             <button onClick={() => setCancelTarget(null)} className="btn-secondary flex-1 py-3.5 text-[15px]">No, volver</button>
             <button onClick={handleCancel} disabled={cancelling} className="btn-danger flex-1 py-3.5 text-[15px]">
-              {cancelling ? 'Cancelando...' : 'Sí, cancelar'}
+              {cancelling ? 'Cancelando...' : cancelEligible ? 'Sí, cancelar y recibir créditos' : 'Sí, cancelar'}
             </button>
           </div>
         </div>

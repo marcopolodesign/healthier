@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Check, Stethoscope, User, MapPin, FileText, ClipboardText, VideoCamera, Buildings, LockKey, MagnifyingGlass } from '@phosphor-icons/react';
+import { Check, Stethoscope, User, MapPin, FileText, ClipboardText, VideoCamera, Buildings, LockKey, MagnifyingGlass, LinkSimple } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import { profilesService } from '../../services/profilesService'
 import { zonesService } from '../../services/zonesService'
@@ -565,6 +565,13 @@ export default function Onboarding({ profile }) {
                     <span className="text-text-secondary break-all">{value}</span>
                   </div>
                 ))}
+              </div>
+              <div className="flex items-start gap-3 p-3 rounded-xl border border-brand/25 bg-brand-muted">
+                <LinkSimple className="h-4 w-4 text-brand mt-0.5 shrink-0" />
+                <p className="text-xs text-text-secondary">
+                  Una vez aprobado tu perfil, vas a necesitar <span className="font-semibold text-text-primary">conectar Mercado Pago</span> desde
+                  {' '}Configuración para poder recibir turnos — sin eso conectado los pacientes no van a poder reservarte.
+                </p>
               </div>
               <p className="text-xs text-text-tertiary pt-1">
                 Al enviar aceptás los Términos de Servicio de Healthier. La revisión demora 24–48 hs hábiles.

@@ -12,7 +12,14 @@
  *   amount      {number}            Amount in ARS (required by the brick; we use 1 for card-save flows)
  *   payerEmail  {string}            Pre-fills the payer email field
  *   submitLabel {string}            CTA label inside the brick form
- *   onSuccess   {(cardData) => void} Called with { cardToken, payerEmail, payerDocType, payerDocNumber, lastFour }
+ *   mode        {'save'|'charge'}   'save' (default) persists the card via mp-save-card.
+ *                                   'charge' skips persistence and hands the raw single-use
+ *                                   token straight to the caller — used when a brand-new card
+ *                                   is entered at checkout time and charged directly (spec
+ *                                   Sección D3 — MP tokens are single-use, so a token spent on
+ *                                   mp-save-card can't also be spent on mp-payment).
+ *   onSuccess   {(cardData) => void} 'save' mode: { cardToken, payerEmail, payerDocType, payerDocNumber, lastFour }.
+ *                                    'charge' mode: { cardToken, paymentMethodId, payerEmail }.
  *   onError     {(err) => void}     Called with the error message string
  */
 
@@ -33,6 +40,7 @@ export default function MPCardHolder({
   amount = 1,
   payerEmail = '',
   submitLabel = 'Guardar tarjeta',
+  mode = 'save',
   onSuccess,
   onError,
 }) {
@@ -47,6 +55,17 @@ export default function MPCardHolder({
   }
 
   const handleSubmit = async (cardFormData, additionalData) => {
+    if (mode === 'charge') {
+      // Hand the single-use token straight to the caller — do NOT also
+      // spend it on mp-save-card (MP tokens can only be used once).
+      onSuccess?.({
+        cardToken: cardFormData.token,
+        paymentMethodId: cardFormData.payment_method_id,
+        payerEmail: cardFormData.payer?.email ?? payerEmail,
+      })
+      return
+    }
+
     setSaving(true)
     setBrickError(null)
 
@@ -123,7 +142,7 @@ export default function MPCardHolder({
       />
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [publicKey, payerEmail, submitLabel, amount]
+    [publicKey, payerEmail, submitLabel, amount, mode]
   )
 
   // ── Happy path — card just saved ───────────────────────────────────────────

@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { TrendUp, TrendDown, CurrencyDollar, Clock, CheckCircle, ArrowClockwise, CaretDown, Users } from '@phosphor-icons/react';
-import { consultationsService } from '../../services/consultationsService'
-import { professionalService } from '../../services/professionalService'
+import { TrendUp, TrendDown, CurrencyDollar, Clock, CheckCircle, ArrowClockwise, CaretDown, Users, Info } from '@phosphor-icons/react';
+import { paymentsService } from '../../services/paymentsService'
 import { toast } from '../../components/Toast'
 
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -15,10 +14,13 @@ function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-const PAYMENT_LABELS = {
-  paid:            { label: 'Cobrado',    className: 'bg-emerald-100 text-emerald-700' },
-  pending_payment: { label: 'Pendiente',  className: 'bg-amber-100 text-amber-700' },
-  refunded:        { label: 'Reembolsado',className: 'bg-red-100 text-red-600' },
+const METHOD_LABELS = { card: 'Tarjeta', credits: 'Créditos', mixed: 'Mixto' }
+
+const STATUS_LABELS = {
+  approved: { label: 'Cobrado',     className: 'bg-emerald-100 text-emerald-700' },
+  pending:  { label: 'Procesando',  className: 'bg-amber-100 text-amber-700' },
+  rejected: { label: 'Rechazado',   className: 'bg-gray-100 text-gray-500' },
+  refunded: { label: 'Reembolsado',className: 'bg-red-100 text-red-600' },
 }
 
 const RANGE_OPTIONS = [
@@ -28,61 +30,66 @@ const RANGE_OPTIONS = [
   { label: 'Todo',    months: 999 },
 ]
 
+// Date used to bucket a payment into a month/week — prefer when the
+// consultation actually happened, fall back to when the payment was created.
+function paymentDate(p) {
+  return p.consultation?.completedAt || p.consultation?.scheduledAt || p.createdAt
+}
+
 export default function Ganancias({ profile }) {
-  const [earningsData, setEarningsData] = useState([])
-  const [profProfile, setProfProfile] = useState(null)
+  const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
   const [range, setRange] = useState(6)
   const [showRangeMenu, setShowRangeMenu] = useState(false)
 
   useEffect(() => {
     if (!profile?.id) return
-    Promise.all([
-      consultationsService.getEarningsData(profile.id),
-      professionalService.getByUserId(profile.id),
-    ]).then(([earnings, prof]) => {
-      setEarningsData(earnings)
-      setProfProfile(prof)
-    }).catch(() => toast.error('Error al cargar ganancias'))
-    .finally(() => setLoading(false))
+    paymentsService.getMyPayments()
+      .then(setPayments)
+      .catch(() => toast.error('Error al cargar ganancias'))
+      .finally(() => setLoading(false))
   }, [profile?.id])
 
   // ── Derived totals ──────────────────────────────────────────────────────────
   const now = new Date()
 
   const thisMonth = useMemo(() => {
-    return earningsData.filter(c => {
-      const d = new Date(c.completedAt || c.scheduledAt)
+    return payments.filter(p => {
+      const d = new Date(paymentDate(p))
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
     })
-  }, [earningsData])
+  }, [payments])
 
   const lastMonth = useMemo(() => {
     const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    return earningsData.filter(c => {
-      const d = new Date(c.completedAt || c.scheduledAt)
+    return payments.filter(p => {
+      const d = new Date(paymentDate(p))
       return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear()
     })
-  }, [earningsData])
+  }, [payments])
 
   const thisWeek = useMemo(() => {
     const startOfWeek = new Date(now)
     startOfWeek.setDate(now.getDate() - now.getDay())
     startOfWeek.setHours(0, 0, 0, 0)
-    return earningsData.filter(c => new Date(c.completedAt || c.scheduledAt) >= startOfWeek)
-  }, [earningsData])
+    return payments.filter(p => new Date(paymentDate(p)) >= startOfWeek)
+  }, [payments])
 
-  const paidTotal   = earningsData.reduce((s, c) => s + (c.paymentStatus === 'paid'            ? (c.priceAtBooking || 0) : 0), 0)
-  const pendingTotal= earningsData.reduce((s, c) => s + (c.paymentStatus === 'pending_payment'  ? (c.priceAtBooking || 0) : 0), 0)
-  const refundTotal = earningsData.reduce((s, c) => s + (c.paymentStatus === 'refunded'         ? (c.priceAtBooking || 0) : 0), 0)
+  const netOf = (list, status) => list.reduce((s, p) => s + (p.status === status ? Number(p.netToProfessional || 0) : 0), 0)
 
-  const thisMonthPaid  = thisMonth.reduce((s, c) => s + (c.paymentStatus === 'paid' ? (c.priceAtBooking || 0) : 0), 0)
-  const lastMonthPaid  = lastMonth.reduce((s, c) => s + (c.paymentStatus === 'paid' ? (c.priceAtBooking || 0) : 0), 0)
-  const weekPaid       = thisWeek.reduce((s, c) => s + (c.paymentStatus === 'paid'  ? (c.priceAtBooking || 0) : 0), 0)
+  const netTotal      = netOf(payments, 'approved')
+  const pendingTotal   = netOf(payments, 'pending')
+  const refundTotal    = payments.reduce((s, p) => s + (p.status === 'refunded' ? Number(p.netToProfessional || 0) : 0), 0)
+  const grossTotal     = payments.reduce((s, p) => s + (p.status === 'approved' ? Number(p.grossAmount || 0) : 0), 0)
+  const commissionTotal = grossTotal - netTotal
 
-  const monthDelta = lastMonthPaid > 0
-    ? Math.round(((thisMonthPaid - lastMonthPaid) / lastMonthPaid) * 100)
-    : thisMonthPaid > 0 ? 100 : 0
+  const thisMonthNet = netOf(thisMonth, 'approved')
+  const lastMonthNet = netOf(lastMonth, 'approved')
+  const weekNet      = netOf(thisWeek, 'approved')
+
+  const monthDelta = lastMonthNet > 0
+    ? Math.round(((thisMonthNet - lastMonthNet) / lastMonthNet) * 100)
+    : thisMonthNet > 0 ? 100 : 0
 
   // ── Monthly chart data ──────────────────────────────────────────────────────
   const monthlyData = useMemo(() => {
@@ -92,29 +99,29 @@ export default function Ganancias({ profile }) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const key = `${d.getFullYear()}-${d.getMonth()}`
       const label = MONTH_NAMES[d.getMonth()]
-      const items = earningsData.filter(c => {
-        const cd = new Date(c.completedAt || c.scheduledAt)
-        return cd.getMonth() === d.getMonth() && cd.getFullYear() === d.getFullYear()
+      const items = payments.filter(p => {
+        const pd = new Date(paymentDate(p))
+        return pd.getMonth() === d.getMonth() && pd.getFullYear() === d.getFullYear()
       })
-      const paid        = items.reduce((s, c) => s + (c.paymentStatus === 'paid'           ? (c.priceAtBooking || 0) : 0), 0)
-      const pending     = items.reduce((s, c) => s + (c.paymentStatus === 'pending_payment' ? (c.priceAtBooking || 0) : 0), 0)
-      const presencial  = items.reduce((s, c) => s + (c.modality !== 'video'               ? (c.priceAtBooking || 0) : 0), 0)
-      const video       = items.reduce((s, c) => s + (c.modality === 'video'               ? (c.priceAtBooking || 0) : 0), 0)
-      const countPres   = items.filter(c => c.modality !== 'video').length
-      const countVideo  = items.filter(c => c.modality === 'video').length
-      months.push({ key, label, paid, pending, presencial, video, countPres, countVideo, count: items.length })
+      const net        = netOf(items, 'approved')
+      const pending     = netOf(items, 'pending')
+      const presencial  = items.reduce((s, p) => s + (p.status === 'approved' && p.consultation?.modality !== 'video' ? Number(p.netToProfessional || 0) : 0), 0)
+      const video       = items.reduce((s, p) => s + (p.status === 'approved' && p.consultation?.modality === 'video' ? Number(p.netToProfessional || 0) : 0), 0)
+      const countPres   = items.filter(p => p.status === 'approved' && p.consultation?.modality !== 'video').length
+      const countVideo  = items.filter(p => p.status === 'approved' && p.consultation?.modality === 'video').length
+      months.push({ key, label, net, pending, presencial, video, countPres, countVideo, count: items.filter(p => p.status === 'approved').length })
     }
     return months
-  }, [earningsData, range])
+  }, [payments, range])
 
-  const chartMax = Math.max(...monthlyData.map(m => m.paid + m.pending), 1)
+  const chartMax = Math.max(...monthlyData.map(m => m.net + m.pending), 1)
 
   // ── Filtered history ────────────────────────────────────────────────────────
   const filteredHistory = useMemo(() => {
-    if (range >= 999) return earningsData
+    if (range >= 999) return payments
     const cutoff = new Date(now.getFullYear(), now.getMonth() - range + 1, 1)
-    return earningsData.filter(c => new Date(c.completedAt || c.scheduledAt) >= cutoff)
-  }, [earningsData, range])
+    return payments.filter(p => new Date(paymentDate(p)) >= cutoff)
+  }, [payments, range])
 
   const selectedRangeLabel = RANGE_OPTIONS.find(r => r.months === range)?.label || '6 meses'
 
@@ -137,30 +144,16 @@ export default function Ganancias({ profile }) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Ganancias</h1>
-          <div className="flex items-center gap-3 mt-1">
-            {profProfile?.pricePresencial != null && (
-              <span className="text-sm text-text-secondary">
-                Presencial: <span className="font-semibold text-text-primary">{formatARS(profProfile.pricePresencial)}</span>
-              </span>
-            )}
-            {profProfile?.pricePresencial != null && profProfile?.priceVideo != null && (
-              <span className="text-text-muted text-xs">·</span>
-            )}
-            {profProfile?.priceVideo != null && (
-              <span className="text-sm text-text-secondary">
-                VideoCamera: <span className="font-semibold text-text-primary">{formatARS(profProfile.priceVideo)}</span>
-              </span>
-            )}
-            {profProfile?.pricePresencial == null && profProfile?.priceVideo == null && profProfile?.sessionPrice != null && (
-              <span className="text-sm text-text-secondary">
-                Precio por sesión: <span className="font-semibold text-text-primary">{formatARS(profProfile.sessionPrice)}</span>
-              </span>
-            )}
+          <div className="flex items-start gap-2 mt-2 max-w-lg">
+            <Info className="h-4 w-4 text-brand mt-0.5 shrink-0" />
+            <p className="text-sm text-text-secondary">
+              Recibís el <span className="font-semibold text-text-primary">78% del valor de la consulta</span> — la comisión de Mercado Pago la absorbe Healthier.
+            </p>
           </div>
         </div>
 
         {/* Range picker */}
-        <div className="relative">
+        <div className="relative shrink-0">
           <button
             onClick={() => setShowRangeMenu(v => !v)}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-border-default rounded-xl text-sm font-medium text-text-primary hover:bg-bg-surface transition-colors"
@@ -194,15 +187,15 @@ export default function Ganancias({ profile }) {
         <div className="card bg-white">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-text-secondary uppercase tracking-wide">Este mes</p>
-              <p className="text-3xl font-bold text-text-primary mt-1">{formatARS(thisMonthPaid)}</p>
-              <p className="text-xs text-text-secondary mt-1">{thisMonth.length} consulta{thisMonth.length !== 1 ? 's' : ''}</p>
+              <p className="text-xs font-medium text-text-secondary uppercase tracking-wide">Neto — Este mes</p>
+              <p className="text-3xl font-bold text-text-primary mt-1">{formatARS(thisMonthNet)}</p>
+              <p className="text-xs text-text-secondary mt-1">{thisMonth.filter(p => p.status === 'approved').length} consulta{thisMonth.length !== 1 ? 's' : ''}</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
               <TrendUp className="h-5 w-5 text-emerald-600" />
             </div>
           </div>
-          {lastMonthPaid > 0 || thisMonthPaid > 0 ? (
+          {lastMonthNet > 0 || thisMonthNet > 0 ? (
             <div className={`flex items-center gap-1 mt-3 text-xs font-medium ${monthDelta >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
               {monthDelta >= 0
                 ? <TrendUp className="h-3.5 w-3.5" />
@@ -217,9 +210,9 @@ export default function Ganancias({ profile }) {
         <div className="card bg-white">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-text-secondary uppercase tracking-wide">Esta semana</p>
-              <p className="text-3xl font-bold text-text-primary mt-1">{formatARS(weekPaid)}</p>
-              <p className="text-xs text-text-secondary mt-1">{thisWeek.length} consulta{thisWeek.length !== 1 ? 's' : ''}</p>
+              <p className="text-xs font-medium text-text-secondary uppercase tracking-wide">Neto — Esta semana</p>
+              <p className="text-3xl font-bold text-text-primary mt-1">{formatARS(weekNet)}</p>
+              <p className="text-xs text-text-secondary mt-1">{thisWeek.filter(p => p.status === 'approved').length} consulta{thisWeek.length !== 1 ? 's' : ''}</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
               <CurrencyDollar className="h-5 w-5 text-blue-600" />
@@ -228,7 +221,7 @@ export default function Ganancias({ profile }) {
           {pendingTotal > 0 && (
             <div className="flex items-center gap-1 mt-3 text-xs text-amber-600 font-medium">
               <Clock className="h-3.5 w-3.5" />
-              {formatARS(pendingTotal)} pendiente de cobro
+              {formatARS(pendingTotal)} procesando
             </div>
           )}
         </div>
@@ -237,9 +230,11 @@ export default function Ganancias({ profile }) {
         <div className="card bg-white">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-text-secondary uppercase tracking-wide">Total histórico</p>
-              <p className="text-3xl font-bold text-text-primary mt-1">{formatARS(paidTotal)}</p>
-              <p className="text-xs text-text-secondary mt-1">{earningsData.length} consulta{earningsData.length !== 1 ? 's' : ''} completada{earningsData.length !== 1 ? 's' : ''}</p>
+              <p className="text-xs font-medium text-text-secondary uppercase tracking-wide">Neto — Total histórico</p>
+              <p className="text-3xl font-bold text-text-primary mt-1">{formatARS(netTotal)}</p>
+              <p className="text-xs text-text-secondary mt-1">
+                Bruto {formatARS(grossTotal)} · Comisión Healthier {formatARS(commissionTotal)}
+              </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-brand-muted flex items-center justify-center shrink-0">
               <CheckCircle className="h-5 w-5 text-brand" />
@@ -256,9 +251,9 @@ export default function Ganancias({ profile }) {
 
       {/* ── Monthly chart ── */}
       <div className="card bg-white">
-        <h2 className="font-semibold text-text-primary mb-6">Evolución mensual</h2>
+        <h2 className="font-semibold text-text-primary mb-6">Evolución mensual (neto)</h2>
 
-        {monthlyData.every(m => m.paid + m.pending === 0) ? (
+        {monthlyData.every(m => m.net + m.pending === 0) ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <TrendUp className="h-10 w-10 text-text-muted mb-3" />
             <p className="text-text-secondary text-sm">Sin datos de ganancias en el período seleccionado</p>
@@ -268,10 +263,10 @@ export default function Ganancias({ profile }) {
             {/* Bars */}
             <div className="flex items-end gap-2 h-40">
               {monthlyData.map(m => {
-                const paidPct        = (m.paid / chartMax) * 100
+                const netPct        = (m.net / chartMax) * 100
                 const pendingPct     = (m.pending / chartMax) * 100
                 const isCurrentMonth = m.key === `${now.getFullYear()}-${now.getMonth()}`
-                const hasData        = m.paid + m.pending > 0
+                const hasData        = m.net + m.pending > 0
                 return (
                   <div key={m.key} className="flex-1 flex flex-col items-center gap-1 group relative">
                     {/* Tooltip — desglose presencial vs video */}
@@ -301,13 +296,13 @@ export default function Ganancias({ profile }) {
                           )}
                           {m.pending > 0 && (
                             <div className="flex items-center justify-between gap-3 pt-1.5 mt-1.5 border-t border-white/20">
-                              <span className="text-xs text-amber-300">Pendiente</span>
+                              <span className="text-xs text-amber-300">Procesando</span>
                               <span className="text-xs font-semibold text-amber-300">{formatARS(m.pending)}</span>
                             </div>
                           )}
                           <div className="flex items-center justify-between gap-3 pt-1.5 mt-1 border-t border-white/20">
-                            <span className="text-xs text-white/60">Total</span>
-                            <span className="text-xs font-bold text-white">{formatARS(m.paid + m.pending)}</span>
+                            <span className="text-xs text-white/60">Total neto</span>
+                            <span className="text-xs font-bold text-white">{formatARS(m.net + m.pending)}</span>
                           </div>
                         </div>
                         {/* Arrow */}
@@ -324,13 +319,13 @@ export default function Ganancias({ profile }) {
                           style={{ height: `${pendingPct}%` }}
                         />
                       )}
-                      {/* Paid portion (bottom) */}
+                      {/* Net portion (bottom) */}
                       <div
                         className={`w-full transition-all duration-700 rounded-t-sm ${isCurrentMonth ? 'bg-brand' : 'bg-emerald-400'}`}
-                        style={{ height: `${Math.max(paidPct, m.paid > 0 ? 2 : 0)}%` }}
+                        style={{ height: `${Math.max(netPct, m.net > 0 ? 2 : 0)}%` }}
                       />
                       {/* Empty bar placeholder */}
-                      {m.paid + m.pending === 0 && (
+                      {m.net + m.pending === 0 && (
                         <div className="w-full bg-bg-surface" style={{ height: '4px' }} />
                       )}
                     </div>
@@ -350,12 +345,12 @@ export default function Ganancias({ profile }) {
             <div className="flex items-center gap-4 mt-4 pt-4 border-t border-border-default">
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-3 rounded-sm bg-emerald-400" />
-                <span className="text-xs text-text-secondary">Cobrado</span>
+                <span className="text-xs text-text-secondary">Cobrado (neto)</span>
               </div>
               {pendingTotal > 0 && (
                 <div className="flex items-center gap-1.5">
                   <div className="w-3 h-3 rounded-sm bg-amber-200" />
-                  <span className="text-xs text-text-secondary">Pendiente</span>
+                  <span className="text-xs text-text-secondary">Procesando</span>
                 </div>
               )}
               <div className="flex items-center gap-1.5">
@@ -370,33 +365,37 @@ export default function Ganancias({ profile }) {
       {/* ── Transaction history ── */}
       <div className="card bg-white">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-text-primary">Historial de consultas</h2>
+          <h2 className="font-semibold text-text-primary">Historial de pagos</h2>
           <span className="text-xs text-text-secondary">{filteredHistory.length} registros</span>
         </div>
 
         {filteredHistory.length === 0 ? (
           <div className="flex flex-col items-center py-12 text-center">
             <Users className="h-10 w-10 text-text-muted mb-3" />
-            <p className="text-text-secondary text-sm">No hay consultas en este período</p>
+            <p className="text-text-secondary text-sm">No hay pagos en este período</p>
           </div>
         ) : (
           <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <table className="w-full min-w-[520px]">
+            <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="border-b border-border-default">
                   <th className="text-left text-xs font-medium text-text-secondary pb-3 px-4 sm:px-0">Paciente</th>
                   <th className="text-left text-xs font-medium text-text-secondary pb-3 px-2">Fecha</th>
-                  <th className="text-right text-xs font-medium text-text-secondary pb-3 px-2">Monto</th>
+                  <th className="text-left text-xs font-medium text-text-secondary pb-3 px-2">Método</th>
+                  <th className="text-right text-xs font-medium text-text-secondary pb-3 px-2">Bruto</th>
+                  <th className="text-right text-xs font-medium text-text-secondary pb-3 px-2">Comisión</th>
+                  <th className="text-right text-xs font-medium text-text-secondary pb-3 px-2">Neto</th>
                   <th className="text-right text-xs font-medium text-text-secondary pb-3 px-4 sm:px-0">Estado</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-default">
-                {filteredHistory.map(c => {
-                  const badge = PAYMENT_LABELS[c.paymentStatus] || PAYMENT_LABELS.pending_payment
-                  const patientName = c.profiles?.fullName || c.profiles?.full_name || 'Paciente'
-                  const amount = c.priceAtBooking || profProfile?.sessionPrice || 0
+                {filteredHistory.map(p => {
+                  const badge = STATUS_LABELS[p.status] || STATUS_LABELS.pending
+                  const patientName = p.patient?.fullName || 'Paciente'
+                  const commission = Number(p.grossAmount || 0) - Number(p.netToProfessional || 0)
+                  const isRefund = p.status === 'refunded'
                   return (
-                    <tr key={c.id} className="hover:bg-bg-surface/50 transition-colors">
+                    <tr key={p.id} className="hover:bg-bg-surface/50 transition-colors">
                       <td className="py-3 px-4 sm:px-0">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-brand-muted flex items-center justify-center shrink-0 text-brand font-semibold text-xs">
@@ -404,27 +403,29 @@ export default function Ganancias({ profile }) {
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-text-primary">{patientName}</p>
-                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              {c.consultationType?.name && (
-                                <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-brand-muted text-brand font-medium">
-                                  {c.consultationType.name}
-                                </span>
-                              )}
-                              {c.obraSocialName && (
-                                <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">
-                                  {c.obraSocialName}
-                                </span>
-                              )}
-                            </div>
+                            {p.consultation?.consultationType?.name && (
+                              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-brand-muted text-brand font-medium mt-0.5 inline-block">
+                                {p.consultation.consultationType.name}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>
                       <td className="py-3 px-2 text-sm text-text-secondary whitespace-nowrap">
-                        {formatDate(c.completedAt || c.scheduledAt)}
+                        {formatDate(paymentDate(p))}
+                      </td>
+                      <td className="py-3 px-2 text-sm text-text-secondary whitespace-nowrap">
+                        {METHOD_LABELS[p.method] || p.method}
+                      </td>
+                      <td className="py-3 px-2 text-right text-sm text-text-secondary">
+                        {formatARS(p.grossAmount)}
+                      </td>
+                      <td className="py-3 px-2 text-right text-sm text-text-tertiary">
+                        -{formatARS(commission)}
                       </td>
                       <td className="py-3 px-2 text-right">
-                        <span className={`text-sm font-semibold ${c.paymentStatus === 'paid' ? 'text-emerald-700' : c.paymentStatus === 'refunded' ? 'text-red-500 line-through' : 'text-text-primary'}`}>
-                          {amount > 0 ? formatARS(amount) : '—'}
+                        <span className={`text-sm font-semibold ${isRefund ? 'text-red-500 line-through' : 'text-emerald-700'}`}>
+                          {formatARS(p.netToProfessional)}
                         </span>
                       </td>
                       <td className="py-3 px-4 sm:px-0 text-right">
@@ -440,9 +441,9 @@ export default function Ganancias({ profile }) {
 
             {/* Footer totals */}
             <div className="mt-4 pt-4 border-t border-border-default flex items-center justify-between px-4 sm:px-0">
-              <span className="text-sm text-text-secondary font-medium">Total del período</span>
+              <span className="text-sm text-text-secondary font-medium">Neto del período</span>
               <span className="text-sm font-bold text-text-primary">
-                {formatARS(filteredHistory.reduce((s, c) => s + (c.paymentStatus === 'paid' ? (c.priceAtBooking || 0) : 0), 0))}
+                {formatARS(netOf(filteredHistory, 'approved'))}
               </span>
             </div>
           </div>

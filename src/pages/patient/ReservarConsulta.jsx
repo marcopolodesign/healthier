@@ -98,6 +98,7 @@ function normalizeProCard(raw, modality = null) {
     price,
     priceVideo,
     pricePresencial,
+    mpConnected:     raw.mpConnected !== false,
   }
 }
 
@@ -185,7 +186,8 @@ export default function ReservarConsulta({ profile }) {
     if (slugs.length) {
       professionalService.search({})
         .then(data => {
-          const pros = data.filter(p => slugs.includes(p.specialty))
+          // Only auto-match professionals who can actually receive paid bookings (spec D4)
+          const pros = data.filter(p => slugs.includes(p.specialty) && p.mpConnected !== false)
           if (pros.length) setMatchedPro(normalizeProCard(pros[0], 'virtual'))
         })
         .catch(() => {})
@@ -611,11 +613,14 @@ export default function ReservarConsulta({ profile }) {
                 {professionals.map(pro => (
                   <button
                     key={pro.id}
-                    onClick={() => setSelectedPro(pro)}
+                    onClick={() => pro.mpConnected && setSelectedPro(pro)}
+                    disabled={!pro.mpConnected}
                     className={`w-full flex items-center gap-3 rounded-2xl border px-4 py-4 transition-all text-left ${
-                      selectedPro?.id === pro.id
-                        ? 'border-brand bg-brand/5'
-                        : 'border-border-default bg-bg-secondary hover:border-brand/30'
+                      !pro.mpConnected
+                        ? 'border-border-default bg-bg-secondary opacity-50 cursor-not-allowed'
+                        : selectedPro?.id === pro.id
+                          ? 'border-brand bg-brand/5'
+                          : 'border-border-default bg-bg-secondary hover:border-brand/30'
                     }`}
                   >
                     {/* Avatar */}
@@ -636,18 +641,22 @@ export default function ReservarConsulta({ profile }) {
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-[14px] text-text-primary truncate">{pro.name}</div>
                       <div className="text-[12px] text-text-secondary mt-0.5 truncate">{SPECIALTY_LABELS[pro.specialty] || pro.specialty}</div>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Star className="w-3 h-3 text-amber-400" weight="fill" />
-                        <span className="text-[12px] font-semibold text-amber-600">{pro.rating.toFixed(1)}</span>
-                        {pro.reviews > 0 && (
-                          <span className="text-[11px] text-text-tertiary">({pro.reviews} reseñas)</span>
-                        )}
-                      </div>
+                      {!pro.mpConnected ? (
+                        <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full mt-1 inline-block">No disponible para reservas online</span>
+                      ) : (
+                        <div className="flex items-center gap-1 mt-1">
+                          <Star className="w-3 h-3 text-amber-400" weight="fill" />
+                          <span className="text-[12px] font-semibold text-amber-600">{pro.rating.toFixed(1)}</span>
+                          {pro.reviews > 0 && (
+                            <span className="text-[11px] text-text-tertiary">({pro.reviews} reseñas)</span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Price + check */}
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {pro.price != null && (
+                      {pro.mpConnected && pro.price != null && (
                         <span className="text-[14px] font-bold" style={{ color: '#7CB38B' }}>
                           ${pro.price}
                         </span>

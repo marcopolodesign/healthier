@@ -358,21 +358,21 @@ export default function ProfessionalDashboard({ profile }) {
         </div>
       </Link>
 
-      {/* MercadoPago connection banner */}
+      {/* MercadoPago connection banner — red/urgent: bookings are blocked without it (spec D4) */}
       {!loading && mpStatus && !mpStatus.connected && (
         <a
           href={mpService.getMpConnectUrl(profile.id)}
-          className="card flex items-center gap-4 border-amber-200 bg-amber-50 hover:border-amber-300 transition-colors group"
+          className="card flex items-center gap-4 border-red-300 bg-red-50 hover:border-red-400 transition-colors group"
         >
-          <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
-            <LinkSimple className="h-6 w-6 text-amber-600" />
+          <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center shrink-0">
+            <LinkSimple className="h-6 w-6 text-red-600" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-amber-700 font-medium uppercase tracking-wide">Pagos no configurados</p>
-            <p className="text-base font-semibold text-text-primary mt-0.5">Conectar MercadoPago</p>
-            <p className="text-xs text-text-secondary mt-0.5">Necesario para recibir pagos de tus consultas</p>
+            <p className="text-xs text-red-700 font-bold uppercase tracking-wide">Acción requerida</p>
+            <p className="text-base font-semibold text-text-primary mt-0.5">No podés recibir turnos hasta conectar Mercado Pago</p>
+            <p className="text-xs text-text-secondary mt-0.5">Los pacientes no pueden reservarte hasta que conectes tu cuenta</p>
           </div>
-          <div className="flex items-center gap-1 text-amber-600 text-sm font-medium shrink-0 group-hover:gap-2 transition-all">
+          <div className="flex items-center gap-1 text-red-600 text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">
             Conectar <ArrowRight className="h-4 w-4" />
           </div>
         </a>

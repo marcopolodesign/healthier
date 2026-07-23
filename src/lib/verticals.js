@@ -84,8 +84,12 @@ export const VERTICAL_SPECIALTIES = {
   veterinaria: ['veterinaria'],
 }
 
-// Returns the first pro in `pool` whose specialty matches any slug for the given verticalId
+// Returns the first pro in `pool` whose specialty matches any slug for the
+// given verticalId. Prefers professionals who can actually receive paid
+// bookings (mp_connected) — spec Sección D4 — falling back to any match so
+// the map still shows a marker rather than nothing.
 export function pickProForVertical(pool, verticalId) {
   const slugs = VERTICAL_SPECIALTIES[verticalId] || []
-  return pool.find(p => slugs.includes(p.specialty)) || null
+  const matches = pool.filter(p => slugs.includes(p.specialty))
+  return matches.find(p => p.mpConnected !== false) || matches[0] || null
 }

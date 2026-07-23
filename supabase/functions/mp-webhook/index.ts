@@ -3,21 +3,30 @@
  *
  * POST /mp-webhook
  *   Receives MP payment/merchant_order notifications.
- *   Verifies the X-Signature header (HMAC-SHA256).
- *   On payment.updated: fetches the payment from the MP API and updates
- *   consultations.payment_status accordingly.
+ *   Verifies the X-Signature header (HMAC-SHA256) — unchanged infra, still the
+ *   platform application's own webhook secret even though payments are now
+ *   created with the seller's OAuth token (SECCIÓN A.7).
+ *   On payment.updated: fetches the payment from the MP API and updates both
+ *   `consultations.payment_status` and the matching `payments` row.
  *
  * MP status → our status mapping:
- *   approved  → approved
- *   rejected  → rejected
- *   refunded  → refunded
- *   cancelled → rejected   (cancelled before processing)
- *   charged_back → refunded
- *   in_process / pending / authorized / others → pending
+ *   consultations.payment_status : payments.status
+ *   approved            → paid      : approved
+ *   rejected / cancelled → rejected  : rejected
+ *   refunded / charged_back → refunded : refunded
+ *   in_process / pending / authorized / others → in_process : pending
+ *
+ * Fetching the payment: payments created with a seller's OAuth token may not
+ * be fetchable with the platform's own access_token (SECCIÓN A.8-d, empirical
+ * verification pending in sandbox). We look up our own `payments` row by
+ * mp_payment_id first — if found, fetch using that professional's (refreshed)
+ * seller token; otherwise fall back to the platform token. Whichever succeeds
+ * first wins.
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { ensureFreshMpToken, PAYMENT_REFRESH_MARGIN_MS } from "../_shared/mpRefresh.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,7 +36,7 @@ const corsHeaders = {
 
 const IS_PROD = Deno.env.get("MP_IS_PROD") === "true";
 const MP_WEBHOOK_SECRET = Deno.env.get("MP_WEBHOOK_SECRET")!;
-const MP_ACCESS_TOKEN = IS_PROD
+const MP_PLATFORM_ACCESS_TOKEN = IS_PROD
   ? Deno.env.get("MP_ACCESS_TOKEN_PROD")!
   : Deno.env.get("MP_ACCESS_TOKEN_SANDBOX")!;
 
@@ -45,7 +54,6 @@ async function verifySignature(
   xSignature: string,
   notificationId: string
 ): Promise<boolean> {
-  // Parse ts and v1 from "ts=...,v1=..."
   const parts = Object.fromEntries(
     xSignature.split(",").map((p) => p.trim().split("=") as [string, string])
   );
@@ -75,29 +83,57 @@ async function verifySignature(
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
-  // Constant-time comparison to prevent timing attacks
   return computedHmac === receivedHmac;
 }
 
-/**
- * Map a MercadoPago payment status to our internal payment_status value.
- */
-function mapMpStatus(
-  mpStatus: string
-): "approved" | "rejected" | "refunded" | "pending" {
+/** Maps an MP payment status to our internal vocabularies. */
+function mapMpStatus(mpStatus: string): {
+  consultationStatus: "paid" | "rejected" | "refunded" | "in_process";
+  paymentsStatus: "approved" | "rejected" | "refunded" | "pending";
+} {
   switch (mpStatus) {
     case "approved":
-      return "approved";
+      return { consultationStatus: "paid", paymentsStatus: "approved" };
     case "rejected":
     case "cancelled":
-      return "rejected";
+      return { consultationStatus: "rejected", paymentsStatus: "rejected" };
     case "refunded":
     case "charged_back":
-      return "refunded";
+      return { consultationStatus: "refunded", paymentsStatus: "refunded" };
     default:
-      // in_process, pending, authorized, etc.
-      return "pending";
+      // in_process, pending, authorized, in_mediation, etc.
+      return { consultationStatus: "in_process", paymentsStatus: "pending" };
   }
+}
+
+interface MpFeeDetail {
+  type?: string;
+  amount?: number;
+}
+
+interface MpPayment {
+  id: number;
+  status: string;
+  status_detail?: string;
+  external_reference?: string; // consultationId
+  collector_id?: number;
+  transaction_amount?: number;
+  currency_id?: string;
+  date_approved?: string;
+  fee_details?: MpFeeDetail[];
+  charges_details?: MpFeeDetail[];
+}
+
+function extractMpFeeActual(payment: MpPayment): number | null {
+  const fromFeeDetails = payment.fee_details?.find((f) => f.type === "mercadopago_fee")?.amount;
+  if (typeof fromFeeDetails === "number") return fromFeeDetails;
+
+  const fromCharges = payment.charges_details?.find(
+    (f) => f.type?.toLowerCase().includes("mercadopago_fee")
+  )?.amount;
+  if (typeof fromCharges === "number") return fromCharges;
+
+  return null;
 }
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
@@ -115,7 +151,6 @@ serve(async (req: Request) => {
   }
 
   try {
-    // Parse body
     const body = (await req.json()) as {
       type?: string;
       action?: string;
@@ -139,7 +174,6 @@ serve(async (req: Request) => {
         });
       }
     } else if (MP_WEBHOOK_SECRET && !xSignature) {
-      // Secret is configured but no signature sent — reject
       console.warn("mp-webhook: missing X-Signature header");
       return new Response(JSON.stringify({ error: "Missing signature" }), {
         status: 401,
@@ -154,7 +188,6 @@ serve(async (req: Request) => {
       notificationType !== "payment.updated" &&
       notificationType !== "payment.created"
     ) {
-      // Acknowledge other notification types (merchant_order, etc.) without processing
       return new Response(JSON.stringify({ received: true }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -169,107 +202,158 @@ serve(async (req: Request) => {
       });
     }
 
-    // ── Fetch payment details from MP API ────────────────────────────────────
-    const mpRes = await fetch(
-      `https://api.mercadopago.com/v1/payments/${paymentId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
-        },
-      }
-    );
-
-    if (!mpRes.ok) {
-      const errText = await mpRes.text();
-      console.error("mp-webhook: MP API error fetching payment:", errText);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch payment from MP" }),
-        {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    const payment = (await mpRes.json()) as {
-      id: number;
-      status: string;
-      external_reference?: string; // we store consultationId here
-      collector_id?: number;
-      transaction_amount?: number;
-      currency_id?: string;
-      date_approved?: string;
-    };
-
-    const ourStatus = mapMpStatus(payment.status);
-    const consultationId = payment.external_reference ?? null;
-
-    // external_reference must be set when creating the MP preference/payment
-    if (!consultationId) {
-      console.warn(
-        "mp-webhook: payment has no external_reference, cannot match consultation",
-        paymentId
-      );
-      // Acknowledge anyway — no retry needed
-      return new Response(
-        JSON.stringify({ received: true, warning: "no external_reference" }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // ── Update consultation payment_status ───────────────────────────────────
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const updatePayload: Record<string, unknown> = {
-      payment_status: ourStatus,
-      mp_payment_id: String(payment.id),
-    };
+    // ── Look up our own payments row first — lets us fetch with the seller's
+    //    own OAuth token, which is very likely required for a payment created
+    //    under that seller's account (SECCIÓN A.8-d — unverified in sandbox yet).
+    const { data: existingPaymentRow } = await supabase
+      .from("payments")
+      .select("id, consultation_id, professional_id")
+      .eq("mp_payment_id", paymentId)
+      .maybeSingle();
 
-    if (ourStatus === "approved" && payment.date_approved) {
-      updatePayload.paid_at = payment.date_approved;
+    let sellerAccessToken: string | null = null;
+    if (existingPaymentRow?.professional_id) {
+      const { data: mpAccount } = await supabase
+        .from("mp_accounts")
+        .select("professional_id, access_token, refresh_token, expires_at, active")
+        .eq("professional_id", existingPaymentRow.professional_id)
+        .eq("active", true)
+        .maybeSingle();
+
+      if (mpAccount) {
+        const refreshResult = await ensureFreshMpToken(supabase, mpAccount, PAYMENT_REFRESH_MARGIN_MS);
+        sellerAccessToken = refreshResult.accessToken;
+      }
     }
 
-    const { error: updateErr } = await supabase
+    // ── Fetch payment details from MP — try seller token first, then platform token.
+    let payment: MpPayment | null = null;
+    for (const token of [sellerAccessToken, MP_PLATFORM_ACCESS_TOKEN].filter(Boolean) as string[]) {
+      const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (mpRes.ok) {
+        payment = (await mpRes.json()) as MpPayment;
+        break;
+      }
+      console.warn(`mp-webhook: fetch with ${token === sellerAccessToken ? "seller" : "platform"} token failed (${mpRes.status})`);
+    }
+
+    if (!payment) {
+      console.error("mp-webhook: could not fetch payment from MP with any available token");
+      return new Response(
+        JSON.stringify({ error: "Failed to fetch payment from MP" }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { consultationStatus, paymentsStatus } = mapMpStatus(payment.status);
+    const consultationId = payment.external_reference ?? existingPaymentRow?.consultation_id ?? null;
+
+    if (!consultationId) {
+      console.warn("mp-webhook: payment has no external_reference and no matching payments row", paymentId);
+      return new Response(
+        JSON.stringify({ received: true, warning: "no external_reference" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const mpFeeActual = extractMpFeeActual(payment);
+
+    // ── Update consultations ─────────────────────────────────────────────────
+    const consUpdate: Record<string, unknown> = {
+      payment_status: consultationStatus,
+      mp_payment_id: String(payment.id),
+    };
+    if (consultationStatus === "paid" && payment.date_approved) {
+      consUpdate.paid_at = payment.date_approved;
+    }
+
+    const { error: consUpdateErr } = await supabase
       .from("consultations")
-      .update(updatePayload)
+      .update(consUpdate)
       .eq("id", consultationId);
 
-    if (updateErr) {
-      console.error("mp-webhook: DB update error:", updateErr);
-      // Return 500 so MP retries the notification
+    if (consUpdateErr) {
+      console.error("mp-webhook: consultations update error:", consUpdateErr);
       return new Response(
-        JSON.stringify({ error: "DB update failed", detail: updateErr.message }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({ error: "DB update failed", detail: consUpdateErr.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── Update the matching payments row ─────────────────────────────────────
+    const paymentUpdate: Record<string, unknown> = {
+      status: paymentsStatus,
+      status_detail: payment.status_detail ?? null,
+      mp_payment_id: String(payment.id),
+    };
+    if (mpFeeActual !== null) paymentUpdate.mp_fee_actual = mpFeeActual;
+    if (payment.collector_id) paymentUpdate.collector_id = String(payment.collector_id);
+
+    let paymentUpdateErr = null as { message: string } | null;
+
+    if (existingPaymentRow) {
+      const { error } = await supabase.from("payments").update(paymentUpdate).eq("id", existingPaymentRow.id);
+      paymentUpdateErr = error;
+    } else {
+      // Fallback: match by consultation_id on the most recent pending/rejected row
+      // still missing mp_payment_id (webhook arrived before mp-payment's own write).
+      const { data: fallbackRow } = await supabase
+        .from("payments")
+        .select("id")
+        .eq("consultation_id", consultationId)
+        .is("mp_payment_id", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (fallbackRow) {
+        const { error } = await supabase.from("payments").update(paymentUpdate).eq("id", fallbackRow.id);
+        paymentUpdateErr = error;
+      } else {
+        console.warn(`mp-webhook: no payments row found to reconcile for consultation ${consultationId}`);
+      }
+    }
+
+    if (paymentUpdateErr) {
+      console.error("mp-webhook: payments update error:", paymentUpdateErr);
+      return new Response(
+        JSON.stringify({ error: "DB update failed", detail: paymentUpdateErr.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Informational only: the professional's contractual net (net_to_professional,
+    // committed as 78% of gross) is never overwritten with the actual-fee-adjusted
+    // figure — Healthier absorbs the delta between estimated and actual MP fee. We
+    // just log it for visibility/reconciliation.
+    if (mpFeeActual !== null) {
+      console.log(
+        `mp-webhook: consultation ${consultationId} reconciled mp_fee_actual=${mpFeeActual} (payment ${payment.id})`
       );
     }
 
     console.log(
-      `mp-webhook: consultation ${consultationId} → payment_status=${ourStatus} (mp_payment_id=${payment.id})`
+      `mp-webhook: consultation ${consultationId} → payment_status=${consultationStatus} (mp_payment_id=${payment.id})`
     );
 
-    return new Response(JSON.stringify({ received: true, status: ourStatus }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ received: true, status: consultationStatus }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   } catch (err) {
     console.error("mp-webhook error:", err);
     return new Response(
       JSON.stringify({
         error: err instanceof Error ? err.message : "Internal error",
       }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

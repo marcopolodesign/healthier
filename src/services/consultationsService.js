@@ -38,7 +38,29 @@ export const consultationsService = {
   },
 
 
+  /**
+   * Blocks creating a paid booking for a professional who hasn't connected
+   * Mercado Pago (spec Sección D4 — "médico sin MP conectado NO puede recibir
+   * turnos"). The Edge Function (mp-payment) already refuses to charge, but
+   * this stops the consultation row from being created at all so the patient
+   * never lands in an unpayable pending state. professional_profiles is the
+   * source of truth via the denormalized `mp_connected` column.
+   */
+  async _assertProfessionalAcceptsBookings(professionalId) {
+    if (!professionalId) return
+    const { data, error } = await supabase
+      .from('professional_profiles')
+      .select('mp_connected')
+      .eq('user_id', professionalId)
+      .maybeSingle()
+    if (error) return // fail-open on read errors — server-side charge is still gated
+    if (data && data.mp_connected === false) {
+      throw new Error('Este profesional no puede recibir turnos en este momento porque no tiene Mercado Pago conectado.')
+    }
+  },
+
   async create(data) {
+    await this._assertProfessionalAcceptsBookings(data.professionalId)
     const { data: row, error } = await supabase
       .from('consultations')
       .insert(toSnakeCase(data))
@@ -63,7 +85,7 @@ export const consultationsService = {
   async getByPatient(patientId) {
     const { data, error } = await supabase
       .from('consultations')
-      .select('*, professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty)), consultation_orders(*)')
+      .select('*, professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty)), consultation_orders(*), payment:payments!consultation_id(id, status, refund_type, refunded_at, refund_conversion_requested_at, refund_conversion_resolved_at, mp_payment_id)')
       .eq('patient_id', patientId)
       .order('scheduled_at', { ascending: false })
     if (error) throw error

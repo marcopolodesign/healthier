@@ -2,18 +2,34 @@
  * SavedCardSelector.jsx
  *
  * Lists the current patient's saved Mercado Pago cards and lets them:
- *   - Select one as the payment method for the current flow
+ *   - Select one as the payment method for the current flow (requires CVV
+ *     re-tokenization before charging — MP doesn't allow charging a saved
+ *     card_id directly, spec Sección A.3)
  *   - Delete a saved card
- *   - Add a new card inline via MPCardHolder
+ *   - Pay with a brand-new card entered inline (charged directly with the
+ *     Brick's own single-use token — not saved, since that token can't also
+ *     be spent on mp-save-card)
  *
  * Props:
- *   selectedCardId   {string|null}       Currently selected payment_methods.id
- *   onCardSelected   {(id: string) => void}  Called when a card is selected
- *   publicKey        {string}            MP public key (pass down from parent)
- *   payerEmail       {string}            Pre-fills MPCardHolder for new cards
+ *   selectedCardId      {string|null}       Currently selected payment_methods.id
+ *   onCardSelected      {(id: string) => void}
+ *   publicKey           {string}            MP public key (pass down from parent)
+ *   payerEmail          {string}            Pre-fills the brick + used for saved-card charges
+ *   amount              {number|null}       Real amount to charge — shown on the new-card brick's own submit button
+ *   disabled            {boolean}           Disables selection/CVV while a payment is in flight
+ *   onNewCardCharge     {(info) => void}    Fired when a brand-new card's own submit button charges it.
+ *                                           info = { cardToken, paymentMethodId, payerEmail }
+ *   onAddCardModeChange {(isAdding) => void} Fired when the "add new card" panel opens/closes — the
+ *                                           parent should hide its own "Confirmar y Pagar" button while
+ *                                           true, since the new-card Brick has its own submit button.
+ *
+ * Imperative handle (via ref) — used by the parent's "Confirmar y Pagar"
+ * button when a SAVED card is selected:
+ *   getSavedCardCharge() → Promise<{ cardToken, paymentMethodId, payerEmail, savedCardId }>
+ *   Throws a user-readable Error if the CVV is missing/invalid or tokenization fails.
  */
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { forwardRef, useEffect, useState, useCallback, useImperativeHandle } from 'react'
 import {
   CreditCard,
   Plus,
@@ -21,7 +37,9 @@ import {
   CheckCircle,
   Warning,
   SpinnerGap,
+  LockKey,
 } from '@phosphor-icons/react'
+import { createCardToken, initMercadoPago } from '@mercadopago/sdk-react'
 import { mpService } from '../../services/mpService'
 import MPCardHolder from './MPCardHolder'
 
@@ -44,16 +62,18 @@ function brandLabel(raw) {
 }
 
 // ── Single card row ───────────────────────────────────────────────────────────
-function CardRow({ card, selected, onSelect, onDelete, deleting }) {
+function CardRow({ card, selected, onSelect, onDelete, deleting, disabled }) {
   return (
     <button
       type="button"
-      onClick={() => onSelect(card.id)}
+      onClick={() => !disabled && onSelect(card.id)}
+      disabled={disabled}
       className={[
         'w-full flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all text-left',
         selected
           ? 'border-[#7CB38B] bg-[#7CB38B]/8 shadow-[0_0_0_2px_rgba(124,179,139,0.25)]'
           : 'border-[#D8D4CE] bg-white hover:border-[#7CB38B]/50 hover:bg-[#F6F5F0]',
+        disabled ? 'opacity-60 cursor-not-allowed' : '',
       ].join(' ')}
     >
       {/* Card icon */}
@@ -92,7 +112,7 @@ function CardRow({ card, selected, onSelect, onDelete, deleting }) {
           e.stopPropagation()
           onDelete(card.id)
         }}
-        disabled={deleting}
+        disabled={deleting || disabled}
         className="ml-auto shrink-0 p-1.5 rounded-lg text-[#A8A29E] hover:text-[#D9534F] hover:bg-[#D9534F]/8 transition-colors disabled:opacity-40"
         aria-label="Eliminar tarjeta"
       >
@@ -105,18 +125,24 @@ function CardRow({ card, selected, onSelect, onDelete, deleting }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function SavedCardSelector({
+const SavedCardSelector = forwardRef(function SavedCardSelector({
   selectedCardId,
   onCardSelected,
   publicKey,
   payerEmail = '',
-}) {
+  amount = null,
+  disabled = false,
+  onNewCardCharge,
+  onAddCardModeChange,
+}, ref) {
   const [cards, setCards] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
   const [showAddCard, setShowAddCard] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [deleteError, setDeleteError] = useState(null)
+  const [cvv, setCvv] = useState('')
+  const [cvvError, setCvvError] = useState(null)
 
   // ── Load saved cards ───────────────────────────────────────────────────────
   const loadCards = useCallback(async () => {
@@ -139,6 +165,17 @@ export default function SavedCardSelector({
     loadCards()
   }, [loadCards])
 
+  // CVV must be re-entered whenever the selection changes — never carry it over
+  useEffect(() => {
+    setCvv('')
+    setCvvError(null)
+  }, [selectedCardId])
+
+  const setAddCardMode = (next) => {
+    setShowAddCard(next)
+    onAddCardModeChange?.(next)
+  }
+
   // ── Delete card ────────────────────────────────────────────────────────────
   const handleDelete = async (id) => {
     setDeletingId(id)
@@ -159,17 +196,43 @@ export default function SavedCardSelector({
     }
   }
 
-  // ── New card saved ─────────────────────────────────────────────────────────
-  const handleNewCardSaved = async (cardData) => {
-    setShowAddCard(false)
-    // Reload from DB to get the persisted row with its UUID
-    await loadCards()
-    // Select the freshly-added card (it will be first after reload)
-    // The reload triggers auto-select via the loadCards callback
-    if (cardData?.id) {
-      onCardSelected?.(cardData.id)
-    }
+  // ── New card — charged directly with the Brick's own single-use token ─────
+  const handleNewCardCharge = (chargeInfo) => {
+    setAddCardMode(false)
+    onNewCardCharge?.(chargeInfo)
   }
+
+  // ── Imperative API for the parent's "Confirmar y Pagar" button ────────────
+  useImperativeHandle(ref, () => ({
+    async getSavedCardCharge() {
+      const card = cards.find((c) => c.id === selectedCardId)
+      if (!card) throw new Error('Seleccioná una tarjeta guardada.')
+      if (!cvv || cvv.length < 3) {
+        setCvvError('Ingresá el código de seguridad de la tarjeta.')
+        throw new Error('Ingresá el código de seguridad de la tarjeta.')
+      }
+      if (!publicKey) throw new Error('El pago con tarjeta no está disponible en este momento.')
+      initMercadoPago(publicKey, { locale: 'es-AR' })
+      let token
+      try {
+        token = await createCardToken({ cardId: card.mpCardId, securityCode: cvv })
+      } catch {
+        token = null
+      }
+      if (!token?.id) {
+        setCvvError('No pudimos validar la tarjeta. Revisá el código de seguridad.')
+        throw new Error('No pudimos validar la tarjeta. Revisá el código de seguridad.')
+      }
+      return {
+        cardToken: token.id,
+        paymentMethodId: card.cardBrand,
+        payerEmail,
+        savedCardId: card.id,
+      }
+    },
+  }), [cards, selectedCardId, cvv, publicKey, payerEmail])
+
+  const selectedCard = cards.find((c) => c.id === selectedCardId)
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -213,8 +276,35 @@ export default function SavedCardSelector({
               onSelect={(id) => onCardSelected?.(id)}
               onDelete={handleDelete}
               deleting={deletingId === card.id}
+              disabled={disabled}
             />
           ))}
+        </div>
+      )}
+
+      {/* CVV re-tokenization — required to charge a saved card (spec A.3) */}
+      {selectedCard && !showAddCard && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-[#D8D4CE] bg-[#F6F5F0]">
+          <LockKey size={18} className="text-[#6B6560] shrink-0" />
+          <div className="flex-1 min-w-0">
+            <label className="text-xs font-semibold text-[#2D2A26] block mb-1">Código de seguridad (CVV)</label>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              value={cvv}
+              disabled={disabled}
+              onChange={(e) => { setCvv(e.target.value.replace(/\D/g, '')); setCvvError(null) }}
+              placeholder="•••"
+              className="w-24 px-3 py-2 rounded-lg border border-[#D8D4CE] bg-white text-sm font-mono tracking-widest outline-none focus:border-[#7CB38B] disabled:opacity-50"
+            />
+          </div>
+        </div>
+      )}
+      {cvvError && (
+        <div className="flex items-start gap-2 bg-[#D9534F]/10 border border-[#D9534F]/30 rounded-xl px-3 py-2">
+          <Warning size={16} weight="fill" className="text-[#D9534F] mt-0.5 shrink-0" />
+          <p className="text-xs text-[#D9534F]">{cvvError}</p>
         </div>
       )}
 
@@ -230,11 +320,12 @@ export default function SavedCardSelector({
       {!showAddCard ? (
         <button
           type="button"
-          onClick={() => setShowAddCard(true)}
-          className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl border border-dashed border-[#D8D4CE] text-[#6B6560] hover:border-[#7CB38B]/60 hover:text-[#7CB38B] hover:bg-[#7CB38B]/5 transition-all"
+          onClick={() => setAddCardMode(true)}
+          disabled={disabled}
+          className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl border border-dashed border-[#D8D4CE] text-[#6B6560] hover:border-[#7CB38B]/60 hover:text-[#7CB38B] hover:bg-[#7CB38B]/5 transition-all disabled:opacity-50"
         >
           <Plus size={16} />
-          <span className="text-sm font-medium">Agregar nueva tarjeta</span>
+          <span className="text-sm font-medium">Pagar con una tarjeta nueva</span>
         </button>
       ) : (
         <div className="border border-[#D8D4CE] rounded-2xl p-4 bg-white space-y-4">
@@ -242,7 +333,7 @@ export default function SavedCardSelector({
             <p className="text-sm font-semibold text-[#2D2A26]">Nueva tarjeta</p>
             <button
               type="button"
-              onClick={() => setShowAddCard(false)}
+              onClick={() => setAddCardMode(false)}
               className="text-xs text-[#6B6560] hover:text-[#2D2A26] underline underline-offset-2 transition-colors"
             >
               Cancelar
@@ -252,13 +343,13 @@ export default function SavedCardSelector({
           {publicKey ? (
             <MPCardHolder
               publicKey={publicKey}
-              amount={1}
+              amount={amount ?? 1}
+              mode="charge"
               payerEmail={payerEmail}
-              submitLabel="Guardar tarjeta"
-              onSuccess={handleNewCardSaved}
+              submitLabel={amount ? `Pagar $${amount.toLocaleString('es-AR')}` : 'Pagar'}
+              onSuccess={handleNewCardCharge}
               onError={(err) => {
-                // Surface error inline — MPCardHolder already shows its own banner
-                console.error('[SavedCardSelector] save card error:', err)
+                console.error('[SavedCardSelector] new card charge error:', err)
               }}
             />
           ) : (
@@ -280,4 +371,6 @@ export default function SavedCardSelector({
       )}
     </div>
   )
-}
+})
+
+export default SavedCardSelector

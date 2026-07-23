@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question } from '@phosphor-icons/react';
+import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
 import { toast } from './Toast'
 import { CompanyLogo } from './common/CompanyLogo'
@@ -34,6 +34,7 @@ const NAV_BY_ROLE = {
   ],
   super_admin: [
     { to: '/super-admin/dashboard',              icon: ChartBar,        label: 'Dashboard' },
+    { to: '/super-admin/pagos',                  icon: CurrencyDollar,  label: 'Pagos' },
     { to: '/super-admin/admins',                 icon: ShieldCheck,     label: 'Admins' },
     { to: '/super-admin/usuarios',               icon: Users,           label: 'Usuarios' },
     { to: '/super-admin/usuarios/prospects',     icon: UserCirclePlus,  label: 'Usuarios Prospects' },

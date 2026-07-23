@@ -115,6 +115,22 @@ export default function Book({ profile }) {
 
   const name = professional?.profiles?.fullName || professional?.profiles?.full_name
 
+  if (professional && professional.mpConnected === false) {
+    return (
+      <div className="space-y-6 animate-fade-in max-w-2xl mx-auto">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-text-secondary hover:text-brand">
+          <ArrowLeft className="h-4 w-4" /> Volver
+        </button>
+        <div className="card border-amber-200 bg-amber-50">
+          <p className="font-semibold text-text-primary">No disponible para reservas online</p>
+          <p className="text-sm text-text-secondary mt-1">
+            {name || 'Este profesional'} todavía no conectó Mercado Pago y no puede recibir turnos por el momento.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl mx-auto">
       <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-text-secondary hover:text-brand">

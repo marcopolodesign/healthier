@@ -68,6 +68,7 @@ import AdminConsultations from './pages/admin/Consultations'
 
 import SuperAdminDashboard from './pages/super-admin/Dashboard'
 import SuperAdminAdmins from './pages/super-admin/Admins'
+import SuperAdminPayments from './pages/super-admin/Payments'
 import SuperAdminSettings from './pages/super-admin/Settings'
 import SuperAdminZones from './pages/super-admin/Zones'
 import SuperAdminUsuarios from './pages/super-admin/Usuarios'
@@ -319,6 +320,7 @@ export default function App() {
           </RequireRole>
         }>
           <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
+          <Route path="/super-admin/pagos" element={<SuperAdminPayments />} />
           <Route path="/super-admin/admins" element={<SuperAdminAdmins />} />
           <Route path="/super-admin/zonas" element={<SuperAdminZones />} />
           <Route path="/super-admin/settings" element={<SuperAdminSettings />} />

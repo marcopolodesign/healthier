@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Plus, Trash, Clock, CurrencyCircleDollar, Bank, VideoCamera, Buildings, MapPin } from '@phosphor-icons/react'
+import { Plus, Trash, Clock, CurrencyCircleDollar, Bank, VideoCamera, Buildings, MapPin, CheckCircle, Warning, LinkSimple } from '@phosphor-icons/react'
 import { professionalService } from '../../services/professionalService'
 import { consultationTypesService } from '../../services/consultationTypesService'
 import { availabilityService } from '../../services/availabilityService'
 import { zonesService } from '../../services/zonesService'
+import { mpService } from '../../services/mpService'
 import { toast } from '../../components/Toast'
 
 const MODALITIES = [
@@ -121,6 +122,32 @@ export default function Configuracion({ profile }) {
   // ── Cuenta state ────────────────────────────────────────────
   const [cuenta, setCuenta] = useState({ cbu: '', cbuAlias: '' })
   const [savingCuenta, setSavingCuenta] = useState(false)
+
+  // ── Mercado Pago state ──────────────────────────────────────
+  const [mpStatus, setMpStatus] = useState(null) // { connected, email }
+  const [mpDisconnecting, setMpDisconnecting] = useState(false)
+
+  const loadMpStatus = () => {
+    if (!profile?.id) return
+    mpService.getConnectionStatus(profile.id).then(({ data }) => setMpStatus(data))
+  }
+
+  useEffect(() => { loadMpStatus() }, [profile?.id])
+
+  const handleMpDisconnect = async () => {
+    if (!confirm('¿Desconectar Mercado Pago? No vas a poder recibir nuevos turnos hasta que vuelvas a conectarte.')) return
+    setMpDisconnecting(true)
+    try {
+      const { error } = await mpService.disconnectMp(profile.id)
+      if (error) throw new Error(error)
+      toast.success('Mercado Pago desconectado')
+      loadMpStatus()
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos desconectar la cuenta')
+    } finally {
+      setMpDisconnecting(false)
+    }
+  }
 
   useEffect(() => {
     if (!profile?.id) return
@@ -530,12 +557,59 @@ export default function Configuracion({ profile }) {
 
       {/* ── CUENTA TAB ── */}
       {tab === 'cuenta' && (
-        <form onSubmit={saveCuenta} className="space-y-6">
+        <div className="space-y-6">
+          {/* Mercado Pago — required to receive paid bookings (spec D4) */}
+          <div className="card space-y-4">
+            <div>
+              <h2 className="font-semibold text-text-primary">Mercado Pago</h2>
+              <p className="text-sm text-text-secondary mt-0.5">
+                Los pagos de tus consultas se acreditan a través de Mercado Pago. Sin esto conectado no podés recibir turnos.
+              </p>
+            </div>
+
+            {mpStatus?.connected ? (
+              <div className="flex items-center gap-4 p-4 rounded-xl border border-emerald-200 bg-emerald-50">
+                <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                  <CheckCircle className="h-5 w-5 text-emerald-600" weight="fill" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-text-primary">Mercado Pago conectado</p>
+                  <p className="text-xs text-text-secondary mt-0.5">Ya podés recibir turnos y cobrar tus consultas.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleMpDisconnect}
+                  disabled={mpDisconnecting}
+                  className="text-xs font-semibold text-red-600 hover:underline shrink-0 disabled:opacity-50"
+                >
+                  {mpDisconnecting ? 'Desconectando...' : 'Desconectar'}
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-4 p-4 rounded-xl border border-red-200 bg-red-50">
+                <div className="w-11 h-11 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                  <Warning className="h-5 w-5 text-red-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-text-primary">No conectado</p>
+                  <p className="text-xs text-text-secondary mt-0.5">No podés recibir turnos hasta conectar tu cuenta.</p>
+                </div>
+                <a
+                  href={mpService.getMpConnectUrl(profile.id)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-white bg-brand px-3 py-2 rounded-full hover:bg-brand-hover transition-colors shrink-0"
+                >
+                  <LinkSimple className="h-3.5 w-3.5" /> Conectar
+                </a>
+              </div>
+            )}
+          </div>
+
+          <form onSubmit={saveCuenta} className="space-y-6">
           <div className="card space-y-5">
             <div>
-              <h2 className="font-semibold text-text-primary">Cuenta de transferencia</h2>
+              <h2 className="font-semibold text-text-primary">Cuenta de transferencia (respaldo)</h2>
               <p className="text-sm text-text-secondary mt-0.5">
-                Los pagos de las consultas se acreditan en esta cuenta.
+                Este CBU/alias ya no se usa para acreditar pagos — Mercado Pago los reemplazó. Lo dejamos como dato de contacto/respaldo.
               </p>
             </div>
 
@@ -569,7 +643,8 @@ export default function Configuracion({ profile }) {
           <button type="submit" disabled={savingCuenta} className="btn-primary w-full">
             {savingCuenta ? 'Guardando...' : 'Guardar datos de cobro'}
           </button>
-        </form>
+          </form>
+        </div>
       )}
     </div>
   )

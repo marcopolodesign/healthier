@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, VideoCamera, MapPin, CircleNotch, Check, CreditCard, CheckCircle } from '@phosphor-icons/react'
+import { ArrowLeft, VideoCamera, MapPin, CircleNotch, Check, CreditCard, CheckCircle, Sparkle } from '@phosphor-icons/react'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import { mpService } from '../../services/mpService'
 import { consultationsService } from '../../services/consultationsService'
@@ -10,6 +10,7 @@ export default function PaymentPage({ profile }) {
   const navigate  = useNavigate()
   const location  = useLocation()
   const state     = location.state ?? {}
+  const cardSelectorRef = useRef(null)
 
   const {
     professionalId,
@@ -28,6 +29,12 @@ export default function PaymentPage({ profile }) {
   const [advancingDemo, setAdvancingDemo]   = useState(false)
   const [publicKey, setPublicKey]           = useState(null)
   const [configLoading, setConfigLoading]   = useState(true)
+  const [consultationId, setConsultationId] = useState(null)
+  const [addCardMode, setAddCardMode]       = useState(false)
+
+  // Healthy Credits (spec Sección D7)
+  const [creditBalance, setCreditBalance] = useState(0)
+  const [useCredits, setUseCredits]       = useState(true)
 
   const isDemoMode = !configLoading && !publicKey
 
@@ -36,11 +43,50 @@ export default function PaymentPage({ profile }) {
       setPublicKey(data?.publicKey ?? null)
       setConfigLoading(false)
     })
+    mpService.getCreditBalance().then(({ data }) => setCreditBalance(data || 0))
   }, [])
 
   useEffect(() => {
     if (isDemoMode) setSelectedCardId('__demo__')
   }, [isDemoMode])
+
+  const creditsApplied = (!isDemoMode && useCredits) ? Math.min(creditBalance, price ?? 0) : 0
+  const chargeAmount   = Math.max(0, (price ?? 0) - creditsApplied)
+
+  const description = `Consulta ${specialty ?? verticalId ?? ''} — Healthier`.trim()
+
+  // Creates the consultation row exactly once (DB write before payment
+  // confirmation UI — State Resilience convention) and caches its id so the
+  // multiple payment sub-flows (saved card, new card, credits-only) can all
+  // reuse the same booking.
+  const ensureConsultation = async () => {
+    if (consultationId) return consultationId
+    const created = await consultationsService.create({
+      patientId:      profile.id,
+      professionalId,
+      vertical:       verticalId,
+      modality:       modality === 'virtual' ? 'video' : 'presencial',
+      status:         'pending',
+      paymentStatus:  'pending_payment',
+      priceAtBooking: price ?? null,
+      scheduledAt:    scheduledAt ?? new Date().toISOString(),
+    })
+    setConsultationId(created.id)
+    return created.id
+  }
+
+  const handlePaymentResult = (data, id) => {
+    const status = data?.status
+    if (data?.approved || status === 'paid' || status === 'approved') {
+      setPaid(true)
+      setTimeout(() => navigate(`/paciente/turno-confirmado/${id}`), 600)
+    } else if (status === 'in_process' || status === 'pending') {
+      toast.info('Tu pago está siendo procesado. Te avisaremos cuando se confirme.')
+      navigate(`/paciente/turno-confirmado/${id}`)
+    } else {
+      toast.error('El pago no pudo procesarse. Intentá con otra tarjeta.')
+    }
+  }
 
   const handleDemoAdvance = async () => {
     if (advancingDemo) return
@@ -68,66 +114,53 @@ export default function PaymentPage({ profile }) {
     }
   }
 
+  // Triggered by the page's own "Confirmar y Pagar" button — covers the
+  // demo bypass, a fully-credits payment, and a previously-saved card
+  // (which needs CVV re-tokenization via the SavedCardSelector ref).
   const handlePay = async () => {
-    if (paying || paid) return
+    if (paying || paid || addCardMode) return
     if (!profile?.id || !professionalId) {
       toast.error('Faltan datos para procesar el pago')
       return
     }
 
     if (isDemoMode) {
-      setPaying(true)
-      try {
-        const created = await consultationsService.create({
-          patientId:      profile.id,
-          professionalId,
-          vertical:       verticalId,
-          modality:       modality === 'virtual' ? 'video' : 'presencial',
-          status:         'confirmed',
-          paymentStatus:  'demo',
-          priceAtBooking: price ?? null,
-          scheduledAt:    scheduledAt ?? new Date().toISOString(),
-        })
-        navigate(`/paciente/turno-confirmado/${created.id}`)
-      } catch (err) {
-        toast.error(err?.message || 'Error al confirmar el turno')
-      } finally {
-        setPaying(false)
-      }
+      await handleDemoAdvance()
       return
     }
 
-    if (!selectedCardId) return
+    if (chargeAmount > 0 && !selectedCardId) return
     setPaying(true)
     try {
-      // 1. Create consultation record
-      const consultation = await consultationsService.create({
-        patientId:      profile.id,
-        professionalId,
-        vertical:       verticalId,
-        modality:       modality === 'virtual' ? 'video' : 'presencial',
-        status:         'pending',
-        paymentStatus:  'pending_payment',
-        priceAtBooking: price ?? null,
-        scheduledAt:    scheduledAt ?? new Date().toISOString(),
-      })
+      const id = await ensureConsultation()
 
-      // 2. Charge via Edge Function
-      const { data: paymentData, error: payErr } = await mpService.createPayment({
-        consultationId: consultation.id,
-        amount:         price ?? 0,
-        currency:       'ARS',
-        cardId:         selectedCardId,
-        professionalId,
-        description:    `Consulta ${specialty ?? verticalId} — Healthier`,
-      })
-      if (payErr) throw new Error(payErr)
-
-      if (paymentData?.status === 'approved') {
-        navigate(`/paciente/turno-confirmado/${consultation.id}`)
-      } else {
-        toast.error('El pago no pudo procesarse. Intentá con otra tarjeta.')
+      if (chargeAmount === 0) {
+        const { data, error } = await mpService.createPayment({ consultationId: id, useCredits: true, description })
+        if (error) throw new Error(error)
+        handlePaymentResult(data, id)
+        return
       }
+
+      const chargeInfo = await cardSelectorRef.current?.getSavedCardCharge()
+      const { data, error } = await mpService.createPayment({ consultationId: id, ...chargeInfo, useCredits, description })
+      if (error) throw new Error(error)
+      handlePaymentResult(data, id)
+    } catch (err) {
+      toast.error(err?.message || 'Error al procesar el pago')
+    } finally {
+      setPaying(false)
+    }
+  }
+
+  // Triggered by the "add new card" Brick's own submit button — the token
+  // is single-use and charged directly (not saved first, see MPCardHolder).
+  const handleNewCardCharge = async (chargeInfo) => {
+    setPaying(true)
+    try {
+      const id = await ensureConsultation()
+      const { data, error } = await mpService.createPayment({ consultationId: id, ...chargeInfo, useCredits, description })
+      if (error) throw new Error(error)
+      handlePaymentResult(data, id)
     } catch (err) {
       toast.error(err?.message || 'Error al procesar el pago')
     } finally {
@@ -197,6 +230,29 @@ export default function PaymentPage({ profile }) {
           </div>
         </div>
 
+        {/* Healthy Credits */}
+        {!isDemoMode && creditBalance > 0 && (
+          <div className="bg-white rounded-2xl border border-brand/25 p-4 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-brand-muted flex items-center justify-center shrink-0">
+              <Sparkle className="w-4 h-4 text-brand" weight="fill" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold text-text-primary">
+                Healthy Credits: ${creditBalance.toLocaleString('es-AR')}
+              </p>
+              <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useCredits}
+                  onChange={e => setUseCredits(e.target.checked)}
+                  className="h-4 w-4 accent-brand"
+                />
+                <span className="text-[13px] text-text-secondary">Usar mis créditos en este pago</span>
+              </label>
+            </div>
+          </div>
+        )}
+
         {/* Método de pago */}
         <div className="bg-white rounded-2xl border border-border-default p-4">
           <div className="flex items-center gap-2 mb-3">
@@ -216,39 +272,67 @@ export default function PaymentPage({ profile }) {
               </div>
               <CheckCircle size={20} weight="fill" className="text-brand shrink-0" />
             </div>
+          ) : chargeAmount === 0 ? (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-brand/30 bg-brand-muted">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-white">
+                <Sparkle size={18} weight="fill" className="text-brand" />
+              </div>
+              <p className="text-[13px] font-semibold text-text-primary flex-1">Se cubre por completo con tus Healthy Credits</p>
+            </div>
           ) : (
             <SavedCardSelector
+              ref={cardSelectorRef}
               selectedCardId={selectedCardId}
               onCardSelected={setSelectedCardId}
               publicKey={publicKey}
               payerEmail={profile?.email ?? ''}
+              amount={chargeAmount}
+              disabled={paying || paid}
+              onNewCardCharge={handleNewCardCharge}
+              onAddCardModeChange={setAddCardMode}
             />
           )}
           {price != null && (
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-border-default">
-              <span className="text-[13px] font-semibold text-text-secondary">A pagar hoy</span>
-              <span className="text-[24px] font-black text-text-primary">${price.toLocaleString('es-AR')}</span>
+            <div className="mt-4 pt-4 border-t border-border-default space-y-1.5">
+              {creditsApplied > 0 && (
+                <>
+                  <div className="flex items-center justify-between text-[13px] text-text-secondary">
+                    <span>Precio</span>
+                    <span>${price.toLocaleString('es-AR')}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[13px] text-brand font-semibold">
+                    <span>Créditos aplicados</span>
+                    <span>-${creditsApplied.toLocaleString('es-AR')}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] font-semibold text-text-secondary">A pagar hoy</span>
+                <span className="text-[24px] font-black text-text-primary">${chargeAmount.toLocaleString('es-AR')}</span>
+              </div>
             </div>
           )}
         </div>
 
-        {/* CTA */}
-        <button
-          onClick={handlePay}
-          disabled={paying || paid || (!isDemoMode && !selectedCardId)}
-          className={[
-            'w-full py-5 rounded-full font-bold text-[16px] flex items-center justify-center gap-3 transition-all',
-            paid
-              ? 'bg-emerald-500 text-white scale-[1.02]'
-              : (paying || !selectedCardId)
-                ? 'bg-bg-secondary text-text-tertiary cursor-not-allowed'
-                : 'bg-brand text-white hover:bg-brand-hover active:scale-[0.99]',
-          ].join(' ')}
-        >
-          {paying && <CircleNotch className="w-5 h-5 animate-spin" />}
-          {paid    && <Check className="w-5 h-5" weight="bold" />}
-          {paid ? '¡Turno Confirmado!' : paying ? 'Procesando...' : 'Confirmar y Pagar'}
-        </button>
+        {/* CTA — hidden while the "new card" Brick's own submit button is active */}
+        {!addCardMode && (
+          <button
+            onClick={handlePay}
+            disabled={paying || paid || (!isDemoMode && chargeAmount > 0 && !selectedCardId)}
+            className={[
+              'w-full py-5 rounded-full font-bold text-[16px] flex items-center justify-center gap-3 transition-all',
+              paid
+                ? 'bg-emerald-500 text-white scale-[1.02]'
+                : (paying || (chargeAmount > 0 && !selectedCardId))
+                  ? 'bg-bg-secondary text-text-tertiary cursor-not-allowed'
+                  : 'bg-brand text-white hover:bg-brand-hover active:scale-[0.99]',
+            ].join(' ')}
+          >
+            {paying && <CircleNotch className="w-5 h-5 animate-spin" />}
+            {paid    && <Check className="w-5 h-5" weight="bold" />}
+            {paid ? '¡Turno Confirmado!' : paying ? 'Procesando...' : 'Confirmar y Pagar'}
+          </button>
+        )}
 
         {/* Demo bypass */}
         <button
