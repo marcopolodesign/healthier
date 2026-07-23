@@ -4,25 +4,8 @@ import { User, Envelope, Lock, Briefcase, Heart, Check } from '@phosphor-icons/r
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
-
-const CONSENT_ITEMS = [
-  {
-    key: 'hipaa',
-    title: 'Datos de salud',
-    desc: 'Acepto que Healthier almacene mis datos médicos con cifrado AES-256, accesibles solo por profesionales autorizados.',
-  },
-  {
-    key: 'ley25326',
-    title: 'Ley 25.326 — Argentina',
-    desc: 'Acepto el tratamiento de datos según la Ley de Protección de Datos Personales. Mis datos se almacenan en servidores de Amazon Web Services en São Paulo, Brasil. Puedo ejercer derechos de acceso, rectificación y supresión.',
-  },
-  {
-    key: 'equipo_tratante',
-    title: 'Acceso del equipo médico',
-    desc: 'Acepto que los profesionales que me atiendan en Healthier puedan acceder a mi información clínica compartida para una atención integral y coordinada. Ver Términos y Condiciones.',
-    link: '/terminos',
-  },
-]
+import { CONSENT_ITEMS } from '../../lib/consentItems'
+import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
 
 export default function Register({ onLogin }) {
   const [searchParams] = useSearchParams()
@@ -77,6 +60,14 @@ export default function Register({ onLogin }) {
         <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-2">Creá tu cuenta</p>
         <h1 className="text-3xl sm:text-4xl font-light tracking-tight text-text-primary mb-1">Crear cuenta</h1>
         <p className="text-text-secondary text-sm">Sumate a Healthier hoy</p>
+      </div>
+
+      <GoogleAuthButton className="mb-6" />
+
+      <div className="flex items-center gap-3 mb-6">
+        <div className="h-px flex-1 bg-border-default" />
+        <span className="text-xs text-text-tertiary uppercase tracking-wide">o registrate con email</span>
+        <div className="h-px flex-1 bg-border-default" />
       </div>
 
       <form onSubmit={submit} className="space-y-4">

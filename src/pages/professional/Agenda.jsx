@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Lightning, Plus, X, Calendar, VideoCamera, MapPin } from '@phosphor-icons/react';
+import { Lightning, Plus, X, Calendar, Clock, VideoCamera, MapPin } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import { availabilityService } from '../../services/availabilityService'
 import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
+import StatusBadge from '../../components/StatusBadge'
 
 const DAYS = [
   { value: 1, label: 'Lunes',     short: 'Lun' },
@@ -54,14 +55,9 @@ export default function Agenda({ profile }) {
   useEffect(() => {
     if (!profile?.id) return
     consultationsService.getByProfessional(profile.id).then(all => {
-      const now = new Date()
       const today = all.filter(c => {
-        if (!['pending', 'confirmed', 'in_progress'].includes(c.status)) return false
         if (!c.scheduledAt) return false
-        const d = new Date(c.scheduledAt)
-        return d.getFullYear() === now.getFullYear() &&
-          d.getMonth() === now.getMonth() &&
-          d.getDate() === now.getDate()
+        return new Date(c.scheduledAt).toDateString() === new Date().toDateString()
       })
       setTodayConsultations(today)
     }).catch(() => toast.error('Error al cargar las consultas de hoy'))
@@ -145,43 +141,43 @@ export default function Agenda({ profile }) {
       </div>
 
       {/* ── Consultas de Hoy ── */}
-      {todayConsultations.length > 0 && (
-        <div className="card space-y-3">
-          <p className="text-xs font-semibold text-text-tertiary uppercase tracking-widest">Hoy</p>
-          {todayConsultations.map(c => {
-            const patientName = c.patient?.fullName || c.profiles?.fullName || c.profiles?.full_name || 'Paciente'
-            const time = c.scheduledAt
-              ? new Date(c.scheduledAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-              : '—'
-            const isVideo = c.modality === 'video'
-            const href = isVideo ? `/profesional/videollamada/${c.id}` : `/profesional/consulta/${c.id}`
-            return (
-              <Link
-                key={c.id}
-                to={href}
-                className="flex items-center gap-4 p-3 bg-bg-surface rounded-xl hover:bg-brand-muted/40 transition-colors cursor-pointer"
-              >
-                <div className={`w-2 h-2 rounded-full shrink-0 ${isVideo ? 'bg-brand' : 'bg-green-500'}`} />
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-text-primary text-sm truncate">{patientName}</p>
-                  <p className="text-xs text-text-secondary">{isVideo ? 'Videoconsulta' : 'Presencial'} · {time}</p>
-                </div>
-                {isVideo ? (
-                  <span className="btn-primary flex items-center gap-1.5 text-sm px-4 py-2 shrink-0">
-                    <VideoCamera className="h-4 w-4" />
-                    Entrar
-                  </span>
-                ) : (
-                  <span className="btn-secondary flex items-center gap-1.5 text-sm px-4 py-2 shrink-0">
-                    <MapPin className="h-4 w-4" />
-                    Ver consulta
-                  </span>
-                )}
-              </Link>
-            )
-          })}
-        </div>
-      )}
+      <div className="card space-y-3">
+        <p className="text-xs font-semibold text-text-tertiary uppercase tracking-widest">Hoy</p>
+        {todayConsultations.length === 0 ? (
+          <div className="text-center py-8">
+            <Clock className="h-10 w-10 text-text-muted mx-auto mb-2" />
+            <p className="text-text-secondary text-sm">No tenés consultas para hoy</p>
+          </div>
+        ) : todayConsultations.map(c => {
+          const patientName = c.patient?.fullName || c.profiles?.fullName || c.profiles?.full_name || 'Paciente'
+          const time = c.scheduledAt
+            ? new Date(c.scheduledAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+            : '—'
+          const isVideo = c.modality === 'video'
+          const canJoin = isVideo && ['confirmed', 'in_progress', 'pending'].includes(c.status)
+          const href = isVideo ? `/profesional/videollamada/${c.id}` : `/profesional/consulta/${c.id}`
+          return (
+            <Link
+              key={c.id}
+              to={href}
+              className="flex items-center gap-4 p-3 bg-bg-surface rounded-xl hover:bg-brand-muted/40 transition-colors cursor-pointer"
+            >
+              <div className={`w-2 h-2 rounded-full shrink-0 ${isVideo ? 'bg-brand' : 'bg-green-500'}`} />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-text-primary text-sm truncate">{patientName}</p>
+                <p className="text-xs text-text-secondary">{isVideo ? 'Videoconsulta' : 'Presencial'} · {time}</p>
+              </div>
+              <StatusBadge status={c.status} />
+              {canJoin && (
+                <span className="btn-primary flex items-center gap-1.5 text-sm px-4 py-2 shrink-0">
+                  <VideoCamera className="h-4 w-4" />
+                  Entrar
+                </span>
+              )}
+            </Link>
+          )
+        })}
+      </div>
 
       {/* ── Horario Semanal ── */}
       <div className="card space-y-4">

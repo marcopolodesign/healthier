@@ -43,8 +43,33 @@ const BLOOD_TYPE_COLORS = {
   'AB-': 'bg-amber-50 text-amber-700 border-amber-200',
 }
 
+// Pre-consulta keys the patient fills in PreconsultaForm before joining —
+// this is the only clinical context available for a patient's first-ever consultation.
+const PRECONSULTA_QUESTIONS = [
+  { key: 'mainComplaint',       label: 'Motivo principal' },
+  { key: 'symptoms',            label: 'Síntomas' },
+  { key: 'currentMedications',  label: 'Medicación actual' },
+]
+
+// ── First-consultation intake — shows the patient's pre-consulta answers ──────
+function PreconsultaSummary({ preconsulta }) {
+  const answered = PRECONSULTA_QUESTIONS.filter(q => preconsulta[q.key])
+  if (answered.length === 0) return null
+  return (
+    <div className="rounded-lg border border-brand/20 bg-brand-muted/20 p-2.5 space-y-2">
+      <p className="text-[10px] font-bold text-brand uppercase tracking-wide">Primera consulta · Pre-consulta del paciente</p>
+      {answered.map(q => (
+        <div key={q.key}>
+          <p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wide">{q.label}</p>
+          <p className="text-xs text-text-primary whitespace-pre-wrap leading-relaxed">{preconsulta[q.key]}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Full clinical history tab — every past encounter for this patient ─────────
-function HistoriaTab({ loading, encounters, allergies }) {
+function HistoriaTab({ loading, encounters, allergies, preconsulta }) {
   if (loading) {
     return (
       <div className="flex justify-center py-8">
@@ -52,7 +77,9 @@ function HistoriaTab({ loading, encounters, allergies }) {
       </div>
     )
   }
-  if (encounters.length === 0 && allergies.length === 0) {
+  const isFirstConsultation = encounters.length === 0
+  const hasPreconsulta = preconsulta && PRECONSULTA_QUESTIONS.some(q => preconsulta[q.key])
+  if (isFirstConsultation && allergies.length === 0 && !hasPreconsulta) {
     return (
       <div className="text-center py-8 text-text-secondary">
         <ClockCounterClockwise className="h-8 w-8 mx-auto mb-2 opacity-30" />
@@ -62,6 +89,7 @@ function HistoriaTab({ loading, encounters, allergies }) {
   }
   return (
     <div className="space-y-3">
+      {isFirstConsultation && hasPreconsulta && <PreconsultaSummary preconsulta={preconsulta} />}
       {allergies.length > 0 && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-2.5">
           <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide mb-1.5">Alergias activas</p>
@@ -438,7 +466,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
         )}
 
         {activeTab === 'historia' && (
-          <HistoriaTab loading={loadingHistoria} encounters={historia.encounters} allergies={historia.allergies} />
+          <HistoriaTab loading={loadingHistoria} encounters={historia.encounters} allergies={historia.allergies} preconsulta={consultation?.preconsultaData} />
         )}
 
         {activeTab === 'datos' && (

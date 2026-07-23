@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { ToastContainer } from './components/Toast'
 import AppLayout from './layouts/AppLayout'
 import AuthLayout from './layouts/AuthLayout'
@@ -16,6 +16,7 @@ import LandingMedicoOnline from './pages/landing/MedicoOnline'
 import LandingProfesionales from './pages/landing/Profesionales'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
+import CompleteProfile from './pages/auth/CompleteProfile'
 import TerminosYCondiciones from './pages/TerminosYCondiciones'
 
 import PatientDashboard from './pages/patient/Dashboard'
@@ -74,18 +75,45 @@ import SuperAdminProfesionales from './pages/super-admin/Profesionales'
 import SuperAdminProfesionalesProspects from './pages/super-admin/ProfesionalesProspects'
 
 // ── Role guards ──────────────────────────────────────────
+const ROLE_REDIRECTS = {
+  patient: '/paciente/dashboard',
+  professional: '/profesional/dashboard',
+  admin: '/admin/profesionales',
+  super_admin: '/super-admin/dashboard',
+}
+
 function RequireRole({ profile, allowed, children }) {
   if (!profile) return <Navigate to="/login" replace />
   if (!allowed.includes(profile.role)) {
-    const redirects = {
-      patient: '/paciente/dashboard',
-      professional: '/profesional/dashboard',
-      admin: '/admin/profesionales',
-      super_admin: '/super-admin/dashboard',
-    }
-    return <Navigate to={redirects[profile.role] || '/'} replace />
+    return <Navigate to={ROLE_REDIRECTS[profile.role] || '/'} replace />
   }
   return children
+}
+
+// ── Post-auth redirect: new Google users → complete profile;
+//    already-logged-in users landing on /login or /registro → their dashboard ──
+const AUTH_PATHS = ['/login', '/registro', '/completar-registro']
+
+function AuthRedirectHandler({ profile, authUser }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const needsCompletion = !!authUser && !profile
+
+  useEffect(() => {
+    if (!AUTH_PATHS.includes(location.pathname)) return
+
+    if (needsCompletion) {
+      if (location.pathname !== '/completar-registro') {
+        navigate('/completar-registro', { replace: true })
+      }
+      return
+    }
+    if (profile && location.pathname !== '/completar-registro') {
+      navigate(ROLE_REDIRECTS[profile.role] || '/', { replace: true })
+    }
+  }, [profile, needsCompletion, location.pathname])
+
+  return null
 }
 
 // ── Protected layout wrapper ─────────────────────────────
@@ -102,6 +130,7 @@ function ProtectedLayout({ profile, allowed }) {
 // ── Main App ─────────────────────────────────────────────
 export default function App() {
   const [profile, setProfile] = useState(null)
+  const [authUser, setAuthUser] = useState(null)
   const [profSpecialty, setProfSpecialty] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -121,8 +150,12 @@ export default function App() {
         const user = await authService.getCurrentUser()
         if (user) {
           const p = await authService.getCurrentUserProfile(user.id)
-          setProfile(p)
-          if (p?.role === 'professional') loadProfSpecialty(user.id)
+          if (p) {
+            setProfile(p)
+            if (p.role === 'professional') loadProfSpecialty(user.id)
+          } else {
+            setAuthUser(user)
+          }
         }
       } catch {
         // ignore
@@ -136,10 +169,16 @@ export default function App() {
     const { data: { subscription } } = authService.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         const p = await authService.getCurrentUserProfile(session.user.id)
-        setProfile(p)
-        if (p?.role === 'professional') loadProfSpecialty(session.user.id)
+        if (p) {
+          setProfile(p)
+          setAuthUser(null)
+          if (p.role === 'professional') loadProfSpecialty(session.user.id)
+        } else {
+          setAuthUser(session.user)
+        }
       } else if (event === 'SIGNED_OUT') {
         setProfile(null)
+        setAuthUser(null)
         setProfSpecialty(null)
       }
     })
@@ -147,6 +186,10 @@ export default function App() {
   }, [])
 
   const handleLogin = (p) => setProfile(p)
+  const handleProfileComplete = (p) => {
+    setProfile(p)
+    setAuthUser(null)
+  }
 
   if (loading) {
     return (
@@ -162,6 +205,7 @@ export default function App() {
   return (
     <Router>
       <ToastContainer />
+      <AuthRedirectHandler profile={profile} authUser={authUser} />
       <Routes>
         {/* Public */}
         <Route path="/" element={<Landing />} />
@@ -175,6 +219,7 @@ export default function App() {
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<Login onLogin={handleLogin} />} />
           <Route path="/registro" element={<Register onLogin={handleLogin} />} />
+          <Route path="/completar-registro" element={<CompleteProfile authUser={authUser} onProfileComplete={handleProfileComplete} />} />
         </Route>
 
         {/* Patient — mobile shell */}

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Envelope, Lock } from '@phosphor-icons/react';
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
+import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
 
 export default function Login({ onLogin }) {
   const [form, setForm] = useState({ email: '', password: '' })
@@ -29,6 +30,7 @@ export default function Login({ onLogin }) {
       setLoading(false)
     }
   }
+
 
   return (
     <div className="card">
@@ -73,6 +75,14 @@ export default function Login({ onLogin }) {
           {loading ? 'Ingresando...' : 'Iniciar sesión'}
         </button>
       </form>
+
+      <div className="flex items-center gap-3 my-6">
+        <div className="h-px flex-1 bg-border-default" />
+        <span className="text-xs text-text-tertiary uppercase tracking-wide">o</span>
+        <div className="h-px flex-1 bg-border-default" />
+      </div>
+
+      <GoogleAuthButton />
 
       <p className="text-center text-sm text-text-secondary mt-6">
         ¿No tenés cuenta?{' '}

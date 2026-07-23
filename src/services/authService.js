@@ -1,5 +1,22 @@
 import { supabase, toCamelCase } from '../lib/supabase'
 
+// Shared insert payload for a new `profiles` row — used both by email/password
+// registration and by first-time Google sign-in completion.
+function buildProfileRow(userId, email, role, fullName, utms = {}) {
+  return {
+    id: userId,
+    email,
+    full_name: fullName,
+    role,
+    utm_source:   utms.utm_source   ?? null,
+    utm_medium:   utms.utm_medium   ?? null,
+    utm_campaign: utms.utm_campaign ?? null,
+    utm_id:       utms.utm_id       ?? null,
+    utm_content:  utms.utm_content  ?? null,
+    referrer_url: utms.referrer_url ?? null,
+  }
+}
+
 export const authService = {
   async register(email, password, role, fullName, utms = {}) {
     const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -12,18 +29,9 @@ export const authService = {
     if (authError) throw new Error(authError.message)
 
     // Create profile row — include UTM attribution if captured from landing page
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: authData.user.id,
-      email,
-      full_name: fullName,
-      role,
-      utm_source:   utms.utm_source   ?? null,
-      utm_medium:   utms.utm_medium   ?? null,
-      utm_campaign: utms.utm_campaign ?? null,
-      utm_id:       utms.utm_id       ?? null,
-      utm_content:  utms.utm_content  ?? null,
-      referrer_url: utms.referrer_url ?? null,
-    })
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert(buildProfileRow(authData.user.id, email, role, fullName, utms))
     if (profileError) throw new Error(profileError.message)
 
     return { user: authData.user, session: authData.session }
@@ -41,6 +49,27 @@ export const authService = {
     const profile = await this.getCurrentUserProfile(data.user.id)
     if (profile) localStorage.setItem('userProfile', JSON.stringify(profile))
     return { user: data.user, session: data.session, profile }
+  },
+
+  async loginWithGoogle(redirectTo) {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: redirectTo || `${window.location.origin}/login` },
+    })
+    if (error) throw new Error(error.message)
+  },
+
+  async completeGoogleProfile(user, role, fullName, utms = {}) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .insert(buildProfileRow(user.id, user.email, role, fullName, utms))
+      .select()
+      .single()
+    if (error) throw new Error(error.message)
+
+    const profile = toCamelCase(data)
+    localStorage.setItem('userProfile', JSON.stringify(profile))
+    return profile
   },
 
   async logout() {
