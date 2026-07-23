@@ -1,11 +1,12 @@
-// `patientOnly: true` items describe consent over the user's own clinical data as a
-// patient — they don't apply to a professional registering to offer services.
-export const CONSENT_ITEMS = [
+// Patient-facing consent, asked once as a mandatory first step of patient onboarding
+// (src/pages/patient/Onboarding.jsx). Professionals have their own, separate consent
+// (Ley 25.326 + Términos) baked into professional onboarding's "Datos y privacidad"
+// step — not sourced from here, to avoid asking twice.
+export const PATIENT_CONSENT_ITEMS = [
   {
     key: 'hipaa',
     title: 'Datos de salud',
     desc: 'Acepto que Healthier almacene mis datos médicos con cifrado AES-256, accesibles solo por profesionales autorizados.',
-    patientOnly: true,
   },
   {
     key: 'ley25326',
@@ -17,9 +18,5 @@ export const CONSENT_ITEMS = [
     title: 'Acceso del equipo médico',
     desc: 'Acepto que los profesionales que me atiendan en Healthier puedan acceder a mi información clínica compartida para una atención integral y coordinada. Ver Términos y Condiciones.',
     link: '/terminos',
-    patientOnly: true,
   },
 ]
-
-export const PATIENT_CONSENT_ITEMS = CONSENT_ITEMS
-export const PROFESSIONAL_CONSENT_ITEMS = CONSENT_ITEMS.filter(item => !item.patientOnly)

@@ -1,22 +1,18 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { User, Envelope, Lock, Check } from '@phosphor-icons/react';
+import { User, Envelope, Lock } from '@phosphor-icons/react';
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
-import { PATIENT_CONSENT_ITEMS } from '../../lib/consentItems'
 import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
 
 export default function Register({ onLogin }) {
   const [form, setForm] = useState({ fullName: '', email: '', password: '' })
-  const [consents, setConsents] = useState({ hipaa: false, ley25326: false, equipo_tratante: false })
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
-  const allConsented = Object.values(consents).every(Boolean)
 
   const submit = async (e) => {
     e.preventDefault()
-    if (!allConsented) { toast.error('Necesitamos tu consentimiento para continuar'); return }
     if (form.password.length < 6) { toast.error('La contraseña debe tener al menos 6 caracteres'); return }
     setLoading(true)
     try {
@@ -95,46 +91,12 @@ export default function Register({ onLogin }) {
           </div>
         </div>
 
-        {/* Consent */}
-        <div className="border border-border-default rounded-xl p-4 space-y-3 bg-bg-primary">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Consentimiento requerido</p>
-          {PATIENT_CONSENT_ITEMS.map(item => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => setConsents(p => ({ ...p, [item.key]: !p[item.key] }))}
-              className="flex items-start gap-3 w-full text-left"
-            >
-              <span className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${
-                consents[item.key] ? 'bg-brand border-brand' : 'border-border-default'
-              }`}>
-                {consents[item.key] && <Check className="h-3 w-3 text-white" weight="bold" />}
-              </span>
-              <span>
-                <span className="text-sm font-semibold text-text-primary block">{item.title}</span>
-                <span className="text-xs text-text-secondary leading-relaxed">
-                  {item.link ? (
-                    <>
-                      {item.desc.replace(' Ver Términos y Condiciones.', '')}{' '}
-                      <Link
-                        to={item.link}
-                        target="_blank"
-                        className="text-brand hover:underline"
-                        onClick={e => e.stopPropagation()}
-                      >
-                        Ver Términos y Condiciones.
-                      </Link>
-                    </>
-                  ) : item.desc}
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <button type="submit" disabled={loading || !allConsented} className="btn-primary w-full py-2.5 mt-2 disabled:opacity-40 disabled:cursor-not-allowed">
+        <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-2 disabled:opacity-40 disabled:cursor-not-allowed">
           {loading ? 'Creando cuenta...' : 'Crear cuenta'}
         </button>
+        <p className="text-center text-xs text-text-tertiary">
+          En el siguiente paso te vamos a pedir tu consentimiento para el tratamiento de tus datos.
+        </p>
       </form>
 
       <p className="text-center text-sm text-text-secondary mt-6">

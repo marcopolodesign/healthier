@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Check, UserCircle, Heartbeat, ShieldPlus } from '@phosphor-icons/react';
+import { useNavigate, Link } from 'react-router-dom'
+import { Check, UserCircle, ShieldCheck, Heartbeat, ShieldPlus } from '@phosphor-icons/react';
 import { profilesService } from '../../services/profilesService'
 import { toast } from '../../components/Toast'
+import { PATIENT_CONSENT_ITEMS } from '../../lib/consentItems'
 
 const STEPS = [
   { label: 'Datos de cuenta',   short: 'Cuenta',   icon: UserCircle  },
+  { label: 'Consentimiento',    short: 'Consent.', icon: ShieldCheck },
   { label: 'Salud general',     short: 'Salud',    icon: Heartbeat },
   { label: 'Información médica', short: 'Médico',  icon: ShieldPlus },
 ]
@@ -20,8 +22,13 @@ const GENDERS = [
 
 export default function PatientOnboarding({ profile }) {
   const navigate = useNavigate()
-  const [step, setStep] = useState(1) // starts at step 1 (account done)
+  const [step, setStep] = useState(1) // starts at step 1 (account done, consent is next)
   const [saving, setSaving] = useState(false)
+
+  const [consents, setConsents] = useState(
+    Object.fromEntries(PATIENT_CONSENT_ITEMS.map(item => [item.key, false]))
+  )
+  const allConsented = PATIENT_CONSENT_ITEMS.every(item => consents[item.key])
 
   const [health, setHealth] = useState({
     birthDate: profile?.birthDate || '',
@@ -63,7 +70,7 @@ export default function PatientOnboarding({ profile }) {
         weight_kg:  health.weightKg  ? Number(health.weightKg)  : null,
         allergies:  health.allergies || null,
       })
-      setStep(2)
+      setStep(3)
     } catch {
       toast.error('Error al guardar. Intentá de nuevo.')
     } finally {
@@ -99,7 +106,9 @@ export default function PatientOnboarding({ profile }) {
         <div className="mb-8">
           <h1 className="text-4xl sm:text-5xl font-light leading-tight text-text-primary tracking-tight">Completá tu perfil</h1>
           <p className="text-text-secondary mt-3 text-sm">
-            {step === 1 ? 'Paso 2 de 3 — Salud general' : 'Paso 3 de 3 — Información médica'}
+            {step === 1 ? 'Paso 2 de 4 — Consentimiento'
+              : step === 2 ? 'Paso 3 de 4 — Salud general'
+              : 'Paso 4 de 4 — Información médica'}
           </p>
         </div>
 
@@ -136,8 +145,38 @@ export default function PatientOnboarding({ profile }) {
             {STEPS[step].label}
           </h2>
 
-          {/* ── Step 1: Salud general ─────────────────────────────── */}
+          {/* ── Step 1: Consentimiento ────────────────────────────── */}
           {step === 1 && (
+            <>
+              <p className="text-sm text-text-secondary -mt-1">
+                Necesitamos tu consentimiento para poder atenderte en Healthier. Podés leer el detalle completo en nuestros{' '}
+                <Link to="/terminos" target="_blank" className="text-brand font-medium hover:underline">Términos y Condiciones</Link>.
+              </p>
+              <div className="border border-border-default rounded-xl p-4 space-y-3 bg-bg-primary">
+                {PATIENT_CONSENT_ITEMS.map(item => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setConsents(p => ({ ...p, [item.key]: !p[item.key] }))}
+                    className="flex items-start gap-3 w-full text-left"
+                  >
+                    <span className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${
+                      consents[item.key] ? 'bg-brand border-brand' : 'border-border-default'
+                    }`}>
+                      {consents[item.key] && <Check className="h-3 w-3 text-white" weight="bold" />}
+                    </span>
+                    <span>
+                      <span className="text-sm font-semibold text-text-primary block">{item.title}</span>
+                      <span className="text-xs text-text-secondary leading-relaxed">{item.desc}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* ── Step 2: Salud general ─────────────────────────────── */}
+          {step === 2 && (
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -203,8 +242,8 @@ export default function PatientOnboarding({ profile }) {
             </>
           )}
 
-          {/* ── Step 2: Información médica ────────────────────────── */}
-          {step === 2 && (
+          {/* ── Step 3: Información médica ────────────────────────── */}
+          {step === 3 && (
             <>
               <div>
                 <label className="form-label">Grupo sanguíneo</label>
@@ -278,17 +317,22 @@ export default function PatientOnboarding({ profile }) {
 
           {/* Navigation */}
           <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2 border-t border-border-default">
-            {step === 2 && (
-              <button onClick={() => setStep(1)} className="btn-secondary flex-1">
+            {(step === 2 || step === 3) && (
+              <button onClick={() => setStep(step - 1)} className="btn-secondary flex-1">
                 ← Anterior
               </button>
             )}
             {step === 1 && (
+              <button onClick={() => setStep(2)} disabled={!allConsented} className="btn-primary flex-1 disabled:opacity-40 disabled:cursor-not-allowed">
+                Siguiente →
+              </button>
+            )}
+            {step === 2 && (
               <button onClick={saveStep1} disabled={saving} className="btn-primary flex-1">
                 {saving ? 'Guardando…' : 'Siguiente →'}
               </button>
             )}
-            {step === 2 && (
+            {step === 3 && (
               <button onClick={saveStep2} disabled={saving} className="btn-primary flex-1">
                 {saving ? 'Guardando…' : '¡Listo! Ir al inicio'}
               </button>
@@ -296,13 +340,15 @@ export default function PatientOnboarding({ profile }) {
           </div>
         </div>
 
-        {/* Skip */}
-        <button
-          onClick={() => navigate('/paciente/dashboard')}
-          className="mt-3 w-full text-center text-sm text-text-tertiary hover:text-text-secondary transition-colors"
-        >
-          Completar más tarde →
-        </button>
+        {/* Skip — not offered on step 1 (Consentimiento), that step is mandatory */}
+        {step !== 1 && (
+          <button
+            onClick={() => navigate('/paciente/dashboard')}
+            className="mt-3 w-full text-center text-sm text-text-tertiary hover:text-text-secondary transition-colors"
+          >
+            Completar más tarde →
+          </button>
+        )}
       </div>
     </div>
   )

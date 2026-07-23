@@ -1,18 +1,13 @@
 import { useState } from 'react'
-import { User, Briefcase, Heart, Check } from '@phosphor-icons/react'
-import { Link } from 'react-router-dom'
+import { User, Briefcase, Heart } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
-import { PATIENT_CONSENT_ITEMS, PROFESSIONAL_CONSENT_ITEMS } from '../../lib/consentItems'
 
 export default function CompleteProfile({ authUser, onProfileComplete }) {
   const [fullName, setFullName] = useState(authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || '')
   const [role, setRole] = useState('')
-  const [consents, setConsents] = useState({ hipaa: false, ley25326: false, equipo_tratante: false })
   const [loading, setLoading] = useState(false)
-  const consentItems = role === 'professional' ? PROFESSIONAL_CONSENT_ITEMS : PATIENT_CONSENT_ITEMS
-  const allConsented = consentItems.every(item => consents[item.key])
 
   const roles = [
     { id: 'patient', label: 'Paciente', desc: 'Quiero consultar con profesionales', icon: Heart },
@@ -23,7 +18,6 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
     e.preventDefault()
     if (!role) { toast.error('Seleccioná un tipo de cuenta'); return }
     if (!fullName.trim()) { toast.error('Ingresá tu nombre completo'); return }
-    if (!allConsented) { toast.error('Necesitamos tu consentimiento para continuar'); return }
     setLoading(true)
     try {
       const utms = getStoredUtms()
@@ -81,45 +75,12 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
           </div>
         </div>
 
-        <div className="border border-border-default rounded-xl p-4 space-y-3 bg-bg-primary">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Consentimiento requerido</p>
-          {consentItems.map(item => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => setConsents(p => ({ ...p, [item.key]: !p[item.key] }))}
-              className="flex items-start gap-3 w-full text-left"
-            >
-              <span className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${
-                consents[item.key] ? 'bg-brand border-brand' : 'border-border-default'
-              }`}>
-                {consents[item.key] && <Check className="h-3 w-3 text-white" weight="bold" />}
-              </span>
-              <span>
-                <span className="text-sm font-semibold text-text-primary block">{item.title}</span>
-                <span className="text-xs text-text-secondary leading-relaxed">
-                  {item.link ? (
-                    <>
-                      {item.desc.replace(' Ver Términos y Condiciones.', '')}{' '}
-                      <Link
-                        to={item.link}
-                        target="_blank"
-                        className="text-brand hover:underline"
-                        onClick={e => e.stopPropagation()}
-                      >
-                        Ver Términos y Condiciones.
-                      </Link>
-                    </>
-                  ) : item.desc}
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <button type="submit" disabled={loading || !allConsented} className="btn-primary w-full py-2.5 mt-2 disabled:opacity-40 disabled:cursor-not-allowed">
+        <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-2 disabled:opacity-40 disabled:cursor-not-allowed">
           {loading ? 'Guardando...' : 'Continuar'}
         </button>
+        <p className="text-center text-xs text-text-tertiary">
+          En el siguiente paso te vamos a pedir tu consentimiento para el tratamiento de tus datos.
+        </p>
       </form>
     </div>
   )
