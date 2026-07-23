@@ -16,6 +16,7 @@ import LandingMedicoOnline from './pages/landing/MedicoOnline'
 import LandingProfesionales from './pages/landing/Profesionales'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
+import RegisterProfessional from './pages/auth/RegisterProfessional'
 import CompleteProfile from './pages/auth/CompleteProfile'
 import TerminosYCondiciones from './pages/TerminosYCondiciones'
 
@@ -92,7 +93,7 @@ function RequireRole({ profile, allowed, children }) {
 
 // ── Post-auth redirect: new Google users → complete profile;
 //    already-logged-in users landing on /login or /registro → their dashboard ──
-const AUTH_PATHS = ['/login', '/registro', '/completar-registro']
+const AUTH_PATHS = ['/login', '/registro', '/registro-profesional', '/completar-registro']
 
 function AuthRedirectHandler({ profile, authUser }) {
   const navigate = useNavigate()
@@ -219,6 +220,7 @@ export default function App() {
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<Login onLogin={handleLogin} />} />
           <Route path="/registro" element={<Register onLogin={handleLogin} />} />
+          <Route path="/registro-profesional" element={<RegisterProfessional onLogin={handleLogin} />} />
           <Route path="/completar-registro" element={<CompleteProfile authUser={authUser} onProfileComplete={handleProfileComplete} />} />
         </Route>
 

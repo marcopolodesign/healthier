@@ -4,14 +4,15 @@ import { Link } from 'react-router-dom'
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
-import { CONSENT_ITEMS } from '../../lib/consentItems'
+import { PATIENT_CONSENT_ITEMS, PROFESSIONAL_CONSENT_ITEMS } from '../../lib/consentItems'
 
 export default function CompleteProfile({ authUser, onProfileComplete }) {
   const [fullName, setFullName] = useState(authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || '')
   const [role, setRole] = useState('')
   const [consents, setConsents] = useState({ hipaa: false, ley25326: false, equipo_tratante: false })
   const [loading, setLoading] = useState(false)
-  const allConsented = Object.values(consents).every(Boolean)
+  const consentItems = role === 'professional' ? PROFESSIONAL_CONSENT_ITEMS : PATIENT_CONSENT_ITEMS
+  const allConsented = consentItems.every(item => consents[item.key])
 
   const roles = [
     { id: 'patient', label: 'Paciente', desc: 'Quiero consultar con profesionales', icon: Heart },
@@ -82,7 +83,7 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
 
         <div className="border border-border-default rounded-xl p-4 space-y-3 bg-bg-primary">
           <p className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Consentimiento requerido</p>
-          {CONSENT_ITEMS.map(item => (
+          {consentItems.map(item => (
             <button
               key={item.key}
               type="button"

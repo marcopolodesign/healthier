@@ -64,7 +64,7 @@ export default function LandingProfesionales() {
             <Link to="/login" className="hidden sm:block text-sm text-white/70 hover:text-white transition-colors">
               Ya soy profesional
             </Link>
-            <Link to="/registro?tipo=profesional" className="bg-white text-[#26331F] font-semibold rounded-full px-5 py-2 text-sm hover:bg-gray-100 transition-colors">
+            <Link to="/registro-profesional" className="bg-white text-[#26331F] font-semibold rounded-full px-5 py-2 text-sm hover:bg-gray-100 transition-colors">
               Sumá tu práctica
             </Link>
           </div>
@@ -91,7 +91,7 @@ export default function LandingProfesionales() {
             Agenda, historia clínica, recetas y cobros al instante en una sola plataforma. Tu matrícula se verifica antes de publicar tu perfil.
           </p>
           <div className="flex flex-wrap gap-3 justify-center mb-14">
-            <Link to="/registro?tipo=profesional" className="bg-white text-[#26331F] font-semibold rounded-full px-8 py-3.5 text-sm hover:bg-gray-100 transition-colors inline-flex items-center gap-2">
+            <Link to="/registro-profesional" className="bg-white text-[#26331F] font-semibold rounded-full px-8 py-3.5 text-sm hover:bg-gray-100 transition-colors inline-flex items-center gap-2">
               Sumá tu práctica <ArrowRight size={15} weight="bold" />
             </Link>
             <a href="#funcionalidades" className="bg-white/10 backdrop-blur-md border border-white/25 text-white font-semibold rounded-full px-8 py-3.5 text-sm hover:bg-white/20 transition-colors">
@@ -221,7 +221,7 @@ export default function LandingProfesionales() {
             El alta es gratuita. Validamos tu matrícula y publicamos tu perfil en menos de 48&nbsp;hs.
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
-            <Link to="/registro?tipo=profesional" className="bg-white text-[#26331F] font-semibold rounded-full px-8 py-3.5 text-sm hover:bg-gray-100 transition-colors inline-flex items-center gap-2">
+            <Link to="/registro-profesional" className="bg-white text-[#26331F] font-semibold rounded-full px-8 py-3.5 text-sm hover:bg-gray-100 transition-colors inline-flex items-center gap-2">
               Sumá tu práctica <ArrowRight size={15} weight="bold" />
             </Link>
             <Link to="/login" className="border border-white/30 text-white font-semibold rounded-full px-8 py-3.5 text-sm hover:bg-white/10 transition-colors">

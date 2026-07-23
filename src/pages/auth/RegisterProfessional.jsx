@@ -4,12 +4,14 @@ import { User, Envelope, Lock, Check } from '@phosphor-icons/react';
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
-import { PATIENT_CONSENT_ITEMS } from '../../lib/consentItems'
+import { PROFESSIONAL_CONSENT_ITEMS } from '../../lib/consentItems'
 import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
 
-export default function Register({ onLogin }) {
+export default function RegisterProfessional({ onLogin }) {
   const [form, setForm] = useState({ fullName: '', email: '', password: '' })
-  const [consents, setConsents] = useState({ hipaa: false, ley25326: false, equipo_tratante: false })
+  const [consents, setConsents] = useState(
+    Object.fromEntries(PROFESSIONAL_CONSENT_ITEMS.map(item => [item.key, false]))
+  )
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const allConsented = Object.values(consents).every(Boolean)
@@ -21,11 +23,11 @@ export default function Register({ onLogin }) {
     setLoading(true)
     try {
       const utms = getStoredUtms()
-      await authService.register(form.email, form.password, 'patient', form.fullName, utms)
+      await authService.register(form.email, form.password, 'professional', form.fullName, utms)
       clearUtms()
       const { profile } = await authService.login(form.email, form.password)
       onLogin(profile)
-      navigate('/paciente/onboarding')
+      navigate('/profesional/onboarding')
     } catch (err) {
       toast.error(err.message)
     } finally {
@@ -36,9 +38,9 @@ export default function Register({ onLogin }) {
   return (
     <div className="card">
       <div className="text-center mb-8">
-        <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-2">Creá tu cuenta</p>
-        <h1 className="text-3xl sm:text-4xl font-light tracking-tight text-text-primary mb-1">Crear cuenta</h1>
-        <p className="text-text-secondary text-sm">Sumate a Healthier hoy</p>
+        <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-2">Creá tu cuenta profesional</p>
+        <h1 className="text-3xl sm:text-4xl font-light tracking-tight text-text-primary mb-1">Sumate como profesional</h1>
+        <p className="text-text-secondary text-sm">Ofrecé tus servicios en Healthier</p>
       </div>
 
       <GoogleAuthButton className="mb-6" />
@@ -59,7 +61,7 @@ export default function Register({ onLogin }) {
               required
               value={form.fullName}
               onChange={e => setForm(p => ({ ...p, fullName: e.target.value }))}
-              placeholder="Juan Pérez"
+              placeholder="Dra. Juana Pérez"
               className="form-input pl-9"
             />
           </div>
@@ -98,7 +100,7 @@ export default function Register({ onLogin }) {
         {/* Consent */}
         <div className="border border-border-default rounded-xl p-4 space-y-3 bg-bg-primary">
           <p className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Consentimiento requerido</p>
-          {PATIENT_CONSENT_ITEMS.map(item => (
+          {PROFESSIONAL_CONSENT_ITEMS.map(item => (
             <button
               key={item.key}
               type="button"
@@ -144,8 +146,8 @@ export default function Register({ onLogin }) {
         </Link>
       </p>
       <p className="text-center text-sm text-text-secondary mt-2">
-        ¿Sos profesional de la salud?{' '}
-        <Link to="/registro-profesional" className="text-brand font-medium hover:underline">
+        ¿Sos paciente?{' '}
+        <Link to="/registro" className="text-brand font-medium hover:underline">
           Registrate aquí
         </Link>
       </p>

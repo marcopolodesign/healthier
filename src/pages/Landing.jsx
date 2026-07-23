@@ -340,7 +340,7 @@ export default function Landing() {
                   <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
-                  to="/registro?tipo=profesional"
+                  to="/registro-profesional"
                   className="bg-white/10 backdrop-blur-md border border-white/25 text-white font-semibold px-8 py-3.5 rounded-full hover:bg-white/20 transition-colors text-sm"
                 >
                   Sumá tu práctica
