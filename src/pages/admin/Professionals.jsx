@@ -2,6 +2,16 @@ import { useState, useEffect } from 'react'
 import { ShieldCheck, X, FileText, UserCircle } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import { toast } from '../../components/Toast'
+import { getSignedDocUrl } from '../../lib/storage'
+
+const DOC_FIELDS = [
+  { key: 'titleDocumentUrl',                  label: 'Título profesional' },
+  { key: 'licenseDocumentUrl',                label: 'Matrícula' },
+  { key: 'dniDocumentUrl',                    label: 'DNI' },
+  { key: 'malpracticeInsuranceDocumentUrl',   label: 'Seguro de mala praxis' },
+  { key: 'specialistCertificateDocumentUrl',  label: 'Certificado de especialista' },
+  { key: 'cuitDocumentUrl',                   label: 'CUIT / Monotributo' },
+]
 
 export default function AdminProfessionals() {
   const [pending, setPending] = useState([])
@@ -9,6 +19,9 @@ export default function AdminProfessionals() {
   const [selected, setSelected] = useState(null)
   const [rejectNote, setRejectNote] = useState('')
   const [processing, setProcessing] = useState(false)
+  // professional-docs is a private bucket — stored *DocumentUrl fields are broken
+  // pseudo-public URLs, need a freshly-signed URL per read (see lib/storage.js).
+  const [docUrls, setDocUrls] = useState({})
 
   const load = () => {
     setLoading(true)
@@ -19,6 +32,20 @@ export default function AdminProfessionals() {
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    if (!selected) { setDocUrls({}); return }
+    let cancelled = false
+    setDocUrls({})
+    Promise.all(
+      DOC_FIELDS.map(({ key }) =>
+        getSignedDocUrl('professional-docs', selected[key]).then(signedUrl => [key, signedUrl])
+      )
+    ).then(entries => {
+      if (!cancelled) setDocUrls(Object.fromEntries(entries))
+    })
+    return () => { cancelled = true }
+  }, [selected])
 
   const approve = async (userId) => {
     setProcessing(true)
@@ -128,27 +155,27 @@ export default function AdminProfessionals() {
                   <p className="text-xs text-text-tertiary">📍 {selected.address}</p>
                 )}
 
-                {[
-                  { label: 'Título profesional',        url: selected.titleDocumentUrl },
-                  { label: 'Matrícula',                  url: selected.licenseDocumentUrl },
-                  { label: 'DNI',                        url: selected.dniDocumentUrl },
-                  { label: 'Seguro de mala praxis',      url: selected.malpracticeInsuranceDocumentUrl },
-                  { label: 'Certificado de especialista', url: selected.specialistCertificateDocumentUrl },
-                  { label: 'CUIT / Monotributo',         url: selected.cuitDocumentUrl },
-                ].map(doc => (
-                  doc.url && (
-                    <div key={doc.label}>
-                      <p className="text-xs font-medium text-text-secondary mb-1">{doc.label}</p>
-                      <a href={doc.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 p-2 bg-bg-surface rounded-lg hover:bg-bg-surface-hover text-sm text-brand">
-                        <FileText className="h-4 w-4" />
-                        Ver documento
-                      </a>
+                {DOC_FIELDS.map(({ key, label }) => (
+                  selected[key] && (
+                    <div key={key}>
+                      <p className="text-xs font-medium text-text-secondary mb-1">{label}</p>
+                      {docUrls[key] ? (
+                        <a href={docUrls[key]} target="_blank" rel="noreferrer" className="flex items-center gap-2 p-2 bg-bg-surface rounded-lg hover:bg-bg-surface-hover text-sm text-brand">
+                          <FileText className="h-4 w-4" />
+                          Ver documento
+                        </a>
+                      ) : (
+                        <div className="flex items-center gap-2 p-2 bg-bg-surface rounded-lg text-sm text-text-tertiary">
+                          <FileText className="h-4 w-4" />
+                          Cargando enlace…
+                        </div>
+                      )}
                     </div>
                   )
                 ))}
 
-                {selected.titleDocumentUrl && (
-                  <iframe src={selected.titleDocumentUrl} className="w-full h-48 rounded-lg border border-border-default" title="Documento" />
+                {selected.titleDocumentUrl && docUrls.titleDocumentUrl && (
+                  <iframe src={docUrls.titleDocumentUrl} className="w-full h-48 rounded-lg border border-border-default" title="Documento" />
                 )}
               </div>
 

@@ -16,6 +16,7 @@ import AllergyPanel from '../../components/professional/AllergyPanel'
 import VitalsPanel from '../../components/professional/VitalsPanel'
 import PrescriptionCreator from '../../components/professional/PrescriptionCreator'
 import ScribeSession from '../../components/professional/ScribeSession'
+import SignedDocLink from '../../components/SignedDocLink'
 import { toast } from '../../components/Toast'
 
 const ORDER_TYPE_LABELS = { orden: 'Orden', receta: 'Receta', derivacion: 'Derivación' }
@@ -415,14 +416,12 @@ export default function ConsultationDetail({ profile }) {
                 </span>
                 <span className="text-sm text-text-primary">{order.description}</span>
                 {order.url && (
-                  <a
-                    href={order.url}
-                    target="_blank"
-                    rel="noreferrer"
+                  <SignedDocLink
+                    url={order.url}
                     className="mt-1 flex items-center gap-1 text-xs text-brand hover:underline"
                   >
                     <Paperclip className="h-3 w-3" /> Ver adjunto
-                  </a>
+                  </SignedDocLink>
                 )}
               </div>
               {!isCompleted && !isCancelled && (
@@ -506,14 +505,12 @@ export default function ConsultationDetail({ profile }) {
         <div className="card">
           <div className="flex items-center gap-2">
             <Paperclip className="h-5 w-5 text-brand" />
-            <a
-              href={consultation.prescriptionUrl}
-              target="_blank"
-              rel="noreferrer"
+            <SignedDocLink
+              url={consultation.prescriptionUrl}
               className="text-brand text-sm font-medium hover:underline"
             >
               Ver receta adjunta
-            </a>
+            </SignedDocLink>
           </div>
         </div>
       )}

@@ -14,6 +14,7 @@ import { VERTICALS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
+import SignedDocLink from '../../components/SignedDocLink'
 
 const ESPECIALIDADES = {
   clinica:     ['Médico Generalista', 'Cardiología', 'Dermatología', 'Pediatría', 'Traumatología'],
@@ -582,9 +583,9 @@ export default function PatientConsultations({ profile }) {
                     </button>
                   )}
                   {view === 'past' && t.status === 'completed' && t.prescriptionUrl && (
-                    <a href={t.prescriptionUrl} target="_blank" rel="noreferrer" className="flex-1 py-3 text-[13px] font-semibold text-brand flex items-center justify-center gap-1.5 hover:bg-brand-muted transition-colors">
+                    <SignedDocLink url={t.prescriptionUrl} className="flex-1 py-3 text-[13px] font-semibold text-brand flex items-center justify-center gap-1.5 hover:bg-brand-muted transition-colors">
                       <FileText className="w-4 h-4" /> Ver receta
-                    </a>
+                    </SignedDocLink>
                   )}
                   {view === 'past' && t.status === 'completed' && !hasReview && (
                     <button onClick={() => { setReviewTarget(t); setReviewRating(0); setReviewComment('') }} className="flex-1 py-3 text-[13px] font-semibold text-amber-600 flex items-center justify-center gap-1.5 hover:bg-amber-50 transition-colors">
