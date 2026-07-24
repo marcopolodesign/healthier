@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mercado Pago Split Payments — Healthier</title>
+<style>
+  :root {
+    --bg: #fef9ef;
+    --brand: #b05a36;
+    --text: #2a2b2f;
+    --muted: #6b6b66;
+    --card: #ffffff;
+    --border: #e8e0d0;
+    --green: #3d7a4f;
+    --green-bg: #eaf4ec;
+    --amber-bg: #fdf3e0;
+    --amber-border: #e8c77f;
+    --red: #b03636;
+    --red-bg: #fbecec;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: Georgia, 'Times New Roman', serif;
+    line-height: 1.65;
+  }
+  code, pre, table, .badge, nav { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+
+  /* ── Nav ── */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(254,249,239,0.95); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex; gap: 4px; overflow-x: auto; white-space: nowrap;
+  }
+  nav a {
+    color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 600;
+    padding: 6px 12px; border-radius: 999px; transition: all .15s;
+  }
+  nav a:hover { color: var(--brand); }
+  nav a.active { background: var(--brand); color: #fff; }
+
+  .wrap { max-width: 980px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  header.hero { padding: 24px 0 40px; border-bottom: 2px solid var(--brand); margin-bottom: 48px; }
+  .hero .eyebrow { color: var(--brand); font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-family: sans-serif; }
+  h1 { font-size: 42px; line-height: 1.15; font-weight: 400; margin: 12px 0; }
+  .hero p { color: var(--muted); font-size: 17px; max-width: 720px; }
+
+  section { margin-bottom: 72px; scroll-margin-top: 80px; }
+  h2 { font-size: 30px; font-weight: 400; color: var(--brand); margin-bottom: 8px; }
+  h3 { font-size: 20px; margin: 32px 0 12px; }
+  section > p { margin-bottom: 14px; max-width: 780px; }
+  .section-sub { color: var(--muted); margin-bottom: 24px; font-style: italic; }
+
+  .mermaid-box {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px; margin: 20px 0; overflow-x: auto;
+  }
+  .mermaid { display: flex; justify-content: center; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 12px; overflow: hidden; font-size: 13.5px; margin: 16px 0; border: 1px solid var(--border); }
+  th { background: #f5eddc; text-align: left; padding: 10px 14px; font-weight: 700; }
+  td { padding: 10px 14px; border-top: 1px solid var(--border); vertical-align: top; }
+  td code, p code, li code { background: #f5eddc; padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
+
+  .callout {
+    border-radius: 12px; padding: 16px 20px; margin: 16px 0; font-size: 15px;
+  }
+  .callout.green { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .callout.amber { background: var(--amber-bg); border-left: 4px solid var(--amber-border); }
+  .callout.red { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .callout strong:first-child { display: block; margin-bottom: 4px; }
+
+  .money-example {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px; margin: 20px 0;
+  }
+  .money-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed var(--border); font-family: sans-serif; font-size: 14.5px; }
+  .money-row:last-child { border-bottom: none; font-weight: 700; }
+  .money-row .amount { font-variant-numeric: tabular-nums; }
+  .money-row.green { color: var(--green); }
+  .money-row.brand { color: var(--brand); }
+
+  ul, ol { margin: 12px 0 12px 24px; }
+  li { margin-bottom: 6px; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 24px; color: var(--muted); font-size: 13px; font-family: sans-serif; }
+
+  @media (max-width: 640px) {
+    h1 { font-size: 30px; }
+    h2 { font-size: 24px; }
+    .wrap { padding: 32px 16px 64px; }
+  }
+</style>
+</head>
+<body>
+
+<nav id="topnav">
+  <a href="#resumen">Resumen</a>
+  <a href="#dinero">La plata</a>
+  <a href="#medico">Médico</a>
+  <a href="#paciente">Paciente</a>
+  <a href="#refunds">Refunds</a>
+  <a href="#superadmin">Super Admin</a>
+  <a href="#tecnica">Técnica</a>
+  <a href="#db">Base de datos</a>
+  <a href="#launch">Qué falta para salir</a>
+</nav>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">Healthier — Documentación de plataforma</div>
+  <h1>Mercado Pago Split Payments</h1>
+  <p>Cómo funciona el modelo marketplace de cobros de Healthier: split automático 78% médico / 22% Healthier, conexión OAuth por médico, Healthy Credits, y el checklist para salir a producción. Sistema en producción desde el 24/07/2026.</p>
+</header>
+
+<!-- ══════════════════ 1. RESUMEN ══════════════════ -->
+<section id="resumen">
+  <h2>1. Resumen ejecutivo</h2>
+  <p>Healthier cobra las consultas como <strong>marketplace de Mercado Pago</strong>: el paciente paga en la app, y MP reparte el dinero automáticamente en el momento del pago. La plata del médico <strong>nunca pasa por la cuenta de Healthier</strong> — le cae directo a su propia cuenta de Mercado Pago.</p>
+
+  <div class="callout green">
+    <strong>Decisiones de producto (definidas el 23/07/2026)</strong>
+    <ul>
+      <li><strong>Split 78 / 22.</strong> El médico recibe el 78% del precio de la consulta, limpio. Healthier absorbe la comisión de procesamiento de Mercado Pago dentro de su 22%.</li>
+      <li><strong>Sin MP conectado no hay turnos.</strong> Un médico que no conectó su cuenta de MP no aparece como reservable y el sistema rechaza crearle consultas.</li>
+      <li><strong>Refunds solo con ≥48 horas hábiles de anticipación</strong>, y en primera instancia como <strong>Healthy Credits</strong> (saldo interno). El paciente puede pedir después la devolución real por MP, que aprueba el super admin.</li>
+      <li><strong>Mobile:</strong> el checkout en la app Expo queda para una fase siguiente.</li>
+    </ul>
+  </div>
+
+  <h3>Por qué este modelo</h3>
+  <ul>
+    <li>El dinero de los médicos nunca es custodia de Healthier → menos riesgo operativo, impositivo y regulatorio.</li>
+    <li>Cada médico cobra automáticamente, sin liquidaciones manuales ni transferencias por CBU.</li>
+    <li>Conciliación simple: cada pago queda registrado con su desglose completo en la tabla <code>payments</code>, asociado a su consulta.</li>
+  </ul>
+</section>
+
+<!-- ══════════════════ 2. LA PLATA ══════════════════ -->
+<section id="dinero">
+  <h2>2. Cómo se reparte la plata</h2>
+  <p class="section-sub">El detalle que casi todo el mundo entiende mal: la comisión de MP no se descuenta del total antes de repartir.</p>
+
+  <p>Mercado Pago primero descuenta <strong>su</strong> comisión de procesamiento (~6,6% + IVA ≈ 8% con liberación inmediata) <strong>de la parte del vendedor</strong> (el médico), y después transfiere la comisión del marketplace (<code>application_fee</code>) intacta a Healthier. Para que el médico reciba exactamente 78%, Healthier calcula su fee así:</p>
+
+  <p style="text-align:center; font-family:sans-serif; font-size:15px; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px;"><code>application_fee = 22% del precio − fee estimado de MP</code></p>
+
+  <div class="money-example">
+    <div style="font-family:sans-serif; font-weight:700; margin-bottom:12px;">Ejemplo: consulta de $10.000 (fee MP estimado 7,99%)</div>
+    <div class="money-row"><span>Paciente paga</span><span class="amount">$10.000</span></div>
+    <div class="money-row"><span>Mercado Pago descuenta su comisión (7,99%)</span><span class="amount">− $799</span></div>
+    <div class="money-row brand"><span>Healthier recibe (application_fee = $2.200 − $799)</span><span class="amount">$1.401</span></div>
+    <div class="money-row green"><span>Médico recibe (78% exacto)</span><span class="amount">$7.800</span></div>
+  </div>
+
+  <p>El fee de MP <strong>estimado</strong> se usa al momento del cobro (configurable en Settings del super admin); el fee <strong>real</strong> llega después por webhook (<code>fee_details</code>) y se guarda en <code>payments.mp_fee_actual</code> para conciliación. La diferencia entre estimado y real la absorbe (o gana) Healthier — el 78% del médico no se toca nunca.</p>
+
+  <div class="callout amber">
+    <strong>⚠️ El fee real de MP depende del plazo de liberación de la cuenta del médico</strong>
+    Liberación al instante ≈ 6,19–6,60% + IVA según provincia; a 10/18/35 días baja mucho. El estimado default (7,99%) asume liberación inmediata en Buenos Aires. Si los médicos configuran liberación a plazo, el margen efectivo de Healthier sube.
+  </div>
+</section>
+
+<!-- ══════════════════ 3. MÉDICO ══════════════════ -->
+<section id="medico">
+  <h2>3. Flujo del médico — conectar Mercado Pago</h2>
+  <p class="section-sub">Es solo iniciar sesión en MP y autorizar. Sin claves, sin CBU, sin configuración técnica.</p>
+
+  <div class="mermaid-box"><div class="mermaid">
+flowchart TD
+    A["Dashboard del médico"] --> B{"¿MP conectado?"}
+    B -- "No" --> C["Banner rojo: No podés recibir turnos<br>hasta conectar Mercado Pago"]
+    C --> D["Click en Conectar"]
+    D --> E["Login en Mercado Pago<br>con SU cuenta"]
+    E --> F["Pantalla de autorización:<br>Healthier quiere conectarse"]
+    F -- "Autorizar" --> G["Vuelve al dashboard<br>banner verde: MP conectado"]
+    G --> H["Queda reservable al instante<br>cobra automático cada consulta"]
+    F -- "Cancela" --> C
+    B -- "Sí" --> H
+    H -.-> I["Configuración > Mercado Pago:<br>ver estado / desconectar"]
+    style C fill:#fbecec,stroke:#b03636
+    style G fill:#eaf4ec,stroke:#3d7a4f
+    style H fill:#eaf4ec,stroke:#3d7a4f
+  </div></div>
+
+  <table>
+    <tr><th>Pantalla</th><th>Qué pasa</th><th>Qué ve el médico</th></tr>
+    <tr><td>Dashboard (<code>/profesional/dashboard</code>)</td><td>Chequea <code>professional_profiles.mp_connected</code></td><td>Banner rojo "Acción requerida" si no conectó; verde si sí</td></tr>
+    <tr><td>OAuth de MP (<code>auth.mercadopago.com</code>)</td><td><code>mp-connect</code> redirige con state firmado (anti-CSRF)</td><td>Login normal de MP + botón Autorizar</td></tr>
+    <tr><td>Callback</td><td>Se intercambia el código por tokens, se guardan <strong>encriptados</strong> (AES-256-GCM) en <code>mp_accounts</code>, y <code>mp_connected</code> pasa a <code>true</code></td><td>Vuelve al dashboard con confirmación</td></tr>
+    <tr><td>Configuración → Mercado Pago</td><td>Estado de conexión + acción de desconectar</td><td>El CBU viejo queda solo como dato de respaldo</td></tr>
+    <tr><td>Onboarding (paso Revisión)</td><td>—</td><td>Aviso de que deberá conectar MP para recibir turnos</td></tr>
+  </table>
+
+  <h3>Requisitos del lado del médico</h3>
+  <ul>
+    <li>Tener cuenta de Mercado Pago (la personal sirve; se crea gratis si no tiene).</li>
+    <li>Loguearse con la cuenta <strong>donde quiere cobrar</strong> — el 78% cae directo ahí.</li>
+    <li>Si la cuenta es muy nueva, MP puede pedirle validar identidad (DNI) — trámite de MP, una sola vez.</li>
+  </ul>
+
+  <div class="callout green">
+    <strong>Renovación automática de la autorización</strong>
+    Los tokens OAuth de MP vencen a los 180 días. Healthier los renueva solo: en cada cobro (si están por vencer) y con un job semanal (<code>mp-refresh-tokens-weekly</code>, lunes 6:00 UTC). Si MP revoca la autorización (cambio de contraseña, etc.), el médico vuelve a estado "Sin conectar" y se le pide reconectar.
+  </div>
+</section>
+
+<!-- ══════════════════ 4. PACIENTE ══════════════════ -->
+<section id="paciente">
+  <h2>4. Flujo del paciente — reservar y pagar</h2>
+
+  <div class="mermaid-box"><div class="mermaid">
+flowchart TD
+    A["Paciente elige especialidad"] --> B["Lista / matching de profesionales<br>solo con MP conectado"]
+    B -- "Ninguno habilitado" --> Z["Empty state:<br>No hay profesionales disponibles"]
+    B -- "Elige médico + turno" --> C["Se crea la consulta<br>payment_status: pending_payment"]
+    C --> D{"¿Tiene Healthy Credits?"}
+    D -- "Sí" --> E["Checkbox 'Usar mis créditos'<br>desglose: precio − créditos = a pagar"]
+    D -- "No" --> F{"¿Cómo paga el resto?"}
+    E --> G{"¿Créditos cubren todo?"}
+    G -- "Sí" --> H["Pago 100% créditos<br>sin pasar por MP"]
+    G -- "No" --> F
+    F -- "Tarjeta guardada" --> I["Reingresa CVV<br>re-tokenización en el momento"]
+    F -- "Tarjeta nueva" --> J["Formulario de tarjeta<br>de Mercado Pago"]
+    I --> K["mp-payment cobra con el<br>token OAuth del médico + application_fee"]
+    J --> K
+    K -- "Aprobado" --> L["Consulta paga ✓<br>médico cobró su 78% al instante"]
+    K -- "Rechazado" --> M["Error claro + reintentar"]
+    H --> L
+    style L fill:#eaf4ec,stroke:#3d7a4f
+    style M fill:#fbecec,stroke:#b03636
+    style Z fill:#fdf3e0,stroke:#e8c77f
+  </div></div>
+
+  <table>
+    <tr><th>Caso</th><th>Cómo funciona</th></tr>
+    <tr><td>Tarjeta nueva</td><td>El formulario seguro de MP tokeniza la tarjeta en el navegador (los datos nunca tocan servidores de Healthier) y el backend cobra con ese token.</td></tr>
+    <tr><td>Tarjeta guardada</td><td>MP exige reingresar el CVV en cada pago — se re-tokeniza en el momento. Es una regla de MP, no de Healthier.</td></tr>
+    <tr><td>Healthy Credits</td><td>Se aplican antes del cobro. Si cubren todo, no hay cargo a la tarjeta. Si cubren parte, se cobra solo el resto (pago mixto).</td></tr>
+    <tr><td>Seguridad del monto</td><td>El precio se lee <strong>siempre</strong> de la base de datos (<code>price_at_booking</code>) — el cliente no puede mandarlo.</td></tr>
+  </table>
+
+  <div class="callout amber">
+    <strong>⚠️ Pago mixto con créditos — deuda interna con el médico</strong>
+    Cuando parte del pago sale de créditos, el médico cobra por MP solo la parte con tarjeta. El 78% de la porción cubierta con créditos queda como deuda de Healthier al médico (<code>manual_settlement_amount</code>), visible en el panel de Pagos del super admin. Hoy se liquida a mano — definir mecanismo antes de que haya volumen.
+  </div>
+</section>
+
+<!-- ══════════════════ 5. REFUNDS ══════════════════ -->
+<section id="refunds">
+  <h2>5. Cancelaciones, refunds y Healthy Credits</h2>
+
+  <div class="mermaid-box"><div class="mermaid">
+flowchart TD
+    A["Paciente cancela una consulta paga"] --> B{"¿Faltan 48 o más horas hábiles<br>para el turno?"}
+    B -- "No" --> C["Sin reintegro<br>mensaje claro antes de confirmar"]
+    B -- "Sí" --> D["Se acreditan Healthy Credits<br>por el total pagado"]
+    D --> E["El crédito se usa automáticamente<br>en la próxima consulta"]
+    D --> F["O el paciente pide<br>devolución real por MP"]
+    F --> G["Solicitud pendiente en el panel<br>del super admin"]
+    G -- "Aprueba" --> H["Refund real via API de MP<br>el crédito se anula"]
+    G -- "Rechaza / espera" --> E
+    style C fill:#fbecec,stroke:#b03636
+    style D fill:#eaf4ec,stroke:#3d7a4f
+    style H fill:#eaf4ec,stroke:#3d7a4f
+  </div></div>
+
+  <ul>
+    <li><strong>48 horas hábiles</strong> = se cuentan solo horas de lunes a viernes entre el momento de la cancelación y el horario del turno (feriados no considerados por ahora). La ventana es configurable en Settings.</li>
+    <li>El refund como crédito <strong>no mueve plata en MP</strong> — es un asiento en el ledger interno <code>patient_credits</code>. La plata queda en el sistema.</li>
+    <li>La conversión a refund real la ejecuta MP sobre el pago original (con el token del médico). Solo puede aprobarla un super admin, y requiere que el crédito no se haya gastado.</li>
+  </ul>
+
+  <div class="callout amber">
+    <strong>⚠️ Punto a confirmar en sandbox</strong>
+    Los docs de MP solo documentan para su producto "Split 1:1" que el refund devuelve la comisión del marketplace proporcionalmente (es decir: si hay refund por MP, Healthier también devuelve su 22%). Para el modelo clásico con <code>application_fee</code> no está documentado — confirmarlo con una prueba real antes de prometer política de devoluciones.
+  </div>
+</section>
+
+<!-- ══════════════════ 6. SUPER ADMIN ══════════════════ -->
+<section id="superadmin">
+  <h2>6. Panel del super admin</h2>
+  <p class="section-sub">Regla de la casa: todo lo relacionado con el manejo de la plataforma tiene que verse reflejado acá.</p>
+
+  <table>
+    <tr><th>Vista</th><th>Qué muestra</th></tr>
+    <tr><td><code>/super-admin/pagos</code> <strong>(nueva)</strong></td><td>Todos los pagos de la plataforma con su consulta asociada: fecha, paciente, profesional, bruto, créditos usados, cobrado, fee MP (estimado y real), comisión Healthier, neto del médico, estado, refunds. Filtros por fecha/estado/método + totales del período. Cola de <strong>solicitudes de devolución por MP</strong> con botón Aprobar.</td></tr>
+    <tr><td><code>/super-admin/profesionales</code></td><td>Columna <strong>MP</strong> (verde "Conectado" / rojo "Sin conectar") + filtro "Sin MP" — la lista operativa para perseguir la adopción.</td></tr>
+    <tr><td><code>/super-admin/dashboard</code></td><td>Cards reales basadas en pagos: <strong>Facturado (bruto pago)</strong> y <strong>Revenue Healthier (comisión)</strong> — reemplazan el viejo "Revenue estimado" que sumaba consultas completadas sin mirar si estaban pagas.</td></tr>
+    <tr><td><code>/super-admin/settings</code></td><td>Configuración real y persistente: comisión (%), fee MP estimado (%), ventana de refund (hs hábiles). Los cambios aplican al próximo pago que se procese.</td></tr>
+    <tr><td>Ganancias del médico</td><td>(Vista del profesional) Neto 78% como número principal, con nota explícita: "la comisión de Mercado Pago la absorbe Healthier".</td></tr>
+  </table>
+</section>
+
+<!-- ══════════════════ 7. TÉCNICA ══════════════════ -->
+<section id="tecnica">
+  <h2>7. Arquitectura técnica</h2>
+
+  <div class="mermaid-box"><div class="mermaid">
+flowchart LR
+    subgraph Web["Website React"]
+      UI["Checkout / Booking"]
+      SDK["SDK MP<br>tokenización de tarjeta"]
+    end
+    subgraph Supa["Supabase Edge Functions"]
+      CON["mp-connect<br>OAuth + disconnect"]
+      PAY["mp-payment<br>cobro + split"]
+      WH["mp-webhook<br>reconciliación"]
+      REF["mp-refund<br>credits + conversión"]
+      RT["mp-refresh-tokens<br>renovación semanal"]
+    end
+    subgraph DB["Postgres"]
+      T1[("payments")]
+      T2[("patient_credits")]
+      T3[("mp_accounts<br>tokens encriptados")]
+      T4[("platform_settings")]
+      T5[("consultations")]
+    end
+    MP["API Mercado Pago"]
+    UI --> SDK --> PAY
+    UI --> REF
+    CON <--> MP
+    PAY <--> MP
+    REF <--> MP
+    RT <--> MP
+    MP -- "notificaciones" --> WH
+    PAY --> T1 & T2 & T5
+    WH --> T1 & T5
+    REF --> T1 & T2 & T5
+    CON --> T3
+    RT --> T3
+    PAY --> T3 & T4
+  </div></div>
+
+  <h3>Secuencia de un pago con tarjeta</h3>
+  <div class="mermaid-box"><div class="mermaid">
+sequenceDiagram
+    participant P as Paciente (web)
+    participant F as mp-payment
+    participant DB as Postgres
+    participant MP as Mercado Pago
+    P->>P: Tokeniza tarjeta (SDK MP, public key plataforma)
+    P->>F: consultationId + cardToken + useCredits
+    F->>DB: Lee consulta (precio), settings, créditos, mp_accounts del médico
+    F->>F: Desencripta token del médico, refresh si está por vencer
+    F->>F: application_fee = 22% − fee MP estimado
+    F->>MP: POST /v1/payments (Bearer = token DEL MÉDICO,<br>application_fee, external_reference, binary_mode)
+    MP-->>F: approved / rejected
+    F->>DB: Upsert payments (desglose completo) + ledger créditos + consulta → paid
+    F-->>P: Resultado
+    MP--)F: Webhook (async, firma verificada)
+    Note over F,DB: mp-webhook guarda el fee REAL de MP<br>(fee_details → mp_fee_actual)
+  </div></div>
+
+  <h3>Decisión de arquitectura clave</h3>
+  <p>El cobro se hace con el <strong>token OAuth del médico</strong> como Bearer y el campo <code>application_fee</code> — el modelo marketplace documentado por MP para Checkout API. (El scaffold anterior usaba token de plataforma + <code>collector_id</code>/<code>marketplace_fee</code>, un mecanismo que no existe en <code>/v1/payments</code> — por eso nunca funcionó.)</p>
+
+  <h3>Seguridad</h3>
+  <ul>
+    <li>Tokens OAuth de los médicos <strong>encriptados at-rest</strong> (AES-256-GCM, clave en secrets, formato <code>enc:v1:iv:ct</code>), desencriptado centralizado en un solo punto.</li>
+    <li><code>state</code> del OAuth firmado con HMAC (anti-CSRF en el callback).</li>
+    <li>Webhook con verificación de firma <code>X-Signature</code> de MP.</li>
+    <li>Montos derivados 100% del servidor; idempotencia por consulta+token; <code>binary_mode</code> (sin estados colgados).</li>
+    <li>Escrituras a <code>payments</code>/<code>patient_credits</code> solo por service-role (los usuarios solo leen lo suyo).</li>
+  </ul>
+</section>
+
+<!-- ══════════════════ 8. DB ══════════════════ -->
+<section id="db">
+  <h2>8. Base de datos</h2>
+
+  <div class="mermaid-box"><div class="mermaid">
+erDiagram
+    profiles ||--o{ consultations : "patient_id / professional_id"
+    profiles ||--o| professional_profiles : "user_id"
+    profiles ||--o| mp_accounts : "professional_id"
+    profiles ||--o{ payment_methods : "user_id"
+    profiles ||--o{ patient_credits : "patient_id"
+    consultations ||--o{ payments : "consultation_id"
+    payments ||--o{ patient_credits : "payment_id"
+
+    payments {
+        uuid id PK
+        uuid consultation_id FK
+        text mp_payment_id UK
+        text method "card | credits | mixed"
+        numeric gross_amount
+        numeric credits_used
+        numeric charged_amount
+        numeric platform_fee
+        numeric mp_fee_estimated
+        numeric mp_fee_actual
+        numeric net_to_professional "78% garantizado"
+        numeric manual_settlement_amount
+        text status "pending|approved|rejected|refunded"
+        text refund_type "credit | mp"
+        timestamptz refund_conversion_requested_at
+    }
+    patient_credits {
+        uuid id PK
+        uuid patient_id FK
+        numeric amount "positivo emite, negativo consume"
+        text reason "refund|redeem|mp_refund_conversion|adjustment"
+    }
+    platform_settings {
+        int id PK "singleton"
+        numeric commission_rate "0.22"
+        numeric mp_fee_estimate_rate "0.0799"
+        int refund_window_business_hours "48"
+    }
+    mp_accounts {
+        uuid professional_id FK "UNIQUE"
+        text mp_user_id "collector_id"
+        text access_token "encriptado AES-256-GCM"
+        text refresh_token "encriptado"
+        timestamptz expires_at
+        boolean active
+    }
+    professional_profiles {
+        uuid user_id FK
+        boolean mp_connected "gate de booking"
+    }
+    consultations {
+        uuid id PK
+        text payment_status "pending_payment|in_process|paid|rejected|refunded"
+        numeric price_at_booking
+        text mp_payment_id
+    }
+  </div></div>
+
+  <h3>Migraciones relevantes</h3>
+  <table>
+    <tr><th>Migración</th><th>Qué hizo</th></tr>
+    <tr><td><code>027_mp_marketplace</code></td><td>Scaffold original: <code>mp_accounts</code>, <code>payment_methods</code> (02/07/2026)</td></tr>
+    <tr><td><code>056_payments_split</code></td><td>El sistema actual (24/07/2026): tabla <code>payments</code>, ledger <code>patient_credits</code> + <code>get_credit_balance()</code>, <code>platform_settings</code>, vocabulario único de <code>payment_status</code>, <code>mp_connected</code>, columnas de expiración en <code>mp_accounts</code></td></tr>
+  </table>
+
+  <h3>RLS (quién ve qué)</h3>
+  <table>
+    <tr><th>Tabla</th><th>SELECT</th><th>Escrituras</th></tr>
+    <tr><td><code>payments</code></td><td>Paciente y médico ven las suyas; admin/super_admin todo</td><td>Solo service-role (edge functions)</td></tr>
+    <tr><td><code>patient_credits</code></td><td>Paciente ve su ledger; admin/super_admin todo</td><td>Solo service-role</td></tr>
+    <tr><td><code>platform_settings</code></td><td>Cualquier usuario autenticado</td><td>UPDATE solo super_admin</td></tr>
+    <tr><td><code>mp_accounts</code></td><td>Solo el médico dueño (por eso el booking usa el flag denormalizado <code>mp_connected</code>)</td><td>Solo service-role</td></tr>
+  </table>
+</section>
+
+<!-- ══════════════════ 9. LAUNCH ══════════════════ -->
+<section id="launch">
+  <h2>9. Qué falta para salir</h2>
+  <p class="section-sub">El sistema está deployado y verificado en producción. Esto es lo que queda entre hoy y cobrar consultas reales.</p>
+
+  <div class="callout red">
+    <strong>🔴 1. Que los médicos conecten su Mercado Pago — bloqueante operativo, no técnico</strong>
+    Hoy <strong>ningún médico tiene MP conectado</strong>, y por regla de producto nadie sin MP es reservable → no puede entrar ni un turno pago. Es un trabajo de coordinación: cada médico activo tiene que hacer el flujo de 2 minutos (login MP + Autorizar). La lista de quién falta está en Super Admin → Profesionales → filtro "Sin MP". <em>Complejidad: nula (operativa). Impacto: total.</em>
+  </div>
+
+  <div class="callout red">
+    <strong>🔴 2. Pago sandbox end-to-end + 4 verificaciones empíricas — bloqueado por credenciales</strong>
+    Antes del primer pago real hay que probar en sandbox: (a) que una tarjeta guardada bajo la cuenta plataforma se pueda cobrar a distintos médicos (MP no lo documenta), (b) qué pasa con la comisión de Healthier en un refund por MP, (c) confirmar la public key de plataforma para tokenizar contra token de vendedor, (d) el routing real del webhook con pagos de seller token. <strong>Requiere acceso al panel de developers de MP</strong> (crear test users) — las credenciales no están disponibles para las sesiones de Claude; hace falta que Mateo entre o pase las credenciales sandbox a <code>~/Local/.env</code>. <em>Complejidad: baja con acceso. Impacto: alto — es la validación final del contrato con MP.</em>
+  </div>
+
+  <div class="callout amber">
+    <strong>🟡 3. Facturación — confirmar con el contador</strong>
+    Con split, cada médico cobra en su cuenta: la factura al paciente la emite el médico, y Healthier factura solo su comisión. Cambia respecto del modelo "todo pasa por Healthier" — confirmar el esquema (¿Healthier le factura la comisión al médico?) antes de escalar. <em>Complejidad: externa. Impacto: medio.</em>
+  </div>
+
+  <div class="callout amber">
+    <strong>🟡 4. Liquidación de pagos con créditos</strong>
+    Cuando un paciente paga con Healthy Credits, Healthier le debe al médico el 78% de esa porción por fuera de MP (<code>manual_settlement_amount</code>, visible en el panel de Pagos). Hoy se paga a mano. Con poco volumen alcanza; definir proceso (transferencia mensual, etc.) antes de que crezca. <em>Complejidad: baja. Impacto: medio.</em>
+  </div>
+
+  <div class="callout amber">
+    <strong>🟡 5. Registro AAIP (RNBD) — bloqueante legal general del proyecto</strong>
+    Ya identificado desde el pase de compliance: pendiente de registro para operar con datos de salud en producción real. No es específico de pagos pero condiciona el launch. <em>Complejidad: trámite. Impacto: alto (legal).</em>
+  </div>
+
+  <div class="callout green">
+    <strong>🟢 6. Mejoras de fase 2 (no bloquean)</strong>
+    Checkout en la app mobile (hoy patient-only sin pagos) · feriados en el cálculo de 48hs hábiles · política de precios vs. plazo de liberación de MP de cada médico.
+  </div>
+
+  <h3>Resumen</h3>
+  <table>
+    <tr><th>#</th><th>Ítem</th><th>Impacto</th><th>Complejidad</th><th>Dueño</th></tr>
+    <tr><td>1</td><td>Médicos conecten MP</td><td>🔴 Total</td><td>Operativa</td><td>Mateo / equipo</td></tr>
+    <tr><td>2</td><td>Sandbox E2E + 4 verificaciones</td><td>🔴 Alto</td><td>Baja (con acceso a MP)</td><td>Mateo desbloquea → Claude ejecuta</td></tr>
+    <tr><td>3</td><td>Esquema de facturación</td><td>🟡 Medio</td><td>Externa (contador)</td><td>Mateo</td></tr>
+    <tr><td>4</td><td>Liquidación créditos → médicos</td><td>🟡 Medio</td><td>Baja</td><td>Definición de producto</td></tr>
+    <tr><td>5</td><td>Registro AAIP RNBD</td><td>🟡 Alto (legal)</td><td>Trámite</td><td>Mateo</td></tr>
+    <tr><td>6</td><td>Mobile checkout + feriados</td><td>🟢 Bajo</td><td>Media</td><td>Fase 2</td></tr>
+  </table>
+</section>
+
+<footer>
+  Healthier — Mercado Pago Split Payments · Generado el 24/07/2026 · Sistema live en producción (migración 056 + 5 edge functions) · Documento generado con Claude Code
+</footer>
+
+</div>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#fdf3e0',
+      primaryBorderColor: '#b05a36',
+      primaryTextColor: '#2a2b2f',
+      lineColor: '#b05a36',
+      secondaryColor: '#eaf4ec',
+      tertiaryColor: '#fef9ef',
+      fontFamily: 'Georgia, serif',
+      fontSize: '14px'
+    }
+  });
+
+  // Scroll-spy
+  const links = document.querySelectorAll('#topnav a');
+  const sections = [...links].map(a => document.querySelector(a.getAttribute('href')));
+  const spy = () => {
+    let active = 0;
+    sections.forEach((s, i) => { if (s && s.getBoundingClientRect().top < 120) active = i; });
+    links.forEach((a, i) => a.classList.toggle('active', i === active));
+  };
+  document.addEventListener('scroll', spy, { passive: true });
+  spy();
+</script>
+</body>
+</html>
