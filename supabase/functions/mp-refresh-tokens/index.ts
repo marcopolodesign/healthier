@@ -3,9 +3,11 @@
  * before they expire (access_token lifetime is 180 days — SECCIÓN A.5).
  *
  * POST /mp-refresh-tokens
- *   Protected by either:
+ *   Protected by any of:
  *     - header `x-cron-secret` === MP_WEBHOOK_SECRET (reused pragmatically, same
  *       pattern as other internal-only functions), OR
+ *     - header `x-cron-secret` === MP_CRON_SECRET (dedicated cron secret, only
+ *       checked when that env var is set), OR
  *     - `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>`
  *
  *   Finds every mp_accounts row with active=true AND
@@ -37,6 +39,7 @@ const corsHeaders = {
 };
 
 const MP_WEBHOOK_SECRET = Deno.env.get("MP_WEBHOOK_SECRET")!;
+const MP_CRON_SECRET = Deno.env.get("MP_CRON_SECRET");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 Deno.serve(async (req) => {
@@ -54,10 +57,11 @@ Deno.serve(async (req) => {
   // ── Auth: internal-only ────────────────────────────────────────────────────
   const cronSecret = req.headers.get("x-cron-secret");
   const authHeader = req.headers.get("Authorization");
-  const isCronSecretValid = Boolean(MP_WEBHOOK_SECRET) && cronSecret === MP_WEBHOOK_SECRET;
+  const isWebhookSecretValid = Boolean(MP_WEBHOOK_SECRET) && cronSecret === MP_WEBHOOK_SECRET;
+  const isCronSecretValid = Boolean(MP_CRON_SECRET) && cronSecret === MP_CRON_SECRET;
   const isServiceRoleAuth = authHeader === `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`;
 
-  if (!isCronSecretValid && !isServiceRoleAuth) {
+  if (!isWebhookSecretValid && !isCronSecretValid && !isServiceRoleAuth) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

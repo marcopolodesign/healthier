@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, VideoCamera, MapPin, Star, CaretRight, Check,
-  CircleNotch, CheckCircle,
+  CircleNotch, CheckCircle, MagnifyingGlass,
 } from '@phosphor-icons/react'
 import { professionalService } from '../../services/professionalService'
 import { availabilityService } from '../../services/availabilityService'
@@ -462,8 +462,33 @@ export default function ReservarConsulta({ profile }) {
           </div>
         )}
 
+        {/* ── STEP: Matched — sin match real (ningún profesional habilitado) ── */}
+        {step === 'matched' && !matchedPro && (
+          <div className="flex flex-col items-center gap-5 py-10 text-center">
+            <div className="w-24 h-24 rounded-full bg-bg-secondary flex items-center justify-center">
+              <MagnifyingGlass className="w-10 h-10 text-text-tertiary" />
+            </div>
+            <div>
+              <h1 className="font-bold text-2xl text-text-primary">
+                No hay profesionales disponibles
+              </h1>
+              <p className="text-text-secondary text-[14px] mt-2 max-w-sm">
+                Por el momento no hay profesionales de {selectedVertical?.nombre ?? 'esta especialidad'} habilitados para recibir reservas online. Probá de nuevo más tarde.
+              </p>
+            </div>
+            <div className="w-full space-y-3 mt-4">
+              <button
+                onClick={() => { setStep('modality'); setMatchedPro(null) }}
+                className="w-full py-4 rounded-full font-semibold text-[15px] text-text-secondary border border-border-default hover:bg-bg-secondary transition-colors"
+              >
+                Volver
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── STEP: Matched ── */}
-        {step === 'matched' && (
+        {step === 'matched' && matchedPro && (
           <div className="flex flex-col items-center gap-5 py-10 text-center">
             {/* Avatar with check badge */}
             <div className="relative">

@@ -19,6 +19,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { encryptToken } from "../_shared/tokenCrypto.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -237,14 +238,19 @@ serve(async (req: Request) => {
 
       const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
 
+      const [encryptedAccessToken, encryptedRefreshToken] = await Promise.all([
+        encryptToken(tokenData.access_token),
+        encryptToken(tokenData.refresh_token),
+      ]);
+
       const { error: upsertErr } = await supabase
         .from("mp_accounts")
         .upsert(
           {
             professional_id: professionalId,
             mp_user_id: String(tokenData.collector_id),
-            access_token: tokenData.access_token,
-            refresh_token: tokenData.refresh_token,
+            access_token: encryptedAccessToken,
+            refresh_token: encryptedRefreshToken,
             public_key: tokenData.public_key,
             scope: tokenData.scope,
             connected_at: new Date().toISOString(),

@@ -10,9 +10,17 @@
  *
  * MP's /oauth/token refresh always returns a NEW access_token AND a NEW
  * refresh_token — both must be persisted every time (SECCIÓN A.5).
+ *
+ * Token encryption: `mp_accounts.access_token`/`refresh_token` are stored
+ * encrypted at rest (see _shared/tokenCrypto.ts). This module is the single
+ * choke point for both directions — `ensureFreshMpToken` decrypts the
+ * incoming `account.access_token`/`refresh_token` before use and always
+ * returns a plaintext `accessToken` to its caller, and encrypts before
+ * persisting a refreshed pair. Callers never touch the raw column values.
  */
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { encryptToken, decryptToken } from "./tokenCrypto.ts";
 
 const IS_PROD = Deno.env.get("MP_IS_PROD") === "true";
 const MP_CLIENT_ID = IS_PROD
@@ -115,22 +123,30 @@ async function deactivateAccount(supabase: SupabaseClient, professionalId: strin
  * `supabase` (expects a service-role client) when needed. On invalid_grant,
  * deactivates the account and returns the (now stale) existing access_token —
  * callers must check `invalidGrant` and fail the operation rather than use it.
+ *
+ * `account.access_token`/`account.refresh_token` are expected to be the raw
+ * (possibly encrypted) column values straight from `mp_accounts` — this
+ * function decrypts them internally and always returns a plaintext
+ * `accessToken`. Callers must never read `account.access_token` directly.
  */
 export async function ensureFreshMpToken(
   supabase: SupabaseClient,
   account: MpAccountRow,
   marginMs: number = PAYMENT_REFRESH_MARGIN_MS
 ): Promise<RefreshResult> {
+  const currentAccessToken = await decryptToken(account.access_token);
+
   if (!needsRefresh(account.expires_at, marginMs)) {
-    return { accessToken: account.access_token, refreshed: false };
+    return { accessToken: currentAccessToken, refreshed: false };
   }
 
   if (!account.refresh_token) {
     console.warn(`mpRefresh: professional ${account.professional_id} has no refresh_token on file`);
-    return { accessToken: account.access_token, refreshed: false };
+    return { accessToken: currentAccessToken, refreshed: false };
   }
 
-  const result = await callMpOAuthRefresh(account.refresh_token);
+  const currentRefreshToken = await decryptToken(account.refresh_token);
+  const result = await callMpOAuthRefresh(currentRefreshToken);
 
   if (!result.ok) {
     console.error(`mpRefresh: refresh failed for professional ${account.professional_id}:`, result.detail);
@@ -140,7 +156,7 @@ export async function ensureFreshMpToken(
     }
 
     return {
-      accessToken: account.access_token,
+      accessToken: currentAccessToken,
       refreshed: false,
       invalidGrant: result.invalidGrant,
       error: result.detail,
@@ -149,11 +165,16 @@ export async function ensureFreshMpToken(
 
   const expiresAt = new Date(Date.now() + result.expires_in * 1000).toISOString();
 
+  const [encryptedAccessToken, encryptedRefreshToken] = await Promise.all([
+    encryptToken(result.access_token),
+    encryptToken(result.refresh_token),
+  ]);
+
   const { error: updateErr } = await supabase
     .from("mp_accounts")
     .update({
-      access_token: result.access_token,
-      refresh_token: result.refresh_token,
+      access_token: encryptedAccessToken,
+      refresh_token: encryptedRefreshToken,
       expires_at: expiresAt,
       ...(result.live_mode !== undefined ? { live_mode: result.live_mode } : {}),
     })
