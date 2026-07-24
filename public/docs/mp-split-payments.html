@@ -246,9 +246,9 @@ flowchart TD
     <tr><td>Seguridad del monto</td><td>El precio se lee <strong>siempre</strong> de la base de datos (<code>price_at_booking</code>) — el cliente no puede mandarlo.</td></tr>
   </table>
 
-  <div class="callout amber">
-    <strong>⚠️ Pago mixto con créditos — deuda interna con el médico</strong>
-    Cuando parte del pago sale de créditos, el médico cobra por MP solo la parte con tarjeta. El 78% de la porción cubierta con créditos queda como deuda de Healthier al médico (<code>manual_settlement_amount</code>), visible en el panel de Pagos del super admin. Hoy se liquida a mano — definir mecanismo antes de que haya volumen.
+  <div class="callout green">
+    <strong>Pago con créditos — cuenta corriente del médico</strong>
+    Los créditos son <strong>solo de pacientes</strong> — el médico siempre cobra plata. Cuando parte del pago sale de créditos, el médico cobra por MP la parte con tarjeta, y el 78% de la porción cubierta con créditos queda como <strong>saldo a cobrar de Healthier</strong>: él lo ve en Ganancias ("A cobrar de Healthier"), y el super admin lo gestiona en Pagos → <strong>Pagos pendientes a profesionales</strong>, marcando cada uno como pagado al hacer la transferencia (auditado con quién y cuándo).
   </div>
 </section>
 
@@ -256,24 +256,36 @@ flowchart TD
 <section id="refunds">
   <h2>5. Cancelaciones, refunds y Healthy Credits</h2>
 
+  <div class="callout red">
+    <strong>Regla de oro (24/07/2026): las devoluciones SIEMPRE se auditan — nunca son automáticas.</strong>
+    Toda solicitud entra a la cola "Devoluciones" del super admin y un humano la aprueba o rechaza. Recién al aprobar se acreditan los créditos.
+  </div>
+
   <div class="mermaid-box"><div class="mermaid">
 flowchart TD
     A["Paciente cancela una consulta paga"] --> B{"¿Faltan 48 o más horas hábiles<br>para el turno?"}
     B -- "No" --> C["Sin reintegro<br>mensaje claro antes de confirmar"]
-    B -- "Sí" --> D["Se acreditan Healthy Credits<br>por el total pagado"]
-    D --> E["El crédito se usa automáticamente<br>en la próxima consulta"]
+    B -- "Sí" --> R["Solicitud de devolución<br>estado: en revisión"]
+    R --> Q["Cola Devoluciones<br>del super admin"]
+    Q -- "Aprueba" --> D["Se acreditan Healthy Credits<br>por el total pagado"]
+    Q -- "Rechaza + motivo" --> X["Sin créditos<br>el paciente ve el motivo"]
+    D --> E["El crédito se usa<br>en la próxima consulta"]
     D --> F["O el paciente pide<br>devolución real por MP"]
-    F --> G["Solicitud pendiente en el panel<br>del super admin"]
+    F --> G["Solicitud de conversión<br>en la misma cola"]
     G -- "Aprueba" --> H["Refund real via API de MP<br>el crédito se anula"]
     G -- "Rechaza / espera" --> E
     style C fill:#fbecec,stroke:#b03636
+    style X fill:#fbecec,stroke:#b03636
+    style R fill:#fdf3e0,stroke:#e8c77f
+    style Q fill:#fdf3e0,stroke:#e8c77f
     style D fill:#eaf4ec,stroke:#3d7a4f
     style H fill:#eaf4ec,stroke:#3d7a4f
   </div></div>
 
   <ul>
     <li><strong>48 horas hábiles</strong> = se cuentan solo horas de lunes a viernes entre el momento de la cancelación y el horario del turno (feriados no considerados por ahora). La ventana es configurable en Settings.</li>
-    <li>El refund como crédito <strong>no mueve plata en MP</strong> — es un asiento en el ledger interno <code>patient_credits</code>. La plata queda en el sistema.</li>
+    <li>El paciente ve el estado de su solicitud en sus consultas: "Devolución en revisión" / "Devolución rechazada" (con motivo) / créditos acreditados.</li>
+    <li>El refund como crédito <strong>no mueve plata en MP</strong> — es un asiento en el ledger interno <code>patient_credits</code>. La plata queda en el sistema. El costo del crédito lo financia Healthier (el médico de la consulta cancelada conserva su cobro — la ventana de 48hs y la revisión manual son los controles).</li>
     <li>La conversión a refund real la ejecuta MP sobre el pago original (con el token del médico). Solo puede aprobarla un super admin, y requiere que el crédito no se haya gastado.</li>
   </ul>
 
@@ -290,7 +302,9 @@ flowchart TD
 
   <table>
     <tr><th>Vista</th><th>Qué muestra</th></tr>
-    <tr><td><code>/super-admin/pagos</code> <strong>(nueva)</strong></td><td>Todos los pagos de la plataforma con su consulta asociada: fecha, paciente, profesional, bruto, créditos usados, cobrado, fee MP (estimado y real), comisión Healthier, neto del médico, estado, refunds. Filtros por fecha/estado/método + totales del período. Cola de <strong>solicitudes de devolución por MP</strong> con botón Aprobar.</td></tr>
+    <tr><td><code>/super-admin/pagos</code> <strong>(nueva)</strong></td><td>Todos los pagos de la plataforma con su consulta asociada: fecha, paciente, profesional, bruto, créditos usados, cobrado, fee MP (estimado y real), comisión Healthier, neto del médico, estado, refunds. Filtros por fecha/estado/método + totales del período.</td></tr>
+    <tr><td>↳ <strong>Devoluciones</strong></td><td>Cola de auditoría con dos bandejas: <strong>solicitudes de créditos</strong> (cancelaciones — Aprobar / Rechazar con motivo) y <strong>conversiones a refund MP</strong>. Nada se devuelve sin aprobación manual; queda registrado quién y cuándo revisó.</td></tr>
+    <tr><td>↳ <strong>Pagos pendientes a profesionales</strong></td><td>Cuenta corriente por consultas pagadas con créditos: total adeudado, detalle por profesional/consulta, y acción "Marcar pagado" al ejecutar la transferencia.</td></tr>
     <tr><td><code>/super-admin/profesionales</code></td><td>Columna <strong>MP</strong> (verde "Conectado" / rojo "Sin conectar") + filtro "Sin MP" — la lista operativa para perseguir la adopción.</td></tr>
     <tr><td><code>/super-admin/dashboard</code></td><td>Cards reales basadas en pagos: <strong>Facturado (bruto pago)</strong> y <strong>Revenue Healthier (comisión)</strong> — reemplazan el viejo "Revenue estimado" que sumaba consultas completadas sin mirar si estaban pagas.</td></tr>
     <tr><td><code>/super-admin/settings</code></td><td>Configuración real y persistente: comisión (%), fee MP estimado (%), ventana de refund (hs hábiles). Los cambios aplican al próximo pago que se procese.</td></tr>
@@ -471,9 +485,9 @@ erDiagram
     Con split, cada médico cobra en su cuenta: la factura al paciente la emite el médico, y Healthier factura solo su comisión. Cambia respecto del modelo "todo pasa por Healthier" — confirmar el esquema (¿Healthier le factura la comisión al médico?) antes de escalar. <em>Complejidad: externa. Impacto: medio.</em>
   </div>
 
-  <div class="callout amber">
-    <strong>🟡 4. Liquidación de pagos con créditos</strong>
-    Cuando un paciente paga con Healthy Credits, Healthier le debe al médico el 78% de esa porción por fuera de MP (<code>manual_settlement_amount</code>, visible en el panel de Pagos). Hoy se paga a mano. Con poco volumen alcanza; definir proceso (transferencia mensual, etc.) antes de que crezca. <em>Complejidad: baja. Impacto: medio.</em>
+  <div class="callout green">
+    <strong>🟢 4. Liquidación de pagos con créditos — ✅ sistema implementado (24/07)</strong>
+    La cuenta corriente ya existe: el médico ve su saldo a cobrar en Ganancias y el super admin gestiona la tabla de pagos pendientes con "Marcar pagado". Queda solo lo operativo: ejecutar las transferencias (a la cuenta MP del médico) con la cadencia que se defina. Mejora futura: automatizarlas con la API de transferencias de MP.
   </div>
 
   <div class="callout amber">
@@ -492,7 +506,7 @@ erDiagram
     <tr><td>1</td><td>Médicos conecten MP</td><td>🔴 Total</td><td>Operativa</td><td>Mateo / equipo</td></tr>
     <tr><td>2</td><td>Sandbox E2E + 4 verificaciones</td><td>🔴 Alto</td><td>Baja (con acceso a MP)</td><td>Mateo desbloquea → Claude ejecuta</td></tr>
     <tr><td>3</td><td>Esquema de facturación</td><td>🟡 Medio</td><td>Externa (contador)</td><td>Mateo</td></tr>
-    <tr><td>4</td><td>Liquidación créditos → médicos</td><td>🟡 Medio</td><td>Baja</td><td>Definición de producto</td></tr>
+    <tr><td>4</td><td>Liquidación créditos → médicos</td><td>✅ Cuenta corriente implementada</td><td>Queda ejecutar transferencias</td><td>Operativo</td></tr>
     <tr><td>5</td><td>Registro AAIP RNBD</td><td>🟡 Alto (legal)</td><td>Trámite</td><td>Mateo</td></tr>
     <tr><td>6</td><td>Mobile checkout + feriados</td><td>🟢 Bajo</td><td>Media</td><td>Fase 2</td></tr>
   </table>
