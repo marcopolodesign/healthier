@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle, X, CircleNotch, WhatsappLogo, FileText } from '@phosphor-icons/react';
+import { Link, useSearchParams } from 'react-router-dom'
+import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle, X, CircleNotch, WhatsappLogo, FileText, Lightning, ArrowsClockwise } from '@phosphor-icons/react';
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
 import { emergencyService } from '../../services/emergencyService'
@@ -37,8 +37,16 @@ function getThisMonthEarnings(earningsData) {
     .reduce((sum, c) => sum + (c.priceAtBooking || 0), 0)
 }
 
+const MP_ERROR_MESSAGES = {
+  token_exchange: 'No pudimos completar la conexión con Mercado Pago. Probá de nuevo en unos minutos.',
+  db_save: 'La autorización salió bien pero no pudimos guardarla. Probá conectar de nuevo.',
+  invalid_state: 'No pudimos validar la conexión por seguridad. Iniciá el proceso de nuevo desde este botón.',
+}
+
 export default function ProfessionalDashboard({ profile }) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const [showMpConnectedModal, setShowMpConnectedModal] = useState(false)
   const [consultations, setConsultations] = useState([])
   const [earningsData, setEarningsData] = useState([])
   const [profProfile, setProfProfile] = useState(null)
@@ -48,6 +56,17 @@ export default function ProfessionalDashboard({ profile }) {
   const [confirmingId, setConfirmingId] = useState(null)
   const [walkInQueue, setWalkInQueue] = useState([])
   const [claimingId, setClaimingId] = useState(null)
+
+  // Feedback del retorno del OAuth de Mercado Pago (?mp_connected=1 / ?mp_error=...)
+  useEffect(() => {
+    const connected = searchParams.get('mp_connected')
+    const mpError = searchParams.get('mp_error')
+    if (!connected && !mpError) return
+    if (connected === '1') setShowMpConnectedModal(true)
+    if (mpError) toast.error(MP_ERROR_MESSAGES[mpError] ?? 'No pudimos conectar Mercado Pago. Probá de nuevo.')
+    navigate('/profesional/dashboard', { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [availableWalkIn, setAvailableWalkIn] = useState(false)
   const [togglingAvail, setTogglingAvail] = useState(false)
   const [schedules, setSchedules] = useState([])
@@ -384,7 +403,72 @@ export default function ProfessionalDashboard({ profile }) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs text-emerald-700 font-medium uppercase tracking-wide">MercadoPago conectado</p>
-            <p className="text-sm text-text-secondary mt-0.5">{mpStatus.email ?? 'Cuenta vinculada'}</p>
+            <p className="text-sm text-text-secondary mt-0.5">Cobrás el 78% de cada consulta directo en tu cuenta de MP</p>
+          </div>
+          <Link to="/profesional/configuracion" className="text-sm font-medium text-emerald-700 hover:text-emerald-800 shrink-0">
+            Administrar
+          </Link>
+        </div>
+      )}
+
+      {/* Modal post-conexión de Mercado Pago */}
+      {showMpConnectedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setShowMpConnectedModal(false)}>
+          <div className="bg-white rounded-3xl shadow-xl max-w-lg w-full p-8 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
+                <CheckCircle className="h-9 w-9 text-emerald-600" weight="fill" />
+              </div>
+              <h2 className="font-serif text-2xl text-text-primary">¡Mercado Pago conectado!</h2>
+              <p className="text-sm text-text-secondary mt-1">Ya podés recibir turnos. Así funciona el cobro:</p>
+            </div>
+
+            <ul className="space-y-4 mb-8">
+              <li className="flex gap-3">
+                <CurrencyDollar className="h-5 w-5 text-brand shrink-0 mt-0.5" />
+                <p className="text-sm text-text-primary">
+                  <span className="font-semibold">Cobrás el 78% del valor de cada consulta, neto.</span>{' '}
+                  La comisión de Mercado Pago la absorbe Healthier — no se descuenta de tu parte.
+                </p>
+              </li>
+              <li className="flex gap-3">
+                <Lightning className="h-5 w-5 text-brand shrink-0 mt-0.5" />
+                <p className="text-sm text-text-primary">
+                  <span className="font-semibold">La plata entra directo en tu cuenta de Mercado Pago</span>{' '}
+                  en el momento en que el paciente paga. Nunca pasa por Healthier.
+                </p>
+              </li>
+              <li className="flex gap-3">
+                <Clock className="h-5 w-5 text-brand shrink-0 mt-0.5" />
+                <p className="text-sm text-text-primary">
+                  <span className="font-semibold">¿Cuándo podés retirarla?</span>{' '}
+                  Según el plazo de liberación configurado en tu cuenta de MP (al instante o a 10, 18 o 35 días — lo elegís vos en Mercado Pago; a más plazo, menor costo para la plataforma).
+                </p>
+              </li>
+              <li className="flex gap-3">
+                <ArrowsClockwise className="h-5 w-5 text-brand shrink-0 mt-0.5" />
+                <p className="text-sm text-text-primary">
+                  <span className="font-semibold">La autorización se renueva sola.</span>{' '}
+                  Si alguna vez se desconecta, te lo avisamos acá en el dashboard.
+                </p>
+              </li>
+              <li className="flex gap-3">
+                <LinkSimple className="h-5 w-5 text-brand shrink-0 mt-0.5" />
+                <p className="text-sm text-text-primary">
+                  <span className="font-semibold">Podés desconectarte cuando quieras</span>{' '}
+                  desde Configuración → Mercado Pago. Mientras estés desconectado no vas a recibir turnos nuevos.
+                </p>
+              </li>
+            </ul>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button onClick={() => setShowMpConnectedModal(false)} className="btn-primary flex-1 py-3 rounded-full">
+                Entendido
+              </button>
+              <Link to="/profesional/configuracion" className="btn-secondary flex-1 py-3 rounded-full text-center">
+                Ir a Configuración
+              </Link>
+            </div>
           </div>
         </div>
       )}

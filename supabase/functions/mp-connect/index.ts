@@ -236,7 +236,8 @@ serve(async (req: Request) => {
         access_token: string;
         refresh_token: string;
         public_key: string;
-        collector_id: number;
+        collector_id?: number;
+        user_id?: number;
         scope: string;
         expires_in: number;
         token_type: string;
@@ -261,7 +262,9 @@ serve(async (req: Request) => {
         .upsert(
           {
             professional_id: professionalId,
-            mp_user_id: String(tokenData.collector_id),
+            // MP's OAuth response uses `user_id` (seller's MP id); older docs
+            // called it collector_id — accept both.
+            mp_user_id: String(tokenData.user_id ?? tokenData.collector_id ?? ""),
             access_token: encryptedAccessToken,
             refresh_token: encryptedRefreshToken,
             public_key: tokenData.public_key,
