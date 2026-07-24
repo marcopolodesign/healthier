@@ -282,11 +282,16 @@ export const mpService = {
   },
 
   /**
-   * Cancels + refunds-to-credits a paid consultation, only if the
+   * Requests a refund-to-credits for a cancelled consultation, only if the
    * cancellation happens ≥ platform_settings.refund_window_business_hours
-   * before scheduled_at (mp-refund action=cancel-refund — spec C5).
-   * Callers should also call consultationsService.cancel() for the booking
-   * status itself — this only handles the financial side.
+   * before scheduled_at (mp-refund action=cancel-refund).
+   *
+   * IMPORTANT: refunds are NEVER automatic (product rule, 2026-07-24). This
+   * only creates a pending request (payments.refund_request_status='pending')
+   * — no Healthy Credits are issued yet. A super_admin must review it via
+   * `approveRefund` / `rejectRefund`. Callers should also call
+   * consultationsService.cancel() for the booking status itself — this only
+   * handles the financial side.
    */
   async requestCancelRefund(consultationId) {
     try {
@@ -298,8 +303,35 @@ export const mpService = {
   },
 
   /**
-   * Patient asks to convert a Healthy Credits refund into a real
-   * Mercado Pago refund (mp-refund action=request-mp-conversion).
+   * Super admin approves a pending refund request — issues Healthy Credits
+   * and marks the payment/consultation as refunded
+   * (mp-refund action=approve-refund).
+   */
+  async approveRefund(paymentId) {
+    try {
+      const result = await callEdgeFunction('mp-refund', { action: 'approve-refund', paymentId })
+      return { data: toCamelCase(result), error: null }
+    } catch (err) {
+      return { data: null, error: err.message }
+    }
+  },
+
+  /**
+   * Super admin rejects a pending refund request — no credits issued
+   * (mp-refund action=reject-refund).
+   */
+  async rejectRefund(paymentId, reason) {
+    try {
+      const result = await callEdgeFunction('mp-refund', { action: 'reject-refund', paymentId, reason: reason ?? null })
+      return { data: toCamelCase(result), error: null }
+    } catch (err) {
+      return { data: null, error: err.message }
+    }
+  },
+
+  /**
+   * Patient asks to convert an already-approved Healthy Credits refund into
+   * a real Mercado Pago refund (mp-refund action=request-mp-conversion).
    */
   async requestMpConversion(consultationId) {
     try {

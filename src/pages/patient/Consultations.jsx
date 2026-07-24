@@ -422,10 +422,9 @@ export default function PatientConsultations({ profile }) {
       if (cancelEligible) {
         const { data, error } = await mpService.requestCancelRefund(cancelTarget.id)
         if (error) {
-          toast.warning('Turno cancelado, pero no pudimos acreditar el reintegro automáticamente. Contactanos por soporte.')
+          toast.warning('Turno cancelado, pero no pudimos enviar la solicitud de devolución. Contactanos por soporte.')
         } else {
-          toast.success('Turno cancelado — te acreditamos Healthy Credits.')
-          mpService.getCreditBalance().then(({ data: bal }) => setCreditBalance(bal || 0)).catch(() => {})
+          toast.success('Solicitud de devolución enviada — la revisa el equipo de Healthier')
         }
       } else {
         toast.info('Turno cancelado')
@@ -582,7 +581,9 @@ export default function PatientConsultations({ profile }) {
           const orders = t.consultationOrders ?? []
           const paymentRow = Array.isArray(t.payment) ? t.payment[0] : t.payment
           const isRefundedCredit = view === 'past' && t.paymentStatus === 'refunded' && paymentRow?.refundType === 'credit'
-          const hasActions = isUpcomingActive || isInProgressVideo || (view === 'past' && t.status === 'completed') || isRefundedCredit
+          const isRefundPending  = view === 'past' && paymentRow?.refundRequestStatus === 'pending'
+          const isRefundRejected = view === 'past' && paymentRow?.refundRequestStatus === 'rejected'
+          const hasActions = isUpcomingActive || isInProgressVideo || (view === 'past' && t.status === 'completed') || isRefundedCredit || isRefundPending || isRefundRejected
           return (
             <div key={t.id} className="bg-bg-secondary rounded-2xl border border-border-default overflow-hidden">
               <div className="flex">
@@ -693,6 +694,22 @@ export default function PatientConsultations({ profile }) {
                   {view === 'past' && t.status === 'completed' && hasReview && (
                     <div className="flex-1 py-3 flex items-center justify-center gap-1 text-[13px] text-amber-500 font-semibold">
                       <Star className="w-4 h-4 fill-amber-400" /> {patientReviewMap[t.id]?.rating}/5
+                    </div>
+                  )}
+                  {/* Refund request pending manual super_admin review — never automatic (2026-07-24) */}
+                  {isRefundPending && (
+                    <div className="flex-1 py-3 flex items-center justify-center gap-1.5 text-[12px] text-amber-600 font-semibold text-center px-2">
+                      <Clock className="w-4 h-4 shrink-0" /> Devolución en revisión
+                    </div>
+                  )}
+                  {isRefundRejected && (
+                    <div className="flex-1 py-3 flex flex-col items-center justify-center gap-0.5 text-center px-2">
+                      <span className="flex items-center gap-1.5 text-[12px] text-error font-semibold">
+                        <Warning className="w-4 h-4 shrink-0" /> Devolución rechazada
+                      </span>
+                      {paymentRow?.refundRejectReason && (
+                        <span className="text-[11px] text-text-tertiary font-normal">{paymentRow.refundRejectReason}</span>
+                      )}
                     </div>
                   )}
                   {/* Refunded-as-credit — offer to escalate to a real MP refund (spec D3) */}
@@ -978,7 +995,7 @@ export default function PatientConsultations({ profile }) {
             cancelEligible ? (
               <div className="mb-4 flex items-start gap-2 bg-brand-muted rounded-xl px-3 py-2.5">
                 <Sparkle className="w-4 h-4 text-brand mt-0.5 shrink-0" weight="fill" />
-                <p className="text-[12px] text-brand">Cancelás con más de {refundWindowHours}hs hábiles de anticipación — recibirás el 100% como Healthy Credits.</p>
+                <p className="text-[12px] text-brand">Cancelás con más de {refundWindowHours}hs hábiles de anticipación — recibís Healthy Credits una vez aprobada la revisión.</p>
               </div>
             ) : (
               <div className="mb-4 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
@@ -1000,7 +1017,7 @@ export default function PatientConsultations({ profile }) {
           <div className="flex gap-3">
             <button onClick={() => setCancelTarget(null)} className="btn-secondary flex-1 py-3.5 text-[15px]">No, volver</button>
             <button onClick={handleCancel} disabled={cancelling} className="btn-danger flex-1 py-3.5 text-[15px]">
-              {cancelling ? 'Cancelando...' : cancelEligible ? 'Sí, cancelar y recibir créditos' : 'Sí, cancelar'}
+              {cancelling ? 'Cancelando...' : cancelEligible ? 'Sí, cancelar y solicitar devolución' : 'Sí, cancelar'}
             </button>
           </div>
         </div>

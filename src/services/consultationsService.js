@@ -85,7 +85,7 @@ export const consultationsService = {
   async getByPatient(patientId) {
     const { data, error } = await supabase
       .from('consultations')
-      .select('*, professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty)), consultation_orders(*), payment:payments!consultation_id(id, status, refund_type, refunded_at, refund_conversion_requested_at, refund_conversion_resolved_at, mp_payment_id)')
+      .select('*, professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty)), consultation_orders(*), payment:payments!consultation_id(id, status, refund_type, refunded_at, refund_conversion_requested_at, refund_conversion_resolved_at, mp_payment_id, refund_request_status, refund_reject_reason)')
       .eq('patient_id', patientId)
       .order('scheduled_at', { ascending: false })
     if (error) throw error

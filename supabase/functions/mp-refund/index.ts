@@ -1,19 +1,36 @@
 /**
- * mp-refund — Cancellation refunds as Healthy Credits + MP conversion workflow
+ * mp-refund — Manual refund-approval queue (Healthy Credits) + MP conversion workflow
  *
  * POST /mp-refund  { action, ...params }   (all actions require an authenticated caller)
+ *
+ * Product rule (Mateo, 2026-07-24): refunds are NEVER automatic. A cancellation
+ * only ever creates a *request* — a super_admin must explicitly approve it
+ * before any Healthy Credits are issued or any payments/consultations status
+ * changes.
  *
  * action: "cancel-refund"        body: { consultationId }           (patient owner, or admin/super_admin)
  *   Financial side of a cancellation — the appointment-status cancellation itself
  *   already exists elsewhere in the flow; the frontend calls both. Refund-eligible
  *   only if >= platform_settings.refund_window_business_hours business hours
  *   (Mon–Fri, America/Argentina/Buenos_Aires) separate now() from scheduled_at.
- *   Eligible → issues Healthy Credits (ledger + payments.status='refunded',
- *   refund_type='credit') — no MP call. Not eligible → 422, no refund.
+ *   Eligible → marks the payment as a pending refund request
+ *   (refund_request_status='pending', refund_requested_at=now()) — does NOT
+ *   touch patient_credits, payments.status, or consultations.payment_status.
+ *   A super_admin reviews it via approve-refund / reject-refund. Not eligible →
+ *   422, no request created. Already pending → 409.
+ *
+ * action: "approve-refund"       body: { paymentId }                (super_admin only)
+ *   Approves a pending refund request: issues Healthy Credits (ledger insert),
+ *   sets payments.status='refunded' / refund_type='credit', and
+ *   consultations.payment_status='refunded'.
+ *
+ * action: "reject-refund"        body: { paymentId, reason? }       (super_admin only)
+ *   Rejects a pending refund request. No credits issued, no other state changes.
  *
  * action: "request-mp-conversion" body: { consultationId? , paymentId? }  (patient owner)
- *   Patient asks to convert a credit-refund into a real MP refund. Requires the
- *   credit hasn't been spent yet (balance >= the refunded amount).
+ *   Patient asks to convert an already-approved credit-refund into a real MP
+ *   refund. Requires the credit hasn't been spent yet (balance >= the refunded
+ *   amount).
  *
  * action: "approve-mp-conversion" body: { paymentId }               (super_admin only)
  *   Calls MP's real refund API using the seller's OAuth token. If the payment
@@ -130,7 +147,7 @@ Deno.serve(async (req) => {
 
       const { data: payment, error: paymentErr } = await supabase
         .from("payments")
-        .select("id, gross_amount")
+        .select("id, gross_amount, refund_request_status")
         .eq("consultation_id", consultationId)
         .eq("status", "approved")
         .order("created_at", { ascending: false })
@@ -142,13 +159,59 @@ Deno.serve(async (req) => {
         return jsonResponse({ data: null, error: "No approved payment found for this consultation" }, 422);
       }
 
+      if (payment.refund_request_status === "pending") {
+        return jsonResponse(
+          { data: null, error: "Ya existe una solicitud de devolución pendiente de revisión para este pago" },
+          409
+        );
+      }
+
+      // Never automatic — this only records the request. A super_admin must
+      // approve it (action=approve-refund) before any credits are issued or
+      // any payments/consultations status changes.
+      const { error: requestErr } = await supabase
+        .from("payments")
+        .update({
+          refund_requested_at: new Date().toISOString(),
+          refund_request_status: "pending",
+        })
+        .eq("id", payment.id);
+      if (requestErr) {
+        console.error("mp-refund: refund request update error:", requestErr.message);
+        return jsonResponse({ data: null, error: "Failed to request refund" }, 500);
+      }
+
+      return jsonResponse({ data: { requested: true, pendingReview: true }, error: null });
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // action: approve-refund (super_admin only)
+    // ────────────────────────────────────────────────────────────────────────
+    if (action === "approve-refund") {
+      if (callerRole !== "super_admin") return jsonResponse({ data: null, error: "Forbidden" }, 403);
+
+      const { paymentId } = body as { paymentId?: string };
+      if (!paymentId) return jsonResponse({ data: null, error: "Missing paymentId" }, 400);
+
+      const { data: payment, error: paymentErr } = await supabase
+        .from("payments")
+        .select("id, patient_id, consultation_id, gross_amount, refund_request_status")
+        .eq("id", paymentId)
+        .single();
+
+      if (paymentErr || !payment) return jsonResponse({ data: null, error: "Payment not found" }, 404);
+
+      if (payment.refund_request_status !== "pending") {
+        return jsonResponse({ data: null, error: "No hay una solicitud de devolución pendiente para este pago" }, 409);
+      }
+
       const { error: ledgerErr } = await supabase.from("patient_credits").insert({
-        patient_id: consultation.patient_id,
+        patient_id: payment.patient_id,
         amount: payment.gross_amount,
         reason: "refund",
-        consultation_id: consultationId,
+        consultation_id: payment.consultation_id,
         payment_id: payment.id,
-        note: `Reembolso por cancelación ≥${windowHours}hs hábiles de anticipación`,
+        note: "Reembolso por cancelación aprobado manualmente por super admin",
         created_by: user.id,
       });
       if (ledgerErr) {
@@ -158,17 +221,62 @@ Deno.serve(async (req) => {
 
       const { error: paymentUpdateErr } = await supabase
         .from("payments")
-        .update({ status: "refunded", refund_type: "credit", refunded_at: new Date().toISOString() })
+        .update({
+          status: "refunded",
+          refund_type: "credit",
+          refunded_at: new Date().toISOString(),
+          refund_request_status: "approved",
+          refund_reviewed_by: user.id,
+          refund_reviewed_at: new Date().toISOString(),
+        })
         .eq("id", payment.id);
-      if (paymentUpdateErr) console.error("mp-refund: payments update error:", paymentUpdateErr.message);
+      if (paymentUpdateErr) console.error("mp-refund: approve-refund payments update error:", paymentUpdateErr.message);
 
       const { error: consUpdateErr } = await supabase
         .from("consultations")
         .update({ payment_status: "refunded", refund_pending: false })
-        .eq("id", consultationId);
-      if (consUpdateErr) console.error("mp-refund: consultations update error:", consUpdateErr.message);
+        .eq("id", payment.consultation_id);
+      if (consUpdateErr) console.error("mp-refund: approve-refund consultations update error:", consUpdateErr.message);
 
-      return jsonResponse({ data: { refunded: true, creditsIssued: payment.gross_amount }, error: null });
+      return jsonResponse({ data: { approved: true, creditsIssued: payment.gross_amount }, error: null });
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // action: reject-refund (super_admin only)
+    // ────────────────────────────────────────────────────────────────────────
+    if (action === "reject-refund") {
+      if (callerRole !== "super_admin") return jsonResponse({ data: null, error: "Forbidden" }, 403);
+
+      const { paymentId, reason } = body as { paymentId?: string; reason?: string };
+      if (!paymentId) return jsonResponse({ data: null, error: "Missing paymentId" }, 400);
+
+      const { data: payment, error: paymentErr } = await supabase
+        .from("payments")
+        .select("id, refund_request_status")
+        .eq("id", paymentId)
+        .single();
+
+      if (paymentErr || !payment) return jsonResponse({ data: null, error: "Payment not found" }, 404);
+
+      if (payment.refund_request_status !== "pending") {
+        return jsonResponse({ data: null, error: "No hay una solicitud de devolución pendiente para este pago" }, 409);
+      }
+
+      const { error: updateErr } = await supabase
+        .from("payments")
+        .update({
+          refund_request_status: "rejected",
+          refund_reviewed_by: user.id,
+          refund_reviewed_at: new Date().toISOString(),
+          refund_reject_reason: reason ?? null,
+        })
+        .eq("id", payment.id);
+      if (updateErr) {
+        console.error("mp-refund: reject-refund update error:", updateErr.message);
+        return jsonResponse({ data: null, error: "Failed to reject refund" }, 500);
+      }
+
+      return jsonResponse({ data: { rejected: true }, error: null });
     }
 
     // ────────────────────────────────────────────────────────────────────────

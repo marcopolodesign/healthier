@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { CurrencyDollar, Users, ArrowClockwise, CheckCircle, CircleNotch, Sparkle } from '@phosphor-icons/react'
+import { CurrencyDollar, Users, ArrowClockwise, CheckCircle, CircleNotch, Sparkle, HandCoins } from '@phosphor-icons/react'
 import { paymentsService } from '../../services/paymentsService'
 import { mpService } from '../../services/mpService'
 import { toast } from '../../components/Toast'
@@ -24,9 +24,20 @@ const STATUS_LABEL = { approved: 'Aprobado', pending: 'Pendiente', rejected: 'Re
 
 export default function SuperAdminPayments() {
   const [payments, setPayments] = useState([])
+  const [pendingRefunds, setPendingRefunds] = useState([])
   const [pendingConversions, setPendingConversions] = useState([])
+  const [pendingSettlements, setPendingSettlements] = useState([])
   const [loading, setLoading] = useState(true)
   const [approvingId, setApprovingId] = useState(null)
+  const [settlingId, setSettlingId] = useState(null)
+  const [confirmSettleId, setConfirmSettleId] = useState(null)
+
+  // Refund-request queue (cancellation → Healthy Credits) — approve/reject
+  const [approvingRefundId, setApprovingRefundId] = useState(null)
+  const [confirmApproveRefundId, setConfirmApproveRefundId] = useState(null)
+  const [rejectingRefundId, setRejectingRefundId] = useState(null)
+  const [rejectFormId, setRejectFormId] = useState(null)
+  const [rejectReason, setRejectReason] = useState('')
 
   const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', status: '', method: '' })
 
@@ -40,11 +51,15 @@ export default function SuperAdminPayments() {
     }
     Promise.all([
       paymentsService.getAllPayments(apiFilters),
+      paymentsService.getPendingRefundRequests(),
       paymentsService.getPendingConversionRequests(),
+      paymentsService.getPendingSettlements(),
     ])
-      .then(([pays, conversions]) => {
+      .then(([pays, refunds, conversions, settlements]) => {
         setPayments(pays)
+        setPendingRefunds(refunds)
         setPendingConversions(conversions)
+        setPendingSettlements(settlements)
       })
       .catch(() => toast.error('Error al cargar pagos'))
       .finally(() => setLoading(false))
@@ -75,6 +90,57 @@ export default function SuperAdminPayments() {
       setApprovingId(null)
     }
   }
+
+  const handleApproveRefund = async (paymentId) => {
+    setApprovingRefundId(paymentId)
+    try {
+      const { data, error } = await mpService.approveRefund(paymentId)
+      if (error) throw new Error(error)
+      toast.success('Devolución aprobada — se acreditaron los Healthy Credits')
+      setConfirmApproveRefundId(null)
+      load()
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos aprobar la devolución')
+    } finally {
+      setApprovingRefundId(null)
+    }
+  }
+
+  const handleRejectRefund = async (paymentId) => {
+    setRejectingRefundId(paymentId)
+    try {
+      const { data, error } = await mpService.rejectRefund(paymentId, rejectReason.trim() || undefined)
+      if (error) throw new Error(error)
+      toast.success('Solicitud de devolución rechazada')
+      setRejectFormId(null)
+      setRejectReason('')
+      load()
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos rechazar la solicitud')
+    } finally {
+      setRejectingRefundId(null)
+    }
+  }
+
+  const handleMarkSettlementPaid = async (paymentId) => {
+    setSettlingId(paymentId)
+    try {
+      const { error } = await paymentsService.markSettlementPaid(paymentId)
+      if (error) throw new Error(error.message || error)
+      toast.success('Pago marcado como liquidado')
+      setConfirmSettleId(null)
+      load()
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos marcar el pago como liquidado')
+    } finally {
+      setSettlingId(null)
+    }
+  }
+
+  const settlementsTotal = useMemo(
+    () => pendingSettlements.reduce((s, p) => s + Number(p.manualSettlementAmount || 0), 0),
+    [pendingSettlements]
+  )
 
   const totals = useMemo(() => {
     const approved = payments.filter(p => p.status === 'approved')
@@ -112,39 +178,137 @@ export default function SuperAdminPayments() {
         ))}
       </div>
 
-      {/* Pending MP-conversion requests */}
-      {pendingConversions.length > 0 && (
+      {/* ─── Devoluciones ─── */}
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold text-text-primary">Devoluciones</h2>
+
+        {/* Solicitudes de devolución (créditos) — nunca automáticas, revisión manual */}
         <div className="card border-amber-200 bg-amber-50/60">
-          <h2 className="font-semibold text-amber-800 mb-3">
-            Solicitudes de devolución por Mercado Pago
-            <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-600 text-white text-xs font-semibold">
-              {pendingConversions.length}
-            </span>
-          </h2>
-          <div className="space-y-2">
-            {pendingConversions.map(p => (
-              <div key={p.id} className="flex items-center gap-3 bg-white rounded-xl p-3 border border-amber-100">
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-text-primary text-sm truncate">{p.patient?.fullName || 'Paciente'}</p>
-                  <p className="text-xs text-text-secondary mt-0.5">
-                    {formatARS(p.grossAmount)} · Solicitado el {formatDate(p.refundConversionRequestedAt)}
-                  </p>
-                  {!p.mpPaymentId && (
-                    <p className="text-xs text-red-500 mt-0.5">Sin mp_payment_id — este pago fue 100% créditos, no hay nada que devolver por MP.</p>
+          <h3 className="font-semibold text-amber-800 mb-3 flex items-center gap-2">
+            Solicitudes de devolución (créditos)
+            {pendingRefunds.length > 0 && (
+              <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-600 text-white text-xs font-semibold">
+                {pendingRefunds.length}
+              </span>
+            )}
+          </h3>
+          {pendingRefunds.length === 0 ? (
+            <p className="text-sm text-text-secondary">No hay solicitudes de devolución pendientes.</p>
+          ) : (
+            <div className="space-y-2">
+              {pendingRefunds.map(p => (
+                <div key={p.id} className="bg-white rounded-xl p-3 border border-amber-100">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-text-primary text-sm truncate">
+                        {p.patient?.fullName || 'Paciente'} <span className="text-text-tertiary font-normal">→</span> {p.professional?.fullName || 'Profesional'}
+                      </p>
+                      <p className="text-xs text-text-secondary mt-0.5">
+                        {formatARS(p.grossAmount)} · Turno: {p.consultation?.scheduledAt ? formatDate(p.consultation.scheduledAt) : '—'} · Solicitado el {formatDate(p.refundRequestedAt)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {confirmApproveRefundId === p.id ? (
+                        <>
+                          <button
+                            onClick={() => handleApproveRefund(p.id)}
+                            disabled={approvingRefundId === p.id}
+                            className="btn-primary text-xs px-3 py-2 disabled:opacity-40"
+                          >
+                            {approvingRefundId === p.id ? <CircleNotch className="h-4 w-4 animate-spin" /> : '¿Confirmar?'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmApproveRefundId(null)}
+                            disabled={approvingRefundId === p.id}
+                            className="text-xs text-text-secondary hover:text-text-primary"
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => setConfirmApproveRefundId(p.id)} className="btn-primary text-xs px-3 py-2">
+                          Aprobar
+                        </button>
+                      )}
+                      {rejectFormId !== p.id && (
+                        <button
+                          onClick={() => { setRejectFormId(p.id); setRejectReason('') }}
+                          className="btn-secondary text-xs px-3 py-2"
+                        >
+                          Rechazar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {rejectFormId === p.id && (
+                    <div className="mt-2.5 flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={rejectReason}
+                        onChange={e => setRejectReason(e.target.value)}
+                        placeholder="Motivo del rechazo (opcional)"
+                        className="form-input text-xs flex-1"
+                      />
+                      <button
+                        onClick={() => handleRejectRefund(p.id)}
+                        disabled={rejectingRefundId === p.id}
+                        className="btn-danger text-xs px-3 py-2 shrink-0 disabled:opacity-40"
+                      >
+                        {rejectingRefundId === p.id ? <CircleNotch className="h-4 w-4 animate-spin" /> : 'Confirmar rechazo'}
+                      </button>
+                      <button
+                        onClick={() => { setRejectFormId(null); setRejectReason('') }}
+                        disabled={rejectingRefundId === p.id}
+                        className="text-xs text-text-secondary hover:text-text-primary shrink-0"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
                   )}
                 </div>
-                <button
-                  onClick={() => handleApproveConversion(p.id)}
-                  disabled={approvingId === p.id || !p.mpPaymentId}
-                  className="btn-primary text-xs px-3 py-2 shrink-0 disabled:opacity-40"
-                >
-                  {approvingId === p.id ? <CircleNotch className="h-4 w-4 animate-spin" /> : 'Aprobar'}
-                </button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Solicitudes de conversión a devolución por Mercado Pago */}
+        <div className="card border-amber-200 bg-amber-50/60">
+          <h3 className="font-semibold text-amber-800 mb-3 flex items-center gap-2">
+            Solicitudes de devolución por Mercado Pago
+            {pendingConversions.length > 0 && (
+              <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-600 text-white text-xs font-semibold">
+                {pendingConversions.length}
+              </span>
+            )}
+          </h3>
+          {pendingConversions.length === 0 ? (
+            <p className="text-sm text-text-secondary">No hay solicitudes de conversión a Mercado Pago pendientes.</p>
+          ) : (
+            <div className="space-y-2">
+              {pendingConversions.map(p => (
+                <div key={p.id} className="flex items-center gap-3 bg-white rounded-xl p-3 border border-amber-100">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-text-primary text-sm truncate">{p.patient?.fullName || 'Paciente'}</p>
+                    <p className="text-xs text-text-secondary mt-0.5">
+                      {formatARS(p.grossAmount)} · Solicitado el {formatDate(p.refundConversionRequestedAt)}
+                    </p>
+                    {!p.mpPaymentId && (
+                      <p className="text-xs text-red-500 mt-0.5">Sin mp_payment_id — este pago fue 100% créditos, no hay nada que devolver por MP.</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleApproveConversion(p.id)}
+                    disabled={approvingId === p.id || !p.mpPaymentId}
+                    className="btn-primary text-xs px-3 py-2 shrink-0 disabled:opacity-40"
+                  >
+                    {approvingId === p.id ? <CircleNotch className="h-4 w-4 animate-spin" /> : 'Aprobar'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Filters */}
       <form onSubmit={applyFilters} className="card flex flex-wrap items-end gap-3">
@@ -178,6 +342,92 @@ export default function SuperAdminPayments() {
         <button type="submit" className="btn-primary text-sm px-4 py-2">Filtrar</button>
         <button type="button" onClick={clearFilters} className="text-sm text-text-secondary hover:text-text-primary">Limpiar</button>
       </form>
+
+      {/* Pagos pendientes a profesionales — cuenta corriente */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="font-semibold text-text-primary flex items-center gap-2">
+              <HandCoins className="h-5 w-5 text-brand" />
+              Pagos pendientes a profesionales
+            </h2>
+            <p className="text-xs text-text-secondary mt-1">
+              Consultas pagadas con Healthy Credits — deuda de Healthier con el profesional, se salda por transferencia manual.
+            </p>
+          </div>
+          {pendingSettlements.length > 0 && (
+            <div className="text-right shrink-0">
+              <p className="text-lg font-semibold text-text-primary">{formatARS(settlementsTotal)}</p>
+              <p className="text-xs text-text-secondary">{pendingSettlements.length} pendiente{pendingSettlements.length !== 1 ? 's' : ''}</p>
+            </div>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="space-y-2">{[1, 2].map(i => <div key={i} className="h-10 bg-bg-surface rounded-lg animate-pulse" />)}</div>
+        ) : pendingSettlements.length === 0 ? (
+          <div className="flex flex-col items-center py-10 text-center">
+            <HandCoins className="h-10 w-10 text-text-muted mb-3" />
+            <p className="text-text-secondary text-sm">No hay pagos pendientes a profesionales.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr>
+                  <th className="table-header">Fecha</th>
+                  <th className="table-header">Profesional</th>
+                  <th className="table-header">Consulta</th>
+                  <th className="table-header text-right">Monto adeudado</th>
+                  <th className="table-header text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingSettlements.map(p => (
+                  <tr key={p.id} className="table-row">
+                    <td className="table-cell whitespace-nowrap text-text-tertiary">{formatDate(p.createdAt)}</td>
+                    <td className="table-cell">
+                      <p className="text-text-primary truncate max-w-[180px]">{p.professional?.fullName || '—'}</p>
+                      <p className="text-xs text-text-tertiary truncate max-w-[180px]">{p.professional?.email || ''}</p>
+                    </td>
+                    <td className="table-cell text-text-tertiary">
+                      {p.consultation?.scheduledAt ? formatDate(p.consultation.scheduledAt) : '—'}
+                    </td>
+                    <td className="table-cell text-right font-semibold">{formatARS(p.manualSettlementAmount)}</td>
+                    <td className="table-cell text-right">
+                      {confirmSettleId === p.id ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleMarkSettlementPaid(p.id)}
+                            disabled={settlingId === p.id}
+                            className="btn-primary text-xs px-3 py-2 disabled:opacity-40"
+                          >
+                            {settlingId === p.id ? <CircleNotch className="h-4 w-4 animate-spin" /> : '¿Confirmar?'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmSettleId(null)}
+                            disabled={settlingId === p.id}
+                            className="text-xs text-text-secondary hover:text-text-primary"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmSettleId(p.id)}
+                          className="btn-secondary text-xs px-3 py-2"
+                        >
+                          Marcar pagado
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Table */}
       <div className="card">

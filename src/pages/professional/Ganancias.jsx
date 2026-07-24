@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { TrendUp, TrendDown, CurrencyDollar, Clock, CheckCircle, ArrowClockwise, CaretDown, Users, Info } from '@phosphor-icons/react';
+import { TrendUp, TrendDown, CurrencyDollar, Clock, CheckCircle, ArrowClockwise, CaretDown, Users, Info, HandCoins } from '@phosphor-icons/react';
 import { paymentsService } from '../../services/paymentsService'
 import { toast } from '../../components/Toast'
 
@@ -41,6 +41,7 @@ export default function Ganancias({ profile }) {
   const [loading, setLoading] = useState(true)
   const [range, setRange] = useState(6)
   const [showRangeMenu, setShowRangeMenu] = useState(false)
+  const [settlementBalance, setSettlementBalance] = useState(0)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -48,6 +49,9 @@ export default function Ganancias({ profile }) {
       .then(setPayments)
       .catch(() => toast.error('Error al cargar ganancias'))
       .finally(() => setLoading(false))
+    paymentsService.getMySettlementBalance()
+      .then(({ pending }) => setSettlementBalance(pending))
+      .catch(() => {})
   }, [profile?.id])
 
   // ── Derived totals ──────────────────────────────────────────────────────────
@@ -179,6 +183,22 @@ export default function Ganancias({ profile }) {
           )}
         </div>
       </div>
+
+      {/* ── A cobrar de Healthier (cuenta corriente) ── */}
+      {settlementBalance > 0 && (
+        <div className="card bg-white border-brand/20">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-muted flex items-center justify-center shrink-0">
+              <HandCoins className="h-5 w-5 text-brand" />
+            </div>
+            <div>
+              <p className="text-sm text-text-secondary">
+                <span className="font-semibold text-text-primary">A cobrar de Healthier: {formatARS(settlementBalance)}</span> — consultas pagadas con Healthy Credits; Healthier te lo transfiere por fuera de la app.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

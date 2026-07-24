@@ -44,6 +44,26 @@ export const paymentsService = {
     return toCamelCase(data)
   },
 
+  /**
+   * Payments with a pending refund request (cancellation → Healthy Credits),
+   * awaiting manual super_admin review — refunds are NEVER automatic
+   * (product rule, 2026-07-24). See mp-refund action=cancel-refund / approve-refund / reject-refund.
+   */
+  async getPendingRefundRequests() {
+    const { data, error } = await supabase
+      .from('payments')
+      .select(`
+        *,
+        consultation:consultations!consultation_id(id, scheduled_at),
+        patient:profiles!patient_id(full_name, email),
+        professional:profiles!professional_id(full_name, email)
+      `)
+      .eq('refund_request_status', 'pending')
+      .order('refund_requested_at', { ascending: true })
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
   /** Payments with a pending "credits → MP refund" conversion request. */
   async getPendingConversionRequests() {
     const { data, error } = await supabase
@@ -107,6 +127,56 @@ export const paymentsService = {
       .single()
     if (error) throw error
     return toCamelCase(data)
+  },
+
+  /**
+   * Pagos pendientes a profesionales ("cuenta corriente") — super_admin view.
+   * All payments with an outstanding manual_settlement_amount (debt owed to
+   * the professional for the Healthy Credits-covered portion) not yet settled.
+   */
+  async getPendingSettlements() {
+    const { data, error } = await supabase
+      .from('payments')
+      .select(`
+        id,
+        manual_settlement_amount,
+        created_at,
+        settled_at,
+        professional:profiles!professional_id(id, full_name, email),
+        consultation:consultations!consultation_id(id, scheduled_at)
+      `)
+      .gt('manual_settlement_amount', 0)
+      .is('settled_at', null)
+      .order('created_at', { ascending: true })
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
+  /** super_admin only — enforced inside the RPC (get_my_role() = 'super_admin'). */
+  async markSettlementPaid(paymentId) {
+    const { data, error } = await supabase.rpc('mark_settlement_paid', { p_payment: paymentId })
+    return { data, error }
+  },
+
+  /**
+   * Current professional's own settlement ("cuenta corriente") balance —
+   * used by Ganancias.jsx. Professional can already SELECT their own
+   * payments per RLS, so this reads directly instead of needing an RPC.
+   */
+  async getMySettlementBalance() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { pending: 0, settled: 0 }
+    const { data, error } = await supabase
+      .from('payments')
+      .select('manual_settlement_amount, settled_at')
+      .eq('professional_id', user.id)
+      .gt('manual_settlement_amount', 0)
+    if (error) throw error
+    const rows = data ?? []
+    return {
+      pending: rows.reduce((s, r) => s + (r.settled_at ? 0 : Number(r.manual_settlement_amount || 0)), 0),
+      settled: rows.reduce((s, r) => s + (r.settled_at ? Number(r.manual_settlement_amount || 0) : 0), 0),
+    }
   },
 
   /**
