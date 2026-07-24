@@ -18,6 +18,8 @@ This document provides context for Claude Code when working on this React/Supaba
 
 > **🎨 Figma:** When implementing UI from Figma, always use the **Figma MCP** (`mcp__plugin_figma_figma__*`) tools. Use `get_design_context` with the fileKey and nodeId from the URL. Figma file key: `NnHInsYlpesMmLU1cTnPz2`.
 
+> **📊 MANDATORY — Super Admin visibility:** todo lo relacionado con el manejo de la plataforma (pagos, comisiones, conexiones MP, refunds/créditos, verificaciones, configuraciones, estados) tiene que verse reflejado en el panel del super admin (`/super-admin/*`) en el mismo cambio — columna, badge, página o métrica según corresponda. Regla de Mateo (2026-07-24), detalle en el CLAUDE.md raíz del monorepo.
+
 ---
 
 ## Project Overview

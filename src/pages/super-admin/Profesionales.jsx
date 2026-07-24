@@ -477,7 +477,7 @@ export default function SuperAdminProfesionales() {
       const [profResult, consultResult] = await Promise.all([
         supabase
           .from('professional_profiles')
-          .select('id, specialty, is_verified, verification_source, sisa_status, average_rating, total_reviews, created_at, profiles!user_id(id, full_name, email, created_at, utm_source)')
+          .select('id, specialty, is_verified, verification_source, sisa_status, mp_connected, average_rating, total_reviews, created_at, profiles!user_id(id, full_name, email, created_at, utm_source)')
           .order('created_at', { ascending: false }),
         supabase.from('consultations').select('professional_id'),
       ])
@@ -503,6 +503,7 @@ export default function SuperAdminProfesionales() {
   const filtered = professionals.filter(p => {
     if (filter === 'verificados' && !p.is_verified) return false
     if (filter === 'pendientes' && p.is_verified) return false
+    if (filter === 'sin-mp' && p.mp_connected) return false
     if (search.trim()) {
       const q = search.toLowerCase()
       const name = p.profiles?.full_name?.toLowerCase() ?? ''
@@ -517,6 +518,7 @@ export default function SuperAdminProfesionales() {
     { key: 'todos', label: 'Todos' },
     { key: 'verificados', label: 'Verificados' },
     { key: 'pendientes', label: 'Pendientes' },
+    { key: 'sin-mp', label: 'Sin MP' },
   ]
 
   return (
@@ -558,6 +560,7 @@ export default function SuperAdminProfesionales() {
                 <th className="table-header">Especialidad</th>
                 <th className="table-header">Estado</th>
                 <th className="table-header">SISA</th>
+                <th className="table-header">MP</th>
                 <th className="table-header">Rating</th>
                 <th className="table-header">Consultas</th>
                 <th className="table-header">Registro</th>
@@ -576,7 +579,7 @@ export default function SuperAdminProfesionales() {
                         </div>
                       </div>
                     </td>
-                    {Array.from({ length: 6 }).map((_, j) => (
+                    {Array.from({ length: 7 }).map((_, j) => (
                       <td key={j} className="table-cell">
                         <div className="h-3 w-16 bg-gray-200 rounded animate-pulse" />
                       </td>
@@ -585,7 +588,7 @@ export default function SuperAdminProfesionales() {
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center">
+                  <td colSpan={8} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-3 text-gray-400">
                       <User size={40} weight="thin" />
                       <p className="text-sm">No se encontraron profesionales</p>
@@ -625,6 +628,11 @@ export default function SuperAdminProfesionales() {
                         {pro.sisa_status
                           ? <SisaBadge status={pro.sisa_status} />
                           : <span className="text-xs text-gray-300">—</span>}
+                      </td>
+                      <td className="table-cell">
+                        {pro.mp_connected
+                          ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">Conectado</span>
+                          : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600">Sin conectar</span>}
                       </td>
                       <td className="table-cell">
                         {pro.average_rating > 0
