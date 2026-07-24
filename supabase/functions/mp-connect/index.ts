@@ -79,7 +79,20 @@ serve(async (req: Request) => {
 
   try {
     const url = new URL(req.url);
-    const action = url.searchParams.get("action");
+    // Route without requiring ?action= — MP's app panel rejects redirect URLs
+    // with query strings, so the registered redirect URI is the bare function
+    // URL and the callback is recognized by the presence of code+state.
+    let action = url.searchParams.get("action");
+    if (!action) {
+      if (url.searchParams.get("code") && url.searchParams.get("state")) {
+        action = "callback";
+      } else if (
+        url.searchParams.get("professionalId") ??
+        url.searchParams.get("professional_id")
+      ) {
+        action = "authorize";
+      }
+    }
 
     // ─── POST: disconnect (authenticated, owning professional only) ─────────
     if (req.method === "POST") {
