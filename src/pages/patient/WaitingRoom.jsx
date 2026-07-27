@@ -1,8 +1,19 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Clock, VideoCamera, SealCheck } from '@phosphor-icons/react'
+import { Clock, VideoCamera, SealCheck, ClipboardText } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
 import { consultationsService, WAITING_HEARTBEAT_MS } from '../../services/consultationsService'
+import PreconsultaForm from '../../components/patient/PreconsultaForm'
+
+/**
+ * The pre-consulta payload is written by PreconsultaForm as snake_case JSON, but
+ * getById runs it through toCamelCase — accept both shapes rather than depending
+ * on which one survives the round trip.
+ */
+function hasPreconsulta(data) {
+  if (!data || typeof data !== 'object') return false
+  return Boolean(data.main_complaint || data.mainComplaint || data.symptoms)
+}
 
 function useCountdown(scheduledAt) {
   const [display, setDisplay] = useState(null)
@@ -41,6 +52,9 @@ export default function WaitingRoom({ profile }) {
   const [doctorReady, setDoctorReady] = useState(false)
   const [entering, setEntering] = useState(false)
   const [dots, setDots] = useState('')
+  // null = consultation not loaded yet, so we don't flash the form at the patient
+  // before we know whether they already answered.
+  const [preconsultaDone, setPreconsultaDone] = useState(null)
 
   const countdown = useCountdown(consultation?.scheduledAt)
 
@@ -57,14 +71,20 @@ export default function WaitingRoom({ profile }) {
       .then(c => {
         setConsultation(c)
         if (c.status === 'in_progress') setDoctorReady(true)
+        setPreconsultaDone(hasPreconsulta(c.preconsultaData))
       })
       .catch(() => {})
   }, [consultationId])
 
   // Announce presence to the professional + keep it fresh while the room is open.
   // Without this the professional has no way of knowing anyone showed up.
+  //
+  // Gated on the pre-consulta on purpose: the first ping pushes "tenés un paciente
+  // esperando" to the professional, so firing it before the questions are answered
+  // is exactly the case Mateo reported — the professional shows up and waits while
+  // the patient is still typing (or skipped the form entirely).
   useEffect(() => {
-    if (!consultationId) return
+    if (!consultationId || !preconsultaDone) return
     let cancelled = false
 
     consultationsService.pingPatientWaiting(consultationId).catch(() => {})
@@ -78,7 +98,7 @@ export default function WaitingRoom({ profile }) {
       // Leaving the room — including navigating into the call — clears presence.
       consultationsService.clearPatientWaiting(consultationId).catch(() => {})
     }
-  }, [consultationId])
+  }, [consultationId, preconsultaDone])
 
   // Realtime subscription
   useEffect(() => {
@@ -113,6 +133,34 @@ export default function WaitingRoom({ profile }) {
         timeZone: 'America/Argentina/Buenos_Aires',
       })
     : null
+
+  // ── Pre-consulta gate ───────────────────────────────────────────────────────
+  // The patient is not considered "in the room" until this is answered: no presence
+  // is written, so no push goes out and the professional's panel shows nothing.
+  if (preconsultaDone === false) {
+    return (
+      <div className="absolute inset-0 bg-bg-primary flex flex-col items-center justify-center px-6 py-10">
+        <div className="w-20 h-20 rounded-full bg-brand-muted flex items-center justify-center mb-4">
+          <ClipboardText className="w-9 h-9 text-brand" />
+        </div>
+        <h1 className="text-[24px] font-bold text-text-primary text-center leading-tight mb-2">
+          Un paso antes de entrar
+        </h1>
+        <p className="text-[14px] text-text-secondary text-center leading-relaxed max-w-xs">
+          Contanos por qué consultás. {doctorName} lo lee antes de recibirte, así no
+          perdés tiempo explicándolo en la videollamada.
+        </p>
+
+        <PreconsultaForm
+          isOpen
+          required
+          consultationId={consultationId}
+          onClose={() => {}}
+          onSubmitted={() => setPreconsultaDone(true)}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="absolute inset-0 bg-bg-primary flex flex-col items-center justify-center px-6 py-10">

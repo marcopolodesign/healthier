@@ -14,9 +14,15 @@ import { supabase } from '../../lib/supabase'
  *   onClose        – called when the sheet is dismissed without submitting
  *   consultationId – string | null — Supabase consultation UUID; if null the form is skipped
  *   onSubmitted    – called after submit OR skip; parent proceeds to video call
+ *   required       – when true the patient cannot skip or dismiss, motivo + síntomas
+ *                    are mandatory, and a failed save keeps the form open instead of
+ *                    letting it through. Used by the waiting room: announcing presence
+ *                    summons the professional, so this must be answered BEFORE that
+ *                    happens or the professional sits waiting while the patient types.
  */
-export default function PreconsultaForm({ isOpen, onClose, consultationId, onSubmitted }) {
+export default function PreconsultaForm({ isOpen, onClose, consultationId, onSubmitted, required = false }) {
   const [submitting, setSubmitting] = useState(false)
+  const [saveError, setSaveError] = useState(null)
 
   const [form, setForm] = useState({
     mainComplaint: '',
@@ -26,9 +32,13 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
 
   const set = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))
 
+  // Only enforced in `required` mode — elsewhere the form stays optional as before.
+  const incomplete = required && (!form.mainComplaint.trim() || !form.symptoms.trim())
+
   const handleSubmit = async () => {
-    if (submitting) return
+    if (submitting || incomplete) return
     setSubmitting(true)
+    setSaveError(null)
 
     if (!consultationId) {
       setSubmitting(false)
@@ -47,16 +57,21 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
         .from('consultations')
         .update({ preconsulta_data: payload })
         .eq('id', consultationId)
-      if (error) {
-        console.warn('[PreconsultaForm] Save error (non-blocking):', error)
-      } else {
-        toast.success('Pre-consulta enviada')
-      }
-    } catch (err) {
-      console.warn('[PreconsultaForm] Network error (non-blocking):', err)
-    } finally {
+      if (error) throw error
+      toast.success('Pre-consulta enviada')
       setSubmitting(false)
-      onSubmitted()
+      onSubmitted(payload)
+    } catch (err) {
+      setSubmitting(false)
+      if (required) {
+        // Letting this through would summon the professional with no answers at all.
+        // Keep the form open and retryable instead.
+        console.warn('[PreconsultaForm] Save failed (blocking):', err)
+        setSaveError('No pudimos guardar tus respuestas. Revisá la conexión y probá de nuevo.')
+        return
+      }
+      console.warn('[PreconsultaForm] Save error (non-blocking):', err)
+      onSubmitted(payload)
     }
   }
 
@@ -73,14 +88,20 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-[20px] font-black text-gray-900 leading-none">Pre-consulta</h2>
-          <p className="text-[12px] text-gray-400 font-medium mt-0.5">Completala antes de entrar a la sala</p>
+          <p className="text-[12px] text-gray-400 font-medium mt-0.5">
+            {required
+              ? 'Contanos esto antes de entrar — el profesional lo lee para recibirte'
+              : 'Completala antes de entrar a la sala'}
+          </p>
         </div>
-        <button
-          onClick={onClose}
-          className="w-9 h-9 bg-white border border-gray-200 rounded-full flex items-center justify-center hover:bg-gray-50 flex-shrink-0"
-        >
-          <X className="w-4 h-4 text-gray-500" />
-        </button>
+        {!required && (
+          <button
+            onClick={onClose}
+            className="w-9 h-9 bg-white border border-gray-200 rounded-full flex items-center justify-center hover:bg-gray-50 flex-shrink-0"
+          >
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        )}
       </div>
 
       {/* Scrollable body */}
@@ -130,11 +151,15 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
 
         {/* CTA buttons */}
         <div className="space-y-3 pb-2">
+          {saveError && (
+            <p className="text-[13px] font-semibold text-danger text-center">{saveError}</p>
+          )}
+
           <button
             onClick={handleSubmit}
-            disabled={submitting}
+            disabled={submitting || incomplete}
             className={`w-full py-4 rounded-[20px] font-bold text-[16px] transition-all flex justify-center items-center gap-2 ${
-              submitting
+              submitting || incomplete
                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                 : 'bg-brand text-white hover:bg-brand-hover active:scale-95'
             }`}
@@ -142,17 +167,25 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
             {submitting ? (
               <><CircleNotch className="w-5 h-5 animate-spin" /> Enviando...</>
             ) : (
-              'Completar pre-consulta'
+              required ? 'Continuar a la sala' : 'Completar pre-consulta'
             )}
           </button>
 
-          <button
-            onClick={handleSkip}
-            disabled={submitting}
-            className="w-full py-3 text-[14px] font-semibold text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            Omitir por ahora
-          </button>
+          {required ? (
+            incomplete && (
+              <p className="text-[12px] text-gray-400 text-center font-medium">
+                Completá motivo principal y síntomas para continuar.
+              </p>
+            )
+          ) : (
+            <button
+              onClick={handleSkip}
+              disabled={submitting}
+              className="w-full py-3 text-[14px] font-semibold text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Omitir por ahora
+            </button>
+          )}
         </div>
       </div>
     </PatientSheet>

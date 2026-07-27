@@ -94,7 +94,13 @@ export default function PatientVideoCall() {
     consultationsService.getById(consultationId)
       .then((cons) => {
         setConsultation(cons)
-        setShowPreconsulta(true)
+        // The waiting room now asks this before letting anyone in, so the normal
+        // path arrives here already answered — don't ask twice. The form stays as
+        // a fallback for anyone landing on the call URL directly.
+        const d = cons?.preconsultaData
+        const alreadyAnswered = Boolean(d && typeof d === 'object' && (d.main_complaint || d.mainComplaint || d.symptoms))
+        if (alreadyAnswered) setPreconsultaDone(true)
+        else setShowPreconsulta(true)
       })
       .catch(() => {
         toast.error('No se pudo cargar la consulta')
