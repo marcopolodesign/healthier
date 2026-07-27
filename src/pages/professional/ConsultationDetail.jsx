@@ -14,6 +14,7 @@ import Modal from '../../components/Modal'
 import FileUpload from '../../components/FileUpload'
 import AllergyPanel from '../../components/professional/AllergyPanel'
 import VitalsPanel from '../../components/professional/VitalsPanel'
+import PreconsultaSummary, { hasPreconsulta } from '../../components/professional/PreconsultaSummary'
 import PrescriptionCreator from '../../components/professional/PrescriptionCreator'
 import ScribeSession from '../../components/professional/ScribeSession'
 import SignedDocLink from '../../components/SignedDocLink'
@@ -246,6 +247,15 @@ export default function ConsultationDetail({ profile }) {
             <Clock className="h-4 w-4" />
             Duración:{' '}
             <span className="text-text-primary font-medium">{consultation.durationMinutes} min</span>
+          </div>
+        )}
+
+        {/* Lo que el paciente contestó antes de entrar. Va acá y no solo en la
+            videollamada porque en una consulta presencial no hay videollamada:
+            este es el único lugar donde el profesional puede leerlo. */}
+        {hasPreconsulta(consultation.preconsultaData) && (
+          <div className="mt-3">
+            <PreconsultaSummary preconsulta={consultation.preconsultaData} />
           </div>
         )}
       </div>
