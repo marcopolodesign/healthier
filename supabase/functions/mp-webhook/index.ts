@@ -11,10 +11,21 @@
  *
  * MP status → our status mapping:
  *   consultations.payment_status : payments.status
- *   approved            → paid      : approved
- *   rejected / cancelled → rejected  : rejected
- *   refunded / charged_back → refunded : refunded
- *   in_process / pending / authorized / others → in_process : pending
+ *   approved                          → paid            : approved
+ *   authorized (on-demand pre-auth)   → in_process       : authorized
+ *   cancelled, when the payment was previously "authorized" (pre-auth
+ *     released — on-demand abandonment/timeout, SECCIÓN C2) → pending_payment : cancelled
+ *   rejected / cancelled (any other case) → rejected      : rejected
+ *   refunded / charged_back           → refunded         : refunded
+ *   in_process / pending / others     → in_process       : pending
+ *
+ * On-demand pre-authorization (SECCIÓN C2/C3, 2026-07-27): a payment can go
+ * pending → authorized → approved (captured) OR authorized → cancelled
+ * (released). This webhook mirrors mp-payment/mp-capture's writes as a
+ * reconciliation backstop, and is careful never to downgrade an
+ * already-captured/approved payment on a stale/out-of-order webhook delivery
+ * (e.g. an "authorized" event arriving after the payment was already
+ * captured) — those events are logged and otherwise ignored.
  *
  * Fetching the payment: payments created with a seller's OAuth token may not
  * be fetchable with the platform's own access_token (SECCIÓN A.8-d, empirical
@@ -86,22 +97,48 @@ async function verifySignature(
   return computedHmac === receivedHmac;
 }
 
-/** Maps an MP payment status to our internal vocabularies. */
-function mapMpStatus(mpStatus: string): {
-  consultationStatus: "paid" | "rejected" | "refunded" | "in_process";
-  paymentsStatus: "approved" | "rejected" | "refunded" | "pending";
-} {
+interface MpStatusMapping {
+  consultationStatus: "paid" | "rejected" | "refunded" | "in_process" | "pending_payment" | null;
+  paymentsStatus: "approved" | "rejected" | "refunded" | "pending" | "authorized" | "cancelled";
+  /** true = stale/out-of-order event relative to our current DB status — do not write anything. */
+  skip?: boolean;
+}
+
+/**
+ * Maps an MP payment status to our internal vocabularies. `currentStatus` is
+ * our own `payments.status` as it stands in the DB *before* this webhook is
+ * applied (null if we have no matching row yet) — needed to disambiguate
+ * MP's "cancelled" (which means different things depending on whether a
+ * pre-authorization existed) and to guard against downgrading an
+ * already-captured/approved payment on a stale event.
+ */
+function mapMpStatus(mpStatus: string, currentStatus: string | null): MpStatusMapping {
+  // Never let an out-of-order event downgrade a payment that's already
+  // captured/approved — approved is a terminal success state here.
+  if (currentStatus === "approved" && mpStatus !== "approved" && mpStatus !== "refunded" && mpStatus !== "charged_back") {
+    return { consultationStatus: null, paymentsStatus: "approved", skip: true };
+  }
+
   switch (mpStatus) {
     case "approved":
       return { consultationStatus: "paid", paymentsStatus: "approved" };
-    case "rejected":
+    case "authorized":
+      // On-demand pre-authorization reserved on the card, not captured yet.
+      return { consultationStatus: "in_process", paymentsStatus: "authorized" };
     case "cancelled":
+      // A pre-authorization that gets cancelled is a clean release, not a
+      // decline — never mark it "rejected" (SECCIÓN C3).
+      if (currentStatus === "authorized") {
+        return { consultationStatus: "pending_payment", paymentsStatus: "cancelled" };
+      }
+      return { consultationStatus: "rejected", paymentsStatus: "rejected" };
+    case "rejected":
       return { consultationStatus: "rejected", paymentsStatus: "rejected" };
     case "refunded":
     case "charged_back":
       return { consultationStatus: "refunded", paymentsStatus: "refunded" };
     default:
-      // in_process, pending, authorized, in_mediation, etc.
+      // in_process, pending, in_mediation, etc.
       return { consultationStatus: "in_process", paymentsStatus: "pending" };
   }
 }
@@ -212,7 +249,7 @@ serve(async (req: Request) => {
     //    under that seller's account (SECCIÓN A.8-d — unverified in sandbox yet).
     const { data: existingPaymentRow } = await supabase
       .from("payments")
-      .select("id, consultation_id, professional_id")
+      .select("id, consultation_id, professional_id, status")
       .eq("mp_payment_id", paymentId)
       .maybeSingle();
 
@@ -252,7 +289,8 @@ serve(async (req: Request) => {
       );
     }
 
-    const { consultationStatus, paymentsStatus } = mapMpStatus(payment.status);
+    const currentStatus = existingPaymentRow?.status ?? null;
+    const mapping = mapMpStatus(payment.status, currentStatus);
     const consultationId = payment.external_reference ?? existingPaymentRow?.consultation_id ?? null;
 
     if (!consultationId) {
@@ -263,6 +301,17 @@ serve(async (req: Request) => {
       );
     }
 
+    if (mapping.skip) {
+      console.log(
+        `mp-webhook: ignoring stale/out-of-order event (mp status=${payment.status}, current DB status=${currentStatus}) for consultation ${consultationId}`
+      );
+      return new Response(
+        JSON.stringify({ received: true, skipped: true }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { consultationStatus, paymentsStatus } = mapping;
     const mpFeeActual = extractMpFeeActual(payment);
 
     // ── Update consultations ─────────────────────────────────────────────────
@@ -293,6 +342,18 @@ serve(async (req: Request) => {
       status_detail: payment.status_detail ?? null,
       mp_payment_id: String(payment.id),
     };
+    // On-demand pre-auth lifecycle timestamps — only set on the actual transition
+    // so repeat webhook deliveries don't clobber an earlier, more accurate value.
+    if (paymentsStatus === "authorized" && currentStatus !== "authorized") {
+      paymentUpdate.authorized_at = new Date().toISOString();
+    }
+    if (paymentsStatus === "cancelled" && currentStatus === "authorized") {
+      paymentUpdate.auth_cancelled_at = new Date().toISOString();
+    }
+    if (paymentsStatus === "approved" && currentStatus === "authorized") {
+      // Was a pre-auth, now captured (either via mp-capture or directly by MP).
+      paymentUpdate.captured_at = payment.date_approved ?? new Date().toISOString();
+    }
     if (mpFeeActual !== null) paymentUpdate.mp_fee_actual = mpFeeActual;
     if (payment.collector_id) paymentUpdate.collector_id = String(payment.collector_id);
 

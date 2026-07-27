@@ -9,10 +9,19 @@
  *   savedCardId?: string,      // payment_methods.id — informational only, not persisted
  *   useCredits?: boolean,
  *   description?: string,
+ *   authorizeOnly?: boolean,   // on-demand pre-authorization (SECCIÓN C1, 2026-07-27) —
+ *                              // capture:false, credit-card only, no Healthy Credits.
  * }
  *
  * The server derives amount, professional, fees — NEVER trusts amount/professionalId
  * from the client. See SECCIÓN C2 of the MP split-payments spec.
+ *
+ * On-demand pre-authorization (authorizeOnly=true): reserves the amount on the
+ * patient's credit card (MP `capture: false`) instead of charging it immediately.
+ * `binary_mode` is intentionally omitted — it is incompatible with two-step
+ * authorization. The reservation is later captured (mp-capture action=capture)
+ * when the consultation completes, or released (mp-capture action=cancel-auth)
+ * on abandonment/timeout — see SECCIÓN C2.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -33,6 +42,7 @@ interface PaymentBody {
   savedCardId?: string
   useCredits?: boolean
   description?: string
+  authorizeOnly?: boolean
 }
 
 interface PlatformSettings {
@@ -59,10 +69,12 @@ async function sha256Hex(input: string): Promise<string> {
 }
 
 /** Maps an MP payment status to the `payments`/`consultations` vocabulary. */
-function mapMpStatus(mpStatus: string): { paymentsStatus: 'pending' | 'approved' | 'rejected'; consultationStatus: 'in_process' | 'paid' | 'rejected' } {
+function mapMpStatus(mpStatus: string): { paymentsStatus: 'pending' | 'authorized' | 'approved' | 'rejected'; consultationStatus: 'in_process' | 'paid' | 'rejected' } {
   if (mpStatus === 'approved') return { paymentsStatus: 'approved', consultationStatus: 'paid' }
+  // On-demand pre-authorization (authorizeOnly): reserved on the card, not captured yet.
+  if (mpStatus === 'authorized') return { paymentsStatus: 'authorized', consultationStatus: 'in_process' }
   if (mpStatus === 'rejected' || mpStatus === 'cancelled') return { paymentsStatus: 'rejected', consultationStatus: 'rejected' }
-  // in_process, pending, authorized, in_mediation, etc.
+  // in_process, pending, in_mediation, etc.
   return { paymentsStatus: 'pending', consultationStatus: 'in_process' }
 }
 
@@ -97,13 +109,30 @@ Deno.serve(async (req) => {
 
     // --- Parse body ---
     const body: PaymentBody = await req.json()
-    const { consultationId, cardToken, paymentMethodId, payerEmail, useCredits, description } = body
+    const { consultationId, cardToken, paymentMethodId, payerEmail, useCredits, description, authorizeOnly } = body
 
     if (!consultationId) {
       return new Response(
         JSON.stringify({ data: null, error: 'Missing required field: consultationId' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    // --- On-demand pre-authorization: credit card only, no Healthy Credits ---
+    if (authorizeOnly) {
+      if (useCredits) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'Las consultas inmediatas no admiten Healthy Credits' }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      const normalizedMethodId = (paymentMethodId ?? '').toLowerCase()
+      if (normalizedMethodId.startsWith('deb') || normalizedMethodId === 'account_money') {
+        return new Response(
+          JSON.stringify({ data: null, error: 'Las consultas inmediatas se pagan con tarjeta de crédito' }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
     // --- Service-role client for privileged reads/writes ---
@@ -293,7 +322,7 @@ Deno.serve(async (req) => {
 
     const idempotencyKey = await sha256Hex(`${consultationId}:${cardToken}`)
 
-    const mpPayload = {
+    const mpPayload: Record<string, unknown> = {
       transaction_amount: chargedAmount,
       token: cardToken,
       description: description ?? 'Consulta médica — Healthier',
@@ -302,7 +331,13 @@ Deno.serve(async (req) => {
       payer: { email: payerEmail },
       application_fee: applicationFee,
       external_reference: consultationId,
-      binary_mode: true,
+    }
+    if (authorizeOnly) {
+      // Two-step authorization: reserve on the card, capture later (mp-capture).
+      // binary_mode is intentionally omitted — incompatible with capture:false.
+      mpPayload.capture = false
+    } else {
+      mpPayload.binary_mode = true
     }
 
     const mpRes = await fetch(`${MP_API_BASE}/payments`, {
@@ -381,6 +416,7 @@ Deno.serve(async (req) => {
       status: paymentsStatus,
       status_detail: mpData.status_detail ?? '',
       collector_id: account.mp_user_id,
+      ...(paymentsStatus === 'authorized' ? { authorized_at: new Date().toISOString() } : {}),
     })
 
     if (creditsUsed > 0) {

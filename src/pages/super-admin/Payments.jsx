@@ -14,13 +14,26 @@ function formatDate(dateStr) {
 }
 
 const METHOD_LABELS = { card: 'Tarjeta', credits: 'Créditos', mixed: 'Mixto' }
+// 'authorized' / 'cancelled' come from the on-demand pre-authorization flow
+// (spec Sección D4) — a hold on the card that hasn't been captured yet, or
+// one that was released without ever charging anything. Neither counts as
+// billed revenue: the totals above already only sum `status === 'approved'`.
 const STATUS_BADGE = {
-  approved: 'bg-emerald-50 text-emerald-600',
-  pending:  'bg-amber-50 text-amber-600',
-  rejected: 'bg-gray-100 text-gray-500',
-  refunded: 'bg-red-50 text-red-600',
+  approved:   'bg-emerald-50 text-emerald-600',
+  pending:    'bg-amber-50 text-amber-600',
+  authorized: 'bg-amber-50 text-amber-700',
+  rejected:   'bg-gray-100 text-gray-500',
+  refunded:   'bg-red-50 text-red-600',
+  cancelled:  'bg-gray-100 text-gray-500',
 }
-const STATUS_LABEL = { approved: 'Aprobado', pending: 'Pendiente', rejected: 'Rechazado', refunded: 'Reembolsado' }
+const STATUS_LABEL = {
+  approved:   'Aprobado',
+  pending:    'Pendiente',
+  authorized: 'Autorizado — sin capturar',
+  rejected:   'Rechazado',
+  refunded:   'Reembolsado',
+  cancelled:  'Autorización cancelada',
+}
 
 export default function SuperAdminPayments() {
   const [payments, setPayments] = useState([])
@@ -143,6 +156,8 @@ export default function SuperAdminPayments() {
   )
 
   const totals = useMemo(() => {
+    // Only 'approved' counts as billed — pre-authorization holds ('authorized')
+    // and released holds ('cancelled') never moved real money (spec D4).
     const approved = payments.filter(p => p.status === 'approved')
     return {
       gross: approved.reduce((s, p) => s + Number(p.grossAmount || 0), 0),
@@ -326,8 +341,10 @@ export default function SuperAdminPayments() {
             <option value="">Todos</option>
             <option value="approved">Aprobado</option>
             <option value="pending">Pendiente</option>
+            <option value="authorized">Autorizado — sin capturar</option>
             <option value="rejected">Rechazado</option>
             <option value="refunded">Reembolsado</option>
+            <option value="cancelled">Autorización cancelada</option>
           </select>
         </div>
         <div>
@@ -495,6 +512,15 @@ export default function SuperAdminPayments() {
                             Refund: {p.refundType}
                             {p.refundConversionRequestedAt && !p.refundConversionResolvedAt ? ' (conversión pendiente)' : ''}
                             {p.refundConversionResolvedAt ? ' (convertido a MP)' : ''}
+                          </p>
+                        )}
+                        {/* On-demand pre-auth timestamps (spec D4) */}
+                        {p.authorizedAt && (
+                          <p
+                            className="text-[10px] uppercase tracking-wide mt-0.5"
+                            title={`Autorizado: ${formatDate(p.authorizedAt)}${p.capturedAt ? ` · Capturado: ${formatDate(p.capturedAt)}` : ''}${p.authCancelledAt ? ` · Cancelado: ${formatDate(p.authCancelledAt)}` : ''}`}
+                          >
+                            {p.capturedAt ? `Capturado ${formatDate(p.capturedAt)}` : p.authCancelledAt ? `Autorización cancelada` : `Autorizado ${formatDate(p.authorizedAt)}`}
                           </p>
                         )}
                       </td>

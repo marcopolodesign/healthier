@@ -18,7 +18,7 @@ export const paymentsService = {
    * @param {Object} filters
    * @param {string} [filters.dateFrom] - ISO date, inclusive
    * @param {string} [filters.dateTo]   - ISO date, inclusive
-   * @param {string} [filters.status]   - pending|approved|rejected|refunded
+   * @param {string} [filters.status]   - pending|authorized|approved|rejected|refunded|cancelled
    * @param {string} [filters.professionalId]
    * @param {string} [filters.method]   - card|credits|mixed
    */

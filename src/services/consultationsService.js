@@ -1,4 +1,5 @@
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
+import { mpService } from './mpService'
 
 export const consultationsService = {
   async getValidationCode(consultationId) {
@@ -20,7 +21,40 @@ export const consultationsService = {
       p_prescription_url: prescriptionUrl || null,
     })
     if (error) throw error
-    return toCamelCase(data)
+    const result = toCamelCase(data)
+    // On-demand capture hook (spec Sección D2): on-demand consultations are
+    // charged with a pre-authorization hold (capture:false) at booking time —
+    // the actual charge only happens here, once the consultation is truly
+    // completed. This runs regardless of which side (patient or professional)
+    // triggered the completing `finalize` call. Fire-and-forget: mpService
+    // never throws, and the mp-capture `sweep` cron is the backstop if this
+    // call is lost (tab closed, network drop, etc).
+    if (result.status === 'completed' && result.isOnDemand) {
+      mpService.capturePayment(consultationId).then(({ error: captureError }) => {
+        if (captureError) console.error('[consultationsService] on-demand capture failed:', captureError)
+      })
+    }
+    return result
+  },
+
+  /**
+   * Notifies the matched professional right after an on-demand pre-auth
+   * succeeds (spec Sección D3) — Web Push with an urgent, on-demand-specific
+   * message pointing straight at the call, plus `send-booking-email` as a
+   * backup channel (reused as-is; its generic booking payload already covers
+   * an on-demand consultation row). Fire-and-forget, never blocks the UI.
+   */
+  async notifyOnDemandAuthorized(consultationId, professionalId) {
+    if (!professionalId) return
+    supabase.functions.invoke('send-push-notification', {
+      body: {
+        userId: professionalId,
+        title:  'Paciente esperando — consulta inmediata',
+        body:   'Un paciente autorizó el pago y está esperando ahora. Entrá a la videollamada.',
+        url:    `/profesional/videollamada/${consultationId}`,
+      },
+    }).catch(() => {})
+    supabase.functions.invoke('send-booking-email', { body: { consultationId } }).catch(() => {})
   },
 
   async getDailyAccess(consultationId) {

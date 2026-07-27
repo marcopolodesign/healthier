@@ -186,10 +186,15 @@ export const mpService = {
    * @param {string} [params.payerEmail]
    * @param {string} [params.savedCardId]     - payment_methods.id, for record-keeping only
    * @param {boolean} [params.useCredits]     - apply the patient's Healthy Credits balance first
+   * @param {boolean} [params.authorizeOnly]  - on-demand pre-authorization (spec Sección D1): `capture:false`
+   *                                            on MP's side — the card is only held, not charged, until
+   *                                            `capturePayment` runs (or the `mp-capture` sweep cron does, as
+   *                                            a backstop). Credit cards only — the server rejects debit /
+   *                                            account_money and useCredits with a 422 when this is true.
    * @param {string} [params.description]
    * @returns {{ data: { paymentId, status, approved, creditsUsed, chargedAmount } | null, error: string | null }}
    */
-  async createPayment({ consultationId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits = false, description }) {
+  async createPayment({ consultationId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits = false, authorizeOnly = false, description }) {
     try {
       const result = await callEdgeFunction('mp-payment', {
         consultationId,
@@ -198,8 +203,47 @@ export const mpService = {
         payerEmail: payerEmail ?? null,
         savedCardId: savedCardId ?? null,
         useCredits,
+        authorizeOnly,
         description: description ?? 'Consulta Healthier',
       })
+      return { data: toCamelCase(result), error: null }
+    } catch (err) {
+      return { data: null, error: err.message }
+    }
+  },
+
+  /**
+   * Captures a previously authorized pre-auth hold (mp-capture action=capture).
+   * Called right after a professional finalizes an on-demand consultation
+   * (spec Sección D2 — see consultationsService.finalize). Idempotent
+   * server-side: safe to call even if the payment was already captured
+   * (e.g. by the sweep cron backstop racing with this call).
+   *
+   * @param {string} consultationId
+   * @returns {{ data: { status, capturedAt } | null, error: string | null }}
+   */
+  async capturePayment(consultationId) {
+    try {
+      const result = await callEdgeFunction('mp-capture', { action: 'capture', consultationId })
+      return { data: toCamelCase(result), error: null }
+    } catch (err) {
+      return { data: null, error: err.message }
+    }
+  },
+
+  /**
+   * Cancels a pre-authorization hold without charging anything
+   * (mp-capture action=cancel-auth). Used when the patient cancels an
+   * on-demand request, the 10-minute matching window expires, or no
+   * professional was available. Nothing is refunded because nothing was
+   * ever captured — the card issuer releases the hold on its own.
+   *
+   * @param {string} consultationId
+   * @returns {{ data: { status } | null, error: string | null }}
+   */
+  async cancelAuthorization(consultationId) {
+    try {
+      const result = await callEdgeFunction('mp-capture', { action: 'cancel-auth', consultationId })
       return { data: toCamelCase(result), error: null }
     } catch (err) {
       return { data: null, error: err.message }
