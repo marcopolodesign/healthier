@@ -573,7 +573,9 @@ export default function Configuracion({ profile }) {
                   <CheckCircle className="h-5 w-5 text-emerald-600" weight="fill" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-text-primary">Mercado Pago conectado</p>
+                  <p className="text-sm font-semibold text-text-primary truncate">
+                    {profData?.mpAccountLabel ? `Conectado como ${profData.mpAccountLabel}` : 'Mercado Pago conectado'}
+                  </p>
                   <p className="text-xs text-text-secondary mt-0.5">Ya podés recibir turnos y cobrar tus consultas.</p>
                 </div>
                 <button

@@ -12,9 +12,15 @@
  *   professional_profiles.mp_connected = true. Redirects to
  *   /profesional/dashboard?mp_connected=1 on success.
  *
+ *   Also fetches the seller identity via GET /users/me (nickname/email) —
+ *   best-effort, non-fatal — and stores it as mp_accounts.mp_nickname/mp_email
+ *   plus a denormalized professional_profiles.mp_account_label so both the
+ *   professional's own Configuración page and the super-admin Profesionales
+ *   list can show "connected as <label>".
+ *
  * POST /mp-connect  { action: "disconnect" }  (authenticated — the owning professional)
  *   Marks mp_accounts.active = false and professional_profiles.mp_connected = false
- *   for the caller.
+ *   (and clears mp_account_label) for the caller.
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -140,7 +146,7 @@ serve(async (req: Request) => {
 
       const { error: profErr } = await serviceSupabase
         .from("professional_profiles")
-        .update({ mp_connected: false })
+        .update({ mp_connected: false, mp_account_label: null })
         .eq("user_id", user.id);
 
       if (mpErr || profErr) {
@@ -252,6 +258,39 @@ serve(async (req: Request) => {
 
       const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
 
+      // Fetch the seller's MP identity (nickname/email) so it can be shown
+      // back to the professional and to the super-admin — best-effort, never
+      // fails the connect flow (the token is already valid at this point).
+      let mpNickname: string | null = null;
+      let mpEmail: string | null = null;
+      let mpAccountLabel: string | null = null;
+      try {
+        const meRes = await fetch("https://api.mercadopago.com/users/me", {
+          headers: { Authorization: `Bearer ${tokenData.access_token}` },
+        });
+        if (meRes.ok) {
+          const me = (await meRes.json()) as {
+            nickname?: string;
+            email?: string;
+            first_name?: string;
+            last_name?: string;
+          };
+          mpNickname = me.nickname ?? null;
+          mpEmail = me.email ?? null;
+          const fullName = [me.first_name, me.last_name].filter(Boolean).join(" ") || null;
+          const primary = mpNickname ?? fullName;
+          mpAccountLabel = primary
+            ? mpEmail
+              ? `${primary} · ${mpEmail}`
+              : primary
+            : mpEmail;
+        } else {
+          console.warn("mp-connect: GET /users/me failed", meRes.status, await meRes.text());
+        }
+      } catch (meErr) {
+        console.error("mp-connect: GET /users/me error (non-fatal):", meErr);
+      }
+
       const [encryptedAccessToken, encryptedRefreshToken] = await Promise.all([
         encryptToken(tokenData.access_token),
         encryptToken(tokenData.refresh_token),
@@ -273,6 +312,8 @@ serve(async (req: Request) => {
             active: true,
             expires_at: expiresAt,
             live_mode: tokenData.live_mode ?? null,
+            mp_nickname: mpNickname,
+            mp_email: mpEmail,
           },
           { onConflict: "professional_id" }
         );
@@ -287,7 +328,7 @@ serve(async (req: Request) => {
 
       const { error: profErr } = await supabase
         .from("professional_profiles")
-        .update({ mp_connected: true })
+        .update({ mp_connected: true, mp_account_label: mpAccountLabel })
         .eq("user_id", professionalId);
 
       if (profErr) {

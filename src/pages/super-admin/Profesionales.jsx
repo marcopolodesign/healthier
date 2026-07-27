@@ -477,7 +477,7 @@ export default function SuperAdminProfesionales() {
       const [profResult, consultResult] = await Promise.all([
         supabase
           .from('professional_profiles')
-          .select('id, specialty, is_verified, verification_source, sisa_status, mp_connected, average_rating, total_reviews, created_at, profiles!user_id(id, full_name, email, created_at, utm_source)')
+          .select('id, specialty, is_verified, verification_source, sisa_status, mp_connected, mp_account_label, average_rating, total_reviews, created_at, profiles!user_id(id, full_name, email, created_at, utm_source)')
           .order('created_at', { ascending: false }),
         supabase.from('consultations').select('professional_id'),
       ])
@@ -631,7 +631,16 @@ export default function SuperAdminProfesionales() {
                       </td>
                       <td className="table-cell">
                         {pro.mp_connected
-                          ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">Conectado</span>
+                          ? (
+                            <div className="max-w-[160px]">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">Conectado</span>
+                              {pro.mp_account_label && (
+                                <p className="text-[11px] text-gray-400 truncate mt-0.5" title={pro.mp_account_label}>
+                                  {pro.mp_account_label}
+                                </p>
+                              )}
+                            </div>
+                          )
                           : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600">Sin conectar</span>}
                       </td>
                       <td className="table-cell">
