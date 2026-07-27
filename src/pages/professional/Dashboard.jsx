@@ -11,6 +11,8 @@ import { supabase } from '../../lib/supabase'
 import { supportWhatsAppLink } from '../../lib/support'
 import StatusBadge from '../../components/StatusBadge'
 import ProfileCompletenessCard from '../../components/professional/ProfileCompletenessCard'
+import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
+import { useWaitingPresence } from '../../hooks/useWaitingPresence'
 import { toast } from '../../components/Toast'
 import { useNavigate } from 'react-router-dom'
 
@@ -127,6 +129,8 @@ export default function ProfessionalDashboard({ profile }) {
     if (!c.scheduledAt) return false
     return new Date(c.scheduledAt).toDateString() === new Date().toDateString()
   })
+
+  const waitingInfo = useWaitingPresence(consultations, profile?.id)
 
   const thisMonthEarnings = getThisMonthEarnings(earningsData)
 
@@ -606,8 +610,14 @@ export default function ProfessionalDashboard({ profile }) {
           <div className="space-y-3">
             {today.map(c => {
               const canJoin = c.modality === 'video' && ['confirmed', 'in_progress', 'pending'].includes(c.status)
+              const { waiting, since } = waitingInfo(c.id)
               return (
-                <div key={c.id} className="flex items-center gap-3 p-3 bg-bg-surface rounded-lg">
+                <div
+                  key={c.id}
+                  className={`flex items-center gap-3 p-3 rounded-lg ${
+                    waiting ? 'bg-brand-muted ring-2 ring-brand/50' : 'bg-bg-surface'
+                  }`}
+                >
                   <Link to={`/profesional/consulta/${c.id}`} className="flex items-center gap-3 flex-1 min-w-0 group">
                     <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
                       <Users className="h-5 w-5 text-brand" />
@@ -621,10 +631,13 @@ export default function ProfessionalDashboard({ profile }) {
                       </p>
                     </div>
                   </Link>
-                  <StatusBadge status={c.status} />
+                  {waiting ? <PatientWaitingBadge since={since} /> : <StatusBadge status={c.status} />}
                   {canJoin && (
-                    <Link to={`/profesional/videollamada/${c.id}`} className="btn-primary text-xs px-3 py-1.5 shrink-0">
-                      Sala
+                    <Link
+                      to={`/profesional/videollamada/${c.id}`}
+                      className={`text-xs px-3 py-1.5 shrink-0 ${waiting ? 'btn-primary font-bold' : 'btn-primary'}`}
+                    >
+                      {waiting ? 'Atender' : 'Sala'}
                     </Link>
                   )}
                 </div>
