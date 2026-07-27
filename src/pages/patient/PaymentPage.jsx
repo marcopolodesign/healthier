@@ -5,6 +5,7 @@ import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import { mpService } from '../../services/mpService'
 import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
+import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
 
 export default function PaymentPage({ profile }) {
   const navigate  = useNavigate()
@@ -54,6 +55,19 @@ export default function PaymentPage({ profile }) {
   const chargeAmount   = Math.max(0, (price ?? 0) - creditsApplied)
 
   const description = `Consulta ${specialty ?? verticalId ?? ''} — Healthier`.trim()
+  const consultaItemId = `consulta_${verticalId ?? specialty ?? 'general'}`
+  const consultaItem = (itemPrice) => buildConsultaItem({ id: consultaItemId, name: description, category: 'consulta', price: itemPrice })
+
+  // Fire begin_checkout once, as soon as we land on this page with a known
+  // price — this is the booking-funnel entry point (spec Sección — GA4
+  // e-commerce). Guarded by a ref so it never re-fires on later re-renders
+  // (e.g. when credits/chargeAmount recompute).
+  const beginCheckoutFired = useRef(false)
+  useEffect(() => {
+    if (price == null || beginCheckoutFired.current) return
+    beginCheckoutFired.current = true
+    track('begin_checkout', { value: price, currency: 'ARS', items: consultaItem(price) })
+  }, [price]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Creates the consultation row exactly once (DB write before payment
   // confirmation UI — State Resilience convention) and caches its id so the
@@ -75,15 +89,20 @@ export default function PaymentPage({ profile }) {
     return created.id
   }
 
-  const handlePaymentResult = (data, id) => {
+  const handlePaymentResult = (data, id, paymentMethod = 'saved_card') => {
     const status = data?.status
     if (data?.approved || status === 'paid' || status === 'approved') {
+      track('purchase', {
+        transaction_id: id, value: chargeAmount, currency: 'ARS',
+        payment_method: paymentMethod, items: consultaItem(chargeAmount),
+      })
       setPaid(true)
       setTimeout(() => navigate(`/paciente/turno-confirmado/${id}`), 600)
     } else if (status === 'in_process' || status === 'pending') {
       toast.info('Tu pago está siendo procesado. Te avisaremos cuando se confirme.')
       navigate(`/paciente/turno-confirmado/${id}`)
     } else {
+      track('payment_error', { error_type: 'declined', value: chargeAmount, currency: 'ARS' })
       toast.error('El pago no pudo procesarse. Intentá con otra tarjeta.')
     }
   }
@@ -137,14 +156,16 @@ export default function PaymentPage({ profile }) {
       if (chargeAmount === 0) {
         const { data, error } = await mpService.createPayment({ consultationId: id, useCredits: true, description })
         if (error) throw new Error(error)
-        handlePaymentResult(data, id)
+        handlePaymentResult(data, id, 'credits')
         return
       }
 
       const chargeInfo = await cardSelectorRef.current?.getSavedCardCharge()
+      const paymentType = getPaymentMethod(chargeInfo)
+      track('add_payment_info', { payment_type: paymentType, value: chargeAmount, currency: 'ARS' })
       const { data, error } = await mpService.createPayment({ consultationId: id, ...chargeInfo, useCredits, description })
       if (error) throw new Error(error)
-      handlePaymentResult(data, id)
+      handlePaymentResult(data, id, paymentType)
     } catch (err) {
       toast.error(err?.message || 'Error al procesar el pago')
     } finally {
@@ -155,12 +176,14 @@ export default function PaymentPage({ profile }) {
   // Triggered by the "add new card" Brick's own submit button — the token
   // is single-use and charged directly (not saved first, see MPCardHolder).
   const handleNewCardCharge = async (chargeInfo) => {
+    const paymentType = getPaymentMethod(chargeInfo)
+    track('add_payment_info', { payment_type: paymentType, value: chargeAmount, currency: 'ARS' })
     setPaying(true)
     try {
       const id = await ensureConsultation()
       const { data, error } = await mpService.createPayment({ consultationId: id, ...chargeInfo, useCredits, description })
       if (error) throw new Error(error)
-      handlePaymentResult(data, id)
+      handlePaymentResult(data, id, paymentType)
     } catch (err) {
       toast.error(err?.message || 'Error al procesar el pago')
     } finally {

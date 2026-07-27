@@ -17,6 +17,7 @@ import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import SignedDocLink from '../../components/SignedDocLink'
+import { track } from '../../utils/analytics'
 
 const ESPECIALIDADES = {
   clinica:     ['Médico Generalista', 'Cardiología', 'Dermatología', 'Pediatría', 'Traumatología'],
@@ -469,6 +470,24 @@ export default function PatientConsultations({ profile }) {
   const past     = turnos.filter(t =>  ['completed', 'cancelled'].includes(t.status))
   const shown    = view === 'upcoming' ? upcoming : past
 
+  // Fire appointment_view once per appointment the first time it becomes
+  // visible in a tab (never a fake onClick on the whole row — rows aren't
+  // uniformly clickable, only some inner action buttons are). Tracked ids
+  // are remembered per tab so unrelated mutations elsewhere (payment, cancel,
+  // review) that just replace the `turnos` array reference don't re-fire a
+  // "view" for every other appointment already on screen.
+  const viewedAppointmentIds = useRef({ upcoming: new Set(), past: new Set() })
+  useEffect(() => {
+    if (loading) return
+    const seen = viewedAppointmentIds.current[view]
+    shown.forEach(t => {
+      if (seen.has(t.id)) return
+      seen.add(t.id)
+      track('appointment_view', { appointment_id: t.id, status: view })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, turnos, loading])
+
   const TRIAGE_CLASSES = {
     ROJO:     { border: 'border-rose-500/25',    bg: 'bg-rose-500/5',    chip: 'bg-rose-500/20',    icon: 'text-rose-500',    solid: 'bg-rose-500' },
     AMARILLO: { border: 'border-amber-500/25',   bg: 'bg-amber-500/5',   chip: 'bg-amber-500/20',   icon: 'text-amber-500',   solid: 'bg-amber-500' },
@@ -518,7 +537,7 @@ export default function PatientConsultations({ profile }) {
       {/* Segment control — matches mobile style */}
       <div className="flex bg-bg-secondary border border-border-default p-1 rounded-2xl mb-5">
         {['upcoming', 'past'].map(tab => (
-          <button key={tab} onClick={() => setView(tab)} className={`flex-1 py-2 text-[14px] rounded-[28px] transition-all ${view === tab ? 'bg-white font-semibold text-text-primary shadow-sm' : 'font-medium text-text-tertiary'}`}>
+          <button key={tab} onClick={() => { track('agenda_tab_switch', { tab: tab === 'upcoming' ? 'proximos' : 'historial' }); setView(tab) }} className={`flex-1 py-2 text-[14px] rounded-[28px] transition-all ${view === tab ? 'bg-white font-semibold text-text-primary shadow-sm' : 'font-medium text-text-tertiary'}`}>
             {tab === 'upcoming' ? 'Próximos' : 'Historial'}
           </button>
         ))}

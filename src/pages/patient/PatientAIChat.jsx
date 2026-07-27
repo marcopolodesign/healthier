@@ -2,6 +2,18 @@ import { useState, useRef, useEffect } from 'react'
 import { Sparkle, PaperPlaneTilt, ArrowCounterClockwise } from '@phosphor-icons/react'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import companionService from '../../services/companionService'
+import { track } from '../../utils/analytics'
+
+// Short, stable id derived from a prompt's display text — never send the raw
+// text itself to analytics (only category-like ids).
+function slugifyPrompt(text) {
+  return (text ?? '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^\w\s]/g, '')
+    .trim()
+    .replace(/\s+/g, '_')
+}
 
 const QUICK_ACTIONS = [
   '¿Qué medicaciones tomo actualmente?',
@@ -108,6 +120,10 @@ export default function PatientAIChat({ profile }) {
   }, [messages])
 
   useEffect(() => {
+    track('ia_chat_open', {})
+  }, [])
+
+  useEffect(() => {
     if (!profile?.id || initialized) return
     let cancelled = false
 
@@ -156,9 +172,11 @@ export default function PatientAIChat({ profile }) {
     return () => { cancelled = true }
   }, [profile?.id, initialized])
 
-  async function sendMessage(text) {
+  async function sendMessage(text, type = 'free_text') {
     const trimmed = (text ?? input).trim()
     if (!trimmed || loading) return
+
+    track('ia_message_sent', { message_type: type, message_length: trimmed.length })
 
     const userMsg = { role: 'user', content: trimmed }
     setMessages(prev => [...prev, userMsg, { role: 'assistant', content: '', loading: true }])
@@ -171,7 +189,9 @@ export default function PatientAIChat({ profile }) {
         .filter(m => !m.loading)
         .map(m => ({ role: m.role, content: m.content }))
 
+      const requestStartedAt = Date.now()
       const { text: responseText } = await companionService.sendMessage(history, systemPrompt)
+      track('ia_response_received', { response_time_ms: Date.now() - requestStartedAt })
 
       setMessages(prev => {
         const updated = [...prev]
@@ -268,7 +288,7 @@ export default function PatientAIChat({ profile }) {
                 {msg.followUps.map((q, j) => (
                   <button
                     key={j}
-                    onClick={() => sendMessage(q)}
+                    onClick={() => { track('ia_suggested_prompt_click', { prompt_id: slugifyPrompt(q) }); sendMessage(q, 'suggested') }}
                     disabled={loading}
                     className="text-xs px-3 py-1.5 rounded-full border border-brand/30 text-brand bg-white hover:bg-brand hover:text-white transition-colors disabled:opacity-40"
                   >
@@ -287,7 +307,7 @@ export default function PatientAIChat({ profile }) {
               {QUICK_ACTIONS.map((action, i) => (
                 <button
                   key={i}
-                  onClick={() => sendMessage(action)}
+                  onClick={() => { track('ia_suggested_prompt_click', { prompt_id: slugifyPrompt(action) }); sendMessage(action, 'suggested') }}
                   disabled={loading}
                   className="text-left text-sm px-3 py-2.5 rounded-xl border border-gray-100 bg-white shadow-sm text-text-secondary hover:border-brand/30 hover:text-brand transition-colors disabled:opacity-50"
                 >

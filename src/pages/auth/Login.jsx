@@ -1,20 +1,28 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Envelope, Lock } from '@phosphor-icons/react';
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
+import { track, setAnalyticsUser } from '../../utils/analytics'
 
 export default function Login({ onLogin }) {
   const [form, setForm] = useState({ email: '', password: '' })
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
+  useEffect(() => {
+    track('login_view', { page_path: '/login' })
+  }, [])
+
   const submit = async (e) => {
     e.preventDefault()
+    track('login_attempt', { method: 'email' })
     setLoading(true)
     try {
       const { profile } = await authService.login(form.email, form.password)
+      await setAnalyticsUser(profile)
+      track('login_success', { method: 'email' })
       onLogin(profile)
 
       const redirects = {
@@ -25,6 +33,8 @@ export default function Login({ onLogin }) {
       }
       navigate(redirects[profile.role] || '/')
     } catch (err) {
+      const error_type = err.message.includes('Credenciales inválidas') ? 'invalid_credentials' : 'network_error'
+      track('login_error', { method: 'email', error_type })
       toast.error(err.message)
     } finally {
       setLoading(false)
@@ -82,11 +92,15 @@ export default function Login({ onLogin }) {
         <div className="h-px flex-1 bg-border-default" />
       </div>
 
-      <GoogleAuthButton />
+      <GoogleAuthButton analyticsEvent="login_attempt" analyticsParams={{ method: 'google' }} />
 
       <p className="text-center text-sm text-text-secondary mt-6">
         ¿No tenés cuenta?{' '}
-        <Link to="/registro" className="text-brand font-medium hover:underline">
+        <Link
+          to="/registro"
+          onClick={() => track('login_to_signup', { source: 'login_page' })}
+          className="text-brand font-medium hover:underline"
+        >
           Registrate
         </Link>
       </p>

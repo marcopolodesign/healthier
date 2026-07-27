@@ -8,6 +8,7 @@ import {
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
 import PatientPageOverlay from '../../components/patient/PatientPageOverlay'
+import { track } from '../../utils/analytics'
 
 const CATEGORIES = [
   { id: 'recetas',       name: 'Recetas Digitales', icon: FileText,   bgClass: 'bg-amber-50',   textClass: 'text-amber-700',   uploadable: false },
@@ -129,7 +130,11 @@ export default function PatientDocuments({ profile }) {
           return (
             <div
               key={cat.id}
-              onClick={() => !cat.comingSoon && setViewingCat(cat)}
+              onClick={() => {
+                if (cat.comingSoon) return
+                track('vault_category_view', { category: cat.id })
+                setViewingCat(cat)
+              }}
               className={`card-hover relative overflow-hidden group flex ${cat.comingSoon ? 'opacity-40 pointer-events-none' : 'cursor-pointer'} ${isPeludo ? 'col-span-2 flex-row items-center gap-4' : 'flex-col items-center justify-center text-center'}`}
             >
               <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[9px] font-semibold tracking-widest flex items-center gap-1 ${cat.comingSoon ? 'bg-bg-surface text-text-tertiary' : cat.uploadable ? 'bg-emerald-50 text-emerald-600' : 'bg-bg-surface text-text-tertiary'}`}>
@@ -283,7 +288,11 @@ export default function PatientDocuments({ profile }) {
                     <h3 className="text-[12px] font-semibold text-text-secondary uppercase tracking-widest mb-3">Documentos del Profesional</h3>
                     <div className="space-y-3">
                       {proDocs.map(doc => (
-                        <div key={doc.id} className="card-hover flex justify-between items-center cursor-pointer">
+                        <div
+                          key={doc.id}
+                          className="card-hover flex justify-between items-center cursor-pointer"
+                          onClick={() => track('document_view', { doc_type: viewingCat.id })}
+                        >
                           <div className="flex items-center gap-4">
                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${viewingCat.bgClass}`}>
                               <CatIcon className={`w-6 h-6 ${viewingCat.textClass}`} />
@@ -306,7 +315,7 @@ export default function PatientDocuments({ profile }) {
                     <div className="flex justify-between items-center mb-3">
                       <h3 className="text-[12px] font-semibold text-text-secondary uppercase tracking-widest flex items-center gap-2">Mis Controles</h3>
                       <button
-                        onClick={() => { setUploadCat(viewingCat); setNewDocName(''); setShowUpload(true) }}
+                        onClick={() => { track('document_add_click', { doc_type: viewingCat.id }); setUploadCat(viewingCat); setNewDocName(''); setShowUpload(true) }}
                         className="text-[11px] font-semibold text-brand bg-brand-muted px-3 py-1.5 rounded-full hover:bg-brand-light flex items-center gap-1 border border-brand/20"
                       >
                         <Plus className="w-3 h-3" /> AÑADIR
@@ -327,7 +336,7 @@ export default function PatientDocuments({ profile }) {
                         </div>
                       )) : (
                         <div
-                          onClick={() => { setUploadCat(viewingCat); setNewDocName(''); setShowUpload(true) }}
+                          onClick={() => { track('document_add_click', { doc_type: viewingCat.id }); setUploadCat(viewingCat); setNewDocName(''); setShowUpload(true) }}
                           className="border-2 border-dashed border-border-default rounded-2xl p-6 flex flex-col items-center justify-center bg-bg-secondary cursor-pointer hover:bg-bg-surface transition-colors"
                         >
                           <CloudArrowUp className="w-8 h-8 text-text-tertiary mb-2" />

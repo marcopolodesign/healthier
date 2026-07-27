@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { User, Envelope, Lock, ArrowLeft } from '@phosphor-icons/react';
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
 import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
+import { track } from '../../utils/analytics'
 
 export default function Register({ onLogin }) {
   const [step, setStep] = useState('choose')
@@ -12,18 +13,30 @@ export default function Register({ onLogin }) {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
+  useEffect(() => {
+    track('sign_up_start', { step: 1, step_name: 'cuenta', flow: 'paciente', page_path: '/registro' })
+  }, [])
+
   const submit = async (e) => {
     e.preventDefault()
-    if (form.password.length < 6) { toast.error('La contraseña debe tener al menos 6 caracteres'); return }
+    track('sign_up_method_selected', { method: 'email', step: 1, flow: 'paciente' })
+    if (form.password.length < 6) {
+      toast.error('La contraseña debe tener al menos 6 caracteres')
+      track('sign_up_error', { step: 1, step_name: 'cuenta', error_type: 'password_corta', flow: 'paciente' })
+      return
+    }
     setLoading(true)
     try {
       const utms = getStoredUtms()
       await authService.register(form.email, form.password, 'patient', form.fullName, utms)
       clearUtms()
+      track('sign_up_step_complete', { step: 1, step_name: 'cuenta', method: 'email', flow: 'paciente' })
       const { profile } = await authService.login(form.email, form.password)
       onLogin(profile)
       navigate('/paciente/onboarding')
     } catch (err) {
+      const error_type = /already registered/i.test(err.message) ? 'email_ya_registrado' : 'server_error'
+      track('sign_up_error', { step: 1, step_name: 'cuenta', error_type, flow: 'paciente' })
       toast.error(err.message)
     } finally {
       setLoading(false)
@@ -40,7 +53,7 @@ export default function Register({ onLogin }) {
         </div>
 
         <div className="space-y-3">
-          <GoogleAuthButton />
+          <GoogleAuthButton analyticsEvent="sign_up_method_selected" analyticsParams={{ method: 'google', step: 1, flow: 'paciente' }} />
           <button
             type="button"
             onClick={() => setStep('email')}

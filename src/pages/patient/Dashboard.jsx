@@ -5,6 +5,7 @@ import {
   MapPin, MapTrifold, CaretRight, Star, VideoCamera,
   Heartbeat, ClipboardText, X, Sparkle,
 } from '@phosphor-icons/react'
+import { track } from '../../utils/analytics'
 
 const LAST_VERTICAL_KEY = 'healthier_last_vertical'
 import InteractiveMap from '../../components/patient/InteractiveMap'
@@ -121,6 +122,7 @@ export default function PatientDashboard({ profile }) {
   }
 
   const goToVertical = v => {
+    track('specialty_select', { specialty: v.id, status: v.comingSoon ? 'coming_soon' : 'available' })
     const entry = { id: v.id, nombre: v.nombre }
     localStorage.setItem(LAST_VERTICAL_KEY, JSON.stringify(entry))
     navigate(`/paciente/reservar?vertical=${v.id}`)
@@ -141,7 +143,7 @@ export default function PatientDashboard({ profile }) {
         {onDemandVerticals.map(v => (
           <button
             key={v.id}
-            onClick={() => navigate(`/paciente/ondemand/${v.id}`)}
+            onClick={() => { track('ondemand_start', { vertical: v.id }); navigate(`/paciente/ondemand/${v.id}`) }}
             className="flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-white/15 hover:bg-white/25 active:scale-95 transition-all font-semibold text-[14px]"
           >
             <v.icon className="w-[18px] h-[18px]" />
@@ -186,7 +188,7 @@ export default function PatientDashboard({ profile }) {
 
   const mapCta = (
     <button
-      onClick={() => setShowMap(true)}
+      onClick={() => { track('view_map_click', {}); setShowMap(true) }}
       className="card-hover w-full flex items-center gap-4 active:scale-[0.98] transition-all text-left"
     >
       <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0">
@@ -217,6 +219,7 @@ export default function PatientDashboard({ profile }) {
 
   const sosButton = (
     <div
+      onClick={() => track('sos_click', {})}
       className="w-full py-5 px-5 rounded-2xl bg-danger flex items-center gap-4 opacity-40 pointer-events-none relative"
     >
       <Heartbeat className="w-7 h-7 text-white flex-shrink-0" />
@@ -234,7 +237,7 @@ export default function PatientDashboard({ profile }) {
   const urgentCareSection = (
     <div className="flex flex-col gap-2">
       <div
-        onClick={() => navigate('/paciente/fastpass')}
+        onClick={() => { track('fastpass_click', {}); navigate('/paciente/fastpass') }}
         className="card-hover w-full flex items-center gap-4 cursor-pointer active:scale-95 transition-all"
       >
         <div className="w-10 h-10 rounded-full bg-brand-tertiary/10 flex items-center justify-center flex-shrink-0">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, VideoCamera, MapPin, Star, CaretRight, Check,
@@ -9,6 +9,7 @@ import { availabilityService } from '../../services/availabilityService'
 import { consultationsService } from '../../services/consultationsService'
 import { VERTICALS, VERTICAL_SPECIALTIES, SPECIALTY_LABELS } from '../../lib/verticals'
 import { toast } from '../../components/Toast'
+import { track } from '../../utils/analytics'
 
 // Verticals that trigger the clinica auto-match flow
 const AUTO_MATCH_VERTICALS = ['clinica']
@@ -137,6 +138,8 @@ export default function ReservarConsulta({ profile }) {
   const [createError, setCreateError]   = useState(null)
   const [matchedPro, setMatchedPro]     = useState(null)
 
+  const bookingStartFired = useRef(false)
+
   const steps = getSteps(selectedVertical?.id, !!paramProId)
 
   // Derived — datetime step
@@ -155,6 +158,14 @@ export default function ReservarConsulta({ profile }) {
       .map(d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
   )
   const timeSlots = selectedDate ? buildTimeSlots(franjas, bookedTimesForDate) : []
+
+  // ── Booking wizard start — fire once a vertical is known ──
+  useEffect(() => {
+    if (selectedVertical && !bookingStartFired.current) {
+      bookingStartFired.current = true
+      track('booking_start', { vertical: selectedVertical.id })
+    }
+  }, [selectedVertical])
 
   // ── Pre-load pro when coming from a marker / sheet ────────
   useEffect(() => {
@@ -182,13 +193,24 @@ export default function ReservarConsulta({ profile }) {
   // ── Searching step: fetch best pro + auto-advance after 2.5s ────────────
   useEffect(() => {
     if (step !== 'searching' || !selectedVertical) return
+    track('booking_searching_professional', { vertical: selectedVertical.id })
     const slugs = VERTICAL_SPECIALTIES[selectedVertical.id] || []
     if (slugs.length) {
       professionalService.search({})
         .then(data => {
           // Only auto-match professionals who can actually receive paid bookings (spec D4)
           const pros = data.filter(p => slugs.includes(p.specialty) && p.mpConnected !== false)
-          if (pros.length) setMatchedPro(normalizeProCard(pros[0], 'virtual'))
+          if (pros.length) {
+            const proCard = normalizeProCard(pros[0], 'virtual')
+            setMatchedPro(proCard)
+            track('booking_professional_found', {
+              professional_id: proCard.id,
+              specialty: proCard.specialty,
+              rating: proCard.rating,
+              price: proCard.price,
+              currency: 'ARS',
+            })
+          }
         })
         .catch(() => {})
     }
@@ -222,6 +244,10 @@ export default function ReservarConsulta({ profile }) {
 
   const handleAfterModality = () => {
     if (!selectedVertical || !modality) return
+    track('booking_mode_select', {
+      mode: modality === 'virtual' ? 'videoconsulta' : modality,
+      vertical: selectedVertical.id,
+    })
     // All virtual consultations go through searching → matched → payment
     if (modality === 'virtual') {
       setStep('searching')
@@ -552,7 +578,10 @@ export default function ReservarConsulta({ profile }) {
                 Elegir y pagar
               </button>
               <button
-                onClick={() => { setStep('modality'); setMatchedPro(null) }}
+                onClick={() => {
+                  track('booking_cancel', { vertical: selectedVertical?.id, professional_id: matchedPro?.id })
+                  setStep('modality'); setMatchedPro(null)
+                }}
                 className="w-full py-4 rounded-full font-semibold text-[15px] text-text-secondary border border-border-default hover:bg-bg-secondary transition-colors"
               >
                 Cancelar

@@ -5,8 +5,26 @@ import PatientSheet from '../components/patient/PatientSheet'
 import { Bell, X, Lightning } from '@phosphor-icons/react'
 import { notificationService } from '../services/notificationService'
 import { VERTICALS } from '../lib/verticals'
+import { track } from '../utils/analytics'
 
 const HIDE_NAV_PREFIXES = ['/paciente/sos', '/paciente/ondemand', '/paciente/videollamada', '/paciente/reservar', '/paciente/sala-espera', '/paciente/consulta/review', '/paciente/fastpass']
+
+// SPA client-side navigation doesn't trigger GTM page views on its own —
+// fire section_view manually for the 5 sections in Henry's (Hyppo) tracking
+// spec. Deliberately NOT derived from PatientBottomNav's TABS: that array is
+// nav-display config (drives which tab is highlighted) and no longer has an
+// 'ia' entry since the IA shortcut was removed from the bottom nav
+// (2026-07-27) — but /paciente/ia is still a real, reachable route and still
+// one of the 5 sections the tracking spec wants measured, so it stays listed
+// here even though it has no nav tab. Keep section names in sync with
+// Henry's spec ('dashboard', not TABS' internal id 'home') if either list changes.
+const SECTION_BY_PREFIX = [
+  ['/paciente/dashboard', 'dashboard'],
+  ['/paciente/consultas', 'agenda'],
+  ['/paciente/ia', 'ia'],
+  ['/paciente/documentos', 'boveda'],
+  ['/paciente/perfil', 'perfil'],
+]
 
 // Shown only on Inicio, directly above the nav — a quick-access explainer for
 // on-demand care, distinct from the full "Hablá con un médico ahora" hero
@@ -68,6 +86,11 @@ export default function PatientMobileLayout({ profile }) {
       setShowPushBanner(true)
     }
   }, [profile?.id])
+
+  useEffect(() => {
+    const match = SECTION_BY_PREFIX.find(([prefix]) => pathname.startsWith(prefix))
+    if (match) track('section_view', { section: match[1], page_path: pathname })
+  }, [pathname])
 
   async function enablePush() {
     setShowPushBanner(false)

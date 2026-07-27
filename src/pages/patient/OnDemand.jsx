@@ -9,6 +9,7 @@ import { consultationsService } from '../../services/consultationsService'
 import { mpService } from '../../services/mpService'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import { VERTICALS_BY_ID, SPECIALTY_LABELS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
+import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
 
 // Real 10:00 pre-authorization window (spec Sección D1.3/D1.4) — mirrors the
 // mp-capture `sweep` cron's own 10-minute cutoff, which is the server-side
@@ -117,11 +118,20 @@ export default function OnDemand({ profile }) {
   // state) because `ensureConsultation()`'s `setConsultationId` call hasn't
   // committed yet within the same handler execution — reading the state var
   // right after awaiting it would race and still see the pre-creation `null`.
-  const finishPayment = async ({ data, error }, id) => {
+  const consultaItem = () => buildConsultaItem({
+    id: `consulta_${vertical.id}`, name: `Consulta inmediata — Tele-${vertical.nombre}`, category: 'ondemand', price,
+  })
+
+  const finishPayment = async ({ data, error }, id, paymentMethod = 'saved_card') => {
     if (error) throw new Error(error)
     if (data?.status === 'authorized' || data?.status === 'approved' || data?.approved) {
+      track('purchase', {
+        transaction_id: id, value: price, currency: 'ARS',
+        payment_method: paymentMethod, items: consultaItem(),
+      })
       await handleAuthorized(id)
     } else {
+      track('payment_error', { error_type: 'declined', value: price, currency: 'ARS' })
       toast.error('No pudimos autorizar el pago. Probá con otra tarjeta.')
     }
   }
@@ -130,6 +140,8 @@ export default function OnDemand({ profile }) {
   const handlePay = async () => {
     if (paying || addCardMode || !matchedPro) return
     if (!profile?.id) { toast.error('Faltan datos para continuar'); return }
+
+    track('begin_checkout', { value: price, currency: 'ARS', items: consultaItem() })
 
     if (isDemoMode) {
       setPaying(true)
@@ -150,13 +162,15 @@ export default function OnDemand({ profile }) {
     try {
       const id = await ensureConsultation()
       const chargeInfo = await cardSelectorRef.current?.getSavedCardCharge()
+      const paymentType = getPaymentMethod(chargeInfo)
+      track('add_payment_info', { payment_type: paymentType, value: price, currency: 'ARS' })
       const result = await mpService.createPayment({
         consultationId: id,
         ...chargeInfo,
         authorizeOnly: true,
         description: `Consulta inmediata — Tele-${vertical.nombre}`,
       })
-      await finishPayment(result, id)
+      await finishPayment(result, id, paymentType)
     } catch (err) {
       toast.error(err?.message || 'Error al procesar el pago')
     } finally {
@@ -166,6 +180,10 @@ export default function OnDemand({ profile }) {
 
   // ── "Pagar con una tarjeta nueva" Brick's own submit button ───────────────────
   const handleNewCardCharge = async (chargeInfo) => {
+    const paymentType = getPaymentMethod(chargeInfo)
+    track('begin_checkout', { value: price, currency: 'ARS', items: consultaItem() })
+    track('add_payment_info', { payment_type: paymentType, value: price, currency: 'ARS' })
+
     setPaying(true)
     try {
       const id = await ensureConsultation()
@@ -175,7 +193,7 @@ export default function OnDemand({ profile }) {
         authorizeOnly: true,
         description: `Consulta inmediata — Tele-${vertical.nombre}`,
       })
-      await finishPayment(result, id)
+      await finishPayment(result, id, paymentType)
     } catch (err) {
       toast.error(err?.message || 'Error al procesar el pago')
     } finally {

@@ -7,6 +7,7 @@ import PatientMobileLayout from './layouts/PatientMobileLayout'
 import { authService } from './services/authService'
 import { supabase } from './lib/supabase'
 import { professionalService } from './services/professionalService'
+import { setAnalyticsUser, clearAnalyticsUser } from './utils/analytics'
 
 // Pages
 import Landing from './pages/Landing'
@@ -186,6 +187,14 @@ export default function App() {
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  // Analytics user identity — hashed user_id + user_type. Depend on id/role
+  // only (not the whole profile object) so editing profile fields elsewhere
+  // doesn't trigger a redundant re-hash of the same id.
+  useEffect(() => {
+    if (profile) setAnalyticsUser(profile)
+    else clearAnalyticsUser()
+  }, [profile?.id, profile?.role])
 
   const handleLogin = (p) => setProfile(p)
   const handleProfileComplete = (p) => {

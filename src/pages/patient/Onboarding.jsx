@@ -4,6 +4,12 @@ import { Check, UserCircle, ShieldCheck, Heartbeat, ShieldPlus } from '@phosphor
 import { profilesService } from '../../services/profilesService'
 import { toast } from '../../components/Toast'
 import { PATIENT_CONSENT_ITEMS } from '../../lib/consentItems'
+import { track } from '../../utils/analytics'
+
+// Internal step (1=consentimiento, 2=salud_general, 3=informacion_medica) mapped
+// to Henry's spec numbering, which also counts the account-creation step (step 1,
+// handled in Register.jsx) — so event step = internal step + 1.
+const STEP_NAME_BY_INTERNAL_STEP = { 1: 'consentimiento', 2: 'salud_general', 3: 'informacion_medica' }
 
 const STEPS = [
   { label: 'Datos de cuenta',   short: 'Cuenta',   icon: UserCircle  },
@@ -70,8 +76,10 @@ export default function PatientOnboarding({ profile }) {
         weight_kg:  health.weightKg  ? Number(health.weightKg)  : null,
         allergies:  health.allergies || null,
       })
+      track('sign_up_step_complete', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], flow: 'paciente', has_allergies: !!health.allergies.trim() })
       setStep(3)
     } catch {
+      track('sign_up_error', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], error_type: 'server_error', flow: 'paciente' })
       toast.error('Error al guardar. Intentá de nuevo.')
     } finally {
       setSaving(false)
@@ -89,9 +97,12 @@ export default function PatientOnboarding({ profile }) {
         emergency_phone: medical.emergencyPhone || null,
         emergency_rel:   medical.emergencyRel   || null,
       })
+      track('sign_up_step_complete', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], flow: 'paciente' })
+      track('sign_up_complete', { flow: 'paciente', profile_completed: true })
       toast.success('¡Perfil completo!')
       navigate('/paciente/dashboard')
     } catch {
+      track('sign_up_error', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], error_type: 'server_error', flow: 'paciente' })
       toast.error('Error al guardar. Intentá de nuevo.')
     } finally {
       setSaving(false)
@@ -323,7 +334,21 @@ export default function PatientOnboarding({ profile }) {
               </button>
             )}
             {step === 1 && (
-              <button onClick={() => setStep(2)} disabled={!allConsented} className="btn-primary flex-1 disabled:opacity-40 disabled:cursor-not-allowed">
+              <button
+                onClick={() => {
+                  track('sign_up_step_complete', {
+                    step: step + 1,
+                    step_name: STEP_NAME_BY_INTERNAL_STEP[step],
+                    flow: 'paciente',
+                    consent_datos_salud: consents.hipaa,
+                    consent_ley_25326: consents.ley25326,
+                    consent_acceso_medico: consents.equipo_tratante,
+                  })
+                  setStep(2)
+                }}
+                disabled={!allConsented}
+                className="btn-primary flex-1 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
                 Siguiente →
               </button>
             )}
@@ -343,7 +368,10 @@ export default function PatientOnboarding({ profile }) {
         {/* Skip — not offered on step 1 (Consentimiento), that step is mandatory */}
         {step !== 1 && (
           <button
-            onClick={() => navigate('/paciente/dashboard')}
+            onClick={() => {
+              track('sign_up_skip_step', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], flow: 'paciente' })
+              navigate('/paciente/dashboard')
+            }}
             className="mt-3 w-full text-center text-sm text-text-tertiary hover:text-text-secondary transition-colors"
           >
             Completar más tarde →

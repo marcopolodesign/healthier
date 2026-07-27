@@ -2,13 +2,15 @@ import { useState } from 'react'
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { GoogleIcon } from '../common/GoogleIcon'
+import { track } from '../../utils/analytics'
 
-export function GoogleAuthButton({ className = '' }) {
+export function GoogleAuthButton({ className = '', analyticsEvent, analyticsParams = {} }) {
   const [loading, setLoading] = useState(false)
 
   const submit = async () => {
     setLoading(true)
     try {
+      if (analyticsEvent) track(analyticsEvent, analyticsParams)
       await authService.loginWithGoogle()
     } catch (err) {
       toast.error(err.message)
