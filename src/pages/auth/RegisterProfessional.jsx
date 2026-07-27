@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { User, Envelope, Lock } from '@phosphor-icons/react';
+import { User, Envelope, Lock, ArrowLeft } from '@phosphor-icons/react';
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
 import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
 
 export default function RegisterProfessional({ onLogin }) {
+  const [step, setStep] = useState('choose')
   const [form, setForm] = useState({ fullName: '', email: '', password: '' })
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -29,20 +30,63 @@ export default function RegisterProfessional({ onLogin }) {
     }
   }
 
+  if (step === 'choose') {
+    return (
+      <div className="card">
+        <div className="text-center mb-8">
+          <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-2">Creá tu cuenta profesional</p>
+          <h1 className="text-3xl sm:text-4xl font-light tracking-tight text-text-primary mb-1">Sumate como profesional</h1>
+          <p className="text-text-secondary text-sm">Ofrecé tus servicios en Healthier</p>
+        </div>
+
+        <div className="space-y-3">
+          <GoogleAuthButton />
+          <button
+            type="button"
+            onClick={() => setStep('email')}
+            className="w-full flex items-center justify-center gap-2.5 py-2.5 rounded-lg border-2 border-border-default hover:border-brand/50 transition-colors text-sm font-semibold text-text-primary"
+          >
+            <Envelope className="h-4 w-4" />
+            Continuar con email
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1 mt-8 p-1 rounded-full bg-bg-secondary border border-border-default">
+          <Link
+            to="/registro"
+            className="flex-1 py-2 rounded-full text-sm font-semibold text-text-secondary hover:text-text-primary transition-colors text-center"
+          >
+            Paciente
+          </Link>
+          <button type="button" className="flex-1 py-2 rounded-full text-sm font-semibold bg-brand text-white transition-colors">
+            Profesional
+          </button>
+        </div>
+
+        <p className="text-center text-sm text-text-secondary mt-6">
+          ¿Ya tenés cuenta?{' '}
+          <Link to="/login" className="text-brand font-medium hover:underline">
+            Iniciá sesión
+          </Link>
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="card">
+      <button
+        type="button"
+        onClick={() => setStep('choose')}
+        className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mb-6"
+      >
+        <ArrowLeft className="h-4 w-4" /> Volver
+      </button>
+
       <div className="text-center mb-8">
         <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-2">Creá tu cuenta profesional</p>
         <h1 className="text-3xl sm:text-4xl font-light tracking-tight text-text-primary mb-1">Sumate como profesional</h1>
         <p className="text-text-secondary text-sm">Ofrecé tus servicios en Healthier</p>
-      </div>
-
-      <GoogleAuthButton className="mb-6" />
-
-      <div className="flex items-center gap-3 mb-6">
-        <div className="h-px flex-1 bg-border-default" />
-        <span className="text-xs text-text-tertiary uppercase tracking-wide">o registrate con email</span>
-        <div className="h-px flex-1 bg-border-default" />
       </div>
 
       <form onSubmit={submit} className="space-y-4">
@@ -103,12 +147,6 @@ export default function RegisterProfessional({ onLogin }) {
         ¿Ya tenés cuenta?{' '}
         <Link to="/login" className="text-brand font-medium hover:underline">
           Iniciá sesión
-        </Link>
-      </p>
-      <p className="text-center text-sm text-text-secondary mt-2">
-        ¿Sos paciente?{' '}
-        <Link to="/registro" className="text-brand font-medium hover:underline">
-          Registrate aquí
         </Link>
       </p>
     </div>

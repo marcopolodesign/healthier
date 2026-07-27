@@ -3,13 +3,6 @@ import { toast } from '../../components/Toast'
 import { paymentsService } from '../../services/paymentsService'
 
 export default function SuperAdminSettings() {
-  const [settings, setSettings] = useState({
-    platformName: 'Healthier',
-    supportEmail: 'soporte@healthier.ar',
-    maintenanceMode: false,
-    allowRegistrations: true,
-  })
-
   // Real, persisted platform settings (spec D6 / B2) — commission, MP fee
   // estimate, and the refund eligibility window used by mp-payment/mp-refund.
   const [platformSettings, setPlatformSettings] = useState({
@@ -18,7 +11,6 @@ export default function SuperAdminSettings() {
     refundWindowBusinessHours: 48,
   })
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [savingPayments, setSavingPayments] = useState(false)
 
   useEffect(() => {
@@ -31,15 +23,6 @@ export default function SuperAdminSettings() {
       .catch(() => toast.error('No pudimos cargar la configuración de pagos'))
       .finally(() => setLoading(false))
   }, [])
-
-  const save = async (e) => {
-    e.preventDefault()
-    setSaving(true)
-    setTimeout(() => {
-      toast.success('Configuración guardada')
-      setSaving(false)
-    }, 800)
-  }
 
   const savePaymentSettings = async (e) => {
     e.preventDefault()
@@ -118,56 +101,8 @@ export default function SuperAdminSettings() {
           </>
         )}
 
-        <button type="submit" disabled={saving || savingPayments || loading} className="btn-primary">
+        <button type="submit" disabled={savingPayments || loading} className="btn-primary">
           {savingPayments ? 'Guardando...' : 'Guardar configuración de pagos'}
-        </button>
-      </form>
-
-      {/* ── Ajustes generales (mock — sin backend dedicado todavía) ── */}
-      <form onSubmit={save} className="card space-y-5">
-        <div>
-          <h2 className="font-semibold text-text-primary">General</h2>
-        </div>
-        <div>
-          <label className="form-label">Nombre de la plataforma</label>
-          <input type="text" value={settings.platformName} onChange={e => setSettings(p => ({ ...p, platformName: e.target.value }))} className="form-input" />
-        </div>
-
-        <div>
-          <label className="form-label">Email de soporte</label>
-          <input type="email" value={settings.supportEmail} onChange={e => setSettings(p => ({ ...p, supportEmail: e.target.value }))} className="form-input" />
-        </div>
-
-        <div className="flex items-center justify-between p-4 bg-bg-surface rounded-lg">
-          <div>
-            <p className="font-medium text-text-primary">Modo mantenimiento</p>
-            <p className="text-sm text-text-secondary">Deshabilita el acceso público a la plataforma</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setSettings(p => ({ ...p, maintenanceMode: !p.maintenanceMode }))}
-            className={`w-12 h-7 rounded-full transition-colors relative ${settings.maintenanceMode ? 'bg-error' : 'bg-gray-300'}`}
-          >
-            <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-transform ${settings.maintenanceMode ? 'translate-x-6' : 'translate-x-1'}`} />
-          </button>
-        </div>
-
-        <div className="flex items-center justify-between p-4 bg-bg-surface rounded-lg">
-          <div>
-            <p className="font-medium text-text-primary">Permitir registros</p>
-            <p className="text-sm text-text-secondary">Habilita nuevos registros de usuarios</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setSettings(p => ({ ...p, allowRegistrations: !p.allowRegistrations }))}
-            className={`w-12 h-7 rounded-full transition-colors relative ${settings.allowRegistrations ? 'bg-brand' : 'bg-gray-300'}`}
-          >
-            <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-transform ${settings.allowRegistrations ? 'translate-x-6' : 'translate-x-1'}`} />
-          </button>
-        </div>
-
-        <button type="submit" disabled={saving} className="btn-primary">
-          {saving ? 'Guardando...' : 'Guardar configuración'}
         </button>
       </form>
     </div>

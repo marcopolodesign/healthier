@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
 import {
   MapPin, MapTrifold, CaretRight, Star, VideoCamera,
-  Heartbeat, ClipboardText, X,
+  Heartbeat, ClipboardText, X, Sparkle,
 } from '@phosphor-icons/react'
 
 const LAST_VERTICAL_KEY = 'healthier_last_vertical'
@@ -200,16 +200,31 @@ export default function PatientDashboard({ profile }) {
     </button>
   )
 
+  const aiTriageCta = (
+    <div className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl bg-bg-secondary border border-border-default opacity-60 pointer-events-none text-left relative">
+      <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0">
+        <Sparkle className="w-5 h-5 text-brand" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <span className="font-semibold text-[14px] text-text-primary leading-none">¿No sabés qué especialista necesitás?</span>
+        <p className="text-[11px] text-text-secondary mt-0.5 truncate">Contanos tus síntomas y te orientamos</p>
+      </div>
+      <span className="text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full bg-brand-muted text-brand flex-shrink-0">
+        Próximamente
+      </span>
+    </div>
+  )
+
   const sosButton = (
     <div
-      onClick={() => navigate('/paciente/sos')}
-      className="w-full py-5 px-5 rounded-2xl bg-danger flex items-center gap-4 cursor-pointer active:scale-95 transition-all"
+      className="w-full py-5 px-5 rounded-2xl bg-danger flex items-center gap-4 opacity-40 pointer-events-none relative"
     >
       <Heartbeat className="w-7 h-7 text-white flex-shrink-0" />
       <div className="flex flex-col">
         <span className="font-semibold text-[15px] text-white leading-none">EMERGENCIA S.O.S</span>
         <span className="text-[12px] text-white/80 mt-0.5">Solicitar ambulancia de inmediato</span>
       </div>
+      <span className="absolute top-2 right-3 text-[9px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-white/90 text-danger">Próximamente</span>
     </div>
   )
 
@@ -262,6 +277,7 @@ export default function PatientDashboard({ profile }) {
           {onDemandHero}
           {specialtyGrid}
           {mapCta}
+          {aiTriageCta}
           {urgentCareSection}
           {sosButton}
         </div>

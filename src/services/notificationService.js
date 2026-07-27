@@ -26,11 +26,16 @@ export const notificationService = {
   },
 
   async subscribe(userId) {
-    const reg = await this.register()
-    if (!reg) return false
+    // Safari requires Notification.requestPermission() to run synchronously
+    // within the user gesture — any await before it (e.g. service worker
+    // registration) breaks user-activation and the prompt silently fails.
+    if (!this.isSupported()) return false
 
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') return false
+
+    const reg = await this.register()
+    if (!reg) return false
 
     let subscription = await reg.pushManager.getSubscription()
     if (!subscription) {

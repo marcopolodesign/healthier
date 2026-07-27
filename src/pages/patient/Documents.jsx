@@ -11,11 +11,11 @@ import PatientPageOverlay from '../../components/patient/PatientPageOverlay'
 
 const CATEGORIES = [
   { id: 'recetas',       name: 'Recetas Digitales', icon: FileText,   bgClass: 'bg-amber-50',   textClass: 'text-amber-700',   uploadable: false },
-  { id: 'analisis',      name: 'Análisis',           icon: Pulse,     bgClass: 'bg-emerald-50', textClass: 'text-emerald-600', uploadable: true  },
-  { id: 'nutricion',     name: 'Plan Nutricional',   icon: AppleLogo, bgClass: 'bg-emerald-50', textClass: 'text-emerald-600', uploadable: true  },
-  { id: 'entrenamiento', name: 'Rehab y Físico',     icon: Barbell,   bgClass: 'bg-orange-50',  textClass: 'text-orange-600',  uploadable: true  },
+  { id: 'analisis',      name: 'Análisis',           icon: Pulse,     bgClass: 'bg-emerald-50', textClass: 'text-emerald-600', uploadable: true, comingSoon: true },
+  { id: 'nutricion',     name: 'Plan Nutricional',   icon: AppleLogo, bgClass: 'bg-emerald-50', textClass: 'text-emerald-600', uploadable: true, comingSoon: true },
+  { id: 'entrenamiento', name: 'Rehab y Físico',     icon: Barbell,   bgClass: 'bg-orange-50',  textClass: 'text-orange-600',  uploadable: true, comingSoon: true },
   { id: 'historial',     name: 'Historial',          icon: FolderOpen, bgClass: 'bg-violet-50', textClass: 'text-violet-600',  uploadable: false },
-  { id: 'peludo',        name: 'Amigo Peludo',       icon: PawPrint,  bgClass: 'bg-sky-50',     textClass: 'text-sky-600',     uploadable: true  },
+  { id: 'peludo',        name: 'Amigo Peludo',       icon: PawPrint,  bgClass: 'bg-sky-50',     textClass: 'text-sky-600',     uploadable: true, comingSoon: true },
 ]
 
 const MOCK_DOCS_BY_CATEGORY = {
@@ -39,8 +39,6 @@ export default function PatientDocuments({ profile }) {
     { id: 1, time: '08:30 AM', desc: 'Desayuno: Huevos y tostada', cals: 320, img: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=200&q=80' }
   ])
   const [workoutLogs, setWorkoutLogs] = useState([])
-
-  const allRecent = Object.values(docs).flat().slice(0, 4)
 
   // Derived data for category detail (safe when viewingCat is null)
   const catDocs = viewingCat ? (docs[viewingCat.id] || []) : []
@@ -131,38 +129,16 @@ export default function PatientDocuments({ profile }) {
           return (
             <div
               key={cat.id}
-              onClick={() => setViewingCat(cat)}
-              className={`card-hover cursor-pointer relative overflow-hidden group flex ${isPeludo ? 'col-span-2 flex-row items-center gap-4' : 'flex-col items-center justify-center text-center'}`}
+              onClick={() => !cat.comingSoon && setViewingCat(cat)}
+              className={`card-hover relative overflow-hidden group flex ${cat.comingSoon ? 'opacity-40 pointer-events-none' : 'cursor-pointer'} ${isPeludo ? 'col-span-2 flex-row items-center gap-4' : 'flex-col items-center justify-center text-center'}`}
             >
-              <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[9px] font-semibold tracking-widest flex items-center gap-1 ${cat.uploadable ? 'bg-emerald-50 text-emerald-600' : 'bg-bg-surface text-text-tertiary'}`}>
-                {cat.uploadable ? <><Plus className="w-3 h-3" /> AÑADIR</> : <><Eye className="w-3 h-3" /> VER</>}
+              <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[9px] font-semibold tracking-widest flex items-center gap-1 ${cat.comingSoon ? 'bg-bg-surface text-text-tertiary' : cat.uploadable ? 'bg-emerald-50 text-emerald-600' : 'bg-bg-surface text-text-tertiary'}`}>
+                {cat.comingSoon ? 'PRÓXIMAMENTE' : cat.uploadable ? <><Plus className="w-3 h-3" /> AÑADIR</> : <><Eye className="w-3 h-3" /> VER</>}
               </div>
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110 ${isPeludo ? '' : 'mb-3 mt-2'} ${cat.bgClass}`}>
                 <CatIcon className={`w-6 h-6 ${cat.textClass}`} />
               </div>
               <h3 className={`font-semibold text-text-primary leading-tight ${isPeludo ? 'text-[16px]' : 'text-[14px]'}`}>{cat.name}</h3>
-            </div>
-          )
-        })}
-      </div>
-
-      <h3 className="font-semibold text-lg text-text-primary mb-4">Archivos Recientes</h3>
-      <div className="space-y-3">
-        {allRecent.map(doc => {
-          const cat = CATEGORIES.find(c => Object.keys(docs).some(k => k === c.id && docs[k].some(d => d.id === doc.id)))
-          const CatIcon = cat?.icon || FileText
-          return (
-            <div key={doc.id} className="card-hover flex justify-between items-center cursor-pointer">
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${cat?.bgClass || 'bg-bg-surface'}`}>
-                  <CatIcon className={`w-6 h-6 ${cat?.textClass || 'text-text-tertiary'}`} />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-[15px] text-text-primary">{doc.titulo}</h4>
-                  <p className="text-[12px] text-text-tertiary font-medium mt-0.5">{doc.subtitulo}</p>
-                </div>
-              </div>
-              <CaretRight className="w-5 h-5 text-text-tertiary" />
             </div>
           )
         })}

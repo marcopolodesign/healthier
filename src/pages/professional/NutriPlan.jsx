@@ -986,7 +986,7 @@ const TABS = [
   { id: 'paciente', label: 'Paciente', icon: User },
   { id: 'dieta', label: 'Dieta', icon: AppleLogo },
   { id: 'template', label: 'Template', icon: SquaresFour },
-  { id: 'monitoreo', label: 'Monitoreo', icon: Pulse },
+  { id: 'monitoreo', label: 'Monitoreo', icon: Pulse, comingSoon: true },
 ]
 
 export default function NutriPlan({ profile }) {
@@ -1163,8 +1163,8 @@ export default function NutriPlan({ profile }) {
         {TABS.map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all"
+            onClick={() => !tab.comingSoon && setActiveTab(tab.id)}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${tab.comingSoon ? 'opacity-40 pointer-events-none' : ''}`}
             style={activeTab === tab.id
               ? { backgroundColor: '#fff', color: SAGE_DARK, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }
               : { backgroundColor: 'transparent', color: '#6b7280' }

@@ -529,7 +529,7 @@ export default function PatientConsultations({ profile }) {
         const triage = TRIAGE_CLASSES[emg.triage_code] ?? DEFAULT_TRIAGE
         const fecha = new Date(emg.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
         return (
-          <div key={emg.id} className={`mb-3 rounded-2xl border p-4 flex items-center gap-4 cursor-pointer active:opacity-80 transition-opacity ${triage.border} ${triage.bg}`} onClick={() => navigate('/paciente/sos')}>
+          <div key={emg.id} className={`mb-3 rounded-2xl border p-4 flex items-center gap-4 ${triage.border} ${triage.bg}`}>
             <div className={`w-12 h-12 rounded-[14px] flex items-center justify-center shrink-0 ${triage.chip}`}>
               <Ambulance className={`w-6 h-6 ${triage.icon}`} />
             </div>
