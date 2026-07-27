@@ -9,6 +9,7 @@ import { track } from '../../utils/analytics'
 
 const LAST_VERTICAL_KEY = 'healthier_last_vertical'
 import InteractiveMap from '../../components/patient/InteractiveMap'
+import ActiveAppointmentBanner from '../../components/patient/ActiveAppointmentBanner'
 import { professionalService } from '../../services/professionalService'
 import { VERTICALS, SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
 import { latLngToPixel } from '../../lib/geo'
@@ -277,6 +278,10 @@ export default function PatientDashboard({ profile }) {
         </div>
 
         <div className="px-6 pb-32 flex flex-col gap-5 w-full">
+          {/* Re-entry point for an appointment already under way — renders
+              nothing when there isn't one. Must stay above the on-demand hero:
+              resuming a paid consultation beats starting a new one. */}
+          <ActiveAppointmentBanner profile={profile} />
           {onDemandHero}
           {specialtyGrid}
           {mapCta}
