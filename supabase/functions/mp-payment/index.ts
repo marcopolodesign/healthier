@@ -329,8 +329,11 @@ Deno.serve(async (req) => {
       installments: 1,
       payment_method_id: paymentMethodId,
       payer: { email: payerEmail },
-      application_fee: applicationFee,
       external_reference: consultationId,
+    }
+    // MP rechaza application_fee=0; omitirla cuando no hay comisión que cobrar.
+    if (applicationFee > 0) {
+      mpPayload.application_fee = applicationFee
     }
     if (authorizeOnly) {
       // Two-step authorization: reserve on the card, capture later (mp-capture).
