@@ -7,6 +7,7 @@ import { toast } from '../../components/Toast'
 import { professionalService } from '../../services/professionalService'
 import { consultationsService } from '../../services/consultationsService'
 import { mpService } from '../../services/mpService'
+import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import { VERTICALS_BY_ID, SPECIALTY_LABELS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
 import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
@@ -20,6 +21,25 @@ function formatCountdown(totalSeconds) {
   const m = Math.floor(totalSeconds / 60)
   const s = totalSeconds % 60
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+// Simplified monochrome Mercado Pago isotype (blue oval + white handshake
+// glyph) — inlined so the credit-card notice can carry MP's mark without a
+// new asset/dependency or external fetch (Mateo, 2026-07-27).
+function MercadoPagoMark({ className = 'w-5 h-5' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <ellipse cx="12" cy="12" rx="12" ry="12" fill="#00AEEF" />
+      <path
+        d="M6 13.4c1.7 1.9 3.6 2.7 5.4 2.3 2-.5 2.7-2.1 4.2-2.8 1.1-.5 2.2-.3 3.1.4"
+        stroke="#fff" strokeWidth="1.5" strokeLinecap="round" fill="none"
+      />
+      <path
+        d="M5.7 10.3c1.2-1.8 2.9-2.8 4.7-2.8 1.6 0 2.6.9 3.8 1.8 1.1.8 2.4.9 3.7.4"
+        stroke="#fff" strokeWidth="1.5" strokeLinecap="round" fill="none"
+      />
+    </svg>
+  )
 }
 
 export default function OnDemand({ profile }) {
@@ -45,6 +65,10 @@ export default function OnDemand({ profile }) {
   // Post-authorization countdown + cancel
   const [secondsLeft, setSecondsLeft] = useState(AUTH_WINDOW_SECONDS)
   const [cancelling, setCancelling] = useState(false)
+
+  // Checkout exit guard — back arrow (or any other exit affordance) opens this
+  // confirm sheet instead of navigating away immediately (Mateo, 2026-07-27).
+  const [showExitConfirm, setShowExitConfirm] = useState(false)
 
   const isDemoMode = !configLoading && !publicKey
 
@@ -347,26 +371,26 @@ export default function OnDemand({ profile }) {
   }
 
   // ── Checkout — real matched professional, real price, real MP pre-auth ───────
+  // Full-height screen (not a sheet/overlay) — a sticky header with a back
+  // arrow gated behind a confirm sheet is the only way out until payment
+  // succeeds, since abandoning here means losing the matched professional.
   return (
-    <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex flex-col justify-end sm:items-center sm:justify-center animate-fade-in">
-      <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-[60]">
-        <button onClick={() => navigate('/paciente/dashboard')} className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center hover:bg-gray-50">
-          <ArrowLeft className="h-6 w-6 text-gray-900" />
+    <div className="absolute inset-0 bg-bg-primary z-[100] flex flex-col animate-fade-in">
+      <div className="flex items-center gap-3 px-4 pt-6 pb-4 sm:px-6 sm:pt-8 flex-shrink-0">
+        <button
+          onClick={() => setShowExitConfirm(true)}
+          className="w-11 h-11 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50 shrink-0"
+        >
+          <ArrowLeft className="h-5 w-5 text-gray-900" />
         </button>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: vertical.bg }}>
+          <IconComp className="h-5 w-5" style={{ color: vertical.color }} />
+        </div>
+        <h1 className="text-[20px] sm:text-[22px] font-light tracking-tight text-gray-900 leading-none">Tele-{vertical.nombre}</h1>
       </div>
-      <div className="w-full sm:max-w-lg bg-white rounded-t-[40px] sm:rounded-[28px] shadow-[0_-20px_50px_rgba(0,0,0,0.2)] sm:shadow-2xl pb-10 p-6 animate-slide-up-spring border-t sm:border border-gray-100 sm:max-h-[85vh] sm:overflow-y-auto">
-        <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6 sm:hidden" />
-        <div className="px-2">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm" style={{ backgroundColor: vertical.bg }}>
-              <IconComp className="h-7 w-7" style={{ color: vertical.color }} />
-            </div>
-            <div>
-              <h2 className="text-[28px] font-black tracking-tight text-gray-900 leading-none mb-1">Tele-{vertical.nombre}</h2>
-              <p className="text-gray-500 font-medium text-[15px]">Expertos verificados en línea</p>
-            </div>
-          </div>
 
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-10">
+        <div className="w-full sm:max-w-lg mx-auto">
           {/* Real matched professional + real price (spec D1.1) */}
           <div className="flex items-center gap-4 mb-4 p-4 bg-[#F8FAFC] rounded-[24px] border border-gray-200">
             <div className="w-14 h-14 rounded-full overflow-hidden shrink-0 bg-white border border-gray-100 flex items-center justify-center">
@@ -386,26 +410,8 @@ export default function OnDemand({ profile }) {
             </p>
           </div>
 
-          {/* Pre-auth explanation — no charge until the consultation ends */}
-          <div className="flex items-start gap-3 mb-3 p-4 bg-brand-muted/30 rounded-[20px] border border-brand/20">
-            <ShieldCheck className="w-5 h-5 text-brand shrink-0 mt-0.5" weight="fill" />
-            <p className="text-[13px] text-gray-600 leading-snug">
-              Se hace una <strong className="text-gray-900">reserva</strong> en tu tarjeta — solo se cobra cuando termina la consulta. Si el profesional no se conecta o cancelás antes, no se te cobra nada.
-            </p>
-          </div>
-
-          {/* Credit-card-only notice (spec: v1 solo tarjeta de crédito) */}
-          {!isDemoMode && (
-            <div className="flex items-start gap-3 mb-6 p-4 bg-amber-50 rounded-[20px] border border-amber-200">
-              <CreditCard className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" weight="fill" />
-              <p className="text-[13px] text-amber-700 leading-snug">
-                Las consultas inmediatas se pagan solo con <strong>tarjeta de crédito</strong> (no débito, no cuenta de Mercado Pago).
-              </p>
-            </div>
-          )}
-
           {/* Método de pago */}
-          <div className="mb-6">
+          <div className="mb-4">
             <div className="flex items-center gap-2 mb-3">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Método de Pago</p>
               {isDemoMode && (
@@ -437,6 +443,25 @@ export default function OnDemand({ profile }) {
             )}
           </div>
 
+          {/* Pre-auth explanation — no charge until the consultation ends (moved below
+              Método de Pago per Mateo, 2026-07-27) */}
+          <div className="flex items-start gap-3 mb-3 p-4 bg-brand-muted/30 rounded-[20px] border border-brand/20">
+            <ShieldCheck className="w-5 h-5 text-brand shrink-0 mt-0.5" weight="fill" />
+            <p className="text-[13px] text-gray-600 leading-snug">
+              El pago se hará efectivo una vez que finalices tu consulta. Healthier no guarda tus datos, utilizamos Mercado Pago para mayor seguridad.
+            </p>
+          </div>
+
+          {/* Credit-card-only notice (spec: v1 solo tarjeta de crédito) — MP-branded copy */}
+          {!isDemoMode && (
+            <div className="flex items-start gap-3 mb-6 p-4 bg-amber-50 rounded-[20px] border border-amber-200">
+              <MercadoPagoMark className="w-5 h-5 shrink-0 mt-0.5" />
+              <p className="text-[13px] text-amber-700 leading-snug">
+                Compra protegida y solo válida con tarjeta de crédito a través de Mercado Pago.
+              </p>
+            </div>
+          )}
+
           {/* CTA — hidden while the "new card" Brick's own submit button is active */}
           {!addCardMode && (
             <button
@@ -455,6 +480,30 @@ export default function OnDemand({ profile }) {
           )}
         </div>
       </div>
+
+      {/* ─── Exit confirm — the only way out of checkout before payment succeeds ─── */}
+      <PatientSheet open={showExitConfirm} onClose={() => setShowExitConfirm(false)} maxWidth="max-w-md">
+        <div className="px-6 pt-2 pb-8">
+          <h2 className="text-[22px] font-light text-gray-900 mb-2 text-center leading-tight">¿Cancelar el pedido de consulta?</h2>
+          <p className="text-gray-500 text-[14px] text-center mb-7 leading-snug">
+            Si salís ahora, vamos a tener que conectarte con otro profesional de nuevo y es posible que tengas que esperar.
+          </p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => navigate('/paciente/dashboard')}
+              className="btn-danger w-full py-4 rounded-3xl font-semibold text-[15px]"
+            >
+              Sí, cancelar pedido
+            </button>
+            <button
+              onClick={() => setShowExitConfirm(false)}
+              className="btn-secondary w-full py-4 rounded-3xl font-semibold text-[15px]"
+            >
+              Seguir con mi consulta
+            </button>
+          </div>
+        </div>
+      </PatientSheet>
     </div>
   )
 }
