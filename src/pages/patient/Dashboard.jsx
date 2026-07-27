@@ -160,10 +160,10 @@ export default function PatientDashboard({ profile }) {
           <div
             key={v.id}
             onClick={v.comingSoon ? undefined : () => goToVertical(v)}
-            className={`p-4 rounded-[12px] flex flex-col gap-1.5 transition-all border border-border-default ${
+            className={`card flex flex-col gap-1.5 transition-all ${
               v.comingSoon
-                ? 'opacity-60 cursor-default bg-bg-secondary'
-                : 'cursor-pointer hover:scale-[0.98] active:scale-95 bg-bg-secondary'
+                ? 'opacity-60 cursor-default'
+                : 'card-hover cursor-pointer hover:scale-[0.98] active:scale-95'
             }`}
           >
             <div className="flex flex-row items-center gap-2 mb-1">
@@ -187,7 +187,7 @@ export default function PatientDashboard({ profile }) {
   const mapCta = (
     <button
       onClick={() => setShowMap(true)}
-      className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl bg-bg-secondary border border-border-default hover:border-brand/40 active:scale-[0.98] transition-all text-left"
+      className="card-hover w-full flex items-center gap-4 active:scale-[0.98] transition-all text-left"
     >
       <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0">
         <MapTrifold className="w-5 h-5 text-brand" />
@@ -201,7 +201,7 @@ export default function PatientDashboard({ profile }) {
   )
 
   const aiTriageCta = (
-    <div className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl bg-bg-secondary border border-border-default opacity-60 pointer-events-none text-left relative">
+    <div className="card w-full flex items-center gap-4 opacity-60 pointer-events-none text-left relative">
       <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0">
         <Sparkle className="w-5 h-5 text-brand" />
       </div>
@@ -235,7 +235,7 @@ export default function PatientDashboard({ profile }) {
     <div className="flex flex-col gap-2">
       <div
         onClick={() => navigate('/paciente/fastpass')}
-        className="w-full py-4 px-5 rounded-2xl bg-bg-primary border border-border-default flex items-center gap-4 cursor-pointer hover:border-brand-tertiary/40 active:scale-95 transition-all"
+        className="card-hover w-full flex items-center gap-4 cursor-pointer active:scale-95 transition-all"
       >
         <div className="w-10 h-10 rounded-full bg-brand-tertiary/10 flex items-center justify-center flex-shrink-0">
           <ClipboardText className="w-5 h-5 text-brand-tertiary" />
@@ -264,7 +264,7 @@ export default function PatientDashboard({ profile }) {
 
   return (
     <div className="absolute inset-0">
-      <div className="absolute inset-0 overflow-y-auto scrollbar-hide bg-bg-secondary">
+      <div className="absolute inset-0 overflow-y-auto scrollbar-hide bg-bg-primary">
         <div className="px-6 pt-6 sm:pt-8 pb-4 flex justify-between items-center">
           <div>
             <h1 className="text-[28px] tracking-tight text-text-primary leading-none font-light">{getGreeting()}, {firstName}</h1>
@@ -273,7 +273,7 @@ export default function PatientDashboard({ profile }) {
           {avatarEl}
         </div>
 
-        <div className="px-6 pb-32 flex flex-col gap-5 max-w-[520px] mx-auto sm:mx-0">
+        <div className="px-6 pb-32 flex flex-col gap-5 w-full">
           {onDemandHero}
           {specialtyGrid}
           {mapCta}

@@ -1,10 +1,11 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { House, Calendar, FolderOpen, User, Sparkle } from '@phosphor-icons/react'
+import { House, Calendar, FolderOpen, User } from '@phosphor-icons/react'
 
+// 'ia' tab removed for now (2026-07-27, Mateo's request) — /paciente/ia route
+// stays intact, just no bottom-nav shortcut to it.
 const TABS = [
   { id: 'home',   path: '/paciente/dashboard',  icon: House,       label: 'Inicio'  },
   { id: 'agenda', path: '/paciente/consultas',   icon: Calendar,    label: 'Agenda'  },
-  { id: 'ia',     path: '/paciente/ia',          icon: Sparkle,     label: 'IA'      },
   { id: 'boveda', path: '/paciente/documentos',  icon: FolderOpen,  label: 'Bóveda'  },
   { id: 'perfil', path: '/paciente/perfil',      icon: User,        label: 'Perfil'  },
 ]
