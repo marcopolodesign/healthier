@@ -17,7 +17,7 @@ export default function PatientBottomNav({ className = '' }) {
   const activeId = TABS.find(t => pathname.startsWith(t.path))?.id
 
   return (
-    <nav className={`flex items-center justify-between ${className}`}>
+    <nav className={`flex items-center justify-between px-8 pt-3.5 pb-6 ${className}`}>
       {TABS.map(tab => {
         const active = tab.id === activeId
         return (
