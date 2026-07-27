@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Warning, Clock, Ambulance, CircleNotch, Check, Phone, ShieldCheck, Siren, User } from '@phosphor-icons/react';
 import { emergencyService } from '../../services/emergencyService'
+import { mpService } from '../../services/mpService'
+import { brandLabel } from '../../components/payment/cardBrand'
 import InteractiveMap from '../../components/patient/InteractiveMap'
 import { toast } from '../../components/Toast'
 
@@ -11,6 +13,16 @@ export default function Emergency({ profile }) {
   const [paymentStatus, setPaymentStatus] = useState('idle')
   const [eta, setEta] = useState(4)
   const [unit, setUnit] = useState(null)
+  const [defaultCard, setDefaultCard] = useState(null)
+  const [cardLoading, setCardLoading] = useState(true)
+
+  // Authorized payment method — the patient's first saved card (never a mock)
+  useEffect(() => {
+    mpService.getMyCards()
+      .then(({ data }) => setDefaultCard(data?.[0] ?? null))
+      .catch(() => setDefaultCard(null))
+      .finally(() => setCardLoading(false))
+  }, [])
 
   // Count down ETA once matched
   useEffect(() => {
@@ -149,10 +161,23 @@ export default function Emergency({ profile }) {
           <div className="mb-8 px-2">
             <h4 className="text-[12px] font-bold text-gray-400 uppercase tracking-widest mb-3">Método Autorizado</h4>
             <div className="flex items-center justify-between bg-gray-50 p-4 rounded-[20px] border border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-7 rounded bg-[#1A1F71] flex items-center justify-center text-[10px] text-white font-black tracking-widest">VISA</div>
-                <span className="font-bold text-[16px] text-gray-800">•••• 4242</span>
-              </div>
+              {cardLoading ? (
+                <span className="text-[14px] font-medium text-gray-400">Cargando método de pago…</span>
+              ) : defaultCard ? (
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-7 rounded bg-white border border-gray-200 flex items-center justify-center text-[9px] text-gray-700 font-black tracking-wide">
+                    {brandLabel(defaultCard.cardBrand).slice(0, 5).toUpperCase()}
+                  </div>
+                  <span className="font-bold text-[16px] text-gray-800">•••• {defaultCard.lastFour ?? '????'}</span>
+                </div>
+              ) : (
+                <button
+                  onClick={() => navigate('/paciente/perfil')}
+                  className="text-[14px] font-bold text-brand underline underline-offset-2"
+                >
+                  No tenés una tarjeta guardada — añadir una
+                </button>
+              )}
             </div>
           </div>
           <button

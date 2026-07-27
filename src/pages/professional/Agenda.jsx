@@ -6,6 +6,8 @@ import { availabilityService } from '../../services/availabilityService'
 import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
 import StatusBadge from '../../components/StatusBadge'
+import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
+import { useWaitingPresence } from '../../hooks/useWaitingPresence'
 
 const DAYS = [
   { value: 1, label: 'Lunes',     short: 'Lun' },
@@ -33,6 +35,7 @@ export default function Agenda({ profile }) {
   const [addingFranja, setAddingFranja] = useState(false)
 
   const [todayConsultations, setTodayConsultations] = useState([])
+  const waitingInfo = useWaitingPresence(todayConsultations, profile?.id)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -156,18 +159,23 @@ export default function Agenda({ profile }) {
           const isVideo = c.modality === 'video'
           const canJoin = isVideo && ['confirmed', 'in_progress', 'pending'].includes(c.status)
           const href = isVideo ? `/profesional/videollamada/${c.id}` : `/profesional/consulta/${c.id}`
+          const { waiting, since } = waitingInfo(c.id)
           return (
             <Link
               key={c.id}
               to={href}
-              className="flex items-center gap-4 p-3 bg-bg-surface rounded-xl hover:bg-brand-muted/40 transition-colors cursor-pointer"
+              className={`flex items-center gap-4 p-3 rounded-xl transition-colors cursor-pointer ${
+                waiting
+                  ? 'bg-brand-muted ring-2 ring-brand/50 hover:bg-brand-muted/80'
+                  : 'bg-bg-surface hover:bg-brand-muted/40'
+              }`}
             >
               <div className={`w-2 h-2 rounded-full shrink-0 ${isVideo ? 'bg-brand' : 'bg-green-500'}`} />
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-text-primary text-sm truncate">{patientName}</p>
                 <p className="text-xs text-text-secondary">{isVideo ? 'Videoconsulta' : 'Presencial'} · {time}</p>
               </div>
-              <StatusBadge status={c.status} />
+              {waiting ? <PatientWaitingBadge since={since} /> : <StatusBadge status={c.status} />}
               {canJoin && (
                 <span className="btn-primary flex items-center gap-1.5 text-sm px-4 py-2 shrink-0">
                   <VideoCamera className="h-4 w-4" />

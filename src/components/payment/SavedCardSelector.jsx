@@ -42,24 +42,7 @@ import {
 import { createCardToken, initMercadoPago } from '@mercadopago/sdk-react'
 import { mpService } from '../../services/mpService'
 import MPCardHolder from './MPCardHolder'
-
-// ── Brand icon map — map MP payment_method_id strings to readable labels ─────
-const BRAND_LABEL = {
-  visa: 'Visa',
-  master: 'Mastercard',
-  amex: 'American Express',
-  naranja: 'Naranja',
-  cabal: 'Cabal',
-  diners: 'Diners',
-  debvisa: 'Visa Débito',
-  debmaster: 'Mastercard Débito',
-  debcabal: 'Cabal Débito',
-}
-
-function brandLabel(raw) {
-  if (!raw) return 'Tarjeta'
-  return BRAND_LABEL[raw.toLowerCase()] ?? raw.charAt(0).toUpperCase() + raw.slice(1)
-}
+import { brandLabel } from './cardBrand'
 
 // ── Single card row ───────────────────────────────────────────────────────────
 function CardRow({ card, selected, onSelect, onDelete, deleting, disabled }) {

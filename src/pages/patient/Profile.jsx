@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   User, PencilSimple, Check, Camera, ShieldCheck, Heartbeat,
@@ -7,8 +7,11 @@ import {
 } from '@phosphor-icons/react'
 import { profilesService } from '../../services/profilesService'
 import { authService } from '../../services/authService'
+import { mpService } from '../../services/mpService'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
+import MPCardHolder from '../../components/payment/MPCardHolder'
+import { brandLabel } from '../../components/payment/cardBrand'
 import { notificationService } from '../../services/notificationService'
 import { track } from '../../utils/analytics'
 
@@ -28,16 +31,19 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
     emergenciaTelefono: profile?.emergencyPhone || '',
     emergenciaVinculo: profile?.emergencyRel  || '',
   })
-  // Local-state-only: familiares, tarjetas, comprobantes (persistence deferred)
+  // Local-state-only: familiares, comprobantes (persistence deferred)
   const [familiares, setFamiliares] = useState([])
-  const [tarjetas, setTarjetas] = useState([
-    { id: 1, numero: '**** **** **** 4242', titular: userData.nombre, vencimiento: '12/28', cvv: '***', marca: 'VISA' }
-  ])
   const [comprobantes] = useState([])
   const [showAddFamiliar, setShowAddFamiliar] = useState(false)
   const [newFamiliar, setNewFamiliar] = useState({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '' })
+
+  // Saved cards — real, from `payment_methods` via mp-save-card (never raw PAN)
+  const [tarjetas, setTarjetas] = useState([])
+  const [tarjetasLoading, setTarjetasLoading] = useState(true)
+  const [tarjetasError, setTarjetasError] = useState(null)
+  const [deletingTarjetaId, setDeletingTarjetaId] = useState(null)
   const [showTarjeta, setShowTarjeta] = useState(false)
-  const [tarjetaForm, setTarjetaForm] = useState({ id: null, numero: '', titular: '', vencimiento: '', cvv: '', marca: 'VISA' })
+  const [mpPublicKey, setMpPublicKey] = useState(null)
 
   const [pushEnabled, setPushEnabled] = useState(false)
   const [pushTogglingOn, setPushTogglingOn] = useState(false)
@@ -101,25 +107,42 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
     </div>
   )
 
-  const handleTarjetaChange = e => {
-    const { name, value } = e.target
-    setTarjetaForm(prev => {
-      const updated = { ...prev, [name]: value }
-      if (name === 'numero') {
-        updated.marca = value.startsWith('5') ? 'MASTERCARD' : value.startsWith('3') ? 'AMEX' : 'VISA'
-      }
-      return updated
-    })
+  const loadTarjetas = useCallback(async () => {
+    setTarjetasLoading(true)
+    setTarjetasError(null)
+    const { data, error } = await mpService.getMyCards()
+    setTarjetasLoading(false)
+    if (error) {
+      setTarjetasError('No pudimos cargar tus tarjetas.')
+      return
+    }
+    setTarjetas(data ?? [])
+  }, [])
+
+  useEffect(() => { loadTarjetas() }, [loadTarjetas])
+
+  useEffect(() => {
+    mpService.getPaymentPlatformConfig().then(({ data }) => {
+      setMpPublicKey(data?.publicKey ?? null)
+    }).catch(() => setMpPublicKey(null))
+  }, [])
+
+  const handleDeleteTarjeta = async id => {
+    setDeletingTarjetaId(id)
+    const { error } = await mpService.deleteCard(id)
+    setDeletingTarjetaId(null)
+    if (error) {
+      toast.error('No pudimos eliminar la tarjeta. Intentá de nuevo.')
+      return
+    }
+    setTarjetas(prev => prev.filter(t => t.id !== id))
+    toast.success('Tarjeta eliminada')
   }
 
-  const saveTarjeta = () => {
-    if (!tarjetaForm.numero) return
-    if (tarjetaForm.id) {
-      setTarjetas(prev => prev.map(t => t.id === tarjetaForm.id ? { ...tarjetaForm, cvv: '***', numero: tarjetaForm.numero.includes('*') ? tarjetaForm.numero : `**** **** **** ${tarjetaForm.numero.slice(-4)}` } : t))
-    } else {
-      setTarjetas(prev => [...prev, { ...tarjetaForm, id: Date.now(), cvv: '***', numero: `**** **** **** ${tarjetaForm.numero.slice(-4)}` }])
-    }
+  const handleTarjetaSaved = () => {
     setShowTarjeta(false)
+    toast.success('Tarjeta guardada')
+    loadTarjetas()
   }
 
   const saveNuevoFamiliar = () => {
@@ -240,26 +263,47 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           <h3 className="font-black text-lg text-gray-900 flex items-center gap-2"><CreditCard className="w-5 h-5 text-brand" /> Info. de Pago</h3>
           {!editing && (
             <span
-              onClick={() => { track('payment_method_add_click', {}); setTarjetaForm({ id: null, numero: '', titular: '', vencimiento: '', cvv: '', marca: 'VISA' }); setShowTarjeta(true) }}
+              onClick={() => { track('payment_method_add_click', {}); setShowTarjeta(true) }}
               className="text-[11px] font-bold text-brand bg-brand-muted px-3 py-1.5 rounded-full cursor-pointer hover:bg-brand-light"
             >+ AÑADIR</span>
           )}
         </div>
         <div className="space-y-4">
-          {tarjetas.map(t => (
+          {tarjetasLoading && (
+            <p className="text-sm text-gray-400 text-center py-4">Cargando tus tarjetas…</p>
+          )}
+
+          {!tarjetasLoading && tarjetasError && (
+            <div className="text-center py-4">
+              <p className="text-sm text-danger">{tarjetasError}</p>
+              <button onClick={loadTarjetas} className="mt-1 text-xs font-bold text-danger underline underline-offset-2">Reintentar</button>
+            </div>
+          )}
+
+          {!tarjetasLoading && !tarjetasError && tarjetas.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-4">
+              No tenés tarjetas guardadas. Podés añadir una para pagar más rápido.
+            </p>
+          )}
+
+          {!tarjetasLoading && !tarjetasError && tarjetas.map(t => (
             <div key={t.id} className="bg-bg-primary rounded-2xl p-4 border border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className={`w-12 h-8 rounded-md flex items-center justify-center text-[10px] text-white font-black shadow-sm ${t.marca === 'VISA' ? 'bg-[#1A1F71]' : 'bg-[#FF5F00]'}`}>{t.marca}</div>
+                <div className="w-12 h-8 rounded-md flex items-center justify-center bg-white border border-gray-200 shadow-sm">
+                  <CreditCard className="w-4 h-4 text-brand" weight="fill" />
+                </div>
                 <div>
-                  <p className="font-bold text-gray-900 text-[15px]">{t.numero}</p>
-                  <p className="text-[12px] font-medium text-gray-500">Vence {t.vencimiento}</p>
+                  <p className="font-bold text-gray-900 text-[15px]">•••• {t.lastFour ?? '????'}</p>
+                  <p className="text-[12px] font-medium text-gray-500">{brandLabel(t.cardBrand)}</p>
                 </div>
               </div>
               {editing
-                ? <div className="flex gap-2">
-                    <button onClick={() => { setTarjetaForm({ ...t, cvv: '' }); setShowTarjeta(true) }} className="p-2 bg-white rounded-full text-brand shadow-sm"><PencilSimple className="w-4 h-4" /></button>
-                    <button onClick={() => setTarjetas(prev => prev.filter(c => c.id !== t.id))} className="p-2 bg-white rounded-full text-red-600 shadow-sm"><Trash className="w-4 h-4" /></button>
-                  </div>
+                ? <button
+                    onClick={() => handleDeleteTarjeta(t.id)}
+                    disabled={deletingTarjetaId === t.id}
+                    aria-label="Eliminar tarjeta"
+                    className="p-2 bg-white rounded-full text-red-600 shadow-sm disabled:opacity-40"
+                  ><Trash className="w-4 h-4" /></button>
                 : <Check className="w-5 h-5 text-emerald-500" />
               }
             </div>
@@ -359,29 +403,35 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         </div>
       </PatientSheet>
 
-      {/* Editar Tarjeta — responsive sheet/modal */}
+      {/* Añadir Tarjeta — Brick de Mercado Pago (los datos nunca tocan nuestro servidor) */}
       <PatientSheet open={showTarjeta} onClose={() => setShowTarjeta(false)} maxWidth="max-w-md">
         <div className="px-6 pt-4 pb-4 flex justify-between items-center flex-shrink-0 border-b border-gray-100">
           <button onClick={() => setShowTarjeta(false)} className="w-10 h-10 bg-white border border-gray-200 shadow-sm rounded-full flex items-center justify-center hover:bg-gray-50">
             <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
-          <button onClick={saveTarjeta} className="text-brand font-bold px-5 py-2 bg-brand-muted border border-brand/20 rounded-full hover:bg-brand-light">Guardar</button>
+          <p className="font-bold text-[15px] text-gray-900">Añadir tarjeta</p>
+          <div className="w-10" />
         </div>
         <div className="overflow-y-auto scrollbar-hide flex-1 p-6 pb-8 bg-bg-primary">
-          <div className="bg-white rounded-[28px] p-6 shadow-sm border border-gray-100 space-y-6">
-            <div className={`w-full h-40 rounded-2xl p-5 text-white flex flex-col justify-between shadow-lg ${tarjetaForm.marca === 'VISA' ? 'bg-[#1A1F71]' : 'bg-[#FF5F00]'}`}>
-              <CreditCard className="w-8 h-8 opacity-80" />
-              <p className="font-mono text-xl tracking-widest">{tarjetaForm.numero || '**** **** **** ****'}</p>
-            </div>
-            <div className="space-y-5 pt-4">
-              <input type="text" name="numero" value={tarjetaForm.numero} onChange={handleTarjetaChange} placeholder="0000 0000 0000 0000" className="bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3.5 outline-none w-full font-medium focus:border-brand" />
-              <input type="text" name="titular" value={tarjetaForm.titular} onChange={handleTarjetaChange} placeholder="Titular" className="bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3.5 outline-none w-full font-medium focus:border-brand" />
-              <div className="grid grid-cols-2 gap-4">
-                <input type="text" name="vencimiento" value={tarjetaForm.vencimiento} onChange={handleTarjetaChange} placeholder="MM/AA" className="bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3.5 outline-none w-full font-medium focus:border-brand" />
-                <input type="password" name="cvv" value={tarjetaForm.cvv} onChange={handleTarjetaChange} placeholder="CVV" className="bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3.5 outline-none w-full font-medium focus:border-brand" />
-              </div>
-            </div>
+          <div className="bg-white rounded-[28px] p-6 shadow-sm border border-gray-100">
+            {mpPublicKey ? (
+              <MPCardHolder
+                publicKey={mpPublicKey}
+                mode="save"
+                payerEmail={userData.email}
+                submitLabel="Guardar tarjeta"
+                onSuccess={handleTarjetaSaved}
+                onError={err => toast.error(err || 'No pudimos guardar la tarjeta.')}
+              />
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-6">
+                Guardar tarjetas no está disponible en este momento. Probá de nuevo más tarde.
+              </p>
+            )}
           </div>
+          <p className="text-[12px] text-gray-400 text-center mt-4 px-4">
+            Los datos de tu tarjeta se procesan directamente con Mercado Pago. Healthier solo guarda la marca y los últimos 4 dígitos.
+          </p>
         </div>
       </PatientSheet>
     </div>

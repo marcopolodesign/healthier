@@ -1,7 +1,77 @@
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 import { mpService } from './mpService'
 
+/**
+ * Waiting-room presence window. The patient's client heartbeats every
+ * WAITING_HEARTBEAT_MS while the room is open; anything older than
+ * WAITING_PRESENCE_TTL_MS is treated as "left without pressing salir"
+ * (tab closed, phone locked, connection dropped).
+ *
+ * TTL is 3× the heartbeat so a single missed beat never flickers the
+ * professional's badge off.
+ */
+export const WAITING_HEARTBEAT_MS = 30_000
+export const WAITING_PRESENCE_TTL_MS = 90_000
+
+/**
+ * True when a patient is currently sitting in the waiting room for this
+ * consultation. Shared by the professional's Agenda and Dashboard so the
+ * staleness rule can never drift between the two.
+ *
+ * @param {{patientWaitingSince?: string|null, patientLastSeenAt?: string|null, status?: string}} c
+ */
+export function isPatientWaiting(c) {
+  if (!c?.patientWaitingSince) return false
+  // Once the call is running or over, "waiting" is no longer meaningful.
+  if (c.status === 'in_progress' || c.status === 'completed' || c.status === 'cancelled') return false
+  const lastSeen = c.patientLastSeenAt ?? c.patientWaitingSince
+  return Date.now() - new Date(lastSeen).getTime() < WAITING_PRESENCE_TTL_MS
+}
+
 export const consultationsService = {
+  /**
+   * Announces/renews the patient's presence in the waiting room. Arrival and
+   * heartbeat are the SAME idempotent call on purpose (migration 064): mark
+   * and clear are async and can interleave on a fast remount, and a lost
+   * arrival used to wedge presence off permanently because the heartbeat only
+   * touched patient_last_seen_at. The RPC COALESCEs the arrival time, so the
+   * next ping heals it.
+   *
+   * Notifies the professional only on a genuinely new arrival — the RPC
+   * returns true exactly once per stay, so the 30s heartbeat stays silent.
+   */
+  async pingPatientWaiting(consultationId) {
+    const { data: isNewArrival, error } = await supabase
+      .rpc('patient_waiting_ping', { p_consultation_id: consultationId })
+    if (error) throw error
+    if (!isNewArrival) return
+
+    const { data } = await supabase
+      .from('consultations')
+      .select('professional_id')
+      .eq('id', consultationId)
+      .maybeSingle()
+    if (data?.professional_id) {
+      supabase.functions.invoke('send-push-notification', {
+        body: {
+          userId: data.professional_id,
+          title:  'Tenés un paciente esperando',
+          body:   'Un paciente entró a la sala de espera y te está esperando.',
+          url:    `/profesional/videollamada/${consultationId}`,
+        },
+      }).catch(() => {})
+    }
+  },
+
+  /** Patient left the waiting room explicitly, or the call started. */
+  async clearPatientWaiting(consultationId) {
+    const { error } = await supabase
+      .from('consultations')
+      .update({ patient_waiting_since: null, patient_last_seen_at: null })
+      .eq('id', consultationId)
+    if (error) throw error
+  },
+
   async getValidationCode(consultationId) {
     const { data, error } = await supabase
       .from('consultation_validation_codes')

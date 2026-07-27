@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Clock, VideoCamera, SealCheck } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
-import { consultationsService } from '../../services/consultationsService'
+import { consultationsService, WAITING_HEARTBEAT_MS } from '../../services/consultationsService'
 
 function useCountdown(scheduledAt) {
   const [display, setDisplay] = useState(null)
@@ -59,6 +59,25 @@ export default function WaitingRoom({ profile }) {
         if (c.status === 'in_progress') setDoctorReady(true)
       })
       .catch(() => {})
+  }, [consultationId])
+
+  // Announce presence to the professional + keep it fresh while the room is open.
+  // Without this the professional has no way of knowing anyone showed up.
+  useEffect(() => {
+    if (!consultationId) return
+    let cancelled = false
+
+    consultationsService.pingPatientWaiting(consultationId).catch(() => {})
+    const iv = setInterval(() => {
+      if (!cancelled) consultationsService.pingPatientWaiting(consultationId).catch(() => {})
+    }, WAITING_HEARTBEAT_MS)
+
+    return () => {
+      cancelled = true
+      clearInterval(iv)
+      // Leaving the room — including navigating into the call — clears presence.
+      consultationsService.clearPatientWaiting(consultationId).catch(() => {})
+    }
   }, [consultationId])
 
   // Realtime subscription
