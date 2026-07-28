@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { consultationsService, WAITING_HEARTBEAT_MS } from '../../services/consultationsService'
 import PreconsultaForm from '../../components/patient/PreconsultaForm'
 import { toast } from '../../components/Toast'
+import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 
 /**
  * The pre-consulta payload is written by PreconsultaForm as snake_case JSON, but
@@ -107,8 +108,10 @@ export default function WaitingRoom({ profile }) {
       clearInterval(iv)
       // Leaving the room — including navigating into the call — clears presence.
       consultationsService.clearPatientWaiting(consultationId).catch(() => {})
+      consultationEventsService.log(consultationId, CONSULTATION_EVENTS.PATIENT_LEFT_WAITING, null,
+        { id: profile?.id, role: 'patient' })
     }
-  }, [consultationId, preconsultaDone, started])
+  }, [consultationId, preconsultaDone, started, profile?.id])
 
   // Realtime subscription
   useEffect(() => {
@@ -131,6 +134,8 @@ export default function WaitingRoom({ profile }) {
     try {
       // Este ping es el que avisa al profesional y le enciende "Atender".
       await consultationsService.pingPatientWaiting(consultationId)
+      consultationEventsService.log(consultationId, CONSULTATION_EVENTS.PATIENT_ENTERED_WAITING,
+        { modality: consultation?.modality }, { id: profile?.id, role: 'patient' })
       setStarted(true)
     } catch {
       toast.error('No pudimos avisarle al profesional. Probá de nuevo.')

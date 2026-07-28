@@ -122,7 +122,21 @@ Deno.serve(async (req) => {
       roomUrl = room.url
       roomName = room.name
 
-      await serviceSupabase
+      // ⚠️ Toma ATÓMICA de la sala.
+      //
+      // Esto era leer-y-después-escribir sin ninguna guarda: si los dos lados
+      // pedían la sala casi a la vez, ambos leían NULL, ambos creaban una sala
+      // distinta y el segundo pisaba al primero. Cada cliente ya se había
+      // quedado con la URL que recibió, así que terminaban en salas DISTINTAS:
+      // cada uno se veía a sí mismo y a nadie más.
+      //
+      // Pasó de verdad el 2026-07-28: Daily quedó con dos salas creadas en el
+      // mismo segundo (12:20:09) para la consulta fd6bcf5d, y solo una guardada.
+      //
+      // El `.is('daily_room_name', null)` hace que gane quien llegue primero.
+      // Si no afecta filas, otro ya la reclamó: se borra la sala huérfana que
+      // acabamos de crear y se usa la suya.
+      const { data: claimed } = await serviceSupabase
         .from('consultations')
         .update({
           daily_room_url: roomUrl,
@@ -130,6 +144,25 @@ Deno.serve(async (req) => {
           ...(['confirmed', 'pending'].includes(consultation.status) ? { status: 'in_progress' } : {}),
         })
         .eq('id', consultationId)
+        .is('daily_room_name', null)
+        .select('daily_room_url, daily_room_name')
+        .maybeSingle()
+
+      if (!claimed) {
+        await fetch(`${DAILY_API_BASE}/rooms/${roomName}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${DAILY_API_KEY}` },
+        }).catch(() => {})
+
+        const { data: winner } = await serviceSupabase
+          .from('consultations')
+          .select('daily_room_url, daily_room_name')
+          .eq('id', consultationId)
+          .single()
+
+        roomUrl = winner!.daily_room_url
+        roomName = winner!.daily_room_name
+      }
     } else if (['confirmed', 'pending'].includes(consultation.status)) {
       await serviceSupabase
         .from('consultations')

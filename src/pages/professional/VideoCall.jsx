@@ -17,6 +17,7 @@ import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import CloseConsultationModal from '../../components/CloseConsultationModal'
 import ScribeSession from '../../components/professional/ScribeSession'
 import { toast } from '../../components/Toast'
+import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 
 const NO_SHOW_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
@@ -549,6 +550,7 @@ export default function ProfessionalVideoCall({ profile }) {
         callRef.current = call
 
         call.on('joined-meeting', () => {
+          consultationEventsService.log(id, CONSULTATION_EVENTS.CALL_JOINED, null, { role: 'professional' })
           if (destroyed) return
           setJoining(false)
           consultationsService.updateStatus(id, 'in_progress').catch(() => {})
@@ -560,6 +562,9 @@ export default function ProfessionalVideoCall({ profile }) {
         })
 
         call.on('participant-joined', ({ participant }) => {
+          consultationEventsService.log(id, CONSULTATION_EVENTS.CALL_PARTICIPANT_JOINED,
+            { participant_id: participant?.session_id, owner: participant?.owner, user_name: participant?.user_name },
+            { role: 'professional' })
           if (destroyed || participant.local) return
           setRemote({
             videoTrack: participant.tracks?.video?.persistentTrack ?? null,

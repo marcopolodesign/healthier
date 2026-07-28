@@ -3,6 +3,7 @@ import { X, CircleNotch, ClipboardText, ArrowLeft, Check } from '@phosphor-icons
 import PatientSheet from './PatientSheet'
 import { toast } from '../Toast'
 import { supabase } from '../../lib/supabase'
+import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 import { ALL_SYMPTOMS, MEDICATION_QUESTION, questionsFor } from '../../data/symptoms'
 
 /**
@@ -131,6 +132,11 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
         .update({ preconsulta_data: payload })
         .eq('id', consultationId)
       if (error) throw error
+      consultationEventsService.log(consultationId, CONSULTATION_EVENTS.PRECONSULTA_SUBMITTED, {
+        symptom: payload.symptom?.id,
+        icd10: payload.symptom?.icd10_code,
+        has_red_flags: payload.has_red_flags,
+      })
       toast.success('Pre-consulta enviada')
       setSubmitting(false)
       onSubmitted(payload)

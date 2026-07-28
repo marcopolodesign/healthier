@@ -8,6 +8,7 @@ import DailyIframe from '@daily-co/daily-js'
 import { supabase } from '../../lib/supabase'
 import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
+import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 import PreconsultaForm from '../../components/patient/PreconsultaForm'
 
 const NO_SHOW_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes — mirrors professional/VideoCall.jsx
@@ -182,6 +183,7 @@ export default function PatientVideoCall() {
         callRef.current = call
 
         call.on('joined-meeting', () => {
+          consultationEventsService.log(consultationId, CONSULTATION_EVENTS.CALL_JOINED, null, { role: 'patient' })
           if (destroyed) return
           setJoining(false)
           const local = call.participants().local
@@ -191,6 +193,9 @@ export default function PatientVideoCall() {
         })
 
         call.on('participant-joined', ({ participant }) => {
+          consultationEventsService.log(consultationId, CONSULTATION_EVENTS.CALL_PARTICIPANT_JOINED,
+            { participant_id: participant?.session_id, owner: participant?.owner, user_name: participant?.user_name },
+            { role: 'patient' })
           if (destroyed || participant.local) return
           // The professional's Daily.co participant actually joined the call —
           // distinct from bothReady (which only tracks the presence waiting room).
