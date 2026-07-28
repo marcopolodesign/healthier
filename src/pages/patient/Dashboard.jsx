@@ -186,13 +186,13 @@ export default function PatientDashboard({ profile }) {
       {/* Carrusel horizontal, sangrado a la derecha (-mr-6) para que la última
           tarjeta se vea cortada contra el borde y se lea que hay más. Mismas
           fotos que las landings de marketing. */}
-      <div className="-mr-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
-        <div className="flex gap-3 w-max pr-6">
+      <div className="-mr-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory lg:mr-0 lg:overflow-visible">
+        <div className="flex gap-3 w-max pr-6 lg:grid lg:grid-cols-2 lg:w-full lg:pr-0">
           {onDemandVerticals.map(v => (
             <button
               key={v.id}
               onClick={() => { track('ondemand_start', { vertical: v.id }); navigate(`/paciente/ondemand/${v.id}`) }}
-              className="snap-start shrink-0 w-[256px] h-[280px] relative rounded-[26px] overflow-hidden group active:scale-[0.98] transition-all"
+              className="snap-start shrink-0 w-[256px] h-[280px] lg:w-full lg:h-[320px] relative rounded-[26px] overflow-hidden group active:scale-[0.98] transition-all"
             >
               {v.img && (
                 <img
@@ -356,7 +356,7 @@ export default function PatientDashboard({ profile }) {
         {/* Bloque verde de borde a borde: arranca pegado al tope (sin redondeo
             arriba) y cierra redondeado abajo. El saludo vive adentro, así que
             todo el encabezado de la pantalla es una sola pieza. */}
-        <div className="bg-gradient-to-br from-brand to-brand-hover rounded-b-[32px] px-6 pt-safe sm:pt-10 pb-6 flex flex-col gap-5 text-white shadow-[0_12px_32px_rgba(124,179,139,0.28)]">
+        <div className="bg-gradient-to-br from-brand to-brand-hover rounded-b-[32px] px-6 patient-column pt-safe sm:pt-10 pb-6 flex flex-col gap-5 text-white shadow-[0_12px_32px_rgba(124,179,139,0.28)]">
           {/* Re-entry point for an appointment already under way — renders
               nothing when there isn't one. Must stay above the on-demand cards:
               resuming a paid consultation beats starting a new one. */}
@@ -365,7 +365,7 @@ export default function PatientDashboard({ profile }) {
           {onDemandHero}
         </div>
 
-        <div className="px-6 pt-6 pb-32 flex flex-col gap-5 w-full">
+        <div className="px-6 patient-column pt-6 pb-32 flex flex-col gap-5 w-full">
           {specialtyGrid}
           {mapCta}
           {supportCta}
