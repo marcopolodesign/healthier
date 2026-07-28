@@ -2,10 +2,11 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
 import {
-  MapPin, MapTrifold, CaretRight, Star, VideoCamera,
+  MapPin, CaretRight, Star, VideoCamera, WhatsappLogo,
   Heartbeat, X, Sparkle, CalendarBlank,
 } from '@phosphor-icons/react'
 import { track } from '../../utils/analytics'
+import { supportWhatsAppLink } from '../../lib/support'
 
 const LAST_VERTICAL_KEY = 'healthier_last_vertical'
 import InteractiveMap from '../../components/patient/InteractiveMap'
@@ -13,6 +14,8 @@ import ActiveAppointmentBanner from '../../components/patient/ActiveAppointmentB
 import { professionalService } from '../../services/professionalService'
 import { VERTICALS, SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
 import { latLngToPixel, haversineKm, formatDistance } from '../../lib/geo'
+
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
 
 // Fallback pixel offsets used when a pro has no geo coordinates yet
@@ -227,20 +230,57 @@ export default function PatientDashboard({ profile }) {
     </div>
   )
 
+  // Vista previa estática del mapa con la Static Images API de Mapbox — mismo
+  // estilo (light-v11) que el mapa interactivo, así la miniatura y lo que se
+  // abre al tocar son la misma cosa. Se centra en la ubicación del paciente
+  // cuando la tenemos; si no, en el centro de CABA.
+  const staticMapUrl = (() => {
+    const lng = userLocation?.lng ?? -58.4173
+    const lat = userLocation?.lat ?? -34.6118
+    const zoom = userLocation ? 13 : 11
+    return `https://api.mapbox.com/styles/v1/mapbox/light-v11/static/${lng},${lat},${zoom},0/640x260@2x?access_token=${MAPBOX_TOKEN}&attribution=false&logo=false`
+  })()
+
   const mapCta = (
     <button
       onClick={() => { track('view_map_click', {}); setShowMap(true) }}
+      className="w-full bg-bg-secondary rounded-3xl shadow-[0_1px_4px_rgba(45,42,38,0.06)] overflow-hidden text-left active:scale-[0.98] transition-all"
+    >
+      <img
+        src={staticMapUrl}
+        alt=""
+        loading="lazy"
+        className="w-full h-[130px] object-cover"
+      />
+      <div className="p-4">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-semibold text-[15px] text-text-primary leading-none">Ver mapa</span>
+          <CaretRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+        </div>
+        <p className="text-[12px] text-text-secondary mt-1.5">Encontrá profesionales por cercanía</p>
+      </div>
+    </button>
+  )
+
+  // Mismo canal de soporte que usa el lado profesional (lib/support.js), para
+  // que no haya dos números dando vueltas.
+  const supportCta = (
+    <a
+      href={supportWhatsAppLink('Hola, soy paciente en Healthier y necesito ayuda con:')}
+      target="_blank"
+      rel="noreferrer"
+      onClick={() => track('support_whatsapp_click', {})}
       className="card-hover w-full flex items-center gap-4 active:scale-[0.98] transition-all text-left"
     >
       <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0">
-        <MapTrifold className="w-5 h-5 text-brand" />
+        <WhatsappLogo className="w-5 h-5 text-brand" weight="fill" />
       </div>
       <div className="flex-1 min-w-0">
-        <span className="font-semibold text-[14px] text-text-primary leading-none">Ver mapa</span>
-        <p className="text-[11px] text-text-secondary mt-0.5 truncate">Profesionales disponibles cerca tuyo</p>
+        <span className="font-semibold text-[14px] text-text-primary leading-none">Contactá a soporte</span>
+        <p className="text-[11px] text-text-secondary mt-0.5">Te respondemos por WhatsApp</p>
       </div>
       <CaretRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-    </button>
+    </a>
   )
 
   const aiTriageCta = (
@@ -293,6 +333,7 @@ export default function PatientDashboard({ profile }) {
         <div className="px-6 pt-6 pb-32 flex flex-col gap-5 w-full">
           {specialtyGrid}
           {mapCta}
+          {supportCta}
           {aiTriageCta}
           {sosButton}
         </div>
