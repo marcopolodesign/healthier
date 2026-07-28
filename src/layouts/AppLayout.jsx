@@ -30,17 +30,37 @@ export default function AppLayout({ profile, profSpecialty }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [companionOpen, setCompanionOpen] = useState(false)
   const [showPushBanner, setShowPushBanner] = useState(false)
+  // Permiso denegado a nivel browser: no se puede pedir de nuevo por código,
+  // hay que decirle cómo reactivarlo a mano.
+  const [pushBlocked, setPushBlocked] = useState(false)
   const [subscribing, setSubscribing] = useState(false)
   const { pathname } = useLocation()
 
-  // Show push opt-in banner for professionals whose notifications aren't yet enabled
+  // Banner de opt-in de push para profesionales.
+  //
+  // Se gatea por si hay una suscripción REAL, no por `Notification.permission`.
+  // Gatear por el permiso era una trampa de una sola dirección: `subscribe()`
+  // pide el permiso antes de crear la suscripción, así que cuando la VAPID key
+  // faltaba en producción (hasta el 2026-07-27) el browser quedaba en `granted`
+  // con la tabla vacía — y el banner, que solo aparecía en `default`, no volvía
+  // a mostrarse nunca. Resultado: `push_subscriptions` con 0 filas y nadie
+  // pudiendo arreglarlo desde la UI.
   useEffect(() => {
-    if (profile?.role !== 'professional') return
-    if (!notificationService.isSupported()) return
-    if (Notification.permission !== 'default') return
-    if (sessionStorage.getItem('prof-push-dismissed')) return
-    setShowPushBanner(true)
-  }, [profile?.role])
+    if (profile?.role !== 'professional' || !profile?.id) return
+    let cancelled = false
+    notificationService.status(profile.id).then(async st => {
+      if (cancelled || st === 'ok' || st === 'unsupported') return
+      if (st === 'blocked') { setPushBlocked(true); return }
+      // Permiso ya concedido pero sin suscripción: se recupera solo, sin
+      // volver a molestar con el prompt.
+      if (Notification.permission === 'granted') {
+        const ok = await notificationService.ensureSubscribed(profile.id)
+        if (ok || cancelled) return
+      }
+      if (!sessionStorage.getItem('prof-push-dismissed')) setShowPushBanner(true)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [profile?.role, profile?.id])
 
   const handleEnablePush = async () => {
     if (!profile?.id) return
@@ -108,6 +128,26 @@ export default function AppLayout({ profile, profSpecialty }) {
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden lg:rounded-2xl lg:bg-bg-surface lg:border lg:border-border-default lg:shadow-[4px_4px_32px_rgba(0,0,0,0.10)]">
           {!isProfessional && (
             <Header profile={profile} onMenuToggle={() => setMobileOpen(true)} />
+          )}
+
+          {/* Permiso denegado a nivel browser: no se puede volver a pedir por
+              código, así que lo único útil es decirle dónde reactivarlo. Sin
+              esto, un médico que apretó "Bloquear" una vez queda inalcanzable
+              por push para siempre y sin enterarse. */}
+          {pushBlocked && (
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-50 border-b border-amber-200">
+              <div className="flex items-center gap-2 text-sm text-amber-800">
+                <Bell size={15} className="text-amber-600 flex-shrink-0" weight="fill" />
+                <span>
+                  Tenés las notificaciones bloqueadas en este navegador, así que no vas a
+                  recibir avisos de consultas inmediatas. Habilitalas desde el candado
+                  junto a la dirección del sitio.
+                </span>
+              </div>
+              <button onClick={() => setPushBlocked(false)} className="text-amber-700 hover:text-amber-900 flex-shrink-0">
+                <X size={14} />
+              </button>
+            </div>
           )}
 
           {/* Push opt-in banner for professionals */}

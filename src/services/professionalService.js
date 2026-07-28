@@ -68,14 +68,16 @@ export const professionalService = {
       query = query.eq('specialty', filters.specialty)
     }
     if (filters.onDemand) {
-      // `is_on_demand` es la INTENCIÓN declarada ("acepto consultas inmediatas");
-      // la presencia es la otra mitad. Sin el segundo filtro se matcheaba a
-      // cualquiera que hubiera tildado el switch alguna vez, aunque estuviera
-      // durmiendo: el paciente pagaba, esperaba 10 minutos y se caía.
-      // Ver migración 066 y ON_DEMAND_PRESENCE_TTL_MS.
-      query = query
-        .eq('is_on_demand', true)
-        .gte('on_demand_last_seen_at', new Date(Date.now() - ON_DEMAND_PRESENCE_TTL_MS).toISOString())
+      query = query.eq('is_on_demand', true)
+    }
+    // La presencia (migración 066) dejó de ser un FILTRO cuando el despacho pasó
+    // a ser por pedido y aceptación (migración 067): exigir pestaña abierta para
+    // aparecer es un impuesto de atención inviable, y en web no se puede latir
+    // con el browser cerrado. Ahora es solo una señal: sirve para ordenar a quién
+    // mostrarle primero y para prometerle al paciente una espera realista, no
+    // para decidir quién entra al pool.
+    if (filters.onlyLive) {
+      query = query.gte('on_demand_last_seen_at', new Date(Date.now() - ON_DEMAND_PRESENCE_TTL_MS).toISOString())
     }
     if (filters.minRating) {
       query = query.gte('average_rating', filters.minRating)

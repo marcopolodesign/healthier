@@ -25,6 +25,48 @@ export const notificationService = {
     return reg
   },
 
+  /**
+   * ¿Este usuario tiene una suscripción push REAL y utilizable?
+   *
+   * Existe porque gatear por `Notification.permission` es una trampa de una
+   * sola dirección: `subscribe()` pide el permiso ANTES de crear la
+   * suscripción, así que si algo falla después (por ejemplo, la VAPID key
+   * ausente en producción hasta el 2026-07-27, que hacía tirar a
+   * urlBase64ToUint8Array), el browser queda con permiso `granted` y la tabla
+   * vacía. Y como el banner solo aparecía con permiso `default`, esa persona
+   * quedaba sin push y sin ninguna forma de recuperarse desde la UI.
+   *
+   * Devuelve: 'ok' | 'needs-subscribe' | 'blocked' | 'unsupported'
+   */
+  async status(userId) {
+    if (!this.isSupported()) return 'unsupported'
+    if (Notification.permission === 'denied') return 'blocked'
+    if (!userId) return 'needs-subscribe'
+
+    const { data } = await supabase
+      .from('push_subscriptions')
+      .select('endpoint')
+      .eq('user_id', userId)
+      .limit(1)
+    if (!data?.length) return 'needs-subscribe'
+
+    // Hay fila, pero puede ser de otro dispositivo o estar revocada: la
+    // suscripción del browser actual es la que manda.
+    const reg = await navigator.serviceWorker.getRegistration('/sw.js')
+    const sub = await reg?.pushManager.getSubscription()
+    if (!sub) return 'needs-subscribe'
+    return data.some(r => r.endpoint === sub.endpoint) ? 'ok' : 'needs-subscribe'
+  },
+
+  /**
+   * Re-suscribe sin volver a molestar cuando el permiso ya está concedido.
+   * Es el camino de salida del estado "permiso granted pero sin fila".
+   */
+  async ensureSubscribed(userId) {
+    if (Notification.permission !== 'granted') return false
+    return this.subscribe(userId)
+  },
+
   async subscribe(userId) {
     // Safari requires Notification.requestPermission() to run synchronously
     // within the user gesture — any await before it (e.g. service worker

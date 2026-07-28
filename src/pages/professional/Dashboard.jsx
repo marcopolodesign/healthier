@@ -12,6 +12,7 @@ import { supportWhatsAppLink } from '../../lib/support'
 import StatusBadge from '../../components/StatusBadge'
 import ProfileCompletenessCard from '../../components/professional/ProfileCompletenessCard'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
+import IncomingRequests from '../../components/professional/IncomingRequests'
 import { useWaitingPresence } from '../../hooks/useWaitingPresence'
 import { toast } from '../../components/Toast'
 import { useNavigate } from 'react-router-dom'
@@ -314,6 +315,10 @@ export default function ProfessionalDashboard({ profile }) {
 
   return (
     <div className="space-y-6 animate-fade-in">
+
+      {/* Pedidos de consulta inmediata esperando a que alguien los tome.
+          Va primero a propósito: es lo único de esta pantalla que caduca. */}
+      <IncomingRequests profile={profile} />
 
       {/* Emergency banner */}
       {activeEmergency && (
