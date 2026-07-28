@@ -21,7 +21,8 @@ credenciales ya estaban configuradas.
 | Accesible desde la videollamada | ✅ Desde el 2026-07-28 |
 | Credenciales de homologación en Supabase secrets | ✅ Configuradas |
 | Conectividad con el sandbox | ✅ Verificada — `GET /apirecipe/GetFinanciadores` → **200** |
-| **Cobertura (financiador + afiliado) en el payload** | ❌ **Falta — bloquea la certificación** |
+| **Código de medicamento (`regNo`) en el payload** | ❌ **Falta — bloquea las 4 pruebas** |
+| **Cobertura (financiador + afiliado) en el payload** | ❌ **Falta — bloquea 3 de las 4** |
 | Credenciales de producción | ❌ Requieren contrato + RENAPDIS + 4 pruebas |
 
 ### Sobre las credenciales
@@ -56,7 +57,27 @@ Innovamed pide **cuatro recetas de prueba**, tres de ellas con financiador:
 Los tres IDs están confirmados contra `GET /apirecipe/GetFinanciadores` (900
 financiadores en total en el sandbox).
 
-**El bloqueo:** el payload que arma `rcta-issue` hoy **no manda cobertura**. El
+### Bloqueo 1 — `regNo` del medicamento (afecta a las 4 pruebas)
+
+`medicamentos[].regNo` tiene que ser un código real del catálogo de Innovamed
+(`GET /apirecipe/GetMedicamento/{search}`). Un nombre escrito a mano se rechaza
+siempre con **`QBI105` — "CODIGO INFORMADO INEXISTENTE"**.
+
+`PrescriptionCreator.jsx` usa hoy un **campo de texto libre** para el medicamento
+y `clinical_medications` no tiene columna para el código. O sea: **ninguna** de
+las 4 recetas de certificación se puede emitir todavía, ni siquiera la
+particular.
+
+La buena noticia es que el camino feliz ya está probado end-to-end contra el
+sandbox con un código real (`AMIXEN 500mg comp.x21`, `regNo: 35771` → `200 OK`
+con `idReceta` y PDF). No hay incógnita técnica: falta capturar el dato.
+
+**Trabajo:** autocompletado contra `GetMedicamento` en el creador de recetas,
+columna `reg_no` en `clinical_medications`, y mandarlo en el payload.
+
+### Bloqueo 2 — cobertura (afecta a 3 de las 4 pruebas)
+
+El payload que arma `rcta-issue` hoy **no manda cobertura**. El
 objeto `paciente` incluye nombre, documento, sexo, fecha de nacimiento y teléfono
 — pero no el campo `cobertura`, que es donde va el financiador.
 
@@ -77,15 +98,21 @@ Según el swagger, la forma es (anidada dentro de `paciente`):
 consulta. Pero guardan el **nombre** de la obra social, no el `idFinanciador`
 numérico que pide la API.
 
-### Trabajo concreto pendiente
+### Trabajo concreto pendiente, en orden
 
-1. **Guardar el `idFinanciador`, no solo el nombre.** Agregar la columna y un
-   selector que consulte `GET /apirecipe/GetFinanciadores` en vez de texto libre.
-   Sin esto no hay forma de mandar la cobertura correcta.
-2. **Sumar `cobertura` al payload** de `rcta-issue`, con el caso "particular"
-   (omitir el campo) contemplado.
-3. **Correr las 4 pruebas** y guardar los números de receta que devuelva el
-   sandbox, que es lo que Innovamed va a querer ver.
+1. **Autocompletado de medicamento contra `GetMedicamento`** + columna `reg_no`
+   en `clinical_medications`. Es el bloqueo mayor: sin esto no se emite ninguna
+   receta, ni de prueba ni real.
+2. **Guardar el `idFinanciador`, no solo el nombre.** Columna nueva + selector
+   alimentado por `GetFinanciadores` en vez del texto libre actual.
+3. **Sumar `cobertura` al payload**, contemplando el caso particular (se omite el
+   campo).
+4. **Correr las 4 pruebas** y guardar los números de receta que devuelva el
+   sandbox — es lo que Innovamed va a querer ver.
+
+> Los pasos 1 y 2 comparten la misma forma: reemplazar un input de texto libre
+> por un autocompletado contra un catálogo de Innovamed y guardar el código. Ver
+> `docs/rcta-buenas-practicas.md` §2.
 
 ---
 
@@ -117,6 +144,7 @@ El punto 3 sí depende del trabajo listado en la sección anterior. Los puntos 1
 ## Referencias
 
 - Referencia de la API: `docs/rcta-integration.md`
+- Buenas prácticas: `docs/rcta-buenas-practicas.md`
 - Swagger (sandbox): https://apirecipe.hml.qbitos.com/swagger/index.html
 - Acceso institucional: https://innovamed.com.ar/rcta-institucional
 - Receta electrónica / RENAPDIS: https://www.argentina.gob.ar/receta-electronica
