@@ -140,15 +140,29 @@ export default function PatientDashboard({ profile }) {
         <h2 className="text-[22px] font-light leading-tight mt-1">Hablá con un médico ahora</h2>
         <p className="text-[13px] text-white/80 mt-1">Sin turno previo · Videollamada en minutos</p>
       </div>
-      <div className="flex gap-2">
+      {/* Mismas fotos que las landings de marketing, para que la app no se sienta
+          otro producto que la web por la que el paciente llegó. */}
+      <div className="flex gap-3">
         {onDemandVerticals.map(v => (
           <button
             key={v.id}
             onClick={() => { track('ondemand_start', { vertical: v.id }); navigate(`/paciente/ondemand/${v.id}`) }}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-white/15 hover:bg-white/25 active:scale-95 transition-all font-semibold text-[14px]"
+            className="flex-1 relative h-[104px] rounded-[20px] overflow-hidden group active:scale-95 transition-all"
           >
-            <v.icon className="w-[18px] h-[18px]" />
-            {v.nombre}
+            {v.img && (
+              <img
+                src={v.img}
+                alt=""
+                loading="lazy"
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            )}
+            {/* Degradé para que el texto se lea sobre cualquier foto */}
+            <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+            <span className="absolute inset-x-0 bottom-0 p-3 flex items-center gap-1.5 text-white font-semibold text-[14px]">
+              <v.icon className="w-[16px] h-[16px] flex-shrink-0" weight="fill" />
+              {v.nombre}
+            </span>
           </button>
         ))}
       </div>
@@ -158,31 +172,35 @@ export default function PatientDashboard({ profile }) {
   const specialtyGrid = (
     <div className="flex flex-col gap-3">
       <span className="text-[11px] font-semibold text-text-secondary tracking-wide uppercase">Buscar por especialidad</span>
-      <div className="grid grid-cols-2 gap-3">
-        {VERTICALS.map(v => (
-          <div
-            key={v.id}
-            onClick={v.comingSoon ? undefined : () => goToVertical(v)}
-            className={`card flex flex-col gap-1.5 transition-all ${
-              v.comingSoon
-                ? 'opacity-60 cursor-default'
-                : 'card-hover cursor-pointer hover:scale-[0.98] active:scale-95'
-            }`}
-          >
-            <div className="flex flex-row items-center gap-2 mb-1">
-              <v.icon className="w-[18px] h-[18px] flex-shrink-0" style={{ color: v.color }} />
-              <span
-                className="text-[18px] leading-[22px] flex-1"
-                style={{ color: v.color }}
-              >{v.nombre}</span>
-            </div>
-            {v.comingSoon && (
-              <span className="text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full self-start" style={{ backgroundColor: v.bg, color: v.color }}>
-                Próximamente
+      {/* Carrusel horizontal. El primer ítem queda alineado con el título; el
+          sangrado es solo a la derecha (-mr-6) para que la última píldora se vea
+          cortada contra el borde y se lea que hay más para scrollear. */}
+      <div className="-mr-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
+        <div className="flex gap-3 w-max pr-6 pb-1">
+          {VERTICALS.map(v => (
+            <button
+              key={v.id}
+              onClick={v.comingSoon ? undefined : () => goToVertical(v)}
+              disabled={v.comingSoon}
+              className={`snap-start shrink-0 w-[104px] h-[104px] rounded-full flex flex-col items-center justify-center gap-1.5 px-2 text-center transition-all ${
+                v.comingSoon
+                  ? 'opacity-50 cursor-default'
+                  : 'cursor-pointer hover:scale-[0.97] active:scale-95'
+              }`}
+              style={{ backgroundColor: v.bg }}
+            >
+              <v.icon className="w-6 h-6 flex-shrink-0" style={{ color: v.color }} />
+              <span className="text-[12px] leading-[14px] font-semibold" style={{ color: v.color }}>
+                {v.nombre}
               </span>
-            )}
-          </div>
-        ))}
+              {v.comingSoon && (
+                <span className="text-[8px] font-bold tracking-wide uppercase" style={{ color: v.color }}>
+                  Próximamente
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -232,29 +250,6 @@ export default function PatientDashboard({ profile }) {
     </div>
   )
 
-  // Deliberately separated from sosButton — this is NOT an emergency flow.
-  // Different icon, calmer palette (brand-tertiary lavender, not coral/danger),
-  // plus clarifying copy so patients don't mistake this for S.O.S.
-  const urgentCareSection = (
-    <div className="flex flex-col gap-2">
-      <div
-        onClick={() => { track('fastpass_click', {}); navigate('/paciente/fastpass') }}
-        className="card-hover w-full flex items-center gap-4 cursor-pointer active:scale-95 transition-all"
-      >
-        <div className="w-10 h-10 rounded-full bg-brand-tertiary/10 flex items-center justify-center flex-shrink-0">
-          <ClipboardText className="w-5 h-5 text-brand-tertiary" />
-        </div>
-        <div className="flex flex-col">
-          <span className="font-semibold text-[14px] text-text-primary leading-none">Fastpass</span>
-          <span className="text-[11px] text-text-secondary mt-0.5">Ver a un médico sin turno previo, salteando la fila</span>
-        </div>
-      </div>
-      <p className="text-[11px] text-text-tertiary px-1 leading-snug">
-        No es una emergencia médica — para eso usá el botón de S.O.S.
-      </p>
-    </div>
-  )
-
   const avatarEl = (
     <div className="w-11 h-11 rounded-full overflow-hidden border-2 flex-shrink-0 bg-[#b05a36] border-[#f5eee1]">
       {profile?.avatarUrl
@@ -286,7 +281,6 @@ export default function PatientDashboard({ profile }) {
           {specialtyGrid}
           {mapCta}
           {aiTriageCta}
-          {urgentCareSection}
           {sosButton}
         </div>
       </div>

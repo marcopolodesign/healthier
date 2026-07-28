@@ -23,13 +23,13 @@ export const SPECIALTY_LABELS = {
 // constante. Si algún día se quiere mostrar una espera estimada de verdad, tiene
 // que salir de datos reales, no de una constante escrita a mano.
 export const VERTICALS = [
-  { id: 'clinica',     nombre: 'Clínica',          icon: Stethoscope, color: '#b05a36', bg: '#fef9ef', shadow: 'rgba(176,90,54,0.15)'  },
-  { id: 'pediatria',   nombre: 'Pediatría',         icon: Baby,        color: '#DB2777', bg: '#FDF2F8', shadow: 'rgba(219,39,119,0.15)' },
-  { id: 'nutricion',   nombre: 'Nutrición',         icon: AppleLogo,   color: '#059669', bg: '#ECFDF5', shadow: 'rgba(5,150,105,0.15)', comingSoon: true },
-  { id: 'mente',       nombre: 'Psicología',        icon: Brain,       color: '#7C3AED', bg: '#F5F3FF', shadow: 'rgba(124,58,237,0.15)', comingSoon: true },
-  { id: 'fisico',      nombre: 'Kinesiología',      icon: Barbell,     color: '#EA580C', bg: '#FFF7ED', shadow: 'rgba(234,88,12,0.15)',  comingSoon: true },
+  { id: 'clinica',     img: '/images/landing/esp-medicina.jpg', nombre: 'Clínica',          icon: Stethoscope, color: '#b05a36', bg: '#fef9ef', shadow: 'rgba(176,90,54,0.15)'  },
+  { id: 'pediatria',   img: '/images/landing/esp-pediatria.jpg', nombre: 'Pediatría',         icon: Baby,        color: '#DB2777', bg: '#FDF2F8', shadow: 'rgba(219,39,119,0.15)' },
+  { id: 'nutricion',   img: '/images/landing/esp-nutricion.jpg', nombre: 'Nutrición',         icon: AppleLogo,   color: '#059669', bg: '#ECFDF5', shadow: 'rgba(5,150,105,0.15)', comingSoon: true },
+  { id: 'mente',       img: '/images/landing/esp-psicologia.jpg', nombre: 'Psicología',        icon: Brain,       color: '#7C3AED', bg: '#F5F3FF', shadow: 'rgba(124,58,237,0.15)', comingSoon: true },
+  { id: 'fisico',      img: '/images/landing/esp-entrenamiento.jpg', nombre: 'Kinesiología',      icon: Barbell,     color: '#EA580C', bg: '#FFF7ED', shadow: 'rgba(234,88,12,0.15)',  comingSoon: true },
   { id: 'veterinaria', nombre: 'Veterinaria',       icon: PawPrint,    color: '#0284C7', bg: '#F0F9FF', shadow: 'rgba(2,132,199,0.15)',  comingSoon: true },
-  { id: 'preparador',  nombre: 'Preparador Físico', icon: Pulse,       color: '#0F766E', bg: '#F0FDFA', shadow: 'rgba(15,118,110,0.15)', comingSoon: true },
+  { id: 'preparador',  img: '/images/landing/esp-entrenamiento.jpg', nombre: 'Preparador Físico', icon: Pulse,       color: '#0F766E', bg: '#F0FDFA', shadow: 'rgba(15,118,110,0.15)', comingSoon: true },
 ]
 
 // Keyed lookup and guard helper used across surfaces
