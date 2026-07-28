@@ -2,17 +2,19 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
 import {
-  MapPin, CaretRight, Star, VideoCamera, WhatsappLogo,
+  MapPin, CaretRight, Star, VideoCamera,
   Heartbeat, X, Sparkle, CalendarBlank,
 } from '@phosphor-icons/react'
 import { track } from '../../utils/analytics'
+import { buildPool } from '../../lib/onDemandPool'
 import { supportWhatsAppLink } from '../../lib/support'
+import WhatsAppMark from '../../components/icons/WhatsAppMark'
 
 const LAST_VERTICAL_KEY = 'healthier_last_vertical'
 import InteractiveMap from '../../components/patient/InteractiveMap'
 import ActiveAppointmentBanner from '../../components/patient/ActiveAppointmentBanner'
 import { professionalService } from '../../services/professionalService'
-import { VERTICALS, SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
+import { VERTICALS, VERTICAL_SPECIALTIES, SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
 import { latLngToPixel, haversineKm, formatDistance } from '../../lib/geo'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
@@ -31,6 +33,11 @@ export default function PatientDashboard({ profile }) {
   const navigate = useNavigate()
 
   const [userLocation, setUserLocation] = useState(null)
+  // Precio de arranque por vertical on-demand, del pool que realmente puede
+  // cobrar. Se muestra en la tarjeta para que el paciente no tenga que entrar
+  // al checkout para saber cuánto sale. `null` = todavía no cargó o no hay
+  // nadie cobrable, y en ese caso no se muestra nada en vez de inventar.
+  const [onDemandPrices, setOnDemandPrices] = useState({})
   const [showMap, setShowMap] = useState(false)
   const [mapProFlow, setMapProFlow] = useState(null)
   const [selectedMapPro, setSelectedMapPro] = useState(null)
@@ -139,6 +146,22 @@ export default function PatientDashboard({ profile }) {
     navigate(`/paciente/reservar?vertical=${verticalId}&proId=${userId}${modalityParam}`)
   }
 
+  useEffect(() => {
+    let cancelled = false
+    Promise.all(
+      VERTICALS.filter(v => !v.comingSoon).map(v =>
+        professionalService
+          .search({ specialty: (VERTICAL_SPECIALTIES[v.id] || [])[0], onDemand: true })
+          .then(pros => {
+            const precios = buildPool(pros, 0).map(p => Number(p.priceVideo ?? p.sessionPrice)).filter(n => n > 0)
+            return [v.id, precios.length ? Math.min(...precios) : null]
+          })
+          .catch(() => [v.id, null])
+      )
+    ).then(pares => { if (!cancelled) setOnDemandPrices(Object.fromEntries(pares)) })
+    return () => { cancelled = true }
+  }, [])
+
   const goToVertical = v => {
     track('specialty_select', { specialty: v.id, status: v.comingSoon ? 'coming_soon' : 'available' })
     const entry = { id: v.id, nombre: v.nombre }
@@ -181,9 +204,23 @@ export default function PatientDashboard({ profile }) {
               )}
               {/* Degradé para que el texto se lea sobre cualquier foto */}
               <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-              <span className="absolute inset-x-0 bottom-0 p-5 flex items-center gap-2.5 text-white font-semibold text-[20px]">
-                <v.icon className="w-[22px] h-[22px] flex-shrink-0" weight="fill" />
-                {v.nombre}
+              {/* Precio arriba: responde "¿cuánto sale?" antes de entrar al checkout */}
+              {onDemandPrices[v.id] != null && (
+                <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-black/45 backdrop-blur-sm text-white text-[12px] font-semibold">
+                  desde ${Number(onDemandPrices[v.id]).toLocaleString('es-AR')}
+                </span>
+              )}
+
+              <span className="absolute inset-x-0 bottom-0 p-5 flex items-end justify-between gap-3">
+                <span className="flex items-center gap-2.5 text-white font-semibold text-[20px] min-w-0">
+                  <v.icon className="w-[22px] h-[22px] flex-shrink-0" weight="fill" />
+                  <span className="truncate">{v.nombre}</span>
+                </span>
+                {/* La tarjeta entera es clickeable, pero sin un CTA visible se
+                    lee como banner y no como botón. */}
+                <span className="shrink-0 px-3.5 py-1.5 rounded-full bg-white text-text-primary text-[13px] font-bold">
+                  Empezar
+                </span>
               </span>
             </button>
           ))}
@@ -272,9 +309,7 @@ export default function PatientDashboard({ profile }) {
       onClick={() => track('support_whatsapp_click', {})}
       className="card-hover w-full flex items-center gap-4 active:scale-[0.98] transition-all text-left"
     >
-      <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0">
-        <WhatsappLogo className="w-5 h-5 text-brand" weight="fill" />
-      </div>
+      <WhatsAppMark className="w-8 h-8 flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <span className="font-semibold text-[14px] text-text-primary leading-none">Contactá a soporte</span>
         <p className="text-[11px] text-text-secondary mt-0.5">Te respondemos por WhatsApp</p>
