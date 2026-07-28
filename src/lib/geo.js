@@ -27,6 +27,35 @@ export function pixelToLatLng(user, { x, y }, zoom = 15) {
   return { lat: user.lat + dLat, lng: user.lng + dLng }
 }
 
+// Great-circle distance in km between two { lat, lng } points.
+// Returns null when either point is missing coordinates — callers must treat
+// null as "unknown" and hide the distance rather than invent one.
+export function haversineKm(a, b) {
+  if (!a || !b) return null
+  const lat1 = a.lat ?? a.latitude
+  const lng1 = a.lng ?? a.longitude
+  const lat2 = b.lat ?? b.latitude
+  const lng2 = b.lng ?? b.longitude
+  if ([lat1, lng1, lat2, lng2].some(v => v == null || Number.isNaN(Number(v)))) return null
+
+  const R = 6371
+  const toRad = deg => (deg * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+// Human-readable distance in es-AR. Returns null for unknown distances so the
+// caller can omit the phrase entirely instead of rendering a placeholder.
+export function formatDistance(km) {
+  if (km == null || Number.isNaN(km)) return null
+  if (km < 1) return `${Math.round(km * 1000)} m`
+  return `${km.toFixed(1).replace('.', ',')} km`
+}
+
 // Nominatim address autocomplete — Argentine addresses only.
 // Returns [{ displayName, lat, lng }]
 export async function searchAddresses(query, signal) {
