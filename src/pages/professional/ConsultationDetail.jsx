@@ -15,6 +15,7 @@ import FileUpload from '../../components/FileUpload'
 import AllergyPanel from '../../components/professional/AllergyPanel'
 import VitalsPanel from '../../components/professional/VitalsPanel'
 import PreconsultaSummary, { hasPreconsulta } from '../../components/professional/PreconsultaSummary'
+import FinanciadorPicker from '../../components/professional/FinanciadorPicker'
 import PrescriptionCreator from '../../components/professional/PrescriptionCreator'
 import ScribeSession from '../../components/professional/ScribeSession'
 import SignedDocLink from '../../components/SignedDocLink'
@@ -47,7 +48,7 @@ export default function ConsultationDetail({ profile }) {
   const [savingReagendar, setSavingReagendar] = useState(false)
 
   const [editingCoverage, setEditingCoverage] = useState(false)
-  const [coverageForm, setCoverageForm] = useState({ obraSocialName: '', affiliateNumber: '' })
+  const [coverageForm, setCoverageForm] = useState({ coverageType: null, financiadorId: null, obraSocialName: '', affiliateNumber: '' })
   const [savingCoverage, setSavingCoverage] = useState(false)
 
   const [profProfile, setProfProfile] = useState(null)
@@ -71,7 +72,9 @@ export default function ConsultationDetail({ profile }) {
   useEffect(() => {
     if (consultation) {
       setCoverageForm({
-        obraSocialName: consultation.obraSocialName || '',
+        coverageType:    consultation.coverageType ?? null,
+        financiadorId:   consultation.financiadorId ?? null,
+        obraSocialName:  consultation.obraSocialName || '',
         affiliateNumber: consultation.affiliateNumber || '',
       })
     }
@@ -90,9 +93,14 @@ export default function ConsultationDetail({ profile }) {
   const saveCoverage = async () => {
     setSavingCoverage(true)
     try {
+      const esParticular = coverageForm.coverageType === 'particular'
       const updated = await consultationsService.update(id, {
-        obraSocialName: coverageForm.obraSocialName.trim() || null,
-        affiliateNumber: coverageForm.affiliateNumber.trim() || null,
+        coverageType:    coverageForm.coverageType,
+        // Particular limpia los dos: la constraint de la base lo exige y
+        // dejarlos sería un dato contradictorio.
+        financiadorId:   esParticular ? null : coverageForm.financiadorId,
+        obraSocialName:  esParticular ? null : (coverageForm.obraSocialName.trim() || null),
+        affiliateNumber: esParticular ? null : (coverageForm.affiliateNumber.trim() || null),
       })
       setConsultation(prev => ({ ...prev, ...updated }))
       setEditingCoverage(false)
@@ -280,28 +288,18 @@ export default function ConsultationDetail({ profile }) {
 
         {editingCoverage ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="form-label text-xs">Obra social</label>
-                <input
-                  type="text"
-                  value={coverageForm.obraSocialName}
-                  onChange={e => setCoverageForm(p => ({ ...p, obraSocialName: e.target.value }))}
-                  placeholder="Ej: OSDE, Swiss Medical"
-                  className="form-input"
-                />
-              </div>
-              <div>
-                <label className="form-label text-xs">N° de afiliado</label>
-                <input
-                  type="text"
-                  value={coverageForm.affiliateNumber}
-                  onChange={e => setCoverageForm(p => ({ ...p, affiliateNumber: e.target.value }))}
-                  placeholder="Ej: 123456789"
-                  className="form-input"
-                />
-              </div>
-            </div>
+            <FinanciadorPicker
+              coverageType={coverageForm.coverageType}
+              financiadorId={coverageForm.financiadorId}
+              financiadorName={coverageForm.obraSocialName}
+              affiliateNumber={coverageForm.affiliateNumber}
+              onChange={v => setCoverageForm({
+                coverageType:    v.coverageType,
+                financiadorId:   v.financiadorId,
+                obraSocialName:  v.financiadorName,
+                affiliateNumber: v.affiliateNumber,
+              })}
+            />
             <div className="flex gap-2">
               <button
                 onClick={() => { setEditingCoverage(false); setCoverageForm({ obraSocialName: consultation.obraSocialName || '', affiliateNumber: consultation.affiliateNumber || '' }) }}
@@ -318,8 +316,13 @@ export default function ConsultationDetail({ profile }) {
               </button>
             </div>
           </div>
+        ) : consultation.coverageType === 'particular' ? (
+          <p className="text-sm text-text-primary">
+            <span className="font-medium">Particular</span>
+            <span className="text-text-secondary"> — sin cobertura</span>
+          </p>
         ) : consultation.obraSocialName ? (
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-4 flex-wrap">
             <div>
               <p className="text-xs text-text-secondary">Obra social</p>
               <p className="text-sm font-medium text-text-primary mt-0.5">{consultation.obraSocialName}</p>
@@ -330,9 +333,17 @@ export default function ConsultationDetail({ profile }) {
                 <p className="text-sm font-medium text-text-primary mt-0.5">{consultation.affiliateNumber}</p>
               </div>
             )}
+            {/* Una obra social cargada a mano antes de que existiera el catálogo
+                no tiene idFinanciador, y sin él la receta no se puede emitir.
+                Se avisa acá y no recién al intentar emitirla. */}
+            {!consultation.financiadorId && (
+              <p className="w-full text-[11px] text-amber-700 font-medium">
+                Falta seleccionarla del catálogo de Innovamed para poder emitir recetas electrónicas.
+              </p>
+            )}
           </div>
         ) : (
-          <p className="text-sm text-text-muted">Sin obra social registrada.</p>
+          <p className="text-sm text-text-muted">Sin definir. Hace falta para emitir recetas electrónicas.</p>
         )}
       </div>
 

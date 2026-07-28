@@ -40,6 +40,9 @@ Deno.serve(async (req: Request) => {
         professional:profiles!professional_id(
           id, full_name, dni, gender, birth_date, phone,
           professional_profiles!professional_profiles_user_id_fkey(specialty, license_type, license_number, address)
+        ),
+        encounter:clinical_encounters!encounter_id(
+          consultation:consultations!consultation_id(coverage_type, financiador_id, obra_social_name, affiliate_number)
         )
       `)
       .eq('id', medicationId)
@@ -50,6 +53,24 @@ Deno.serve(async (req: Request) => {
 
     // Sin codigo de catalogo la API rechaza con QBI105. Se corta antes con un
     // mensaje que dice que hacer, en vez de propagar el error criptico.
+    // La cobertura viaja solo si la consulta declara financiador CON id de
+    // catalogo. Una obra social cargada a mano (sin idFinanciador) no sirve:
+    // Innovamed no acepta nombres.
+    const consulta = med.encounter?.consultation ?? null
+    const cobertura = consulta?.coverage_type === 'financiador' && consulta?.financiador_id
+      ? {
+          idFinanciador: String(consulta.financiador_id),
+          numero: consulta.affiliate_number ?? '',
+        }
+      : null
+
+    if (consulta?.coverage_type === 'financiador' && !consulta?.financiador_id) {
+      return json({
+        error: 'La consulta tiene una obra social cargada a mano. Seleccionala del catálogo de Innovamed en "Cobertura médica" para poder emitir la receta.',
+        code: 'RCTA_FINANCIADOR_SIN_CODIGO',
+      }, 422)
+    }
+
     if (!med.reg_no) {
       return json({
         error: 'Esta medicación no se puede emitir como receta electrónica porque no fue elegida del vademécum. Editala y seleccioná el producto del buscador.',
@@ -111,6 +132,11 @@ Deno.serve(async (req: Request) => {
       paciente: {
         nombre: pacienteNombre,
         apellido: pacienteApellido,
+        // Cobertura: se OMITE cuando el paciente es particular. Innovamed lo
+        // contempla explicitamente — la cuarta prueba de certificacion es
+        // justamente una receta sin datos de financiador. Mandar el campo vacio
+        // o con un id inventado NO es lo mismo que omitirlo.
+        ...(cobertura ? { cobertura } : {}),
         tipoDoc: 'DNI',
         nroDoc: med.patient?.dni ?? '',
         sexo: mapSexo(med.patient?.gender),
