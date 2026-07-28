@@ -73,7 +73,7 @@ export default function Pharmacy({ profile }) {
   return (
     <div className="absolute inset-0 flex flex-col bg-bg-primary">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 pt-6 pb-4 border-b border-border-default bg-bg-surface">
+      <div className="flex items-center gap-3 px-4 patient-column pt-6 pb-4 border-b border-border-default bg-bg-surface">
         <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-lg hover:bg-bg-muted">
           <ArrowLeft size={20} className="text-text-secondary" />
         </button>
@@ -83,7 +83,7 @@ export default function Pharmacy({ profile }) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-32">
+      <div className="flex-1 overflow-y-auto pb-32 patient-column">
         {/* Search */}
         <div className="px-4 pt-4">
           <div className="relative">
