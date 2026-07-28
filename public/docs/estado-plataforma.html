@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Estado real de la plataforma — 28 de julio de 2026 — Healthier</title>
+<style>
+:root{--sage:#7CB38B;--coral:#E8927C;--ivory:#F6F5F0;--bg2:#FDFCF9;--text:#2D2A26;
+--muted:#6B6760;--border:#E2DFD8;--shadow:0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.05)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--ivory);color:var(--text);line-height:1.65}
+header{background:#fff;border-bottom:1px solid var(--border);padding:20px 32px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+.logo{width:36px;height:36px;background:var(--sage);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0}
+header h1{font-size:18px;font-weight:600}
+header p{font-size:13px;color:var(--muted);margin-top:1px}
+header a.back{margin-left:auto;font-size:13px;color:var(--muted);text-decoration:none;white-space:nowrap}
+header a.back:hover{color:var(--sage)}
+main{max-width:860px;margin:0 auto;padding:40px 24px 100px}
+h1{font-size:30px;font-weight:650;letter-spacing:-.5px;margin:0 0 8px}
+h2{font-size:21px;font-weight:600;margin:40px 0 12px;padding-top:20px;border-top:1px solid var(--border)}
+h2:first-of-type{border-top:none;padding-top:0}
+h3{font-size:16px;font-weight:650;margin:26px 0 8px}
+p{margin:12px 0;color:#3d3a35}
+ul,ol{margin:12px 0 12px 22px}
+li{margin:6px 0;color:#3d3a35}
+a{color:var(--sage);text-decoration:underline;text-underline-offset:2px}
+code{background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:1px 5px;font-size:.88em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+pre{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;overflow-x:auto;margin:16px 0;box-shadow:var(--shadow)}
+pre code{background:none;border:none;padding:0;font-size:13px;line-height:1.6}
+blockquote{border-left:3px solid var(--sage);background:var(--bg2);padding:12px 18px;margin:18px 0;border-radius:0 10px 10px 0}
+blockquote p{margin:6px 0}
+table{width:100%;border-collapse:collapse;margin:18px 0;background:#fff;border-radius:12px;overflow:hidden;box-shadow:var(--shadow);font-size:14px}
+th{background:var(--bg2);text-align:left;padding:11px 14px;font-weight:600;border-bottom:1px solid var(--border)}
+td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:none}
+hr{border:none;border-top:1px solid var(--border);margin:36px 0}
+strong{font-weight:650;color:var(--text)}
+.meta{color:var(--muted);font-size:13px;margin-bottom:28px}
+@media(max-width:640px){main{padding:24px 16px 60px}h1{font-size:24px}header{padding:16px 20px}}
+</style></head>
+<body>
+<header>
+  <div class="logo">🌿</div>
+  <div><h1>Estado real de la plataforma — 28 de julio de 2026</h1><p>Estado real tras la primera videollamada — 28 jul 2026</p></div>
+  <a class="back" href="/docs/">← Todos los docs</a>
+</header>
+<main><p>Escrito después de la primera prueba de videollamada real de punta a punta. El criterio de este documento es separar <strong>lo verificado</strong> de <strong>lo que todavía no</strong>, porque durante esta semana varias cosas parecían funcionar y no funcionaban.</p>
+<p>Todos los números salen de consultas a la base de producción el 2026-07-28.</p>
+<hr>
+<h2>Resumen en una línea</h2>
+<p>El flujo del paciente está completo y verificado pieza por pieza. <strong>Lo que todavía no pasó ni una vez es una videollamada exitosa de punta a punta con dos personas reales</strong> — el intento del 28/07 falló por un bug que ya está corregido, pero la corrección se validó por simulación, no repitiendo la prueba.</p>
+<hr>
+<h2>La prueba del 28/07: qué pasó realmente</h2>
+<p>Mateo y una profesional intentaron una videollamada. Síntomas reportados:</p>
+<ul><li>Cada uno veía su propia cámara, ninguno veía la del otro.</li><li>El profesional no veía cambiar el estado en &quot;Consultas de hoy&quot;.</li><li>Hubo que refrescar la página del paciente a mano.</li><li>Terminó registrada como <code>no_show</code>.</li></ul>
+<p><strong>Causa raíz, probada con evidencia:</strong> la función que asigna la sala de video hacía *leer → si está vacío, crear → guardar*, sin ninguna guarda de concurrencia. Cuando los dos lados piden la sala casi al mismo tiempo, ambos leen que no hay ninguna, <strong>ambos crean una</strong>, y el segundo pisa al primero en la base. Cada cliente ya se quedó con la URL que recibió, así que <strong>terminaron en salas distintas</strong>.</p>
+<p>La API de Daily lo confirma: <strong>dos salas creadas en el mismo segundo</strong> (12:20:09) para esa consulta, y solo una guardada.</p>
+<p>El <code>no_show</code> fue <strong>consecuencia</strong>: el cliente del paciente marca <code>no_show</code> al colgar si el profesional nunca se unió — y desde su punto de vista nunca se unió.</p>
+<p><strong>Estado:</strong> corregido con una toma atómica (gana quien llega primero; el que pierde borra su sala huérfana y usa la del ganador). Verificado disparando la carrera exacta: ambos lados reciben la misma URL. <strong>No re-probado con dos personas reales.</strong></p>
+<hr>
+<h2>Números de la plataforma</h2>
+<table><thead><tr><th></th><th></th></tr></thead><tbody><tr><td>Consultas totales</td><td>129</td></tr><tr><td>— completadas</td><td>46</td></tr><tr><td>— confirmadas</td><td>49</td></tr><tr><td>— canceladas</td><td>26</td></tr><tr><td>— trabadas en <code>in_progress</code></td><td><strong>4</strong> ⚠️</td></tr><tr><td>Profesionales</td><td>13 (11 verificados)</td></tr><tr><td><strong>Profesionales con Mercado Pago conectado</strong></td><td><strong>1</strong> ⚠️</td></tr><tr><td>Profesionales on-demand que pueden cobrar</td><td><strong>1</strong> ⚠️</td></tr><tr><td>Pagos registrados</td><td>4 (1 capturado, $4.000)</td></tr><tr><td>Migraciones aplicadas</td><td>71</td></tr></tbody></table>
+<hr>
+<h2>El cuello de botella real: hay un solo profesional operativo</h2>
+<p>De 13 profesionales, <strong>uno solo tiene Mercado Pago conectado</strong>. Como el booking está bloqueado para quien no puede cobrar, en la práctica <strong>toda la plataforma depende de la Dra. Valentina Ortega</strong>.</p>
+<p>Consecuencias concretas:</p>
+<ul><li>El pool de on-demand para Clínica es de <strong>uno</strong>. La rotación y el failover que se construyeron no tienen con qué ejercitarse.</li><li>Pediatría <strong>no muestra precio</strong> en el dashboard del paciente, porque ningún pediatra on-demand puede cobrar. No es un bug: es el dato real.</li><li>Cualquier prueba de concurrencia (dos pacientes a la vez) no es posible.</li></ul>
+<p><strong>Esto es coordinación, no código.</strong> Es el bloqueo más grande hoy.</p>
+<hr>
+<h2>Qué está verificado y qué no</h2>
+<h3>Verificado en browser contra producción</h3>
+<ul><li>Registro, login y navegación del paciente.</li><li>Pre-consulta estructurada: catálogo de 14 síntomas codificados en ICD-10, preguntas de calificación por síntoma, medicación. Se guarda y <strong>el profesional la ve</strong> con el código y los signos de alarma resaltados, tanto en la videollamada como en el detalle de la consulta.</li><li>Sala de espera: el paciente marca presencia, el profesional la ve en vivo (&quot;En sala · hace X min&quot;), y el badge se apaga solo al vencer el TTL de 90s.</li><li>Habilitación explícita: el profesional toca &quot;Ingresar paciente&quot; y el paciente <strong>se desbloquea sin refresh</strong>.</li><li>Tarjetas guardadas reales (el mock <code> 4242</code> ya no existe en ningún lado).</li><li>Checkout on-demand con el Brick de Mercado Pago en modo producción.</li></ul>
+<h3>NO verificado</h3>
+<ul><li><strong>Una videollamada completa con dos personas reales.</strong> Es lo más importante pendiente.</li><li><strong>El primer pago real de punta a punta</strong> con captura y liberación (el split 78/22 nunca se ejercitó con dinero real de un médico con cuenta propia).</li><li><strong>Safari</strong>: hay un arreglo desplegado para el Brick de Mercado Pago basado en comportamiento documentado de Safari (no monta iframes que nacen con <code>display:none</code>), pero <strong>el bug nunca se reprodujo</strong> en WebKit headless, así que la corrección está sin confirmar contra el síntoma real.</li><li><strong>Mobile</strong>: en pausa por decisión de Mateo. Acumula deuda de paridad.</li></ul>
+<hr>
+<h2>Bugs de fondo encontrados esta semana</h2>
+<p>Vale enumerarlos porque comparten un patrón: <strong>parecían funcionar</strong>.</p>
+<ol><li><strong>Realtime estaba muerto.</strong> La única tabla publicada era <code>walk_in_queue</code>, así que las cuatro suscripciones sobre <code>consultations</code> que hay en el código nunca dispararon un evento. Parecían andar porque el estado inicial se lee al montar; lo que no funcionaba era la actualización en vivo — justo lo que estas pantallas necesitan.</li><li><strong>Dos salas de Daily por carrera</strong> (arriba).</li><li><strong><code>push_subscriptions</code> estaba en cero.</strong> El banner de opt-in se gateaba por <code>Notification.permission</code>, y <code>subscribe()</code> pide el permiso *antes* de crear la suscripción: cuando la VAPID key faltaba en producción, quedaba permiso concedido y tabla vacía, y el banner no volvía a aparecer nunca. Trampa de una sola dirección. Corregido — ya hay 2 suscripciones.</li><li><strong>La pre-consulta de mobile se guardaba donde nadie la lee</strong> (<code>notes</code> en vez de <code>preconsulta_data</code>).</li><li><strong>El claim de <code>walk_in_queue</code> no tiene guarda de concurrencia</strong> — dos profesionales pueden tomar la misma entrada. Sigue sin corregir; es candidato a ser la causa del error por el que Fastpass está deshabilitado desde el 23/07.</li></ol>
+<hr>
+<h2>Deuda técnica que conviene atacar</h2>
+<ul><li><strong>Sin TypeScript, el build no caza imports faltantes.</strong> Pasó <strong>tres veces</strong> el 28/07 (<code>formatDistance</code>, <code>VERTICAL_SPECIALTIES</code>, <code>consultationEventsService</code>): <code>npm run build</code> pasa limpio y la página revienta en runtime. Un <code>eslint</code> con <code>no-undef</code> atajaría toda esta clase de bug antes del deploy. Es la mejora de mayor relación valor/esfuerzo pendiente.</li><li><strong>4 consultas trabadas en <code>in_progress</code></strong>, la más vieja del 11/06. Nadie las cierra. Son la razón por la que el banner de &quot;continuar turno&quot; necesita un tope de 6 h en vez de confiar en el estado.</li><li><strong><code>profiles</code> tiene un email duplicado</strong> (<code>paciente@healthier.app</code> con dos filas). Ensucia cualquier query que resuelva paciente por email.</li><li><strong>El cierre de consulta sigue ofreciendo &quot;adjuntar receta&quot;</strong> como archivo, ahora que la receta real se genera desde la videollamada.</li></ul>
+<hr>
+<h2>Lo que hay que hacer antes de mostrarle esto a alguien</h2>
+<p>En orden:</p>
+<ol><li><strong>Que más médicos conecten Mercado Pago.</strong> Sin eso no hay producto que probar.</li><li><strong>Repetir la videollamada con dos personas reales.</strong> Ahora hay bitácora: si falla, se despliega la fila en &quot;Consultas recientes&quot; del super admin y se ve exactamente qué pasó.</li><li><strong>El primer pago real</strong> con un médico con cuenta propia y una consulta de precio bajo.</li><li><strong>Confirmar el arreglo de Safari</strong> en un iPhone de verdad.</li></ol></main>
+</body></html>

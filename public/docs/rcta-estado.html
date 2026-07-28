@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RCTA / Innovamed — estado de la integración y camino a certificar — Healthier</title>
+<style>
+:root{--sage:#7CB38B;--coral:#E8927C;--ivory:#F6F5F0;--bg2:#FDFCF9;--text:#2D2A26;
+--muted:#6B6760;--border:#E2DFD8;--shadow:0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.05)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--ivory);color:var(--text);line-height:1.65}
+header{background:#fff;border-bottom:1px solid var(--border);padding:20px 32px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+.logo{width:36px;height:36px;background:var(--sage);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0}
+header h1{font-size:18px;font-weight:600}
+header p{font-size:13px;color:var(--muted);margin-top:1px}
+header a.back{margin-left:auto;font-size:13px;color:var(--muted);text-decoration:none;white-space:nowrap}
+header a.back:hover{color:var(--sage)}
+main{max-width:860px;margin:0 auto;padding:40px 24px 100px}
+h1{font-size:30px;font-weight:650;letter-spacing:-.5px;margin:0 0 8px}
+h2{font-size:21px;font-weight:600;margin:40px 0 12px;padding-top:20px;border-top:1px solid var(--border)}
+h2:first-of-type{border-top:none;padding-top:0}
+h3{font-size:16px;font-weight:650;margin:26px 0 8px}
+p{margin:12px 0;color:#3d3a35}
+ul,ol{margin:12px 0 12px 22px}
+li{margin:6px 0;color:#3d3a35}
+a{color:var(--sage);text-decoration:underline;text-underline-offset:2px}
+code{background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:1px 5px;font-size:.88em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+pre{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;overflow-x:auto;margin:16px 0;box-shadow:var(--shadow)}
+pre code{background:none;border:none;padding:0;font-size:13px;line-height:1.6}
+blockquote{border-left:3px solid var(--sage);background:var(--bg2);padding:12px 18px;margin:18px 0;border-radius:0 10px 10px 0}
+blockquote p{margin:6px 0}
+table{width:100%;border-collapse:collapse;margin:18px 0;background:#fff;border-radius:12px;overflow:hidden;box-shadow:var(--shadow);font-size:14px}
+th{background:var(--bg2);text-align:left;padding:11px 14px;font-weight:600;border-bottom:1px solid var(--border)}
+td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:none}
+hr{border:none;border-top:1px solid var(--border);margin:36px 0}
+strong{font-weight:650;color:var(--text)}
+.meta{color:var(--muted);font-size:13px;margin-bottom:28px}
+@media(max-width:640px){main{padding:24px 16px 60px}h1{font-size:24px}header{padding:16px 20px}}
+</style></head>
+<body>
+<header>
+  <div class="logo">🌿</div>
+  <div><h1>RCTA / Innovamed — estado de la integración y camino a certificar</h1><p>Qué funciona, qué falta y las 4 pruebas de Innovamed</p></div>
+  <a class="back" href="/docs/">← Todos los docs</a>
+</header>
+<main><p>Complementa <code>docs/rcta-integration.md</code>, que es la <strong>referencia de la API</strong> (endpoints, esquemas, contrato). Este documento es el <strong>estado</strong>: qué funciona hoy, qué falta, y qué hace falta para que Innovamed nos habilite producción.</p>
+<p>Última verificación contra la API: <strong>2026-07-28</strong>.</p>
+<hr>
+<h2>Dónde estamos</h2>
+<p><strong>La integración está construida y el sandbox responde.</strong> Esto es más de lo que se creía: durante semanas figuró como &quot;bloqueado por credenciales&quot;, y las credenciales ya estaban configuradas.</p>
+<table><thead><tr><th></th><th>Estado</th></tr></thead><tbody><tr><td>Edge Function <code>rcta-issue</code></td><td>✅ Construida</td></tr><tr><td>UI (<code>PrescriptionCreator</code>, badges de estado RCTA)</td><td>✅ Construida</td></tr><tr><td>Accesible desde la videollamada</td><td>✅ Desde el 2026-07-28</td></tr><tr><td>Credenciales de homologación en Supabase secrets</td><td>✅ Configuradas</td></tr><tr><td>Conectividad con el sandbox</td><td>✅ Verificada — <code>GET /apirecipe/GetFinanciadores</code> → <strong>200</strong></td></tr><tr><td><strong>Código de medicamento (<code>regNo</code>) en el payload</strong></td><td>❌ <strong>Falta — bloquea las 4 pruebas</strong></td></tr><tr><td><strong>Cobertura (financiador + afiliado) en el payload</strong></td><td>❌ <strong>Falta — bloquea 3 de las 4</strong></td></tr><tr><td>Credenciales de producción</td><td>❌ Requieren contrato + RENAPDIS + 4 pruebas</td></tr></tbody></table>
+<h3>Sobre las credenciales</h3>
+<p>Las que Innovamed reenvió el 2026-07-28 son <strong>idénticas</strong> a las ya configuradas — verificado comparando el SHA-256 de cada valor contra el digest que expone Supabase, sin rotar nada. Los tres secrets son:</p>
+<ul><li><code>RCTA_API_URL</code> = <code>https://apirecipe.hml.qbitos.com</code> (sin barra final; la función le agrega <code>/apirecipe/...</code>)</li><li><code>RCTA_API_KEY</code> = el JWT de homologación</li><li><code>RCTA_CLIENT_APP_ID</code> = <code>597</code></li></ul>
+<blockquote><p>⚠️ <strong>El token de homologación venció el 2026-07-06.</strong> El sandbox <strong>no aplica</strong></p><p>el claim <code>exp</code>: una llamada real el 2026-07-28 devolvió <code>200 OK</code> con datos.</p><p>Funciona, pero es una dependencia frágil — conviene pedirle a Innovamed la</p><p>política de renovación antes de apoyar una demo en esto.</p></blockquote>
+<hr>
+<h2>Lo que falta para poder certificar</h2>
+<p>Innovamed pide <strong>cuatro recetas de prueba</strong>, tres de ellas con financiador:</p>
+<table><thead><tr><th>#</th><th>Financiador</th><th>Nº de afiliado</th><th><code>idFinanciador</code> en el sandbox</th></tr></thead><tbody><tr><td>1</td><td>OSDE</td><td><code>23200126801</code></td><td><strong>28</strong> (tiene 21 planes)</td></tr><tr><td>2</td><td>Luis Pasteur</td><td><code>23701900080</code></td><td><strong>9</strong></td></tr><tr><td>3</td><td>Accord Salud</td><td><code>23256785</code></td><td><strong>96</strong></td></tr><tr><td>4</td><td>Particular (sin financiador)</td><td>—</td><td>—</td></tr></tbody></table>
+<p>Los tres IDs están confirmados contra <code>GET /apirecipe/GetFinanciadores</code> (900 financiadores en total en el sandbox).</p>
+<h3>Bloqueo 1 — <code>regNo</code> del medicamento (afecta a las 4 pruebas)</h3>
+<p><code>medicamentos[].regNo</code> tiene que ser un código real del catálogo de Innovamed (<code>GET /apirecipe/GetMedicamento/{search}</code>). Un nombre escrito a mano se rechaza siempre con <strong><code>QBI105</code> — &quot;CODIGO INFORMADO INEXISTENTE&quot;</strong>.</p>
+<p><code>PrescriptionCreator.jsx</code> usa hoy un <strong>campo de texto libre</strong> para el medicamento y <code>clinical_medications</code> no tiene columna para el código. O sea: <strong>ninguna</strong> de las 4 recetas de certificación se puede emitir todavía, ni siquiera la particular.</p>
+<p>La buena noticia es que el camino feliz ya está probado end-to-end contra el sandbox con un código real (<code>AMIXEN 500mg comp.x21</code>, <code>regNo: 35771</code> → <code>200 OK</code> con <code>idReceta</code> y PDF). No hay incógnita técnica: falta capturar el dato.</p>
+<p><strong>Trabajo:</strong> autocompletado contra <code>GetMedicamento</code> en el creador de recetas, columna <code>reg_no</code> en <code>clinical_medications</code>, y mandarlo en el payload.</p>
+<h3>Bloqueo 2 — cobertura (afecta a 3 de las 4 pruebas)</h3>
+<p>El payload que arma <code>rcta-issue</code> hoy <strong>no manda cobertura</strong>. El objeto <code>paciente</code> incluye nombre, documento, sexo, fecha de nacimiento y teléfono — pero no el campo <code>cobertura</code>, que es donde va el financiador.</p>
+<p>Según el swagger, la forma es (anidada dentro de <code>paciente</code>):</p>
+<pre><code>&quot;cobertura&quot;: {
+  &quot;idFinanciador&quot;: &quot;28&quot;,
+  &quot;plan&quot;: &quot;210&quot;,         // opcional
+  &quot;planId&quot;: 0,           // opcional
+  &quot;numero&quot;: &quot;23200126801&quot;,
+  &quot;dniTitular&quot;: &quot;...&quot;    // opcional
+}</code></pre>
+<p><strong>De dónde sacar el dato:</strong> <code>consultations.obra_social_name</code> y <code>consultations.affiliate_number</code> ya existen y se editan desde el detalle de la consulta. Pero guardan el <strong>nombre</strong> de la obra social, no el <code>idFinanciador</code> numérico que pide la API.</p>
+<h3>Trabajo concreto pendiente, en orden</h3>
+<ol><li><strong>Autocompletado de medicamento contra <code>GetMedicamento</code></strong> + columna <code>reg_no</code> en <code>clinical_medications</code>. Es el bloqueo mayor: sin esto no se emite ninguna receta, ni de prueba ni real.</li><li><strong>Guardar el <code>idFinanciador</code>, no solo el nombre.</strong> Columna nueva + selector alimentado por <code>GetFinanciadores</code> en vez del texto libre actual.</li><li><strong>Sumar <code>cobertura</code> al payload</strong>, contemplando el caso particular (se omite el campo).</li><li><strong>Correr las 4 pruebas</strong> y guardar los números de receta que devuelva el sandbox — es lo que Innovamed va a querer ver.</li></ol>
+<blockquote><p>Los pasos 1 y 2 comparten la misma forma: reemplazar un input de texto libre</p><p>por un autocompletado contra un catálogo de Innovamed y guardar el código. Ver</p><p><code>docs/rcta-buenas-practicas.md</code> §2.</p></blockquote>
+<hr>
+<h2>Lo que depende de Mateo, no del código</h2>
+<p>Para que Innovamed entregue las claves de <strong>producción</strong> hacen falta tres cosas, y ninguna se resuelve programando:</p>
+<ol><li><strong>Firmar el contrato.</strong> Innovamed mandó el modelo de carta oferta el 2026-07-28 y quedó esperando conformidad para arrancar el proceso de firmas.</li><li><strong>Registrarse como recetario en RENAPDIS</strong> — <a href="https://www.argentina.gob.ar/receta-electronica" target="_blank" rel="noreferrer">https://www.argentina.gob.ar/receta-electronica</a></li><li><strong>Pasar la certificación</strong> con las 4 recetas de arriba.</li></ol>
+<p>El punto 3 sí depende del trabajo listado en la sección anterior. Los puntos 1 y 2 se pueden avanzar en paralelo desde ya.</p>
+<hr>
+<h2>Contactos</h2>
+<ul><li>El equipo de soporte de integraciones de Innovamed quedó en copia del mail del 2026-07-28 para dudas técnicas.</li><li>El equipo de administración de Innovamed tiene el contrato con precio actualizado.</li></ul>
+<hr>
+<h2>Referencias</h2>
+<ul><li>Referencia de la API: <code>docs/rcta-integration.md</code></li><li>Buenas prácticas: <code>docs/rcta-buenas-practicas.md</code></li><li>Swagger (sandbox): <a href="https://apirecipe.hml.qbitos.com/swagger/index.html" target="_blank" rel="noreferrer">https://apirecipe.hml.qbitos.com/swagger/index.html</a></li><li>Acceso institucional: <a href="https://innovamed.com.ar/rcta-institucional" target="_blank" rel="noreferrer">https://innovamed.com.ar/rcta-institucional</a></li><li>Receta electrónica / RENAPDIS: <a href="https://www.argentina.gob.ar/receta-electronica" target="_blank" rel="noreferrer">https://www.argentina.gob.ar/receta-electronica</a></li></ul></main>
+</body></html>

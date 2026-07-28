@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RCTA — buenas prácticas — Healthier</title>
+<style>
+:root{--sage:#7CB38B;--coral:#E8927C;--ivory:#F6F5F0;--bg2:#FDFCF9;--text:#2D2A26;
+--muted:#6B6760;--border:#E2DFD8;--shadow:0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.05)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--ivory);color:var(--text);line-height:1.65}
+header{background:#fff;border-bottom:1px solid var(--border);padding:20px 32px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+.logo{width:36px;height:36px;background:var(--sage);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0}
+header h1{font-size:18px;font-weight:600}
+header p{font-size:13px;color:var(--muted);margin-top:1px}
+header a.back{margin-left:auto;font-size:13px;color:var(--muted);text-decoration:none;white-space:nowrap}
+header a.back:hover{color:var(--sage)}
+main{max-width:860px;margin:0 auto;padding:40px 24px 100px}
+h1{font-size:30px;font-weight:650;letter-spacing:-.5px;margin:0 0 8px}
+h2{font-size:21px;font-weight:600;margin:40px 0 12px;padding-top:20px;border-top:1px solid var(--border)}
+h2:first-of-type{border-top:none;padding-top:0}
+h3{font-size:16px;font-weight:650;margin:26px 0 8px}
+p{margin:12px 0;color:#3d3a35}
+ul,ol{margin:12px 0 12px 22px}
+li{margin:6px 0;color:#3d3a35}
+a{color:var(--sage);text-decoration:underline;text-underline-offset:2px}
+code{background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:1px 5px;font-size:.88em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+pre{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;overflow-x:auto;margin:16px 0;box-shadow:var(--shadow)}
+pre code{background:none;border:none;padding:0;font-size:13px;line-height:1.6}
+blockquote{border-left:3px solid var(--sage);background:var(--bg2);padding:12px 18px;margin:18px 0;border-radius:0 10px 10px 0}
+blockquote p{margin:6px 0}
+table{width:100%;border-collapse:collapse;margin:18px 0;background:#fff;border-radius:12px;overflow:hidden;box-shadow:var(--shadow);font-size:14px}
+th{background:var(--bg2);text-align:left;padding:11px 14px;font-weight:600;border-bottom:1px solid var(--border)}
+td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:none}
+hr{border:none;border-top:1px solid var(--border);margin:36px 0}
+strong{font-weight:650;color:var(--text)}
+.meta{color:var(--muted);font-size:13px;margin-bottom:28px}
+@media(max-width:640px){main{padding:24px 16px 60px}h1{font-size:24px}header{padding:16px 20px}}
+</style></head>
+<body>
+<header>
+  <div class="logo">🌿</div>
+  <div><h1>RCTA — buenas prácticas</h1><p>Reglas salidas de pruebas reales contra el sandbox</p></div>
+  <a class="back" href="/docs/">← Todos los docs</a>
+</header>
+<main><p>Reglas para trabajar con la receta electrónica (Innovamed / QBI2) sin repetir errores que ya costaron tiempo. Todo lo de acá salió de pruebas reales contra el sandbox, no de leer la documentación.</p>
+<ul><li><strong>Referencia de la API</strong> (endpoints, esquemas): <code>docs/rcta-integration.md</code></li><li><strong>Estado y camino a certificar</strong>: <code>docs/rcta-estado-y-certificacion.md</code></li></ul>
+<hr>
+<h2>1. Qué es un &quot;financiador&quot; y por qué importa</h2>
+<p><strong>Financiador = la obra social o prepaga que cubre la receta.</strong> OSDE, Swiss Medical, Luis Pasteur, PAMI. En la jerga de Innovamed no se dice &quot;obra social&quot;, se dice financiador.</p>
+<p>Importa porque <strong>una receta con cobertura y una particular son recetas distintas</strong>: la farmacia le cobra a la obra social en un caso y al paciente en el otro. Innovamed necesita saber cuál es.</p>
+<p><strong>La regla:</strong> Innovamed no acepta el *nombre* de la obra social. Necesita el <strong><code>idFinanciador</code></strong>, un número de su propio catálogo (hay ~900). &quot;OSDE&quot; no sirve; <code>28</code> sí.</p>
+<p>Ese catálogo se pide con <code>GET /apirecipe/GetFinanciadores?clienteAppId=...</code> y cambia con el tiempo. <strong>Nunca hardcodear IDs</strong> — hay que consultarlo y dejar que el profesional elija de esa lista.</p>
+<blockquote><p>Hoy Healthier guarda <code>consultations.obra_social_name</code> como <strong>texto libre</strong>, que</p><p>es exactamente lo que la API no acepta. Convertir ese campo en un selector</p><p>alimentado por <code>GetFinanciadores</code>, y guardar el ID, es trabajo pendiente.</p></blockquote>
+<hr>
+<h2>2. Nunca inventes códigos: ni de medicamento ni de financiador</h2>
+<p>Los dos errores más caros de la integración son el mismo error de fondo — mandar texto libre donde la API espera un código de su catálogo.</p>
+<p><strong><code>QBI105</code> — &quot;CODIGO INFORMADO INEXISTENTE&quot;</strong>: <code>medicamentos[].regNo</code> tiene que ser un código real del catálogo de Innovamed (<code>GET /apirecipe/GetMedicamento/ {search}</code>). Un nombre de medicamento escrito a mano se rechaza siempre.</p>
+<p>La receta se emite bien <strong>con</strong> el código: probado end-to-end contra el sandbox (<code>AMIXEN 500mg comp.x21</code>, <code>regNo: 35771</code> → <code>200 OK</code>, con <code>idReceta</code> y PDF).</p>
+<p><strong>La regla, para los dos casos:</strong> todo campo que la API describa como código o ID se elige de un autocompletado contra su endpoint correspondiente y se guarda el código, no el texto que vio el usuario. Si en la UI hay un input de texto libre para algo que la API codifica, eso es un bug esperando a la primera receta real.</p>
+<hr>
+<h2>3. Guardá el código, mostrá el nombre</h2>
+<p>Corolario del punto anterior, pero vale decirlo aparte porque es lo que se hace mal por default: la tabla guarda <strong><code>id_financiador</code> / <code>reg_no</code></strong>, y el nombre legible es un acompañante para mostrar. No al revés.</p>
+<p>Guardar solo el nombre obliga a adivinar el código después, y adivinar es lo que produce <code>QBI105</code>.</p>
+<hr>
+<h2>4. El domicilio de atención no es opcional</h2>
+<p><strong><code>QBI248</code> — &quot;DEBE INFORMAR EL DOMICILIO DONDE SE REALIZÓ LA ATENCIÓN&quot;</strong>: el sandbox rechaza la receta si no hay dirección de atención. El swagger no dice qué campo mira exactamente, así que <code>rcta-issue</code> la manda en <strong>todos</strong> los campos plausibles (<code>medico.lugarAtencion</code>, <code>direccionConsultorio</code>, <code>nombreConsultorio</code>, y el objeto <code>lugarAtencion.domicilio</code>). Confirmado que así se limpia el error.</p>
+<p><strong>No sacar ninguno de esos campos &quot;porque parece redundante&quot;.</strong> Está duplicado a propósito.</p>
+<p>Consecuencia práctica: un profesional sin <code>professional_profiles.address</code> <strong>no puede emitir recetas</strong>. Vale validarlo antes de dejarlo intentar, en vez de que descubra el error recién al emitir.</p>
+<hr>
+<h2>5. <code>clienteAppId</code> va en lugares distintos según el verbo</h2>
+<p>Query param en los GET, campo del body en POST/PUT/DELETE. No hay header de institución ni de tenant. Es fácil de equivocar y el error que devuelve no es obvio.</p>
+<hr>
+<h2>6. El token de homologación vence, pero el sandbox no lo aplica</h2>
+<p>El JWT de sandbox venció el <strong>2026-07-06</strong> y sin embargo las llamadas siguen devolviendo <code>200</code> (verificado el 2026-07-28, 22 días después).</p>
+<p><strong>No confíes en eso.</strong> Que hoy no se aplique no significa que no se aplique mañana, y menos en producción. Si algo falla con <code>401</code>, lo primero a revisar es el vencimiento antes de buscar bugs en el payload.</p>
+<hr>
+<h2>7. Sandbox y producción son URLs distintas, no un flag</h2>
+<table><thead><tr><th>Ambiente</th><th>Base URL</th></tr></thead><tbody><tr><td>Homologación</td><td><code>https://apirecipe.hml.qbitos.com</code></td></tr><tr><td>Producción</td><td><code>https://apirecipe.qbitos.com</code></td></tr></tbody></table>
+<p>Va en el secret <code>RCTA_API_URL</code>, <strong>sin barra final</strong> — la función le agrega <code>/apirecipe/...</code>. Una barra de más rompe la URL y el error no lo dice.</p>
+<hr>
+<h2>8. Las credenciales viven del lado servidor. Siempre.</h2>
+<p>Los tres secrets (<code>RCTA_API_URL</code>, <code>RCTA_API_KEY</code>, <code>RCTA_CLIENT_APP_ID</code>) van en <strong>Supabase secrets</strong>, nunca en el <code>.env</code> del front: cualquier variable <code>VITE_*</code> se compila dentro del bundle y es pública. El token de RCTA firma recetas médicas legalmente válidas.</p>
+<p><strong>Antes de rotar un secret, verificá si hace falta.</strong> Supabase muestra un <strong>hash</strong> en <code>secrets list</code>, no el valor: comparar el SHA-256 del valor nuevo contra ese digest dice si ya está configurado, sin tocar nada. Rotar a ciegas un secret compartido rompe a quien lo esté usando en paralelo.</p>
+<hr>
+<h2>9. Emitir una receta es un acto médico, no un <code>POST</code></h2>
+<p>Una receta RCTA es <strong>legalmente válida</strong> y queda asociada a la matrícula del profesional. De ahí se desprenden algunas cosas que en otro contexto serían opcionales:</p>
+<ul><li><strong>Nunca emitir automáticamente.</strong> Siempre con una acción explícita del profesional.</li><li><strong>Nunca reintentar en silencio.</strong> Si la emisión falla, se muestra el error; un reintento automático puede duplicar una receta.</li><li><code>rcta-issue</code> ya rechaza con <code>409</code> una medicación que ya está <code>issued</code>. No saltear esa guarda.</li><li>Los estados (<code>pending</code> / <code>issued</code> / <code>error</code>) se muestran en la UI. Un fallo silencioso hace que el profesional crea que recetó cuando no lo hizo.</li></ul>
+<hr>
+<h2>10. Para pasar a producción no alcanza con que ande</h2>
+<p>Innovamed pide tres cosas, y dos no son código:</p>
+<ol><li>Contrato firmado.</li><li>Registro como recetario en <strong>RENAPDIS</strong> (<a href="https://www.argentina.gob.ar/receta-electronica" target="_blank" rel="noreferrer">https://www.argentina.gob.ar/receta-electronica</a>).</li><li>Certificar con 4 recetas de prueba (3 con financiador + 1 particular).</li></ol>
+<p>Estado y detalle de las 4 pruebas: <code>docs/rcta-estado-y-certificacion.md</code>.</p></main>
+</body></html>
