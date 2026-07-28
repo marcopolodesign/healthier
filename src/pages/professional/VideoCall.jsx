@@ -4,7 +4,7 @@ import {
   ArrowLeft, PhoneSlash, ClipboardText, ArrowsOut, ArrowsIn,
   Plus, Check, CircleNotch, User, Microphone, MicrophoneSlash,
   Camera, CameraSlash, Warning, Sparkle, ClockCounterClockwise,
-  IdentificationCard, Drop, Phone, Envelope, MapPin, Heartbeat,
+  IdentificationCard, Drop, Phone, Envelope, MapPin, Heartbeat, Pill,
 } from '@phosphor-icons/react'
 import DailyIframe from '@daily-co/daily-js'
 import { supabase } from '../../lib/supabase'
@@ -16,6 +16,7 @@ import { profilesService } from '../../services/profilesService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import CloseConsultationModal from '../../components/CloseConsultationModal'
 import ScribeSession from '../../components/professional/ScribeSession'
+import PrescriptionCreator from '../../components/professional/PrescriptionCreator'
 import { toast } from '../../components/Toast'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 
@@ -30,6 +31,10 @@ const ENTRY_TYPE_LABELS = {
 
 const PANEL_TABS = [
   { id: 'nota', label: 'Hoy', icon: ClipboardText },
+  // Generar la receta durante la consulta y no después: el profesional está
+  // acá cuando decide medicar, y mandarlo al detalle de la consulta le hace
+  // perder el hilo (y al paciente, esperando del otro lado).
+  { id: 'receta', label: 'Receta', icon: Pill },
   { id: 'historia', label: 'Historia', icon: ClockCounterClockwise },
   { id: 'datos', label: 'Datos', icon: IdentificationCard },
 ]
@@ -254,6 +259,15 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
     licenseType, licenseNumber,
   })
 
+  // El encuentro clínico se crea perezosamente (al guardar la primera nota).
+  // La receta también lo necesita, así que se asegura al abrir su pestaña —
+  // si no, se guardaría con encounter_id en null y quedaría huérfana.
+  useEffect(() => {
+    if (activeTab === 'receta' && !encounterId) ensureEncounter().catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, encounterId])
+
+
   // Combines Daily.co's already-live local mic + remote participant audio
   // tracks into one MediaStream — no separate getUserMedia() call needed,
   // ScribeSession stays agnostic of where the stream comes from.
@@ -442,6 +456,14 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
               </ol>
             )}
           </>
+        )}
+
+        {activeTab === 'receta' && (
+          <PrescriptionCreator
+            patientId={consultation?.patientId ?? null}
+            encounterId={encounterId}
+            professionalId={profile?.id ?? null}
+          />
         )}
 
         {activeTab === 'historia' && (
