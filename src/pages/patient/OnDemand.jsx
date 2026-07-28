@@ -9,6 +9,7 @@ import { consultationsService } from '../../services/consultationsService'
 import { mpService } from '../../services/mpService'
 import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
+import { buildPool } from '../../lib/onDemandPool'
 import { VERTICALS_BY_ID, SPECIALTY_LABELS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
 import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
 
@@ -51,7 +52,11 @@ export default function OnDemand({ profile }) {
 
   // phase: 'searching' → 'no_match' | 'checkout' → 'assigned'
   const [phase, setPhase] = useState('searching')
-  const [matchedPro, setMatchedPro] = useState(null)
+  // Pool completo de profesionales elegibles, ya rotado, + el índice actual.
+  // Lo que sobra del pool es la cola de failover cuando uno no se conecta.
+  const [proPool, setProPool] = useState([])
+  const [poolIndex, setPoolIndex] = useState(0)
+  const matchedPro = proPool[poolIndex] ?? null
   const [consultationId, setConsultationId] = useState(null)
 
   // Real MP checkout — same saved-card / new-card patterns as PaymentPage,
@@ -129,14 +134,32 @@ export default function OnDemand({ profile }) {
     navigate('/paciente/dashboard')
   }
 
-  // ── 10:00 window elapsed with nobody joining — same release, different copy ──
+  // ── Venció la ventana sin que el profesional se conectara ────────────────────
+  // Antes: se liberaba la autorización, salía un toast y el paciente terminaba
+  // en el dashboard, sin reintentar con nadie. Para un producto que promete
+  // "hablá con un médico ahora", el fallo del core no puede ser un callejón.
+  // Ahora se libera la reserva igual (nunca se cobra) y se ofrece el siguiente
+  // profesional de la cola. No se re-autoriza sola: liberar el hold obliga a una
+  // autorización nueva, así que el paciente decide y vuelve al checkout.
   const handleTimeout = async () => {
+    clearInterval(countdownRef.current)
     if (consultationId) {
       const { error } = await mpService.cancelAuthorization(consultationId)
       if (error) console.error('[OnDemand] timeout cancel-auth failed:', error)
     }
-    toast.info('El profesional no se conectó a tiempo. No se te cobró nada.')
-    navigate('/paciente/dashboard')
+    setConsultationId(null)
+    setPhase('timeout')
+  }
+
+  // Reintentar con el siguiente del pool, desde cero (consulta y autorización
+  // nuevas — la anterior quedó liberada).
+  const handleTryNextPro = () => {
+    setConsultationId(null)
+    setSelectedCardId(null)
+    setAddCardMode(false)
+    setSecondsLeft(AUTH_WINDOW_SECONDS)
+    setPoolIndex(i => i + 1)
+    setPhase('checkout')
   }
 
   // `id` is threaded through explicitly (never read back from `consultationId`
@@ -237,19 +260,24 @@ export default function OnDemand({ profile }) {
 
     const slugs = VERTICAL_SPECIALTIES[verticalId] || []
     const primarySlug = slugs[0]
+
+    // Sin fallback a `search({ specialty })` a secas: ese catch hacía que un
+    // error de red terminara matcheando contra TODOS los profesionales de la
+    // especialidad, incluidos los que nunca se anotaron a on-demand. Un fallo
+    // de lectura ahora es "no hay nadie", que es lo honesto.
     const fetchPros = primarySlug
-      ? professionalService.search({ specialty: primarySlug, onDemand: true })
-          .catch(() => professionalService.search({ specialty: primarySlug }))
+      ? professionalService.search({ specialty: primarySlug, onDemand: true }).catch(() => null)
       : Promise.resolve([])
 
-    Promise.all([new Promise(r => setTimeout(r, 2200)), fetchPros]).then(([, prosRaw]) => {
+    fetchPros.then(prosRaw => {
       if (cancelled) return
-      // Only match professionals who can receive paid bookings AND have a
-      // real price configured (spec D1.1 — no more hardcoded $15).
-      const payable = (prosRaw ?? []).filter(p => p.mpConnected !== false && (p.priceVideo ?? p.sessionPrice))
-      const pro = payable[0] ?? null
-      setMatchedPro(pro)
-      setPhase(pro ? 'checkout' : 'no_match')
+      if (prosRaw === null) { setPhase('search_error'); return }
+
+      // Filtrado por cobrabilidad + rotación — ver src/lib/onDemandPool.js
+      const rotated = buildPool(prosRaw)
+      setProPool(rotated)
+      setPoolIndex(0)
+      setPhase(rotated.length ? 'checkout' : 'no_match')
     })
 
     return () => { cancelled = true }
@@ -284,6 +312,50 @@ export default function OnDemand({ profile }) {
         <h2 className="text-[22px] font-black text-gray-900 mb-2 text-center">Sin disponibilidad</h2>
         <p className="text-gray-500 font-medium text-[15px] text-center mb-8">No hay profesionales de {vertical.nombre} disponibles ahora.</p>
         <button onClick={() => navigate('/paciente/dashboard')} className="bg-brand text-white px-8 py-3 rounded-[16px] font-bold">Volver al inicio</button>
+      </div>
+    )
+  }
+
+  // ── La lectura de profesionales falló ──────────────────────────────────────
+  // Estado propio en vez de degradar en silencio a "no hay nadie": un error de
+  // red y una agenda vacía son cosas distintas y el paciente merece reintentar.
+  if (phase === 'search_error') {
+    return (
+      <div className="absolute inset-0 bg-white z-[100] flex flex-col items-center justify-center p-6 animate-fade-in">
+        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+          <IconComp className="w-8 h-8 text-gray-400" />
+        </div>
+        <h2 className="text-[22px] font-black text-gray-900 mb-2 text-center">No pudimos buscar profesionales</h2>
+        <p className="text-gray-500 font-medium text-[15px] text-center mb-8">Revisá tu conexión y probá de nuevo.</p>
+        <button onClick={() => window.location.reload()} className="bg-brand text-white px-8 py-3 rounded-[16px] font-bold mb-3">Reintentar</button>
+        <button onClick={() => navigate('/paciente/dashboard')} className="text-gray-500 font-bold text-[15px] py-2">Volver al inicio</button>
+      </div>
+    )
+  }
+
+  // ── Venció la ventana sin que el profesional se conectara ──────────────────
+  if (phase === 'timeout') {
+    const hayOtro = poolIndex + 1 < proPool.length
+    return (
+      <div className="absolute inset-0 bg-white z-[100] flex flex-col items-center justify-center p-6 animate-fade-in">
+        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+          <Clock className="w-8 h-8 text-gray-400" />
+        </div>
+        <h2 className="text-[22px] font-black text-gray-900 mb-2 text-center">{proName} no se conectó</h2>
+        <p className="text-gray-500 font-medium text-[15px] text-center mb-2">
+          No te cobramos nada — la reserva en tu tarjeta ya se liberó.
+        </p>
+        <p className="text-gray-500 font-medium text-[15px] text-center mb-8">
+          {hayOtro
+            ? 'Podemos intentar con otro profesional disponible.'
+            : 'Por ahora no hay otro profesional disponible en esta especialidad.'}
+        </p>
+        {hayOtro && (
+          <button onClick={handleTryNextPro} className="bg-brand text-white px-8 py-3 rounded-[16px] font-bold mb-3">
+            Probar con otro profesional
+          </button>
+        )}
+        <button onClick={() => navigate('/paciente/dashboard')} className="text-gray-500 font-bold text-[15px] py-2">Volver al inicio</button>
       </div>
     )
   }
@@ -403,7 +475,7 @@ export default function OnDemand({ profile }) {
             <div className="flex-1 min-w-0">
               <p className="font-bold text-[16px] text-gray-900 truncate">{proName}</p>
               <p className="text-[13px] text-gray-500 flex items-center gap-1 flex-wrap">
-                {proSpecialty} · <Clock className="h-3.5 w-3.5" /> Espera: {vertical.eta}
+                {proSpecialty} · <Clock className="h-3.5 w-3.5" /> Espera hasta {AUTH_WINDOW_SECONDS / 60} min
               </p>
             </div>
             <p className="font-black text-[22px] text-gray-900 shrink-0">
