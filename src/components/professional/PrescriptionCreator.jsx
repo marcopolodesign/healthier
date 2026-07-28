@@ -4,6 +4,7 @@ import {
   Plus, Copy, FilePdf, ArrowSquareOut, Warning,
 } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
+import MedicationSearch from './MedicationSearch'
 import { toast } from '../Toast'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -183,6 +184,9 @@ function PrescriptionRow({ rx, onIssueRcta, issuingId }) {
 
 const EMPTY = {
   medicationName: '',
+  // Medicamento elegido del catálogo de Innovamed. NULL = texto libre, que se
+  // puede guardar en la historia clínica pero NO se puede emitir por RCTA.
+  catalogo: null,
   concentration: '',
   presentation: '',
   route: 'oral',
@@ -198,7 +202,7 @@ const EMPTY = {
   priority: 'routine',
 }
 
-function AddPrescriptionForm({ patientId, encounterId, professionalId, onSaved, onCancel }) {
+function AddPrescriptionForm({ patientId, encounterId, professionalId, cobertura, onSaved, onCancel }) {
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
 
@@ -222,6 +226,11 @@ function AddPrescriptionForm({ patientId, encounterId, professionalId, onSaved, 
           professional_license_number: '0',
           medication_name:  form.medicationName.trim(),
           snomed_code:      null,
+          // Sin reg_no la receta se rechaza con QBI105 — se guarda igual para la
+          // historia clínica, pero rcta-issue la va a rechazar antes de llamar.
+          reg_no:           form.catalogo?.regNo ?? null,
+          presentacion:     form.catalogo?.presentacion ?? null,
+          nombre_droga:     form.catalogo?.nombreDroga ?? null,
           concentration:    form.concentration.trim() || null,
           presentation:     form.presentation || null,
           route:            form.route || null,
@@ -257,14 +266,20 @@ function AddPrescriptionForm({ patientId, encounterId, professionalId, onSaved, 
       <div className="grid grid-cols-2 gap-2">
         <div className="col-span-2 sm:col-span-1">
           <label className="form-label text-xs">Medicamento *</label>
-          {/* TODO: SNOMED medication search when RCTA/Innovamed credentials available */}
-          <div className="relative">
-            <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary pointer-events-none" />
-            <input type="text" value={form.medicationName}
-              onChange={e => set('medicationName', e.target.value)}
-              placeholder="Ej: Amoxicilina, Ibuprofeno…"
-              className="form-input pl-9" />
-          </div>
+          <MedicationSearch
+            value={form.medicationName}
+            selected={form.catalogo}
+            cobertura={cobertura}
+            onTextChange={v => setForm(p => ({ ...p, medicationName: v, catalogo: null }))}
+            onSelect={m => setForm(p => m ? {
+              ...p,
+              catalogo: m,
+              medicationName: m.nombreProducto,
+              // La presentación del catálogo es la fuente de verdad: el mismo
+              // producto tiene varias y la que se receta es la elegida.
+              presentation: m.presentacion ?? p.presentation,
+            } : { ...p, catalogo: null })}
+          />
         </div>
         <div>
           <label className="form-label text-xs">Concentración</label>
@@ -414,7 +429,12 @@ function AddPrescriptionForm({ patientId, encounterId, professionalId, onSaved, 
  * PrescriptionCreator
  * @param {{ patientId: string, encounterId: string, professionalId?: string }} props
  */
-export default function PrescriptionCreator({ patientId, encounterId, professionalId }) {
+/**
+ * @param {{cobertura?: {idFinanciador?: number, afiliado?: string}}} props
+ *   `cobertura` es opcional: con ella, Innovamed además informa si cada
+ *   medicamento tiene cobertura para ESE paciente.
+ */
+export default function PrescriptionCreator({ patientId, encounterId, professionalId, cobertura }) {
   const [prescriptions, setPrescriptions] = useState([])
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
@@ -504,6 +524,7 @@ export default function PrescriptionCreator({ patientId, encounterId, profession
           patientId={patientId}
           encounterId={encounterId}
           professionalId={professionalId}
+          cobertura={cobertura}
           onSaved={newRx => {
             setPrescriptions(prev => [newRx, ...prev])
             setAddOpen(false)

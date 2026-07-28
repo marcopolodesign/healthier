@@ -48,6 +48,15 @@ Deno.serve(async (req: Request) => {
     if (medErr || !med) return json({ error: 'Medication not found' }, 404)
     if (med.rcta_status === 'issued') return json({ error: 'Already issued' }, 409)
 
+    // Sin codigo de catalogo la API rechaza con QBI105. Se corta antes con un
+    // mensaje que dice que hacer, en vez de propagar el error criptico.
+    if (!med.reg_no) {
+      return json({
+        error: 'Esta medicación no se puede emitir como receta electrónica porque no fue elegida del vademécum. Editala y seleccioná el producto del buscador.',
+        code: 'RCTA_SIN_CODIGO',
+      }, 422)
+    }
+
     // ── Mark as pending ───────────────────────────────────────────────────────
     await supabase
       .from('clinical_medications')
@@ -84,9 +93,13 @@ Deno.serve(async (req: Request) => {
       clienteAppId: Number(RCTA_CLIENT_APP_ID),
       diagnostico: med.cie10_display ?? med.cie10_code ?? null,
       medicamentos: [{
+        // `regNo` es el codigo del catalogo de Innovamed. Sin el, la API responde
+        // QBI105 "CODIGO INFORMADO INEXISTENTE" — por eso se valida arriba antes
+        // de llegar aca.
+        regNo: med.reg_no,
         nombreProducto: med.medication_name,
-        nombreDroga: med.medication_name,
-        presentacion: [med.presentation, med.concentration].filter(Boolean).join(' ') || null,
+        nombreDroga: med.nombre_droga ?? med.medication_name,
+        presentacion: med.presentacion ?? ([med.presentation, med.concentration].filter(Boolean).join(' ') || null),
         cantidad: parseInt(String(med.quantity ?? '').replace(/\D/g, ''), 10) || 1,
         permiteSustitucion: null,
         tratamiento: med.is_chronic ? 1 : 0,
