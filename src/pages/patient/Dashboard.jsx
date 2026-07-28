@@ -166,7 +166,7 @@ export default function PatientDashboard({ profile }) {
             <button
               key={v.id}
               onClick={() => { track('ondemand_start', { vertical: v.id }); navigate(`/paciente/ondemand/${v.id}`) }}
-              className="snap-start shrink-0 w-[248px] h-[208px] relative rounded-[24px] overflow-hidden group active:scale-[0.98] transition-all"
+              className="snap-start shrink-0 w-[256px] h-[280px] relative rounded-[26px] overflow-hidden group active:scale-[0.98] transition-all"
             >
               {v.img && (
                 <img
@@ -178,8 +178,8 @@ export default function PatientDashboard({ profile }) {
               )}
               {/* Degradé para que el texto se lea sobre cualquier foto */}
               <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-              <span className="absolute inset-x-0 bottom-0 p-4 flex items-center gap-2 text-white font-semibold text-[16px]">
-                <v.icon className="w-[18px] h-[18px] flex-shrink-0" weight="fill" />
+              <span className="absolute inset-x-0 bottom-0 p-5 flex items-center gap-2.5 text-white font-semibold text-[20px]">
+                <v.icon className="w-[22px] h-[22px] flex-shrink-0" weight="fill" />
                 {v.nombre}
               </span>
             </button>
