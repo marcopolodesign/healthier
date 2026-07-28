@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
 import {
   MapPin, MapTrifold, CaretRight, Star, VideoCamera,
-  Heartbeat, ClipboardText, X, Sparkle,
+  Heartbeat, X, Sparkle, CalendarBlank,
 } from '@phosphor-icons/react'
 import { track } from '../../utils/analytics'
 
@@ -12,7 +12,7 @@ import InteractiveMap from '../../components/patient/InteractiveMap'
 import ActiveAppointmentBanner from '../../components/patient/ActiveAppointmentBanner'
 import { professionalService } from '../../services/professionalService'
 import { VERTICALS, SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
-import { latLngToPixel } from '../../lib/geo'
+import { latLngToPixel, haversineKm, formatDistance } from '../../lib/geo'
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -103,7 +103,10 @@ export default function PatientDashboard({ profile }) {
     setSelectedMapPro({
       name:       pro.profiles?.fullName || 'Profesional',
       specialty:  SPECIALTY_LABELS[pro.specialty] || pro.specialty,
-      rating:     String(pro.averageRating ?? '—'),
+      // Rating stays numeric-or-null: the sheet only renders the badge when the
+      // professional actually has reviews, so a pro with none shows nothing
+      // instead of a fabricated score.
+      rating:     pro.averageRating != null ? Number(pro.averageRating) : null,
       reviews:    pro.totalReviews ?? 0,
       img:        pro.profiles?.avatarUrl || null,
       color:      vert.color,
@@ -111,15 +114,32 @@ export default function PatientDashboard({ profile }) {
       icon:       vert.icon,
       userId:     pro.userId,
       verticalId: type,
+      latitude:   pro.latitude ?? null,
+      longitude:  pro.longitude ?? null,
     })
     setMapProFlow('details')
   }
 
+  // Real straight-line distance from the patient to the selected pro's office.
+  // null whenever either side lacks coordinates — the UI then omits the phrase
+  // rather than showing a made-up number.
+  const selectedProDistance = useMemo(() => {
+    if (!selectedMapPro) return null
+    return formatDistance(haversineKm(userLocation, {
+      lat: selectedMapPro.latitude,
+      lng: selectedMapPro.longitude,
+    }))
+  }, [selectedMapPro, userLocation])
+
   const handleMapModalitySelect = modality => {
     if (!selectedMapPro) return
+    const { verticalId, userId } = selectedMapPro
     setMapProFlow(null)
     setSelectedMapPro(null)
-    navigate(`/paciente/reservar?vertical=${selectedMapPro.verticalId}&proId=${selectedMapPro.userId}&modality=${modality}`)
+    // modality === null → land on the wizard's modality step so the patient
+    // picks modality + date themselves ("agendar para otro día").
+    const modalityParam = modality ? `&modality=${modality}` : ''
+    navigate(`/paciente/reservar?vertical=${verticalId}&proId=${userId}${modalityParam}`)
   }
 
   const goToVertical = v => {
@@ -134,20 +154,20 @@ export default function PatientDashboard({ profile }) {
   // ── Shared content blocks ────────────────────────────────
 
   const onDemandHero = (
-    <div className="rounded-[28px] bg-gradient-to-br from-brand to-brand-hover p-6 flex flex-col gap-4 text-white shadow-[0_12px_32px_rgba(124,179,139,0.35)]">
+    <div className="rounded-[28px] bg-gradient-to-br from-brand to-brand-hover p-5 flex flex-col gap-3.5 text-white shadow-[0_12px_32px_rgba(124,179,139,0.35)]">
       <div>
-        <span className="text-[11px] font-semibold tracking-widest uppercase text-white/70">Consulta on demand</span>
+        <span className="text-[11px] font-semibold tracking-widest uppercase text-white/70">Atención inmediata</span>
         <h2 className="text-[22px] font-light leading-tight mt-1">Hablá con un médico ahora</h2>
-        <p className="text-[13px] text-white/80 mt-1">Sin turno previo · Videollamada en minutos</p>
+        <p className="text-[13px] text-white/80 mt-1">Sin turno · Te atiende el primero disponible, en minutos</p>
       </div>
       {/* Mismas fotos que las landings de marketing, para que la app no se sienta
           otro producto que la web por la que el paciente llegó. */}
-      <div className="flex gap-3">
+      <div className="flex flex-col gap-3">
         {onDemandVerticals.map(v => (
           <button
             key={v.id}
             onClick={() => { track('ondemand_start', { vertical: v.id }); navigate(`/paciente/ondemand/${v.id}`) }}
-            className="flex-1 relative h-[104px] rounded-[20px] overflow-hidden group active:scale-95 transition-all"
+            className="w-full relative h-[112px] rounded-[20px] overflow-hidden group active:scale-[0.98] transition-all"
           >
             {v.img && (
               <img
@@ -159,8 +179,8 @@ export default function PatientDashboard({ profile }) {
             )}
             {/* Degradé para que el texto se lea sobre cualquier foto */}
             <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-            <span className="absolute inset-x-0 bottom-0 p-3 flex items-center gap-1.5 text-white font-semibold text-[14px]">
-              <v.icon className="w-[16px] h-[16px] flex-shrink-0" weight="fill" />
+            <span className="absolute inset-x-0 bottom-0 p-4 flex items-center gap-2 text-white font-semibold text-[16px]">
+              <v.icon className="w-[18px] h-[18px] flex-shrink-0" weight="fill" />
               {v.nombre}
             </span>
           </button>
@@ -171,7 +191,10 @@ export default function PatientDashboard({ profile }) {
 
   const specialtyGrid = (
     <div className="flex flex-col gap-3">
-      <span className="text-[11px] font-semibold text-text-secondary tracking-wide uppercase">Buscar por especialidad</span>
+      <div className="flex flex-col gap-0.5">
+        <h2 className="text-[17px] font-semibold text-text-primary leading-tight">Buscar por especialidad</h2>
+        <p className="text-[13px] text-text-secondary leading-snug">Agendá turno con un profesional</p>
+      </div>
       {/* Carrusel horizontal. El primer ítem queda alineado con el título; el
           sangrado es solo a la derecha (-mr-6) para que la última píldora se vea
           cortada contra el borde y se lea que hay más para scrollear. */}
@@ -182,12 +205,11 @@ export default function PatientDashboard({ profile }) {
               key={v.id}
               onClick={v.comingSoon ? undefined : () => goToVertical(v)}
               disabled={v.comingSoon}
-              className={`snap-start shrink-0 w-[104px] h-[104px] rounded-full flex flex-col items-center justify-center gap-1.5 px-2 text-center transition-all ${
+              className={`snap-start shrink-0 w-[104px] h-[104px] rounded-full bg-bg-secondary shadow-[0_1px_4px_rgba(45,42,38,0.06)] flex flex-col items-center justify-center gap-1.5 px-2 text-center transition-all ${
                 v.comingSoon
                   ? 'opacity-50 cursor-default'
                   : 'cursor-pointer hover:scale-[0.97] active:scale-95'
               }`}
-              style={{ backgroundColor: v.bg }}
             >
               <v.icon className="w-6 h-6 flex-shrink-0" style={{ color: v.color }} />
               <span className="text-[12px] leading-[14px] font-semibold" style={{ color: v.color }}>
@@ -324,7 +346,9 @@ export default function PatientDashboard({ profile }) {
                   className="w-10 h-10 bg-white border border-gray-200 shadow-sm rounded-full flex items-center justify-center hover:bg-gray-50"
                 >✕</button>
               </div>
-              <div className="bg-bg-primary rounded-[28px] p-5 border border-gray-100 flex items-center gap-5 mb-6">
+              {/* Professional details — deliberately unboxed: no card background,
+                  no border, no padding. The sheet itself is the surface. */}
+              <div className="flex items-center gap-5 mb-6">
                 {selectedMapPro.img
                   ? <img src={selectedMapPro.img} alt={selectedMapPro.name} className="w-20 h-20 rounded-2xl object-cover border-2 border-white shadow-sm flex-shrink-0" />
                   : <div className="w-20 h-20 rounded-2xl border-2 border-white shadow-sm flex-shrink-0 flex items-center justify-center text-3xl font-semibold" style={{ backgroundColor: selectedMapPro.bg, color: selectedMapPro.color }}>{selectedMapPro.name[0]}</div>
@@ -336,22 +360,58 @@ export default function PatientDashboard({ profile }) {
                   </div>
                   <h4 className="font-semibold text-[20px] text-gray-900 leading-tight">{selectedMapPro.name}</h4>
                   <p className="text-[14px] text-gray-500 font-medium mt-0.5">{selectedMapPro.specialty}</p>
-                  <div className="flex items-center gap-1 mt-1.5">
-                    <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-                    <span className="font-semibold text-[13px] text-gray-800">{selectedMapPro.rating}</span>
-                    <span className="text-[12px] text-gray-400">({selectedMapPro.reviews})</span>
-                  </div>
+                  {/* Only shown when the professional has real reviews behind it. */}
+                  {selectedMapPro.reviews > 0 && selectedMapPro.rating != null ? (
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                      <span className="font-semibold text-[13px] text-gray-800">{selectedMapPro.rating.toFixed(1)}</span>
+                      <span className="text-[12px] text-gray-400">
+                        ({selectedMapPro.reviews} {selectedMapPro.reviews === 1 ? 'reseña' : 'reseñas'})
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="inline-block text-[12px] text-gray-400 font-medium mt-1.5">Todavía sin reseñas</span>
+                  )}
                 </div>
               </div>
               <h3 className="font-semibold text-[18px] text-gray-900 mb-4">¿Cómo preferís atenderte?</h3>
               <div className="space-y-3">
                 {[
-                  { label: 'Virtual (En Vivo)', sub: 'Conectá por videollamada al instante.', mod: 'Videollamada', icon: VideoCamera, color: 'text-brand', bg: 'bg-blue-50' },
-                  { label: 'Presencial', sub: 'Acudí al consultorio (a 1.2 km de vos).', mod: 'Presencial', icon: MapPin, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                  {
+                    key: 'virtual',
+                    label: 'Virtual (En Vivo)',
+                    sub: 'Conectá por videollamada al instante.',
+                    modality: 'virtual',
+                    icon: VideoCamera,
+                    color: 'text-brand',
+                    bg: 'bg-blue-50',
+                  },
+                  {
+                    key: 'presencial',
+                    label: 'Presencial',
+                    // Real distance when we have both the patient's position and the
+                    // professional's office coordinates; plain copy otherwise.
+                    sub: selectedProDistance
+                      ? `Acudí al consultorio (a ${selectedProDistance} de vos).`
+                      : 'Acudí al consultorio del profesional.',
+                    modality: 'presencial',
+                    icon: MapPin,
+                    color: 'text-emerald-600',
+                    bg: 'bg-emerald-50',
+                  },
+                  {
+                    key: 'agendar',
+                    label: 'Agendar turno para otro día',
+                    sub: 'Elegí modalidad, fecha y horario.',
+                    modality: null,
+                    icon: CalendarBlank,
+                    color: 'text-brand-tertiary',
+                    bg: 'bg-brand-tertiary-muted',
+                  },
                 ].map(opt => (
                   <div
-                    key={opt.mod}
-                    onClick={() => handleMapModalitySelect(opt.mod === 'Videollamada' ? 'virtual' : 'presencial')}
+                    key={opt.key}
+                    onClick={() => handleMapModalitySelect(opt.modality)}
                     className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:border-brand transition-all group"
                   >
                     <div className={`w-14 h-14 ${opt.bg} rounded-[16px] flex items-center justify-center group-hover:scale-110 transition-transform`}>
