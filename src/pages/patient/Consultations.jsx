@@ -824,11 +824,17 @@ export default function PatientConsultations({ profile }) {
                     <div className="flex-1 flex flex-col justify-center">
                       <h4 className="font-semibold text-[17px] text-gray-900 leading-tight">{proName}</h4>
                       <div className="flex items-center gap-1.5 mt-1">
-                        <div className="flex items-center gap-1 bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded text-[12px]">
-                          <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
-                          <span className="font-semibold">{String(p.averageRating ?? '—')}</span>
-                        </div>
-                        <span className="text-[12px] font-medium text-gray-400">({p.totalReviews ?? 0} reseñas)</span>
+                        {p.totalReviews > 0 ? (
+                          <>
+                            <div className="flex items-center gap-1 bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded text-[12px]">
+                              <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                              <span className="font-semibold">{Number(p.averageRating).toFixed(1)}</span>
+                            </div>
+                            <span className="text-[12px] font-medium text-gray-400">({p.totalReviews} reseñas)</span>
+                          </>
+                        ) : (
+                          <span className="text-[12px] font-medium text-gray-400">Sin reseñas</span>
+                        )}
                       </div>
                       {!connected && (
                         <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full mt-1.5 w-fit">No disponible para reservas online</span>

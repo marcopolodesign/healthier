@@ -68,7 +68,7 @@ export default function ProfessionalCard({ pro, onSelect, isSelected = false, mo
 
         {/* Rating row */}
         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-          {rating != null && (
+          {reviews > 0 && rating != null && (
             <div className="flex items-center gap-1 bg-amber-50 border border-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[11px]">
               <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
               <span className="font-bold">{Number(rating).toFixed(1)}</span>

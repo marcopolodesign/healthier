@@ -46,8 +46,14 @@ export default function PatientPageOverlay({ open, onClose, children, className 
     )
   }
 
+  // `fixed`, not `absolute`: the pages that host this overlay (Documents) use an
+  // `absolute inset-0 overflow-y-auto` root, so an absolutely-positioned overlay
+  // anchors to the top of the *scrolled content* and slides away as the user
+  // scrolls — the same defect PatientSheet had. No z-index on purpose: the bottom
+  // nav is `fixed z-50` and stayed visible over this overlay before, so leaving
+  // it below the nav preserves the existing layering.
   return (
-    <div className={`absolute inset-0 flex flex-col animate-fade-in ${className}`}>
+    <div className={`fixed inset-0 flex flex-col animate-fade-in ${className}`}>
       {children}
     </div>
   )

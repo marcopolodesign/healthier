@@ -6,6 +6,12 @@ import { useEffect, useState } from 'react'
  * Mobile (<640 px)  → bottom-up sheet with drag-handle pill
  * Desktop (≥640 px) → centered modal
  *
+ * Both branches are `fixed inset-0` — viewport-anchored, never
+ * container-anchored. The mobile branch used to be `absolute inset-0`, which
+ * broke on any page whose own root is the scroll container (Perfil): the sheet
+ * pinned itself to the top of the *scrolled content* and disappeared as soon as
+ * the user scrolled. Keep this `fixed`.
+ *
  * Props
  *   open         – whether to render
  *   onClose      – called on backdrop click or Escape key
@@ -33,9 +39,9 @@ export default function PatientSheet({ open, onClose, children, maxWidth = 'max-
 
   return (
     <div
-      className={`z-[80] animate-fade-in ${isDesktop
-        ? 'fixed inset-0 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm'
-        : 'absolute inset-0 bg-gray-900/50 backdrop-blur-sm flex flex-col justify-end'}`}
+      className={`fixed inset-0 z-[80] animate-fade-in bg-gray-900/50 backdrop-blur-sm ${isDesktop
+        ? 'flex items-center justify-center'
+        : 'flex flex-col justify-end'}`}
       onClick={backdropClose ? onClose : undefined}
     >
       <div

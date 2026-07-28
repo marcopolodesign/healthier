@@ -104,19 +104,21 @@ export default function ProfessionalModal({ pro, open, onClose, modality, onBook
             <h3 className="text-[20px] font-bold text-text-primary leading-tight tracking-tight truncate">{name}</h3>
             <p className="text-[13px] text-text-tertiary mt-0.5 truncate">{label}</p>
 
-            {/* Rating */}
-            {rating != null && (
+            {/* Rating — only when the professional actually has reviews. A pro
+                with none has average_rating = 0 in the DB (migration 069), which
+                must never render as a score. */}
+            {reviews > 0 && rating != null ? (
               <div className="flex items-center gap-1.5 mt-1.5">
                 <div className="flex items-center gap-1 bg-amber-50 border border-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[11px]">
                   <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
                   <span className="font-bold">{Number(rating).toFixed(1)}</span>
                 </div>
-                {reviews > 0 && (
-                  <span className="text-[11px] text-text-muted font-medium">
-                    {reviews} {reviews === 1 ? 'reseña' : 'reseñas'}
-                  </span>
-                )}
+                <span className="text-[11px] text-text-muted font-medium">
+                  {reviews} {reviews === 1 ? 'reseña' : 'reseñas'}
+                </span>
               </div>
+            ) : (
+              <span className="inline-block text-[11px] text-text-muted font-medium mt-1.5">Sin reseñas</span>
             )}
           </div>
 

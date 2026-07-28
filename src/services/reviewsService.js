@@ -8,10 +8,9 @@ export const reviewsService = {
       .select()
       .single()
     if (error) throw error
-
-    // Update average rating on professional_profiles
-    await this.recalculateRating(data.professionalId)
-
+    // average_rating / total_reviews los recalcula el trigger `reviews_recalc_rating`
+    // (migración 069). No lo hacemos acá: si el recálculo vive sólo en JS, cualquier
+    // escritura que no pase por este servicio deja los contadores mintiendo.
     return toCamelCase(row)
   },
 
@@ -37,18 +36,4 @@ export const reviewsService = {
     return map
   },
 
-  async recalculateRating(professionalId) {
-    const { data } = await supabase
-      .from('reviews')
-      .select('rating')
-      .eq('professional_id', professionalId)
-
-    if (!data || data.length === 0) return
-
-    const avg = data.reduce((sum, r) => sum + r.rating, 0) / data.length
-    await supabase
-      .from('professional_profiles')
-      .update({ average_rating: Math.round(avg * 10) / 10, total_reviews: data.length })
-      .eq('user_id', professionalId)
-  },
 }

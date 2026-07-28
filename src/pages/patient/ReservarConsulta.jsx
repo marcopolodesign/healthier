@@ -699,10 +699,14 @@ export default function ReservarConsulta({ profile }) {
                         <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full mt-1 inline-block">No disponible para reservas online</span>
                       ) : (
                         <div className="flex items-center gap-1 mt-1">
-                          <Star className="w-3 h-3 text-amber-400" weight="fill" />
-                          <span className="text-[12px] font-semibold text-amber-600">{pro.rating.toFixed(1)}</span>
-                          {pro.reviews > 0 && (
-                            <span className="text-[11px] text-text-tertiary">({pro.reviews} reseñas)</span>
+                          {pro.reviews > 0 ? (
+                            <>
+                              <Star className="w-3 h-3 text-amber-400" weight="fill" />
+                              <span className="text-[12px] font-semibold text-amber-600">{pro.rating.toFixed(1)}</span>
+                              <span className="text-[11px] text-text-tertiary">({pro.reviews} reseñas)</span>
+                            </>
+                          ) : (
+                            <span className="text-[11px] text-text-tertiary">Sin reseñas</span>
                           )}
                         </div>
                       )}
