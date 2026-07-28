@@ -612,6 +612,13 @@ export default function ConsultationDetail({ profile }) {
             patientId={consultation.patientId}
             encounterId={clinicalEncounterId}
             professionalId={profile?.id ?? null}
+            profile={profile}
+            profProfile={profProfile}
+            paciente={consultation.patient}
+            cobertura={consultation.financiadorId ? {
+              idFinanciador: consultation.financiadorId,
+              afiliado: consultation.affiliateNumber,
+            } : null}
           />
         </div>
       </div>

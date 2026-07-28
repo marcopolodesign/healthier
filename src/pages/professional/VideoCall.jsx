@@ -13,6 +13,7 @@ import { clinicalService } from '../../services/clinicalService'
 import PreconsultaSummary, { hasPreconsulta } from '../../components/professional/PreconsultaSummary'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { profilesService } from '../../services/profilesService'
+import { professionalService } from '../../services/professionalService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import CloseConsultationModal from '../../components/CloseConsultationModal'
 import ScribeSession from '../../components/professional/ScribeSession'
@@ -250,6 +251,13 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
   const [historia, setHistoria] = useState({ encounters: [], allergies: [] })
   const [loadingHistoria, setLoadingHistoria] = useState(true)
   const [patientData, setPatientData] = useState(null)
+  // Perfil profesional propio: hace falta para saber si tiene matrícula y
+  // domicilio, que RCTA exige para emitir.
+  const [profProfile, setProfProfile] = useState(null)
+  useEffect(() => {
+    if (!profile?.id) return
+    professionalService.getByUserId(profile.id).then(setProfProfile).catch(() => {})
+  }, [profile?.id])
   const [loadingPatientData, setLoadingPatientData] = useState(true)
 
   const { encounterId, ensureEncounter } = useClinicalEncounter({
@@ -463,6 +471,13 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
             patientId={consultation?.patientId ?? null}
             encounterId={encounterId}
             professionalId={profile?.id ?? null}
+            profile={profile}
+            profProfile={profProfile}
+            paciente={patientData}
+            cobertura={consultation?.financiadorId ? {
+              idFinanciador: consultation.financiadorId,
+              afiliado: consultation.affiliateNumber,
+            } : null}
           />
         )}
 

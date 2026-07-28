@@ -194,6 +194,7 @@ export default function WaitingRoom({ profile }) {
           isOpen
           required
           consultationId={consultationId}
+          profile={profile}
           onClose={() => {}}
           onSubmitted={() => setPreconsultaDone(true)}
         />

@@ -5,6 +5,8 @@ import { toast } from '../Toast'
 import { supabase } from '../../lib/supabase'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 import { ALL_SYMPTOMS, MEDICATION_QUESTION, questionsFor } from '../../data/symptoms'
+import { faltanDatosPaciente, listar, OPCIONES_SEXO } from '../../lib/datosReceta'
+import { profilesService } from '../../services/profilesService'
 
 /**
  * PreconsultaForm
@@ -25,7 +27,15 @@ import { ALL_SYMPTOMS, MEDICATION_QUESTION, questionsFor } from '../../data/symp
  *                    sala de espera: anunciar presencia convoca al profesional, así
  *                    que esto tiene que estar contestado ANTES.
  */
-export default function PreconsultaForm({ isOpen, onClose, consultationId, onSubmitted, required = false }) {
+export default function PreconsultaForm({ isOpen, onClose, consultationId, onSubmitted, required = false, profile = null, onProfileUpdate }) {
+  // Datos que Innovamed exige para emitir una receta y que el paciente puede no
+  // tener cargados. Se pregunta SOLO lo que falta: quien ya los tiene no ve este
+  // paso. Y se pregunta acá porque es el único momento obligatorio antes de la
+  // consulta — pedirlos al registrarse agrega fricción a alguien que todavía no
+  // sabe si va a usar la app.
+  const faltantes = required ? faltanDatosPaciente(profile) : []
+  const pideDatos = faltantes.length > 0
+  const [datos, setDatos] = useState({ dni: '', gender: '', birthDate: '' })
   const [submitting, setSubmitting] = useState(false)
   const [saveError, setSaveError] = useState(null)
 
@@ -132,6 +142,22 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
         .update({ preconsulta_data: payload })
         .eq('id', consultationId)
       if (error) throw error
+
+      // Los datos del paciente van al perfil, no a la consulta: son suyos y
+      // sirven para todas las recetas futuras. Se piden una sola vez.
+      if (pideDatos && profile?.id) {
+        const patch = Object.fromEntries(
+          faltantes.map(f => [f.campo, String(datos[f.campo]).trim()]),
+        )
+        try {
+          const actualizado = await profilesService.update(profile.id, patch)
+          onProfileUpdate?.(actualizado)
+        } catch (e) {
+          // No bloquea la consulta: el profesional va a ver qué falta al recetar.
+          console.warn('[PreconsultaForm] no se pudieron guardar los datos del paciente:', e)
+        }
+      }
+
       consultationEventsService.log(consultationId, CONSULTATION_EVENTS.PRECONSULTA_SUBMITTED, {
         symptom: payload.symptom?.id,
         icd10: payload.symptom?.icd10_code,
@@ -171,7 +197,11 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
     </button>
   )
 
-  const stepTitles = ['¿Qué te pasa?', `Contanos más sobre: ${symptom?.label ?? ''}`, 'Medicación']
+  const ultimoPaso = pideDatos ? 3 : 2
+  const stepTitles = ['¿Qué te pasa?', `Contanos más sobre: ${symptom?.label ?? ''}`, 'Medicación', 'Tus datos']
+
+  // El paso de datos solo se da por completo cuando está lo que falta.
+  const datosOk = !pideDatos || faltantes.every(f => String(datos[f.campo] ?? '').trim() !== '')
 
   // En modo `required` esto es un PASO del flujo, no un accesorio: va a pantalla
   // completa. El bottom sheet sugería que se podía descartar, que es justo lo
@@ -206,7 +236,7 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
         )}
         <div className="flex-1 min-w-0">
           <h2 className="text-[20px] font-black text-gray-900 leading-none truncate">{stepTitles[step]}</h2>
-          <p className="text-[12px] text-gray-400 font-medium mt-0.5">Paso {step + 1} de 3</p>
+          <p className="text-[12px] text-gray-400 font-medium mt-0.5">Paso {step + 1} de {ultimoPaso + 1}</p>
         </div>
         {!required && (
           <button
@@ -221,7 +251,7 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
       {/* Progress */}
       <div className="h-1 bg-gray-100 flex-shrink-0">
         <div className={`h-full bg-brand transition-all duration-300 ${
-          step === 0 ? 'w-1/3' : step === 1 ? 'w-2/3' : 'w-full'
+          step >= ultimoPaso ? 'w-full' : step === 0 ? 'w-1/4' : step === 1 ? 'w-2/4' : 'w-3/4'
         }`} />
       </div>
 
@@ -312,16 +342,64 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
           </div>
         )}
 
+        {/* ── Paso 3 — datos que faltan para la receta ── */}
+        {step === 3 && pideDatos && (
+          <div className="space-y-4">
+            <p className="text-[13px] text-gray-500 leading-snug">
+              Necesitamos {listar(faltantes)} para que el profesional pueda emitirte una
+              receta electrónica. Se pide una sola vez.
+            </p>
+
+            {faltantes.some(f => f.campo === 'dni') && (
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">DNI</label>
+                <input
+                  type="text" inputMode="numeric" value={datos.dni}
+                  onChange={e => setDatos(d => ({ ...d, dni: e.target.value.replace(/\D/g, '') }))}
+                  placeholder="Sin puntos, ej: 30111222"
+                  className="w-full bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors"
+                />
+              </div>
+            )}
+
+            {faltantes.some(f => f.campo === 'birthDate') && (
+              <div>
+                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">Fecha de nacimiento</label>
+                <input
+                  type="date" value={datos.birthDate}
+                  onChange={e => setDatos(d => ({ ...d, birthDate: e.target.value }))}
+                  max={new Date().toISOString().slice(0, 10)}
+                  className="w-full bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 focus:border-brand transition-colors"
+                />
+              </div>
+            )}
+
+            {faltantes.some(f => f.campo === 'gender') && (
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block">Sexo</label>
+                {OPCIONES_SEXO.map(o => (
+                  <OptionButton
+                    key={o.value}
+                    selected={datos.gender === o.value}
+                    label={o.label}
+                    onClick={() => setDatos(d => ({ ...d, gender: o.value }))}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* CTA */}
         <div className="space-y-3 pb-2 pt-1">
           {saveError && <p className="text-[13px] font-semibold text-danger text-center">{saveError}</p>}
 
-          {step < 2 ? (
+          {step < ultimoPaso ? (
             <button
               onClick={() => setStep(s => s + 1)}
-              disabled={step === 0 ? !symptomStepOk : !answeredAll}
+              disabled={step === 0 ? !symptomStepOk : step === 1 ? !answeredAll : !medicationOk}
               className={`w-full py-4 rounded-[20px] font-bold text-[16px] transition-all ${
-                (step === 0 ? symptomStepOk : answeredAll)
+                (step === 0 ? symptomStepOk : step === 1 ? answeredAll : medicationOk)
                   ? 'bg-brand text-white hover:bg-brand-hover active:scale-95'
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
               }`}
@@ -331,9 +409,9 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
           ) : (
             <button
               onClick={handleSubmit}
-              disabled={submitting || !medicationOk}
+              disabled={submitting || !medicationOk || !datosOk}
               className={`w-full py-4 rounded-[20px] font-bold text-[16px] transition-all flex justify-center items-center gap-2 ${
-                submitting || !medicationOk
+                submitting || !medicationOk || !datosOk
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-brand text-white hover:bg-brand-hover active:scale-95'
               }`}
@@ -357,6 +435,11 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
           {step === 2 && !medicationOk && (
             <p className="text-[12px] text-gray-400 text-center font-medium">
               Contanos si estás tomando medicación.
+            </p>
+          )}
+          {step === 3 && !datosOk && (
+            <p className="text-[12px] text-gray-400 text-center font-medium">
+              Completá {listar(faltantes)} para continuar.
             </p>
           )}
 

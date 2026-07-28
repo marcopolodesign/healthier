@@ -227,7 +227,7 @@ export const consultationsService = {
   async getById(id) {
     const { data, error } = await supabase
       .from('consultations')
-      .select('*, patient:profiles!patient_id(id, full_name, avatar_url, email, phone), professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty)), consultation_type:consultation_types!consultation_type_id(id, name, price, modality), consultation_orders(*)')
+      .select('*, patient:profiles!patient_id(id, full_name, avatar_url, email, phone, dni, gender, birth_date), professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty)), consultation_type:consultation_types!consultation_type_id(id, name, price, modality), consultation_orders(*)')
       .eq('id', id)
       .single()
     if (error) throw error
