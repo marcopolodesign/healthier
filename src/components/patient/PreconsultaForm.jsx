@@ -173,8 +173,23 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
 
   const stepTitles = ['¿Qué te pasa?', `Contanos más sobre: ${symptom?.label ?? ''}`, 'Medicación']
 
+  // En modo `required` esto es un PASO del flujo, no un accesorio: va a pantalla
+  // completa. El bottom sheet sugería que se podía descartar, que es justo lo
+  // contrario de lo que tiene que comunicar.
+  const Shell = required
+    ? ({ children }) => (
+        <div className="fixed inset-0 z-[100] bg-bg-secondary flex flex-col">{children}</div>
+      )
+    : ({ children }) => (
+        <PatientSheet open={isOpen} onClose={onClose} maxWidth="max-w-lg" backdropClose={false}>
+          {children}
+        </PatientSheet>
+      )
+
+  if (required && !isOpen) return null
+
   return (
-    <PatientSheet open={isOpen} onClose={onClose} maxWidth="max-w-lg" backdropClose={false}>
+    <Shell>
       {/* Header */}
       <div className="px-6 pt-4 pb-3 flex items-center gap-3 flex-shrink-0 border-b border-border-default">
         {step > 0 ? (
@@ -325,7 +340,7 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
             >
               {submitting
                 ? <><CircleNotch className="w-5 h-5 animate-spin" /> Enviando...</>
-                : (required ? 'Continuar a la sala' : 'Completar pre-consulta')}
+                : (required ? 'Ingresar en sala de espera' : 'Completar pre-consulta')}
             </button>
           )}
 
@@ -356,6 +371,6 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
           )}
         </div>
       </div>
-    </PatientSheet>
+    </Shell>
   )
 }

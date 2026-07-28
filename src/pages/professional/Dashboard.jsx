@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle, X, CircleNotch, WhatsappLogo, FileText, Lightning, ArrowsClockwise } from '@phosphor-icons/react';
 import { consultationsService } from '../../services/consultationsService'
+import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 import { professionalService } from '../../services/professionalService'
 import { emergencyService } from '../../services/emergencyService'
 import { mpService } from '../../services/mpService'
@@ -132,6 +133,24 @@ export default function ProfessionalDashboard({ profile }) {
   })
 
   const waitingInfo = useWaitingPresence(consultations, profile?.id)
+  const [admittingId, setAdmittingId] = useState(null)
+
+  // Habilitar al paciente y entrar: son la misma intención del profesional
+  // ("lo atiendo ahora"), y separarlas es lo que dejaba al paciente colgado.
+  const handleAdmit = async (consultationId) => {
+    if (admittingId) return
+    setAdmittingId(consultationId)
+    try {
+      await consultationsService.admitPatient(consultationId)
+      consultationEventsService.log(consultationId, CONSULTATION_EVENTS.PRO_ADMITTED_PATIENT, null,
+        { id: profile?.id, role: 'professional' })
+      navigate(`/profesional/videollamada/${consultationId}`)
+    } catch {
+      toast.error('No pudimos habilitar al paciente. Probá de nuevo.')
+    } finally {
+      setAdmittingId(null)
+    }
+  }
 
   const thisMonthEarnings = getThisMonthEarnings(earningsData)
 
@@ -615,7 +634,7 @@ export default function ProfessionalDashboard({ profile }) {
           <div className="space-y-3">
             {today.map(c => {
               const canJoin = c.modality === 'video' && ['confirmed', 'in_progress', 'pending'].includes(c.status)
-              const { waiting, since } = waitingInfo(c.id)
+              const { waiting, since, admitted } = waitingInfo(c.id)
               return (
                 <div
                   key={c.id}
@@ -637,12 +656,24 @@ export default function ProfessionalDashboard({ profile }) {
                     </div>
                   </Link>
                   {waiting ? <PatientWaitingBadge since={since} /> : <StatusBadge status={c.status} />}
-                  {canJoin && (
+                  {/* Con el paciente esperando, la acción es habilitarlo — no
+                      entrar y que él se entere de rebote. Antes la habilitación
+                      era un efecto secundario de abrir la videollamada, así que
+                      el paciente quedaba esperando sin señal. */}
+                  {waiting && !admitted ? (
+                    <button
+                      onClick={() => handleAdmit(c.id)}
+                      disabled={admittingId === c.id}
+                      className="btn-primary text-xs px-3 py-1.5 shrink-0 font-bold disabled:opacity-60"
+                    >
+                      {admittingId === c.id ? 'Habilitando…' : 'Ingresar paciente'}
+                    </button>
+                  ) : canJoin && (
                     <Link
                       to={`/profesional/videollamada/${c.id}`}
                       className={`text-xs px-3 py-1.5 shrink-0 ${waiting ? 'btn-primary font-bold' : 'btn-primary'}`}
                     >
-                      {waiting ? 'Atender' : 'Sala'}
+                      {waiting ? 'Entrar' : 'Sala'}
                     </Link>
                   )}
                 </div>

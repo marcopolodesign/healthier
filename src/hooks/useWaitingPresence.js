@@ -16,7 +16,7 @@ import { isPatientWaiting, WAITING_HEARTBEAT_MS } from '../services/consultation
  *
  * @param {Array} consultations  Consultations already loaded by the caller.
  * @param {string} professionalId
- * @returns {(consultationId: string) => {waiting: boolean, since: Date|null}}
+ * @returns {(consultationId: string) => {waiting: boolean, since: Date|null, admitted: boolean}}
  */
 export function useWaitingPresence(consultations, professionalId) {
   // Realtime overrides, keyed by consultation id. Seeded lazily — the
@@ -38,6 +38,7 @@ export function useWaitingPresence(consultations, professionalId) {
           [row.id]: {
             patientWaitingSince: row.patient_waiting_since,
             patientLastSeenAt:   row.patient_last_seen_at,
+            patientAdmittedAt:   row.patient_admitted_at,
             status:              row.status,
           },
         }))
@@ -64,8 +65,9 @@ export function useWaitingPresence(consultations, professionalId) {
     // Realtime carries the freshest presence, but only the loaded consultation
     // has the joined fields — merge rather than replace.
     const merged = live ? { ...base, ...live } : base
-    if (!isPatientWaiting(merged)) return { waiting: false, since: null }
-    return { waiting: true, since: new Date(merged.patientWaitingSince) }
+    const admitted = Boolean(merged?.patientAdmittedAt)
+    if (!isPatientWaiting(merged)) return { waiting: false, since: null, admitted }
+    return { waiting: true, since: new Date(merged.patientWaitingSince), admitted }
   }
 }
 

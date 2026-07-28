@@ -51,6 +51,10 @@ export default function WaitingRoom({ profile }) {
   const navigate = useNavigate()
 
   const [consultation, setConsultation] = useState(null)
+  // "Habilitado" es distinto de "la consulta arrancó": el profesional puede
+  // habilitarte antes de entrar él. Antes esto dependía de que abriera la
+  // videollamada, y el paciente esperaba sin ninguna señal (migración 071).
+  const [admitted, setAdmitted] = useState(false)
   const [doctorReady, setDoctorReady] = useState(false)
   const [entering, setEntering] = useState(false)
   const [dots, setDots] = useState('')
@@ -79,6 +83,7 @@ export default function WaitingRoom({ profile }) {
       .then(c => {
         setConsultation(c)
         if (c.status === 'in_progress') setDoctorReady(true)
+        if (c.patientAdmittedAt) setAdmitted(true)
         setPreconsultaDone(hasPreconsulta(c.preconsultaData))
         // Volver a una consulta ya iniciada (reload, volver atrás) no debe pedir
         // "Iniciar consulta" otra vez ni re-notificar al profesional.
@@ -123,6 +128,7 @@ export default function WaitingRoom({ profile }) {
         filter: `id=eq.${consultationId}`,
       }, (payload) => {
         if (payload.new?.status === 'in_progress') setDoctorReady(true)
+        if (payload.new?.patient_admitted_at) setAdmitted(true)
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
@@ -144,11 +150,13 @@ export default function WaitingRoom({ profile }) {
     }
   }, [starting, consultationId])
 
+  const canEnter = admitted || doctorReady
+
   const handleEnter = useCallback(() => {
-    if (!doctorReady || entering) return
+    if (!canEnter || entering) return
     setEntering(true)
     navigate(`/paciente/videollamada/${consultationId}`)
-  }, [doctorReady, entering, navigate, consultationId])
+  }, [canEnter, entering, navigate, consultationId])
 
   const doctorName   = consultation?.professional?.fullName ?? 'el profesional'
   const doctorAvatar = consultation?.professional?.avatarUrl ?? null
@@ -180,6 +188,8 @@ export default function WaitingRoom({ profile }) {
           perdés tiempo explicándolo en la videollamada.
         </p>
 
+        {/* En modo required el form es full-screen y tapa esto; queda como
+            fondo para el instante previo a que monte. */}
         <PreconsultaForm
           isOpen
           required
@@ -251,28 +261,28 @@ export default function WaitingRoom({ profile }) {
       </div>
 
       {/* Status icon */}
-      <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm transition-colors duration-500 ${doctorReady ? 'bg-brand text-white' : 'bg-brand-muted'}`}>
-        {doctorReady
+      <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 shadow-sm transition-colors duration-500 ${canEnter ? 'bg-brand text-white' : 'bg-brand-muted'}`}>
+        {canEnter
           ? <VideoCamera className="w-9 h-9 text-white" />
           : <Clock className="w-9 h-9 text-brand" />}
       </div>
 
       {/* Status title */}
       <h1 className="text-[24px] font-bold text-text-primary text-center leading-tight mb-2">
-        {doctorReady ? '¡El profesional está listo!' : 'Sala de espera'}
+        {canEnter ? '¡Ya podés entrar!' : 'Sala de espera'}
       </h1>
 
       {/* Countdown or waiting message */}
       <p className="text-[14px] text-text-secondary text-center leading-relaxed mb-6 max-w-xs">
-        {doctorReady
-          ? `${doctorName} ya está en la sala. Podés entrar ahora.`
+        {canEnter
+          ? `${doctorName} te habilitó. Entrá cuando quieras.`
           : countdown
             ? `La consulta comienza en ${countdown}`
             : `Ya le avisamos a ${doctorName}. Esperando que se conecte${dots}`}
       </p>
 
       {/* Animated dots */}
-      {!doctorReady && (
+      {!canEnter && (
         <div className="mb-6 flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-brand animate-[pulse_1.2s_ease-in-out_infinite]" />
           <div className="w-2 h-2 rounded-full bg-brand animate-[pulse_1.2s_ease-in-out_0.4s_infinite]" />
@@ -283,9 +293,9 @@ export default function WaitingRoom({ profile }) {
       {/* Enter CTA */}
       <button
         onClick={handleEnter}
-        disabled={!doctorReady || entering}
+        disabled={!canEnter || entering}
         className={`flex items-center gap-2.5 px-8 py-4 rounded-full font-bold text-[16px] transition-all shadow-md mb-4 ${
-          doctorReady
+          canEnter
             ? 'bg-brand text-white hover:bg-brand-hover active:scale-95'
             : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-40'
         }`}

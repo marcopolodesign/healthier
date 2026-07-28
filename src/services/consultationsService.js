@@ -72,6 +72,27 @@ export const consultationsService = {
     }).catch(() => {})
   },
 
+  /**
+   * El profesional habilita al paciente a entrar (migración 071).
+   *
+   * Es una acción explícita y no un efecto secundario de abrir la videollamada:
+   * antes, hasta que el profesional no abría esa página no pasaba nada, y el
+   * paciente esperaba sin señal. Idempotente — COALESCE conserva el primer
+   * momento, así que tocar el botón dos veces no corre el reloj.
+   */
+  async admitPatient(consultationId) {
+    const { data, error } = await supabase
+      .from('consultations')
+      .update({ patient_admitted_at: new Date().toISOString() })
+      .eq('id', consultationId)
+      .is('patient_admitted_at', null)
+      .select('patient_admitted_at')
+      .maybeSingle()
+    if (error) throw error
+    // `null` = ya estaba habilitado; no es un error.
+    return data?.patient_admitted_at ?? null
+  },
+
   /** Patient left the waiting room explicitly, or the call started. */
   async clearPatientWaiting(consultationId) {
     const { error } = await supabase
