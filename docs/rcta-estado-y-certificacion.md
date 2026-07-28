@@ -21,8 +21,9 @@ credenciales ya estaban configuradas.
 | Accesible desde la videollamada | ✅ Desde el 2026-07-28 |
 | Credenciales de homologación en Supabase secrets | ✅ Configuradas |
 | Conectividad con el sandbox | ✅ Verificada — `GET /apirecipe/GetFinanciadores` → **200** |
-| **Código de medicamento (`regNo`) en el payload** | ❌ **Falta — bloquea las 4 pruebas** |
-| **Cobertura (financiador + afiliado) en el payload** | ❌ **Falta — bloquea 3 de las 4** |
+| Código de medicamento (`regNo`) en el payload | ✅ Autocompletado contra `GetMedicamento` (2026-07-28) |
+| Cobertura (financiador + afiliado) en el payload | ✅ Selector contra `GetFinanciadores` (2026-07-28) |
+| **Emitir en homologación** | ⛔ **Bloqueado por Innovamed — sandbox en solo lectura** |
 | Credenciales de producción | ❌ Requieren contrato + RENAPDIS + 4 pruebas |
 
 ### Sobre las credenciales
@@ -57,16 +58,35 @@ Innovamed pide **cuatro recetas de prueba**, tres de ellas con financiador:
 Los tres IDs están confirmados contra `GET /apirecipe/GetFinanciadores` (900
 financiadores en total en el sandbox).
 
-### Bloqueo 1 — `regNo` del medicamento (afecta a las 4 pruebas)
+### ⛔ Bloqueo actual: el sandbox de Innovamed no acepta escrituras
+
+`POST /apirecipe/Receta` devuelve **`QBI2 OPERACION INVALIDA`** con el detalle
+**"The MySQL server is running with the --read-only option so it cannot execute
+this statement"**. Los `GET` siguen respondiendo `200`.
+
+Probado el 2026-07-28 con el caso OSDE y con el particular: **fallan idéntico**, y
+ninguno se quejó de `regNo`, `cobertura` ni domicilio — o sea que el payload pasó
+la validación de campos y murió recién al escribir en su base.
+
+**Es infraestructura de Innovamed, no nuestra.** Hay que pedirle al equipo de
+soporte de integraciones (en copia del mail del 2026-07-28) que habiliten
+escritura en homologación. Hasta entonces las 4 pruebas de certificación no se
+pueden correr, por más que el resto esté listo.
+
+---
+
+### ✅ Resuelto — `regNo` del medicamento
 
 `medicamentos[].regNo` tiene que ser un código real del catálogo de Innovamed
 (`GET /apirecipe/GetMedicamento/{search}`). Un nombre escrito a mano se rechaza
 siempre con **`QBI105` — "CODIGO INFORMADO INEXISTENTE"**.
 
-`PrescriptionCreator.jsx` usa hoy un **campo de texto libre** para el medicamento
-y `clinical_medications` no tiene columna para el código. O sea: **ninguna** de
-las 4 recetas de certificación se puede emitir todavía, ni siquiera la
-particular.
+**Resuelto el 2026-07-28.** `MedicationSearch` busca contra `GetMedicamento` a
+través de la Edge Function `rcta-catalog` (proxy, porque el token no puede viajar
+al navegador) y guarda `reg_no` + `presentacion` + `nombre_droga`. Se permite
+igual texto libre para la historia clínica, avisando que esa medicación no se va
+a poder emitir. `rcta-issue` valida antes de llamar y devuelve `422` con un
+mensaje accionable en vez del `QBI105` críptico.
 
 La buena noticia es que el camino feliz ya está probado end-to-end contra el
 sandbox con un código real (`AMIXEN 500mg comp.x21`, `regNo: 35771` → `200 OK`
@@ -75,11 +95,23 @@ con `idReceta` y PDF). No hay incógnita técnica: falta capturar el dato.
 **Trabajo:** autocompletado contra `GetMedicamento` en el creador de recetas,
 columna `reg_no` en `clinical_medications`, y mandarlo en el payload.
 
-### Bloqueo 2 — cobertura (afecta a 3 de las 4 pruebas)
+### ✅ Resuelto — cobertura
 
-El payload que arma `rcta-issue` hoy **no manda cobertura**. El
-objeto `paciente` incluye nombre, documento, sexo, fecha de nacimiento y teléfono
-— pero no el campo `cobertura`, que es donde va el financiador.
+**Resuelto el 2026-07-28.** `FinanciadorPicker` modela **tres** estados, no dos,
+porque significan cosas distintas al emitir:
+
+| Estado | Qué significa | Qué se manda |
+|---|---|---|
+| sin definir | todavía no se preguntó | — |
+| `financiador` | tiene obra social | `cobertura` con `idFinanciador` + `numero` |
+| `particular` | explícitamente sin cobertura | **se omite** `cobertura` |
+
+Confundir "no sabemos" con "es particular" haría emitir recetas particulares a
+pacientes que sí tienen obra social. Una constraint en la base impide que
+`particular` conviva con financiador o afiliado.
+
+**El financiador no es obligatorio**: la cuarta prueba de certificación es
+justamente una receta sin datos de financiador.
 
 Según el swagger, la forma es (anidada dentro de `paciente`):
 
@@ -98,21 +130,19 @@ Según el swagger, la forma es (anidada dentro de `paciente`):
 consulta. Pero guardan el **nombre** de la obra social, no el `idFinanciador`
 numérico que pide la API.
 
-### Trabajo concreto pendiente, en orden
+### Trabajo pendiente
 
-1. **Autocompletado de medicamento contra `GetMedicamento`** + columna `reg_no`
-   en `clinical_medications`. Es el bloqueo mayor: sin esto no se emite ninguna
-   receta, ni de prueba ni real.
-2. **Guardar el `idFinanciador`, no solo el nombre.** Columna nueva + selector
-   alimentado por `GetFinanciadores` en vez del texto libre actual.
-3. **Sumar `cobertura` al payload**, contemplando el caso particular (se omite el
-   campo).
-4. **Correr las 4 pruebas** y guardar los números de receta que devuelva el
-   sandbox — es lo que Innovamed va a querer ver.
-
-> Los pasos 1 y 2 comparten la misma forma: reemplazar un input de texto libre
-> por un autocompletado contra un catálogo de Innovamed y guardar el código. Ver
-> `docs/rcta-buenas-practicas.md` §2.
+1. **Pedirle a Innovamed que habiliten escritura en homologación.** Es lo único
+   que bloquea hoy.
+2. **Completar los datos de las cuentas demo**: el profesional y el paciente de
+   prueba no tienen DNI ni fecha de nacimiento, y RCTA los exige. Sin eso las
+   pruebas no se pueden correr *a través de la app* (aunque el payload sea
+   correcto).
+3. **Correr las 4 pruebas** y guardar los números de receta — es lo que Innovamed
+   va a querer ver.
+4. **Las 63 consultas del backfill** tienen obra social escrita a mano sin
+   `idFinanciador`. La app avisa y corta al emitir, pero conviene re-seleccionar
+   las que se vayan a usar.
 
 ---
 
