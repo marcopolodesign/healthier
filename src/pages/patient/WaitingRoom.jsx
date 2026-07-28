@@ -4,6 +4,7 @@ import { Clock, VideoCamera, SealCheck, ClipboardText } from '@phosphor-icons/re
 import { supabase } from '../../lib/supabase'
 import { consultationsService, WAITING_HEARTBEAT_MS } from '../../services/consultationsService'
 import PreconsultaForm from '../../components/patient/PreconsultaForm'
+import { toast } from '../../components/Toast'
 
 /**
  * The pre-consulta payload is written by PreconsultaForm as snake_case JSON, but
@@ -55,6 +56,12 @@ export default function WaitingRoom({ profile }) {
   // null = consultation not loaded yet, so we don't flash the form at the patient
   // before we know whether they already answered.
   const [preconsultaDone, setPreconsultaDone] = useState(null)
+  // El paciente tiene que apretar "Iniciar consulta" explícitamente. Recién ahí
+  // se escribe presencia, que es lo que avisa al profesional y le enciende el
+  // "Atender" en su panel. Sin este paso, contestar la última pregunta convocaba
+  // al profesional de una — y el paciente todavía no sabía que arrancaba.
+  const [started, setStarted] = useState(false)
+  const [starting, setStarting] = useState(false)
 
   const countdown = useCountdown(consultation?.scheduledAt)
 
@@ -72,6 +79,9 @@ export default function WaitingRoom({ profile }) {
         setConsultation(c)
         if (c.status === 'in_progress') setDoctorReady(true)
         setPreconsultaDone(hasPreconsulta(c.preconsultaData))
+        // Volver a una consulta ya iniciada (reload, volver atrás) no debe pedir
+        // "Iniciar consulta" otra vez ni re-notificar al profesional.
+        if (c.patientWaitingSince || c.status === 'in_progress') setStarted(true)
       })
       .catch(() => {})
   }, [consultationId])
@@ -84,7 +94,7 @@ export default function WaitingRoom({ profile }) {
   // is exactly the case Mateo reported — the professional shows up and waits while
   // the patient is still typing (or skipped the form entirely).
   useEffect(() => {
-    if (!consultationId || !preconsultaDone) return
+    if (!consultationId || !preconsultaDone || !started) return
     let cancelled = false
 
     consultationsService.pingPatientWaiting(consultationId).catch(() => {})
@@ -98,7 +108,7 @@ export default function WaitingRoom({ profile }) {
       // Leaving the room — including navigating into the call — clears presence.
       consultationsService.clearPatientWaiting(consultationId).catch(() => {})
     }
-  }, [consultationId, preconsultaDone])
+  }, [consultationId, preconsultaDone, started])
 
   // Realtime subscription
   useEffect(() => {
@@ -114,6 +124,20 @@ export default function WaitingRoom({ profile }) {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [consultationId])
+
+  const handleStart = useCallback(async () => {
+    if (starting || !consultationId) return
+    setStarting(true)
+    try {
+      // Este ping es el que avisa al profesional y le enciende "Atender".
+      await consultationsService.pingPatientWaiting(consultationId)
+      setStarted(true)
+    } catch {
+      toast.error('No pudimos avisarle al profesional. Probá de nuevo.')
+    } finally {
+      setStarting(false)
+    }
+  }, [starting, consultationId])
 
   const handleEnter = useCallback(() => {
     if (!doctorReady || entering) return
@@ -162,6 +186,41 @@ export default function WaitingRoom({ profile }) {
     )
   }
 
+  // ── Arranque explícito ──────────────────────────────────────────────────────
+  // Contestar la última pregunta NO debe convocar al profesional: el paciente
+  // decide cuándo arranca. Hasta que toque el botón no se escribe presencia, así
+  // que del otro lado no aparece nada.
+  if (preconsultaDone && !started) {
+    return (
+      <div className="absolute inset-0 bg-bg-primary flex flex-col items-center justify-center px-6 py-10">
+        <div className="w-20 h-20 rounded-full bg-brand-muted flex items-center justify-center mb-4">
+          <VideoCamera className="w-9 h-9 text-brand" />
+        </div>
+        <h1 className="text-[24px] font-bold text-text-primary text-center leading-tight mb-2">
+          Listo para empezar
+        </h1>
+        <p className="text-[14px] text-text-secondary text-center leading-relaxed mb-8 max-w-xs">
+          Cuando toques el botón le avisamos a {doctorName} que estás listo. Vas a
+          esperar en la sala hasta que se conecte.
+        </p>
+        <button
+          onClick={handleStart}
+          disabled={starting}
+          className="flex items-center gap-2.5 px-8 py-4 rounded-full font-bold text-[16px] transition-all shadow-md bg-brand text-white hover:bg-brand-hover active:scale-95 disabled:opacity-60"
+        >
+          <VideoCamera className="w-5 h-5" />
+          {starting ? 'Avisando…' : 'Iniciar consulta'}
+        </button>
+        <button
+          onClick={() => navigate('/paciente/consultas')}
+          className="text-[13px] text-text-tertiary font-medium py-2 mt-4 hover:text-text-secondary transition-colors"
+        >
+          Ahora no
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="absolute inset-0 bg-bg-primary flex flex-col items-center justify-center px-6 py-10">
 
@@ -204,7 +263,7 @@ export default function WaitingRoom({ profile }) {
           ? `${doctorName} ya está en la sala. Podés entrar ahora.`
           : countdown
             ? `La consulta comienza en ${countdown}`
-            : `Esperando que ${doctorName} se una${dots}`}
+            : `Ya le avisamos a ${doctorName}. Esperando que se conecte${dots}`}
       </p>
 
       {/* Animated dots */}

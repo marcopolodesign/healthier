@@ -106,13 +106,14 @@ export default function OnDemand({ profile }) {
     return created.id
   }
 
-  // ── Authorization succeeded → notify the professional, show the real countdown ─
+  // ── Authorization succeeded → mostrar la ventana, SIN avisarle al profesional ─
+  // El aviso salía acá, en el momento de autorizar el pago: el profesional
+  // recibía "entrá ahora" mientras el paciente todavía no había contestado una
+  // sola pregunta. Ahora el único disparador es que el paciente toque "Iniciar
+  // consulta" en la sala, después de la pre-consulta (ver WaitingRoom).
   const handleAuthorized = async (id) => {
     setSecondsLeft(AUTH_WINDOW_SECONDS)
     setPhase('assigned')
-    try {
-      await consultationsService.notifyOnDemandAuthorized(id, matchedPro?.userId)
-    } catch { /* notification is best-effort, never blocks the flow */ }
   }
 
   // ── Cancelar (patient-initiated abandonment) — releases the hold, no charge ──
@@ -325,8 +326,8 @@ export default function OnDemand({ profile }) {
               <Clock className={`w-5 h-5 ${urgent ? 'text-red-500' : 'text-brand'}`} />
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className="font-bold text-gray-900 text-[15px] mb-1">El profesional te está esperando</h4>
-              <p className="text-gray-500 text-[13px] leading-snug">Uníte antes de que se acabe el tiempo o la reserva se libera sola.</p>
+              <h4 className="font-bold text-gray-900 text-[15px] mb-1">Pago autorizado — falta un paso</h4>
+              <p className="text-gray-500 text-[13px] leading-snug">Contanos qué te pasa y avisale a {proName} que estás listo. Si no arrancás a tiempo, la reserva se libera sola.</p>
             </div>
             <span className={`font-mono font-black text-[22px] tabular-nums shrink-0 ${urgent ? 'text-red-600' : 'text-gray-900'}`}>
               {formatCountdown(secondsLeft)}
@@ -337,7 +338,7 @@ export default function OnDemand({ profile }) {
             onClick={() => navigate(consultationId ? `/paciente/sala-espera/${consultationId}` : '/paciente/videollamada/1')}
             className="w-full bg-brand text-white py-4 rounded-[20px] font-bold text-[17px] shadow-md hover:bg-brand-hover active:scale-95 transition-all flex justify-center items-center gap-3 mb-4"
           >
-            <VideoCamera className="w-5 h-5" /> Entrar a la Llamada
+            <VideoCamera className="w-5 h-5" /> Continuar
           </button>
           <button
             onClick={handleCancel}

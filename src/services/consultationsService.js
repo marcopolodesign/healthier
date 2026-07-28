@@ -48,19 +48,28 @@ export const consultationsService = {
 
     const { data } = await supabase
       .from('consultations')
-      .select('professional_id')
+      .select('professional_id, is_on_demand')
       .eq('id', consultationId)
       .maybeSingle()
-    if (data?.professional_id) {
-      supabase.functions.invoke('send-push-notification', {
-        body: {
-          userId: data.professional_id,
-          title:  'Tenés un paciente esperando',
-          body:   'Un paciente entró a la sala de espera y te está esperando.',
-          url:    `/profesional/videollamada/${consultationId}`,
-        },
-      }).catch(() => {})
-    }
+    if (!data?.professional_id) return
+
+    // Un solo camino de notificación al profesional, con copy según el tipo.
+    // On-demand solía avisar aparte (`notifyOnDemandAuthorized`) en el momento
+    // de autorizar el pago — o sea antes de que el paciente contestara nada, que
+    // es justo lo que dejaba al profesional esperando. Ahora el único disparador
+    // es la llegada real a la sala, y la llegada solo ocurre cuando el paciente
+    // toca "Iniciar consulta" después de la pre-consulta.
+    const onDemand = data.is_on_demand
+    supabase.functions.invoke('send-push-notification', {
+      body: {
+        userId: data.professional_id,
+        title:  onDemand ? 'Consulta inmediata — paciente listo' : 'Tenés un paciente esperando',
+        body:   onDemand
+          ? 'Un paciente autorizó el pago, completó la pre-consulta y te está esperando ahora.'
+          : 'Un paciente entró a la sala de espera y te está esperando.',
+        url:    `/profesional/videollamada/${consultationId}`,
+      },
+    }).catch(() => {})
   },
 
   /** Patient left the waiting room explicitly, or the call started. */
@@ -107,25 +116,6 @@ export const consultationsService = {
     return result
   },
 
-  /**
-   * Notifies the matched professional right after an on-demand pre-auth
-   * succeeds (spec Sección D3) — Web Push with an urgent, on-demand-specific
-   * message pointing straight at the call, plus `send-booking-email` as a
-   * backup channel (reused as-is; its generic booking payload already covers
-   * an on-demand consultation row). Fire-and-forget, never blocks the UI.
-   */
-  async notifyOnDemandAuthorized(consultationId, professionalId) {
-    if (!professionalId) return
-    supabase.functions.invoke('send-push-notification', {
-      body: {
-        userId: professionalId,
-        title:  'Paciente esperando — consulta inmediata',
-        body:   'Un paciente autorizó el pago y está esperando ahora. Entrá a la videollamada.',
-        url:    `/profesional/videollamada/${consultationId}`,
-      },
-    }).catch(() => {})
-    supabase.functions.invoke('send-booking-email', { body: { consultationId } }).catch(() => {})
-  },
 
   async getDailyAccess(consultationId) {
     const { data: { session } } = await supabase.auth.getSession()
@@ -171,17 +161,24 @@ export const consultationsService = {
       .select()
       .single()
     if (error) throw error
-    supabase.functions.invoke('send-booking-email', { body: { consultationId: row.id } }).catch(() => {})
-    // Notify professional of new booking via push
-    if (row.professional_id) {
-      supabase.functions.invoke('send-push-notification', {
-        body: {
-          userId: row.professional_id,
-          title:  'Nuevo turno reservado',
-          body:   'Un paciente reservó un turno contigo.',
-          url:    '/profesional/dashboard',
-        },
-      }).catch(() => {})
+    // On-demand se calla acá a propósito. La fila se crea en el instante en que
+    // el paciente se compromete a pagar, así que avisar acá le mandaba al
+    // profesional "Nuevo turno reservado" antes de que el paciente contestara
+    // nada — y además el copy es de turno agendado, que no es lo que pasa. Para
+    // on-demand el único aviso sale de pingPatientWaiting, cuando el paciente
+    // toca "Iniciar consulta" después de la pre-consulta.
+    if (!row.is_on_demand) {
+      supabase.functions.invoke('send-booking-email', { body: { consultationId: row.id } }).catch(() => {})
+      if (row.professional_id) {
+        supabase.functions.invoke('send-push-notification', {
+          body: {
+            userId: row.professional_id,
+            title:  'Nuevo turno reservado',
+            body:   'Un paciente reservó un turno contigo.',
+            url:    '/profesional/dashboard',
+          },
+        }).catch(() => {})
+      }
     }
     return toCamelCase(row)
   },
