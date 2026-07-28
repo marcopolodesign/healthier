@@ -1,5 +1,14 @@
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 
+/**
+ * Presencia on-demand del profesional. Late cada ON_DEMAND_HEARTBEAT_MS mientras
+ * tiene el panel abierto; más viejo que el TTL se considera que cerró o perdió
+ * conexión. TTL = 3× el latido para que un latido perdido no lo saque de la
+ * lista (mismo criterio que la presencia del paciente en la sala).
+ */
+export const ON_DEMAND_HEARTBEAT_MS = 30_000
+export const ON_DEMAND_PRESENCE_TTL_MS = 90_000
+
 export const professionalService = {
   async getByUserId(userId) {
     const { data, error } = await supabase
@@ -59,7 +68,14 @@ export const professionalService = {
       query = query.eq('specialty', filters.specialty)
     }
     if (filters.onDemand) {
-      query = query.eq('is_on_demand', true)
+      // `is_on_demand` es la INTENCIÓN declarada ("acepto consultas inmediatas");
+      // la presencia es la otra mitad. Sin el segundo filtro se matcheaba a
+      // cualquiera que hubiera tildado el switch alguna vez, aunque estuviera
+      // durmiendo: el paciente pagaba, esperaba 10 minutos y se caía.
+      // Ver migración 066 y ON_DEMAND_PRESENCE_TTL_MS.
+      query = query
+        .eq('is_on_demand', true)
+        .gte('on_demand_last_seen_at', new Date(Date.now() - ON_DEMAND_PRESENCE_TTL_MS).toISOString())
     }
     if (filters.minRating) {
       query = query.gte('average_rating', filters.minRating)
@@ -68,6 +84,19 @@ export const professionalService = {
     const { data, error } = await query.order('average_rating', { ascending: false })
     if (error) throw error
     return toCamelCase(data)
+  },
+
+  /** Marca/renueva la disponibilidad on-demand del profesional autenticado. */
+  async pingOnline() {
+    const { data, error } = await supabase.rpc('professional_online_ping')
+    if (error) throw error
+    return data === true
+  },
+
+  /** Apaga la disponibilidad explícitamente (cerró el panel o apagó on-demand). */
+  async goOffline() {
+    const { error } = await supabase.rpc('professional_offline')
+    if (error) throw error
   },
 
   async getPublicProfile(professionalId) {

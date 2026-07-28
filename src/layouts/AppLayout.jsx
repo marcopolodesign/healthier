@@ -6,6 +6,8 @@ import ProfessionalBottomNav from '../components/professional/ProfessionalBottom
 import AICompanion from '../components/professional/AICompanion'
 import { supabase } from '../lib/supabase'
 import { consultationsService } from '../services/consultationsService'
+import { useOnDemandPresence } from '../hooks/useOnDemandPresence'
+import { professionalService } from '../services/professionalService'
 import { notificationService } from '../services/notificationService'
 import { toast } from '../components/Toast'
 import { Bell, X } from '@phosphor-icons/react'
@@ -13,6 +15,18 @@ import { Bell, X } from '@phosphor-icons/react'
 const HIDE_PROF_NAV_PREFIXES = ['/profesional/videollamada', '/profesional/consulta']
 
 export default function AppLayout({ profile, profSpecialty }) {
+  // Disponibilidad on-demand: late mientras el profesional tiene la app abierta
+  // y el switch encendido. Va en el layout y no en una pantalla suelta para que
+  // siga vivo mientras navega por su panel, no solo en el dashboard.
+  const [onDemandEnabled, setOnDemandEnabled] = useState(false)
+  useOnDemandPresence(onDemandEnabled)
+
+  useEffect(() => {
+    if (profile?.role !== 'professional' || !profile?.id) { setOnDemandEnabled(false); return }
+    professionalService.getByUserId(profile.id)
+      .then(p => setOnDemandEnabled(Boolean(p?.isOnDemand)))
+      .catch(() => setOnDemandEnabled(false))
+  }, [profile?.id, profile?.role])
   const [mobileOpen, setMobileOpen] = useState(false)
   const [companionOpen, setCompanionOpen] = useState(false)
   const [showPushBanner, setShowPushBanner] = useState(false)
