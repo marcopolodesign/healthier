@@ -706,6 +706,14 @@
 @utility chip-delay-19 { animation-delay: 1140ms; }
 
 /* ── Scrollbar hide (mobile panels) ── */
+/* Respeta el notch / barra de estado. Hace falta desde que el bloque verde del
+   dashboard del paciente llega hasta el borde superior de la pantalla: antes
+   había fondo de sobra arriba y un padding fijo alcanzaba. Cae a 2rem cuando el
+   dispositivo no expone la variable. */
+@utility pt-safe {
+  padding-top: max(2rem, env(safe-area-inset-top));
+}
+
 @utility scrollbar-hide {
   scrollbar-width: none;
   &::-webkit-scrollbar {

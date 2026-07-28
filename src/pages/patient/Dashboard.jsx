@@ -153,40 +153,47 @@ export default function PatientDashboard({ profile }) {
 
   // ── Shared content blocks ────────────────────────────────
 
+  // Contenido del bloque verde full-bleed. Ya no es una tarjeta con márgenes:
+  // el fondo y el redondeo inferior los pone el contenedor del render, que se
+  // extiende de borde a borde y arranca pegado al tope de la pantalla.
   const onDemandHero = (
-    <div className="rounded-[28px] bg-gradient-to-br from-brand to-brand-hover p-5 flex flex-col gap-3.5 text-white shadow-[0_12px_32px_rgba(124,179,139,0.35)]">
+    <>
       <div>
         <span className="text-[11px] font-semibold tracking-widest uppercase text-white/70">Atención inmediata</span>
         <h2 className="text-[22px] font-light leading-tight mt-1">Hablá con un médico ahora</h2>
         <p className="text-[13px] text-white/80 mt-1">Sin turno · Te atiende el primero disponible, en minutos</p>
       </div>
-      {/* Mismas fotos que las landings de marketing, para que la app no se sienta
-          otro producto que la web por la que el paciente llegó. */}
-      <div className="flex flex-col gap-3">
-        {onDemandVerticals.map(v => (
-          <button
-            key={v.id}
-            onClick={() => { track('ondemand_start', { vertical: v.id }); navigate(`/paciente/ondemand/${v.id}`) }}
-            className="w-full relative h-[112px] rounded-[20px] overflow-hidden group active:scale-[0.98] transition-all"
-          >
-            {v.img && (
-              <img
-                src={v.img}
-                alt=""
-                loading="lazy"
-                className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-              />
-            )}
-            {/* Degradé para que el texto se lea sobre cualquier foto */}
-            <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-            <span className="absolute inset-x-0 bottom-0 p-4 flex items-center gap-2 text-white font-semibold text-[16px]">
-              <v.icon className="w-[18px] h-[18px] flex-shrink-0" weight="fill" />
-              {v.nombre}
-            </span>
-          </button>
-        ))}
+
+      {/* Carrusel horizontal, sangrado a la derecha (-mr-6) para que la última
+          tarjeta se vea cortada contra el borde y se lea que hay más. Mismas
+          fotos que las landings de marketing. */}
+      <div className="-mr-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
+        <div className="flex gap-3 w-max pr-6">
+          {onDemandVerticals.map(v => (
+            <button
+              key={v.id}
+              onClick={() => { track('ondemand_start', { vertical: v.id }); navigate(`/paciente/ondemand/${v.id}`) }}
+              className="snap-start shrink-0 w-[216px] h-[168px] relative rounded-[22px] overflow-hidden group active:scale-[0.98] transition-all"
+            >
+              {v.img && (
+                <img
+                  src={v.img}
+                  alt=""
+                  loading="lazy"
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                />
+              )}
+              {/* Degradé para que el texto se lea sobre cualquier foto */}
+              <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+              <span className="absolute inset-x-0 bottom-0 p-4 flex items-center gap-2 text-white font-semibold text-[16px]">
+                <v.icon className="w-[18px] h-[18px] flex-shrink-0" weight="fill" />
+                {v.nombre}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   )
 
   const specialtyGrid = (
@@ -273,7 +280,7 @@ export default function PatientDashboard({ profile }) {
   )
 
   const avatarEl = (
-    <div className="w-11 h-11 rounded-full overflow-hidden border-2 flex-shrink-0 bg-[#b05a36] border-[#f5eee1]">
+    <div className="w-11 h-11 rounded-full overflow-hidden border-2 flex-shrink-0 bg-[#b05a36] border-white/50">
       {profile?.avatarUrl
         ? <img src={profile.avatarUrl} alt="Perfil" className="w-full h-full object-cover" />
         : <div className="w-full h-full flex items-center justify-center text-white font-semibold text-[15px] tracking-wide">{firstName[0]}</div>
@@ -286,20 +293,28 @@ export default function PatientDashboard({ profile }) {
   return (
     <div className="absolute inset-0">
       <div className="absolute inset-0 overflow-y-auto scrollbar-hide bg-bg-primary">
-        <div className="px-6 pt-6 sm:pt-8 pb-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-[28px] tracking-tight text-text-primary leading-none font-light">{getGreeting()}, {firstName}</h1>
-            <p className="text-[14px] font-medium text-text-secondary mt-1">¿Cómo podemos ayudarte hoy?</p>
-          </div>
-          {avatarEl}
-        </div>
 
-        <div className="px-6 pb-32 flex flex-col gap-5 w-full">
+        {/* Bloque verde de borde a borde: arranca pegado al tope (sin redondeo
+            arriba) y cierra redondeado abajo. El saludo vive adentro, así que
+            todo el encabezado de la pantalla es una sola pieza. */}
+        <div className="bg-gradient-to-br from-brand to-brand-hover rounded-b-[32px] px-6 pt-safe sm:pt-10 pb-6 flex flex-col gap-5 text-white shadow-[0_12px_32px_rgba(124,179,139,0.28)]">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-[28px] tracking-tight leading-none font-light">{getGreeting()}, {firstName}</h1>
+              <p className="text-[14px] font-medium text-white/80 mt-1">¿Cómo podemos ayudarte hoy?</p>
+            </div>
+            {avatarEl}
+          </div>
+
           {/* Re-entry point for an appointment already under way — renders
-              nothing when there isn't one. Must stay above the on-demand hero:
+              nothing when there isn't one. Must stay above the on-demand cards:
               resuming a paid consultation beats starting a new one. */}
           <ActiveAppointmentBanner profile={profile} />
+
           {onDemandHero}
+        </div>
+
+        <div className="px-6 pt-6 pb-32 flex flex-col gap-5 w-full">
           {specialtyGrid}
           {mapCta}
           {aiTriageCta}
