@@ -166,6 +166,23 @@
 }
 
 /* ── Buttons ── */
+/* Columna de contenido del área de paciente en escritorio.
+   Las pantallas de paciente son mobile-first: o bien fijan un `max-w-lg`
+   pensado para un teléfono, o no fijan nada y se estiran a los 1440px de una
+   notebook — un mosaico de dos columnas terminaba con tarjetas de 690px de
+   ancho y un ícono flotando en el medio.
+   Esta utilidad no hace NADA por debajo de 1024px, así que el render mobile
+   queda intacto; a partir de ahí centra el contenido en una columna legible
+   usando padding, para poder aplicarla al contenedor de scroll sin tener que
+   envolver el árbol (varias de estas páginas tienen sheets y overlays como
+   hermanos del contenido). */
+@utility patient-column {
+  @media (width >= 64rem) {
+    padding-left: max(1.5rem, calc((100% - 60rem) / 2));
+    padding-right: max(1.5rem, calc((100% - 60rem) / 2));
+  }
+}
+
 @utility btn-primary {
   background-color: var(--color-brand);
   color: white;

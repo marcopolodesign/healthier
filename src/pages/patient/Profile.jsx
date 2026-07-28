@@ -236,7 +236,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   // Main profile view
   return (
     <div className="absolute inset-0 bg-bg-primary pt-6 sm:pt-8 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
-      <div className="max-w-lg mx-auto">
+      <div className="max-w-lg lg:max-w-3xl mx-auto">
       <div className="flex justify-between items-center mb-8 mt-4">
         <h1 className="text-2xl sm:text-3xl font-light text-text-primary tracking-tight leading-none">Mi Perfil</h1>
         <button

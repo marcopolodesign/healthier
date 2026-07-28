@@ -77,7 +77,7 @@ export default function PatientDocuments({ profile }) {
 
   // Main vault view (category detail rendered via PatientPageOverlay below)
   return (
-    <div className="absolute inset-0 bg-bg-primary pt-6 sm:pt-8 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
+    <div className="absolute inset-0 bg-bg-primary pt-6 sm:pt-8 pb-32 px-6 patient-column overflow-y-auto animate-fade-in scrollbar-hide">
       <div className="mb-6 mt-4">
         <h1 className="page-title-lg text-text-primary tracking-tight leading-none">Bóveda</h1>
         <p className="text-text-secondary font-medium text-[15px] mt-2 flex items-center gap-1.5">
@@ -123,7 +123,7 @@ export default function PatientDocuments({ profile }) {
         {/* Farmacia card hidden 2026-07-16 at Mateo's request — /paciente/farmacia route + data intact, just not linked from Bóveda */}
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         {CATEGORIES.map(cat => {
           const CatIcon = cat.icon
           const isPeludo = cat.id === 'peludo'
@@ -135,7 +135,7 @@ export default function PatientDocuments({ profile }) {
                 track('vault_category_view', { category: cat.id })
                 setViewingCat(cat)
               }}
-              className={`card-hover relative overflow-hidden group flex ${cat.comingSoon ? 'opacity-40 pointer-events-none' : 'cursor-pointer'} ${isPeludo ? 'col-span-2 flex-row items-center gap-4' : 'flex-col items-center justify-center text-center'}`}
+              className={`card-hover relative overflow-hidden group flex ${cat.comingSoon ? 'opacity-40 pointer-events-none' : 'cursor-pointer'} ${isPeludo ? 'col-span-2 lg:col-span-3 flex-row items-center gap-4' : 'flex-col items-center justify-center text-center'}`}
             >
               <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[9px] font-semibold tracking-widest flex items-center gap-1 ${cat.comingSoon ? 'bg-bg-surface text-text-tertiary' : cat.uploadable ? 'bg-emerald-50 text-emerald-600' : 'bg-bg-surface text-text-tertiary'}`}>
                 {cat.comingSoon ? 'PRÓXIMAMENTE' : cat.uploadable ? <><Plus className="w-3 h-3" /> AÑADIR</> : <><Eye className="w-3 h-3" /> VER</>}

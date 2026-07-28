@@ -73,7 +73,7 @@ export default function PatientComprobantes({ profile }) {
 
   return (
     <div className="absolute inset-0 bg-bg-primary pt-6 sm:pt-8 pb-32 px-5 overflow-y-auto scrollbar-hide animate-fade-in">
-      <div className="max-w-lg mx-auto">
+      <div className="max-w-lg lg:max-w-3xl mx-auto">
         {/* Header */}
         <div className="mb-6 mt-4">
           <h1 className="text-[28px] font-black text-text-primary tracking-tight leading-none">Comprobantes</h1>

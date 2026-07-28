@@ -67,10 +67,21 @@ export default function PatientMobileLayout({ profile }) {
         <Outlet />
       </div>
 
-      {/* Bottom navigation — full-bleed white bar */}
+      {/* Navegación.
+          En mobile: barra full-bleed pegada abajo (sin cambios).
+          En desktop (lg+): una barra de tabs de teléfono estirada a 1440px deja
+          los 4 íconos separados por cientos de píxeles y se lee como un error.
+          Pasa a ser una píldora flotante centrada, con el mismo vidrio
+          esmerilado que ya usan el panel flotante del mapa y el pill de
+          ubicación. Flota bien sobre el mapa del Dashboard, que es la única
+          pantalla de paciente que ya tenía rama de escritorio. */}
       {!hideNav && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-border-default">
-          <PatientBottomNav />
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-border-default
+                        lg:left-1/2 lg:right-auto lg:-translate-x-1/2 lg:bottom-6
+                        lg:w-auto lg:rounded-full lg:border lg:border-white/80
+                        lg:bg-white/90 lg:backdrop-blur-[20px]
+                        lg:shadow-[0_8px_30px_rgba(0,0,0,0.1)]">
+          <PatientBottomNav className="lg:gap-4 lg:px-4 lg:pt-3 lg:pb-3" />
         </div>
       )}
     </div>

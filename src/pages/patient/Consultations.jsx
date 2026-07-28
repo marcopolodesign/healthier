@@ -503,7 +503,7 @@ export default function PatientConsultations({ profile }) {
 
   return (
     <div className="absolute inset-0 bg-bg-primary pt-6 sm:pt-8 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-2xl lg:max-w-4xl mx-auto">
       <div className="mb-8 mt-4">
         <h1 className="text-2xl sm:text-3xl font-light text-gray-900 tracking-tight leading-none">Mi Agenda</h1>
         <p className="text-gray-500 font-medium text-[15px] mt-2 flex items-center gap-1.5">

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { MagnifyingGlass as SearchIcon, Lightning, SlidersHorizontal } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import ProfessionalCard from '../../components/ProfessionalCard'
@@ -16,8 +15,7 @@ const SPECIALTIES = [
   { value: 'otra', label: 'Otra' },
 ]
 
-export default function MagnifyingGlass() {
-  const navigate = useNavigate()
+export default function PatientSearch() {
   const [filters, setFilters] = useState({ specialty: '', onDemand: false, minRating: 0 })
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
@@ -115,12 +113,13 @@ export default function MagnifyingGlass() {
           <>
             <p className="text-sm text-text-secondary">{results.length} profesional{results.length !== 1 ? 'es' : ''} encontrado{results.length !== 1 ? 's' : ''}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* La prop es `professional`, no `pro`: con `pro` el componente
+                  destructuraba undefined y la página quedaba en blanco. Ojo que
+                  hay DOS ProfessionalCard con APIs distintas —
+                  `components/patient/` sí usa `pro`. Navega solo, no toma
+                  `onSelect`. */}
               {results.map(p => (
-                <ProfessionalCard
-                  key={p.id}
-                  pro={p}
-                  onSelect={() => navigate(`/paciente/profesional/${p.id}`)}
-                />
+                <ProfessionalCard key={p.id} professional={p} />
               ))}
             </div>
           </>
