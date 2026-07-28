@@ -238,7 +238,7 @@ export default function PatientAIChat({ profile }) {
   return (
     <div className="absolute inset-0 flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-6 pb-3 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 patient-column pt-6 pb-3 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-full bg-brand flex items-center justify-center flex-shrink-0">
             <Sparkle weight="fill" className="h-5 w-5 text-white" />
