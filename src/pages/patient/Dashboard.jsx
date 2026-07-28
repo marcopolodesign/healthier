@@ -14,12 +14,6 @@ import { professionalService } from '../../services/professionalService'
 import { VERTICALS, SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
 import { latLngToPixel, haversineKm, formatDistance } from '../../lib/geo'
 
-function getGreeting() {
-  const h = new Date().getHours()
-  if (h < 12) return 'Buenos días'
-  if (h < 19) return 'Buenas tardes'
-  return 'Buenas noches'
-}
 
 // Fallback pixel offsets used when a pro has no geo coordinates yet
 const FALLBACK_SLOTS = [
@@ -149,7 +143,6 @@ export default function PatientDashboard({ profile }) {
     navigate(`/paciente/reservar?vertical=${v.id}`)
   }
 
-  const firstName = profile?.fullName?.split(' ')[0] || 'Paciente'
 
   // ── Shared content blocks ────────────────────────────────
 
@@ -160,8 +153,8 @@ export default function PatientDashboard({ profile }) {
     <>
       <div>
         <span className="text-[11px] font-semibold tracking-widest uppercase text-white/70">Atención inmediata</span>
-        <h2 className="text-[22px] font-light leading-tight mt-1">Hablá con un médico ahora</h2>
-        <p className="text-[13px] text-white/80 mt-1">Sin turno · Te atiende el primero disponible, en minutos</p>
+        <h2 className="text-[28px] tracking-tight font-light leading-none mt-1.5">Hablá con un médico ahora</h2>
+        <p className="text-[14px] text-white/80 mt-2">Sin turno · Te atiende el primero disponible, en minutos</p>
       </div>
 
       {/* Carrusel horizontal, sangrado a la derecha (-mr-6) para que la última
@@ -173,7 +166,7 @@ export default function PatientDashboard({ profile }) {
             <button
               key={v.id}
               onClick={() => { track('ondemand_start', { vertical: v.id }); navigate(`/paciente/ondemand/${v.id}`) }}
-              className="snap-start shrink-0 w-[216px] h-[168px] relative rounded-[22px] overflow-hidden group active:scale-[0.98] transition-all"
+              className="snap-start shrink-0 w-[248px] h-[208px] relative rounded-[24px] overflow-hidden group active:scale-[0.98] transition-all"
             >
               {v.img && (
                 <img
@@ -279,15 +272,6 @@ export default function PatientDashboard({ profile }) {
     </div>
   )
 
-  const avatarEl = (
-    <div className="w-11 h-11 rounded-full overflow-hidden border-2 flex-shrink-0 bg-[#b05a36] border-white/50">
-      {profile?.avatarUrl
-        ? <img src={profile.avatarUrl} alt="Perfil" className="w-full h-full object-cover" />
-        : <div className="w-full h-full flex items-center justify-center text-white font-semibold text-[15px] tracking-wide">{firstName[0]}</div>
-      }
-    </div>
-  )
-
   // ── Render ───────────────────────────────────────────────
 
   return (
@@ -298,14 +282,6 @@ export default function PatientDashboard({ profile }) {
             arriba) y cierra redondeado abajo. El saludo vive adentro, así que
             todo el encabezado de la pantalla es una sola pieza. */}
         <div className="bg-gradient-to-br from-brand to-brand-hover rounded-b-[32px] px-6 pt-safe sm:pt-10 pb-6 flex flex-col gap-5 text-white shadow-[0_12px_32px_rgba(124,179,139,0.28)]">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-[28px] tracking-tight leading-none font-light">{getGreeting()}, {firstName}</h1>
-              <p className="text-[14px] font-medium text-white/80 mt-1">¿Cómo podemos ayudarte hoy?</p>
-            </div>
-            {avatarEl}
-          </div>
-
           {/* Re-entry point for an appointment already under way — renders
               nothing when there isn't one. Must stay above the on-demand cards:
               resuming a paid consultation beats starting a new one. */}

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Users, Calendar, ShieldCheck, CurrencyDollar, Lightning, ClockCountdown, SealCheck, Star, ChartBar, Sparkle } from '@phosphor-icons/react'
+import { Users, Calendar, ShieldCheck, CurrencyDollar, Lightning, ClockCountdown, SealCheck, Star, ChartBar, Sparkle, UserCircle } from '@phosphor-icons/react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { supabase } from '../../lib/supabase'
 import { paymentsService } from '../../services/paymentsService'
+import { WAITING_PRESENCE_TTL_MS } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
 import { SPECIALTY_LABELS } from '../../lib/verticals'
 
@@ -17,7 +18,7 @@ const STATUS_BADGE_CLASSES = {
 }
 
 export default function SuperAdminDashboard() {
-  const [stats, setStats] = useState({ users: 0, professionals: 0, pendingVerification: 0, completedConsultations: 0, walkInWaiting: 0, walkInAvailable: 0, avgRating: null, consultationsThisMonth: 0, newPatientsThisMonth: 0 })
+  const [stats, setStats] = useState({ users: 0, professionals: 0, pendingVerification: 0, completedConsultations: 0, walkInWaiting: 0, walkInAvailable: 0, inWaitingRoom: 0, avgRating: null, consultationsThisMonth: 0, newPatientsThisMonth: 0 })
   const [paymentsSummary, setPaymentsSummary] = useState({ grossTotal: 0, platformFeeTotal: 0, mpFeeTotal: 0, netProfessionalTotal: 0 })
   const [chartData, setChartData] = useState([])
   const [statusData, setStatusData] = useState([])
@@ -40,6 +41,7 @@ export default function SuperAdminDashboard() {
           { count: pending },
           { count: walkInWaiting },
           { count: walkInAvailable },
+          { count: inWaitingRoom },
           { count: consultationsThisMonth },
           { count: newPatientsThisMonth },
           { data: consultations },
@@ -54,6 +56,13 @@ export default function SuperAdminDashboard() {
           supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('is_verified', false),
           supabase.from('walk_in_queue').select('*', { count: 'exact', head: true }).eq('status', 'waiting'),
           supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('is_available_walkin', true),
+          // Pacientes sentados en la sala de espera AHORA — misma ventana de
+          // frescura (90s) que usa el panel del profesional, ver
+          // WAITING_PRESENCE_TTL_MS en consultationsService.
+          supabase.from('consultations').select('*', { count: 'exact', head: true })
+            .not('patient_waiting_since', 'is', null)
+            .in('status', ['pending', 'confirmed'])
+            .gt('patient_last_seen_at', new Date(Date.now() - WAITING_PRESENCE_TTL_MS).toISOString()),
           supabase.from('consultations').select('*', { count: 'exact', head: true }).gte('created_at', monthStart),
           supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'patient').gte('created_at', monthStart),
           supabase.from('consultations').select('id, status, scheduled_at, price_at_booking').order('scheduled_at', { ascending: false }).limit(500),
@@ -79,6 +88,7 @@ export default function SuperAdminDashboard() {
           completedConsultations: completed.length,
           walkInWaiting: walkInWaiting ?? 0,
           walkInAvailable: walkInAvailable ?? 0,
+          inWaitingRoom: inWaitingRoom ?? 0,
           avgRating,
           consultationsThisMonth: consultationsThisMonth ?? 0,
           newPatientsThisMonth: newPatientsThisMonth ?? 0,
@@ -173,6 +183,7 @@ export default function SuperAdminDashboard() {
     { label: 'Pacientes nuevos (mes)',    value: stats.newPatientsThisMonth,                      icon: Users,          color: 'text-teal-600 bg-teal-50' },
     { label: 'Pendientes verificación',   value: stats.pendingVerification,                       icon: SealCheck,      color: 'text-amber-600 bg-amber-50' },
     { label: 'Reseña promedio',           value: stats.avgRating != null ? `${stats.avgRating} ★` : '—', icon: Star, color: 'text-yellow-500 bg-yellow-50', raw: true },
+    { label: 'En sala de espera ahora',   value: stats.inWaitingRoom,                             icon: UserCircle,     color: 'text-brand bg-brand-muted' },
     { label: 'Walk-in en espera',         value: stats.walkInWaiting,                             icon: Lightning,      color: 'text-orange-500 bg-orange-50' },
     { label: 'Disponibles walk-in',       value: stats.walkInAvailable,                           icon: Lightning,      color: 'text-green-600 bg-green-50' },
   ]
