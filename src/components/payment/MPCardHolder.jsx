@@ -167,10 +167,10 @@ export default function MPCardHolder({
   }
 
   return (
-    <div className="relative">
-      {/* Loading skeleton while brick bootstraps */}
+    <div className={`relative ${brickReady ? '' : 'min-h-[320px]'}`}>
+      {/* Esqueleto ENCIMA del brick, no en su lugar — ver el comentario de abajo. */}
       {!brickReady && (
-        <div className="space-y-3 animate-pulse px-1">
+        <div className="absolute inset-0 z-10 bg-bg-secondary space-y-3 animate-pulse px-1">
           <div className="h-12 bg-[#F6F5F0] rounded-xl" />
           <div className="h-12 bg-[#F6F5F0] rounded-xl" />
           <div className="flex gap-3">
@@ -181,8 +181,23 @@ export default function MPCardHolder({
         </div>
       )}
 
-      {/* The actual brick — hidden while loading to avoid layout jump */}
-      <div className={brickReady ? 'block' : 'hidden'}>
+      {/* ⚠️ NUNCA `display: none` acá.
+       *
+       * Los campos sensibles del brick (número, vencimiento, CVV) son iframes
+       * que MP inyecta en el DOM. **Safari no agrega al DOM los iframes que
+       * nacen con `display: none`**, y cuando después se revelan ya no están
+       * disponibles — así que el brick queda a medio inicializar y sus campos
+       * se validan como vacíos aunque el paciente los haya completado.
+       * (WebKit-only: en Blink el mismo código anda, que es por qué esto solo
+       * se veía en Safari.)
+       *
+       * La doc de MP lo pide explícitamente por otro lado: al renderizar el
+       * Brick, su contenedor tiene que estar ya renderizado en pantalla.
+       *
+       * Por eso se oculta con opacidad, que mantiene el layout y deja que
+       * Safari lo attachee y cargue. El esqueleto va absoluto por encima.
+       */}
+      <div className={brickReady ? 'opacity-100 transition-opacity' : 'opacity-0 pointer-events-none'}>
         {cardBrick}
       </div>
 
