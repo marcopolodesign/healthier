@@ -14,6 +14,22 @@ import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 
 export const paymentsService = {
   /**
+   * Cobros de UNA consulta, para la línea de tiempo del super admin.
+   * Trae los sellos de tiempo del ciclo de pre-autorización (autorizado,
+   * capturado, cancelado) porque son justo lo que hace falta para entender qué
+   * pasó con la plata cuando una consulta terminó mal.
+   */
+  async listByConsultation(consultationId) {
+    const { data, error } = await supabase
+      .from('payments')
+      .select('id, status, status_detail, method, gross_amount, charged_amount, platform_fee, net_to_professional, authorized_at, captured_at, auth_cancelled_at, refunded_at, created_at')
+      .eq('consultation_id', consultationId)
+      .order('created_at', { ascending: true })
+    if (error) throw error
+    return (data ?? []).map(toCamelCase)
+  },
+
+  /**
    * All payments — admin/super_admin view (super-admin/Payments.jsx).
    * @param {Object} filters
    * @param {string} [filters.dateFrom] - ISO date, inclusive

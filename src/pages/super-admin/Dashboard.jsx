@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { Users, Calendar, ShieldCheck, CurrencyDollar, Lightning, ClockCountdown, SealCheck, Star, ChartBar, Sparkle, UserCircle } from '@phosphor-icons/react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { supabase } from '../../lib/supabase'
 import { paymentsService } from '../../services/paymentsService'
 import { WAITING_PRESENCE_TTL_MS } from '../../services/consultationsService'
+import ConsultationTimeline from '../../components/super-admin/ConsultationTimeline'
 import { toast } from '../../components/Toast'
 import { SPECIALTY_LABELS } from '../../lib/verticals'
 
@@ -24,6 +25,7 @@ export default function SuperAdminDashboard() {
   const [statusData, setStatusData] = useState([])
   const [topPros, setTopPros] = useState([])
   const [recentConsultations, setRecentConsultations] = useState([])
+  const [expandedId, setExpandedId] = useState(null)
   const [allConsultations, setAllConsultations] = useState([])
   const [acquisitionData, setAcquisitionData] = useState([])
   const [loading, setLoading] = useState(true)
@@ -352,7 +354,11 @@ export default function SuperAdminDashboard() {
               </thead>
               <tbody>
                 {recentConsultations.map((c) => (
-                  <tr key={c.id} className="table-row">
+                  <Fragment key={c.id}>
+                  <tr
+                    onClick={() => setExpandedId(prev => prev === c.id ? null : c.id)}
+                    className="table-row cursor-pointer hover:bg-brand-muted/20"
+                  >
                     <td className="table-cell font-medium text-text-primary truncate max-w-[140px]">{c.patient}</td>
                     <td className="table-cell text-text-secondary truncate max-w-[140px]">{c.professional}</td>
                     <td className="table-cell text-text-tertiary whitespace-nowrap">{c.date}</td>
@@ -367,6 +373,17 @@ export default function SuperAdminDashboard() {
                       </span>
                     </td>
                   </tr>
+                  {/* El estado final no cuenta la historia: "cancelled" no dice
+                      si el paciente nunca llegó, si el profesional no se conectó
+                      o si el video falló. Esto la despliega. */}
+                  {expandedId === c.id && (
+                    <tr>
+                      <td colSpan={5} className="px-3 bg-bg-primary/60">
+                        <ConsultationTimeline consultationId={c.id} />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
