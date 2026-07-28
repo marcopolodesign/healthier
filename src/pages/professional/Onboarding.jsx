@@ -8,6 +8,7 @@ import { SPECIALTY_LABELS, PROFESSION_CATEGORIES, specialtiesForCategory, catego
 import AddressAutocomplete from '../../components/common/AddressAutocomplete'
 import { AnimatedTagCascade } from '../../components/common/AnimatedTagCascade'
 import FileUpload from '../../components/FileUpload'
+import { OPCIONES_SEXO } from '../../lib/datosReceta'
 import { geocodeAddress } from '../../lib/geo'
 import { toast } from '../../components/Toast'
 import OnboardingPreview from '../../components/professional/OnboardingPreview'
@@ -47,6 +48,8 @@ export default function Onboarding({ profile }) {
   const [loading, setLoading] = useState(false)
 
   const [form, setForm] = useState({
+    dni: profile?.dni || '',
+    gender: profile?.gender || '',
     specialty: '', subSpecialty: '', bio: '', sessionPrice: '',
     address: '', latitude: null, longitude: null,
     licenseType: 'MN', licenseNumber: '', cuitNumber: '',
@@ -74,6 +77,11 @@ export default function Onboarding({ profile }) {
     professionalService.getByUserId(profile.id).then(p => {
       if (!p) return
       setForm({
+        // Vienen de `profiles`, no de `professional_profiles`: si no se
+        // recuperan acá, reenviar el legajo los pisa con '' y el paso queda
+        // trabado pidiendo datos que el profesional ya había cargado.
+        dni:           profile?.dni    || '',
+        gender:        profile?.gender || '',
         specialty:     p.specialty     || '',
         subSpecialty:  p.subSpecialty  || '',
         bio:           p.bio           || '',
@@ -89,7 +97,7 @@ export default function Onboarding({ profile }) {
       })
       if (p.specialty) setCategoryId(categoryForSpecialty(p.specialty))
     })
-  }, [isResubmit, profile?.id])
+  }, [isResubmit, profile?.id, profile?.dni, profile?.gender])
 
   const handleAvatar = file => {
     setAvatarFile(file)
@@ -99,6 +107,7 @@ export default function Onboarding({ profile }) {
   // Per-step validation
   const canAdvance = () => {
     if (step === 0) return !!categoryId && !!form.specialty && form.licenseNumber.length > 0
+    if (step === 1) return (form.dni ?? '').trim().length >= 7 && !!(form.gender ?? '').trim()
     if (step === 2) return form.modalityPreference === 'virtual' || form.address.trim().length > 0
     if (step === 4) return privacyAccepted
     return true
@@ -125,8 +134,14 @@ export default function Onboarding({ profile }) {
         uploadDoc(cuitFile, 'cuit'),
       ])
 
+      // El DNI vive en `profiles`, no en `professional_profiles`: es un dato de
+      // la persona, no de su perfil profesional. Se saca del payload para no
+      // mandarlo a la tabla equivocada.
+      const { dni, gender, ...formSinDni } = form
+      await profilesService.update(profile.id, { dni: dni.trim(), gender })
+
       const payload = {
-        ...form,
+        ...formSinDni,
         sessionPrice:       form.sessionPrice ? Number(form.sessionPrice) : null,
         zoneId:             form.zoneId || null,
         titleDocumentUrl:   titleUrl   || undefined,
@@ -315,6 +330,44 @@ export default function Onboarding({ profile }) {
                   label={avatarFile ? avatarFile.name : 'Subir foto (JPG, PNG)'}
                 />
               </div>
+              <div>
+                <label className="form-label">DNI</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={form.dni}
+                  onChange={e => setForm(p => ({ ...p, dni: e.target.value.replace(/\D/g, '') }))}
+                  placeholder="Sin puntos, ej: 28999888"
+                  className="form-input"
+                />
+                {/* Obligatorio: sin DNI del médico Innovamed rechaza la receta
+                    con QBI156. Va acá y no en Documentación porque es un dato,
+                    no un archivo — el DNI escaneado sigue siendo otra cosa. */}
+                <p className="text-xs text-text-tertiary mt-1 mb-4">
+                  Necesario para emitir recetas electrónicas.
+                </p>
+              </div>
+
+              <div>
+                <label className="form-label">Sexo</label>
+                <select
+                  value={form.gender}
+                  onChange={e => setForm(p => ({ ...p, gender: e.target.value }))}
+                  className="form-input"
+                >
+                  <option value="">Elegí una opción</option>
+                  {OPCIONES_SEXO.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                {/* Igual que el DNI: Innovamed lo exige para el profesional
+                    (QBI206) y hasta ahora no se pedía en ningún lado, así que
+                    ningún profesional podía emitir aunque tuviera matrícula. */}
+                <p className="text-xs text-text-tertiary mt-1 mb-4">
+                  Necesario para emitir recetas electrónicas.
+                </p>
+              </div>
+
               <div>
                 <label className="form-label">Bio / Presentación <span className="text-text-tertiary text-xs">(opcional)</span></label>
                 <textarea

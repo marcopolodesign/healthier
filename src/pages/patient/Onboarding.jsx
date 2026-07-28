@@ -37,6 +37,7 @@ export default function PatientOnboarding({ profile }) {
   const allConsented = PATIENT_CONSENT_ITEMS.every(item => consents[item.key])
 
   const [health, setHealth] = useState({
+    dni:       profile?.dni       || '',
     birthDate: profile?.birthDate || '',
     gender:    profile?.gender    || '',
     heightCm:  profile?.heightCm  || '',
@@ -54,6 +55,12 @@ export default function PatientOnboarding({ profile }) {
   })
 
   const saveStep1 = async () => {
+    // DNI obligatorio: sin él el paciente no puede recibir una receta
+    // electrónica, y descubrirlo recién en la consulta es peor.
+    if (!health.dni || health.dni.trim().length < 7) {
+      toast.error('Ingresá tu DNI sin puntos (mínimo 7 dígitos).')
+      return
+    }
     if (health.heightCm && !Number.isInteger(Number(health.heightCm))) {
       toast.error('La altura debe ser un número entero en centímetros (ej: 165).')
       return
@@ -70,6 +77,7 @@ export default function PatientOnboarding({ profile }) {
     setSaving(true)
     try {
       await profilesService.update(profile.id, {
+        dni:        health.dni.trim(),
         birth_date: health.birthDate || null,
         gender:     health.gender    || null,
         height_cm:  health.heightCm  ? Number(health.heightCm)  : null,
@@ -189,6 +197,24 @@ export default function PatientOnboarding({ profile }) {
           {/* ── Step 2: Salud general ─────────────────────────────── */}
           {step === 2 && (
             <>
+              <div>
+                <label className="form-label">DNI</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={health.dni}
+                  onChange={e => setHealth(p => ({ ...p, dni: e.target.value.replace(/\D/g, '') }))}
+                  placeholder="Sin puntos, ej: 30111222"
+                  className="form-input"
+                />
+                {/* Obligatorio porque sin DNI no se puede emitir una receta
+                    electrónica (Innovamed responde QBI156). Pedirlo acá evita
+                    tener que interrumpir al paciente después, en la consulta. */}
+                <p className="text-xs text-text-tertiary mt-1">
+                  Necesario para emitir recetas electrónicas.
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="form-label">Fecha de nacimiento</label>
@@ -365,8 +391,12 @@ export default function PatientOnboarding({ profile }) {
           </div>
         </div>
 
-        {/* Skip — not offered on step 1 (Consentimiento), that step is mandatory */}
-        {step !== 1 && (
+        {/* Skip — no se ofrece en el paso 1 (Consentimiento) ni en el 2 (Salud
+            general): los dos son obligatorios. El 2 pasó a serlo cuando el DNI
+            se volvió requerido — sin DNI no se puede emitir una receta
+            electrónica (Innovamed responde QBI156), y dejar el atajo acá haría
+            que la validación no sirviera de nada. */}
+        {step !== 1 && step !== 2 && (
           <button
             onClick={() => {
               track('sign_up_skip_step', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], flow: 'paciente' })
