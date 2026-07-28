@@ -23,7 +23,7 @@ credenciales ya estaban configuradas.
 | Conectividad con el sandbox | ✅ Verificada — `GET /apirecipe/GetFinanciadores` → **200** |
 | Código de medicamento (`regNo`) en el payload | ✅ Autocompletado contra `GetMedicamento` (2026-07-28) |
 | Cobertura (financiador + afiliado) en el payload | ✅ Selector contra `GetFinanciadores` (2026-07-28) |
-| **Emitir en homologación** | ⛔ **Bloqueado por Innovamed — sandbox en solo lectura** |
+| **Las 4 pruebas de certificación** | ✅ **Emitidas — 2026-07-28** |
 | Credenciales de producción | ❌ Requieren contrato + RENAPDIS + 4 pruebas |
 
 ### Sobre las credenciales
@@ -58,20 +58,30 @@ Innovamed pide **cuatro recetas de prueba**, tres de ellas con financiador:
 Los tres IDs están confirmados contra `GET /apirecipe/GetFinanciadores` (900
 financiadores en total en el sandbox).
 
-### ⛔ Bloqueo actual: el sandbox de Innovamed no acepta escrituras
+### ✅ Las 4 pruebas emitidas — 2026-07-28
 
-`POST /apirecipe/Receta` devuelve **`QBI2 OPERACION INVALIDA`** con el detalle
-**"The MySQL server is running with the --read-only option so it cannot execute
-this statement"**. Los `GET` siguen respondiendo `200`.
+| # | Caso | `idReceta` | PDF |
+|---|---|---|---|
+| 1 | OSDE · afiliado 23200126801 | `880006415199` | [PDF](https://prescriptions.hml.qbitos.com/NJRJEKDD3AM41FEL4O0OGLD9S47F7I_134297244163197408.pdf) |
+| 2 | Luis Pasteur · afiliado 23701900080 | `9600000025990` | [PDF](https://prescriptions.hml.qbitos.com/E2EXD3OSZFJYNDB9H51CFSMISIU83M_134297244234336790.pdf) |
+| 3 | Accord Salud · afiliado 23256785 | `2909002616974` | [PDF](https://prescriptions.hml.qbitos.com/XTB07XGPOAY31C2TNR395AR8UMPS24_134297244278376093.pdf) |
+| 4 | Particular (sin financiador) | `9600000309687` | [PDF](https://prescriptions.hml.qbitos.com/F3F6CNWUGUSILUEUN7OEH76UFLL89K_134297244303066010.pdf) |
 
-Probado el 2026-07-28 con el caso OSDE y con el particular: **fallan idéntico**, y
-ninguno se quejó de `regNo`, `cobertura` ni domicilio — o sea que el payload pasó
-la validación de campos y murió recién al escribir en su base.
+Las cuatro con `errores: []`. La cobertura vuelve confirmada en la respuesta
+(`cobertura: {idFinanciador: "28", numero: "23200126801"}`), y la particular sin
+el campo. Los PDF responden `200`.
 
-**Es infraestructura de Innovamed, no nuestra.** Hay que pedirle al equipo de
-soporte de integraciones (en copia del mail del 2026-07-28) que habiliten
-escritura en homologación. Hasta entonces las 4 pruebas de certificación no se
-pueden correr, por más que el resto esté listo.
+> **Alcance honesto:** se emitieron mandando el payload directamente a Innovamed
+> con la **misma forma** que arma `rcta-issue`, no atravesando la app. Eso valida
+> el contrato y la forma del payload, que es lo que Innovamed certifica — pero
+> **el camino completo desde la UI todavía no se recorrió**, porque las cuentas
+> demo no tienen DNI ni fecha de nacimiento (ver pendientes).
+
+> **Nota sobre un falso bloqueo:** entre las 11:30 y las 12:00 del 2026-07-28 el
+> sandbox devolvía `QBI2 OPERACION INVALIDA` con *"The MySQL server is running
+> with the --read-only option"* en todo `POST`. Se reportó como bloqueo y **era
+> transitorio** — media hora después las escrituras funcionaban. Si vuelve a
+> aparecer, esperar y reintentar antes de escalarlo a Innovamed.
 
 ---
 
@@ -132,17 +142,26 @@ numérico que pide la API.
 
 ### Trabajo pendiente
 
-1. **Pedirle a Innovamed que habiliten escritura en homologación.** Es lo único
-   que bloquea hoy.
+1. **Pasarle a Innovamed los 4 `idReceta`** de arriba para que validen la
+   certificación de su lado.
 2. **Completar los datos de las cuentas demo**: el profesional y el paciente de
-   prueba no tienen DNI ni fecha de nacimiento, y RCTA los exige. Sin eso las
-   pruebas no se pueden correr *a través de la app* (aunque el payload sea
-   correcto).
-3. **Correr las 4 pruebas** y guardar los números de receta — es lo que Innovamed
-   va a querer ver.
+   prueba no tienen DNI ni fecha de nacimiento, y RCTA los exige (`QBI156 — DEBE
+   INGRESAR EL NÚMERO DE DOCUMENTO`). Sin eso el camino completo desde la UI no
+   se puede recorrer.
+3. **Emitir una receta atravesando la app**, no solo el payload directo — es lo
+   único que falta para dar la integración por probada de punta a punta.
 4. **Las 63 consultas del backfill** tienen obra social escrita a mano sin
    `idFinanciador`. La app avisa y corta al emitir, pero conviene re-seleccionar
    las que se vayan a usar.
+
+### Errores de validación confirmados en vivo
+
+Sirven para saber qué valida Innovamed **antes** de escribir:
+
+| Falta | Respuesta |
+|---|---|
+| Domicilio de atención | `QBI248 — DEBE INFORMAR EL DOMICILIO DONDE SE REALIZÓ LA ATENCIÓN` |
+| Documento del paciente | `QBI156 — DEBE INGRESAR EL NÚMERO DE DOCUMENTO` |
 
 ---
 
