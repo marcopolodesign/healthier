@@ -621,6 +621,7 @@ export default function ConsultationDetail({ profile }) {
           <PrescriptionCreator
             patientId={consultation.patientId}
             encounterId={clinicalEncounterId}
+            ensureEncounter={ensureEncounter}
             professionalId={profile?.id ?? null}
             profile={profile}
             profProfile={profProfile}

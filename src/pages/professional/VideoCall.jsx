@@ -471,6 +471,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
           <PrescriptionCreator
             patientId={consultation?.patientId ?? null}
             encounterId={encounterId}
+            ensureEncounter={ensureEncounter}
             professionalId={profile?.id ?? null}
             profile={profile}
             profProfile={profProfile}

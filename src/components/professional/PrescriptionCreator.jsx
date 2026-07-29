@@ -206,7 +206,7 @@ const EMPTY = {
   priority: 'routine',
 }
 
-function AddPrescriptionForm({ patientId, encounterId, professionalId, profProfile, cobertura, onSaved, onCancel }) {
+function AddPrescriptionForm({ patientId, encounterId, ensureEncounter, professionalId, profProfile, cobertura, onSaved, onCancel }) {
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
 
@@ -220,11 +220,18 @@ function AddPrescriptionForm({ patientId, encounterId, professionalId, profProfi
 
     setSaving(true)
     try {
+      // El encuentro clínico se crea perezosamente, así que en una consulta
+      // donde todavía no se escribió nada `encounterId` llega en null. La
+      // columna lo acepta, y por eso hasta ahora se podían guardar recetas
+      // huérfanas: no aparecían en la HC ni en esta misma lista, y `rcta-issue`
+      // no podía leer la cobertura (la busca a través del encuentro).
+      const eid = encounterId ?? (ensureEncounter ? await ensureEncounter() : null)
+
       const { data, error } = await supabase
         .from('clinical_medications')
         .insert({
           patient_id:                  patientId,
-          encounter_id:                encounterId,
+          encounter_id:                eid,
           professional_id:             professionalId,
           // La matrícula real, no un placeholder. Va desnormalizada en cada fila
           // clínica por Ley 26.529 Art. 12, y además es la que `rcta-issue`
@@ -445,7 +452,7 @@ function AddPrescriptionForm({ patientId, encounterId, professionalId, profProfi
  *   `cobertura` es opcional: con ella, Innovamed además informa si cada
  *   medicamento tiene cobertura para ESE paciente.
  */
-export default function PrescriptionCreator({ patientId, encounterId, professionalId, cobertura, profile, profProfile, paciente }) {
+export default function PrescriptionCreator({ patientId, encounterId, ensureEncounter, professionalId, cobertura, profile, profProfile, paciente }) {
   const [prescriptions, setPrescriptions] = useState([])
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
@@ -624,6 +631,7 @@ export default function PrescriptionCreator({ patientId, encounterId, profession
         <AddPrescriptionForm
           patientId={patientId}
           encounterId={encounterId}
+          ensureEncounter={ensureEncounter}
           professionalId={professionalId}
           profProfile={profProfile}
           cobertura={cobertura}
