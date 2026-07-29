@@ -1,4 +1,5 @@
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
+import { logClinicalAccess } from './clinicalService'
 
 export const historiaClinicaService = {
 
@@ -46,6 +47,19 @@ export const historiaClinicaService = {
       entries:     entries.filter(e => e.encounterId === id),
       conditions:  conditions.filter(c => c.encounterId === id),
       medications: medications.filter(m => m.encounterId === id),
+    })
+
+    // Asiento de auditoría (Ley 26.529 Art. 14): queda registrado quién abrió la
+    // HC de este paciente y cuándo. Se asienta un renglón por encuentro leído,
+    // no uno por fila — ver el comentario de `logClinicalAccess`. No se espera:
+    // la HC se muestra igual aunque el asiento falle.
+    encounters.forEach(enc => {
+      logClinicalAccess({
+        resourceType: 'encounter',
+        resourceId:   enc.id,
+        patientId,
+        action:       'read',
+      })
     })
 
     return {

@@ -1,6 +1,47 @@
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 
+/**
+ * Rastro de auditoría de la historia clínica.
+ *
+ * Ley 26.529 Art. 14 (asiento de quién accede a la HC) + Ley 25.326: los datos
+ * de salud son datos sensibles (Art. 7) y exigen medidas de seguridad y
+ * trazabilidad (Art. 9). La tabla `clinical_access_log` existía desde la
+ * migración 033 pero nadie la escribía — el rastro era una promesa vacía.
+ *
+ * Reglas:
+ *  - NUNCA puede hacer fallar la operación clínica. Si el log falla, se avisa
+ *    por consola y la escritura sigue: perder un asiento de auditoría es malo,
+ *    perder una nota clínica en el medio de una consulta es peor.
+ *  - Las lecturas se asientan a nivel encuentro, no fila por fila. Un timeline
+ *    de un paciente con años de historia generaría cientos de filas por pantalla
+ *    y el asiento útil es "fulano abrió la HC de mengano", no cada renglón.
+ *  - `ip_address` queda en null: el browser no la conoce. Si hace falta para una
+ *    auditoría formal hay que mover el asiento a una Edge Function.
+ */
+export async function logClinicalAccess({ resourceType, resourceId, patientId, action }) {
+  if (!resourceId || !patientId) return
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const accessedBy = session?.user?.id
+    if (!accessedBy) return
+
+    const { error } = await supabase.from('clinical_access_log').insert({
+      accessed_by:   accessedBy,
+      resource_type: resourceType,
+      resource_id:   resourceId,
+      patient_id:    patientId,
+      action,
+      user_agent:    typeof navigator !== 'undefined' ? navigator.userAgent?.slice(0, 500) ?? null : null,
+    })
+    if (error) console.warn('clinical_access_log:', error.message)
+  } catch (err) {
+    console.warn('clinical_access_log:', err)
+  }
+}
+
 export const clinicalService = {
+
+  logAccess: logClinicalAccess,
 
   async createEncounter({ patientId, professionalId, consultationId, specialty, chiefComplaint, modality, licenseType, licenseNumber }) {
     const payload = toSnakeCase({
@@ -24,6 +65,7 @@ export const clinicalService = {
       .single()
 
     if (error) throw error
+    await logClinicalAccess({ resourceType: 'encounter', resourceId: data.id, patientId: data.patient_id, action: 'create' })
     return toCamelCase(data)
   },
 
@@ -48,6 +90,7 @@ export const clinicalService = {
       .single()
 
     if (error) throw error
+    await logClinicalAccess({ resourceType: 'encounter', resourceId: data.id, patientId: data.patient_id, action: 'update_status' })
     return toCamelCase(data)
   },
 
@@ -72,6 +115,7 @@ export const clinicalService = {
       .single()
 
     if (error) throw error
+    await logClinicalAccess({ resourceType: 'entry', resourceId: data.id, patientId: data.patient_id, action: 'create' })
     return toCamelCase(data)
   },
 
@@ -93,6 +137,7 @@ export const clinicalService = {
       .single()
 
     if (error) throw error
+    await logClinicalAccess({ resourceType: 'condition', resourceId: data.id, patientId: data.patient_id, action: 'create' })
     return toCamelCase(data)
   },
 
@@ -115,6 +160,7 @@ export const clinicalService = {
       .single()
 
     if (error) throw error
+    await logClinicalAccess({ resourceType: 'allergy', resourceId: data.id, patientId: data.patient_id, action: 'create' })
     return toCamelCase(data)
   },
 
@@ -139,6 +185,7 @@ export const clinicalService = {
       .single()
 
     if (error) throw error
+    await logClinicalAccess({ resourceType: 'observation', resourceId: data.id, patientId: data.patient_id, action: 'create' })
     return toCamelCase(data)
   },
 
@@ -163,6 +210,7 @@ export const clinicalService = {
       .single()
 
     if (error) throw error
+    await logClinicalAccess({ resourceType: 'medication', resourceId: data.id, patientId: data.patient_id, action: 'create' })
     return toCamelCase(data)
   },
 
@@ -174,6 +222,13 @@ export const clinicalService = {
       .single()
 
     if (encounterError) throw encounterError
+
+    await logClinicalAccess({
+      resourceType: 'encounter',
+      resourceId:   encounter.id,
+      patientId:    encounter.patient_id,
+      action:       'read',
+    })
 
     const [
       { data: entries, error: entriesError },

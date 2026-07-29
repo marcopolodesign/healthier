@@ -90,8 +90,13 @@ export default function FinanciadorPicker({
           <Opcion value="particular"  label="Particular"      desc="Sin cobertura" />
         </div>
         {coverageType == null && (
+          // No es obligatorio: Innovamed acepta recetas sin financiador — de
+          // hecho una de las cuatro pruebas de certificación es particular.
+          // Lo que sí importa es no confundir "no preguntamos" con "es
+          // particular", porque un afiliado que reciba una receta particular
+          // pierde la cobertura del medicamento.
           <p className="text-[11px] text-text-tertiary mt-1.5">
-            Sin definir. Hace falta contestarlo para poder emitir una receta electrónica.
+            Sin definir — opcional. Si emitís una receta ahora sale sin cobertura, como particular.
           </p>
         )}
       </div>

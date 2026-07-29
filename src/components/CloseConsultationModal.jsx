@@ -3,9 +3,13 @@ import Modal from './Modal'
 import FileUpload from './FileUpload'
 import { professionalService } from '../services/professionalService'
 import { consultationsService } from '../services/consultationsService'
+import { clinicalService } from '../services/clinicalService'
 import { toast } from './Toast'
 
-export default function CloseConsultationModal({ open, onClose, consultationId, patientName, modality, profile, onFinalized }) {
+export default function CloseConsultationModal({
+  open, onClose, consultationId, patientName, modality, profile, onFinalized,
+  patientId, ensureEncounter, licenseType, licenseNumber,
+}) {
   const [form, setForm] = useState({ notes: '', code: '', needsPrescription: false, prescriptionFile: null })
   const [closing, setClosing] = useState(false)
 
@@ -30,6 +34,32 @@ export default function CloseConsultationModal({ open, onClose, consultationId, 
         prescriptionUrl,
         code: form.code.trim() || null,
       })
+
+      // La nota de cierre es un acto médico: además de quedar en la consulta
+      // (columna editable, útil para la operación del marketplace) se asienta en
+      // la historia clínica como entrada append-only y firmada con la matrícula.
+      // Ley 26.529 Art. 15 — la HC tiene que registrar el acto y quién lo hizo,
+      // y Art. 12/16 exigen que sea inalterable. `consultations.closing_notes`
+      // no cumple ninguna de las dos: se puede pisar con un UPDATE.
+      // Si esto falla NO se revierte el cierre — se avisa y la consulta queda
+      // cerrada igual, que es lo que el profesional acaba de pedir.
+      if (form.notes.trim() && ensureEncounter && patientId) {
+        try {
+          const encounterId = await ensureEncounter()
+          await clinicalService.addEntry(encounterId, {
+            patientId,
+            professionalId: profile.id,
+            entryType: 'note',
+            content: form.notes.trim(),
+            data: { source: 'cierre_de_consulta', consultationId },
+            licenseType,
+            licenseNumber,
+          })
+        } catch (err) {
+          console.error('No se pudo asentar la nota de cierre en la HC:', err)
+          toast.warning('La consulta se cerró, pero la nota no se pudo asentar en la historia clínica.')
+        }
+      }
       if (result.status === 'completed') {
         toast.success('Consulta finalizada correctamente')
         onFinalized?.()

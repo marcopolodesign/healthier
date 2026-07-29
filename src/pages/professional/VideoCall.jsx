@@ -265,6 +265,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
     patientId, professionalId, specialty,
     modality: consultation?.modality,
     licenseType, licenseNumber,
+    preconsulta: consultation?.preconsultaData,
   })
 
   // El encuentro clínico se crea perezosamente (al guardar la primera nota).
@@ -881,6 +882,10 @@ export default function ProfessionalVideoCall({ profile }) {
           consultationId={id}
           patientName={consultation.patient?.fullName}
           profile={profile}
+          patientId={consultation.patientId}
+          ensureEncounter={ensureEncounter}
+          licenseType={profProfile?.licenseType}
+          licenseNumber={profProfile?.licenseNumber}
           onFinalized={handleFinalized}
         />
       )}

@@ -3,8 +3,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, FileText, Paperclip, VideoCamera, ClipboardText, User,
   Clock, Plus, Trash, CalendarPlus, Key, ShieldCheck, Tag, PencilSimple, Check, X,
-  FirstAidKit, Heartbeat, Pill, Sparkle,
+  FirstAidKit, Heartbeat, Pill, Sparkle, Info,
 } from '@phosphor-icons/react'
+import InfoTooltip from '../../components/common/InfoTooltip'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
@@ -88,6 +89,7 @@ export default function ConsultationDetail({ profile }) {
     modality: consultation?.modality,
     licenseType: profProfile?.licenseType,
     licenseNumber: profProfile?.licenseNumber,
+    preconsulta: consultation?.preconsultaData,
   })
 
   const saveCoverage = async () => {
@@ -274,6 +276,13 @@ export default function ConsultationDetail({ profile }) {
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-brand" />
             <h2 className="font-semibold text-text-primary">Cobertura médica</h2>
+            <InfoTooltip
+              align="left"
+              title="Para qué sirve"
+              label="Es el financiador que viaja en la receta electrónica (RCTA) para que la farmacia aplique la cobertura. Tiene que elegirse del catálogo de Innovamed: el nombre escrito a mano no lo acepta. No es obligatorio — sin financiador la receta sale como particular."
+            >
+              <Info className="h-3.5 w-3.5 text-text-tertiary cursor-help" />
+            </InfoTooltip>
           </div>
           {!editingCoverage && (
             <button
@@ -343,7 +352,9 @@ export default function ConsultationDetail({ profile }) {
             )}
           </div>
         ) : (
-          <p className="text-sm text-text-muted">Sin definir. Hace falta para emitir recetas electrónicas.</p>
+          <p className="text-sm text-text-muted">
+            Sin definir — opcional. Si emitís una receta electrónica ahora sale sin cobertura, como particular.
+          </p>
         )}
       </div>
 
@@ -410,7 +421,16 @@ export default function ConsultationDetail({ profile }) {
       {/* Orders & prescriptions */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-text-primary">Órdenes y recetas</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-semibold text-text-primary">Órdenes y recetas</h2>
+            <InfoTooltip
+              align="left"
+              title="No es la receta electrónica"
+              label="Acá van adjuntos de Healthier: pedidos de estudios, derivaciones y PDFs sueltos. Queda visible para el paciente pero no tiene validez de receta electrónica. Para eso usá “Recetas digitales” más abajo, que emite por RCTA."
+            >
+              <Info className="h-3.5 w-3.5 text-text-tertiary cursor-help" />
+            </InfoTooltip>
+          </div>
           {!isCompleted && !isCancelled && !addingOrder && (
             <button
               onClick={() => setAddingOrder(true)}
@@ -666,6 +686,10 @@ export default function ConsultationDetail({ profile }) {
         patientName={patientName}
         modality={consultation.modality}
         profile={profile}
+        patientId={consultation.patientId}
+        ensureEncounter={ensureEncounter}
+        licenseType={profProfile?.licenseType}
+        licenseNumber={profProfile?.licenseNumber}
         onFinalized={() => navigate('/profesional/dashboard')}
       />
 

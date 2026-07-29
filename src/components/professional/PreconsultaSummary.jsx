@@ -1,4 +1,5 @@
 import { Warning } from '@phosphor-icons/react'
+import InfoTooltip from '../common/InfoTooltip'
 
 /**
  * Lo que el paciente contestó antes de entrar a la sala.
@@ -27,6 +28,40 @@ export function hasPreconsulta(preconsulta) {
   )
 }
 
+/**
+ * La pre-consulta como texto plano, para asentarla en la historia clínica.
+ *
+ * `consultations.preconsulta_data` es un jsonb que se puede pisar con un UPDATE;
+ * la HC exige un asiento inalterable (Ley 26.529 Art. 15 y 16). Esto arma el
+ * texto que se guarda como entrada, dejando explícito que lo declaró el paciente
+ * y no el profesional.
+ */
+export function preconsultaToText(preconsulta) {
+  if (!hasPreconsulta(preconsulta)) return null
+  const lines = ['Pre-consulta declarada por el paciente:']
+
+  if (preconsulta.symptom) {
+    const s = preconsulta.symptom
+    const code = s.icd10Code ?? s.icd10_code
+    const freeText = s.freeText ?? s.free_text
+    lines.push(`Motivo: ${s.label ?? 'no especificado'}${code ? ` (CIE-10 ${code})` : ' (sin codificar)'}`)
+    if (freeText) lines.push(`En sus palabras: ${freeText}`)
+    for (const a of Array.isArray(preconsulta.answers) ? preconsulta.answers : []) {
+      const qlabel = a.questionLabel ?? a.question_label
+      const redFlag = a.redFlag ?? a.red_flag
+      lines.push(`${qlabel}: ${(a.labels ?? []).join(' · ')}${redFlag ? '  [signo de alarma]' : ''}`)
+    }
+    const med = preconsulta.medication ?? {}
+    lines.push(`Medicación actual: ${med.taking ? (med.detail || 'sí, sin detalle') : 'no toma medicación'}`)
+  } else {
+    for (const f of V1_FIELDS) {
+      if (preconsulta[f.key]) lines.push(`${f.label}: ${preconsulta[f.key]}`)
+    }
+  }
+
+  return lines.join('\n')
+}
+
 // El payload se escribe en snake_case, pero `consultationsService.getById` pasa
 // la fila entera por `toCamelCase`, que también recorre el jsonb — así que las
 // keys pueden llegar en cualquiera de las dos formas según cómo se haya leído.
@@ -45,8 +80,24 @@ function Structured({ preconsulta }) {
           {s.label ?? 'Motivo no especificado'}
         </p>
         {code
-          ? <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white border border-brand/30 text-brand shrink-0">{code}</span>
-          : <span className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-amber-300 text-amber-700 shrink-0">sin codificar</span>}
+          ? (
+            <InfoTooltip
+              className="shrink-0"
+              title={`CIE-10 · ${code}`}
+              label="Código de la Clasificación Internacional de Enfermedades (CIE-10 / ICD-10, OMS). Lo eligió el paciente al describir su motivo, no es un diagnóstico. Es el mismo estándar que se manda como diagnóstico en la receta electrónica."
+            >
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white border border-brand/30 text-brand cursor-help">{code}</span>
+            </InfoTooltip>
+          )
+          : (
+            <InfoTooltip
+              className="shrink-0"
+              title="Sin código CIE-10"
+              label="El paciente escribió su motivo con sus palabras en vez de elegirlo del catálogo, así que no quedó codificado en CIE-10. Podés codificarlo vos al cargar el diagnóstico en la historia clínica."
+            >
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-white border border-amber-300 text-amber-700 cursor-help">sin codificar</span>
+            </InfoTooltip>
+          )}
       </div>
       {freeText && <p className="text-xs text-text-primary leading-relaxed">{freeText}</p>}
 

@@ -6,6 +6,7 @@ import {
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import MedicationSearch from './MedicationSearch'
+import { logClinicalAccess } from '../../services/clinicalService'
 import { faltanDatosProfesional, faltanDatosPaciente, listar } from '../../lib/datosReceta'
 import { toast } from '../Toast'
 
@@ -79,7 +80,7 @@ function RctaBadge({ rcta }) {
 
 // ── Prescription row ───────────────────────────────────────────────────────────
 
-function PrescriptionRow({ rx, onIssueRcta, issuingId }) {
+function PrescriptionRow({ rx, selectable, checked, onToggle }) {
   const [copied, setCopied] = useState(false)
 
   function handleCopy() {
@@ -103,13 +104,25 @@ function PrescriptionRow({ rx, onIssueRcta, issuingId }) {
     ? new Date(rx.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
     : null
 
-  const canIssue = rx.status === 'active' && rx.rcta_status !== 'issued'
-  const issuing = issuingId === rx.id
-
   return (
-    <div className="rounded-xl border border-border-default bg-bg-surface overflow-hidden">
+    <div className={`rounded-xl border bg-bg-surface overflow-hidden transition-colors ${
+      selectable && checked ? 'border-brand/50' : 'border-border-default'
+    }`}>
       <div className="flex items-start gap-3 p-3">
-        <Pill className="h-4 w-4 text-brand shrink-0 mt-0.5" />
+        {/* El check decide qué medicamentos entran en la MISMA receta. Se
+            marcan todos por defecto: el caso de un solo medicamento tiene que
+            seguir siendo un clic. */}
+        {selectable
+          ? (
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={() => onToggle(rx.id)}
+              aria-label={`Incluir ${rx.medication_name} en la receta`}
+              className="w-4 h-4 rounded accent-brand shrink-0 mt-0.5 cursor-pointer"
+            />
+          )
+          : <Pill className="h-4 w-4 text-brand shrink-0 mt-0.5" />}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-semibold text-text-primary leading-tight">
@@ -167,17 +180,6 @@ function PrescriptionRow({ rx, onIssueRcta, issuingId }) {
           )}
         </div>
       </div>
-
-      {canIssue && (
-        <div className="px-3 pb-3">
-          <button type="button" onClick={() => onIssueRcta(rx.id)} disabled={issuing}
-            className="w-full flex items-center justify-center gap-2 text-xs font-semibold py-2 px-3 rounded-lg bg-brand/10 text-brand hover:bg-brand/20 transition-colors disabled:opacity-60">
-            {issuing
-              ? <><CircleNotch className="h-3.5 w-3.5 animate-spin" /> Emitiendo receta RCTA…</>
-              : <><ArrowSquareOut className="h-3.5 w-3.5" /> Emitir receta electrónica (RCTA)</>}
-          </button>
-        </div>
-      )}
     </div>
   )
 }
@@ -204,7 +206,7 @@ const EMPTY = {
   priority: 'routine',
 }
 
-function AddPrescriptionForm({ patientId, encounterId, professionalId, cobertura, onSaved, onCancel }) {
+function AddPrescriptionForm({ patientId, encounterId, professionalId, profProfile, cobertura, onSaved, onCancel }) {
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
 
@@ -224,8 +226,12 @@ function AddPrescriptionForm({ patientId, encounterId, professionalId, cobertura
           patient_id:                  patientId,
           encounter_id:                encounterId,
           professional_id:             professionalId,
-          professional_license_type:   'MN',
-          professional_license_number: '0',
+          // La matrícula real, no un placeholder. Va desnormalizada en cada fila
+          // clínica por Ley 26.529 Art. 12, y además es la que `rcta-issue`
+          // manda como `medico.matricula` — el 'MN'/'0' que estaba hardcodeado
+          // acá terminaba impreso en la receta electrónica.
+          professional_license_type:   profProfile?.licenseType ?? 'MN',
+          professional_license_number: profProfile?.licenseNumber ?? '0',
           medication_name:  form.medicationName.trim(),
           snomed_code:      null,
           // Sin reg_no la receta se rechaza con QBI105 — se guarda igual para la
@@ -251,6 +257,9 @@ function AddPrescriptionForm({ patientId, encounterId, professionalId, cobertura
         .single()
 
       if (error) throw error
+      // Asiento de auditoría — este insert no pasa por clinicalService, así que
+      // el log se hace explícito acá (Ley 26.529 Art. 14 / Ley 25.326 Art. 9).
+      logClinicalAccess({ resourceType: 'medication', resourceId: data.id, patientId, action: 'create' })
       toast.success('Medicación registrada')
       onSaved(data)
     } catch {
@@ -440,7 +449,14 @@ export default function PrescriptionCreator({ patientId, encounterId, profession
   const [prescriptions, setPrescriptions] = useState([])
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
-  const [issuingId, setIssuingId] = useState(null)
+  const [issuing, setIssuing] = useState(false)
+  // Qué medicamentos entran en la próxima receta. Innovamed acepta varios en
+  // una sola (`medicamentos` es un array), y para el paciente es un único PDF
+  // en vez de tres — así es como funciona una receta en papel.
+  const [selectedIds, setSelectedIds] = useState([])
+
+  const emitibles = prescriptions.filter(rx => rx.status === 'active' && rx.rcta_status !== 'issued')
+  const seleccionados = selectedIds.filter(id => emitibles.some(rx => rx.id === id))
 
   useEffect(() => {
     if (!encounterId) { setLoading(false); return }
@@ -453,8 +469,21 @@ export default function PrescriptionCreator({ patientId, encounterId, profession
       .finally(() => setLoading(false))
   }, [encounterId])
 
-  async function handleIssueRcta(medicationId) {
-    setIssuingId(medicationId)
+  // Todo lo emitible arranca marcado: recetar un solo medicamento tiene que
+  // seguir siendo un clic, y desmarcar es más fácil que marcar.
+  useEffect(() => {
+    setSelectedIds(prescriptions
+      .filter(rx => rx.status === 'active' && rx.rcta_status !== 'issued')
+      .map(rx => rx.id))
+  }, [prescriptions])
+
+  const toggleSeleccion = id => setSelectedIds(prev =>
+    prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+  )
+
+  async function handleIssueRcta(medicationIds) {
+    if (!medicationIds.length) return
+    setIssuing(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(
@@ -465,7 +494,7 @@ export default function PrescriptionCreator({ patientId, encounterId, profession
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session?.access_token}`,
           },
-          body: JSON.stringify({ medicationId }),
+          body: JSON.stringify({ medicationIds }),
         }
       )
       const result = await res.json()
@@ -475,11 +504,17 @@ export default function PrescriptionCreator({ patientId, encounterId, profession
         return
       }
       if (!res.ok) {
-        toast.error('Error al emitir la receta RCTA')
+        // La función devuelve un mensaje accionable en los 422 (falta el código
+        // del vademécum, la obra social no salió del catálogo). Mostrarlo tal
+        // cual: un "Error al emitir" genérico no le dice al profesional qué
+        // arreglar.
+        toast.error(result.error ?? 'Error al emitir la receta RCTA')
         return
       }
 
-      toast.success('Receta RCTA emitida correctamente')
+      toast.success(medicationIds.length > 1
+        ? `Receta emitida con ${medicationIds.length} medicamentos`
+        : 'Receta RCTA emitida correctamente')
     } catch {
       toast.error('Error al conectar con el servicio RCTA')
     } finally {
@@ -490,7 +525,7 @@ export default function PrescriptionCreator({ patientId, encounterId, profession
         .eq('encounter_id', encounterId)
         .order('created_at', { ascending: false })
       setPrescriptions(data ?? [])
-      setIssuingId(null)
+      setIssuing(false)
     }
   }
 
@@ -538,14 +573,46 @@ export default function PrescriptionCreator({ patientId, encounterId, profession
 
       {!loading && prescriptions.length > 0 && (
         <div className="space-y-2">
-          {prescriptions.map(rx => (
-            <PrescriptionRow
-              key={rx.id}
-              rx={rx}
-              onIssueRcta={handleIssueRcta}
-              issuingId={issuingId}
-            />
-          ))}
+          {prescriptions.map(rx => {
+            const selectable = emitibles.some(e => e.id === rx.id)
+            return (
+              <PrescriptionRow
+                key={rx.id}
+                rx={rx}
+                selectable={selectable}
+                checked={selectable && seleccionados.includes(rx.id)}
+                onToggle={toggleSeleccion}
+              />
+            )
+          })}
+        </div>
+      )}
+
+      {/* Una sola acción para toda la receta, en vez de un botón por renglón:
+          los marcados salen juntos en el MISMO documento. */}
+      {!loading && emitibles.length > 0 && (
+        <div className="space-y-1.5">
+          <button
+            type="button"
+            onClick={() => handleIssueRcta(seleccionados)}
+            disabled={issuing || seleccionados.length === 0}
+            className="w-full flex items-center justify-center gap-2 text-xs font-semibold py-2.5 px-3 rounded-lg bg-brand/10 text-brand hover:bg-brand/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {issuing
+              ? <><CircleNotch className="h-3.5 w-3.5 animate-spin" /> Emitiendo receta RCTA…</>
+              : <>
+                  <ArrowSquareOut className="h-3.5 w-3.5" />
+                  Emitir receta electrónica (RCTA)
+                  {seleccionados.length > 1 && ` · ${seleccionados.length} medicamentos`}
+                </>}
+          </button>
+          {emitibles.length > 1 && (
+            <p className="text-[11px] text-text-tertiary text-center">
+              {seleccionados.length === 0
+                ? 'Marcá al menos un medicamento.'
+                : 'Los marcados van en la misma receta, con un único PDF.'}
+            </p>
+          )}
         </div>
       )}
 
@@ -558,6 +625,7 @@ export default function PrescriptionCreator({ patientId, encounterId, profession
           patientId={patientId}
           encounterId={encounterId}
           professionalId={professionalId}
+          profProfile={profProfile}
           cobertura={cobertura}
           onSaved={newRx => {
             setPrescriptions(prev => [newRx, ...prev])

@@ -5,8 +5,14 @@
 // Apply for production access: https://innovamed.com.ar/rcta-institucional
 // Pricing: ~$50.000 ARS/mes por médico (institucional)
 //
-// Request body:
-//   medicationId  – UUID of clinical_medications record
+// Request body (una de las dos formas):
+//   medicationId   – UUID de una fila de clinical_medications
+//   medicationIds  – array de UUIDs: TODOS van en la MISMA receta
+//
+// Una receta puede llevar varios medicamentos: `medicamentos` es un array en el
+// contrato de Innovamed. Todas las filas tienen que ser del mismo encuentro (y
+// por lo tanto del mismo paciente y profesional): una receta es un acto medico
+// unico y firmado por un solo profesional.
 //
 // On success: updates clinical_medications.rcta_prescription_id + rcta_pdf_url + rcta_status + rcta_issued_at
 // On error: sets rcta_status = 'error'
@@ -23,16 +29,28 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   try {
-    const { medicationId } = await req.json()
-    if (!medicationId) return json({ error: 'medicationId required' }, 400)
+    const body = await req.json()
+    // `medicationIds` es la forma nueva (varios medicamentos en una receta);
+    // `medicationId` se mantiene porque hay clientes desplegados que la usan.
+    const ids: string[] = Array.isArray(body.medicationIds) && body.medicationIds.length
+      ? body.medicationIds
+      : (body.medicationId ? [body.medicationId] : [])
+    if (!ids.length) return json({ error: 'medicationId o medicationIds requerido' }, 400)
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // ── Load medication + patient + professional ──────────────────────────────
-    const { data: med, error: medErr } = await supabase
+    // Marca el estado de TODAS las filas de la receta de una sola vez. Sin esto,
+    // una receta de tres medicamentos que falla dejaba dos en 'pending' para
+    // siempre.
+    // deno-lint-ignore no-explicit-any
+    const setStatus = (status: string, extra: Record<string, any> = {}) =>
+      supabase.from('clinical_medications').update({ rcta_status: status, ...extra }).in('id', ids)
+
+    // ── Load medications + patient + professional ─────────────────────────────
+    const { data: meds, error: medErr } = await supabase
       .from('clinical_medications')
       .select(`
         *,
@@ -45,11 +63,28 @@ Deno.serve(async (req: Request) => {
           consultation:consultations!consultation_id(coverage_type, financiador_id, obra_social_name, affiliate_number)
         )
       `)
-      .eq('id', medicationId)
-      .single()
+      .in('id', ids)
+      .order('created_at', { ascending: true })
 
-    if (medErr || !med) return json({ error: 'Medication not found' }, 404)
-    if (med.rcta_status === 'issued') return json({ error: 'Already issued' }, 409)
+    if (medErr || !meds?.length) return json({ error: 'Medication not found' }, 404)
+    if (meds.length !== ids.length) return json({ error: 'Alguna de las medicaciones no existe' }, 404)
+
+    // Una receta es un acto medico unico: mismo encuentro, mismo profesional,
+    // mismo paciente. Mezclarlos produciria una receta firmada por alguien que
+    // no prescribio uno de los medicamentos.
+    if (new Set(meds.map((m: { encounter_id: string }) => m.encounter_id)).size > 1) {
+      return json({
+        error: 'Todos los medicamentos de una receta tienen que ser de la misma consulta.',
+        code: 'RCTA_ENCUENTROS_MEZCLADOS',
+      }, 422)
+    }
+
+    const yaEmitida = meds.find((m: { rcta_status: string }) => m.rcta_status === 'issued')
+    if (yaEmitida) return json({ error: 'Already issued' }, 409)
+
+    // El primer medicamento aporta los datos comunes de la receta (paciente,
+    // profesional, cobertura, diagnostico general).
+    const med = meds[0]
 
     // Sin codigo de catalogo la API rechaza con QBI105. Se corta antes con un
     // mensaje que dice que hacer, en vez de propagar el error criptico.
@@ -71,18 +106,20 @@ Deno.serve(async (req: Request) => {
       }, 422)
     }
 
-    if (!med.reg_no) {
+    // deno-lint-ignore no-explicit-any
+    const sinCodigo = meds.filter((m: any) => !m.reg_no)
+    if (sinCodigo.length) {
       return json({
-        error: 'Esta medicación no se puede emitir como receta electrónica porque no fue elegida del vademécum. Editala y seleccioná el producto del buscador.',
+        error: sinCodigo.length === meds.length
+          ? 'Esta medicación no se puede emitir como receta electrónica porque no fue elegida del vademécum. Editala y seleccioná el producto del buscador.'
+          // deno-lint-ignore no-explicit-any
+          : `No se puede emitir: ${sinCodigo.map((m: any) => m.medication_name).join(', ')} no se eligió del vademécum.`,
         code: 'RCTA_SIN_CODIGO',
       }, 422)
     }
 
     // ── Mark as pending ───────────────────────────────────────────────────────
-    await supabase
-      .from('clinical_medications')
-      .update({ rcta_status: 'pending' })
-      .eq('id', medicationId)
+    await setStatus('pending')
 
     // ── Check credentials ─────────────────────────────────────────────────────
     const RCTA_API_URL = Deno.env.get('RCTA_API_URL')
@@ -91,10 +128,7 @@ Deno.serve(async (req: Request) => {
 
     if (!RCTA_API_URL || !RCTA_API_KEY || !RCTA_CLIENT_APP_ID) {
       // Credentials not yet configured — return structured error so UI can show correct message
-      await supabase
-        .from('clinical_medications')
-        .update({ rcta_status: 'error' })
-        .eq('id', medicationId)
+      await setStatus('error')
 
       return json({
         error: 'RCTA credentials not configured',
@@ -113,22 +147,26 @@ Deno.serve(async (req: Request) => {
     const payload = {
       clienteAppId: Number(RCTA_CLIENT_APP_ID),
       diagnostico: med.cie10_display ?? med.cie10_code ?? null,
-      medicamentos: [{
+      // Una receta, N medicamentos. Innovamed puede repartirlos en mas de una
+      // receta segun sus propias reglas (lo informa en `accionPDF`), por eso
+      // abajo se guarda el idReceta que efectivamente devolvio.
+      // deno-lint-ignore no-explicit-any
+      medicamentos: meds.map((m: any) => ({
         // `regNo` es el codigo del catalogo de Innovamed. Sin el, la API responde
         // QBI105 "CODIGO INFORMADO INEXISTENTE" — por eso se valida arriba antes
         // de llegar aca.
-        regNo: med.reg_no,
-        nombreProducto: med.medication_name,
-        nombreDroga: med.nombre_droga ?? med.medication_name,
-        presentacion: med.presentacion ?? ([med.presentation, med.concentration].filter(Boolean).join(' ') || null),
-        cantidad: parseInt(String(med.quantity ?? '').replace(/\D/g, ''), 10) || 1,
+        regNo: m.reg_no,
+        nombreProducto: m.medication_name,
+        nombreDroga: m.nombre_droga ?? m.medication_name,
+        presentacion: m.presentacion ?? ([m.presentation, m.concentration].filter(Boolean).join(' ') || null),
+        cantidad: parseInt(String(m.quantity ?? '').replace(/\D/g, ''), 10) || 1,
         permiteSustitucion: null,
-        tratamiento: med.is_chronic ? 1 : 0,
-        diagnostico: med.cie10_display ?? null,
-        codigoDiagnostico: med.cie10_code ?? null,
-        posologia: [med.dosage_text, med.frequency].filter(Boolean).join(' — ') || null,
-        observaciones: med.notes ?? null,
-      }],
+        tratamiento: m.is_chronic ? 1 : 0,
+        diagnostico: m.cie10_display ?? null,
+        codigoDiagnostico: m.cie10_code ?? null,
+        posologia: [m.dosage_text, m.frequency].filter(Boolean).join(' — ') || null,
+        observaciones: m.notes ?? null,
+      })),
       paciente: {
         nombre: pacienteNombre,
         apellido: pacienteApellido,
@@ -159,7 +197,8 @@ Deno.serve(async (req: Request) => {
         },
         lugarAtencion: prof.address ?? null,
       },
-      indicaciones: med.notes ?? null,
+      // deno-lint-ignore no-explicit-any
+      indicaciones: meds.map((m: any) => m.notes).filter(Boolean).join(' · ') || null,
       // QBI248 ("DEBE INFORMAR EL DOMICILIO DONDE SE REALIZÓ LA ATENCIÓN") requires the
       // consultation address — sent on every plausible field since Innovamed's swagger
       // doesn't document which one is actually checked.
@@ -184,10 +223,7 @@ Deno.serve(async (req: Request) => {
     if (!rctaRes.ok) {
       const errBody = await rctaRes.text()
       console.error('RCTA API error:', rctaRes.status, errBody)
-      await supabase
-        .from('clinical_medications')
-        .update({ rcta_status: 'error' })
-        .eq('id', medicationId)
+      await setStatus('error')
       return json({ error: 'RCTA API error', status: rctaRes.status, detail: errBody }, 502)
     }
 
@@ -195,19 +231,13 @@ Deno.serve(async (req: Request) => {
     // RecetaPdfResponse: { recetas: [{ idReceta, s3Link, fecha, verificador }], errores: [...] }
     if (rctaData.errores?.length) {
       console.error('RCTA API returned errores:', rctaData.errores)
-      await supabase
-        .from('clinical_medications')
-        .update({ rcta_status: 'error' })
-        .eq('id', medicationId)
+      await setStatus('error')
       return json({ error: 'RCTA API error', detail: rctaData.errores }, 502)
     }
 
     const receta = rctaData.recetas?.[0]
     if (!receta) {
-      await supabase
-        .from('clinical_medications')
-        .update({ rcta_status: 'error' })
-        .eq('id', medicationId)
+      await setStatus('error')
       return json({ error: 'RCTA API returned no receta', detail: rctaData }, 502)
     }
 
@@ -216,21 +246,22 @@ Deno.serve(async (req: Request) => {
     const issuedAt = receta.fecha ?? new Date().toISOString()
 
     // ── Persist result ────────────────────────────────────────────────────────
-    await supabase
-      .from('clinical_medications')
-      .update({
-        rcta_prescription_id: prescriptionId,
-        rcta_pdf_url:         pdfUrl,
-        rcta_status:          'issued',
-        rcta_issued_at:       issuedAt,
-      })
-      .eq('id', medicationId)
+    // Todas las filas de la receta comparten idReceta y PDF: es un unico
+    // documento con varios medicamentos.
+    await setStatus('issued', {
+      rcta_prescription_id: prescriptionId,
+      rcta_pdf_url:         pdfUrl,
+      rcta_issued_at:       issuedAt,
+    })
 
     // ── Pharmacy stock match + patient notification (best-effort — a failure here
     // must never fail the RCTA response, the prescription was already issued) ──
-    await notifyPharmacyMatch(supabase, med).catch(err => console.error('pharmacy match failed:', err))
+    // deno-lint-ignore no-explicit-any
+    for (const m of meds as any[]) {
+      await notifyPharmacyMatch(supabase, m).catch(err => console.error('pharmacy match failed:', err))
+    }
 
-    return json({ prescriptionId, pdfUrl, issuedAt })
+    return json({ prescriptionId, pdfUrl, issuedAt, medicationIds: ids })
 
   } catch (err) {
     console.error('rcta-issue error:', err)
