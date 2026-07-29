@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, FileText, Paperclip, VideoCamera, ClipboardText, User,
   Clock, Plus, Trash, CalendarPlus, Key, ShieldCheck, Tag, PencilSimple, Check, X,
-  FirstAidKit, Heartbeat, Pill, Sparkle, Info,
+  FirstAidKit, Pill, Sparkle, Info,
 } from '@phosphor-icons/react'
 import InfoTooltip from '../../components/common/InfoTooltip'
 import { consultationsService } from '../../services/consultationsService'
@@ -14,7 +14,6 @@ import CloseConsultationModal from '../../components/CloseConsultationModal'
 import Modal from '../../components/Modal'
 import FileUpload from '../../components/FileUpload'
 import AllergyPanel from '../../components/professional/AllergyPanel'
-import VitalsPanel from '../../components/professional/VitalsPanel'
 import PreconsultaSummary, { hasPreconsulta } from '../../components/professional/PreconsultaSummary'
 import FinanciadorPicker from '../../components/professional/FinanciadorPicker'
 import PrescriptionCreator from '../../components/professional/PrescriptionCreator'
@@ -606,19 +605,10 @@ export default function ConsultationDetail({ profile }) {
           />
         </div>
 
-        <div className="border-t border-border-default" />
-
-        {/* Vitals subsection */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Heartbeat className="h-4 w-4 text-brand" />
-            <p className="text-sm font-semibold text-text-primary">Signos vitales</p>
-          </div>
-          <VitalsPanel
-            patientId={consultation.patientId}
-            encounterId={clinicalEncounterId}
-          />
-        </div>
+        {/* Signos vitales sacado de la pantalla (Mateo, 2026-07-29): "por ahora
+            no vamos a tener esto". `VitalsPanel` y `clinical_observations` siguen
+            existiendo — se sacó el punto de entrada, no el modelo de datos, para
+            poder volver a colgarlo acá cuando haya de dónde medir. */}
 
         <div className="border-t border-border-default" />
 
