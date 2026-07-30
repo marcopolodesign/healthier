@@ -272,6 +272,48 @@ export const clinicalService = {
     return toCamelCase(data ?? [])
   },
 
+  /**
+   * Las recetas electrónicas efectivamente emitidas para una consulta.
+   *
+   * Una receta puede llevar varios medicamentos, así que las filas se agrupan por
+   * `rcta_prescription_id`: lo que el paciente recibe es UN documento, no uno por
+   * medicamento. Devuelve `[]` si la consulta todavía no tiene encuentro clínico
+   * o si nada se emitió.
+   */
+  async getIssuedRecetasByConsultation(consultationId) {
+    if (!consultationId) return []
+
+    const { data: enc, error: encError } = await supabase
+      .from('clinical_encounters')
+      .select('id')
+      .eq('consultation_id', consultationId)
+      .maybeSingle()
+    if (encError || !enc) return []
+
+    const { data, error } = await supabase
+      .from('clinical_medications')
+      .select('id, medication_name, rcta_prescription_id, rcta_pdf_url, rcta_issued_at')
+      .eq('encounter_id', enc.id)
+      .eq('rcta_status', 'issued')
+      .order('rcta_issued_at', { ascending: false })
+    if (error) return []
+
+    const porReceta = new Map()
+    for (const m of data ?? []) {
+      const key = m.rcta_prescription_id ?? m.id
+      if (!porReceta.has(key)) {
+        porReceta.set(key, {
+          prescriptionId: m.rcta_prescription_id ?? '—',
+          pdfUrl:         m.rcta_pdf_url,
+          issuedAt:       m.rcta_issued_at,
+          medications:    [],
+        })
+      }
+      porReceta.get(key).medications.push(m.medication_name)
+    }
+    return [...porReceta.values()]
+  },
+
   async getEncounterByConsultationId(consultationId) {
     const { data, error } = await supabase
       .from('clinical_encounters')

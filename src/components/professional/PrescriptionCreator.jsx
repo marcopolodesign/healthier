@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import {
   MagnifyingGlass, X, CircleNotch, Check, Pill,
-  Plus, Copy, FilePdf, ArrowSquareOut, Warning,
+  Plus, Copy, FilePdf, ArrowSquareOut, Warning, Info,
 } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import MedicationSearch from './MedicationSearch'
+import InfoTooltip from '../common/InfoTooltip'
 import { logClinicalAccess } from '../../services/clinicalService'
 import { faltanDatosProfesional, faltanDatosPaciente, listar } from '../../lib/datosReceta'
 import { toast } from '../Toast'
@@ -215,7 +216,16 @@ function AddPrescriptionForm({ patientId, encounterId, ensureEncounter, professi
   const effectiveFrequency = form.frequency === '__custom__' ? form.customFrequency : form.frequency
 
   async function handleSave() {
-    if (!form.medicationName.trim()) { toast.warning('Ingresá el medicamento'); return }
+    // El medicamento tiene que salir del vademécum de Innovamed, sin excepción
+    // (decisión de Mateo, 2026-07-29). Antes se permitía texto libre "para la
+    // historia clínica", y el resultado fue que 4 de las 6 medicaciones cargadas
+    // quedaron sin `reg_no` y por lo tanto imposibles de recetar. Guardar algo que
+    // no se puede emitir no es una media victoria: es una receta que el paciente
+    // no va a recibir.
+    if (!form.catalogo?.regNo) {
+      toast.warning('Elegí el medicamento del vademécum — es lo que hace que la receta se pueda emitir')
+      return
+    }
     if (!form.dosage.trim()) { toast.warning('Ingresá la dosis'); return }
 
     setSaving(true)
@@ -241,9 +251,8 @@ function AddPrescriptionForm({ patientId, encounterId, ensureEncounter, professi
           professional_license_number: profProfile?.licenseNumber ?? '0',
           medication_name:  form.medicationName.trim(),
           snomed_code:      null,
-          // Sin reg_no la receta se rechaza con QBI105 — se guarda igual para la
-          // historia clínica, pero rcta-issue la va a rechazar antes de llamar.
-          reg_no:           form.catalogo?.regNo ?? null,
+          // Siempre presente: `handleSave` no deja guardar sin elegir del catálogo.
+          reg_no:           form.catalogo.regNo,
           presentacion:     form.catalogo?.presentacion ?? null,
           nombre_droga:     form.catalogo?.nombreDroga ?? null,
           concentration:    form.concentration.trim() || null,
@@ -267,7 +276,7 @@ function AddPrescriptionForm({ patientId, encounterId, ensureEncounter, professi
       // Asiento de auditoría — este insert no pasa por clinicalService, así que
       // el log se hace explícito acá (Ley 26.529 Art. 14 / Ley 25.326 Art. 9).
       logClinicalAccess({ resourceType: 'medication', resourceId: data.id, patientId, action: 'create' })
-      toast.success('Medicación registrada')
+      toast.success('Medicación registrada — todavía falta emitir la receta')
       onSaved(data)
     } catch {
       toast.error('Error al guardar la medicación')
@@ -283,7 +292,7 @@ function AddPrescriptionForm({ patientId, encounterId, ensureEncounter, professi
       {/* Medicamento + concentración */}
       <div className="grid grid-cols-2 gap-2">
         <div className="col-span-2 sm:col-span-1">
-          <label className="form-label text-xs">Medicamento *</label>
+          <label className="form-label text-xs">Medicamento (del vademécum) *</label>
           <MedicationSearch
             value={form.medicationName}
             selected={form.catalogo}
@@ -452,7 +461,7 @@ function AddPrescriptionForm({ patientId, encounterId, ensureEncounter, professi
  *   `cobertura` es opcional: con ella, Innovamed además informa si cada
  *   medicamento tiene cobertura para ESE paciente.
  */
-export default function PrescriptionCreator({ patientId, encounterId, ensureEncounter, professionalId, cobertura, profile, profProfile, paciente }) {
+export default function PrescriptionCreator({ patientId, encounterId, ensureEncounter, professionalId, cobertura, profile, profProfile, paciente, onIssued }) {
   const [prescriptions, setPrescriptions] = useState([])
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
@@ -521,7 +530,8 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
 
       toast.success(medicationIds.length > 1
         ? `Receta emitida con ${medicationIds.length} medicamentos`
-        : 'Receta RCTA emitida correctamente')
+        : 'Receta electrónica emitida')
+      onIssued?.()
     } catch {
       toast.error('Error al conectar con el servicio RCTA')
     } finally {
@@ -596,23 +606,33 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
       )}
 
       {/* Una sola acción para toda la receta, en vez de un botón por renglón:
-          los marcados salen juntos en el MISMO documento. */}
+          los marcados salen juntos en el MISMO documento. Es la acción principal
+          de la pantalla (pedido de Mateo, 2026-07-29): guardar la medicación no
+          le entrega nada al paciente, emitir sí. */}
       {!loading && emitibles.length > 0 && (
-        <div className="space-y-1.5">
-          <button
-            type="button"
-            onClick={() => handleIssueRcta(seleccionados)}
-            disabled={issuing || seleccionados.length === 0}
-            className="w-full flex items-center justify-center gap-2 text-xs font-semibold py-2.5 px-3 rounded-lg bg-brand/10 text-brand hover:bg-brand/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {issuing
-              ? <><CircleNotch className="h-3.5 w-3.5 animate-spin" /> Emitiendo receta RCTA…</>
-              : <>
-                  <ArrowSquareOut className="h-3.5 w-3.5" />
-                  Emitir receta electrónica (RCTA)
-                  {seleccionados.length > 1 && ` · ${seleccionados.length} medicamentos`}
-                </>}
-          </button>
+        <div className="space-y-1.5 pt-1">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleIssueRcta(seleccionados)}
+              disabled={issuing || seleccionados.length === 0}
+              className="btn-primary flex-1 py-3 flex items-center justify-center gap-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {issuing
+                ? <><CircleNotch className="h-4 w-4 animate-spin" /> Emitiendo…</>
+                : <>
+                    <ArrowSquareOut className="h-4 w-4" />
+                    Emitir receta
+                    {seleccionados.length > 1 && ` · ${seleccionados.length} medicamentos`}
+                  </>}
+            </button>
+            <InfoTooltip
+              title="Qué hace este botón"
+              label="Manda la receta a RCTA (Innovamed) y devuelve el PDF firmado con validez legal, que le queda al paciente y sirve en la farmacia. Guardar la medicación sola no emite nada: sólo la deja en la historia clínica. Los medicamentos marcados salen juntos, en una sola receta con un único PDF."
+            >
+              <Info className="h-4 w-4 text-text-tertiary cursor-help" />
+            </InfoTooltip>
+          </div>
           {emitibles.length > 1 && (
             <p className="text-[11px] text-text-tertiary text-center">
               {seleccionados.length === 0

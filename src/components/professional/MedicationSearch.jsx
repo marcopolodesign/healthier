@@ -10,10 +10,10 @@ import { rctaService } from '../../services/rctaService'
  * mandar el `regNo` de SU catálogo. Elegir de acá es lo que hace que la receta
  * se pueda emitir.
  *
- * Se permite igual cargar texto libre, porque la historia clínica tiene valor
- * aunque el producto no esté en el catálogo — pero se avisa en la cara que esa
- * medicación **no se va a poder emitir** por RCTA, en vez de que el profesional
- * lo descubra recién al intentar.
+ * **Elegir del catálogo es obligatorio** desde el 2026-07-29 (decisión de Mateo).
+ * Antes se aceptaba texto libre "para la historia clínica" y el resultado fue que
+ * la mayoría de las medicaciones cargadas quedaron sin `reg_no`, o sea imposibles
+ * de recetar. El input de acá busca; guardar sin selección lo bloquea el formulario.
  *
  * @param {object} props
  * @param {string} props.value            texto actual
@@ -137,8 +137,8 @@ export default function MedicationSearch({ value, onTextChange, onSelect, select
       {textoLibre && (
         <p className="text-[11px] text-amber-700 mt-1 flex items-start gap-1">
           <Warning className="h-3 w-3 mt-0.5 shrink-0" weight="fill" />
-          Sin resultados en el vademécum. Podés guardarlo igual en la historia clínica,
-          pero <strong>no se va a poder emitir como receta electrónica</strong>.
+          Sin resultados en el vademécum de Innovamed. Probá con el nombre comercial o
+          la droga — <strong>hay que elegirlo de la lista</strong> para poder recetarlo.
         </p>
       )}
     </div>

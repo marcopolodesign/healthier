@@ -1,7 +1,5 @@
 import { useState } from 'react'
 import Modal from './Modal'
-import FileUpload from './FileUpload'
-import { professionalService } from '../services/professionalService'
 import { consultationsService } from '../services/consultationsService'
 import { clinicalService } from '../services/clinicalService'
 import { toast } from './Toast'
@@ -10,28 +8,19 @@ export default function CloseConsultationModal({
   open, onClose, consultationId, patientName, modality, profile, onFinalized,
   patientId, ensureEncounter, licenseType, licenseNumber,
 }) {
-  const [form, setForm] = useState({ notes: '', code: '', needsPrescription: false, prescriptionFile: null })
+  const [form, setForm] = useState({ notes: '', code: '' })
   const [closing, setClosing] = useState(false)
 
   const handleSubmit = async () => {
-    if (form.needsPrescription && !form.prescriptionFile) {
-      toast.warning('Adjuntá la receta antes de confirmar')
-      return
-    }
     setClosing(true)
     try {
-      let prescriptionUrl = null
-      if (form.needsPrescription && form.prescriptionFile) {
-        prescriptionUrl = await professionalService.uploadDocument(
-          profile.id,
-          form.prescriptionFile,
-          'professional-docs',
-          `rx-${consultationId}`
-        )
-      }
+      // La receta ya NO se sube a mano acá (decisión de Mateo, 2026-07-29): una
+      // imagen o un PDF que subimos nosotros no es una receta. La receta es el PDF
+      // firmado que emite RCTA desde "Recetas digitales", y hasta que RCTA esté
+      // habilitado no se entrega ninguna. Se deja de escribir
+      // `consultations.prescription_url`; la columna queda para no perder lo viejo.
       const result = await consultationsService.finalize(consultationId, 'professional', {
         closingNotes: form.notes || null,
-        prescriptionUrl,
         code: form.code.trim() || null,
       })
 
@@ -97,25 +86,6 @@ export default function CloseConsultationModal({
             className="form-textarea"
           />
         </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setForm(p => ({ ...p, needsPrescription: !p.needsPrescription }))}
-            className={`w-10 h-6 rounded-full transition-colors relative ${form.needsPrescription ? 'bg-brand' : 'bg-gray-300'}`}
-          >
-            <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${form.needsPrescription ? 'translate-x-5' : 'translate-x-1'}`} />
-          </button>
-          <span className="text-sm text-text-primary">¿Requiere receta?</span>
-        </div>
-
-        {form.needsPrescription && (
-          <FileUpload
-            onFile={f => setForm(p => ({ ...p, prescriptionFile: f }))}
-            accept=".pdf,.jpg,.jpeg,.png"
-            label={form.prescriptionFile ? form.prescriptionFile.name : 'Adjuntar receta (PDF o imagen)'}
-          />
-        )}
 
         {modality !== 'presencial' && (
           <div>

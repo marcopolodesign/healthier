@@ -112,13 +112,15 @@ export const consultationsService = {
     return data.code
   },
 
-  async finalize(consultationId, role, { closingNotes = null, prescriptionUrl = null, code = null } = {}) {
+  // `prescriptionUrl` salió de la firma el 2026-07-29: la receta ya no es un
+  // archivo que subimos, es el PDF que emite RCTA. La RPC sigue aceptando el
+  // parámetro (default NULL) para no romper el contrato de la base.
+  async finalize(consultationId, role, { closingNotes = null, code = null } = {}) {
     const { data, error } = await supabase.rpc('finalize_consultation', {
       p_consultation_id: consultationId,
       p_role: role,
       p_code: code || null,
       p_closing_notes: closingNotes || null,
-      p_prescription_url: prescriptionUrl || null,
     })
     if (error) throw error
     const result = toCamelCase(data)
@@ -207,7 +209,7 @@ export const consultationsService = {
   async getByPatient(patientId) {
     const { data, error } = await supabase
       .from('consultations')
-      .select('*, professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty)), consultation_orders(*), payment:payments!consultation_id(id, status, refund_type, refunded_at, refund_conversion_requested_at, refund_conversion_resolved_at, mp_payment_id, refund_request_status, refund_reject_reason)')
+      .select('*, professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty)), encounters:clinical_encounters!consultation_id(id, medications:clinical_medications(rcta_status, rcta_pdf_url, rcta_prescription_id)), payment:payments!consultation_id(id, status, refund_type, refunded_at, refund_conversion_requested_at, refund_conversion_resolved_at, mp_payment_id, refund_request_status, refund_reject_reason)')
       .eq('patient_id', patientId)
       .order('scheduled_at', { ascending: false })
     if (error) throw error
@@ -227,7 +229,7 @@ export const consultationsService = {
   async getById(id) {
     const { data, error } = await supabase
       .from('consultations')
-      .select('*, patient:profiles!patient_id(id, full_name, avatar_url, email, phone, dni, gender, birth_date), professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty)), consultation_type:consultation_types!consultation_type_id(id, name, price, modality), consultation_orders(*)')
+      .select('*, patient:profiles!patient_id(id, full_name, avatar_url, email, phone, dni, gender, birth_date), professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty)), consultation_type:consultation_types!consultation_type_id(id, name, price, modality)')
       .eq('id', id)
       .single()
     if (error) throw error
@@ -254,23 +256,10 @@ export const consultationsService = {
     return toCamelCase(data)
   },
 
-  async addOrder(consultationId, { description, orderType, url }) {
-    const { data, error } = await supabase
-      .from('consultation_orders')
-      .insert({ consultation_id: consultationId, description, order_type: orderType, url: url || null })
-      .select()
-      .single()
-    if (error) throw error
-    return toCamelCase(data)
-  },
-
-  async removeOrder(orderId) {
-    const { error } = await supabase
-      .from('consultation_orders')
-      .delete()
-      .eq('id', orderId)
-    if (error) throw error
-  },
+  // `addOrder` / `removeOrder` eliminados el 2026-07-29 junto con la sección
+  // "Órdenes y recetas": no tenía nada que ver con RCTA y no se había usado nunca
+  // (0 filas en `consultation_orders`). La tabla queda por si vuelve — el lugar
+  // correcto para pedidos de estudios es `POST /prescribirPractica` de RCTA.
 
   async updateStatus(id, status, extra = {}) {
     const { data, error } = await supabase

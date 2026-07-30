@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import {
   Calendar, Clock, VideoCamera, MapPin, Star, CaretRight, ArrowLeft, CircleNotch, Check,
-  X, FileText, Ambulance, ClipboardText, Pill, UserCircle, Sparkle, Warning,
+  X, FileText, Ambulance, Sparkle, Warning,
 } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
@@ -16,7 +16,6 @@ import { VERTICALS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
-import SignedDocLink from '../../components/SignedDocLink'
 import { track } from '../../utils/analytics'
 
 const ESPECIALIDADES = {
@@ -597,7 +596,14 @@ export default function PatientConsultations({ profile }) {
           const hasReview = !!patientReviewMap[t.id]
           const isUpcomingActive = view === 'upcoming' && ['confirmed', 'pending'].includes(t.status)
           const isInProgressVideo = view === 'upcoming' && t.status === 'in_progress' && t.modality === 'video'
-          const orders = t.consultationOrders ?? []
+          // La receta que ve el paciente es el PDF firmado que emitió RCTA, no un
+          // archivo que subió el profesional (2026-07-29). Una consulta puede tener
+          // más de una receta, y cada receta más de un medicamento — se deduplica
+          // por `rctaPrescriptionId` para no listar el mismo PDF varias veces.
+          const recetas = (t.encounters ?? [])
+            .flatMap(e => e.medications ?? [])
+            .filter(m => m.rctaStatus === 'issued' && m.rctaPdfUrl)
+            .reduce((acc, m) => acc.some(r => r.rctaPrescriptionId === m.rctaPrescriptionId) ? acc : [...acc, m], [])
           const paymentRow = Array.isArray(t.payment) ? t.payment[0] : t.payment
           const isRefundedCredit = view === 'past' && t.paymentStatus === 'refunded' && paymentRow?.refundType === 'credit'
           const isRefundPending  = view === 'past' && paymentRow?.refundRequestStatus === 'pending'
@@ -654,39 +660,6 @@ export default function PatientConsultations({ profile }) {
                 </div>
               </div>
 
-              {/* Orders / prescriptions / referrals section */}
-              {orders.length > 0 && (
-                <div className="border-t border-border-default px-4 py-3 space-y-1.5">
-                  {orders.map(order => {
-                    const orderIcon = order.orderType === 'receta' ? Pill
-                      : order.orderType === 'derivacion' ? UserCircle
-                      : ClipboardText
-                    const orderLabel = order.orderType === 'receta' ? 'Receta'
-                      : order.orderType === 'derivacion' ? 'Derivación'
-                      : 'Orden'
-                    const OrderIcon = orderIcon
-                    return (
-                      <div key={order.id} className="flex items-center gap-2.5">
-                        <OrderIcon className="w-4 h-4 text-brand shrink-0" />
-                        <span className="text-[12px] text-text-secondary flex-1 truncate">{order.description}</span>
-                        {order.url ? (
-                          <a
-                            href={order.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[11px] text-brand font-semibold shrink-0 hover:underline"
-                          >
-                            {orderLabel} →
-                          </a>
-                        ) : (
-                          <span className="text-[11px] text-text-tertiary shrink-0">{orderLabel}</span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-
               {/* Actions row */}
               {hasActions && (
                 <div className="border-t border-border-default flex">
@@ -700,11 +673,17 @@ export default function PatientConsultations({ profile }) {
                       Cancelar
                     </button>
                   )}
-                  {view === 'past' && t.status === 'completed' && t.prescriptionUrl && (
-                    <SignedDocLink url={t.prescriptionUrl} className="flex-1 py-3 text-[13px] font-semibold text-brand flex items-center justify-center gap-1.5 hover:bg-brand-muted transition-colors">
+                  {view === 'past' && t.status === 'completed' && recetas.map(r => (
+                    <a
+                      key={r.rctaPrescriptionId}
+                      href={r.rctaPdfUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-1 py-3 text-[13px] font-semibold text-brand flex items-center justify-center gap-1.5 hover:bg-brand-muted transition-colors"
+                    >
                       <FileText className="w-4 h-4" /> Ver receta
-                    </SignedDocLink>
-                  )}
+                    </a>
+                  ))}
                   {view === 'past' && t.status === 'completed' && !hasReview && (
                     <button onClick={() => { setReviewTarget(t); setReviewRating(0); setReviewComment('') }} className="flex-1 py-3 text-[13px] font-semibold text-amber-600 flex items-center justify-center gap-1.5 hover:bg-amber-50 transition-colors">
                       <Star className="w-4 h-4" /> Dejar reseña

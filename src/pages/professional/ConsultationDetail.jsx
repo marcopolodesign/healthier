@@ -1,32 +1,24 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  ArrowLeft, FileText, Paperclip, VideoCamera, ClipboardText, User,
-  Clock, Plus, Trash, CalendarPlus, Key, ShieldCheck, Tag, PencilSimple, Check, X,
-  FirstAidKit, Pill, Sparkle, Info,
+  ArrowLeft, FileText, VideoCamera, ClipboardText, User,
+  Clock, CalendarPlus, Key, ShieldCheck, Tag, PencilSimple, Check, X,
+  FirstAidKit, Pill, Sparkle, Info, FilePdf,
 } from '@phosphor-icons/react'
 import InfoTooltip from '../../components/common/InfoTooltip'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
+import { clinicalService } from '../../services/clinicalService'
 import StatusBadge from '../../components/StatusBadge'
 import CloseConsultationModal from '../../components/CloseConsultationModal'
 import Modal from '../../components/Modal'
-import FileUpload from '../../components/FileUpload'
 import AllergyPanel from '../../components/professional/AllergyPanel'
 import PreconsultaSummary, { hasPreconsulta } from '../../components/professional/PreconsultaSummary'
 import FinanciadorPicker from '../../components/professional/FinanciadorPicker'
 import PrescriptionCreator from '../../components/professional/PrescriptionCreator'
 import ScribeSession from '../../components/professional/ScribeSession'
-import SignedDocLink from '../../components/SignedDocLink'
 import { toast } from '../../components/Toast'
-
-const ORDER_TYPE_LABELS = { orden: 'Orden', receta: 'Receta', derivacion: 'Derivación' }
-const ORDER_TYPE_COLORS = {
-  receta:     'bg-purple-100 text-purple-700',
-  derivacion: 'bg-amber-100 text-amber-700',
-  orden:      'bg-blue-100 text-blue-700',
-}
 
 export default function ConsultationDetail({ profile }) {
   const { id } = useParams()
@@ -38,11 +30,6 @@ export default function ConsultationDetail({ profile }) {
   const [enterCode, setEnterCode] = useState('')
   const [entering, setEntering] = useState(false)
 
-  const [addingOrder, setAddingOrder] = useState(false)
-  const [orderFormKey, setOrderFormKey] = useState(0)
-  const [orderForm, setOrderForm] = useState({ description: '', tipo: 'orden', file: null })
-  const [savingOrder, setSavingOrder] = useState(false)
-
   const [reagendarOpen, setReagendarOpen] = useState(false)
   const [reagendarDate, setReagendarDate] = useState('')
   const [savingReagendar, setSavingReagendar] = useState(false)
@@ -53,6 +40,7 @@ export default function ConsultationDetail({ profile }) {
 
   const [profProfile, setProfProfile] = useState(null)
   const [showScribe, setShowScribe] = useState(false)
+  const [recetas, setRecetas] = useState([])
 
   useEffect(() => {
     if (!profile?.id) return
@@ -91,6 +79,16 @@ export default function ConsultationDetail({ profile }) {
     preconsulta: consultation?.preconsultaData,
   })
 
+  // Las recetas emitidas se recargan cuando cambia el encuentro: se emiten desde
+  // el propio panel de "Recetas digitales" de esta pantalla, así que la tarjeta de
+  // arriba tiene que reflejarlo sin recargar la página.
+  useEffect(() => {
+    if (!consultation?.id) return
+    clinicalService.getIssuedRecetasByConsultation(consultation.id)
+      .then(setRecetas)
+      .catch(() => {})
+  }, [consultation?.id, clinicalEncounterId])
+
   const saveCoverage = async () => {
     setSavingCoverage(true)
     try {
@@ -118,7 +116,7 @@ export default function ConsultationDetail({ profile }) {
     setEntering(true)
     try {
       const updated = await consultationsService.startConsultation(id, enterCode)
-      setConsultation(prev => ({ ...prev, ...updated, consultationOrders: prev.consultationOrders }))
+      setConsultation(prev => ({ ...prev, ...updated }))
       toast.success('Consulta iniciada')
     } catch (err) {
       const msg = err?.message ?? ''
@@ -126,44 +124,6 @@ export default function ConsultationDetail({ profile }) {
       else toast.error('Error al ingresar a la consulta')
     } finally {
       setEntering(false)
-    }
-  }
-
-  const handleAddOrder = async () => {
-    if (!orderForm.description.trim()) { toast.warning('Describí la orden'); return }
-    setSavingOrder(true)
-    try {
-      let url = null
-      if (orderForm.file) {
-        url = await professionalService.uploadDocument(
-          profile.id, orderForm.file, 'professional-docs', `order-${id}-${Date.now()}`
-        )
-      }
-      await consultationsService.addOrder(id, {
-        description: orderForm.description,
-        orderType: orderForm.tipo,
-        url,
-      })
-      setOrderForm({ description: '', tipo: 'orden', file: null })
-      setOrderFormKey(k => k + 1)
-      setAddingOrder(false)
-      load()
-    } catch {
-      toast.error('Error al guardar la orden')
-    } finally {
-      setSavingOrder(false)
-    }
-  }
-
-  const handleRemoveOrder = async (orderId) => {
-    try {
-      await consultationsService.removeOrder(orderId)
-      setConsultation(prev => ({
-        ...prev,
-        consultationOrders: (prev.consultationOrders ?? []).filter(o => o.id !== orderId),
-      }))
-    } catch {
-      toast.error('Error al eliminar la orden')
     }
   }
 
@@ -201,7 +161,6 @@ export default function ConsultationDetail({ profile }) {
   const showCloseButton = isVideo
     ? ['confirmed', 'in_progress', 'pending'].includes(consultation.status)
     : isInProgress
-  const orders = consultation.consultationOrders ?? []
 
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl mx-auto">
@@ -417,118 +376,6 @@ export default function ConsultationDetail({ profile }) {
         </Link>
       )}
 
-      {/* Orders & prescriptions */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <h2 className="font-semibold text-text-primary">Órdenes y recetas</h2>
-            <InfoTooltip
-              align="left"
-              title="No es la receta electrónica"
-              label="Acá van adjuntos de Healthier: pedidos de estudios, derivaciones y PDFs sueltos. Queda visible para el paciente pero no tiene validez de receta electrónica. Para eso usá “Recetas digitales” más abajo, que emite por RCTA."
-            >
-              <Info className="h-3.5 w-3.5 text-text-tertiary cursor-help" />
-            </InfoTooltip>
-          </div>
-          {!isCompleted && !isCancelled && !addingOrder && (
-            <button
-              onClick={() => setAddingOrder(true)}
-              className="flex items-center gap-1 text-sm text-brand hover:underline"
-            >
-              <Plus className="h-4 w-4" /> Agregar
-            </button>
-          )}
-        </div>
-
-        {orders.length === 0 && !addingOrder && (
-          <p className="text-sm text-text-muted">Sin órdenes adjuntas.</p>
-        )}
-
-        <div className="space-y-2">
-          {orders.map(order => (
-            <div
-              key={order.id}
-              className="flex items-start justify-between gap-3 py-2 border-b border-border-default last:border-0"
-            >
-              <div className="flex-1 min-w-0">
-                <span className={`text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full mr-2 ${ORDER_TYPE_COLORS[order.orderType] ?? 'bg-gray-100 text-gray-700'}`}>
-                  {ORDER_TYPE_LABELS[order.orderType] ?? order.orderType}
-                </span>
-                <span className="text-sm text-text-primary">{order.description}</span>
-                {order.url && (
-                  <SignedDocLink
-                    url={order.url}
-                    className="mt-1 flex items-center gap-1 text-xs text-brand hover:underline"
-                  >
-                    <Paperclip className="h-3 w-3" /> Ver adjunto
-                  </SignedDocLink>
-                )}
-              </div>
-              {!isCompleted && !isCancelled && (
-                <button
-                  onClick={() => handleRemoveOrder(order.id)}
-                  className="p-1 text-text-muted hover:text-danger"
-                >
-                  <Trash className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {addingOrder && (
-          <div className="mt-4 pt-4 border-t border-border-default space-y-3">
-            <div className="flex gap-2 flex-wrap">
-              {['orden', 'receta', 'derivacion'].map(t => (
-                <button
-                  key={t}
-                  onClick={() => setOrderForm(p => ({ ...p, tipo: t }))}
-                  className={`text-sm px-3 py-1 rounded-full border transition-colors ${
-                    orderForm.tipo === t
-                      ? 'bg-brand text-white border-brand'
-                      : 'border-border-default text-text-secondary hover:border-brand'
-                  }`}
-                >
-                  {ORDER_TYPE_LABELS[t]}
-                </button>
-              ))}
-            </div>
-            <input
-              type="text"
-              value={orderForm.description}
-              onChange={e => setOrderForm(p => ({ ...p, description: e.target.value }))}
-              placeholder="Descripción (ej: Hemograma completo)"
-              className="form-input"
-            />
-            <FileUpload
-              key={orderFormKey}
-              onFile={f => setOrderForm(p => ({ ...p, file: f }))}
-              accept=".pdf,.jpg,.jpeg,.png"
-              label="Adjuntar archivo (opcional)"
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setAddingOrder(false)
-                  setOrderForm({ description: '', tipo: 'orden', file: null })
-                  setOrderFormKey(k => k + 1)
-                }}
-                className="btn-secondary flex-1 py-2"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleAddOrder}
-                disabled={savingOrder}
-                className="btn-primary flex-1 py-2"
-              >
-                {savingOrder ? 'Guardando…' : 'Guardar'}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* Closing notes (completed) */}
       {consultation.closingNotes && (
         <div className="card">
@@ -540,18 +387,41 @@ export default function ConsultationDetail({ profile }) {
         </div>
       )}
 
-      {/* Legacy single prescription */}
-      {consultation.prescriptionUrl && (
-        <div className="card">
+      {/* Receta electrónica emitida.
+          Antes acá se mostraba un archivo que el profesional subía a mano al
+          cerrar la consulta. Una imagen no es una receta: la receta es el PDF
+          firmado que devuelve RCTA. Ahora sale de `clinical_medications` y una
+          sola receta puede agrupar varios medicamentos, así que se agrupa por
+          `rcta_prescription_id`. */}
+      {recetas.length > 0 && (
+        <div className="card space-y-3">
           <div className="flex items-center gap-2">
-            <Paperclip className="h-5 w-5 text-brand" />
-            <SignedDocLink
-              url={consultation.prescriptionUrl}
-              className="text-brand text-sm font-medium hover:underline"
-            >
-              Ver receta adjunta
-            </SignedDocLink>
+            <FilePdf className="h-5 w-5 text-brand" />
+            <h2 className="font-semibold text-text-primary">
+              Receta{recetas.length > 1 ? 's' : ''} electrónica{recetas.length > 1 ? 's' : ''}
+            </h2>
           </div>
+          {recetas.map(r => (
+            <div key={r.prescriptionId} className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm text-text-primary">{r.medications.join(' · ')}</p>
+                <p className="text-[11px] text-text-tertiary">
+                  N° {r.prescriptionId}
+                  {r.issuedAt && ` · ${new Date(r.issuedAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+                </p>
+              </div>
+              {r.pdfUrl && (
+                <a
+                  href={r.pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-sm text-brand font-medium hover:underline shrink-0"
+                >
+                  <FilePdf className="h-4 w-4" /> Ver PDF
+                </a>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
@@ -623,6 +493,7 @@ export default function ConsultationDetail({ profile }) {
             encounterId={clinicalEncounterId}
             ensureEncounter={ensureEncounter}
             professionalId={profile?.id ?? null}
+            onIssued={() => clinicalService.getIssuedRecetasByConsultation(consultation.id).then(setRecetas).catch(() => {})}
             profile={profile}
             profProfile={profProfile}
             paciente={consultation.patient}
