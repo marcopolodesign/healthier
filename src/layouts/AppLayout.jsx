@@ -5,7 +5,7 @@ import Header from '../components/Header'
 import ProfessionalBottomNav from '../components/professional/ProfessionalBottomNav'
 import AICompanion from '../components/professional/AICompanion'
 import { supabase } from '../lib/supabase'
-import { consultationsService } from '../services/consultationsService'
+import { consultationsService, fueAgendadaPorElProfesional } from '../services/consultationsService'
 import { useOnDemandPresence } from '../hooks/useOnDemandPresence'
 import { professionalService } from '../services/professionalService'
 import { notificationService } from '../services/notificationService'
@@ -94,6 +94,10 @@ export default function AppLayout({ profile, profSpecialty }) {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'consultations', filter: `professional_id=eq.${profile.id}` },
         async (payload) => {
+          // No avisar de un turno que agendó el propio profesional: hasta ahora
+          // reagendar o cargar un seguimiento le devolvía "Nueva reserva de …"
+          // como si lo hubiera reservado el paciente.
+          if (fueAgendadaPorElProfesional(payload.new.id)) return
           const updated = await consultationsService.getByProfessional(profile.id)
           const newCons = updated.find(c => c.id === payload.new.id)
           const name = newCons?.profiles?.fullName || 'Nuevo paciente'

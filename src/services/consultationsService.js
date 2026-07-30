@@ -1,4 +1,16 @@
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
+
+/**
+ * Ids de consultas que agendó el propio profesional en esta sesión.
+ *
+ * `AppLayout` escucha los INSERT de `consultations` y avisa "Nueva reserva de X":
+ * pensado para cuando reserva un paciente, pero saltaba también cuando el turno lo
+ * creaba el profesional (reagendar, seguimiento, cola de walk-in). Se registra el
+ * id ANTES del insert —generándolo en el cliente— porque el evento de Realtime
+ * puede llegar antes de que resuelva la promesa del insert.
+ */
+const agendadasPorElProfesional = new Set()
+export const fueAgendadaPorElProfesional = id => agendadasPorElProfesional.has(id)
 import { mpService } from './mpService'
 
 /**
@@ -186,9 +198,16 @@ export const consultationsService = {
    */
   async create(data, { bookedBy = 'patient' } = {}) {
     await this._assertProfessionalAcceptsBookings(data.professionalId)
+
+    const payload = { ...data }
+    if (bookedBy === 'professional' && typeof crypto?.randomUUID === 'function') {
+      payload.id = payload.id ?? crypto.randomUUID()
+      agendadasPorElProfesional.add(payload.id)
+    }
+
     const { data: row, error } = await supabase
       .from('consultations')
-      .insert(toSnakeCase(data))
+      .insert(toSnakeCase(payload))
       .select()
       .single()
     if (error) throw error
