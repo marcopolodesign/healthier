@@ -11,6 +11,10 @@ import { toast } from '../../components/Toast'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 import PreconsultaForm from '../../components/patient/PreconsultaForm'
 
+// Margen antes de cerrarle la llamada al paciente cuando el profesional se va: un
+// refresh del profesional también dispara `participant-left`.
+const PRO_LEFT_GRACE_MS = 8000
+
 const NO_SHOW_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes — mirrors professional/VideoCall.jsx
 
 // ── Audio element for remote participant (invisible) ──────────────────────────
@@ -54,6 +58,10 @@ export default function PatientVideoCall() {
   const callRef = useRef(null)
   const channelRef = useRef(null)
   const noShowTimerRef = useRef(null)
+  const proLeftTimerRef = useRef(null)
+  // Se muestra en pantalla mientras corre el margen, para que el cierre no
+  // aparezca como que se cortó solo.
+  const [profesionalSeFue, setProfesionalSeFue] = useState(false)
   // Set true only when the professional's Daily.co participant actually joins the
   // call (distinct from bothReady, which only means both sides are in the presence
   // waiting room). Used to decide review vs. cancellation screen on hangup.
@@ -195,6 +203,11 @@ export default function PatientVideoCall() {
         })
 
         call.on('participant-joined', ({ participant }) => {
+          if (!participant.local) {
+            // Volvió (o llegó): se cancela el cierre automático.
+            clearTimeout(proLeftTimerRef.current)
+            setProfesionalSeFue(false)
+          }
           consultationEventsService.log(consultationId, CONSULTATION_EVENTS.CALL_PARTICIPANT_JOINED,
             { participant_id: participant?.session_id, owner: participant?.owner, user_name: participant?.user_name },
             { role: 'patient' })
@@ -223,7 +236,18 @@ export default function PatientVideoCall() {
         })
 
         call.on('participant-left', ({ participant }) => {
-          if (!participant.local && !destroyed) setRemote(null)
+          if (participant.local || destroyed) return
+          setRemote(null)
+          // Si se va el profesional, la consulta terminó: el paciente no tiene por
+          // qué quedarse solo en una sala mirando el vacío hasta que se le ocurra
+          // colgar (pedido de Mateo, 2026-07-30 — va en este sentido y no al revés).
+          // Con margen: un refresh del profesional también dispara `participant-left`
+          // y no debería echar al paciente. Si vuelve, se cancela.
+          clearTimeout(proLeftTimerRef.current)
+          setProfesionalSeFue(true)
+          proLeftTimerRef.current = setTimeout(() => {
+            if (!destroyed) callRef.current?.leave().catch(() => {})
+          }, PRO_LEFT_GRACE_MS)
         })
 
         call.on('left-meeting', async () => {
@@ -255,6 +279,7 @@ export default function PatientVideoCall() {
     joinCall()
     return () => {
       destroyed = true
+      clearTimeout(proLeftTimerRef.current)
       callRef.current?.leave()
       callRef.current?.destroy()
       callRef.current = null
@@ -465,7 +490,11 @@ export default function PatientVideoCall() {
                 <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto">
                   <User className="h-12 w-12 text-white/15" />
                 </div>
-                <p className="text-white/30 text-sm">Esperando video del profesional…</p>
+                <p className="text-white/30 text-sm">
+                  {profesionalSeFue
+                    ? 'El profesional finalizó la consulta. Cerrando…'
+                    : 'Esperando video del profesional…'}
+                </p>
               </div>
             </div>
           )

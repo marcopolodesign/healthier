@@ -460,7 +460,7 @@ function AddPrescriptionForm({ patientId, encounterId, ensureEncounter, professi
  *   `cobertura` es opcional: con ella, Innovamed además informa si cada
  *   medicamento tiene cobertura para ESE paciente.
  */
-export default function PrescriptionCreator({ patientId, encounterId, ensureEncounter, professionalId, cobertura, profile, profProfile, paciente, consultationId, onIssued, onDatosActualizados }) {
+export default function PrescriptionCreator({ patientId, encounterId, ensureEncounter, professionalId, cobertura, profile, profProfile, paciente, consultationId, onIssued, onDatosActualizados, bloqueada = false }) {
   const [prescriptions, setPrescriptions] = useState([])
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
@@ -470,7 +470,12 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
   // en vez de tres — así es como funciona una receta en papel.
   const [selectedIds, setSelectedIds] = useState([])
 
-  const emitibles = prescriptions.filter(rx => rx.status === 'active' && rx.rcta_status !== 'issued')
+  // Con la consulta cerrada no se agrega ni se emite nada: cerrar es el momento en
+  // que la consulta queda congelada. Una receta emitida después del cierre sería un
+  // acto médico fuera del acto médico.
+  const emitibles = bloqueada
+    ? []
+    : prescriptions.filter(rx => rx.status === 'active' && rx.rcta_status !== 'issued')
   const seleccionados = selectedIds.filter(id => emitibles.some(rx => rx.id === id))
 
   useEffect(() => {
@@ -551,14 +556,14 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
           recién cuando la API lo rechaza es la peor version de esto. Y ahora
           además se puede resolver desde acá — el cartel solía terminar en "se lo
           pedimos la próxima vez que entre", que para esta consulta es nunca. */}
-      <DatosRecetaFaltantes
+      {!bloqueada && <DatosRecetaFaltantes
         profile={profile}
         profProfile={profProfile}
         paciente={paciente}
         patientId={patientId}
         consultationId={consultationId}
         onActualizado={onDatosActualizados}
-      />
+      />}
 
       {loading && (
         <div className="space-y-2">
@@ -627,7 +632,13 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
         <p className="text-sm text-text-muted py-2">Sin medicaciones recetadas en esta consulta.</p>
       )}
 
-      {addOpen ? (
+      {bloqueada && (
+        <p className="text-[11px] text-text-tertiary">
+          La consulta está cerrada: no se pueden agregar ni emitir medicaciones.
+        </p>
+      )}
+
+      {addOpen && !bloqueada ? (
         <AddPrescriptionForm
           patientId={patientId}
           encounterId={encounterId}
@@ -642,7 +653,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
           onCancel={() => setAddOpen(false)}
         />
       ) : (
-        !loading && (
+        !loading && !bloqueada && (
           <button type="button" onClick={() => setAddOpen(true)}
             className="flex items-center gap-1.5 text-sm text-brand hover:underline mt-1">
             <Plus className="h-4 w-4" /> Agregar medicación

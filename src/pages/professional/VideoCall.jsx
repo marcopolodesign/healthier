@@ -819,7 +819,7 @@ export default function ProfessionalVideoCall({ profile }) {
           // Sólo abrir "Finalizar consulta" si colgamos a propósito. Si la llamada
           // se cayó sola, el modal de cierre aparecía encima como si el profesional
           // hubiera terminado la consulta.
-          if (!destroyed && hangingUpRef.current) setCloseModal(true)
+          // El cierre se hace en el detalle de la consulta; acá sólo se asienta.
         })
 
         call.on('error', ({ errorMsg }) => {
@@ -861,9 +861,14 @@ export default function ProfessionalVideoCall({ profile }) {
   }
 
   function handleLeave() {
+    // Colgar ya no abre el modal de cierre encima del video. Lleva al detalle de la
+    // consulta, que es la pantalla intermedia: ahí se revisa y completa todo
+    // (receta, alergias, notas) y recién después se cierra, que es lo que congela
+    // la consulta. Pedido de Mateo (2026-07-30): "más control".
     hangingUpRef.current = true
-    setCloseModal(true)
     callRef.current?.leave().catch(() => {})
+    callRef.current?.destroy()
+    navigate(`/profesional/consulta/${id}`)
   }
 
   const handleFinalized = () => {

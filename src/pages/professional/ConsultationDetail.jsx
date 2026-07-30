@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, FileText, VideoCamera, ClipboardText, User,
   Clock, CalendarPlus, Key, ShieldCheck, Tag, PencilSimple, Check, X,
-  FirstAidKit, Pill, Sparkle, Info, FilePdf,
+  FirstAidKit, Pill, Sparkle, Info, FilePdf, LockSimple,
 } from '@phosphor-icons/react'
 import InfoTooltip from '../../components/common/InfoTooltip'
 import { consultationsService } from '../../services/consultationsService'
@@ -159,6 +159,13 @@ export default function ConsultationDetail({ profile }) {
   const isInProgress = consultation.status === 'in_progress'
   const isCompleted = consultation.status === 'completed'
   const isCancelled = consultation.status === 'cancelled'
+  /**
+   * Consulta congelada. Cerrar es el punto sin retorno: desde ahí no se edita la
+   * cobertura, no se cargan alergias ni medicaciones y no se emiten recetas.
+   * Pedido de Mateo (2026-07-30): esta pantalla es el paso intermedio entre la
+   * videollamada y el cierre, y el cierre "imprime".
+   */
+  const bloqueada = isCompleted || isCancelled
   const showCloseButton = isVideo
     ? ['confirmed', 'in_progress', 'pending'].includes(consultation.status)
     : isInProgress
@@ -188,6 +195,25 @@ export default function ConsultationDetail({ profile }) {
           <StatusBadge status={consultation.status} />
         </div>
       </div>
+
+      {bloqueada && (
+        <div className="card border-2 border-border-default bg-bg-surface flex items-start gap-2.5">
+          <LockSimple className="h-5 w-5 text-text-tertiary shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-text-primary">
+              {isCancelled ? 'Consulta cancelada' : 'Consulta cerrada'}
+            </p>
+            <p className="text-sm text-text-secondary">
+              Queda como registro: no se puede editar ni agregar nada más.
+              {isCompleted && consultation.completedAt && (
+                <> Cerrada el {new Date(consultation.completedAt).toLocaleString('es-AR', {
+                  day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+                })}.</>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Patient card */}
       <div className="card">
@@ -243,7 +269,7 @@ export default function ConsultationDetail({ profile }) {
               <Info className="h-3.5 w-3.5 text-text-tertiary cursor-help" />
             </InfoTooltip>
           </div>
-          {!editingCoverage && (
+          {!editingCoverage && !bloqueada && (
             <button
               onClick={() => setEditingCoverage(true)}
               className="flex items-center gap-1 text-xs text-text-secondary hover:text-brand transition-colors"
@@ -391,7 +417,7 @@ export default function ConsultationDetail({ profile }) {
               <p className="text-xs text-text-secondary">Esta consulta</p>
             </div>
           </div>
-          {isPresencial && !showScribe && (
+          {isPresencial && !showScribe && !bloqueada && (
             <button
               onClick={() => setShowScribe(true)}
               className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-brand text-white hover:bg-brand/90"
@@ -426,6 +452,7 @@ export default function ConsultationDetail({ profile }) {
           <AllergyPanel
             patientId={consultation.patientId}
             encounterId={clinicalEncounterId}
+            bloqueada={bloqueada}
           />
         </div>
 
@@ -448,6 +475,7 @@ export default function ConsultationDetail({ profile }) {
             ensureEncounter={ensureEncounter}
             professionalId={profile?.id ?? null}
             consultationId={consultation.id}
+            bloqueada={bloqueada}
             onIssued={() => clinicalService.getIssuedRecetasByConsultation(consultation.id).then(setRecetas).catch(() => {})}
             // El profesional acaba de cargar el DNI o el sexo que faltaba: hay que
             // volver a leer el paciente y su propio perfil para que el cartel
@@ -551,10 +579,27 @@ export default function ConsultationDetail({ profile }) {
       )}
 
       {/* Close consultation */}
+      {/* Cerrar es la acción terminal de esta pantalla, no una más de la lista:
+          después de esto la consulta queda como registro y no se toca nunca más.
+          Era un `btn-secondary` perdido al final, con el mismo peso visual que
+          "Agendar próxima consulta". */}
       {showCloseButton && (
-        <button onClick={() => setCloseModal(true)} className="btn-secondary w-full py-3">
-          Cerrar consulta
-        </button>
+        <div className="card border-2 border-brand/20 space-y-3">
+          <div className="flex items-start gap-2.5">
+            <LockSimple className="h-5 w-5 text-brand shrink-0 mt-0.5" />
+            <div>
+              <h2 className="font-semibold text-text-primary">Cerrar la consulta</h2>
+              <p className="text-sm text-text-secondary">
+                Revisá que estén la receta, las alergias y lo que quieras dejar
+                asentado. Al cerrar, la consulta queda como registro y no se puede
+                editar ni agregar nada más.
+              </p>
+            </div>
+          </div>
+          <button onClick={() => setCloseModal(true)} className="btn-primary w-full py-3">
+            Cerrar consulta
+          </button>
+        </div>
       )}
 
       <CloseConsultationModal

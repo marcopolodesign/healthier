@@ -187,7 +187,7 @@ function AddAllergyForm({ patientId, encounterId, onSaved, onCancel }) {
  * AllergyPanel
  * @param {{ patientId: string|null, encounterId: string|null }} props
  */
-export default function AllergyPanel({ patientId, encounterId }) {
+export default function AllergyPanel({ patientId, encounterId, bloqueada = false }) {
   const [allergies, setAllergies] = useState([])
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
@@ -243,7 +243,7 @@ export default function AllergyPanel({ patientId, encounterId }) {
           onCancel={() => setAddOpen(false)}
         />
       ) : (
-        !loading && encounterId && (
+        !loading && encounterId && !bloqueada && (
           <button
             type="button"
             onClick={() => setAddOpen(true)}
