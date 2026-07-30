@@ -616,6 +616,12 @@ export default function ProfessionalVideoCall({ profile }) {
   const noShowTimerRef = useRef(null)
   // Distingue "colgué yo" de "se cayó la llamada".
   const hangingUpRef = useRef(false)
+  // Habilitación explícita del paciente (migración 071). El botón vivía SÓLO en el
+  // dashboard, así que un profesional que entraba directo a la videollamada —que es
+  // a donde lleva la notificación de on-demand— se quedaba sin ninguna forma de
+  // dejar entrar al paciente: él adentro, el paciente en la sala de espera con el
+  // botón gris, y nada en pantalla para destrabarlo. Pasó en vivo el 2026-07-30.
+  const [admitting, setAdmitting] = useState(false)
 
   const [consultation, setConsultation] = useState(null)
   // El modal de cierre necesita el encuentro clínico y la matrícula para asentar
@@ -691,6 +697,22 @@ export default function ProfessionalVideoCall({ profile }) {
         navigate('/profesional/dashboard')
       })
   }, [id])
+
+  const admitPatient = async () => {
+    if (admitting) return
+    setAdmitting(true)
+    try {
+      await consultationsService.admitPatient(id)
+      consultationEventsService.log(id, CONSULTATION_EVENTS.PRO_ADMITTED_PATIENT, null,
+        { id: profile?.id, role: 'professional' })
+      setConsultation(prev => prev ? { ...prev, patientAdmittedAt: new Date().toISOString() } : prev)
+      toast.success('Paciente habilitado')
+    } catch {
+      toast.error('No pudimos habilitar al paciente. Probá de nuevo.')
+    } finally {
+      setAdmitting(false)
+    }
+  }
 
   // ── Step 2: Presence waiting room ──────────────────────────────────────────
   useEffect(() => {
@@ -980,6 +1002,34 @@ export default function ProfessionalVideoCall({ profile }) {
                   <p className="text-white/50 text-sm">Esperando al paciente…</p>
                   <p className="text-white/20 text-xs">El paciente recibirá una notificación</p>
                 </div>
+
+                {/* El paciente ya está en la sala de espera pero todavía no lo
+                    habilitaron: sin esto había que salir al dashboard a buscar el
+                    botón, con el paciente esperando. */}
+                {/* La condición NO exige que el paciente ya figure esperando:
+                    `patientWaitingSince` se lee una sola vez al montar, así que un
+                    paciente que llega después dejaría el botón oculto justo cuando
+                    hace falta. Habilitar de más no rompe nada — es decir "lo
+                    atiendo ahora" — y no habilitar deja a los dos trabados. */}
+                {consultation && !consultation.patientAdmittedAt && (
+                  <div className="space-y-2">
+                    <p className="text-white/70 text-sm">
+                      {consultation.patientWaitingSince
+                        ? 'El paciente está en la sala de espera.'
+                        : 'El paciente todavía no puede entrar.'}
+                    </p>
+                    <button
+                      onClick={admitPatient}
+                      disabled={admitting}
+                      className="btn-primary px-6 py-2.5 text-sm disabled:opacity-60"
+                    >
+                      {admitting ? 'Habilitando…' : 'Ingresar paciente'}
+                    </button>
+                    <p className="text-white/25 text-xs">
+                      Hasta que lo habilites, su botón para entrar está deshabilitado.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
