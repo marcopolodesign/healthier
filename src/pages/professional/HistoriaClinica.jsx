@@ -377,17 +377,22 @@ export default function HistoriaClinica({ profile }) {
     const items = [
       ...encounters.map(enc => {
         const c = enc.consultationId ? consultaDe(enc.consultationId) : null
-        // La nota de cierre se muestra en la tarjeta del encuentro SOLO si el
-        // encuentro no tiene entradas propias. Las consultas cerradas desde el
-        // 2026-07-29 ya la asientan como entrada firmada: mostrarla dos veces
-        // haría dudar de si son dos notas distintas.
-        const sinEntradas = (enc.entries ?? []).length === 0
+        // La nota de cierre se muestra salvo que YA esté asentada como entrada.
+        // Se compara contra la entrada concreta —las cerradas desde el 2026-07-29
+        // llevan `data.source = 'cierre_de_consulta'`, y para las viejas se compara
+        // el contenido— y no contra "¿tiene alguna entrada?": ese atajo escondía la
+        // nota de cierre en cuanto el encuentro tuviera cualquier otra cosa, como
+        // la pre-consulta.
+        const nota = c?.closingNotes?.trim()
+        const yaAsentada = nota && (enc.entries ?? []).some(e =>
+          e.data?.source === 'cierre_de_consulta' || e.content?.trim() === nota
+        )
         return {
           tipo: 'encuentro',
           id: enc.id,
           fecha: new Date(enc.startedAt || enc.createdAt).getTime(),
           data: enc,
-          notaDeCierre: sinEntradas ? c?.closingNotes ?? null : null,
+          notaDeCierre: nota && !yaAsentada ? nota : null,
         }
       }),
       ...consultas
