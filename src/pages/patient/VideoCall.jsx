@@ -61,8 +61,13 @@ export default function PatientVideoCall() {
 
   const [consultation, setConsultation] = useState(null)
   const [loadingConsultation, setLoadingConsultation] = useState(true)
-  // bothReady: both patient + professional are in the presence waiting room
-  const [bothReady, setBothReady] = useState(false)
+  /**
+   * Compuerta para ENTRAR a Daily: late una vez y no vuelve atrás. Misma razón que
+   * del lado del profesional — `bothReady` es presencia en vivo, y usarla para
+   * decidir si QUEDARSE hacía que un bajón momentáneo del otro lado ejecutara
+   * `call.leave()` y tirara la llamada abajo. Quién está en la sala lo sabe Daily.
+   */
+  const [joinGate, setJoinGate] = useState(false)
   const [joining, setJoining] = useState(false)
   const [noShowBanner, setNoShowBanner] = useState(false)
 
@@ -129,14 +134,11 @@ export default function PatientVideoCall() {
       const state = ch.presenceState()
       const roles = Object.values(state).flat().map(p => p.role)
       const ready = roles.includes('professional') && roles.includes('patient')
-      setBothReady(prev => {
-        if (!prev && ready) {
-          // Professional just arrived — cancel no-show timer
-          clearTimeout(noShowTimerRef.current)
-          setNoShowBanner(false)
-        }
-        return ready
-      })
+      if (ready) {
+        clearTimeout(noShowTimerRef.current)
+        setNoShowBanner(false)
+        setJoinGate(true)
+      }
     })
 
     ch.subscribe(async (status) => {
@@ -160,7 +162,7 @@ export default function PatientVideoCall() {
 
   // ── Step 3: Join Daily.co when both are ready ───────────────────────────────
   useEffect(() => {
-    if (!bothReady) return
+    if (!joinGate) return
     const consultationId = id === '1' ? null : id
     let destroyed = false
     setJoining(true)
@@ -225,6 +227,7 @@ export default function PatientVideoCall() {
         })
 
         call.on('left-meeting', async () => {
+          consultationEventsService.log(consultationId, CONSULTATION_EVENTS.CALL_LEFT, null, { role: 'patient' })
           if (destroyed) return
           if (consultationId) {
             await goToPostCallScreen(consultationId)
@@ -234,6 +237,8 @@ export default function PatientVideoCall() {
         })
 
         call.on('error', ({ errorMsg }) => {
+          consultationEventsService.log(consultationId, CONSULTATION_EVENTS.CALL_ERROR,
+            { error: errorMsg ?? 'desconocido' }, { role: 'patient' })
           toast.error(`Error en la videollamada: ${errorMsg ?? 'desconocido'}`)
           if (!destroyed) setJoining(false)
         })
@@ -254,7 +259,7 @@ export default function PatientVideoCall() {
       callRef.current?.destroy()
       callRef.current = null
     }
-  }, [bothReady])
+  }, [joinGate])
 
   // ── Controls ────────────────────────────────────────────────────────────────
   async function toggleCam() {
@@ -338,7 +343,9 @@ export default function PatientVideoCall() {
     )
   }
 
-  const inWaitingRoom = preconsultaDone && !bothReady && !joining
+  // Misma razón que del lado del profesional: la sala de espera se muestra hasta
+  // que entramos a la llamada, no mientras la presencia del otro parpadea.
+  const inWaitingRoom = preconsultaDone && !joinGate && !joining
 
   return (
     <div className="absolute inset-0 bg-zinc-900 flex flex-col">
@@ -351,7 +358,7 @@ export default function PatientVideoCall() {
         </span>
 
         <div className="flex items-center gap-2">
-          {bothReady && !joining && (
+          {joinGate && !joining && (
             <>
               <button
                 onClick={toggleCam}
@@ -452,7 +459,7 @@ export default function PatientVideoCall() {
             className="absolute inset-0 w-full h-full object-cover"
           />
         ) : (
-          bothReady && !joining && (
+          joinGate && !joining && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center space-y-3">
                 <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto">
@@ -468,7 +475,7 @@ export default function PatientVideoCall() {
         {remote?.audioTrack && <AudioPlayer track={remote.audioTrack} />}
 
         {/* Local camera — PiP bottom-right (shown once in call) */}
-        {bothReady && !joining && (
+        {joinGate && !joining && (
           <div className="absolute bottom-4 right-4 w-36 h-24 rounded-xl overflow-hidden border border-white/10 shadow-2xl bg-zinc-800 z-10">
             {camOn && localVideoTrack ? (
               <VideoTile track={localVideoTrack} muted mirror className="w-full h-full object-cover" />

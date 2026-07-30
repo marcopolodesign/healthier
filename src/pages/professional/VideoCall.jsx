@@ -614,6 +614,8 @@ export default function ProfessionalVideoCall({ profile }) {
   const callRef = useRef(null)
   const channelRef = useRef(null)
   const noShowTimerRef = useRef(null)
+  // Distingue "colgué yo" de "se cayó la llamada".
+  const hangingUpRef = useRef(false)
 
   const [consultation, setConsultation] = useState(null)
   // El modal de cierre necesita el encuentro clínico y la matrícula para asentar
@@ -640,8 +642,22 @@ export default function ProfessionalVideoCall({ profile }) {
     preconsulta: consultation?.preconsultaData,
   })
 
-  // bothReady: both professional + patient are in the presence waiting room
-  const [bothReady, setBothReady] = useState(false)
+  /**
+   * Compuerta para ENTRAR a Daily. Late una sola vez y no vuelve atrás.
+   *
+   * `bothReady` es presencia EN VIVO, y se estaba usando además para decidir si
+   * quedarse en la llamada: cualquier bajón momentáneo de la presencia del otro
+   * lado desmontaba el efecto y ejecutaba `call.leave()`. Y los bajones son
+   * rutina — el paciente pasa de la sala de espera a la videollamada, que son dos
+   * suscripciones distintas al mismo canal, así que entre el `untrack` de una y el
+   * `track` de la otra el profesional lo ve irse. Resultado: la llamada se caía
+   * justo cuando el paciente llegaba, y volvía sola sólo si la presencia se
+   * recuperaba a tiempo. De ahí el "no cargó el video, tuve que refrescar".
+   *
+   * Quién está en la sala lo sabe Daily (`participant-joined`/`participant-left`),
+   * no el canal de presencia.
+   */
+  const [joinGate, setJoinGate] = useState(false)
   // joining: actively connecting to Daily.co (after bothReady)
   const [joining, setJoining] = useState(false)
   const [closeModal, setCloseModal] = useState(false)
@@ -656,6 +672,15 @@ export default function ProfessionalVideoCall({ profile }) {
 
   // Remote participant
   const [remote, setRemote] = useState(null)
+
+  // La bitácora existe justamente para diagnosticar una videollamada que salió
+  // mal, pero `call_page_opened`, `call_left` y `call_error` estaban definidos y
+  // nunca se escribían: al revisar la prueba del 2026-07-30 el log podía decir que
+  // los dos entraron, y nada sobre por qué no se veía.
+  useEffect(() => {
+    if (!id) return
+    consultationEventsService.log(id, CONSULTATION_EVENTS.CALL_PAGE_OPENED, null, { role: 'professional' })
+  }, [id])
 
   // ── Step 1: Load consultation ───────────────────────────────────────────────
   useEffect(() => {
@@ -680,14 +705,14 @@ export default function ProfessionalVideoCall({ profile }) {
       const state = ch.presenceState()
       const roles = Object.values(state).flat().map(p => p.role)
       const hasPatient = roles.includes('patient')
-      setBothReady(prev => {
-        if (!prev && hasPatient) {
-          // Patient just arrived — cancel no-show timer
-          clearTimeout(noShowTimerRef.current)
-          setNoShowBanner(false)
-        }
-        return hasPatient
-      })
+      if (hasPatient) {
+        // Llegó el paciente: se cancela el no-show y se abre la compuerta. Sólo
+        // interesa la PRIMERA vez que aparece; que después la presencia parpadee
+        // ya no cambia nada.
+        clearTimeout(noShowTimerRef.current)
+        setNoShowBanner(false)
+        setJoinGate(true)
+      }
     })
 
     ch.subscribe(async (status) => {
@@ -711,7 +736,7 @@ export default function ProfessionalVideoCall({ profile }) {
 
   // ── Step 3: Join Daily.co when both are ready ───────────────────────────────
   useEffect(() => {
-    if (!bothReady) return
+    if (!joinGate) return
     let destroyed = false
     setJoining(true)
 
@@ -767,10 +792,17 @@ export default function ProfessionalVideoCall({ profile }) {
         })
 
         call.on('left-meeting', () => {
-          if (!destroyed) setCloseModal(true)
+          consultationEventsService.log(id, CONSULTATION_EVENTS.CALL_LEFT,
+            { intencional: hangingUpRef.current }, { role: 'professional' })
+          // Sólo abrir "Finalizar consulta" si colgamos a propósito. Si la llamada
+          // se cayó sola, el modal de cierre aparecía encima como si el profesional
+          // hubiera terminado la consulta.
+          if (!destroyed && hangingUpRef.current) setCloseModal(true)
         })
 
         call.on('error', ({ errorMsg }) => {
+          consultationEventsService.log(id, CONSULTATION_EVENTS.CALL_ERROR,
+            { error: errorMsg ?? 'desconocido' }, { role: 'professional' })
           toast.error(`Error en la videollamada: ${errorMsg ?? 'desconocido'}`)
           if (!destroyed) setJoining(false)
         })
@@ -790,7 +822,7 @@ export default function ProfessionalVideoCall({ profile }) {
       callRef.current?.leave()
       callRef.current?.destroy()
     }
-  }, [bothReady])
+  }, [joinGate])
 
   async function toggleCam() {
     const next = !camOn
@@ -807,6 +839,7 @@ export default function ProfessionalVideoCall({ profile }) {
   }
 
   function handleLeave() {
+    hangingUpRef.current = true
     setCloseModal(true)
     callRef.current?.leave().catch(() => {})
   }
@@ -932,8 +965,11 @@ export default function ProfessionalVideoCall({ profile }) {
         {/* Video area */}
         <div className={`relative bg-zinc-900 ${splitScreen ? 'flex-1' : 'w-full'}`}>
 
-          {/* Waiting room — patient hasn't joined the presence channel yet */}
-          {!bothReady && !joining && (
+          {/* Sala de espera — hasta que entramos a la llamada. Antes miraba
+              `bothReady` (presencia en vivo), así que un bajón de presencia tapaba
+              con "esperando al paciente" una videollamada que seguía andando.
+              Una vez adentro, quién está en la sala lo dice `remote`. */}
+          {!joinGate && !joining && (
             <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 z-10">
               <div className="text-center space-y-4">
                 <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto relative">
@@ -965,7 +1001,7 @@ export default function ProfessionalVideoCall({ profile }) {
               className="absolute inset-0 w-full h-full object-cover"
             />
           ) : (
-            bothReady && !joining && (
+            joinGate && !joining && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center space-y-3">
                   <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto">
@@ -981,7 +1017,7 @@ export default function ProfessionalVideoCall({ profile }) {
           {remote?.audioTrack && <AudioPlayer track={remote.audioTrack} />}
 
           {/* Local camera — PiP in bottom-right corner (shown once in call) */}
-          {bothReady && !joining && (
+          {joinGate && !joining && (
             <div className="absolute bottom-4 right-4 w-40 h-28 rounded-xl overflow-hidden border border-white/10 shadow-2xl bg-zinc-800 z-10">
               {camOn && localVideoTrack ? (
                 <VideoTile
