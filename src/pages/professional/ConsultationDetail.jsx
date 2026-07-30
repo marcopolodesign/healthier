@@ -497,7 +497,15 @@ export default function ConsultationDetail({ profile }) {
             encounterId={clinicalEncounterId}
             ensureEncounter={ensureEncounter}
             professionalId={profile?.id ?? null}
+            consultationId={consultation.id}
             onIssued={() => clinicalService.getIssuedRecetasByConsultation(consultation.id).then(setRecetas).catch(() => {})}
+            // El profesional acaba de cargar el DNI o el sexo que faltaba: hay que
+            // volver a leer el paciente y su propio perfil para que el cartel
+            // desaparezca y el botón de emitir quede habilitado sin recargar.
+            onDatosActualizados={() => {
+              load()
+              professionalService.getByUserId(profile.id).then(setProfProfile).catch(() => {})
+            }}
             profile={profile}
             profProfile={profProfile}
             paciente={consultation.patient}

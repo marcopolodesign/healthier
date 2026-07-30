@@ -18,6 +18,7 @@ import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import CloseConsultationModal from '../../components/CloseConsultationModal'
 import ScribeSession from '../../components/professional/ScribeSession'
 import PrescriptionCreator from '../../components/professional/PrescriptionCreator'
+import FinanciadorPicker from '../../components/professional/FinanciadorPicker'
 import { toast } from '../../components/Toast'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 
@@ -259,6 +260,47 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
     professionalService.getByUserId(profile.id).then(setProfProfile).catch(() => {})
   }, [profile?.id])
   const [loadingPatientData, setLoadingPatientData] = useState(true)
+  // La cobertura se editaba SOLO en el detalle de la consulta, así que desde la
+  // videollamada era imposible elegir el financiador del catálogo — y sin él la
+  // receta no se puede emitir con cobertura. Se mantiene una copia local para no
+  // depender de que el padre refetchee la consulta en medio de la llamada.
+  const [cobertura, setCobertura] = useState({
+    coverageType:    consultation?.coverageType ?? null,
+    financiadorId:   consultation?.financiadorId ?? null,
+    obraSocialName:  consultation?.obraSocialName ?? '',
+    affiliateNumber: consultation?.affiliateNumber ?? '',
+  })
+  const [editandoCobertura, setEditandoCobertura] = useState(false)
+  const [guardandoCobertura, setGuardandoCobertura] = useState(false)
+
+  useEffect(() => {
+    if (!consultation?.id) return
+    setCobertura({
+      coverageType:    consultation.coverageType ?? null,
+      financiadorId:   consultation.financiadorId ?? null,
+      obraSocialName:  consultation.obraSocialName ?? '',
+      affiliateNumber: consultation.affiliateNumber ?? '',
+    })
+  }, [consultation?.id])
+
+  async function guardarCobertura() {
+    setGuardandoCobertura(true)
+    try {
+      const esParticular = cobertura.coverageType === 'particular'
+      await consultationsService.update(consultation.id, {
+        coverageType:    cobertura.coverageType,
+        financiadorId:   esParticular ? null : cobertura.financiadorId,
+        obraSocialName:  esParticular ? null : (cobertura.obraSocialName?.trim() || null),
+        affiliateNumber: esParticular ? null : (cobertura.affiliateNumber?.trim() || null),
+      })
+      setEditandoCobertura(false)
+      toast.success('Cobertura actualizada')
+    } catch {
+      toast.error('Error al guardar la cobertura')
+    } finally {
+      setGuardandoCobertura(false)
+    }
+  }
 
   const { encounterId, ensureEncounter } = useClinicalEncounter({
     consultationId: consultation?.id,
@@ -468,19 +510,89 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
         )}
 
         {activeTab === 'receta' && (
-          <PrescriptionCreator
-            patientId={consultation?.patientId ?? null}
-            encounterId={encounterId}
-            ensureEncounter={ensureEncounter}
-            professionalId={profile?.id ?? null}
-            profile={profile}
-            profProfile={profProfile}
-            paciente={patientData}
-            cobertura={consultation?.financiadorId ? {
-              idFinanciador: consultation.financiadorId,
-              afiliado: consultation.affiliateNumber,
-            } : null}
-          />
+          <div className="space-y-3">
+            {/* Cobertura, editable acá mismo: es lo que decide si la receta sale con
+                obra social o como particular, y hasta ahora sólo se podía tocar
+                fuera de la llamada. */}
+            <div className="rounded-lg border border-border-default bg-bg-surface p-2.5">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">
+                  Cobertura
+                </p>
+                {!editandoCobertura && (
+                  <button
+                    type="button"
+                    onClick={() => setEditandoCobertura(true)}
+                    className="text-[11px] font-semibold text-brand underline"
+                  >
+                    {cobertura.coverageType ? 'Cambiar' : 'Cargar'}
+                  </button>
+                )}
+              </div>
+
+              {editandoCobertura ? (
+                <div className="space-y-2">
+                  <FinanciadorPicker
+                    coverageType={cobertura.coverageType}
+                    financiadorId={cobertura.financiadorId}
+                    financiadorName={cobertura.obraSocialName}
+                    affiliateNumber={cobertura.affiliateNumber}
+                    onChange={v => setCobertura({
+                      coverageType:    v.coverageType,
+                      financiadorId:   v.financiadorId,
+                      obraSocialName:  v.financiadorName,
+                      affiliateNumber: v.affiliateNumber,
+                    })}
+                  />
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setEditandoCobertura(false)}
+                      className="btn-secondary flex-1 py-1.5 text-xs">Cancelar</button>
+                    <button type="button" onClick={guardarCobertura} disabled={guardandoCobertura}
+                      className="btn-primary flex-1 py-1.5 text-xs">
+                      {guardandoCobertura ? 'Guardando…' : 'Guardar'}
+                    </button>
+                  </div>
+                </div>
+              ) : cobertura.coverageType === 'particular' ? (
+                <p className="text-xs text-text-primary">Particular — sin cobertura</p>
+              ) : cobertura.obraSocialName ? (
+                <p className="text-xs text-text-primary">
+                  {cobertura.obraSocialName}
+                  {cobertura.affiliateNumber && (
+                    <span className="text-text-tertiary"> · afiliado {cobertura.affiliateNumber}</span>
+                  )}
+                  {!cobertura.financiadorId && (
+                    <span className="block text-[10px] text-amber-700 font-medium mt-0.5">
+                      Falta elegirla del catálogo para poder emitir.
+                    </span>
+                  )}
+                </p>
+              ) : (
+                <p className="text-xs text-text-tertiary">
+                  Sin definir — la receta sale como particular.
+                </p>
+              )}
+            </div>
+
+            <PrescriptionCreator
+              patientId={consultation?.patientId ?? null}
+              encounterId={encounterId}
+              ensureEncounter={ensureEncounter}
+              professionalId={profile?.id ?? null}
+              profile={profile}
+              profProfile={profProfile}
+              paciente={patientData}
+              consultationId={consultation?.id ?? null}
+              onDatosActualizados={() => {
+                if (patientId) profilesService.getById(patientId).then(setPatientData).catch(() => {})
+                if (profile?.id) professionalService.getByUserId(profile.id).then(setProfProfile).catch(() => {})
+              }}
+              cobertura={cobertura.financiadorId ? {
+                idFinanciador: cobertura.financiadorId,
+                afiliado: cobertura.affiliateNumber,
+              } : null}
+            />
+          </div>
         )}
 
         {activeTab === 'historia' && (

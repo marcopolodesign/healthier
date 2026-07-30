@@ -3,12 +3,11 @@ import {
   MagnifyingGlass, X, CircleNotch, Check, Pill,
   Plus, Copy, FilePdf, ArrowSquareOut, Warning, Info,
 } from '@phosphor-icons/react'
-import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import MedicationSearch from './MedicationSearch'
 import InfoTooltip from '../common/InfoTooltip'
+import DatosRecetaFaltantes from './DatosRecetaFaltantes'
 import { logClinicalAccess } from '../../services/clinicalService'
-import { faltanDatosProfesional, faltanDatosPaciente, listar } from '../../lib/datosReceta'
 import { toast } from '../Toast'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -461,7 +460,7 @@ function AddPrescriptionForm({ patientId, encounterId, ensureEncounter, professi
  *   `cobertura` es opcional: con ella, Innovamed además informa si cada
  *   medicamento tiene cobertura para ESE paciente.
  */
-export default function PrescriptionCreator({ patientId, encounterId, ensureEncounter, professionalId, cobertura, profile, profProfile, paciente, onIssued }) {
+export default function PrescriptionCreator({ patientId, encounterId, ensureEncounter, professionalId, cobertura, profile, profProfile, paciente, consultationId, onIssued, onDatosActualizados }) {
   const [prescriptions, setPrescriptions] = useState([])
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
@@ -546,40 +545,20 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
     }
   }
 
-  // Preguntar si lo tenemos, y avisar solo si falta. La lista sale de probar
-  // contra el sandbox campo por campo (ver src/lib/datosReceta.js), no de
-  // suponer: mostrar un requisito que la API no exige es tan malo como omitir
-  // uno que sí.
-  const faltaProfesional = faltanDatosProfesional(profile, profProfile)
-  const faltaPaciente = faltanDatosPaciente(paciente)
-
   return (
     <div className="space-y-3">
       {/* Se avisa ACÁ y no al apretar "emitir": descubrir que falta un dato
-          recién cuando la API lo rechaza es la peor version de esto. */}
-      {(faltaProfesional.length > 0 || faltaPaciente.length > 0) && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-1.5">
-          <p className="text-xs font-bold text-amber-900">
-            Falta información para emitir recetas electrónicas
-          </p>
-          {faltaProfesional.length > 0 && (
-            <p className="text-[11px] text-amber-800">
-              <strong>Tuyo:</strong> {listar(faltaProfesional)}.{' '}
-              <Link to="/profesional/configuracion" className="underline font-semibold">Completar mi perfil</Link>
-            </p>
-          )}
-          {faltaPaciente.length > 0 && (
-            <p className="text-[11px] text-amber-800">
-              <strong>Del paciente:</strong> {listar(faltaPaciente)}. Se lo pedimos automáticamente
-              la próxima vez que entre a una consulta.
-            </p>
-          )}
-          <p className="text-[11px] text-amber-700">
-            Podés cargar la medicación igual y queda en la historia clínica, pero la receta no se
-            va a poder emitir hasta que estén esos datos.
-          </p>
-        </div>
-      )}
+          recién cuando la API lo rechaza es la peor version de esto. Y ahora
+          además se puede resolver desde acá — el cartel solía terminar en "se lo
+          pedimos la próxima vez que entre", que para esta consulta es nunca. */}
+      <DatosRecetaFaltantes
+        profile={profile}
+        profProfile={profProfile}
+        paciente={paciente}
+        patientId={patientId}
+        consultationId={consultationId}
+        onActualizado={onDatosActualizados}
+      />
 
       {loading && (
         <div className="space-y-2">
