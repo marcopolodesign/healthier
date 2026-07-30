@@ -428,9 +428,9 @@ function AddPrescriptionForm({ patientId, encounterId, ensureEncounter, professi
       <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700">
         <Warning className="h-4 w-4 shrink-0 mt-0.5" />
         <span>
-          La receta se guarda en la HC. Para emitirla como{' '}
-          <strong>receta electrónica válida (RCTA)</strong> usá el botón "Emitir receta RCTA" que
-          aparece debajo de la receta guardada — requiere credenciales de Innovamed.
+          Guardar deja la medicación en la historia clínica, <strong>no le entrega nada al
+          paciente</strong>. Para eso apretá <strong>"Emitir receta"</strong> abajo, que genera la
+          receta electrónica firmada.
         </span>
       </div>
 
@@ -575,7 +575,8 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
             </p>
           )}
           <p className="text-[11px] text-amber-700">
-            Podés cargar la medicación igual — queda en la historia clínica, pero no se va a poder emitir.
+            Podés cargar la medicación igual y queda en la historia clínica, pero la receta no se
+            va a poder emitir hasta que estén esos datos.
           </p>
         </div>
       )}
