@@ -211,7 +211,7 @@ export default function ProfessionalDashboard({ profile }) {
         modality: 'video',
         status: 'in_progress',
         notes: entry.chiefComplaint,
-      })
+      }, { bookedBy: 'professional' })
       await walkInQueueService.claim(entry.id, profile.id, consultation.id)
       setWalkInQueue(prev => prev.filter(e => e.id !== entry.id))
       navigate(`/profesional/videollamada/${consultation.id}`)

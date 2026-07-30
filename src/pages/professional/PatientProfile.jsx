@@ -59,6 +59,10 @@ export default function ProfessionalPatientProfile({ profile }) {
   const [followups, setFollowups] = useState([])
   const [otherPros, setOtherPros] = useState([])
   const [followUpDate, setFollowUpDate] = useState('')
+  // Modalidad del turno de seguimiento. Arranca en la de la última consulta con
+  // este paciente: si lo venís atendiendo por video, lo más probable es que el
+  // control también sea por video.
+  const [followUpModality, setFollowUpModality] = useState('video')
   const [followUpNote, setFollowUpNote] = useState('')
   const [recommendedProId, setRecommendedProId] = useState('')
   const [savingFollowup, setSavingFollowup] = useState(false)
@@ -74,7 +78,10 @@ export default function ProfessionalPatientProfile({ profile }) {
     if (!profile?.id || !patientId) { setLoadingConsultas(false); return }
     setLoadingConsultas(true)
     consultationsService.getByPatientForProfessional(patientId, profile.id)
-      .then(setConsultas)
+      .then(cs => {
+        setConsultas(cs)
+        if (cs[0]?.modality) setFollowUpModality(cs[0].modality)
+      })
       .catch(() => {})
       .finally(() => setLoadingConsultas(false))
   }, [profile?.id, patientId])
@@ -96,20 +103,39 @@ export default function ProfessionalPatientProfile({ profile }) {
     }
     setSavingFollowup(true)
     try {
+      // Con fecha, el seguimiento AGENDA EL TURNO — mismo mecanismo que "Agendar
+      // próxima consulta" en el detalle de la consulta (decisión de Mateo,
+      // 2026-07-30). Antes sólo escribía una fila que no veía nadie: ni el
+      // paciente (la RLS es sólo del profesional), ni un cron, ni la agenda.
+      let consulta = null
+      if (followUpDate) {
+        consulta = await consultationsService.create({
+          patientId,
+          professionalId: profile.id,
+          scheduledAt: new Date(followUpDate).toISOString(),
+          modality: followUpModality,
+          status: 'confirmed',
+        }, { bookedBy: 'professional' })
+      }
+
       const created = await followupsService.create({
         professionalId: profile.id,
         patientId,
-        followUpDate: followUpDate || null,
+        // Se guarda sólo la fecha: la hora exacta vive en la consulta.
+        followUpDate: followUpDate ? followUpDate.slice(0, 10) : null,
         note: followUpNote,
         recommendedProfessionalId: recommendedProId || null,
+        consultationId: consulta?.id ?? null,
       })
-      setFollowups(prev => [created, ...prev])
+
+      setFollowups(prev => [{ ...created, consultation: consulta }, ...prev])
+      if (consulta) setConsultas(prev => [consulta, ...prev])
       setFollowUpDate('')
       setFollowUpNote('')
       setRecommendedProId('')
-      toast.success('Seguimiento guardado')
-    } catch {
-      toast.error('Error al guardar el seguimiento')
+      toast.success(consulta ? 'Turno de control agendado' : 'Recomendación guardada')
+    } catch (err) {
+      toast.error(err?.message ?? 'Error al guardar el seguimiento')
     } finally {
       setSavingFollowup(false)
     }
@@ -269,8 +295,10 @@ export default function ProfessionalPatientProfile({ profile }) {
             <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest block mb-1">
               Próximo control
             </label>
+            {/* Fecha Y HORA: esto agenda un turno real, y un turno sin hora no
+                existe. Antes era sólo `date` porque no agendaba nada. */}
             <input
-              type="date"
+              type="datetime-local"
               value={followUpDate}
               onChange={e => setFollowUpDate(e.target.value)}
               className="form-input text-sm"
@@ -278,21 +306,35 @@ export default function ProfessionalPatientProfile({ profile }) {
           </div>
           <div>
             <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest block mb-1">
-              Recomendar profesional
+              Modalidad
             </label>
             <select
-              value={recommendedProId}
-              onChange={e => setRecommendedProId(e.target.value)}
+              value={followUpModality}
+              onChange={e => setFollowUpModality(e.target.value)}
               className="form-select text-sm"
             >
-              <option value="">Ninguno</option>
-              {otherPros.map(p => (
-                <option key={p.userId} value={p.userId}>
-                  {p.profiles?.fullName || 'Profesional'}
-                </option>
-              ))}
+              <option value="video">Videollamada</option>
+              <option value="presencial">Presencial</option>
             </select>
           </div>
+        </div>
+
+        <div>
+          <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest block mb-1">
+            Recomendar profesional
+          </label>
+          <select
+            value={recommendedProId}
+            onChange={e => setRecommendedProId(e.target.value)}
+            className="form-select text-sm"
+          >
+            <option value="">Ninguno</option>
+            {otherPros.map(p => (
+              <option key={p.userId} value={p.userId}>
+                {p.profiles?.fullName || 'Profesional'}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest block mb-1">
@@ -312,8 +354,18 @@ export default function ProfessionalPatientProfile({ profile }) {
           className="btn-primary w-full py-2.5 flex items-center justify-center gap-2"
         >
           <CalendarPlus className="h-4 w-4" />
-          {savingFollowup ? 'Guardando...' : 'Guardar seguimiento'}
+          {savingFollowup
+            ? 'Guardando…'
+            : followUpDate ? 'Agendar control' : 'Guardar recomendación'}
         </button>
+
+        {/* Decir qué va a pasar antes de que pase: el botón crea un turno real y
+            le avisa al paciente. */}
+        <p className="text-[11px] text-text-tertiary">
+          {followUpDate
+            ? 'Se agenda el turno y le llega un aviso al paciente.'
+            : 'Elegí fecha y hora para agendar el control, o sólo recomendá un profesional.'}
+        </p>
 
         {followups.length > 0 && (
           <div className="space-y-2 pt-2 border-t border-border-default">
@@ -324,6 +376,13 @@ export default function ProfessionalPatientProfile({ profile }) {
                     <p className="flex items-center gap-1.5 text-sm font-medium text-text-primary">
                       <Clock className="h-3.5 w-3.5 text-brand-tertiary shrink-0" />
                       Control: {new Date(f.followUpDate + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      {f.consultation
+                        ? <Link to={`/profesional/consulta/${f.consultation.id}`} className="text-brand text-xs font-semibold hover:underline">
+                            ver turno
+                          </Link>
+                        // Los seguimientos anteriores al 2026-07-30 nunca agendaron
+                        // nada: se dice, en vez de dejar creer que hay un turno.
+                        : <span className="text-[11px] text-text-tertiary font-normal">(sin turno agendado)</span>}
                     </p>
                   )}
                   {f.recommendedProfessional && (

@@ -138,7 +138,7 @@ export default function ConsultationDetail({ profile }) {
         scheduledAt: new Date(reagendarDate).toISOString(),
         modality: consultation.modality,
         status: 'confirmed',
-      })
+      }, { bookedBy: 'professional' })
       toast.success('Nueva consulta agendada')
       setReagendarOpen(false)
       navigate(`/profesional/consulta/${created.id}`)

@@ -176,7 +176,15 @@ export const consultationsService = {
     }
   },
 
-  async create(data) {
+  /**
+   * @param {object} data — fila de `consultations`
+   * @param {{bookedBy?: 'patient'|'professional'}} [opts]
+   *   Quién agendó. Con `'professional'` el aviso va al PACIENTE: el profesional
+   *   no necesita que le avisen de un turno que acaba de crear él, y el paciente
+   *   sí necesita enterarse de que tiene uno. Antes se le mandaba al profesional
+   *   "Un paciente reservó un turno contigo" incluso cuando lo había reservado él.
+   */
+  async create(data, { bookedBy = 'patient' } = {}) {
     await this._assertProfessionalAcceptsBookings(data.professionalId)
     const { data: row, error } = await supabase
       .from('consultations')
@@ -192,15 +200,31 @@ export const consultationsService = {
     // toca "Iniciar consulta" después de la pre-consulta.
     if (!row.is_on_demand) {
       supabase.functions.invoke('send-booking-email', { body: { consultationId: row.id } }).catch(() => {})
-      if (row.professional_id) {
-        supabase.functions.invoke('send-push-notification', {
-          body: {
+
+      const cuando = row.scheduled_at
+        ? new Date(row.scheduled_at).toLocaleString('es-AR', {
+            day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+          })
+        : null
+
+      const aviso = bookedBy === 'professional'
+        ? row.patient_id && {
+            userId: row.patient_id,
+            title:  'Te agendaron un turno',
+            body:   cuando
+              ? `Tu profesional agendó una consulta para el ${cuando}.`
+              : 'Tu profesional agendó una consulta de seguimiento.',
+            url:    '/paciente/consultas',
+          }
+        : row.professional_id && {
             userId: row.professional_id,
             title:  'Nuevo turno reservado',
             body:   'Un paciente reservó un turno contigo.',
             url:    '/profesional/dashboard',
-          },
-        }).catch(() => {})
+          }
+
+      if (aviso) {
+        supabase.functions.invoke('send-push-notification', { body: aviso }).catch(() => {})
       }
     }
     return toCamelCase(row)
