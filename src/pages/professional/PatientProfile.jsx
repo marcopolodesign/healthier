@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  ArrowLeft, User, Heartbeat, Phone, Envelope, MapPin,
+  ArrowLeft, User, Heartbeat, Phone,
   Drop, ShieldCheck, ClipboardText, CircleNotch,
-  CalendarPlus, UserPlus, Trash, Clock,
+  CalendarPlus, UserPlus, Trash, Clock, CalendarBlank,
 } from '@phosphor-icons/react'
 import { profilesService } from '../../services/profilesService'
+import { consultationsService } from '../../services/consultationsService'
+import PatientConsultationList from '../../components/professional/PatientConsultationList'
 import { followupsService } from '../../services/followupsService'
 import { professionalService } from '../../services/professionalService'
 import { toast } from '../../components/Toast'
@@ -51,6 +53,9 @@ export default function ProfessionalPatientProfile({ profile }) {
   const [loading, setLoading] = useState(true)
 
   // ── Seguimiento (follow-up + cross-recommend) ──────────────────────────
+  const [consultas, setConsultas] = useState([])
+  const [loadingConsultas, setLoadingConsultas] = useState(true)
+
   const [followups, setFollowups] = useState([])
   const [otherPros, setOtherPros] = useState([])
   const [followUpDate, setFollowUpDate] = useState('')
@@ -64,6 +69,15 @@ export default function ProfessionalPatientProfile({ profile }) {
       .catch(() => toast.error('Error al cargar el perfil del paciente'))
       .finally(() => setLoading(false))
   }, [patientId])
+
+  useEffect(() => {
+    if (!profile?.id || !patientId) { setLoadingConsultas(false); return }
+    setLoadingConsultas(true)
+    consultationsService.getByPatientForProfessional(patientId, profile.id)
+      .then(setConsultas)
+      .catch(() => {})
+      .finally(() => setLoadingConsultas(false))
+  }, [profile?.id, patientId])
 
   useEffect(() => {
     if (!profile?.id || !patientId) return
@@ -155,53 +169,97 @@ export default function ProfessionalPatientProfile({ profile }) {
       </div>
 
       {/* ── Información básica ── */}
+      {/* El DNI vive acá y no en "perfil clínico": es el dato de identidad con el
+          que se emite la receta, no un dato clínico. */}
       <Section icon={User} title="Información básica">
         <div className="grid grid-cols-2 gap-4">
+          <InfoRow label="DNI" value={patient.dni} />
           <InfoRow label="Teléfono" value={patient.phone} />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
           <InfoRow label="Email" value={patient.email} />
+          <InfoRow
+            label="Fecha de nacimiento"
+            value={patient.birthDate
+              ? new Date(patient.birthDate + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
+              : null}
+          />
         </div>
         <InfoRow label="Domicilio" value={patient.address} />
+
+        {/* Contacto de emergencia: sólo si existe. Antes tenía tarjeta propia y
+            estaba vacío en 26 de 29 pacientes, así que ocupaba una pantalla entera
+            para decir "no hay". El dato igual importa —Healthier hace visitas
+            presenciales y urgencias— así que se conserva, pero no reserva espacio
+            cuando no está. */}
+        {(patient.emergencyName || patient.emergencyPhone) && (
+          <div className="pt-3 border-t border-border-default">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Phone className="h-3.5 w-3.5 text-red-500" />
+              <span className="text-[11px] font-bold text-red-600 uppercase tracking-widest">
+                Contacto de emergencia
+              </span>
+            </div>
+            <p className="text-sm text-text-primary">
+              {patient.emergencyName || '—'}
+              {patient.emergencyRel && (
+                <span className="text-text-secondary"> ({patient.emergencyRel})</span>
+              )}
+              {patient.emergencyPhone && (
+                <span className="text-text-secondary"> · {patient.emergencyPhone}</span>
+              )}
+            </p>
+          </div>
+        )}
+      </Section>
+
+      {/* ── Cobertura médica ── */}
+      {/* Se llamaba "Obra social" y era un renglón dentro de "perfil clínico".
+          Es el mismo concepto que el resto de la app llama cobertura médica —
+          incluye prepagas y particular, no sólo obras sociales. */}
+      <Section icon={ShieldCheck} title="Cobertura médica">
+        {patient.insuranceName ? (
+          <div className="grid grid-cols-2 gap-4">
+            <InfoRow label="Financiador" value={patient.insuranceName} />
+            <InfoRow label="N° de afiliado" value={patient.insuranceNum} />
+          </div>
+        ) : (
+          <p className="text-sm text-text-secondary">
+            Sin cobertura cargada en el perfil.
+          </p>
+        )}
+        {/* Aclaración que evita un error caro: la cobertura que viaja en la receta
+            es la de CADA consulta, elegida del catálogo de Innovamed. Esta es la
+            que el paciente guardó en su perfil y sirve como referencia. */}
+        <p className="text-[11px] text-text-tertiary">
+          La cobertura que se usa para emitir una receta se confirma en cada consulta,
+          eligiéndola del catálogo de Innovamed.
+        </p>
       </Section>
 
       {/* ── Perfil clínico ── */}
       <Section icon={Heartbeat} title="Perfil clínico">
-        <div className="grid grid-cols-2 gap-4">
-          <InfoRow label="DNI" value={patient.dni} />
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Grupo sanguíneo</span>
-            {patient.bloodType
-              ? <span className={`mt-0.5 inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border w-fit ${bloodTypeClass}`}>
-                  <Drop className="h-3 w-3" />
-                  {patient.bloodType}
-                </span>
-              : <span className="text-sm font-medium text-text-primary">—</span>
-            }
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <InfoRow label="Obra social" value={patient.insuranceName} />
-          <InfoRow label="N° afiliado" value={patient.insuranceNum} />
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Grupo sanguíneo</span>
+          {patient.bloodType
+            ? <span className={`mt-0.5 inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border w-fit ${bloodTypeClass}`}>
+                <Drop className="h-3 w-3" />
+                {patient.bloodType}
+              </span>
+            : <span className="text-sm font-medium text-text-primary">—</span>
+          }
         </div>
       </Section>
 
-      {/* ── Contacto de emergencia ── */}
-      <Section
-        icon={Phone}
-        title="Contacto de emergencia"
-        iconColor="text-red-500"
-        bgColor="bg-red-50"
-      >
-        {patient.emergencyName || patient.emergencyPhone ? (
-          <div className="space-y-4">
-            <InfoRow label="Nombre" value={patient.emergencyName} />
-            <div className="grid grid-cols-2 gap-4">
-              <InfoRow label="Teléfono" value={patient.emergencyPhone} />
-              <InfoRow label="Vínculo" value={patient.emergencyRel} />
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-text-secondary">Sin contacto de emergencia registrado.</p>
-        )}
+      {/* ── Turnos con este paciente ── */}
+      {/* Faltaba por completo: se entraba a un paciente y no había forma de ver qué
+          se hizo antes sin salir a "Historial" y buscarlo a mano. */}
+      <Section icon={CalendarBlank} title={`Turnos${consultas.length ? ` (${consultas.length})` : ''}`}>
+        <PatientConsultationList
+          consultations={consultas}
+          loading={loadingConsultas}
+          emptyHint="Sólo se ven los turnos que tuviste vos con este paciente."
+        />
       </Section>
 
       {/* ── Seguimiento — programar follow-up y/o recomendar otro profesional ── */}

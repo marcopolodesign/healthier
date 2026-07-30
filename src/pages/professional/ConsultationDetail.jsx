@@ -317,9 +317,7 @@ export default function ConsultationDetail({ profile }) {
         )}
       </div>
 
-      {/* Cobro de esta consulta */}
-      <ConsultationPaymentCard payment={consultation.payment} />
-
+      {/* ── Acciones de la consulta ── */}
       {/* Presencial — code gate to enter */}
       {isPresencial && isPending && (
         <div className="card border-2 border-brand/20 bg-brand-muted/30">
@@ -380,55 +378,7 @@ export default function ConsultationDetail({ profile }) {
         </Link>
       )}
 
-      {/* Closing notes (completed) */}
-      {consultation.closingNotes && (
-        <div className="card">
-          <div className="flex items-center gap-2 mb-2">
-            <FileText className="h-5 w-5 text-brand" />
-            <h2 className="font-semibold text-text-primary">Notas de cierre</h2>
-          </div>
-          <p className="text-sm text-text-secondary">{consultation.closingNotes}</p>
-        </div>
-      )}
-
-      {/* Receta electrónica emitida.
-          Antes acá se mostraba un archivo que el profesional subía a mano al
-          cerrar la consulta. Una imagen no es una receta: la receta es el PDF
-          firmado que devuelve RCTA. Ahora sale de `clinical_medications` y una
-          sola receta puede agrupar varios medicamentos, así que se agrupa por
-          `rcta_prescription_id`. */}
-      {recetas.length > 0 && (
-        <div className="card space-y-3">
-          <div className="flex items-center gap-2">
-            <FilePdf className="h-5 w-5 text-brand" />
-            <h2 className="font-semibold text-text-primary">
-              Receta{recetas.length > 1 ? 's' : ''} electrónica{recetas.length > 1 ? 's' : ''}
-            </h2>
-          </div>
-          {recetas.map(r => (
-            <div key={r.prescriptionId} className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm text-text-primary">{r.medications.join(' · ')}</p>
-                <p className="text-[11px] text-text-tertiary">
-                  N° {r.prescriptionId}
-                  {r.issuedAt && ` · ${new Date(r.issuedAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}`}
-                </p>
-              </div>
-              {r.pdfUrl && (
-                <a
-                  href={r.pdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-sm text-brand font-medium hover:underline shrink-0"
-                >
-                  <FilePdf className="h-4 w-4" /> Ver PDF
-                </a>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
+      {/* ── Historia clínica de esta consulta ── */}
       {/* Historia Clínica */}
       <div className="card space-y-5">
         <div className="flex items-center justify-between gap-2">
@@ -516,6 +466,60 @@ export default function ConsultationDetail({ profile }) {
           />
         </div>
       </div>
+
+      {/* Receta electrónica emitida.
+          Antes acá se mostraba un archivo que el profesional subía a mano al
+          cerrar la consulta. Una imagen no es una receta: la receta es el PDF
+          firmado que devuelve RCTA. Ahora sale de `clinical_medications` y una
+          sola receta puede agrupar varios medicamentos, así que se agrupa por
+          `rcta_prescription_id`. */}
+      {recetas.length > 0 && (
+        <div className="card space-y-3">
+          <div className="flex items-center gap-2">
+            <FilePdf className="h-5 w-5 text-brand" />
+            <h2 className="font-semibold text-text-primary">
+              Receta{recetas.length > 1 ? 's' : ''} electrónica{recetas.length > 1 ? 's' : ''}
+            </h2>
+          </div>
+          {recetas.map(r => (
+            <div key={r.prescriptionId} className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm text-text-primary">{r.medications.join(' · ')}</p>
+                <p className="text-[11px] text-text-tertiary">
+                  N° {r.prescriptionId}
+                  {r.issuedAt && ` · ${new Date(r.issuedAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+                </p>
+              </div>
+              {r.pdfUrl && (
+                <a
+                  href={r.pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-sm text-brand font-medium hover:underline shrink-0"
+                >
+                  <FilePdf className="h-4 w-4" /> Ver PDF
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Notas ── */}
+      {/* Closing notes (completed) */}
+      {consultation.closingNotes && (
+        <div className="card">
+          <div className="flex items-center gap-2 mb-2">
+            <FileText className="h-5 w-5 text-brand" />
+            <h2 className="font-semibold text-text-primary">Notas de cierre</h2>
+          </div>
+          <p className="text-sm text-text-secondary">{consultation.closingNotes}</p>
+        </div>
+      )}
+
+      {/* ── Cobro ── */}
+      {/* Cobro de esta consulta */}
+      <ConsultationPaymentCard payment={consultation.payment} />
 
       {/* Navigation shortcuts */}
       <div className="grid grid-cols-2 gap-3">

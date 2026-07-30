@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Stethoscope, CircleNotch, Check,
-  User, Pill, TestTube, HeartStraight, Syringe,
+  User, Pill, TestTube, HeartStraight, Syringe, CalendarBlank,
 } from '@phosphor-icons/react'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
+import { consultationsService } from '../../services/consultationsService'
+import PatientConsultationList from '../../components/professional/PatientConsultationList'
+import PreconsultaSummary, { hasPreconsulta } from '../../components/professional/PreconsultaSummary'
 import { clinicalService } from '../../services/clinicalService'
 import { profilesService } from '../../services/profilesService'
 import { diagnosticReportService } from '../../services/diagnosticReportService'
@@ -93,7 +96,7 @@ function LabReportCard({ report }) {
   )
 }
 
-function EncounterCard({ encounter }) {
+function EncounterCard({ encounter, notaDeCierre }) {
   const [open, setOpen] = useState(true)
   const d = new Date(encounter.startedAt || encounter.createdAt)
   const dateStr = d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -191,9 +194,84 @@ function EncounterCard({ encounter }) {
             </div>
           ))}
 
-          {totalItems === 0 && (
+          {/* Nota de cierre de la consulta, para los encuentros viejos que no la
+              tienen asentada como entrada. Se marca de dónde sale para no hacerla
+              pasar por un asiento firmado de la HC. */}
+          {notaDeCierre && (
+            <div className="flex gap-2.5">
+              <span className="w-2 h-2 rounded-full shrink-0 mt-1.5 bg-text-tertiary" />
+              <div className="min-w-0">
+                <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                  Nota de cierre de la consulta
+                </span>
+                <p className="text-sm text-text-primary whitespace-pre-wrap mt-0.5">{notaDeCierre}</p>
+              </div>
+            </div>
+          )}
+
+          {totalItems === 0 && !notaDeCierre && (
             <p className="text-xs text-text-secondary italic">Encuentro sin registros todavía.</p>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Una consulta que NO tiene encuentro clínico.
+ *
+ * La HC se armaba sólo con `clinical_encounters`, y el encuentro se crea recién
+ * cuando alguien escribe algo clínico. Resultado: una consulta atendida y cerrada,
+ * con su nota de cierre y su pre-consulta, no aparecía en la historia clínica —
+ * que es exactamente la queja de Mateo al abrir esta pantalla y verla vacía.
+ *
+ * Estos datos viven en `consultations` (columnas editables, fuera de la HC formal).
+ * Desde el 2026-07-29 las notas nuevas se asientan además como entradas firmadas,
+ * pero lo anterior no se migró: esta tarjeta es la que hace visible ese historial
+ * sin inventarle un encuentro retroactivo que nadie firmó.
+ */
+function ConsultaSinEncuentroCard({ consulta }) {
+  const d = consulta.scheduledAt ? new Date(consulta.scheduledAt) : null
+  const preconsulta = consulta.preconsultaData
+
+  return (
+    <div className="card p-0 overflow-hidden border-dashed">
+      <div className="px-4 py-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-lg bg-bg-surface border border-border-default flex items-center justify-center shrink-0">
+            <CalendarBlank size={16} className="text-text-tertiary" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold text-text-primary text-sm truncate">
+              {consulta.modality === 'video' ? 'Videollamada' : 'Presencial'}
+              {consulta.consultationType?.name ? ` · ${consulta.consultationType.name}` : ''}
+            </p>
+            <p className="text-xs text-text-tertiary">
+              {d ? d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Sin fecha'}
+              {' · '}
+              <Link to={`/profesional/consulta/${consulta.id}`} className="text-brand hover:underline">
+                ver consulta
+              </Link>
+            </p>
+          </div>
+        </div>
+        <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wide shrink-0">
+          Sin registro clínico
+        </span>
+      </div>
+
+      {(consulta.closingNotes || hasPreconsulta(preconsulta)) && (
+        <div className="border-t border-border-default px-4 py-3 space-y-2">
+          {consulta.closingNotes && (
+            <div>
+              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+                Nota de cierre
+              </span>
+              <p className="text-sm text-text-primary whitespace-pre-wrap mt-0.5">{consulta.closingNotes}</p>
+            </div>
+          )}
+          {hasPreconsulta(preconsulta) && <PreconsultaSummary preconsulta={preconsulta} />}
         </div>
       )}
     </div>
@@ -208,6 +286,8 @@ export default function HistoriaClinica({ profile }) {
   const [encounters, setEncounters] = useState([])
   const [allergies, setAllergies] = useState([])
   const [labReports, setLabReports] = useState([])
+  const [consultas, setConsultas] = useState([])
+  const [loadingConsultas, setLoadingConsultas] = useState(true)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('notas')
 
@@ -236,6 +316,17 @@ export default function HistoriaClinica({ profile }) {
       .catch(() => toast.error('Error al cargar la historia clínica'))
       .finally(() => setLoading(false))
   }, [patientId])
+
+  // Las consultas son parte de la historia: una consulta cerrada con su nota es un
+  // acto médico, tenga o no un encuentro clínico creado.
+  useEffect(() => {
+    if (!profile?.id || !patientId) { setLoadingConsultas(false); return }
+    setLoadingConsultas(true)
+    consultationsService.getByPatientForProfessional(patientId, profile.id)
+      .then(setConsultas)
+      .catch(() => {})
+      .finally(() => setLoadingConsultas(false))
+  }, [profile?.id, patientId])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -276,6 +367,43 @@ export default function HistoriaClinica({ profile }) {
       setSubmitting(false)
     }
   }
+
+  // Un encuentro por consulta como máximo (índice único, migración 076), así que
+  // emparejar por `consultationId` es suficiente y no hace falta desambiguar.
+  const timeline = (() => {
+    const consultaDe = id => consultas.find(c => c.id === id)
+    const conEncuentro = new Set(encounters.map(e => e.consultationId).filter(Boolean))
+
+    const items = [
+      ...encounters.map(enc => {
+        const c = enc.consultationId ? consultaDe(enc.consultationId) : null
+        // La nota de cierre se muestra en la tarjeta del encuentro SOLO si el
+        // encuentro no tiene entradas propias. Las consultas cerradas desde el
+        // 2026-07-29 ya la asientan como entrada firmada: mostrarla dos veces
+        // haría dudar de si son dos notas distintas.
+        const sinEntradas = (enc.entries ?? []).length === 0
+        return {
+          tipo: 'encuentro',
+          id: enc.id,
+          fecha: new Date(enc.startedAt || enc.createdAt).getTime(),
+          data: enc,
+          notaDeCierre: sinEntradas ? c?.closingNotes ?? null : null,
+        }
+      }),
+      ...consultas
+        .filter(c => !conEncuentro.has(c.id))
+        // Un turno futuro o cancelado sin nada escrito no es historia clínica: es
+        // agenda. Vive en la pestaña "Turnos previos".
+        .filter(c => c.closingNotes || hasPreconsulta(c.preconsultaData))
+        .map(c => ({
+          tipo: 'consulta',
+          id: c.id,
+          fecha: new Date(c.scheduledAt || c.createdAt).getTime(),
+          data: c,
+        })),
+    ]
+    return items.sort((a, b) => b.fecha - a.fecha)
+  })()
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -324,9 +452,10 @@ export default function HistoriaClinica({ profile }) {
       )}
 
       {/* Section tabs */}
-      <div className="flex border-b border-border-default">
+      <div className="flex border-b border-border-default overflow-x-auto">
         {[
           { key: 'notas', label: 'Notas clínicas' },
+          { key: 'turnos', label: `Turnos previos${consultas.length > 0 ? ` (${consultas.length})` : ''}` },
           { key: 'laboratorio', label: `Laboratorio${labReports.length > 0 ? ` (${labReports.length})` : ''}` },
         ].map(({ key, label }) => (
           <button
@@ -380,23 +509,35 @@ export default function HistoriaClinica({ profile }) {
         </form>
       )}
 
-      {/* Notas tab */}
+      {/* Notas tab — encuentros clínicos Y consultas sin encuentro, en una sola
+          línea de tiempo ordenada por fecha. Separarlos en dos listas obligaría al
+          profesional a reconstruir el orden en la cabeza. */}
       {activeTab === 'notas' && (
         <>
-          {encounters.length === 0 ? (
+          {timeline.length === 0 ? (
             <div className="text-center py-16 text-text-secondary">
               <User className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">Sin notas clínicas</p>
+              <p className="font-medium">Sin historia clínica</p>
               <p className="text-sm mt-1">Agregá la primera nota usando el botón de arriba.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {encounters.map(enc => (
-                <EncounterCard key={enc.id} encounter={enc} />
-              ))}
+              {timeline.map(item => item.tipo === 'encuentro'
+                ? <EncounterCard key={item.id} encounter={item.data} notaDeCierre={item.notaDeCierre} />
+                : <ConsultaSinEncuentroCard key={item.id} consulta={item.data} />
+              )}
             </div>
           )}
         </>
+      )}
+
+      {/* Turnos previos */}
+      {activeTab === 'turnos' && (
+        <PatientConsultationList
+          consultations={consultas}
+          loading={loadingConsultas}
+          emptyHint="Sólo se ven los turnos que tuviste vos con este paciente."
+        />
       )}
 
       {/* Laboratorio tab */}

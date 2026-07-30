@@ -216,6 +216,34 @@ export const consultationsService = {
     return toCamelCase(data)
   },
 
+  /**
+   * Las consultas de UN paciente con ESTE profesional.
+   *
+   * Es lo que el profesional necesita al abrir un paciente: hasta ahora el perfil
+   * mostraba datos personales y ninguna consulta, así que no había forma de ver
+   * qué se hizo antes sin salir a "Historial" y buscar a mano.
+   *
+   * Scopeado al profesional a propósito, y además la RLS ya lo impone: una
+   * consulta sólo la ven sus dos partes. Un profesional NO ve los turnos que el
+   * paciente tuvo con otros.
+   */
+  async getByPatientForProfessional(patientId, professionalId) {
+    if (!patientId || !professionalId) return []
+    const { data, error } = await supabase
+      .from('consultations')
+      .select(`
+        id, scheduled_at, started_at, completed_at, created_at, status, modality, payment_status,
+        closing_notes, preconsulta_data, price_at_booking, duration_minutes, cancel_reason,
+        consultation_type:consultation_types!consultation_type_id(name),
+        payment:payments!consultation_id(status, gross_amount, mp_net_received_amount, net_to_professional)
+      `)
+      .eq('patient_id', patientId)
+      .eq('professional_id', professionalId)
+      .order('scheduled_at', { ascending: false })
+    if (error) throw error
+    return toCamelCase(data ?? [])
+  },
+
   async getByProfessional(professionalId) {
     const { data, error } = await supabase
       .from('consultations')
