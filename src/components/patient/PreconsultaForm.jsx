@@ -9,6 +9,34 @@ import { faltanDatosPaciente, listar, OPCIONES_SEXO } from '../../lib/datosRecet
 import { profilesService } from '../../services/profilesService'
 
 /**
+ * Botón de opción (radio / checkbox visual).
+ *
+ * Vive en el módulo, NO dentro de PreconsultaForm: definirlo adentro crea un
+ * tipo de componente nuevo en cada render y React desmonta y vuelve a montar
+ * todas las opciones. Ver la nota larga sobre el mismo problema en el `return`
+ * de PreconsultaForm.
+ */
+function OptionButton({ selected, label, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left px-4 py-3 rounded-2xl border text-[15px] font-medium transition-colors flex items-center gap-3 ${
+        selected
+          ? 'border-brand bg-brand-muted text-text-primary'
+          : 'border-gray-200 bg-bg-primary text-gray-700 hover:border-gray-300'
+      }`}
+    >
+      <span className={`w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 ${
+        selected ? 'border-brand bg-brand' : 'border-gray-300'
+      }`}>
+        {selected && <Check className="w-3 h-3 text-white" weight="bold" />}
+      </span>
+      <span className="flex-1">{label}</span>
+    </button>
+  )
+}
+
+/**
  * PreconsultaForm
  *
  * Pre-consulta estructurada: el paciente elige UN síntoma de un catálogo
@@ -178,48 +206,27 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
     }
   }
 
-  // ── Shared option button ────────────────────────────────────────────────────
-  const OptionButton = ({ selected, label, onClick }) => (
-    <button
-      onClick={onClick}
-      className={`w-full text-left px-4 py-3 rounded-2xl border text-[15px] font-medium transition-colors flex items-center gap-3 ${
-        selected
-          ? 'border-brand bg-brand-muted text-text-primary'
-          : 'border-gray-200 bg-bg-primary text-gray-700 hover:border-gray-300'
-      }`}
-    >
-      <span className={`w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 ${
-        selected ? 'border-brand bg-brand' : 'border-gray-300'
-      }`}>
-        {selected && <Check className="w-3 h-3 text-white" weight="bold" />}
-      </span>
-      <span className="flex-1">{label}</span>
-    </button>
-  )
-
   const ultimoPaso = pideDatos ? 3 : 2
   const stepTitles = ['¿Qué te pasa?', `Contanos más sobre: ${symptom?.label ?? ''}`, 'Medicación', 'Tus datos']
 
   // El paso de datos solo se da por completo cuando está lo que falta.
   const datosOk = !pideDatos || faltantes.every(f => String(datos[f.campo] ?? '').trim() !== '')
 
-  // En modo `required` esto es un PASO del flujo, no un accesorio: va a pantalla
-  // completa. El bottom sheet sugería que se podía descartar, que es justo lo
-  // contrario de lo que tiene que comunicar.
-  const Shell = required
-    ? ({ children }) => (
-        <div className="fixed inset-0 z-[100] bg-bg-secondary flex flex-col">{children}</div>
-      )
-    : ({ children }) => (
-        <PatientSheet open={isOpen} onClose={onClose} maxWidth="max-w-lg" backdropClose={false}>
-          {children}
-        </PatientSheet>
-      )
-
   if (required && !isOpen) return null
 
-  return (
-    <Shell>
+  // El contenido es el mismo en los dos modos; solo cambia el envoltorio.
+  //
+  // Ojo con cómo se elige ese envoltorio: acá vivía un componente `Shell`
+  // definido adentro del render. Como se creaba una función nueva en cada
+  // render, React lo trataba como un tipo de componente distinto y desmontaba y
+  // volvía a montar TODO el formulario. La sala de espera re-renderiza dos veces
+  // por segundo (la animación de puntitos de WaitingRoom), así que el contenedor
+  // scrolleable se recreaba cada 500 ms y el scroll saltaba de vuelta arriba: en
+  // el paso "¿Qué te pasa?", que es más largo que la pantalla, era literalmente
+  // imposible scrollear. Los envoltorios tienen que ser JSX inline como acá
+  // abajo — `div` y `PatientSheet` son tipos estables entre renders.
+  const contenido = (
+    <>
       {/* Header */}
       <div className="px-6 pt-4 pb-3 flex items-center gap-3 flex-shrink-0 border-b border-border-default">
         {step > 0 ? (
@@ -454,6 +461,19 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
           )}
         </div>
       </div>
-    </Shell>
+    </>
+  )
+
+  // En modo `required` esto es un PASO del flujo, no un accesorio: va a pantalla
+  // completa. El bottom sheet sugería que se podía descartar, que es justo lo
+  // contrario de lo que tiene que comunicar.
+  if (required) {
+    return <div className="fixed inset-0 z-[100] bg-bg-secondary flex flex-col">{contenido}</div>
+  }
+
+  return (
+    <PatientSheet open={isOpen} onClose={onClose} maxWidth="max-w-lg" backdropClose={false}>
+      {contenido}
+    </PatientSheet>
   )
 }

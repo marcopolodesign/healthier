@@ -70,11 +70,15 @@ export default function WaitingRoom({ profile }) {
 
   const countdown = useCountdown(consultation?.scheduledAt)
 
-  // Animate waiting dots
+  // Animate waiting dots.
+  // Solo mientras se está esperando de verdad: los puntitos no se ven durante el
+  // gate de pre-consulta, y este intervalo re-renderiza el árbol entero dos veces
+  // por segundo — justo mientras el paciente está contestando el formulario.
   useEffect(() => {
+    if (!preconsultaDone) return
     const iv = setInterval(() => setDots(d => (d.length >= 3 ? '' : d + '.')), 500)
     return () => clearInterval(iv)
-  }, [])
+  }, [preconsultaDone])
 
   // Load consultation
   useEffect(() => {
