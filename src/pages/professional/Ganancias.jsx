@@ -81,7 +81,8 @@ export default function Ganancias({ profile }) {
 
   // El neto real es el que informa Mercado Pago (`mpNetReceivedAmount`): es lo que
   // efectivamente se acredita en la cuenta del profesional. `netToProfessional` es
-  // el 78% contractual calculado con una comisión de MP ESTIMADA, y se queda corto
+  // la parte contractual del profesional (80% desde el 2026-07-29; 78% antes),
+  // calculada con una comisión de MP ESTIMADA, y se queda corta
   // cuando la comisión real es menor — en el pago 170000525607 decía 780 y MP
   // acreditó 818,90. Mostrar el contractual acá era subinformar lo que gana.
   const netDe = p => Number(p.mpNetReceivedAmount ?? p.netToProfessional ?? 0)
@@ -160,17 +161,17 @@ export default function Ganancias({ profile }) {
           <h1 className="text-2xl font-bold text-text-primary">Ganancias</h1>
           <div className="flex items-start gap-2 mt-2 max-w-lg">
             <Info className="h-4 w-4 text-brand mt-0.5 shrink-0" />
-            {/* La frase anterior decía que la comisión de Mercado Pago la absorbe
-                Healthier. Es al revés y se comprobó contra la API de MP: MP cobra
-                las dos comisiones al `collector`, o sea al profesional. Lo bueno es
-                que la comisión real de MP suele ser menor que la que estimamos, así
-                que termina recibiendo MÁS que el 78% — en el primer cobro real,
-                818,90 de 1.000. Prometer un 78% fijo y depositar otra cosa es la
-                forma más rápida de que un médico desconfíe de los números. */}
+            {/* La frase original decía que la comisión de Mercado Pago la absorbe
+                Healthier. Es al revés y se comprobó contra la API de MP: cobra las
+                dos comisiones al `collector`, o sea al profesional. Desde el
+                2026-07-29 el split es 20/80 flat, así que el 80% se puede nombrar
+                — pero NO como "neto", porque de esa parte MP todavía descuenta lo
+                suyo. Prometer un número fijo y depositar otro es la forma más
+                rápida de que un médico desconfíe del resto de la pantalla. */}
             <p className="text-sm text-text-secondary">
-              Healthier se queda con una <span className="font-semibold text-text-primary">comisión fija</span> y
-              Mercado Pago cobra la suya sobre el mismo pago. El neto de abajo es lo que MP
-              efectivamente te acredita.
+              Te queda el <span className="font-semibold text-text-primary">80% del valor de la consulta</span> y
+              Healthier se lleva el 20%. Mercado Pago cobra su comisión sobre tu parte, así
+              que el neto de abajo — lo que MP efectivamente te acredita — es un poco menor.
             </p>
           </div>
         </div>

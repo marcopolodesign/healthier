@@ -310,14 +310,39 @@ Deno.serve(async (req) => {
     }
     const sellerAccessToken = refreshResult.accessToken
 
-    // Fee split — Healthier absorbs the MP processing fee inside its commission.
-    const targetCommission = round2(amount * commissionRate)
-    const mpFeeEstimated = round2(chargedAmount * mpFeeEstimateRate)
-    const applicationFeeUnclamped = Math.max(0, round2(targetCommission - mpFeeEstimated))
-    // Clamp so the seller's MP-settled portion never goes negative.
-    const applicationFee = Math.min(applicationFeeUnclamped, Math.max(0, round2(chargedAmount - mpFeeEstimated)))
+    // ── Split 20/80 flat (decisión de Mateo, 2026-07-29) ──────────────────────
+    //
+    // Healthier cobra su comisión COMPLETA sobre el bruto. El fee de Mercado
+    // Pago lo paga el profesional: en un marketplace el que cobra es el
+    // vendedor y MP le descuenta a él — no hay forma de que se lo cobre a la
+    // plataforma.
+    //
+    // Modelo anterior (22/78, hasta 2026-07-29): la comisión era
+    // `22% − fee_de_MP_estimado`, para que el profesional cobrara 78% clavado y
+    // Healthier absorbiera el fee. Se descartó porque la estimación es a ciegas
+    // — `application_fee` viaja CON el pago, antes de que MP diga cuánto va a
+    // cobrar — y estaba en 7,99% contra un real de 4,1%: en el primer cobro
+    // real Healthier se llevó $140,10 en vez de $179 y el profesional 81,9% en
+    // lugar del 78% pactado.
+    //
+    // Con el flat la incertidumbre sale del lado de Healthier, que cobra 20%
+    // siempre. Lo que ahora varía es el neto del profesional, porque el fee de
+    // MP depende del plazo de acreditación que cada uno tenga configurado en SU
+    // cuenta. Por eso lo que se le muestra es `mp_net_received_amount`, que
+    // reconcilia mp-capture con el valor real.
+    const applicationFee = Math.min(
+      round2(amount * commissionRate),
+      // Nunca más que lo efectivamente cobrado: con créditos parciales el bruto
+      // puede superar lo que pasa por la tarjeta.
+      Math.max(0, chargedAmount),
+    )
 
+    // La PARTE del profesional sobre el bruto, no lo que MP le deposita: de acá
+    // MP todavía descuenta su fee.
     const netToProfessional = round2(amount * (1 - commissionRate))
+    // Sólo para estimar el depósito mientras la captura no trajo el fee real.
+    // Ya no interviene en el split.
+    const mpFeeEstimated = round2(chargedAmount * mpFeeEstimateRate)
     const manualSettlementAmount = round2(creditsUsed * (1 - commissionRate))
 
     const idempotencyKey = await sha256Hex(`${consultationId}:${cardToken}`)
@@ -325,7 +350,10 @@ Deno.serve(async (req) => {
     const mpPayload: Record<string, unknown> = {
       transaction_amount: chargedAmount,
       token: cardToken,
-      description: description ?? 'Consulta médica — Healthier',
+      // El único texto de este cobro que controlamos: MP rotula su propia línea
+      // de comisión como "cargo por uso de plataforma de terceros" y no expone
+      // ningún campo para cambiarlo.
+      description: description ? `Healthier — ${description}` : 'Healthier — Consulta médica',
       installments: 1,
       payment_method_id: paymentMethodId,
       payer: { email: payerEmail },

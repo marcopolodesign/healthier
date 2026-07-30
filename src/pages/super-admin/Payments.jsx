@@ -165,7 +165,7 @@ export default function SuperAdminPayments() {
       // incluía la comisión de Mercado Pago y la inflaba (2026-07-29).
       commission: approved.reduce((s, p) => s + Number(p.platformFee || 0), 0),
       mpFees: approved.reduce((s, p) => s + Number(p.mpFeeActual ?? p.mpFeeEstimated ?? 0), 0),
-      // El neto real es el que MP acredita; `net_to_professional` es el 78%
+      // El neto real es el que MP acredita; `net_to_professional` es la parte
       // contractual calculado con una comisión de MP estimada.
       net: approved.reduce((s, p) => s + Number(p.mpNetReceivedAmount ?? p.netToProfessional ?? 0), 0),
       count: approved.length,

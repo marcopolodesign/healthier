@@ -122,7 +122,7 @@ export const paymentsService = {
       .maybeSingle()
     if (error) throw error
     return toCamelCase(data) ?? {
-      commissionRate: 0.22,
+      commissionRate: 0.20,
       mpFeeEstimateRate: 0.0629,
       refundWindowBusinessHours: 48,
     }

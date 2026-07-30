@@ -6,7 +6,7 @@ export default function SuperAdminSettings() {
   // Real, persisted platform settings (spec D6 / B2) — commission, MP fee
   // estimate, and the refund eligibility window used by mp-payment/mp-refund.
   const [platformSettings, setPlatformSettings] = useState({
-    commissionRate: 0.22,
+    commissionRate: 0.20,
     mpFeeEstimateRate: 0.0629,
     refundWindowBusinessHours: 48,
   })
@@ -16,7 +16,7 @@ export default function SuperAdminSettings() {
   useEffect(() => {
     paymentsService.getPlatformSettings()
       .then(s => setPlatformSettings({
-        commissionRate: s?.commissionRate ?? 0.22,
+        commissionRate: s?.commissionRate ?? 0.20,
         mpFeeEstimateRate: s?.mpFeeEstimateRate ?? 0.0629,
         refundWindowBusinessHours: s?.refundWindowBusinessHours ?? 48,
       }))
@@ -67,7 +67,7 @@ export default function SuperAdminSettings() {
                 className="form-input"
               />
               <p className="text-xs text-text-muted mt-1">
-                El médico recibe {(100 - platformSettings.commissionRate * 100).toFixed(1)}% neto del precio de la consulta.
+                El médico recibe {(100 - platformSettings.commissionRate * 100).toFixed(1)}% del precio. Mercado Pago le cobra su comisión sobre esa parte — Healthier cobra su porcentaje completo del bruto.
               </p>
             </div>
 
@@ -81,7 +81,7 @@ export default function SuperAdminSettings() {
                 className="form-input"
               />
               <p className="text-xs text-text-muted mt-1">
-                Usado para calcular el application_fee que absorbe Healthier — se reconcilia con el fee real del webhook.
+                Sólo informativo: estima cuánto le va a acreditar MP al profesional mientras la captura no trajo el fee real. Ya NO interviene en el cálculo de la comisión, que es un porcentaje fijo del bruto.
               </p>
             </div>
 
