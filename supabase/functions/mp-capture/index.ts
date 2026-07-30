@@ -158,9 +158,15 @@ async function captureAuthorizedPayment(
 
   const now = new Date().toISOString();
 
+  // La respuesta del capture ES el objeto payment completo, con las comisiones
+  // reales adentro. Antes se descartaba y sólo se escribía status + captured_at,
+  // así que `mp_fee_actual` quedaba en NULL salvo que llegara un webhook después
+  // — y para un pre-auth capturado desde acá normalmente no llega. Resultado
+  // medido en el pago 170000525607: la base decía comisión 79,90 y neto 780
+  // cuando MP cobró 41 y acreditó 818,90.
   const { error: paymentUpdateErr } = await supabase
     .from("payments")
-    .update({ status: "approved", captured_at: now })
+    .update({ status: "approved", captured_at: now, ...reconciledFromMp(mpData) })
     .eq("id", payment.id);
   if (paymentUpdateErr) console.error("mp-capture: payments update error:", paymentUpdateErr.message);
 
@@ -480,3 +486,30 @@ Deno.serve(async (req) => {
     return jsonResponse({ data: null, error: err instanceof Error ? err.message : "Internal error" }, 500);
   }
 });
+
+// ─── Reconciliación con lo que MP informa ────────────────────────────────────
+// Se toma sólo lo que viene: si MP no manda un campo, no se pisa lo que haya en
+// la base con null. `net_to_professional` NO se toca — es el 78% contractual, y
+// `mp_net_received_amount` es la realidad; conviven a propósito para poder ver la
+// diferencia en vez de perderla.
+// deno-lint-ignore no-explicit-any
+function reconciledFromMp(mpData: any): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (!mpData || typeof mpData !== "object") return out;
+
+  const feeDetails = Array.isArray(mpData.fee_details) ? mpData.fee_details : [];
+  // deno-lint-ignore no-explicit-any
+  const mpFee = feeDetails.find((f: any) => f?.type === "mercadopago_fee")?.amount;
+  if (typeof mpFee === "number") out.mp_fee_actual = mpFee;
+
+  const net = mpData.transaction_details?.net_received_amount;
+  if (typeof net === "number") out.mp_net_received_amount = net;
+
+  if (typeof mpData.money_release_date === "string") {
+    out.mp_money_release_date = mpData.money_release_date;
+  }
+  if (typeof mpData.status_detail === "string") {
+    out.status_detail = mpData.status_detail;
+  }
+  return out;
+}

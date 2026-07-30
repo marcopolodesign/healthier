@@ -79,13 +79,23 @@ export default function Ganancias({ profile }) {
     return payments.filter(p => new Date(paymentDate(p)) >= startOfWeek)
   }, [payments])
 
-  const netOf = (list, status) => list.reduce((s, p) => s + (p.status === status ? Number(p.netToProfessional || 0) : 0), 0)
+  // El neto real es el que informa Mercado Pago (`mpNetReceivedAmount`): es lo que
+  // efectivamente se acredita en la cuenta del profesional. `netToProfessional` es
+  // el 78% contractual calculado con una comisión de MP ESTIMADA, y se queda corto
+  // cuando la comisión real es menor — en el pago 170000525607 decía 780 y MP
+  // acreditó 818,90. Mostrar el contractual acá era subinformar lo que gana.
+  const netDe = p => Number(p.mpNetReceivedAmount ?? p.netToProfessional ?? 0)
+  const netOf = (list, status) => list.reduce((s, p) => s + (p.status === status ? netDe(p) : 0), 0)
 
   const netTotal      = netOf(payments, 'approved')
   const pendingTotal   = netOf(payments, 'pending')
-  const refundTotal    = payments.reduce((s, p) => s + (p.status === 'refunded' ? Number(p.netToProfessional || 0) : 0), 0)
+  const refundTotal    = payments.reduce((s, p) => s + (p.status === 'refunded' ? netDe(p) : 0), 0)
   const grossTotal     = payments.reduce((s, p) => s + (p.status === 'approved' ? Number(p.grossAmount || 0) : 0), 0)
-  const commissionTotal = grossTotal - netTotal
+  // La comisión de Healthier es `platformFee`, no "bruto menos neto": esa resta
+  // incluía también la comisión de Mercado Pago y hacía parecer que Healthier se
+  // quedaba con el 22% cuando se queda con el 14%.
+  const commissionTotal = payments.reduce((s, p) => s + (p.status === 'approved' ? Number(p.platformFee || 0) : 0), 0)
+  const mpFeeTotal      = payments.reduce((s, p) => s + (p.status === 'approved' ? Number(p.mpFeeActual ?? p.mpFeeEstimated ?? 0) : 0), 0)
 
   const thisMonthNet = netOf(thisMonth, 'approved')
   const lastMonthNet = netOf(lastMonth, 'approved')
@@ -109,8 +119,8 @@ export default function Ganancias({ profile }) {
       })
       const net        = netOf(items, 'approved')
       const pending     = netOf(items, 'pending')
-      const presencial  = items.reduce((s, p) => s + (p.status === 'approved' && p.consultation?.modality !== 'video' ? Number(p.netToProfessional || 0) : 0), 0)
-      const video       = items.reduce((s, p) => s + (p.status === 'approved' && p.consultation?.modality === 'video' ? Number(p.netToProfessional || 0) : 0), 0)
+      const presencial  = items.reduce((s, p) => s + (p.status === 'approved' && p.consultation?.modality !== 'video' ? Number(p.mpNetReceivedAmount ?? p.netToProfessional ?? 0) : 0), 0)
+      const video       = items.reduce((s, p) => s + (p.status === 'approved' && p.consultation?.modality === 'video' ? Number(p.mpNetReceivedAmount ?? p.netToProfessional ?? 0) : 0), 0)
       const countPres   = items.filter(p => p.status === 'approved' && p.consultation?.modality !== 'video').length
       const countVideo  = items.filter(p => p.status === 'approved' && p.consultation?.modality === 'video').length
       months.push({ key, label, net, pending, presencial, video, countPres, countVideo, count: items.filter(p => p.status === 'approved').length })
@@ -253,7 +263,7 @@ export default function Ganancias({ profile }) {
               <p className="text-xs font-medium text-text-secondary uppercase tracking-wide">Neto — Total histórico</p>
               <p className="text-3xl font-bold text-text-primary mt-1">{formatARS(netTotal)}</p>
               <p className="text-xs text-text-secondary mt-1">
-                Bruto {formatARS(grossTotal)} · Comisión Healthier {formatARS(commissionTotal)}
+                Bruto {formatARS(grossTotal)} · Comisión Healthier {formatARS(commissionTotal)} · Comisión MP {formatARS(mpFeeTotal)}
               </p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-brand-muted flex items-center justify-center shrink-0">
@@ -412,7 +422,7 @@ export default function Ganancias({ profile }) {
                 {filteredHistory.map(p => {
                   const badge = STATUS_LABELS[p.status] || STATUS_LABELS.pending
                   const patientName = p.patient?.fullName || 'Paciente'
-                  const commission = Number(p.grossAmount || 0) - Number(p.netToProfessional || 0)
+                  const commission = Number(p.platformFee || 0) + Number(p.mpFeeActual ?? p.mpFeeEstimated ?? 0)
                   const isRefund = p.status === 'refunded'
                   return (
                     <tr key={p.id} className="hover:bg-bg-surface/50 transition-colors">
@@ -445,7 +455,7 @@ export default function Ganancias({ profile }) {
                       </td>
                       <td className="py-3 px-2 text-right">
                         <span className={`text-sm font-semibold ${isRefund ? 'text-red-500 line-through' : 'text-emerald-700'}`}>
-                          {formatARS(p.netToProfessional)}
+                          {formatARS(netDe(p))}
                         </span>
                       </td>
                       <td className="py-3 px-4 sm:px-0 text-right">

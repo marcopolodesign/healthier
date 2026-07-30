@@ -15,6 +15,7 @@ import CloseConsultationModal from '../../components/CloseConsultationModal'
 import Modal from '../../components/Modal'
 import AllergyPanel from '../../components/professional/AllergyPanel'
 import PreconsultaSummary, { hasPreconsulta } from '../../components/professional/PreconsultaSummary'
+import ConsultationPaymentCard from '../../components/professional/ConsultationPaymentCard'
 import FinanciadorPicker from '../../components/professional/FinanciadorPicker'
 import PrescriptionCreator from '../../components/professional/PrescriptionCreator'
 import ScribeSession from '../../components/professional/ScribeSession'
@@ -315,6 +316,9 @@ export default function ConsultationDetail({ profile }) {
           </p>
         )}
       </div>
+
+      {/* Cobro de esta consulta */}
+      <ConsultationPaymentCard payment={consultation.payment} />
 
       {/* Presencial — code gate to enter */}
       {isPresencial && isPending && (

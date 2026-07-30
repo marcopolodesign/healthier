@@ -157,6 +157,8 @@ interface MpPayment {
   transaction_amount?: number;
   currency_id?: string;
   date_approved?: string;
+  money_release_date?: string;
+  transaction_details?: { net_received_amount?: number };
   fee_details?: MpFeeDetail[];
   charges_details?: MpFeeDetail[];
 }
@@ -355,6 +357,12 @@ serve(async (req: Request) => {
       paymentUpdate.captured_at = payment.date_approved ?? new Date().toISOString();
     }
     if (mpFeeActual !== null) paymentUpdate.mp_fee_actual = mpFeeActual;
+    // Lo que MP realmente acredita y cuándo lo libera. Es el número que el
+    // profesional ve en su app de MP, y el único con el que puede conciliar.
+    if (typeof payment.transaction_details?.net_received_amount === "number") {
+      paymentUpdate.mp_net_received_amount = payment.transaction_details.net_received_amount;
+    }
+    if (payment.money_release_date) paymentUpdate.mp_money_release_date = payment.money_release_date;
     if (payment.collector_id) paymentUpdate.collector_id = String(payment.collector_id);
 
     let paymentUpdateErr = null as { message: string } | null;
@@ -390,10 +398,13 @@ serve(async (req: Request) => {
       );
     }
 
-    // Informational only: the professional's contractual net (net_to_professional,
-    // committed as 78% of gross) is never overwritten with the actual-fee-adjusted
-    // figure — Healthier absorbs the delta between estimated and actual MP fee. We
-    // just log it for visibility/reconciliation.
+    // `net_to_professional` no se sobreescribe: es el 78% contractual del bruto.
+    // Ojo con el comentario que había acá antes, que decía que Healthier absorbe la
+    // diferencia entre la comisión estimada y la real — es al revés. MP le cobra
+    // las dos comisiones al `collector` (el profesional), así que si la comisión
+    // real es MENOR que la estimada el excedente le queda a él automáticamente:
+    // en el pago 170000525607 acreditó 818,90 y nuestra base decía 780. Por eso
+    // ahora la realidad se guarda aparte en `mp_net_received_amount`.
     if (mpFeeActual !== null) {
       console.log(
         `mp-webhook: consultation ${consultationId} reconciled mp_fee_actual=${mpFeeActual} (payment ${payment.id})`

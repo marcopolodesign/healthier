@@ -161,9 +161,13 @@ export default function SuperAdminPayments() {
     const approved = payments.filter(p => p.status === 'approved')
     return {
       gross: approved.reduce((s, p) => s + Number(p.grossAmount || 0), 0),
-      commission: approved.reduce((s, p) => s + (Number(p.grossAmount || 0) - Number(p.netToProfessional || 0)), 0),
+      // La comisión de Healthier es `platform_fee`. "Bruto menos neto" también
+      // incluía la comisión de Mercado Pago y la inflaba (2026-07-29).
+      commission: approved.reduce((s, p) => s + Number(p.platformFee || 0), 0),
       mpFees: approved.reduce((s, p) => s + Number(p.mpFeeActual ?? p.mpFeeEstimated ?? 0), 0),
-      net: approved.reduce((s, p) => s + Number(p.netToProfessional || 0), 0),
+      // El neto real es el que MP acredita; `net_to_professional` es el 78%
+      // contractual calculado con una comisión de MP estimada.
+      net: approved.reduce((s, p) => s + Number(p.mpNetReceivedAmount ?? p.netToProfessional ?? 0), 0),
       count: approved.length,
     }
   }, [payments])
@@ -481,7 +485,7 @@ export default function SuperAdminPayments() {
               </thead>
               <tbody>
                 {payments.map(p => {
-                  const commission = Number(p.grossAmount || 0) - Number(p.netToProfessional || 0)
+                  const commission = Number(p.platformFee || 0)
                   return (
                     <tr key={p.id} className="table-row">
                       <td className="table-cell whitespace-nowrap text-text-tertiary">{formatDate(p.createdAt)}</td>
@@ -498,7 +502,12 @@ export default function SuperAdminPayments() {
                       <td className="table-cell text-right">{formatARS(p.chargedAmount)}</td>
                       <td className="table-cell text-right text-text-tertiary">{formatARS(p.mpFeeActual ?? p.mpFeeEstimated)}</td>
                       <td className="table-cell text-right text-text-tertiary">{formatARS(commission)}</td>
-                      <td className="table-cell text-right font-semibold">{formatARS(p.netToProfessional)}</td>
+                      <td className="table-cell text-right font-semibold">
+                        {formatARS(p.mpNetReceivedAmount ?? p.netToProfessional)}
+                        {p.mpNetReceivedAmount == null && (
+                          <span className="block text-[10px] font-normal text-text-tertiary">estimado</span>
+                        )}
+                      </td>
                       <td className="table-cell">{METHOD_LABELS[p.method] || p.method}</td>
                       <td className="table-cell">
                         <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${STATUS_BADGE[p.status] ?? 'bg-gray-100 text-gray-500'}`}>
