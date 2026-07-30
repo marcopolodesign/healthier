@@ -183,11 +183,12 @@ export default function DatosRecetaFaltantes({
                 Preguntáselos al paciente y cargalos acá. Quedan en su perfil y no se
                 sobreescribe nada que él ya haya cargado.
               </p>
-              <div className="grid grid-cols-2 gap-2">
+              {/* Una columna: este formulario vive tanto en el detalle de la
+                  consulta (ancho) como en el panel de la videollamada (~300px), y
+                  ahí dos columnas truncaban el placeholder del DNI y el select. */}
+              <div className="space-y-2">
                 {faltaPaciente.map(c => (
-                  <div key={c.campo} className={c.campo === 'birthDate' ? 'col-span-2' : 'col-span-2 sm:col-span-1'}>
-                    <CampoEditable campo={c.campo} value={form[c.campo]} onChange={v => set(c.campo, v)} />
-                  </div>
+                  <CampoEditable key={c.campo} campo={c.campo} value={form[c.campo]} onChange={v => set(c.campo, v)} />
                 ))}
               </div>
               <button
@@ -226,11 +227,9 @@ export default function DatosRecetaFaltantes({
 
           {abierto === 'profesional' && (
             <div className="rounded-lg bg-white border border-amber-200 p-3 space-y-3">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
                 {faltaProfEditableAqui.map(c => (
-                  <div key={c.campo} className="col-span-2 sm:col-span-1">
-                    <CampoEditable campo={c.campo} value={form[c.campo]} onChange={v => set(c.campo, v)} />
-                  </div>
+                  <CampoEditable key={c.campo} campo={c.campo} value={form[c.campo]} onChange={v => set(c.campo, v)} />
                 ))}
               </div>
               <button
