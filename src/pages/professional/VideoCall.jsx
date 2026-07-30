@@ -616,6 +616,30 @@ export default function ProfessionalVideoCall({ profile }) {
   const noShowTimerRef = useRef(null)
 
   const [consultation, setConsultation] = useState(null)
+  // El modal de cierre necesita el encuentro clínico y la matrícula para asentar
+  // la nota en la HC, y vive en ESTE componente, no en `ClinicalPanel` — que es
+  // donde estaba el hook. Al pasarle `ensureEncounter` sin tenerlo en scope, la
+  // pantalla entera crasheaba con "ensureEncounter is not defined" (el build no lo
+  // detecta: es una referencia libre válida para el bundler). Ahora tiene su propia
+  // instancia del hook, que es segura porque `ensureEncounter` re-consulta la base
+  // antes de crear y hay un índice único por consulta (migración 076).
+  const [ownProfProfile, setOwnProfProfile] = useState(null)
+  useEffect(() => {
+    if (!profile?.id) return
+    professionalService.getByUserId(profile.id).then(setOwnProfProfile).catch(() => {})
+  }, [profile?.id])
+
+  const { ensureEncounter: ensureEncounterForClose } = useClinicalEncounter({
+    consultationId: consultation?.id,
+    patientId: consultation?.patientId,
+    professionalId: profile?.id,
+    specialty: ownProfProfile?.specialty,
+    modality: consultation?.modality,
+    licenseType: ownProfProfile?.licenseType,
+    licenseNumber: ownProfProfile?.licenseNumber,
+    preconsulta: consultation?.preconsultaData,
+  })
+
   // bothReady: both professional + patient are in the presence waiting room
   const [bothReady, setBothReady] = useState(false)
   // joining: actively connecting to Daily.co (after bothReady)
@@ -996,9 +1020,9 @@ export default function ProfessionalVideoCall({ profile }) {
           patientName={consultation.patient?.fullName}
           profile={profile}
           patientId={consultation.patientId}
-          ensureEncounter={ensureEncounter}
-          licenseType={profProfile?.licenseType}
-          licenseNumber={profProfile?.licenseNumber}
+          ensureEncounter={ensureEncounterForClose}
+          licenseType={ownProfProfile?.licenseType}
+          licenseNumber={ownProfProfile?.licenseNumber}
           onFinalized={handleFinalized}
         />
       )}

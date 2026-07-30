@@ -19,6 +19,22 @@ export function useClinicalEncounter({ consultationId, patientId, professionalId
 
   const ensureEncounter = useCallback(async () => {
     if (encounterId) return encounterId
+
+    // Re-consultar la base antes de crear. Decidir sólo con el estado de React
+    // era suficiente mientras hubiera un único hook por pantalla, pero la
+    // videollamada tiene dos consumidores (el panel clínico y el modal de cierre)
+    // y cada instancia arranca con su `encounterId` en null: los dos creaban.
+    // Un duplicado no degrada, ROMPE — `getEncounterByConsultationIdSafe` usa
+    // `.maybeSingle()` y tira error con dos filas. La migración 076 además lo
+    // hace imposible con un índice único.
+    if (consultationId) {
+      const existente = await clinicalService.getEncounterByConsultationIdSafe(consultationId).catch(() => null)
+      if (existente) {
+        setEncounterId(existente.id)
+        return existente.id
+      }
+    }
+
     const enc = await clinicalService.createEncounter({
       patientId,
       professionalId,
