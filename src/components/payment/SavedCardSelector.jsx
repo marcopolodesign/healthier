@@ -326,8 +326,8 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
           {publicKey ? (
             <MPCardHolder
               publicKey={publicKey}
-              // El monto real sólo se usa para las cuotas; el Brick le pone su
-              // propio piso (ver MONTO_MINIMO_BRICK). Lo que se le cobra al
+              // El monto real sólo se usa para pedir cuotas; el Brick le pone
+              // su propio piso (MP_MONTO_MINIMO_ARS). Lo que se le cobra al
               // paciente lo decide el servidor, y lo que ve es `submitLabel`.
               amount={amount ?? undefined}
               mode="charge"
