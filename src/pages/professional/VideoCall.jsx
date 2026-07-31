@@ -528,12 +528,12 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
           que ahora es la mitad de la pantalla. Alineadas a la izquierda con gap
           se leen como una barra de navegación. En mobile siguen repartiéndose,
           que ahí el ancho es poco y centrado funciona. (Mateo, 2026-07-31) */}
-      <div className="flex lg:justify-start lg:gap-6 lg:px-4 border-b border-border-default shrink-0 bg-bg-surface">
+      <div className="flex lg:justify-start lg:gap-6 lg:px-4 shrink-0 bg-bg-surface">
         {PANEL_TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 lg:flex-none flex items-center justify-center gap-1.5 text-xs lg:text-sm py-2 border-b-2 transition-colors ${
+            className={`flex-1 lg:flex-none flex items-center justify-center gap-1.5 text-xs lg:text-sm py-4 border-b-2 transition-colors ${
               activeTab === tab.id
                 ? 'border-brand text-brand font-semibold'
                 : 'border-transparent text-text-tertiary hover:text-text-secondary'
