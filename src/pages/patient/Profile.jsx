@@ -13,6 +13,7 @@ import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
 import MPCardHolder from '../../components/payment/MPCardHolder'
+import { BUILD_ETIQUETA } from '../../lib/buildInfo'
 import { brandLabel } from '../../components/payment/cardBrand'
 import { notificationService } from '../../services/notificationService'
 import { track } from '../../utils/analytics'
@@ -476,6 +477,12 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           <SignOut className="w-5 h-5" /> Cerrar Sesión
         </button>
       )}
+
+      {/* Qué build estás viendo — ver src/lib/buildInfo.js. Un bundle cacheado y
+          un fix que no anduvo se ven exactamente igual; esto los distingue. */}
+      <p className="text-center text-[11px] text-text-tertiary/70 pt-6 pb-2 font-mono select-all">
+        {BUILD_ETIQUETA}
+      </p>
       </div>{/* end max-w-lg */}
 
       {/* Añadir Familiar — responsive sheet/modal */}

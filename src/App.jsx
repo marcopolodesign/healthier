@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate, useLocation, useParams } from 'react-router-dom'
 import { ToastContainer } from './components/Toast'
 import AppLayout from './layouts/AppLayout'
 import AuthLayout from './layouts/AuthLayout'
@@ -25,7 +25,6 @@ import PatientDashboard from './pages/patient/Dashboard'
 import PatientOnboarding from './pages/patient/Onboarding'
 import PatientSearch from './pages/patient/Search'
 import ProfessionalProfile from './pages/patient/ProfessionalProfile'
-import BookConsultation from './pages/patient/Book'
 import PatientConsultations from './pages/patient/Consultations'
 import PatientDocuments from './pages/patient/Documents'
 import PatientProfile from './pages/patient/Profile'
@@ -84,6 +83,12 @@ const ROLE_REDIRECTS = {
   professional: '/profesional/dashboard',
   admin: '/admin/profesionales',
   super_admin: '/super-admin/dashboard',
+}
+
+// Ver el comentario de la ruta `/paciente/agendar/:id`.
+function RedirectToProfesional() {
+  const { id } = useParams()
+  return <Navigate to={`/paciente/profesional/${id}`} replace />
 }
 
 function RequireRole({ profile, allowed, children }) {
@@ -250,7 +255,12 @@ export default function App() {
           {/* Legacy routes kept for backward compatibility */}
           <Route path="/paciente/buscar"           element={<PatientSearch       profile={profile} />} />
           <Route path="/paciente/profesional/:id"  element={<ProfessionalProfile profile={profile} />} />
-          <Route path="/paciente/agendar/:id"      element={<BookConsultation    profile={profile} />} />
+          {/* `/paciente/agendar/:id` era una segunda pantalla de reserva, con
+              fecha y hora libres y sin validar contra `professional_schedules`.
+              Se unificó en el wizard de `/paciente/reservar`. El `:id` es el de
+              `professional_profiles`, que el wizard no sabe resolver, así que se
+              manda al perfil — que sí lo resuelve y linkea al wizard bien. */}
+          <Route path="/paciente/agendar/:id"      element={<RedirectToProfesional />} />
           <Route path="/paciente/biovisor"         element={<PatientBiovisor     profile={profile} />} />
           <Route path="/paciente/nutriplan"        element={<PatientNutriPlan    profile={profile} />} />
           <Route path="/paciente/farmacia"         element={<PatientPharmacy     profile={profile} />} />

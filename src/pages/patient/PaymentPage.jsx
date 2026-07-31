@@ -26,12 +26,6 @@ export default function PaymentPage({ profile }) {
     // acá se pierden, porque esta pantalla es la que crea la consulta.
     petName,
     petSpecies,
-    // Sólo llegan desde `/paciente/agendar/:id` (reserva arrancada en el perfil
-    // del profesional). El wizard de `ReservarConsulta` no los pide y viajan
-    // undefined — misma razón que la mascota: si no se persisten acá se pierden.
-    consultationTypeId,
-    obraSocialName,
-    affiliateNumber,
   } = state
 
   const [selectedCardId, setSelectedCardId] = useState(null)
@@ -96,9 +90,6 @@ export default function PaymentPage({ profile }) {
       scheduledAt:    scheduledAt ?? new Date().toISOString(),
       petName:        petName ?? null,
       petSpecies:     petSpecies ?? null,
-      consultationTypeId: consultationTypeId ?? null,
-      obraSocialName:     obraSocialName ?? null,
-      affiliateNumber:    affiliateNumber ?? null,
     })
     setConsultationId(created.id)
     return created.id
@@ -141,9 +132,6 @@ export default function PaymentPage({ profile }) {
         scheduledAt:    scheduledAt ?? new Date().toISOString(),
         petName:        petName ?? null,
         petSpecies:     petSpecies ?? null,
-        consultationTypeId: consultationTypeId ?? null,
-        obraSocialName:     obraSocialName ?? null,
-        affiliateNumber:    affiliateNumber ?? null,
       })
       navigate(`/paciente/turno-confirmado/${created.id}`)
     } catch (err) {

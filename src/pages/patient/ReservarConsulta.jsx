@@ -144,6 +144,7 @@ export default function ReservarConsulta({ profile }) {
   const [professionals, setProfessionals] = useState([])
   const [loadingPros, setLoadingPros]   = useState(false)
   const [selectedPro, setSelectedPro]   = useState(null)
+  const [paramProLoading, setParamProLoading] = useState(!!paramProId)
   const [schedule, setSchedule]         = useState([])
   const [loadingSchedule, setLoadingSchedule] = useState(false)
   const [existingConsultations, setExistingConsultations] = useState([])
@@ -180,15 +181,22 @@ export default function ReservarConsulta({ profile }) {
     }
   }, [selectedVertical])
 
-  // ── Pre-load pro when coming from a marker / sheet ────────
+  // ── Pre-load pro when coming from a marker / sheet / perfil ────────
+  //
+  // `paramProLoading` existe por una carrera real: el paciente puede elegir
+  // modalidad antes de que resuelva este fetch, y si ahí `selectedPro` todavía
+  // es null el wizard lo mandaba a buscar otro profesional (virtual) o a la
+  // lista (presencial), tirando a la basura el que había elegido.
   useEffect(() => {
     if (!paramProId) return
+    setParamProLoading(true)
     professionalService.search({})
       .then(data => {
         const match = data.find(p => p.userId === paramProId)
         if (match) setSelectedPro(normalizeProCard(match, modality))
       })
       .catch(() => {})
+      .finally(() => setParamProLoading(false))
   }, [paramProId])
 
   // ── Load professionals when entering that step ────────────
@@ -261,14 +269,18 @@ export default function ReservarConsulta({ profile }) {
       mode: modality === 'virtual' ? 'videoconsulta' : modality,
       vertical: selectedVertical.id,
     })
+    // Con un profesional ya elegido (marcador del mapa, perfil del profesional)
+    // se va derecho a la fecha, en las DOS modalidades. Esto va ANTES de la rama
+    // virtual a propósito: el auto-match está para cuando al paciente le da
+    // igual quién lo atiende, y acá ya eligió. Antes videoconsulta caía en
+    // `searching` y lo reemplazaba por otro profesional sin decir nada.
+    if (paramProId) {
+      setStep(selectedVertical.id === 'veterinaria' ? 'pet' : 'datetime')
+      return
+    }
     // All virtual consultations go through searching → matched → payment
     if (modality === 'virtual') {
       setStep('searching')
-      return
-    }
-    // Presencial with pre-loaded pro (from map marker)
-    if (paramProId && selectedPro) {
-      setStep(selectedVertical.id === 'veterinaria' ? 'pet' : 'datetime')
       return
     }
     // Presencial standard: professional list (or pet first for vet)
@@ -765,10 +777,17 @@ export default function ReservarConsulta({ profile }) {
             <h1 className="font-serif font-bold text-3xl text-text-primary">
               ¿Cuándo?
             </h1>
-            {loadingSchedule ? (
+            {loadingSchedule || paramProLoading ? (
               <div className="flex justify-center py-12">
                 <CircleNotch className="w-8 h-8 animate-spin" style={{ color: '#7CB38B' }} />
               </div>
+            ) : !selectedPro ? (
+              // Se entró con ?proId= y ese profesional no existe o no está
+              // publicado. Sin esto la pantalla se quedaba diciendo "no tiene
+              // franjas configuradas", que manda a mirar el lugar equivocado.
+              <p className="text-center text-text-tertiary text-[15px] py-12">
+                No pudimos cargar a este profesional. Probá buscarlo de nuevo.
+              </p>
             ) : schedule.length === 0 ? (
               <p className="text-center text-text-tertiary text-[15px] py-12">
                 Este profesional no tiene franjas configuradas.

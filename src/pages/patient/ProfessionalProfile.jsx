@@ -5,7 +5,7 @@ import { professionalService } from '../../services/professionalService'
 import { reviewsService } from '../../services/reviewsService'
 import StarRating from '../../components/StarRating'
 import { toast } from '../../components/Toast'
-import { SPECIALTY_LABELS } from '../../lib/verticals'
+import { SPECIALTY_LABELS, verticalForSpecialty } from '../../lib/verticals'
 
 
 export default function ProfessionalProfile() {
@@ -38,6 +38,12 @@ export default function ProfessionalProfile() {
 
   const name = professional.profiles?.fullName || professional.profiles?.full_name
   const avatar = professional.profiles?.avatarUrl || professional.profiles?.avatar_url
+
+  // Sin vertical el wizard arranca en el selector de especialidad en vez de ir
+  // derecho a la fecha. Pasa sólo si la especialidad no mapea a ninguna vertical
+  // (esas hoy no se pueden reservar igual), así que se manda sin el parámetro.
+  const vertical = verticalForSpecialty(professional.specialty)
+  const verticalParam = vertical ? `&vertical=${vertical}` : ''
 
   return (
     <div className="space-y-6 animate-fade-in max-w-3xl mx-auto">
@@ -90,13 +96,26 @@ export default function ProfessionalProfile() {
           </div>
         )}
 
+        {/* Reservar es una sola pantalla: el wizard de `/paciente/reservar`, que
+            es el único que valida contra `professional_schedules`. Desde acá se
+            entra con el profesional ya elegido (`proId` es el id de usuario, que
+            es lo que matchea el wizard) y se saltea el paso de elegirlo. */}
         <div className="mt-6">
-          <Link
-            to={`/paciente/agendar/${id}`}
-            className="btn-accent w-full text-center block py-3 rounded-lg text-base"
-          >
-            Agendar consulta
-          </Link>
+          {professional.mpConnected === false ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="font-semibold text-text-primary text-sm">No disponible para reservas online</p>
+              <p className="text-sm text-text-secondary mt-1">
+                {name || 'Este profesional'} todavía no conectó Mercado Pago y no puede recibir turnos por el momento.
+              </p>
+            </div>
+          ) : (
+            <Link
+              to={`/paciente/reservar?proId=${professional.userId}${verticalParam}`}
+              className="btn-accent w-full text-center block py-3 rounded-lg text-base"
+            >
+              Agendar consulta
+            </Link>
+          )}
         </div>
       </div>
 
