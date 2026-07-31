@@ -29,6 +29,14 @@
  */
 export const MP_MONTO_MINIMO_ARS = 100
 
+/**
+ * Monto que se le pasa al Brick cuando SÓLO se tokeniza y no se cobra nada
+ * (Perfil → agregar tarjeta). Es el mismo valor que usa BIGG Eye, la otra
+ * integración nuestra con este mismo Brick, que viene funcionando hace meses:
+ * a igualdad de todo lo demás, conviene no inventar un número propio.
+ */
+export const MP_MONTO_TOKENIZACION_ARS = 1000
+
 /** Formatea el mínimo para mensajes de UI: "$100". */
 export const mpMontoMinimoTexto = () =>
   `$${MP_MONTO_MINIMO_ARS.toLocaleString('es-AR')}`

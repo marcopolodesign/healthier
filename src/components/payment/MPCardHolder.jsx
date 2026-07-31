@@ -29,7 +29,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { CardPayment, initMercadoPago } from '@mercadopago/sdk-react'
 import { CheckCircle, Warning } from '@phosphor-icons/react'
 import { mpService } from '../../services/mpService'
-import { MP_MONTO_MINIMO_ARS } from '../../lib/mercadoPago'
+import { MP_MONTO_MINIMO_ARS, MP_MONTO_TOKENIZACION_ARS } from '../../lib/mercadoPago'
 
 // ─── Design-token colours consumed as CSS custom variables ────────────────────
 // bg-primary  : #F6F5F0   (--color-bg-primary)
@@ -90,7 +90,31 @@ export default function MPCardHolder({
    * `Number(...) || 0` porque el precio puede llegar como string desde la DB, y
    * un NaN acá dejaría al Brick sin cuotas igual.
    */
-  const montoBrick = Math.max(Number(amount) || 0, MP_MONTO_MINIMO_ARS)
+  const montoBrick = mode === 'save'
+    // Guardar tarjeta no cobra nada: el monto es puro trámite del Brick, así que
+    // se usa el mismo valor probado que BIGG Eye en vez de uno inventado.
+    ? MP_MONTO_TOKENIZACION_ARS
+    : Math.max(Number(amount) || 0, MP_MONTO_MINIMO_ARS)
+
+  /**
+   * El Brick se monta UNA sola vez y no se vuelve a crear.
+   *
+   * Antes el `useMemo` dependía de `payerEmail`, `submitLabel`, `amount` y
+   * `mode`: si cualquiera cambiaba de identidad mientras el paciente tipeaba —y
+   * el email del perfil puede llegar tarde— React reemplazaba el `<CardPayment>`,
+   * MP re-inicializaba sus iframes y **el formulario se vaciaba solo**, dejando
+   * los campos en rojo como si el paciente no hubiera cargado nada. BIGG Eye,
+   * que anda hace meses contra el mismo Brick, lo memoiza con `[]` por esto.
+   *
+   * Los valores de arranque se congelan en la primera vez que hay `publicKey`;
+   * el handler de submit va por ref para que igual sea siempre el actual y no
+   * quede capturado el del primer render.
+   */
+  const inicialRef = useRef(null)
+  if (publicKey && !inicialRef.current) {
+    inicialRef.current = { amount: montoBrick, payerEmail, submitLabel }
+  }
+  const inicial = inicialRef.current
 
   // initMercadoPago is idempotent — safe to call on every render when publicKey is present
   if (publicKey) {
@@ -144,8 +168,16 @@ export default function MPCardHolder({
     setSaving(false)
 
     if (error) {
-      setBrickError(error)
-      onError?.(error)
+      // `mp-save-card` devuelve el JSON crudo de MP ("MP card save failed:
+      // {...}"), que como mensaje al paciente no significa nada. Se traduce lo
+      // conocido y el resto se muestra igual, nunca en silencio.
+      const legible = /card data is invalid|invalid_card|122/.test(error)
+        ? 'Los datos de la tarjeta no son válidos. Revisá el número, el vencimiento y el código de seguridad.'
+        : /already exists|duplicate/i.test(error)
+          ? 'Esa tarjeta ya está guardada en tu cuenta.'
+          : error
+      setBrickError(legible)
+      onError?.(legible)
       return
     }
 
@@ -159,13 +191,17 @@ export default function MPCardHolder({
     onSuccess?.(result)
   }
 
-  // Memoised to prevent brick re-mount on parent re-renders
+  // El handler siempre el actual, aunque el elemento sea el del primer render.
+  const submitRef = useRef(handleSubmit)
+  submitRef.current = handleSubmit
+
+  // Memoised to prevent brick re-mount on parent re-renders — ver `inicialRef`.
   const cardBrick = useMemo(
     () => (
       <CardPayment
         initialization={{
-          amount: montoBrick,
-          payer: { email: payerEmail || undefined },
+          amount: inicial?.amount ?? montoBrick,
+          payer: { email: inicial?.payerEmail || undefined },
         }}
         customization={{
           paymentMethods: {
@@ -174,7 +210,7 @@ export default function MPCardHolder({
           visual: {
             hideFormTitle: true,
             texts: {
-              formSubmit: submitLabel,
+              formSubmit: inicial?.submitLabel ?? submitLabel,
             },
             style: {
               customVariables: {
@@ -210,11 +246,14 @@ export default function MPCardHolder({
             onError?.(err?.message ?? 'brick_error')
           }
         }}
-        onSubmit={handleSubmit}
+        onSubmit={(cardFormData, additionalData) => submitRef.current(cardFormData, additionalData)}
       />
     ),
+    // Sólo `publicKey`: llega async y sin ella el Brick no puede montar. Todo
+    // lo demás está congelado a propósito (ver `inicialRef`) — agregar una
+    // dependencia acá es volver a vaciarle el formulario al paciente.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [publicKey, payerEmail, submitLabel, montoBrick, mode]
+    [publicKey]
   )
 
   // ── Happy path — card just saved ───────────────────────────────────────────

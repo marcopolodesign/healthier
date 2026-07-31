@@ -21,6 +21,21 @@ import { useEffect, useState } from 'react'
  */
 export default function PatientSheet({ open, onClose, children, maxWidth = 'max-w-lg', backdropClose = true }) {
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 640)
+  /**
+   * La animación de entrada se saca del elemento apenas termina.
+   *
+   * `animate-slide-up-spring` corre con `forwards`, así que el
+   * `transform: translateY(0)` del último keyframe **queda aplicado para
+   * siempre**. Un ancestro con `transform` distinto de `none` crea un bloque
+   * contenedor propio, y iOS es conocido por perder los toques dentro de un
+   * iframe cross-origin ahí adentro. Los campos sensibles del Brick de Mercado
+   * Pago (número, vencimiento, CVV) son exactamente eso, y esta hoja es la que
+   * los aloja en el Perfil: se veía el formulario y no se podía tipear.
+   *
+   * Sacar la clase al terminar deja la hoja en la misma posición (ya está
+   * anclada abajo por el layout) pero sin transform residual.
+   */
+  const [animando, setAnimando] = useState(true)
 
   useEffect(() => {
     const handler = () => setIsDesktop(window.innerWidth >= 640)
@@ -35,6 +50,9 @@ export default function PatientSheet({ open, onClose, children, maxWidth = 'max-
     return () => document.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
+  // Cada apertura vuelve a animar.
+  useEffect(() => { if (open) setAnimando(true) }, [open])
+
   if (!open) return null
 
   return (
@@ -47,7 +65,8 @@ export default function PatientSheet({ open, onClose, children, maxWidth = 'max-
       <div
         className={`bg-bg-secondary flex flex-col ${isDesktop
           ? `w-full ${maxWidth} rounded-[28px] shadow-2xl max-h-[90dvh]`
-          : 'w-full rounded-t-[40px] shadow-[0_-20px_50px_rgba(0,0,0,0.2)] max-h-[90dvh] animate-slide-up-spring'}`}
+          : `w-full rounded-t-[40px] shadow-[0_-20px_50px_rgba(0,0,0,0.2)] max-h-[90dvh] ${animando ? 'animate-slide-up-spring' : ''}`}`}
+        onAnimationEnd={() => setAnimando(false)}
         onClick={e => e.stopPropagation()}
       >
         {/* Drag-handle pill — mobile only */}
