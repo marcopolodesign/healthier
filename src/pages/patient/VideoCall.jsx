@@ -118,7 +118,8 @@ export default function PatientVideoCall() {
          * captura al cerrar), así que sí habilita. `pending_payment` incluye
          * "MP lo está revisando", que todavía no es un sí.
          */
-        const pagoOk = ['paid', 'in_process'].includes(cons?.paymentStatus)
+        const sinCargo = cons?.priceAtBooking == null || Number(cons.priceAtBooking) === 0
+        const pagoOk = sinCargo || ['paid', 'in_process'].includes(cons?.paymentStatus)
         if (cons && !pagoOk) {
           toast.error('Esta consulta todavía no tiene el pago confirmado.')
           navigate('/paciente/consultas')

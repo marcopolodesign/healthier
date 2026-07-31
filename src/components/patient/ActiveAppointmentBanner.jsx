@@ -31,10 +31,13 @@ const TICK_MS = 30 * 1000
  */
 const PAGOS_HABILITANTES = ['paid', 'in_process']
 
+/** Sin precio no hay nada que cobrar — no se puede exigir un pago que no existe. */
+const sinCargo = c => c?.priceAtBooking == null || Number(c.priceAtBooking) === 0
+
 function isActive(consultation, now) {
   const status = consultation?.status
   if (status !== 'in_progress' && status !== 'confirmed') return false
-  if (!PAGOS_HABILITANTES.includes(consultation?.paymentStatus)) return false
+  if (!sinCargo(consultation) && !PAGOS_HABILITANTES.includes(consultation?.paymentStatus)) return false
   if (!consultation.scheduledAt) return false
   const scheduled = new Date(consultation.scheduledAt).getTime()
   if (Number.isNaN(scheduled)) return false
