@@ -14,7 +14,17 @@ export const SPECIALTY_LABELS = {
   otra:             'Otra',
 }
 
-// ── Visual vertical cards — single source of truth for all paciente surfaces ──
+// ── Identidad visual de las verticales ───────────────────────────────────────
+// OJO: desde el 2026-07-31 esto NO decide qué vertical está habilitada. Eso vive
+// en `vertical_settings` (migración 078) y se edita desde /super-admin/verticales,
+// junto con el precio de la consulta inmediata. Para leer el estado real usá el
+// hook `useVerticales()`, que mezcla esta identidad visual con la config de la
+// base.
+//
+// El `comingSoon` de abajo quedó como **fallback** para el instante previo a que
+// llegue el fetch (y para una caída de red): es el estado que era verdad hasta
+// esa fecha. Si lo editás acá no cambia nada en producción — cambialo en el panel.
+//
 // Every field is a superset: id/nombre/icon/color/bg always; shadow+eta for
 // Dashboard; price for the booking wizard; comingSoon gates interactivity.
 // El campo `eta` ('3 min', '10 min', …) se eliminó el 2026-07-27: era un número

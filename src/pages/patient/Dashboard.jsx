@@ -6,7 +6,6 @@ import {
   Heartbeat, X, Sparkle, CalendarBlank,
 } from '@phosphor-icons/react'
 import { track } from '../../utils/analytics'
-import { buildPool } from '../../lib/onDemandPool'
 import { supportWhatsAppLink } from '../../lib/support'
 import WhatsAppMark from '../../components/icons/WhatsAppMark'
 
@@ -14,7 +13,8 @@ const LAST_VERTICAL_KEY = 'healthier_last_vertical'
 import InteractiveMap from '../../components/patient/InteractiveMap'
 import ActiveAppointmentBanner from '../../components/patient/ActiveAppointmentBanner'
 import { professionalService } from '../../services/professionalService'
-import { VERTICALS, VERTICAL_SPECIALTIES, SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
+import { VERTICAL_SPECIALTIES, SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
+import { useVerticales } from '../../hooks/useVerticales'
 import { latLngToPixel, haversineKm, formatDistance } from '../../lib/geo'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
@@ -30,14 +30,17 @@ const FALLBACK_SLOTS = [
 ]
 
 export default function PatientDashboard({ profile }) {
+  // Habilitación de cada vertical: sale de `vertical_settings`, no del código.
+  const { verticales: VERTICALS } = useVerticales()
+
   const navigate = useNavigate()
 
   const [userLocation, setUserLocation] = useState(null)
-  // Precio de arranque por vertical on-demand, del pool que realmente puede
-  // cobrar. Se muestra en la tarjeta para que el paciente no tenga que entrar
-  // al checkout para saber cuánto sale. `null` = todavía no cargó o no hay
-  // nadie cobrable, y en ese caso no se muestra nada en vez de inventar.
-  const [onDemandPrices, setOnDemandPrices] = useState({})
+  // El precio de la consulta inmediata ya no se calcula acá: lo fija la vertical
+  // (`vertical_settings.ondemand_price`) y viene con ella desde `useVerticales`.
+  // Antes se hacía una búsqueda de profesionales POR VERTICAL sólo para sacar el
+  // mínimo de sus precios — n consultas a la base en cada carga del dashboard,
+  // para un número que ahora es un dato de configuración.
   const [showMap, setShowMap] = useState(false)
   const [mapProFlow, setMapProFlow] = useState(null)
   const [selectedMapPro, setSelectedMapPro] = useState(null)
@@ -52,7 +55,7 @@ export default function PatientDashboard({ profile }) {
       if (pro) result[v.id] = pro
     })
     return result
-  }, [proPool])
+  }, [proPool, VERTICALS])
 
   // Marker list for InteractiveMap — project real lat/lng onto overlay, fallback to fixed slots
   const mapMarkers = useMemo(() =>
@@ -66,11 +69,13 @@ export default function PatientDashboard({ profile }) {
         return { id: i + 1, type: v.id, isOnDemand: pro.isOnDemand ?? false, ...pixelPos }
       })
       .filter(Boolean),
-    [markersByVertical, userLocation]
+    [markersByVertical, userLocation, VERTICALS]
   )
 
   // Only specialties bookable right now (no "próximamente") get the on-demand hero treatment
-  const onDemandVerticals = useMemo(() => VERTICALS.filter(v => !v.comingSoon), [])
+  // Deps con VERTICALS a propósito: dejó de ser una constante de módulo y ahora
+  // llega de la base. Con `[]` esto se quedaba clavado en los valores del código.
+  const onDemandVerticals = useMemo(() => VERTICALS.filter(v => !v.comingSoon), [VERTICALS])
 
   // Geolocation
   useEffect(() => {
@@ -146,22 +151,6 @@ export default function PatientDashboard({ profile }) {
     navigate(`/paciente/reservar?vertical=${verticalId}&proId=${userId}${modalityParam}`)
   }
 
-  useEffect(() => {
-    let cancelled = false
-    Promise.all(
-      VERTICALS.filter(v => !v.comingSoon).map(v =>
-        professionalService
-          .search({ specialty: (VERTICAL_SPECIALTIES[v.id] || [])[0], onDemand: true })
-          .then(pros => {
-            const precios = buildPool(pros, 0).map(p => Number(p.priceVideo ?? p.sessionPrice)).filter(n => n > 0)
-            return [v.id, precios.length ? Math.min(...precios) : null]
-          })
-          .catch(() => [v.id, null])
-      )
-    ).then(pares => { if (!cancelled) setOnDemandPrices(Object.fromEntries(pares)) })
-    return () => { cancelled = true }
-  }, [])
-
   const goToVertical = v => {
     track('specialty_select', { specialty: v.id, status: v.comingSoon ? 'coming_soon' : 'available' })
     const entry = { id: v.id, nombre: v.nombre }
@@ -205,9 +194,12 @@ export default function PatientDashboard({ profile }) {
               {/* Degradé para que el texto se lea sobre cualquier foto */}
               <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
               {/* Precio arriba: responde "¿cuánto sale?" antes de entrar al checkout */}
-              {onDemandPrices[v.id] != null && (
+              {/* Ya no dice "desde": el precio lo fija la vertical y es el mismo
+                  para todos los profesionales, así que un "desde" sugeriría una
+                  variación que no existe. */}
+              {v.onDemandPrice != null && (
                 <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-black/45 backdrop-blur-sm text-white text-[12px] font-semibold">
-                  desde ${Number(onDemandPrices[v.id]).toLocaleString('es-AR')}
+                  ${Number(v.onDemandPrice).toLocaleString('es-AR')}
                 </span>
               )}
 

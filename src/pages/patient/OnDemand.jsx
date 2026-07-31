@@ -11,7 +11,8 @@ import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import { buildPool } from '../../lib/onDemandPool'
-import { VERTICALS_BY_ID, SPECIALTY_LABELS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
+import { SPECIALTY_LABELS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
+import { useVerticales } from '../../hooks/useVerticales'
 import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
 
 // Real 10:00 pre-authorization window (spec Sección D1.3/D1.4) — mirrors the
@@ -31,7 +32,9 @@ function formatCountdown(totalSeconds) {
 export default function OnDemand({ profile }) {
   const { vertical: verticalId } = useParams()
   const navigate = useNavigate()
-  const vertical = VERTICALS_BY_ID[verticalId]
+  // Habilitación y precio salen de `vertical_settings`, no del código.
+  const { verticalesById, cargando: cargandoVerticales } = useVerticales()
+  const vertical = verticalesById[verticalId]
   const cardSelectorRef = useRef(null)
   const countdownRef = useRef(null)
 
@@ -63,7 +66,10 @@ export default function OnDemand({ profile }) {
   const isDemoMode = !configLoading && !publicKey
 
   const IconComp = vertical?.icon
-  const price = matchedPro?.priceVideo ?? matchedPro?.sessionPrice ?? null
+  // El precio lo fija la vertical y pisa el del profesional (Mateo, 2026-07-31).
+  // Antes salía de `matchedPro.priceVideo ?? sessionPrice`, así que el paciente
+  // pagaba distinto según a quién le tocara.
+  const price = vertical?.onDemandPrice ?? null
   const proName = matchedPro?.profiles?.fullName || 'Profesional'
   const proAvatar = matchedPro?.profiles?.avatarUrl || null
   const proRating = matchedPro?.averageRating ? String(matchedPro.averageRating) : '—'
@@ -73,8 +79,9 @@ export default function OnDemand({ profile }) {
   // (not a conditional early-return before hooks) so every hook below is
   // still called on every render, per the rules of hooks. ──────────────────
   useEffect(() => {
+    if (cargandoVerticales) return
     if (!vertical || vertical.comingSoon) navigate('/paciente/dashboard')
-  }, [vertical, navigate])
+  }, [vertical, cargandoVerticales, navigate])
 
   // ── DB write helper — creates the consultation the first time it's needed
   // (when the patient commits to pay), never before. Cached so retries and
@@ -236,7 +243,7 @@ export default function OnDemand({ profile }) {
 
   // ── Step 1: match a real, payable professional — real price required ─────────
   useEffect(() => {
-    if (!vertical || vertical.comingSoon) return
+    if (cargandoVerticales || !vertical || vertical.comingSoon) return
     let cancelled = false
 
     mpService.getPaymentPlatformConfig().then(({ data }) => {
@@ -269,7 +276,7 @@ export default function OnDemand({ profile }) {
     })
 
     return () => { cancelled = true }
-  }, [vertical, verticalId])
+  }, [vertical, verticalId, cargandoVerticales])
 
   // ── Step 4: real 10:00 countdown once authorized — auto cancel-auth at zero ──
   useEffect(() => {
@@ -288,7 +295,26 @@ export default function OnDemand({ profile }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase])
 
+  if (cargandoVerticales) return null
   if (!vertical || vertical.comingSoon) return null
+
+  // Vertical habilitada pero sin precio cargado: no se puede cobrar, y crear la
+  // consulta con `priceAtBooking` en null rompe mp-payment más adelante ("no
+  // valid price_at_booking"). Se corta acá, antes de tocar la tarjeta.
+  if (!price) {
+    return (
+      <div className="absolute inset-0 bg-white z-[100] flex flex-col items-center justify-center p-6 animate-fade-in">
+        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+          {IconComp && <IconComp className="w-8 h-8 text-gray-400" />}
+        </div>
+        <h2 className="text-[22px] font-black text-gray-900 mb-2 text-center">No disponible por ahora</h2>
+        <p className="text-gray-500 font-medium text-[15px] text-center mb-8">
+          {vertical.nombre} todavía no tiene un precio de consulta inmediata configurado.
+        </p>
+        <button onClick={() => navigate('/paciente/dashboard')} className="bg-brand text-white px-8 py-3 rounded-[16px] font-bold">Volver al inicio</button>
+      </div>
+    )
+  }
 
   // ── No professional available ──────────────────────────────────────────────
   if (phase === 'no_match') {

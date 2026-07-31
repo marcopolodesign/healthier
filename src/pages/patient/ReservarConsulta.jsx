@@ -7,7 +7,8 @@ import {
 import { professionalService } from '../../services/professionalService'
 import { availabilityService } from '../../services/availabilityService'
 import { consultationsService } from '../../services/consultationsService'
-import { VERTICALS, VERTICAL_SPECIALTIES, SPECIALTY_LABELS } from '../../lib/verticals'
+import { VERTICAL_SPECIALTIES, SPECIALTY_LABELS } from '../../lib/verticals'
+import { useVerticales } from '../../hooks/useVerticales'
 import { toast } from '../../components/Toast'
 import { track } from '../../utils/analytics'
 
@@ -105,6 +106,9 @@ function normalizeProCard(raw, modality = null) {
 
 // ── Component ─────────────────────────────────────────────────
 export default function ReservarConsulta({ profile }) {
+  // Habilitación de cada vertical: sale de `vertical_settings`, no del código.
+  const { verticales: VERTICALS } = useVerticales()
+
   const navigate      = useNavigate()
   const [searchParams] = useSearchParams()
 
@@ -123,6 +127,17 @@ export default function ReservarConsulta({ profile }) {
     if (paramModality) return 'professional'
     return 'modality'
   })
+
+  // Los inicializadores de `useState` corren una sola vez, con los valores del
+  // código. Si el super admin habilitó una vertical que en el código figura como
+  // próximamente, entrar por URL a esa vertical no la preseleccionaba: cuando
+  // llega la config hay que reintentar.
+  useEffect(() => {
+    if (selectedVertical || !paramVerticalId) return
+    const v = VERTICALS.find(x => x.id === paramVerticalId && !x.comingSoon)
+    if (v) { setSelectedVertical(v); setStep(s => (s === 'vertical' ? 'modality' : s)) }
+  }, [VERTICALS, paramVerticalId, selectedVertical])
+
   const [modality, setModality] = useState(paramModality || null) // 'virtual' | 'presencial'
   const [petName, setPetName]           = useState('')
   const [petSpecies, setPetSpecies]     = useState('')

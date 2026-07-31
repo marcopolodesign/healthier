@@ -4,7 +4,8 @@ import {
   MagnifyingGlass, ArrowLeft, CircleNotch, SmileyMeh,
 } from '@phosphor-icons/react'
 import { professionalService } from '../../services/professionalService'
-import { VERTICALS, VERTICAL_SPECIALTIES, SPECIALTY_LABELS } from '../../lib/verticals'
+import { VERTICAL_SPECIALTIES, SPECIALTY_LABELS } from '../../lib/verticals'
+import { useVerticales } from '../../hooks/useVerticales'
 import { toast } from '../../components/Toast'
 import ProfessionalCard from '../../components/patient/ProfessionalCard'
 import ProfessionalModal from '../../components/patient/ProfessionalModal'
@@ -30,6 +31,9 @@ const MODALITY_OPTIONS = [
  * so Consultations.jsx can auto-open the booking wizard with the pro pre-selected.
  */
 export default function BuscarProfesional({ profile }) {
+  // Habilitación de cada vertical: sale de `vertical_settings`, no del código.
+  const { verticales: VERTICALS } = useVerticales()
+
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 

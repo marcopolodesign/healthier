@@ -72,6 +72,7 @@ import SuperAdminAdmins from './pages/super-admin/Admins'
 import SuperAdminPayments from './pages/super-admin/Payments'
 import SuperAdminSettings from './pages/super-admin/Settings'
 import SuperAdminZones from './pages/super-admin/Zones'
+import SuperAdminVerticales from './pages/super-admin/Verticales'
 import SuperAdminAuditoria from './pages/super-admin/Auditoria'
 import SuperAdminUsuarios from './pages/super-admin/Usuarios'
 import SuperAdminUsuariosProspects from './pages/super-admin/UsuariosProspects'
@@ -333,6 +334,7 @@ export default function App() {
           <Route path="/super-admin/pagos" element={<SuperAdminPayments />} />
           <Route path="/super-admin/admins" element={<SuperAdminAdmins />} />
           <Route path="/super-admin/zonas" element={<SuperAdminZones />} />
+          <Route path="/super-admin/verticales" element={<SuperAdminVerticales />} />
           <Route path="/super-admin/auditoria" element={<SuperAdminAuditoria />} />
           <Route path="/super-admin/settings" element={<SuperAdminSettings />} />
           <Route path="/super-admin/usuarios" element={<SuperAdminUsuarios />} />

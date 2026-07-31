@@ -12,7 +12,8 @@ import { emergencyService } from '../../services/emergencyService'
 import { mpService } from '../../services/mpService'
 import { paymentsService } from '../../services/paymentsService'
 import { isRefundEligible } from '../../lib/businessHours'
-import { VERTICALS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
+import { VERTICAL_SPECIALTIES } from '../../lib/verticals'
+import { useVerticales } from '../../hooks/useVerticales'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
@@ -54,6 +55,9 @@ function groupSlotsByDate(slots) {
 const MODALITY_PARAM_MAP = { video: 'Videollamada', presencial: 'Presencial' }
 
 export default function PatientConsultations({ profile }) {
+  // Habilitación de cada vertical: sale de `vertical_settings`, no del código.
+  const { verticales: VERTICALS } = useVerticales()
+
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()

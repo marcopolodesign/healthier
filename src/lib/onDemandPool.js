@@ -5,9 +5,19 @@
  * llegar hasta la pantalla de checkout — que requiere autorizar un pago real.
  */
 
-/** Puede cobrar (MP conectado) y tiene un precio configurado. */
+/**
+ * Puede cobrar: tiene Mercado Pago conectado.
+ *
+ * Antes exigía además que el profesional tuviera un precio cargado, porque el
+ * precio de la consulta on-demand salía de él. Desde el 2026-07-31 el precio lo
+ * fija la vertical (`vertical_settings.ondemand_price`) y pisa el del
+ * profesional, así que pedirle un precio propio para entrar al pool dejaba
+ * afuera gente que sí puede atender y cobrar. Con MP conectado alcanza.
+ *
+ * El precio propio del profesional sigue valiendo para lo que no es on-demand.
+ */
 export function isPayable(pro) {
-  return Boolean(pro && pro.mpConnected !== false && (pro.priceVideo ?? pro.sessionPrice))
+  return Boolean(pro && pro.mpConnected !== false)
 }
 
 /**
