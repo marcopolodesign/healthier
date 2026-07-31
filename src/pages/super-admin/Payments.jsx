@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { CurrencyDollar, Users, ArrowClockwise, CheckCircle, CircleNotch, Sparkle, HandCoins } from '@phosphor-icons/react'
+import { CurrencyDollar, Users, ArrowClockwise, CheckCircle, CircleNotch, Sparkle, HandCoins, ArrowUUpLeft } from '@phosphor-icons/react'
 import { paymentsService } from '../../services/paymentsService'
 import { mpService } from '../../services/mpService'
 import { toast } from '../../components/Toast'
@@ -545,9 +545,9 @@ export default function SuperAdminPayments() {
                         {p.status === 'approved' && p.mpPaymentId && (
                           <button
                             onClick={() => { setForceRefundId(p.id); setForceRefundReason('') }}
-                            className="block mt-1 text-[10px] font-semibold text-danger hover:underline"
+                            className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-danger border border-danger/40 rounded-full px-2.5 py-1 hover:bg-danger/10 transition-colors"
                           >
-                            Devolver
+                            <ArrowUUpLeft className="h-3 w-3" /> Devolver
                           </button>
                         )}
                         {p.refundReason && (
