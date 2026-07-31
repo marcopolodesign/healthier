@@ -493,15 +493,19 @@
    siete archivos: mapearlos acá es una regla, no 47 ediciones a mano que la
    próxima persona tiene que volver a hacer. */
 @utility vc-panel-tipografia {
-  --text-xs: 0.8125rem;              /* 12 → 13 */
-  --text-xs--line-height: 1.125rem;
-  --text-sm: 1rem;                   /* 14 → 16 */
+  /* Segunda pasada (2026-07-31): el primer salto era tímido — el CUERPO de las
+     notas es `text-xs` y quedaba en 13px, que es lo que Mateo seguía viendo
+     chico. Lo que se lee de verdad en este panel no son los títulos, son las
+     notas y las respuestas de la pre-consulta. */
+  --text-xs: 0.9375rem;              /* 12 → 15 */
+  --text-xs--line-height: 1.375rem;
+  --text-sm: 1.0625rem;              /* 14 → 17 */
   --text-sm--line-height: 1.5rem;
-  --text-base: 1.0625rem;            /* 16 → 17 */
-  --text-base--line-height: 1.625rem;
+  --text-base: 1.125rem;             /* 16 → 18 */
+  --text-base--line-height: 1.75rem;
 
-  & .text-\[10px\] { font-size: 0.75rem; }   /* 10 → 12 */
-  & .text-\[11px\] { font-size: 0.8125rem; } /* 11 → 13 */
+  & .text-\[10px\] { font-size: 0.8125rem; } /* 10 → 13 */
+  & .text-\[11px\] { font-size: 0.875rem; }  /* 11 → 14 */
 }
 
 @utility vc-panel-pane {
