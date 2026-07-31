@@ -387,6 +387,24 @@ export const mpService = {
   },
 
   /**
+   * Devolución directa del super admin, fuera del flujo de cancelación del
+   * paciente (mp-refund action=force-refund).
+   *
+   * Existe porque el camino normal arranca con el paciente cancelando **antes**
+   * del turno, y eso deja sin salida a los casos que más se devuelven en la
+   * práctica: el profesional no apareció, la llamada se cayó, el reclamo llega
+   * después. El motivo es obligatorio y queda asentado.
+   */
+  async forceRefund(paymentId, reason) {
+    try {
+      const result = await callEdgeFunction('mp-refund', { action: 'force-refund', paymentId, reason })
+      return { data: toCamelCase(result), error: null }
+    } catch (err) {
+      return { data: null, error: err.message }
+    }
+  },
+
+  /**
    * Super admin approves a pending "convert credits → MP refund" request
    * (mp-refund action=approve-mp-conversion).
    */

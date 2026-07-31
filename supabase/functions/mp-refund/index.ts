@@ -427,6 +427,119 @@ Deno.serve(async (req) => {
       return jsonResponse({ data: { approved: true, mpRefundId }, error: null });
     }
 
+    // ────────────────────────────────────────────────────────────────────────
+    // action: force-refund (super_admin only) — devolución directa, con motivo
+    //
+    // El resto de este archivo modela la devolución como consecuencia de una
+    // CANCELACIÓN del paciente, con 48 h hábiles de anticipación a un turno que
+    // todavía no pasó. Eso deja sin salida a los casos que en la práctica son los
+    // que más se devuelven: el profesional no apareció, la llamada se cayó, el
+    // paciente reclama después. Verificado el 2026-07-31: de los 3 pagos
+    // aprobados que existían, ninguno era elegible por ese camino.
+    //
+    // Esto NO afloja la regla anterior: es otra puerta, más angosta y con nombre
+    // propio. Sólo super admin, motivo escrito obligatorio, y queda asentada en
+    // `consultation_events` además de en la fila del pago.
+    // ────────────────────────────────────────────────────────────────────────
+    if (action === "force-refund") {
+      if (callerRole !== "super_admin") return jsonResponse({ data: null, error: "Forbidden" }, 403);
+
+      const { paymentId, reason } = body as { paymentId?: string; reason?: string };
+      if (!paymentId) return jsonResponse({ data: null, error: "Missing paymentId" }, 400);
+      // El motivo no es opcional: una devolución sin motivo es indistinguible de
+      // un error operativo tres meses después.
+      if (!reason || reason.trim().length < 5) {
+        return jsonResponse({ data: null, error: "Escribí el motivo de la devolución" }, 400);
+      }
+
+      const { data: payment, error: paymentErr } = await supabase
+        .from("payments")
+        .select("id, patient_id, professional_id, consultation_id, mp_payment_id, gross_amount, status")
+        .eq("id", paymentId)
+        .single();
+
+      if (paymentErr || !payment) return jsonResponse({ data: null, error: "Payment not found" }, 404);
+      if (payment.status === "refunded") {
+        return jsonResponse({ data: null, error: "Este pago ya fue devuelto" }, 409);
+      }
+      if (payment.status !== "approved") {
+        return jsonResponse({ data: null, error: `Sólo se puede devolver un pago aprobado (está en ${payment.status})` }, 409);
+      }
+      if (!payment.mp_payment_id) {
+        return jsonResponse({ data: null, error: "Pago 100% créditos — no hay nada que devolver por Mercado Pago" }, 422);
+      }
+
+      const { data: mpAccount, error: mpAccErr } = await supabase
+        .from("mp_accounts")
+        .select("professional_id, access_token, refresh_token, expires_at, active")
+        .eq("professional_id", payment.professional_id)
+        .eq("active", true)
+        .single();
+      if (mpAccErr || !mpAccount) {
+        return jsonResponse({ data: null, error: "La cuenta de Mercado Pago del profesional no está activa" }, 422);
+      }
+
+      const refresh = await ensureFreshMpToken(supabase, mpAccount as MpAccountRow, PAYMENT_REFRESH_MARGIN_MS);
+      if (refresh.invalidGrant) {
+        return jsonResponse({ data: null, error: "La conexión de Mercado Pago del profesional es inválida" }, 422);
+      }
+
+      const idemKey = await sha256Hex(`force-refund:${payment.id}:${payment.mp_payment_id}`);
+      const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${payment.mp_payment_id}/refunds`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${refresh.accessToken}`,
+          "Content-Type": "application/json",
+          "X-Idempotency-Key": idemKey,
+        },
+        body: JSON.stringify({}), // vacío = devolución total
+      });
+      const mpData = await mpRes.json().catch(() => ({} as Record<string, unknown>));
+
+      if (!mpRes.ok) {
+        console.error("mp-refund: force-refund MP error:", JSON.stringify(mpData));
+        return jsonResponse(
+          { data: null, error: (mpData as { message?: string })?.message ?? "Mercado Pago rechazó la devolución" },
+          502,
+        );
+      }
+
+      const mpRefundId = String((mpData as { id?: string | number })?.id ?? "");
+      const now = new Date().toISOString();
+
+      const { error: updErr } = await supabase
+        .from("payments")
+        .update({
+          status: "refunded",
+          refund_type: "mp",
+          mp_refund_id: mpRefundId,
+          refunded_at: now,
+          refund_reason: reason.trim(),
+          refund_forced_by: user.id,
+          refund_reviewed_by: user.id,
+          refund_reviewed_at: now,
+        })
+        .eq("id", payment.id);
+      if (updErr) console.error("mp-refund: force-refund payments update error:", updErr.message);
+
+      if (payment.consultation_id) {
+        await supabase.from("consultations")
+          .update({ payment_status: "refunded" })
+          .eq("id", payment.consultation_id);
+
+        // Asiento en la bitácora de la consulta: quién devolvió, por qué y cuánto.
+        await supabase.from("consultation_events").insert({
+          consultation_id: payment.consultation_id,
+          actor_id: user.id,
+          actor_role: "super_admin",
+          event: "refund_forzado",
+          detail: { reason: reason.trim(), mp_refund_id: mpRefundId, amount: payment.gross_amount },
+        }).then(({ error }) => { if (error) console.error("mp-refund: event insert error:", error.message) });
+      }
+
+      return jsonResponse({ data: { refunded: true, mpRefundId }, error: null });
+    }
+
     return jsonResponse({ data: null, error: `Unknown action: ${action ?? "(none)"}` }, 400);
   } catch (err) {
     console.error("mp-refund error:", err);

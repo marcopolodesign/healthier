@@ -44,6 +44,9 @@ export default function SuperAdminPayments() {
   const [approvingId, setApprovingId] = useState(null)
   const [settlingId, setSettlingId] = useState(null)
   const [confirmSettleId, setConfirmSettleId] = useState(null)
+  const [forceRefundId, setForceRefundId] = useState(null)
+  const [forceRefundReason, setForceRefundReason] = useState('')
+  const [forcingRefund, setForcingRefund] = useState(false)
 
   // Refund-request queue (cancellation → Healthy Credits) — approve/reject
   const [approvingRefundId, setApprovingRefundId] = useState(null)
@@ -88,6 +91,25 @@ export default function SuperAdminPayments() {
   const clearFilters = () => {
     setFilters({ dateFrom: '', dateTo: '', status: '', method: '' })
     setTimeout(load, 0)
+  }
+
+  const handleForceRefund = async () => {
+    if (forceRefundReason.trim().length < 5) {
+      toast.error('Escribí el motivo de la devolución')
+      return
+    }
+    setForcingRefund(true)
+    try {
+      const { error } = await mpService.forceRefund(forceRefundId, forceRefundReason.trim())
+      if (error) throw new Error(error)
+      toast.success('Devolución enviada a Mercado Pago')
+      setForceRefundId(null)
+      load()
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos hacer la devolución')
+    } finally {
+      setForcingRefund(false)
+    }
   }
 
   const handleApproveConversion = async (paymentId) => {
@@ -513,6 +535,23 @@ export default function SuperAdminPayments() {
                         <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${STATUS_BADGE[p.status] ?? 'bg-gray-100 text-gray-500'}`}>
                           {STATUS_LABEL[p.status] ?? p.status}
                         </span>
+                        {/* Devolución directa: el flujo normal arranca con el
+                            paciente cancelando ANTES del turno, así que un pago
+                            de una consulta ya atendida no tenía ninguna salida.
+                            Pide motivo, que queda asentado. */}
+                        {p.status === 'approved' && p.mpPaymentId && (
+                          <button
+                            onClick={() => { setForceRefundId(p.id); setForceRefundReason('') }}
+                            className="block mt-1 text-[10px] font-semibold text-danger hover:underline"
+                          >
+                            Devolver
+                          </button>
+                        )}
+                        {p.refundReason && (
+                          <p className="text-[10px] text-text-tertiary mt-0.5 max-w-[140px]">
+                            {p.refundForcedBy ? 'Devuelto por admin: ' : ''}{p.refundReason}
+                          </p>
+                        )}
                       </td>
                       <td className="table-cell text-text-tertiary">
                         <p className="truncate max-w-[120px]">{p.mpPaymentId || '—'}</p>
@@ -541,6 +580,37 @@ export default function SuperAdminPayments() {
           </div>
         )}
       </div>
+
+      {/* Devolución directa — pide motivo antes de mover plata real. */}
+      <Modal
+        open={Boolean(forceRefundId)}
+        onClose={() => setForceRefundId(null)}
+        title="Devolver este pago"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary">
+            Se devuelve el total por Mercado Pago. Es plata real y no se puede deshacer.
+            El motivo queda asentado en la bitácora de la consulta.
+          </p>
+          <div>
+            <label className="form-label">Motivo</label>
+            <textarea
+              value={forceRefundReason}
+              onChange={e => setForceRefundReason(e.target.value)}
+              rows={3}
+              placeholder="Ej: el profesional no se conectó y el paciente reclamó"
+              className="form-textarea"
+            />
+          </div>
+          <div className="flex flex-col-reverse sm:flex-row gap-3">
+            <button onClick={() => setForceRefundId(null)} className="btn-secondary flex-1">Cancelar</button>
+            <button onClick={handleForceRefund} disabled={forcingRefund} className="btn-danger flex-1">
+              {forcingRefund ? 'Devolviendo…' : 'Devolver'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
+
   )
 }
