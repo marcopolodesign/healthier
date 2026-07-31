@@ -9,7 +9,9 @@
  *
  * Props:
  *   publicKey   {string}            MP public key — call mpService.getPaymentPlatformConfig() first
- *   amount      {number}            Amount in ARS (required by the brick; we use 1 for card-save flows)
+ *   amount      {number}            Monto en ARS que el brick usa SÓLO para pedir cuotas —
+ *                                   nunca es lo que se cobra. Tiene un piso propio,
+ *                                   ver MONTO_MINIMO_BRICK más abajo.
  *   payerEmail  {string}            Pre-fills the payer email field
  *   submitLabel {string}            CTA label inside the brick form
  *   mode        {'save'|'charge'}   'save' (default) persists the card via mp-save-card.
@@ -35,9 +37,38 @@ import { mpService } from '../../services/mpService'
 // brand       : #7CB38B   (--color-brand / sage)
 // border      : #D8D4CE   (--color-border-default)
 
+/**
+ * Piso del monto que se le pasa al Brick — NO es el monto que se cobra.
+ *
+ * Antes de tokenizar, el Brick le pide las cuotas a MP con el `amount` que le
+ * damos (`/v1/payment_methods/installments?bin=…&amount=…`). **Para montos de
+ * 1 o 2 pesos esa API devuelve `[]` en Argentina**, y ahí el Brick se planta
+ * con `{cause: 'missing_payment_information', message: 'empty_installments'}`:
+ * no emite token, marca los campos en rojo como si el paciente se hubiera
+ * equivocado, y no hay forma de pagar con tarjeta nueva. Verificado contra la
+ * API con cinco BINs distintos: hasta 2 vacío, de 3 en adelante responde.
+ *
+ * Rompía las tres pantallas que montan este componente, por dos motivos que se
+ * ven distintos pero son el mismo:
+ *   - Perfil → agregar tarjeta: manda `amount = 1` fijo, porque ahí no se cobra
+ *     nada y el monto es sólo un requisito formal del Brick. O sea que estaba
+ *     roto siempre, con cualquier precio.
+ *   - On-demand y reservas: mandan el precio real de la consulta, que hoy en
+ *     pruebas es $1.
+ *
+ * Clampear acá es inocuo: `mp-payment` deriva el monto de
+ * `consultation.price_at_booking` en el servidor y nunca confía en el cliente
+ * (ver el comentario de arriba de esa función), así que este número no llega a
+ * ningún cobro — sólo sirve para que MP devuelva un plan de cuotas. Con
+ * `maxInstallments: 1` tampoco hay cuotas que mostrar mal. 100 deja margen por
+ * si el piso varía por emisor, y queda muy por debajo de cualquier precio real,
+ * así que en producción no se activa nunca.
+ */
+const MONTO_MINIMO_BRICK = 100
+
 export default function MPCardHolder({
   publicKey,
-  amount = 1,
+  amount = MONTO_MINIMO_BRICK,
   payerEmail = '',
   submitLabel = 'Guardar tarjeta',
   mode = 'save',
@@ -69,6 +100,10 @@ export default function MPCardHolder({
   const [contenedorVisible, setContenedorVisible] = useState(false)
   const [savedCard, setSavedCard] = useState(null) // { lastFour, cardBrand }
   const [brickError, setBrickError] = useState(null)
+
+  // Ver MONTO_MINIMO_BRICK. `Number(...) || 0` porque el precio puede llegar
+  // como string desde la DB, y un NaN acá dejaría al Brick sin cuotas igual.
+  const montoBrick = Math.max(Number(amount) || 0, MONTO_MINIMO_BRICK)
 
   // initMercadoPago is idempotent — safe to call on every render when publicKey is present
   if (publicKey) {
@@ -142,7 +177,7 @@ export default function MPCardHolder({
     () => (
       <CardPayment
         initialization={{
-          amount,
+          amount: montoBrick,
           payer: { email: payerEmail || undefined },
         }}
         customization={{
@@ -185,7 +220,7 @@ export default function MPCardHolder({
       />
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [publicKey, payerEmail, submitLabel, amount, mode]
+    [publicKey, payerEmail, submitLabel, montoBrick, mode]
   )
 
   // ── Happy path — card just saved ───────────────────────────────────────────
