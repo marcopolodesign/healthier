@@ -58,9 +58,21 @@ export default function ConsultationDetail({ profile }) {
 
   useEffect(() => { load() }, [load])
 
+  // Si la consulta todavía no declaró cobertura, arranca con la del perfil del
+  // paciente — que desde el onboarding ya viene con el idFinanciador del catálogo
+  // de Innovamed (migración 083). Queda propuesta, no guardada: el profesional
+  // confirma con "Guardar". Antes esto salía siempre en blanco y había que
+  // preguntarle la obra social al paciente en plena consulta, aunque la hubiera
+  // cargado al registrarse.
+  const coberturaDelPerfil = consultation?.coverageType == null && consultation?.patient?.coverageType != null
   useEffect(() => {
     if (consultation) {
-      setCoverageForm({
+      setCoverageForm(coberturaDelPerfil ? {
+        coverageType:    consultation.patient.coverageType,
+        financiadorId:   consultation.patient.financiadorId ?? null,
+        obraSocialName:  consultation.patient.insuranceName || '',
+        affiliateNumber: consultation.patient.insuranceNum || '',
+      } : {
         coverageType:    consultation.coverageType ?? null,
         financiadorId:   consultation.financiadorId ?? null,
         obraSocialName:  consultation.obraSocialName || '',
@@ -296,7 +308,18 @@ export default function ConsultationDetail({ profile }) {
             />
             <div className="flex gap-2">
               <button
-                onClick={() => { setEditingCoverage(false); setCoverageForm({ obraSocialName: consultation.obraSocialName || '', affiliateNumber: consultation.affiliateNumber || '' }) }}
+                /* Cancelar restauraba sólo dos de los cuatro campos y dejaba
+                   coverageType y financiadorId con lo tipeado: el formulario
+                   quedaba mostrando una obra social que la consulta no tiene. */
+                onClick={() => {
+                  setEditingCoverage(false)
+                  setCoverageForm({
+                    coverageType:    consultation.coverageType ?? null,
+                    financiadorId:   consultation.financiadorId ?? null,
+                    obraSocialName:  consultation.obraSocialName || '',
+                    affiliateNumber: consultation.affiliateNumber || '',
+                  })
+                }}
                 className="btn-secondary flex-1 py-2 flex items-center justify-center gap-1"
               >
                 <X className="h-4 w-4" /> Cancelar
@@ -335,6 +358,25 @@ export default function ConsultationDetail({ profile }) {
                 Falta elegirla del catálogo de Innovamed.
               </p>
             )}
+          </div>
+        ) : coberturaDelPerfil ? (
+          <div className="flex items-start gap-4 flex-wrap">
+            <div>
+              <p className="text-xs text-text-secondary">Obra social</p>
+              <p className="text-sm font-medium text-text-primary mt-0.5">
+                {consultation.patient.coverageType === 'particular'
+                  ? 'Particular' : consultation.patient.insuranceName}
+              </p>
+            </div>
+            {consultation.patient.insuranceNum && (
+              <div>
+                <p className="text-xs text-text-secondary">N° afiliado</p>
+                <p className="text-sm font-medium text-text-primary mt-0.5">{consultation.patient.insuranceNum}</p>
+              </div>
+            )}
+            <p className="w-full text-[11px] text-text-tertiary">
+              Del perfil del paciente — editá y guardá para dejarla asentada en esta consulta.
+            </p>
           </div>
         ) : (
           /* Sólo el resultado, sin explicar (Mateo, 2026-07-31): esta pantalla es

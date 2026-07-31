@@ -12,6 +12,7 @@ import { familyService } from '../../services/familyService'
 import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
+import FinanciadorPicker from '../../components/professional/FinanciadorPicker'
 import MPCardHolder from '../../components/payment/MPCardHolder'
 import { brandLabel } from '../../components/payment/cardBrand'
 import { notificationService } from '../../services/notificationService'
@@ -45,6 +46,10 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
     domicilio:        profile?.address       || '',
     dni:              profile?.dni           || '',
     sangre:           profile?.bloodType     || '',
+    // La obra social viene del catálogo de Innovamed (migración 083): lo que se
+    // guarda y sirve para recetar es `financiadorId`; el nombre es para mostrar.
+    coverageType:     profile?.coverageType   ?? null,
+    financiadorId:    profile?.financiadorId  ?? null,
     obraSocial:       profile?.insuranceName || '',
     numeroSocio:      profile?.insuranceNum  || '',
     emergenciaNombre: profile?.emergencyName || '',
@@ -107,8 +112,11 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           phone: userData.telefono,
           address: userData.domicilio,
           blood_type: userData.sangre || null,
-          insurance_name: userData.obraSocial,
-          insurance_num: userData.numeroSocio,
+          coverage_type: userData.coverageType || null,
+          // Particular limpia financiador y afiliado: lo exige la constraint.
+          financiador_id: userData.coverageType === 'particular' ? null : (userData.financiadorId ?? null),
+          insurance_name: userData.coverageType === 'particular' ? null : (userData.obraSocial || null),
+          insurance_num:  userData.coverageType === 'particular' ? null : (userData.numeroSocio || null),
           emergency_name: userData.emergenciaNombre,
           emergency_phone: userData.emergenciaTelefono,
           emergency_rel: userData.emergenciaVinculo,
@@ -297,10 +305,39 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
               }
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            {field('Obra Social', 'obraSocial')}
-            {field('N° Afiliado', 'numeroSocio')}
-          </div>
+          {/* Editando, sale del catálogo de Innovamed y no a mano: es el dato
+              que necesita una receta electrónica. Acá es donde el paciente
+              completa el N° de afiliado que dejó en blanco en el onboarding. */}
+          {editing ? (
+            <FinanciadorPicker
+              coverageType={userData.coverageType}
+              financiadorId={userData.financiadorId}
+              financiadorName={userData.obraSocial}
+              affiliateNumber={userData.numeroSocio}
+              hintAfiliado="Opcional — podés dejarlo vacío."
+              hintSinDefinir="Opcional. Si la cargás, tu médico ya la tiene lista para recetarte con cobertura."
+              onChange={v => setUserData(p => ({
+                ...p,
+                coverageType:  v.coverageType,
+                financiadorId: v.financiadorId,
+                obraSocial:    v.financiadorName,
+                numeroSocio:   v.affiliateNumber,
+              }))}
+            />
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col">
+                <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-widest mb-1.5 ml-1">Obra Social</label>
+                <div className="px-1 py-1 text-[17px] font-medium text-text-primary">
+                  {userData.coverageType === 'particular' ? 'Particular' : (userData.obraSocial || '—')}
+                </div>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-widest mb-1.5 ml-1">N° Afiliado</label>
+                <div className="px-1 py-1 text-[17px] font-medium text-text-primary">{userData.numeroSocio || '—'}</div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

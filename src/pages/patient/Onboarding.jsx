@@ -4,6 +4,7 @@ import { Check, UserCircle, ShieldCheck, Heartbeat, ShieldPlus } from '@phosphor
 import { profilesService } from '../../services/profilesService'
 import { toast } from '../../components/Toast'
 import { PATIENT_CONSENT_ITEMS } from '../../lib/consentItems'
+import FinanciadorPicker from '../../components/professional/FinanciadorPicker'
 import { track } from '../../utils/analytics'
 
 // Internal step (1=consentimiento, 2=salud_general, 3=informacion_medica) mapped
@@ -47,6 +48,10 @@ export default function PatientOnboarding({ profile }) {
 
   const [medical, setMedical] = useState({
     bloodType:       profile?.bloodType       || '',
+    // La obra social sale del catálogo de Innovamed, no de texto libre: RCTA no
+    // acepta el nombre, exige el idFinanciador. Ver migración 083.
+    coverageType:    profile?.coverageType    ?? null,
+    financiadorId:   profile?.financiadorId   ?? null,
     insuranceName:   profile?.insuranceName   || '',
     insuranceNum:    profile?.insuranceNum    || '',
     emergencyName:   profile?.emergencyName   || '',
@@ -97,10 +102,15 @@ export default function PatientOnboarding({ profile }) {
   const saveStep2 = async () => {
     setSaving(true)
     try {
+      const esParticular = medical.coverageType === 'particular'
       await profilesService.update(profile.id, {
         blood_type:      medical.bloodType      || null,
-        insurance_name:  medical.insuranceName  || null,
-        insurance_num:   medical.insuranceNum   || null,
+        coverage_type:   medical.coverageType   || null,
+        // Particular limpia los dos: lo exige la constraint y dejarlos sería un
+        // dato contradictorio.
+        financiador_id:  esParticular ? null : (medical.financiadorId ?? null),
+        insurance_name:  esParticular ? null : (medical.insuranceName || null),
+        insurance_num:   esParticular ? null : (medical.insuranceNum  || null),
         emergency_name:  medical.emergencyName  || null,
         emergency_phone: medical.emergencyPhone || null,
         emergency_rel:   medical.emergencyRel   || null,
@@ -297,28 +307,24 @@ export default function PatientOnboarding({ profile }) {
 
               <div className="pt-1">
                 <p className="text-xs font-semibold text-text-tertiary uppercase tracking-widest mb-3">Obra social / prepaga</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="form-label">Nombre</label>
-                    <input
-                      type="text"
-                      value={medical.insuranceName}
-                      onChange={e => setMedical(p => ({ ...p, insuranceName: e.target.value }))}
-                      className="form-input"
-                      placeholder="Ej: OSDE, Swiss Medical"
-                    />
-                  </div>
-                  <div>
-                    <label className="form-label">Nro. de socio</label>
-                    <input
-                      type="text"
-                      value={medical.insuranceNum}
-                      onChange={e => setMedical(p => ({ ...p, insuranceNum: e.target.value }))}
-                      className="form-input"
-                      placeholder="Ej: 12345678"
-                    />
-                  </div>
-                </div>
+                {/* Del catálogo de Innovamed, no a mano: es el mismo dato que va
+                    a necesitar una receta electrónica, y el nombre escrito no
+                    sirve para emitirla. Cargándolo acá el médico ya lo tiene. */}
+                <FinanciadorPicker
+                  coverageType={medical.coverageType}
+                  financiadorId={medical.financiadorId}
+                  financiadorName={medical.insuranceName}
+                  affiliateNumber={medical.insuranceNum}
+                  hintAfiliado="No pasa nada si no lo tenés a mano: podés completarlo más tarde desde tu perfil."
+                  hintSinDefinir="Opcional. Si la cargás, tu médico ya la tiene lista para recetarte con cobertura."
+                  onChange={v => setMedical(p => ({
+                    ...p,
+                    coverageType:  v.coverageType,
+                    financiadorId: v.financiadorId,
+                    insuranceName: v.financiadorName,
+                    insuranceNum:  v.affiliateNumber,
+                  }))}
+                />
               </div>
 
               <div className="pt-1">
