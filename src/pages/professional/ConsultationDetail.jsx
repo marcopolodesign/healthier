@@ -338,7 +338,11 @@ export default function ConsultationDetail({ profile }) {
           </div>
         ) : (
           <p className="text-sm text-text-muted">
-            Sin definir — opcional. Si emitís una receta electrónica ahora sale sin cobertura, como particular.
+            {bloqueada
+              // Con la consulta cerrada ya no se emite nada: hablar de "si emitís
+              // ahora" es ofrecer algo que la pantalla no permite.
+              ? 'Sin definir.'
+              : 'Sin definir — opcional. Si emitís una receta electrónica ahora sale sin cobertura, como particular.'}
           </p>
         )}
       </div>
