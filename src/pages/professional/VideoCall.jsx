@@ -24,6 +24,18 @@ import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/c
 
 const NO_SHOW_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
+/**
+ * Escriba con IA dentro de la videollamada: escondido a pedido de Mateo
+ * (2026-07-31) — "falta probarlo bastante".
+ *
+ * Se apaga con un flag y no borrando el código: `ScribeSession` y todo su camino
+ * (grabación, `clinical_scribe_sessions`, la Edge Function) siguen enteros, así
+ * que volver a mostrarlo es poner esto en `true`. Nada de esto toca el botón
+ * "Nota con IA" del detalle de consulta, que es donde se probó el flujo
+ * presencial.
+ */
+const SCRIBE_EN_LLAMADA = false
+
 // ── Split ajustable de la videollamada ───────────────────────────────────────
 const SPLIT_STORAGE_KEY = 'healthier:vc-video-width'
 const SPLIT_DEFAULT_PCT = 50
@@ -493,12 +505,14 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
         </div>
         {activeTab === 'nota' && (
           <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setShowScribe(s => !s)}
-              className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full bg-brand text-white hover:bg-brand/90"
-            >
-              <Sparkle weight="fill" className="h-3 w-3" /> IA
-            </button>
+            {SCRIBE_EN_LLAMADA && (
+              <button
+                onClick={() => setShowScribe(s => !s)}
+                className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full bg-brand text-white hover:bg-brand/90"
+              >
+                <Sparkle weight="fill" className="h-3 w-3" /> IA
+              </button>
+            )}
             <button
               onClick={() => setShowForm(s => !s)}
               className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border border-border-default text-text-secondary hover:bg-bg-surface-hover"
