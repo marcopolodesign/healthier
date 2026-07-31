@@ -394,10 +394,12 @@ export const mpService = {
    * del turno, y eso deja sin salida a los casos que más se devuelven en la
    * práctica: el profesional no apareció, la llamada se cayó, el reclamo llega
    * después. El motivo es obligatorio y queda asentado.
+   *
+   * `tipo`: 'mp' devuelve la plata, 'credito' acredita Healthy Credits.
    */
-  async forceRefund(paymentId, reason) {
+  async forceRefund(paymentId, reason, tipo = 'mp') {
     try {
-      const result = await callEdgeFunction('mp-refund', { action: 'force-refund', paymentId, reason })
+      const result = await callEdgeFunction('mp-refund', { action: 'force-refund', paymentId, reason, tipo })
       return { data: toCamelCase(result), error: null }
     } catch (err) {
       return { data: null, error: err.message }

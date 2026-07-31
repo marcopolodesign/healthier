@@ -94,16 +94,18 @@ export default function SuperAdminPayments() {
     setTimeout(load, 0)
   }
 
-  const handleForceRefund = async () => {
+  const handleForceRefund = async (tipo) => {
     if (forceRefundReason.trim().length < 5) {
       toast.error('Escribí el motivo de la devolución')
       return
     }
     setForcingRefund(true)
     try {
-      const { error } = await mpService.forceRefund(forceRefundId, forceRefundReason.trim())
+      const { error } = await mpService.forceRefund(forceRefundId, forceRefundReason.trim(), tipo)
       if (error) throw new Error(error)
-      toast.success('Devolución enviada a Mercado Pago')
+      toast.success(tipo === 'credito'
+        ? 'Se acreditaron los Healthy Credits'
+        : 'Devolución enviada a Mercado Pago')
       setForceRefundId(null)
       load()
     } catch (err) {
@@ -590,8 +592,9 @@ export default function SuperAdminPayments() {
       >
         <div className="space-y-4">
           <p className="text-sm text-text-secondary">
-            Se devuelve el total por Mercado Pago. Es plata real y no se puede deshacer.
-            El motivo queda asentado en la bitácora de la consulta.
+            Se devuelve el total. Por Mercado Pago es plata real y no se puede deshacer;
+            en Healthy Credits el monto queda como saldo del paciente dentro de la
+            plataforma. El motivo queda asentado en la bitácora de la consulta.
           </p>
           <div>
             <label className="form-label">Motivo</label>
@@ -603,10 +606,30 @@ export default function SuperAdminPayments() {
               className="form-textarea"
             />
           </div>
-          <div className="flex flex-col-reverse sm:flex-row gap-3">
-            <button onClick={() => setForceRefundId(null)} className="btn-secondary flex-1">Cancelar</button>
-            <button onClick={handleForceRefund} disabled={forcingRefund} className="btn-danger flex-1">
-              {forcingRefund ? 'Devolviendo…' : 'Devolver'}
+          {/* Dos formas de devolver, y la diferencia importa: por MP se va la
+              plata de verdad y la comisión no vuelve; en créditos queda adentro
+              de la plataforma. Cuál corresponde depende de por qué se devuelve,
+              así que se elige acá y no se decide por defecto. */}
+          <div className="space-y-2">
+            <button
+              onClick={() => handleForceRefund('mp')}
+              disabled={forcingRefund}
+              className="btn-danger w-full py-2.5"
+            >
+              {forcingRefund ? 'Procesando…' : 'Devolver la plata por Mercado Pago'}
+            </button>
+            <button
+              onClick={() => handleForceRefund('credito')}
+              disabled={forcingRefund}
+              className="btn-secondary w-full py-2.5"
+            >
+              {forcingRefund ? 'Procesando…' : 'Devolver en Healthy Credits'}
+            </button>
+            <button
+              onClick={() => setForceRefundId(null)}
+              className="w-full py-2 text-sm text-text-secondary hover:text-text-primary"
+            >
+              Cancelar
             </button>
           </div>
         </div>

@@ -32,6 +32,11 @@
  *   refund. Requires the credit hasn't been spent yet (balance >= the refunded
  *   amount).
  *
+ * action: "force-refund"         body: { paymentId, reason, tipo }  (super_admin only)
+ *   Devolución directa, fuera del flujo de cancelación del paciente. `tipo` es
+ *   'mp' (devuelve la plata) o 'credito' (acredita Healthy Credits). Motivo
+ *   obligatorio; queda asentado en consultation_events.
+ *
  * action: "approve-mp-conversion" body: { paymentId }               (super_admin only)
  *   Calls MP's real refund API using the seller's OAuth token. If the payment
  *   was 100% credits (no mp_payment_id), there is nothing to refund via MP.
@@ -444,7 +449,12 @@ Deno.serve(async (req) => {
     if (action === "force-refund") {
       if (callerRole !== "super_admin") return jsonResponse({ data: null, error: "Forbidden" }, 403);
 
-      const { paymentId, reason } = body as { paymentId?: string; reason?: string };
+      const { paymentId, reason, tipo } = body as { paymentId?: string; reason?: string; tipo?: string };
+      // 'mp' devuelve la plata; 'credito' acredita Healthy Credits. Es una
+      // decisión del super admin caso por caso: devolver por MP cuesta la
+      // comisión, un crédito queda adentro de la plataforma. Cuál corresponde
+      // depende de por qué se está devolviendo.
+      const modo = tipo === "credito" ? "credito" : "mp";
       if (!paymentId) return jsonResponse({ data: null, error: "Missing paymentId" }, 400);
       // El motivo no es opcional: una devolución sin motivo es indistinguible de
       // un error operativo tres meses después.
@@ -465,6 +475,49 @@ Deno.serve(async (req) => {
       if (payment.status !== "approved") {
         return jsonResponse({ data: null, error: `Sólo se puede devolver un pago aprobado (está en ${payment.status})` }, 409);
       }
+      // ── Devolución en Healthy Credits: no toca Mercado Pago ────────────────
+      if (modo === "credito") {
+        const nowC = new Date().toISOString();
+        const { error: ledgerErr } = await supabase.from("patient_credits").insert({
+          patient_id: payment.patient_id,
+          amount: payment.gross_amount,
+          reason: "refund",
+          consultation_id: payment.consultation_id,
+          payment_id: payment.id,
+          note: `Devolución en créditos hecha por super admin: ${reason.trim()}`,
+          created_by: user.id,
+        });
+        if (ledgerErr) {
+          console.error("mp-refund: force-refund credito ledger error:", ledgerErr.message);
+          return jsonResponse({ data: null, error: "No se pudieron acreditar los créditos" }, 500);
+        }
+
+        await supabase.from("payments").update({
+          status: "refunded",
+          refund_type: "credit",
+          refunded_at: nowC,
+          refund_reason: reason.trim(),
+          refund_forced_by: user.id,
+          refund_reviewed_by: user.id,
+          refund_reviewed_at: nowC,
+        }).eq("id", payment.id);
+
+        if (payment.consultation_id) {
+          await supabase.from("consultations")
+            .update({ payment_status: "refunded" })
+            .eq("id", payment.consultation_id);
+          await supabase.from("consultation_events").insert({
+            consultation_id: payment.consultation_id,
+            actor_id: user.id,
+            actor_role: "super_admin",
+            event: "refund_forzado",
+            detail: { reason: reason.trim(), tipo: "credito", amount: payment.gross_amount },
+          }).then(({ error }) => { if (error) console.error("mp-refund: event insert error:", error.message) });
+        }
+
+        return jsonResponse({ data: { refunded: true, tipo: "credito", amount: payment.gross_amount }, error: null });
+      }
+
       if (!payment.mp_payment_id) {
         return jsonResponse({ data: null, error: "Pago 100% créditos — no hay nada que devolver por Mercado Pago" }, 422);
       }
@@ -533,7 +586,7 @@ Deno.serve(async (req) => {
           actor_id: user.id,
           actor_role: "super_admin",
           event: "refund_forzado",
-          detail: { reason: reason.trim(), mp_refund_id: mpRefundId, amount: payment.gross_amount },
+          detail: { reason: reason.trim(), tipo: "mp", mp_refund_id: mpRefundId, amount: payment.gross_amount },
         }).then(({ error }) => { if (error) console.error("mp-refund: event insert error:", error.message) });
       }
 
