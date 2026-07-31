@@ -12,8 +12,14 @@
  * Son descartables. Todos comparten el prefijo de email `qa.` y ese es el único
  * criterio de borrado:
  *
- *   node scripts/seed-test-professionals.mjs          # crear
- *   node scripts/seed-test-professionals.mjs --delete # borrar todo lo qa.*
+ *   node scripts/seed-test-professionals.mjs           # crear
+ *   node scripts/seed-test-professionals.mjs --refresh # revivir el latido on-demand
+ *   node scripts/seed-test-professionals.mjs --delete  # borrar todo lo qa.*
+ *
+ * `--refresh` existe por `ON_DEMAND_PRESENCE_TTL_MS` (1 h): el buscador del
+ * paciente pasa `onlyLive`, así que un sembrado deja de aparecer en el pool una
+ * hora después del alta si nadie abrió su dashboard. Esto reempuja el latido de
+ * los cinco de una, sin tener que loguearse como cada uno.
  *
  * Requiere SUPABASE_SERVICE_ROLE_KEY (está en website/.env).
  */
@@ -168,4 +174,21 @@ async function seed() {
   console.log(`\nPassword de todos: ${PASSWORD}`)
 }
 
-await (process.argv.includes('--delete') ? remove() : seed())
+// ── refresh del latido on-demand ─────────────────────────────────────────────
+async function refresh() {
+  const { data: ids, error } = await db
+    .from('profiles').select('id, full_name').like('email', `${EMAIL_PREFIX}%`)
+  if (error) throw error
+  if (!ids.length) return console.log('No hay usuarios qa.* — corré el script sin flags primero.')
+  const now = new Date().toISOString()
+  const { error: upErr } = await db.from('professional_profiles')
+    .update({ on_demand_last_seen_at: now, is_on_demand: true })
+    .in('user_id', ids.map(u => u.id))
+  if (upErr) throw upErr
+  console.log(`Latido reempujado para ${ids.length} profesionales — vuelven a estar "en vivo" por 1 h.`)
+}
+
+const mode = process.argv.includes('--delete') ? remove
+  : process.argv.includes('--refresh') ? refresh
+  : seed
+await mode()
