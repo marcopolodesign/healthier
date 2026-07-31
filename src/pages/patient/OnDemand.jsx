@@ -9,6 +9,7 @@ import { consultationsService } from '../../services/consultationsService'
 import { mpService } from '../../services/mpService'
 import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
+import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import { buildPool } from '../../lib/onDemandPool'
 import { VERTICALS_BY_ID, SPECIALTY_LABELS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
 import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
@@ -25,25 +26,6 @@ function formatCountdown(totalSeconds) {
   const m = Math.floor(totalSeconds / 60)
   const s = totalSeconds % 60
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
-
-// Simplified monochrome Mercado Pago isotype (blue oval + white handshake
-// glyph) — inlined so the credit-card notice can carry MP's mark without a
-// new asset/dependency or external fetch (Mateo, 2026-07-27).
-function MercadoPagoMark({ className = 'w-5 h-5' }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <ellipse cx="12" cy="12" rx="12" ry="12" fill="#00AEEF" />
-      <path
-        d="M6 13.4c1.7 1.9 3.6 2.7 5.4 2.3 2-.5 2.7-2.1 4.2-2.8 1.1-.5 2.2-.3 3.1.4"
-        stroke="#fff" strokeWidth="1.5" strokeLinecap="round" fill="none"
-      />
-      <path
-        d="M5.7 10.3c1.2-1.8 2.9-2.8 4.7-2.8 1.6 0 2.6.9 3.8 1.8 1.1.8 2.4.9 3.7.4"
-        stroke="#fff" strokeWidth="1.5" strokeLinecap="round" fill="none"
-      />
-    </svg>
-  )
 }
 
 export default function OnDemand({ profile }) {
