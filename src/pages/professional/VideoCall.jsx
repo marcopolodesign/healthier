@@ -485,7 +485,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
   }
 
   return (
-    <div className="flex flex-col h-full bg-white border-l border-border-default">
+    <div className="flex flex-col h-full bg-white lg:border-l border-border-default">
       <div className="px-4 py-3 border-b border-border-default flex items-center justify-between shrink-0 bg-bg-surface">
         <div className="flex items-center gap-2">
           <ClipboardText className="h-4 w-4 text-brand" />
@@ -773,6 +773,8 @@ export default function ProfessionalVideoCall({ profile }) {
   const [closeModal, setCloseModal] = useState(false)
   const [splitScreen, setSplitScreen] = useState(true)
   const split = useVideoSplit()
+  // Hoja de la HC en mobile. Arranca abajo: lo primero es ver al paciente.
+  const [hojaAbierta, setHojaAbierta] = useState(false)
   const [noShowBanner, setNoShowBanner] = useState(false)
 
   // Local tracks & controls
@@ -1093,7 +1095,7 @@ export default function ProfessionalVideoCall({ profile }) {
       )}
 
       {/* Content */}
-      <div ref={split.containerRef} className="flex-1 flex overflow-hidden">
+      <div ref={split.containerRef} className="flex-1 relative flex flex-col lg:flex-row overflow-hidden">
         {/* Video area */}
         <div className={`relative bg-zinc-900 ${splitScreen ? 'vc-video-pane' : 'w-full'}`}>
 
@@ -1217,15 +1219,40 @@ export default function ProfessionalVideoCall({ profile }) {
           </div>
         )}
 
-        {/* Historia Clínica panel */}
+        {/* Historia Clínica panel — en desktop es una columna; en mobile, una hoja
+            inferior que asoma y sube al tocarla. */}
         {splitScreen && consultation && (
-          <div className="vc-panel-pane overflow-hidden">
-            <ClinicalPanel
-              consultation={consultation}
-              profile={profile}
-              localAudioTrack={localAudioTrack}
-              remoteAudioTrack={remote?.audioTrack}
-            />
+          <div
+            className="vc-panel-pane overflow-hidden bg-bg-primary flex flex-col"
+            data-abierta={hojaAbierta ? 'true' : 'false'}
+            // Tocar cualquier campo de la HC la abre: si el profesional va a
+            // escribir, ya decidió que quiere la hoja arriba.
+            onFocusCapture={() => setHojaAbierta(true)}
+          >
+            {/* Sólo en mobile: la barra que se toca para subirla o bajarla. */}
+            <button
+              type="button"
+              onClick={() => setHojaAbierta(v => !v)}
+              aria-expanded={hojaAbierta}
+              aria-label={hojaAbierta ? 'Bajar la historia clínica' : 'Subir la historia clínica'}
+              className="lg:hidden w-full flex flex-col items-center gap-1 pt-2 pb-1 shrink-0"
+            >
+              <span className="h-1 w-10 rounded-full bg-text-tertiary/40" />
+              <span className="text-[11px] font-semibold text-text-tertiary">
+                {hojaAbierta ? 'Bajar' : 'Historia clínica'}
+              </span>
+            </button>
+
+            {/* `min-h-0` para que el `h-full` de adentro no desborde la hoja al
+                sumarle la barra de agarre. */}
+            <div className="flex-1 min-h-0">
+              <ClinicalPanel
+                consultation={consultation}
+                profile={profile}
+                localAudioTrack={localAudioTrack}
+                remoteAudioTrack={remote?.audioTrack}
+              />
+            </div>
           </div>
         )}
       </div>

@@ -468,17 +468,48 @@
    Debajo de `lg` no se aplica nada de esto: en pantallas chicas el layout queda
    exactamente como estaba, a la espera de que se defina el diseño mobile. */
 @utility vc-video-pane {
-  flex: 1 1 0%;
+  /* Mobile: el video se queda con el 80% del alto y la hoja asoma en el 20%
+     restante. Desde `lg` vuelve a repartirse el ancho con el panel. */
+  flex: none;
+  height: 80dvh;
   @media (width >= 64rem) {
+    height: auto;
     flex: 0 0 auto;
     width: var(--vc-video-w, 50%);
   }
 }
 
 @utility vc-panel-pane {
-  flex: none;
-  width: 20rem;
+  /* ── Mobile: hoja inferior que asoma ──────────────────────────────────────
+     En un teléfono partir la pantalla al medio deja las dos mitades inservibles.
+     Durante la consulta mirás al paciente y escribís en ráfagas, así que el video
+     se queda con el 80% y la hoja asoma abajo; al tocarla sube y tapa casi todo.
+     Decisión de Mateo (2026-07-31). */
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 82dvh;
+  z-index: 30;
+  border-top-left-radius: 1.25rem;
+  border-top-right-radius: 1.25rem;
+  transform: translateY(calc(100% - 20dvh));
+  transition: transform 240ms ease;
+  box-shadow: 0 -8px 30px rgb(0 0 0 / 0.35);
+  &[data-abierta='true'] {
+    transform: translateY(0);
+  }
+  /* Sin animación para quien pidió menos movimiento. */
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+
+  /* ── Desktop: vuelve a ser una columna al lado del video ────────────────── */
   @media (width >= 64rem) {
+    position: static;
+    height: auto;
+    transform: none;
+    box-shadow: none;
+    border-radius: 0;
     flex: 1 1 0%;
     width: auto;
   }
