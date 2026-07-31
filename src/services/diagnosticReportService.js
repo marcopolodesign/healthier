@@ -1,4 +1,36 @@
 import { supabase, toCamelCase } from '../lib/supabase'
+import { extraerPathDeStorage } from '../lib/storage'
+
+const BUCKET = 'patient-docs'
+
+/**
+ * Sube al bucket con XHR en vez del cliente de Supabase, por una sola razón:
+ * `supabase.storage.upload()` usa `fetch`, que **no informa progreso**. Un PDF
+ * de análisis desde un teléfono tarda lo suficiente como para que una pantalla
+ * quieta se lea como colgada — y no hay forma de mostrar un porcentaje real sin
+ * los eventos de XHR.
+ */
+function subirConProgreso({ path, file, token, onProgreso }) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`)
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    xhr.setRequestHeader('x-upsert', 'false')
+    if (file.type) xhr.setRequestHeader('Content-Type', file.type)
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) onProgreso?.(Math.round((e.loaded / e.total) * 100))
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) return resolve()
+      let msg = `Error ${xhr.status} al subir el archivo`
+      try { msg = JSON.parse(xhr.responseText)?.message ?? msg } catch { /* respuesta no-JSON */ }
+      reject(new Error(msg))
+    }
+    xhr.onerror = () => reject(new Error('Se cortó la conexión al subir el archivo'))
+    xhr.send(file)
+  })
+}
+
 
 /** Lee el archivo como base64 sin el prefijo `data:...;base64,`. */
 function aBase64(file) {
@@ -63,6 +95,77 @@ export const diagnosticReportService = {
     const json = await res.json().catch(() => ({ error: 'Respuesta inválida del servidor' }))
     if (!res.ok || json?.error) throw new Error(json?.error ?? `HTTP ${res.status}`)
     return json.data.resumen
+  },
+
+  /**
+   * Sube el estudio y crea la fila — SIN analizarlo.
+   *
+   * Subir y analizar eran un solo paso: elegías el archivo y la extracción con
+   * IA arrancaba sola. Se separaron a pedido de Mateo (2026-07-31) porque son
+   * dos decisiones distintas: guardar el estudio en la historia es gratis y
+   * siempre querés hacerlo; gastar tokens de IA en leerlo es opcional, y si la
+   * extracción fallaba te quedabas sin ninguna de las dos cosas.
+   *
+   * La fila nace con `parameters: []` (default de la columna) y `reportDate` de
+   * hoy; el análisis, si se pide, corrige la fecha con la que diga el estudio.
+   */
+  async subirEstudio({ patientId, file, studyType = null, practiceCode = null, onProgreso }) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) throw new Error('Tenés que volver a iniciar sesión para subir un estudio.')
+
+    // El nombre se limpia: los espacios y acentos del nombre original rompen la
+    // URL del objeto y después el archivo no se puede volver a abrir.
+    const nombreLimpio = file.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_')
+    const path = `${patientId}/biovisor/${Date.now()}_${nombreLimpio}`
+
+    await subirConProgreso({ path, file, token, onProgreso })
+
+    const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
+    return this.create({
+      patientId,
+      reportDate: new Date().toISOString().slice(0, 10),
+      parameters: [],
+      documentUrl: data.publicUrl,
+      studyType,
+      practiceCode,
+    })
+  },
+
+  /**
+   * Extrae los biomarcadores de un estudio YA subido y los guarda en su fila.
+   * Es el paso que el paciente pide a mano con "Analizar con IA".
+   */
+  async analizarEstudio(report) {
+    const path = extraerPathDeStorage(BUCKET, report.documentUrl)
+    if (!path) throw new Error('Este estudio no tiene el archivo original guardado.')
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) throw new Error('Tenés que volver a iniciar sesión para analizar un estudio.')
+
+    const res = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/biovisor-extract`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ accion: 'extraer', path }),
+      }
+    )
+    const json = await res.json().catch(() => ({ error: 'Respuesta inválida del servidor' }))
+    if (!res.ok || json?.error) throw new Error(json?.error ?? `HTTP ${res.status}`)
+
+    const { date, parameters } = json.data
+    if (!parameters?.length) throw new Error('No encontramos parámetros en este documento.')
+
+    const { data: fila, error } = await supabase
+      .from('diagnostic_reports')
+      .update({ parameters, report_date: date })
+      .eq('id', report.id)
+      .select()
+      .single()
+    if (error) throw error
+    return toCamelCase(fila)
   },
 
   async getByPatient(patientId) {

@@ -3,7 +3,13 @@
  * biomarcadores estructurados.
  *
  * Dos acciones, las dos con la misma key del lado del servidor:
- *   { accion: 'extraer', base64, mimeType }  → { date, parameters }
+ *   { accion: 'extraer', path }              → { date, parameters }
+ *       `path` es el objeto dentro de `patient-docs`. Se baja acá con el JWT del
+ *       que llama, así que la RLS del bucket sigue mandando: el paciente dueño y
+ *       el profesional con consulta compartida, nadie más. Se pasa el path y no
+ *       el archivo porque analizar dejó de ser parte de subir — el paciente
+ *       puede pedirlo días después, desde otro dispositivo, sin el archivo en la
+ *       mano.
  *   { accion: 'resumen', parametros: [...] } → { resumen: string }
  *
  * POR QUÉ EXISTE ESTA FUNCIÓN Y NO SE LLAMA A GEMINI DESDE EL NAVEGADOR
@@ -80,6 +86,7 @@ Deno.serve(async (req) => {
       accion?: string
       base64?: string
       mimeType?: string
+      path?: string
       parametros?: Array<{ name?: string; value?: number; unit?: string; min?: number; max?: number }>
     }
 
@@ -122,8 +129,30 @@ Deno.serve(async (req) => {
     }
 
     // ── Extracción de biomarcadores desde el archivo ──────────────────────────
-    const { base64, mimeType } = body
-    if (!base64 || !mimeType) return json({ data: null, error: 'Faltan base64 o mimeType' }, 400)
+    let { base64, mimeType } = body
+
+    // Camino normal: el archivo ya está en `patient-docs` y se baja acá.
+    if (!base64 && body.path) {
+      const { data: blob, error: dlErr } = await supabase.storage
+        .from('patient-docs')
+        .download(body.path)
+      if (dlErr || !blob) {
+        console.error('biovisor-extract: no se pudo bajar', body.path, dlErr?.message)
+        return json({ data: null, error: 'No pudimos abrir el estudio guardado' }, 404)
+      }
+      const bytes = new Uint8Array(await blob.arrayBuffer())
+      // En trozos: un `String.fromCharCode(...bytes)` de un PDF de varios MB
+      // revienta el stack por cantidad de argumentos.
+      let binario = ''
+      const TROZO = 8192
+      for (let i = 0; i < bytes.length; i += TROZO) {
+        binario += String.fromCharCode(...bytes.subarray(i, i + TROZO))
+      }
+      base64 = btoa(binario)
+      mimeType = blob.type || 'application/pdf'
+    }
+
+    if (!base64 || !mimeType) return json({ data: null, error: 'Faltan el archivo o su tipo' }, 400)
     if (!MIMES_OK.includes(mimeType)) {
       return json({ data: null, error: `Tipo de archivo no soportado: ${mimeType}` }, 415)
     }
