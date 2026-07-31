@@ -14,6 +14,7 @@ import { diagnosticReportService } from '../../services/diagnosticReportService'
 import SignedDocLink from '../../components/SignedDocLink'
 import { toast } from '../../components/Toast'
 import { SPECIALTY_LABELS } from '../../lib/verticals'
+import { rangoDe, textoRango, estadoDe, estaAnalizado } from '../../lib/biomarcadores'
 
 const SAGE = '#7CB38B'
 const WARNING_COLOR = '#E4A853'
@@ -35,13 +36,6 @@ const ENTRY_COLORS = {
   addendum:         '#95A5A6',
 }
 
-function paramStatus(value, min, max) {
-  if (value >= min && value <= max) return 'normal'
-  const range = max - min
-  const margin = range * 0.25
-  return (value < min - margin || value > max + margin) ? 'danger' : 'warning'
-}
-
 function paramColor(status) {
   if (status === 'danger') return ALERT_COLOR
   if (status === 'warning') return WARNING_COLOR
@@ -52,7 +46,12 @@ function LabReportCard({ report }) {
   const [open, setOpen] = useState(false)
   const date = new Date(report.reportDate + 'T12:00:00')
   const dateStr = date.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
-  const abnormal = report.parameters.filter(p => paramStatus(p.value, p.min, p.max) !== 'normal')
+  // `estadoDe` y no el criterio propio que vivía en este archivo: con un rango
+  // abierto ("HDL ≥ 40", que llega como min 40 / max 0) la cuenta vieja daba
+  // "Alerta" en rojo sobre valores perfectamente normales. El paciente veía una
+  // cosa en el BioVisor y el profesional otra sobre la MISMA fila.
+  const analizado = estaAnalizado(report)
+  const abnormal = report.parameters.filter(p => estadoDe(p) !== 'normal')
   return (
     <div className="card p-4 space-y-3">
       <button className="w-full flex items-center justify-between gap-3 text-left" onClick={() => setOpen(o => !o)}>
@@ -65,12 +64,21 @@ function LabReportCard({ report }) {
                 paciente: dos hemogramas y una tiroidea se ven idénticos si sólo
                 se muestra la fecha. */}
             <p className="font-semibold text-text-primary text-sm">{report.studyType || 'Análisis'}</p>
-            <p className="text-xs text-text-secondary">{dateStr} · {report.parameters.length} parámetros · {abnormal.length > 0 ? <span className="text-amber-600">{abnormal.length} fuera de rango</span> : <span className="text-green-600">todos normales</span>}</p>
+            {/* Un estudio sin analizar tiene `parameters: []`, y con el texto
+                anterior se leía "0 parámetros · todos normales": exactamente lo
+                contrario de lo que pasa, que es que nadie lo leyó todavía. */}
+            <p className="text-xs text-text-secondary">
+              {dateStr} · {analizado
+                ? <>{report.parameters.length} parámetros · {abnormal.length > 0
+                    ? <span className="text-amber-600">{abnormal.length} fuera de rango</span>
+                    : <span className="text-green-600">todos normales</span>}</>
+                : <span className="text-text-tertiary">documento sin analizar</span>}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {abnormal.slice(0, 3).map(p => (
-            <span key={p.id} className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: paramColor(paramStatus(p.value, p.min, p.max)) + '20', color: paramColor(paramStatus(p.value, p.min, p.max)) }}>
+            <span key={p.id} className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: paramColor(estadoDe(p)) + '20', color: paramColor(estadoDe(p)) }}>
               {p.name}
             </span>
           ))}
@@ -93,7 +101,7 @@ function LabReportCard({ report }) {
             </SignedDocLink>
           )}
           {report.parameters.map(p => {
-            const st = paramStatus(p.value, p.min, p.max)
+            const st = estadoDe(p)
             const col = paramColor(st)
             const label = { normal: 'Normal', warning: 'Atención', danger: 'Alerta' }[st]
             const badge = { normal: 'bg-green-100 text-green-700', warning: 'bg-amber-100 text-amber-700', danger: 'bg-red-100 text-red-700' }[st]
@@ -102,7 +110,8 @@ function LabReportCard({ report }) {
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ background: col }} />
                 <span className="text-text-primary flex-1 min-w-0 truncate">{p.name}</span>
                 <span className="font-bold shrink-0" style={{ color: col }}>{p.value} {p.unit}</span>
-                <span className="text-xs text-text-secondary shrink-0">({p.min}–{p.max})</span>
+                {/* Crudo se leía "(40–0)" en cada rango abierto. */}
+                <span className="text-xs text-text-secondary shrink-0">({textoRango(rangoDe(p))})</span>
                 <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0 ${badge}`}>{label}</span>
               </div>
             )

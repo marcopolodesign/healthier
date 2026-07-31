@@ -51,11 +51,27 @@ const MIMES_OK = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'i
 /** 15 MB de archivo original (el base64 pesa ~33% más). */
 const MAX_BYTES = 15 * 1024 * 1024
 
-const PROMPT_EXTRAER = `Analizá este análisis de sangre. Extraé los biomarcadores con sus valores, rangos de referencia y unidades.
+/**
+ * El prompt decía "Analizá este análisis de sangre", y el BioVisor recibe
+ * cualquier estudio de laboratorio: orina, materia fecal, hisopados. Decirle a
+ * Gemini que lo que está mirando es sangre cuando es un urocultivo lo empuja a
+ * forzar la lectura. Ahora se le pide además que diga QUÉ estudio es, para poder
+ * etiquetar la fila cuando el paciente no eligió el tipo al subirlo.
+ *
+ * `name` tiene que ser el nombre del analito a secas: la app agrupa la serie
+ * histórica por nombre normalizado, así que "Glucosa (suero)" y "Glucosa"
+ * quedarían como dos biomarcadores distintos y cortarían la evolución al medio.
+ */
+const PROMPT_EXTRAER = `Analizá este estudio de laboratorio. Puede ser de sangre, orina, materia fecal u otra muestra.
+Extraé los parámetros medidos con sus valores, rangos de referencia y unidades.
 Respondé ÚNICAMENTE con JSON válido siguiendo este esquema exacto (sin markdown, sin texto extra):
-{"date":"YYYY-MM-DD","parameters":[{"id":"string","name":"string","value":0,"min":0,"max":0,"unit":"string"}]}
-El campo "date" es la fecha del análisis (si no encontrás fecha, usá la fecha de hoy).
-El campo "id" debe ser un string único (usá el índice numérico como string).`
+{"date":"YYYY-MM-DD","studyType":"string","parameters":[{"id":"string","name":"string","value":0,"min":0,"max":0,"unit":"string"}]}
+El campo "date" es la fecha del estudio (si no encontrás fecha, usá la fecha de hoy).
+El campo "studyType" es el nombre del estudio tal como lo titula el laboratorio (ej: "Hemograma completo", "Orina completa", "Perfil tiroideo"). Si no se puede determinar, devolvé "".
+El campo "id" debe ser un string único (usá el índice numérico como string).
+El campo "name" es el nombre del analito solo, sin la muestra ni el método entre paréntesis (ej: "Glucosa", no "Glucosa (suero, enzimático)").
+Si un rango de referencia es abierto ("mayor a 40", "< 130"), poné 0 en el extremo que no exista.
+Incluí SOLO parámetros con un valor numérico. Los resultados cualitativos (ej: "Negativo", "Ausente") no van.`
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -185,7 +201,7 @@ Deno.serve(async (req) => {
 
     const payload = await res.json()
     const texto = payload?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-    let parsed: { date?: string; parameters?: unknown[] }
+    let parsed: { date?: string; studyType?: string; parameters?: unknown[] }
     try {
       parsed = JSON.parse(texto)
     } catch {
@@ -214,6 +230,7 @@ Deno.serve(async (req) => {
         date: typeof parsed.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date)
           ? parsed.date
           : new Date().toISOString().slice(0, 10),
+        studyType: typeof parsed.studyType === 'string' ? parsed.studyType.trim().slice(0, 120) : '',
         parameters,
       },
       error: null,

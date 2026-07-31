@@ -6,7 +6,9 @@
  *   cardToken?: string,        // single-use MP card token — required if chargedAmount > 0
  *   paymentMethodId?: string,  // MP brand id ('visa' | 'master' | ...) — required with cardToken
  *   payerEmail?: string,       // required with cardToken
- *   savedCardId?: string,      // payment_methods.id — informational only, not persisted
+ *   savedCardId?: string,      // payment_methods.id — de acá sale el `payer.id`
+ *                              // (customer de MP) que el cobro de una tarjeta
+ *                              // guardada necesita sí o sí. NO es informativo.
  *   useCredits?: boolean,
  *   description?: string,
  *   authorizeOnly?: boolean,   // on-demand pre-authorization (SECCIÓN C1, 2026-07-27) —
@@ -139,7 +141,7 @@ Deno.serve(async (req) => {
 
     // --- Parse body ---
     const body: PaymentBody = await req.json()
-    const { consultationId, cardToken, paymentMethodId, payerEmail, useCredits, description, authorizeOnly } = body
+    const { consultationId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits, description, authorizeOnly } = body
 
     if (!consultationId) {
       return new Response(
@@ -382,6 +384,43 @@ Deno.serve(async (req) => {
 
     const idempotencyKey = await sha256Hex(`${consultationId}:${cardToken}`)
 
+    /**
+     * Tarjeta guardada: hay que decirle a MP DE QUIÉN es la tarjeta.
+     *
+     * Un token hecho a partir de un `cardId` pertenece a un *customer* de MP, y
+     * el cobro tiene que declararlo en `payer.id` (con `payer.type: 'customer'`).
+     * Sin eso MP responde **"Customer not found"**, que es exactamente el error
+     * que devolvía este cobro — el payload sólo mandaba `payer: { email }`.
+     *
+     * El `customer_id` sale de nuestra fila de `payment_methods`, filtrada por
+     * `user_id`: así el paciente sólo puede cobrar contra una tarjeta suya,
+     * aunque mande el `savedCardId` de otro.
+     */
+    let mpCustomerId: string | null = null
+    if (savedCardId) {
+      const { data: metodo, error: metodoErr } = await serviceSupabase
+        .from('payment_methods')
+        .select('mp_customer_id')
+        .eq('id', savedCardId)
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (metodoErr) {
+        console.error('mp-payment: no se pudo leer payment_methods:', metodoErr)
+      }
+      mpCustomerId = metodo?.mp_customer_id ?? null
+
+      // Cobrar una tarjeta guardada SIN el customer no funciona: MP la rechaza.
+      // Mejor cortar acá con un mensaje entendible que mandar el cobro a que
+      // vuelva como "Customer not found".
+      if (!mpCustomerId) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'No encontramos la tarjeta guardada. Probá con otra tarjeta.' }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
     const mpPayload: Record<string, unknown> = {
       transaction_amount: chargedAmount,
       token: cardToken,
@@ -391,7 +430,9 @@ Deno.serve(async (req) => {
       description: description ? `Healthier — ${description}` : 'Healthier — Consulta médica',
       installments: 1,
       payment_method_id: paymentMethodId,
-      payer: { email: payerEmail },
+      payer: mpCustomerId
+        ? { type: 'customer', id: mpCustomerId, email: payerEmail }
+        : { email: payerEmail },
       external_reference: consultationId,
     }
     // MP rechaza application_fee=0; omitirla cuando no hay comisión que cobrar.

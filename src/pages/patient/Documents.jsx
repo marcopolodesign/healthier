@@ -9,10 +9,14 @@ import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
 import PatientPageOverlay from '../../components/patient/PatientPageOverlay'
 import { track } from '../../utils/analytics'
+import AnalisisVault from '../../components/patient/AnalisisVault'
 
 const CATEGORIES = [
   { id: 'recetas',       name: 'Recetas Digitales', icon: FileText,   bgClass: 'bg-amber-50',   textClass: 'text-amber-700',   uploadable: false },
-  { id: 'analisis',      name: 'Análisis',           icon: Pulse,     bgClass: 'bg-emerald-50', textClass: 'text-emerald-600', uploadable: true, comingSoon: true },
+  // Análisis es la única categoría con datos reales: escribe en
+  // `diagnostic_reports`, la misma tabla que lee el BioVisor y que el
+  // profesional ve en la historia clínica. El resto sigue siendo maqueta.
+  { id: 'analisis',      name: 'Análisis',           icon: Pulse,     bgClass: 'bg-emerald-50', textClass: 'text-emerald-600', uploadable: true },
   { id: 'nutricion',     name: 'Plan Nutricional',   icon: AppleLogo, bgClass: 'bg-emerald-50', textClass: 'text-emerald-600', uploadable: true, comingSoon: true },
   { id: 'entrenamiento', name: 'Rehab y Físico',     icon: Barbell,   bgClass: 'bg-orange-50',  textClass: 'text-orange-600',  uploadable: true, comingSoon: true },
   { id: 'historial',     name: 'Historial',          icon: FolderOpen, bgClass: 'bg-violet-50', textClass: 'text-violet-600',  uploadable: false },
@@ -26,6 +30,23 @@ const MOCK_DOCS_BY_CATEGORY = {
   entrenamiento: [{ id: 3, titulo: 'Rehabilitación Rodilla', subtitulo: 'Kinesiólogo • 3 días', source: 'profesional' }],
   historial:     [],
   peludo:        [{ id: 4, titulo: 'Foto Evolución (Herida)', subtitulo: 'Subido por vos • Ayer', source: 'paciente' }],
+}
+
+function CategoryHeader({ cat, onBack }) {
+  const CatIcon = cat.icon
+  return (
+    <div className="pt-6 sm:pt-8 pb-4 px-6 bg-white/90 backdrop-blur-xl border-b border-border-default flex items-center gap-4 flex-shrink-0">
+      <button onClick={onBack} className="w-10 h-10 bg-bg-secondary border border-border-default rounded-full flex items-center justify-center shadow-sm hover:bg-bg-surface">
+        <ArrowLeft className="w-5 h-5 text-text-primary" />
+      </button>
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${cat.bgClass}`}>
+          <CatIcon className={`w-5 h-5 ${cat.textClass}`} />
+        </div>
+        <h2 className="page-title">{cat.name}</h2>
+      </div>
+    </div>
+  )
 }
 
 export default function PatientDocuments({ profile }) {
@@ -187,21 +208,20 @@ export default function PatientDocuments({ profile }) {
       {/* Category detail — responsive full-page overlay */}
       <PatientPageOverlay open={!!viewingCat} onClose={() => setViewingCat(null)} className="bg-bg-primary">
         {viewingCat && (() => {
+          // Análisis no es una maqueta: lee y escribe `diagnostic_reports`.
+          if (viewingCat.id === 'analisis') return (
+            <>
+              <CategoryHeader cat={viewingCat} onBack={() => setViewingCat(null)} />
+              <div className="flex-1 overflow-y-auto pb-10 scrollbar-hide bg-bg-primary">
+                <AnalisisVault profile={profile} />
+              </div>
+            </>
+          )
+          // Las maquetas todavía usan el icono suelto más abajo.
           const CatIcon = viewingCat.icon
           return (
             <>
-              {/* Header */}
-              <div className="pt-6 sm:pt-8 pb-4 px-6 bg-white/90 backdrop-blur-xl border-b border-border-default flex items-center gap-4 flex-shrink-0">
-                <button onClick={() => setViewingCat(null)} className="w-10 h-10 bg-bg-secondary border border-border-default rounded-full flex items-center justify-center shadow-sm hover:bg-bg-surface">
-                  <ArrowLeft className="w-5 h-5 text-text-primary" />
-                </button>
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${viewingCat.bgClass}`}>
-                    <CatIcon className={`w-5 h-5 ${viewingCat.textClass}`} />
-                  </div>
-                  <h2 className="page-title">{viewingCat.name}</h2>
-                </div>
-              </div>
+              <CategoryHeader cat={viewingCat} onBack={() => setViewingCat(null)} />
 
               <div className="flex-1 overflow-y-auto p-6 pb-10 scrollbar-hide space-y-6 bg-bg-primary">
                 {/* Nutrición special view */}

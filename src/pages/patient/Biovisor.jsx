@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Pulse, Upload, Trash, TrendUp, TrendDown, Minus, CircleNotch, Sparkle, X, FileArrowDown, CheckCircle } from '@phosphor-icons/react'
 import { diagnosticReportService } from '../../services/diagnosticReportService'
 import EstudioSearch from '../../components/patient/EstudioSearch'
@@ -231,11 +231,78 @@ function HistoricalChart({ paramName, reports }) {
   )
 }
 
+/**
+ * Un estudio en la lista de documentos. Sirve para las dos secciones — subidos y
+ * analizados — porque son la misma cosa en distinto estado, no dos entidades.
+ */
+function EstudioCard({ report, resaltado, analizando, onAnalizar, onBorrar }) {
+  const analizado = estaAnalizado(report)
+  return (
+    <div className={`card p-3 space-y-2.5 transition-shadow ${resaltado ? 'ring-2 ring-brand' : ''}`}>
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-lg bg-brand/10 flex items-center justify-center shrink-0">
+          <Pulse size={18} className="text-brand" />
+        </div>
+        <div className="flex-1 min-w-0">
+          {/* El tipo de estudio manda sobre la fecha: dos hemogramas y
+              una tiroidea se veían idénticos en esta lista. */}
+          <p className="text-sm font-medium text-text-primary truncate">
+            {report.studyType || 'Análisis'}
+          </p>
+          <p className="text-xs text-text-secondary">
+            {fechaLarga(report.reportDate)}
+            {analizado ? ` · ${report.parameters.length} parámetros` : ' · sin analizar'}
+          </p>
+          {report.documentUrl && (
+            <SignedDocLink
+              // Sin `bucket`, SignedDocLink firma contra
+              // `professional-docs` (su default) y el archivo vive en
+              // `patient-docs`: el link fallaba para TODOS, incluido el
+              // paciente que lo había subido.
+              bucket="patient-docs"
+              url={report.documentUrl}
+              className="text-xs text-brand font-medium hover:underline inline-flex items-center gap-1 mt-0.5"
+            >
+              <FileArrowDown size={13} /> Ver original
+            </SignedDocLink>
+          )}
+        </div>
+        {onBorrar && (
+          <button
+            onClick={onBorrar}
+            className="p-1.5 rounded-lg text-text-muted hover:text-red-500 hover:bg-red-50 transition-colors"
+          >
+            <Trash size={15} />
+          </button>
+        )}
+      </div>
+
+      {/* Analizar es opcional y explícito: gasta tokens de IA. */}
+      {!analizado && onAnalizar && (
+        <button
+          onClick={onAnalizar}
+          disabled={analizando || !report.documentUrl}
+          className="w-full py-2.5 rounded-xl border border-brand/40 text-brand font-medium text-xs flex items-center justify-center gap-1.5 hover:bg-brand/5 transition-colors disabled:opacity-50"
+        >
+          {analizando
+            ? <><CircleNotch size={14} className="animate-spin" /> Analizando con IA…</>
+            : <><Sparkle size={14} weight="fill" /> Analizar parámetros con IA</>}
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PatientBiovisor({ profile }) {
   const navigate = useNavigate()
   const fileInputRef = useRef(null)
+  // "Analizar en BioVisor" desde la Bóveda entra con `?estudio=<id>`: sin esto
+  // el paciente aterriza en una lista y tiene que volver a buscar el documento
+  // que acababa de tocar.
+  const [searchParams] = useSearchParams()
+  const resaltado = searchParams.get('estudio')
   const [reports, setReports] = useState([])
   const [loadingReports, setLoadingReports] = useState(true)
   const [uploading, setUploading] = useState(false)

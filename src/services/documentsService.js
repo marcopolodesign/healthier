@@ -1,5 +1,18 @@
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 
+/**
+ * ⚠️ NO usar esto para análisis de laboratorio.
+ *
+ * Los estudios de laboratorio —los que el paciente sube desde "Análisis" en la
+ * Bóveda o desde el BioVisor— viven en `diagnostic_reports` y se manejan con
+ * `diagnosticReportService`. Es la tabla que lee el BioVisor y la única que
+ * tiene la política que deja verlos al profesional
+ * (`professionals_read_patient_reports`).
+ *
+ * `medical_documents` queda para las categorías de la Bóveda que no son
+ * clínicas y todavía no están construidas (Plan Nutricional, Rehab, Amigo
+ * Peludo). Hoy no tiene consumidores ni filas.
+ */
 export const documentsService = {
   async upload(patientId, file, description = '') {
     const path = `${patientId}/${Date.now()}_${file.name}`

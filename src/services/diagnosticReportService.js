@@ -155,12 +155,19 @@ export const diagnosticReportService = {
     const json = await res.json().catch(() => ({ error: 'Respuesta inválida del servidor' }))
     if (!res.ok || json?.error) throw new Error(json?.error ?? `HTTP ${res.status}`)
 
-    const { date, parameters } = json.data
+    const { date, parameters, studyType } = json.data
     if (!parameters?.length) throw new Error('No encontramos parámetros en este documento.')
+
+    // El tipo que puso el paciente manda; el del extractor sólo rellena cuando
+    // subió el archivo sin elegir nada. Sin esto, todo lo que entra desde la
+    // Bóveda sin tipo se queda para siempre como un genérico "Análisis", y en
+    // una lista de cinco estudios no hay forma de saber cuál es cuál.
+    const parche = { parameters, report_date: date }
+    if (!report.studyType && studyType) parche.study_type = studyType
 
     const { data: fila, error } = await supabase
       .from('diagnostic_reports')
-      .update({ parameters, report_date: date })
+      .update(parche)
       .eq('id', report.id)
       .select()
       .single()
