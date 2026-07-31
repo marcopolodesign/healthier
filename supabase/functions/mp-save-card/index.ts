@@ -178,13 +178,57 @@ Deno.serve(async (req) => {
       throw new Error(`MP card save error: ${card.message}`)
     }
 
+    // Step 3: Persistir la tarjeta en `payment_methods`.
+    //
+    // Este paso NO EXISTÍA. La función guardaba la tarjeta en Mercado Pago,
+    // devolvía 200 con los ids… y los tiraba. Nadie escribía nunca en
+    // `payment_methods`, que es justo la tabla que lee `mpService.getMyCards()`
+    // — o sea que el Perfil y el `SavedCardSelector` del checkout mostraban
+    // "no tenés tarjetas" para siempre, aunque MP tuviera la tarjeta guardada
+    // de verdad. El paciente veía "Tarjeta guardada" y después nada.
+    //
+    // Va con service_role a propósito: el cliente no tiene por qué poder
+    // escribir a mano una fila que dice qué tarjeta de MP le pertenece.
+    const admin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      { auth: { persistSession: false } }
+    )
+
+    const cardBrand = card.payment_method?.id ?? null
+
+    // `upsert` sobre (user_id, mp_card_id): reintentar el guardado de la misma
+    // tarjeta tiene que ser inocuo, no dejar duplicados en el selector.
+    const { data: fila, error: dbErr } = await admin
+      .from('payment_methods')
+      .upsert(
+        {
+          user_id: dueño,
+          mp_customer_id: customerId,
+          mp_card_id: card.id,
+          card_brand: cardBrand,
+          last_four: card.last_four_digits,
+        },
+        { onConflict: 'user_id,mp_card_id' }
+      )
+      .select('id')
+      .single()
+
+    // Si la fila no se guarda, esto NO es un éxito: la tarjeta quedaría otra vez
+    // sólo en MP e invisible en la app, que es exactamente el bug que se está
+    // arreglando. Mejor error visible que un 200 que miente.
+    if (dbErr) {
+      throw new Error(`No pudimos guardar la tarjeta en tu cuenta: ${dbErr.message}`)
+    }
+
     return new Response(
       JSON.stringify({
         data: {
+          id: fila.id,
           customerId,
           cardId: card.id,
           lastFourDigits: card.last_four_digits,
-          cardBrand: card.payment_method?.id ?? null,
+          cardBrand,
         },
         error: null,
       }),
