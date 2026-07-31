@@ -458,6 +458,58 @@
   }
 }
 
+/* ── Videollamada del profesional: split ajustable video / historia clínica ──
+   El ancho del video sale de `--vc-video-w`, que escribe el drag sobre
+   `document.documentElement` (ver `useVideoSplit` en professional/VideoCall.jsx).
+   Va por custom property y no por `style={{}}` porque el proyecto prohíbe los
+   estilos inline, y un ancho continuo que viene de un arrastre no se puede
+   expresar con clases sueltas de Tailwind.
+
+   Debajo de `lg` no se aplica nada de esto: en pantallas chicas el layout queda
+   exactamente como estaba, a la espera de que se defina el diseño mobile. */
+@utility vc-video-pane {
+  flex: 1 1 0%;
+  @media (width >= 64rem) {
+    flex: 0 0 auto;
+    width: var(--vc-video-w, 50%);
+  }
+}
+
+@utility vc-panel-pane {
+  flex: none;
+  width: 20rem;
+  @media (width >= 64rem) {
+    flex: 1 1 0%;
+    width: auto;
+  }
+}
+
+/* Barra de agarre. Ancho real de 12px para que se pueda agarrar sin puntería,
+   pero con margen negativo a los lados para que no le robe espacio a ninguno de
+   los dos paneles. */
+@utility vc-resize-handle {
+  display: none;
+  @media (width >= 64rem) {
+    display: block;
+    position: relative;
+    z-index: 20;
+    flex: none;
+    width: 0.75rem;
+    margin-left: -0.375rem;
+    margin-right: -0.375rem;
+    cursor: col-resize;
+    touch-action: none;
+  }
+}
+
+/* Mientras se arrastra: sin selección de texto y el cursor de resize en toda la
+   ventana, así no parpadea al pasar por encima del video o del panel. */
+.vc-resizing,
+.vc-resizing * {
+  user-select: none;
+  cursor: col-resize !important;
+}
+
 /* ── Navigation ── */
 @utility nav-item-active {
   display: flex;

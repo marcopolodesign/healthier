@@ -7,7 +7,18 @@ import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
  * lista (mismo criterio que la presencia del paciente en la sala).
  */
 export const ON_DEMAND_HEARTBEAT_MS = 30_000
-export const ON_DEMAND_PRESENCE_TTL_MS = 90_000
+/**
+ * Cuánto vale "estoy disponible" desde la última vez que el profesional lo
+ * declaró. Era 90 segundos, atado a tener la pestaña abierta y visible.
+ *
+ * Decisión de Mateo (2026-07-31): **no** debe implicar tener la app abierta.
+ * Exigirle a un médico dejar una pestaña visible para existir en el pool es un
+ * impuesto de atención que nadie paga — y el resultado real es un pool vacío, no
+ * un pool más confiable. Lo que dice "estoy" es haber prendido el switch hace
+ * poco; lo que dice "no estoy" es no contestar, y para eso está la ventana corta
+ * de la consulta y el failover al siguiente.
+ */
+export const ON_DEMAND_PRESENCE_TTL_MS = 60 * 60 * 1000
 
 export const professionalService = {
   async getByUserId(userId) {

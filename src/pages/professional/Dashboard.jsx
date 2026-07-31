@@ -14,6 +14,8 @@ import StatusBadge from '../../components/StatusBadge'
 import ProfileCompletenessCard from '../../components/professional/ProfileCompletenessCard'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
 import IncomingRequests from '../../components/professional/IncomingRequests'
+import OnDemandSwitch from '../../components/professional/OnDemandSwitch'
+import Modal from '../../components/Modal'
 import { useWaitingPresence } from '../../hooks/useWaitingPresence'
 import { toast } from '../../components/Toast'
 import { useNavigate } from 'react-router-dom'
@@ -47,7 +49,19 @@ const MP_ERROR_MESSAGES = {
   invalid_state: 'No pudimos validar la conexión por seguridad. Iniciá el proceso de nuevo desde este botón.',
 }
 
+const ASK_ONDEMAND_KEY = 'prof-ask-ondemand'
+
 export default function ProfessionalDashboard({ profile }) {
+  // Se pregunta una vez por sesión, no en cada visita al dashboard.
+  const [askOnDemand, setAskOnDemand] = useState(false)
+  const [onDemandOn, setOnDemandOn] = useState(null)
+
+  useEffect(() => {
+    if (!profile?.id || onDemandOn !== false) return
+    if (sessionStorage.getItem(ASK_ONDEMAND_KEY)) return
+    setAskOnDemand(true)
+  }, [profile?.id, onDemandOn])
+
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [showMpConnectedModal, setShowMpConnectedModal] = useState(false)
@@ -334,6 +348,50 @@ export default function ProfessionalDashboard({ profile }) {
 
   return (
     <div className="space-y-6 animate-fade-in">
+
+      {/* El switch de disponibilidad, arriba de todo: estaba enterrado en Agenda y
+          detrás de un "Guardar configuración", así que existir en el pool on-demand
+          dependía de acordarse de entrar a otra pantalla (Mateo, 2026-07-31). */}
+      <OnDemandSwitch profileId={profile?.id} onChange={v => setOnDemandOn(v)} />
+
+      {/* Al entrar, si está apagado, se pregunta una vez por sesión. Es la decisión
+          que define si la plataforma tiene o no oferta ese día. */}
+      <Modal
+        open={askOnDemand}
+        onClose={() => { sessionStorage.setItem(ASK_ONDEMAND_KEY, '1'); setAskOnDemand(false) }}
+        title="¿Estás disponible para consultas inmediatas?"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary">
+            Si lo activás, los pacientes que necesiten atención ahora te pueden llegar
+            directo. Dura una hora y podés apagarlo cuando quieras desde el panel.
+          </p>
+          <div className="flex flex-col-reverse sm:flex-row gap-3">
+            <button
+              onClick={() => { sessionStorage.setItem(ASK_ONDEMAND_KEY, '1'); setAskOnDemand(false) }}
+              className="btn-secondary flex-1"
+            >
+              Ahora no
+            </button>
+            <button
+              onClick={async () => {
+                sessionStorage.setItem(ASK_ONDEMAND_KEY, '1')
+                setAskOnDemand(false)
+                try {
+                  await professionalService.upsert(profile.id, { isOnDemand: true })
+                  setOnDemandOn(true)
+                  toast.success('Estás disponible para consultas inmediatas')
+                } catch {
+                  toast.error('No pudimos activarlo')
+                }
+              }}
+              className="btn-primary flex-1"
+            >
+              Activar
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Pedidos de consulta inmediata esperando a que alguien los tome.
           Va primero a propósito: es lo único de esta pantalla que caduca. */}

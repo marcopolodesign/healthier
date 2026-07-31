@@ -24,6 +24,110 @@ import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/c
 
 const NO_SHOW_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
+// ── Split ajustable de la videollamada ───────────────────────────────────────
+const SPLIT_STORAGE_KEY = 'healthier:vc-video-width'
+const SPLIT_DEFAULT_PCT = 50
+// Mínimos en px, no en porcentaje: en un monitor de 2560 un 25% es enorme y en
+// uno de 1280 es inusable. Lo que importa es que el panel clínico siga siendo
+// legible (tiene formularios adentro) y que el video no quede en miniatura.
+const MIN_VIDEO_PX = 360
+const MIN_PANEL_PX = 340
+
+const clampPct = (px, total) => {
+  const min = MIN_VIDEO_PX
+  const max = Math.max(min, total - MIN_PANEL_PX)
+  return (Math.min(Math.max(px, min), max) / total) * 100
+}
+
+/**
+ * Ancho del video como porcentaje, arrastrable y recordado entre sesiones.
+ *
+ * El default pasó a 50/50 (antes el panel era `w-80` fijo y el video se quedaba
+ * con todo el resto, así que en un monitor grande la historia clínica quedaba
+ * como una columnita). Pedido de Mateo, 2026-07-31.
+ *
+ * El valor se escribe como custom property en `:root` en vez de como estilo
+ * inline: el proyecto prohíbe `style={{}}`, y las clases de Tailwind no pueden
+ * expresar un ancho continuo que sale de un arrastre.
+ */
+function useVideoSplit() {
+  const containerRef = useRef(null)
+  const [pct, setPct] = useState(() => {
+    if (typeof window === 'undefined') return SPLIT_DEFAULT_PCT
+    const guardado = Number(window.localStorage.getItem(SPLIT_STORAGE_KEY))
+    return Number.isFinite(guardado) && guardado >= 15 && guardado <= 85
+      ? guardado
+      : SPLIT_DEFAULT_PCT
+  })
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.style.setProperty('--vc-video-w', `${pct}%`)
+    // Se limpia al salir de la pantalla: es una variable global y no tiene por
+    // qué sobrevivir a la videollamada.
+    return () => root.style.removeProperty('--vc-video-w')
+  }, [pct])
+
+  // Un porcentaje guardado en un monitor grande puede dejar al panel por debajo
+  // del mínimo usable en uno chico (75% de 2560 está bien; de 1024 deja 256px de
+  // panel). Se reclampea contra el ancho real, al montar y en cada resize.
+  useEffect(() => {
+    const reclampear = () => {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect?.width) return
+      setPct(actual => clampPct(rect.width * (actual / 100), rect.width))
+    }
+    reclampear()
+    window.addEventListener('resize', reclampear)
+    return () => window.removeEventListener('resize', reclampear)
+  }, [])
+
+  const persistir = valor => {
+    try { window.localStorage.setItem(SPLIT_STORAGE_KEY, String(Math.round(valor))) }
+    catch { /* modo incógnito o storage lleno: el split sigue andando, sólo no se recuerda */ }
+  }
+
+  const onPointerDown = e => {
+    const el = containerRef.current
+    if (!el) return
+    e.preventDefault()
+    const rect = el.getBoundingClientRect()
+    document.body.classList.add('vc-resizing')
+
+    let ultimo = pct
+    const mover = ev => {
+      ultimo = clampPct(ev.clientX - rect.left, rect.width)
+      setPct(ultimo)
+    }
+    const soltar = () => {
+      window.removeEventListener('pointermove', mover)
+      document.body.classList.remove('vc-resizing')
+      // Se persiste al soltar y no en cada movimiento: escribir en localStorage
+      // 60 veces por segundo no aporta nada.
+      persistir(ultimo)
+    }
+    window.addEventListener('pointermove', mover)
+    window.addEventListener('pointerup', soltar, { once: true })
+  }
+
+  // Con el teclado también, que es lo que hace usable un separador para alguien
+  // que no puede arrastrar con precisión.
+  const onKeyDown = e => {
+    const paso = e.key === 'ArrowLeft' ? -2 : e.key === 'ArrowRight' ? 2 : 0
+    if (!paso) return
+    e.preventDefault()
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const siguiente = clampPct(rect.width * ((pct + paso) / 100), rect.width)
+    setPct(siguiente)
+    persistir(siguiente)
+  }
+
+  const reset = () => { setPct(SPLIT_DEFAULT_PCT); persistir(SPLIT_DEFAULT_PCT) }
+
+  return { containerRef, pct, onPointerDown, onKeyDown, reset }
+}
+
 const ENTRY_TYPE_LABELS = {
   note: 'Nota',
   diagnosis: 'Diagnóstico',
@@ -668,6 +772,7 @@ export default function ProfessionalVideoCall({ profile }) {
   const [joining, setJoining] = useState(false)
   const [closeModal, setCloseModal] = useState(false)
   const [splitScreen, setSplitScreen] = useState(true)
+  const split = useVideoSplit()
   const [noShowBanner, setNoShowBanner] = useState(false)
 
   // Local tracks & controls
@@ -988,9 +1093,9 @@ export default function ProfessionalVideoCall({ profile }) {
       )}
 
       {/* Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div ref={split.containerRef} className="flex-1 flex overflow-hidden">
         {/* Video area */}
-        <div className={`relative bg-zinc-900 ${splitScreen ? 'flex-1' : 'w-full'}`}>
+        <div className={`relative bg-zinc-900 ${splitScreen ? 'vc-video-pane' : 'w-full'}`}>
 
           {/* Sala de espera — hasta que entramos a la llamada. Antes miraba
               `bothReady` (presencia en vivo), así que un bajón de presencia tapaba
@@ -1090,9 +1195,31 @@ export default function ProfessionalVideoCall({ profile }) {
           )}
         </div>
 
+        {/* Borde arrastrable. Sólo desktop (la utility se apaga debajo de `lg`) y
+            sólo con el panel abierto: sin panel no hay nada que redimensionar. */}
+        {splitScreen && consultation && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Ajustar el ancho del video"
+            aria-valuenow={Math.round(split.pct)}
+            aria-valuemin={15}
+            aria-valuemax={85}
+            tabIndex={0}
+            onPointerDown={split.onPointerDown}
+            onKeyDown={split.onKeyDown}
+            onDoubleClick={split.reset}
+            title="Arrastrá para ajustar. Doble clic vuelve a 50/50."
+            className="vc-resize-handle group"
+          >
+            <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/10 group-hover:bg-brand/70 group-focus:bg-brand transition-colors" />
+            <span className="absolute top-1/2 left-1/2 h-8 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/20 group-hover:bg-brand transition-colors" />
+          </div>
+        )}
+
         {/* Historia Clínica panel */}
         {splitScreen && consultation && (
-          <div className="w-80 shrink-0 overflow-hidden">
+          <div className="vc-panel-pane overflow-hidden">
             <ClinicalPanel
               consultation={consultation}
               profile={profile}

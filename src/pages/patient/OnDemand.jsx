@@ -16,7 +16,10 @@ import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytic
 // Real 10:00 pre-authorization window (spec Sección D1.3/D1.4) — mirrors the
 // mp-capture `sweep` cron's own 10-minute cutoff, which is the server-side
 // backstop if this client-side timer is lost (tab closed, app killed, etc).
-const AUTH_WINDOW_SECONDS = 10 * 60
+// 4 minutos (Mateo, 2026-07-31). Eran 10: nadie con fiebre espera 10 minutos
+// mirando una cuenta regresiva, y con pocos médicos lo que importa es fallar
+// rápido al siguiente, no esperar mucho al primero.
+const AUTH_WINDOW_SECONDS = 4 * 60
 
 function formatCountdown(totalSeconds) {
   const m = Math.floor(totalSeconds / 60)
@@ -266,7 +269,10 @@ export default function OnDemand({ profile }) {
     // especialidad, incluidos los que nunca se anotaron a on-demand. Un fallo
     // de lectura ahora es "no hay nadie", que es lo honesto.
     const fetchPros = primarySlug
-      ? professionalService.search({ specialty: primarySlug, onDemand: true }).catch(() => null)
+      // `onlyLive` existía y nunca se pasaba: entraban al pool médicos que habían
+      // tildado el switch hacía meses. Ahora "vivo" es haberlo declarado en la
+      // última hora, no tener una pestaña abierta.
+      ? professionalService.search({ specialty: primarySlug, onDemand: true, onlyLive: true }).catch(() => null)
       : Promise.resolve([])
 
     fetchPros.then(prosRaw => {

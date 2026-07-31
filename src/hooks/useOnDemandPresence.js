@@ -11,9 +11,11 @@ import { professionalService, ON_DEMAND_HEARTBEAT_MS } from '../services/profess
  * es la mitad que faltaba — la intención declarada sigue siendo `is_on_demand`,
  * pero para entrar al pool ahora hay que además estar vivo.
  *
- * Se apaga explícitamente al desmontar y cuando la pestaña deja de estar
- * visible: un profesional que minimiza la app no debería seguir apareciendo
- * como disponible hasta que venza el TTL.
+ * **Cerrar la pestaña NO lo baja** (Mateo, 2026-07-31). Antes sí: se llamaba a
+ * `goOffline()` al desmontar y al ocultarse la pestaña, así que el médico dejaba
+ * de existir en el pool apenas cambiaba de solapa. Ahora el latido sólo **renueva**
+ * la hora de vigencia mientras la app está abierta; lo único que apaga la
+ * disponibilidad es apagar el switch.
  *
  * @param {boolean} enabled — el profesional tiene on-demand encendido.
  */
@@ -35,11 +37,11 @@ export function useOnDemandPresence(enabled) {
     ping()
     const iv = setInterval(ping, ON_DEMAND_HEARTBEAT_MS)
 
-    // Minimizar/cambiar de pestaña baja la disponibilidad; volver la restaura.
+    // Volver a la pestaña renueva la vigencia. Irse NO la baja: la disponibilidad
+    // dura una hora desde el último ping, esté la app abierta o no.
     const onVisibility = () => {
       if (cancelled) return
       if (document.visibilityState === 'visible') ping()
-      else professionalService.goOffline().catch(() => {})
     }
     document.addEventListener('visibilitychange', onVisibility)
 
@@ -47,7 +49,8 @@ export function useOnDemandPresence(enabled) {
       cancelled = true
       clearInterval(iv)
       document.removeEventListener('visibilitychange', onVisibility)
-      professionalService.goOffline().catch(() => {})
+      // Sin `goOffline()`: desmontar es navegar a otra pantalla o cerrar la app, y
+      // ninguna de las dos cosas significa "ya no atiendo".
     }
   }, [enabled])
 }
