@@ -20,7 +20,6 @@ export default function ConsultationReview({ profile }) {
 
   const [consultation, setConsultation] = useState(null)
   const [loadingConsultation, setLoadingConsultation] = useState(true)
-  const [validationCode, setValidationCode] = useState(null)
 
   const [rating, setRating] = useState(0)
   const [hovered, setHovered] = useState(0)
@@ -28,19 +27,13 @@ export default function ConsultationReview({ profile }) {
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
 
-  // Load consultation + validation code on mount
+  // Load consultation on mount
   useEffect(() => {
     if (!consultationId) return
     setLoadingConsultation(true)
 
-    Promise.all([
-      consultationsService.getById(consultationId),
-      consultationsService.getValidationCode(consultationId).catch(() => null),
-    ])
-      .then(([cons, code]) => {
-        setConsultation(cons)
-        setValidationCode(code)
-      })
+    consultationsService.getById(consultationId)
+      .then(setConsultation)
       .catch(() => {
         toast.error('No se pudo cargar la consulta')
         navigate('/paciente/consultas')
@@ -144,20 +137,12 @@ export default function ConsultationReview({ profile }) {
     <div className="absolute inset-0 bg-bg-primary overflow-y-auto scrollbar-hide">
       <div className="max-w-lg mx-auto px-6 pt-8 pb-16">
 
-        {/* Validation code card */}
-        {validationCode && (
-          <div className="bg-bg-secondary border border-border-default rounded-[24px] p-5 mb-6 text-center shadow-sm">
-            <p className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest mb-1">
-              Código de validación
-            </p>
-            <p className="text-[42px] font-black text-brand tracking-[0.2em] leading-none mb-2">
-              {validationCode}
-            </p>
-            <p className="text-[13px] text-text-secondary leading-relaxed">
-              Si el profesional te lo pide, dáselo para finalizar la consulta.
-            </p>
-          </div>
-        )}
+        {/* Acá había una tarjeta con el código de validación. Se sacó a pedido
+            de Mateo (2026-07-30): esta pantalla es posterior a la consulta, así
+            que mostrarle el código al paciente cuando ya terminó no sirve para
+            nada — y encima ocupaba el lugar más visible de la reseña. El código
+            se le sigue mostrando *durante* la llamada (VideoCall), que es cuando
+            el profesional se lo puede llegar a pedir. */}
 
         {/* Professional card */}
         <div className="bg-bg-secondary border border-border-default rounded-[24px] p-4 mb-8 flex items-center gap-4 shadow-sm">
