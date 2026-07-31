@@ -5,9 +5,8 @@ import { diagnosticReportService } from '../../services/diagnosticReportService'
 import EstudioSearch from '../../components/patient/EstudioSearch'
 import SignedDocLink from '../../components/SignedDocLink'
 
-const GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20'
-const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY ?? ''
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`
+// Gemini se llama desde `biovisor-extract` (Edge Function), NO desde acá: la key
+// vivía en `VITE_GEMINI_API_KEY`, o sea compilada dentro del bundle y pública.
 
 const SAGE = '#7CB38B'
 const WARNING_COLOR = '#E4A853'
@@ -83,24 +82,13 @@ function AiAnalysis({ parameters }) {
   const [error, setError] = useState('')
 
   async function analyze() {
-    if (!GEMINI_KEY) { setError('Configurá VITE_GEMINI_API_KEY para usar el análisis.'); return }
     setLoading(true); setError(''); setAnalysis('')
     try {
-      const summary = parameters.map(p => `${p.name}: ${p.value} ${p.unit} (normal ${p.min}–${p.max})`).join('\n')
-      const res = await fetch(GEMINI_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `Sos un médico clínico. Analizá estos resultados de laboratorio y dá un resumen breve en español argentino. Sé claro y accesible, no alarmista. Máximo 4 oraciones.\n\n${summary}` }] }],
-          generationConfig: { maxOutputTokens: 300 },
-        }),
-      })
-      const json = await res.json()
-      const text = json?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-      if (!text) throw new Error('Sin respuesta')
-      setAnalysis(text)
-    } catch { setError('Error al analizar. Intentá de nuevo.') }
-    finally { setLoading(false) }
+      const texto = await diagnosticReportService.resumirParametros(parameters)
+      setAnalysis(texto)
+    } catch (err) {
+      setError(err?.message || 'Error al analizar. Intentá de nuevo.')
+    } finally { setLoading(false) }
   }
 
   return (
@@ -210,48 +198,6 @@ function HistoricalChart({ paramName, history }) {
   )
 }
 
-// ─── Gemini OCR ───────────────────────────────────────────────────────────────
-
-async function toBase64(file) {
-  return new Promise((res, rej) => {
-    const reader = new FileReader()
-    reader.onload = () => res({ base64: reader.result.split(',')[1], mimeType: file.type || 'application/pdf' })
-    reader.onerror = rej
-    reader.readAsDataURL(file)
-  })
-}
-
-async function ocrWithGemini(file) {
-  const { base64, mimeType } = await toBase64(file)
-  const res = await fetch(GEMINI_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{
-        parts: [
-          {
-            text: `Analizá este análisis de sangre. Extraé los biomarcadores con sus valores, rangos de referencia y unidades.
-Respondé ÚNICAMENTE con JSON válido siguiendo este esquema exacto (sin markdown, sin texto extra):
-{"date":"YYYY-MM-DD","parameters":[{"id":"string","name":"string","value":0,"min":0,"max":0,"unit":"string"}]}
-El campo "date" es la fecha del análisis (si no encontrás fecha, usá la fecha de hoy).
-El campo "id" debe ser un string único (usá el índice numérico como string).`,
-          },
-          { inlineData: { mimeType, data: base64 } },
-        ],
-      }],
-      generationConfig: { responseMimeType: 'application/json' },
-    }),
-  })
-  if (!res.ok) throw new Error(`Gemini error ${res.status}`)
-  const json = await res.json()
-  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-  const parsed = JSON.parse(text)
-  return {
-    date: parsed.date ?? new Date().toISOString().slice(0, 10),
-    parameters: (parsed.parameters ?? []).map((p, i) => ({ ...p, id: p.id ?? String(i) })),
-  }
-}
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PatientBiovisor({ profile }) {
@@ -289,14 +235,10 @@ export default function PatientBiovisor({ profile }) {
 
   async function handleFile(file) {
     if (!file) return
-    if (!GEMINI_KEY) {
-      setError('La extracción automática requiere VITE_GEMINI_API_KEY. Contactá al administrador.')
-      return
-    }
     setUploading(true)
     setError('')
     try {
-      const { date, parameters } = await ocrWithGemini(file)
+      const { date, parameters } = await diagnosticReportService.extraerParametros(file)
       if (!parameters.length) {
         setError('No se encontraron parámetros en el documento. Intentá con otro archivo.')
         return
@@ -325,8 +267,10 @@ export default function PatientBiovisor({ profile }) {
       if (parameters.length > 0) setSelectedParam(parameters[0].name)
       setEstudio({ nombre: '', codigo: null })
       setActiveTab('biovisor')
-    } catch {
-      setError('Error al analizar el documento. Verificá tu conexión e intentá de nuevo.')
+    } catch (err) {
+      // El motivo real (tipo de archivo, tamaño, Gemini caído, sesión vencida)
+      // lo devuelve `biovisor-extract`: mostrarlo evita el clásico "algo falló".
+      setError(err?.message || 'Error al analizar el documento. Verificá tu conexión e intentá de nuevo.')
     } finally {
       setUploading(false)
     }
