@@ -4,6 +4,11 @@ import { ArrowLeft, Pulse, Upload, Trash, TrendUp, TrendDown, Minus, CircleNotch
 import { diagnosticReportService } from '../../services/diagnosticReportService'
 import EstudioSearch from '../../components/patient/EstudioSearch'
 import SignedDocLink from '../../components/SignedDocLink'
+import {
+  rangoDe, textoRango, estadoDe, ETIQUETA_ESTADO, BADGE_ESTADO,
+  claveBiomarcador, estaAnalizado, ordenarPorFecha, ultimasMediciones, serieDe,
+  fechaLarga, fechaCorta,
+} from '../../lib/biomarcadores'
 
 // Gemini se llama desde `biovisor-extract` (Edge Function), NO desde acá: la key
 // vivía en `VITE_GEMINI_API_KEY`, o sea compilada dentro del bundle y pública.
@@ -13,49 +18,11 @@ const WARNING_COLOR = '#E4A853'
 const ALERT_COLOR = '#D9534F'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Rangos abiertos: muchísimos valores de laboratorio se informan como "> 40" o
- * "< 130", y de eso el extractor devuelve un solo extremo — el otro viene en 0.
- * Tomado literal, un HDL con `min 40 / max 0` daba una barra roja llena y un
- * "Máx: 0" sin sentido (se veía así en producción el 2026-07-31).
- */
-function rangoDe(param) {
-  const min = Number.isFinite(param?.min) ? param.min : null
-  const max = Number.isFinite(param?.max) ? param.max : null
-  // Un máximo que no supera al mínimo no es un máximo: es "sin techo".
-  const maxReal = max != null && min != null && max <= min ? null : max
-  const minReal = min === 0 && maxReal != null ? null : min
-  return { min: minReal, max: maxReal }
-}
-
-/** "40 – 130", "≥ 40", "≤ 130" o "—". */
-function textoRango({ min, max }) {
-  if (min != null && max != null) return `${min} – ${max}`
-  if (min != null) return `≥ ${min}`
-  if (max != null) return `≤ ${max}`
-  return 'Sin rango de referencia'
-}
-
-function getStatus(value, min, max) {
-  // Sin ningún extremo no se puede opinar: no se inventa un estado.
-  if (min == null && max == null) return 'normal'
-  const dentro = (min == null || value >= min) && (max == null || value <= max)
-  if (dentro) return 'normal'
-  // El margen sale del extremo que exista; con rango abierto se usa el propio
-  // valor de referencia como escala.
-  const escala = (min != null && max != null) ? max - min : Math.abs(min ?? max) || 1
-  const margen = escala * 0.25
-  if ((min != null && value < min - margen) || (max != null && value > max + margen)) return 'danger'
-  return 'warning'
-}
-
-/** Estado de un parámetro, saneando primero su rango. Usarlo siempre en vez de
- *  llamar a `getStatus` con `param.min`/`param.max` crudos. */
-function estadoDe(param) {
-  const { min, max } = rangoDe(param)
-  return getStatus(param.value, min, max)
-}
+//
+// `rangoDe`, `textoRango`, `estadoDe` y la identidad de un biomarcador viven en
+// `src/lib/biomarcadores.js`: la Historia Clínica del profesional lee la misma
+// tabla y tenía su propia versión del criterio, que marcaba "Alerta" en rojo
+// sobre rangos abiertos perfectamente normales.
 
 function statusColor(status) {
   if (status === 'danger') return ALERT_COLOR
@@ -85,33 +52,53 @@ function MiniBar({ value, min, max, color }) {
   )
 }
 
-function ParameterRow({ param, previous }) {
+/**
+ * Una medición: el último valor conocido de un biomarcador.
+ *
+ * Recibe la medición completa (`ultimasMediciones`) y no un `param` suelto,
+ * porque la comparación con el valor anterior tiene que ser contra la medición
+ * previa DEL MISMO analito. Antes se buscaba `previous.parameters.find(p => p.id
+ * === param.id)`, y ese `id` es el índice del parámetro dentro de su estudio: la
+ * flecha de tendencia comparaba el 3er valor de un estudio contra el 3ro del
+ * otro, que casi nunca es el mismo biomarcador.
+ */
+function ParameterRow({ medicion, onVerHistorial }) {
+  const { param, anterior, fecha, esDelUltimoEstudio, studyType } = medicion
   const rango = rangoDe(param)
   const status = estadoDe(param)
   const color = statusColor(status)
-  const prevVal = previous?.parameters?.find(p => p.id === param.id)?.value
-  const badge = { normal: 'bg-green-100 text-green-700', warning: 'bg-amber-100 text-amber-700', danger: 'bg-red-100 text-red-700' }[status]
-  const label = { normal: 'Normal', warning: 'Atención', danger: 'Alerta' }[status]
   return (
-    <div className="p-3 rounded-xl border border-border-default bg-bg-surface space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+    <button
+      onClick={() => onVerHistorial?.(param.name)}
+      className="w-full text-left p-3 rounded-xl border border-border-default bg-bg-surface space-y-2 hover:border-brand/40 transition-colors"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <Pulse size={14} style={{ color }} />
-          <span className="text-sm font-medium text-text-primary">{param.name}</span>
+          <span className="text-sm font-medium text-text-primary truncate">{param.name}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <TrendIcon current={param.value} previous={prevVal} />
+        <div className="flex items-center gap-2 shrink-0">
+          <TrendIcon current={param.value} previous={anterior?.value} />
           <span className="text-sm font-bold" style={{ color }}>{param.value}</span>
           <span className="text-xs text-text-secondary">{param.unit}</span>
-          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${badge}`}>{label}</span>
+          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${BADGE_ESTADO[status]}`}>
+            {ETIQUETA_ESTADO[status]}
+          </span>
         </div>
       </div>
       <MiniBar value={param.value} min={rango.min} max={rango.max} color={color} />
-      <div className="flex justify-between text-xs text-text-secondary">
-        <span>Referencia</span>
-        <span>{textoRango(rango)}</span>
+      <div className="flex justify-between text-xs text-text-secondary gap-2">
+        <span className="truncate">
+          {/* De qué estudio salió. Sólo se aclara cuando NO es del último, que es
+              justo el caso en que el paciente se preguntaría por qué sigue ahí:
+              un valor de sangre que persiste después de subir uno de orina. */}
+          {esDelUltimoEstudio
+            ? 'Referencia'
+            : `De tu ${studyType?.toLowerCase() || 'estudio'} del ${fechaCorta(fecha)}`}
+        </span>
+        <span className="shrink-0">{textoRango(rango)}</span>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -151,12 +138,11 @@ function AiAnalysis({ parameters }) {
 
 // ─── Historical Trend Chart ───────────────────────────────────────────────────
 
-function HistoricalChart({ paramName, history }) {
-  const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date))
-  const points = sorted.flatMap(entry => {
-    const p = entry.parameters.find(p => p.name === paramName)
-    return p ? [{ date: entry.date, value: p.value, min: p.min, max: p.max }] : []
-  })
+function HistoricalChart({ paramName, reports }) {
+  // Por clave normalizada y no por `name` exacto: si un estudio dice "HDL
+  // Colesterol" y el siguiente "Colesterol HDL", son el mismo analito y la serie
+  // no se tiene que cortar al medio.
+  const points = serieDe(reports, paramName).map(p => ({ date: p.fecha, value: p.value, min: p.min, max: p.max }))
 
   if (!points.length) return (
     <div className="flex flex-col items-center py-10 text-text-secondary">
@@ -183,11 +169,12 @@ function HistoricalChart({ paramName, history }) {
   const innerW = W - PAD.left - PAD.right
   const innerH = H - PAD.top - PAD.bottom
 
-  const refMin = points[0].min
-  const refMax = points[0].max
+  // El rango va saneado: con un "≥ 40" el máximo llega en 0 y la banda verde de
+  // referencia se dibujaba invertida, ocupando desde 0 hasta el mínimo.
+  const ref = rangoDe(points[0])
   const allVals = points.map(p => p.value)
-  const dataMin = Math.min(...allVals, refMin)
-  const dataMax = Math.max(...allVals, refMax)
+  const dataMin = Math.min(...allVals, ...(ref.min != null ? [ref.min] : []))
+  const dataMax = Math.max(...allVals, ...(ref.max != null ? [ref.max] : []))
   const span = dataMax - dataMin || 1
 
   const xOf = i => PAD.left + (i / (points.length - 1)) * innerW
@@ -210,8 +197,15 @@ function HistoricalChart({ paramName, history }) {
           <stop offset="100%" stopColor={SAGE} stopOpacity="0" />
         </linearGradient>
       </defs>
-      {/* Normal range band */}
-      <rect x={PAD.left} y={yOf(refMax).toFixed(1)} width={innerW} height={(yOf(refMin) - yOf(refMax)).toFixed(1)} fill={SAGE} fillOpacity="0.08" />
+      {/* Banda de referencia. Con rango abierto se extiende hasta el borde del
+          gráfico en vez de desaparecer o dibujarse al revés. */}
+      {(() => {
+        const arriba = yOf(ref.max != null ? ref.max : dataMax)
+        const abajo = yOf(ref.min != null ? ref.min : dataMin)
+        const alto = abajo - arriba
+        if (!(alto > 0)) return null
+        return <rect x={PAD.left} y={arriba.toFixed(1)} width={innerW} height={alto.toFixed(1)} fill={SAGE} fillOpacity="0.08" />
+      })()}
       {/* Area */}
       <path d={areaPath} fill={`url(#${gradId})`} />
       {/* Line */}
@@ -258,16 +252,23 @@ export default function PatientBiovisor({ profile }) {
   const [estudio, setEstudio] = useState({ nombre: '', codigo: null })
   const [error, setError] = useState('')
 
-  // Sólo los estudios analizados entran acá: desde que subir y analizar son dos
-  // pasos, un estudio recién subido tiene `parameters: []` y aparecía como un
-  // "último estudio" vacío en Parámetros y como una fila muda en Historial.
-  const analizados = reports.filter(r => r.parameters.length > 0)
-  const history = analizados.map(r => ({ id: r.id, date: r.reportDate, parameters: r.parameters }))
-  const latest = history[0] ?? null
-  const previous = history[1] ?? null
+  // Los estudios se parten en dos listas, que es como el paciente los piensa:
+  // los que subió y todavía nadie leyó, y los que ya tienen biomarcadores.
+  const analizados = ordenarPorFecha(reports.filter(estaAnalizado))
+  const sinAnalizar = ordenarPorFecha(reports.filter(r => !estaAnalizado(r)))
 
-  // All unique parameter names across all reports (ordered by first appearance)
-  const allParamNames = [...new Set(history.flatMap(h => h.parameters.map(p => p.name)))]
+  /**
+   * El último valor conocido de CADA biomarcador, no los parámetros del último
+   * estudio. La diferencia aparece apenas hay dos tipos de estudio: con lo
+   * anterior, subir un análisis de orina te borraba el colesterol de la
+   * pantalla — no porque hubiera cambiado, sino porque el "último estudio"
+   * pasaba a ser otro. Ver `ultimasMediciones` en `lib/biomarcadores.js`.
+   */
+  const mediciones = ultimasMediciones(reports)
+  const nombresDeParametros = [...new Map(
+    analizados.flatMap(r => r.parameters.map(p => [claveBiomarcador(p.name), p.name]))
+  ).values()]
+  const fechaUltimoAnalizado = analizados[0]?.reportDate ?? null
   const recienSubidoReport = reports.find(r => r.id === recienSubido) ?? null
 
   useEffect(() => {
@@ -432,15 +433,24 @@ export default function PatientBiovisor({ profile }) {
               <div className="flex justify-center py-12">
                 <CircleNotch size={28} className="animate-spin text-brand" />
               </div>
-            ) : latest ? (
+            ) : mediciones.length > 0 ? (
               <>
-                <AiAnalysis parameters={latest.parameters} />
+                <AiAnalysis parameters={mediciones.map(m => m.param)} />
                 <div className="space-y-3">
-                  <p className="text-xs text-text-secondary font-medium uppercase tracking-wide">
-                    Último estudio — {new Date(latest.date + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </p>
-                  {latest.parameters.map(param => (
-                    <ParameterRow key={param.id} param={param} previous={previous} />
+                  <div>
+                    <p className="text-xs text-text-secondary font-medium uppercase tracking-wide">
+                      Tus biomarcadores ({mediciones.length})
+                    </p>
+                    <p className="text-xs text-text-tertiary mt-0.5">
+                      El valor más reciente de cada uno. Último estudio analizado: {fechaLarga(fechaUltimoAnalizado)}.
+                    </p>
+                  </div>
+                  {mediciones.map(m => (
+                    <ParameterRow
+                      key={m.clave}
+                      medicion={m}
+                      onVerHistorial={nombre => { setSelectedParam(nombre); setActiveTab('historial') }}
+                    />
                   ))}
                 </div>
               </>
@@ -471,7 +481,7 @@ export default function PatientBiovisor({ profile }) {
         {/* Historial tab */}
         {activeTab === 'historial' && (
           <div className="p-4 space-y-4">
-            {history.length === 0 ? (
+            {analizados.length === 0 ? (
               <div className="text-center py-12 text-text-secondary">
                 <Pulse size={40} className="mx-auto mb-3 opacity-30" />
                 <p className="font-medium">Sin historial aún</p>
@@ -481,7 +491,7 @@ export default function PatientBiovisor({ profile }) {
               <>
                 {/* Parameter selector pills */}
                 <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-                  {allParamNames.map(name => (
+                  {nombresDeParametros.map(name => (
                     <button
                       key={name}
                       onClick={() => setSelectedParam(name)}
@@ -502,28 +512,32 @@ export default function PatientBiovisor({ profile }) {
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-semibold text-text-primary">{selectedParam}</p>
                       {(() => {
-                        const latest = [...history].sort((a, b) => b.date.localeCompare(a.date))[0]?.parameters.find(p => p.name === selectedParam)
-                        if (!latest) return null
-                        const status = estadoDe(latest)
+                        const serie = serieDe(reports, selectedParam)
+                        const ultimo = serie[serie.length - 1]
+                        if (!ultimo) return null
+                        const status = estadoDe(ultimo)
                         const color = statusColor(status)
-                        const badge = { normal: 'bg-green-100 text-green-700', warning: 'bg-amber-100 text-amber-700', danger: 'bg-red-100 text-red-700' }[status]
-                        const label = { normal: 'Normal', warning: 'Atención', danger: 'Alerta' }[status]
                         return (
                           <div className="flex items-center gap-2">
-                            <span className="text-lg font-bold" style={{ color }}>{latest.value}</span>
-                            <span className="text-xs text-text-secondary">{latest.unit}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge}`}>{label}</span>
+                            <span className="text-lg font-bold" style={{ color }}>{ultimo.value}</span>
+                            <span className="text-xs text-text-secondary">{ultimo.unit}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${BADGE_ESTADO[status]}`}>
+                              {ETIQUETA_ESTADO[status]}
+                            </span>
                           </div>
                         )
                       })()}
                     </div>
-                    <HistoricalChart paramName={selectedParam} history={history} />
+                    <HistoricalChart paramName={selectedParam} reports={reports} />
                     {(() => {
-                      const refPoint = history.flatMap(h => h.parameters).find(p => p.name === selectedParam)
+                      const serie = serieDe(reports, selectedParam)
+                      const refPoint = serie[serie.length - 1]
                       if (!refPoint) return null
+                      // `textoRango` y no `min – max` crudos: un "≥ 40" se leía
+                      // como "40 – 0" abajo del gráfico.
                       return (
                         <p className="text-xs text-text-secondary text-center">
-                          Rango de referencia: {refPoint.min} – {refPoint.max} {refPoint.unit}
+                          Rango de referencia: {textoRango(rangoDe(refPoint))} {refPoint.unit}
                         </p>
                       )
                     })()}
@@ -531,21 +545,23 @@ export default function PatientBiovisor({ profile }) {
                 )}
 
                 {/* Studies list */}
-                <p className="text-xs font-medium text-text-secondary uppercase tracking-wide">Estudios ({history.length})</p>
-                {[...history].sort((a, b) => b.date.localeCompare(a.date)).map(entry => (
+                <p className="text-xs font-medium text-text-secondary uppercase tracking-wide">Estudios analizados ({analizados.length})</p>
+                {analizados.map(entry => (
                   <div key={entry.id} className="card p-4 space-y-2">
                     <p className="font-semibold text-text-primary text-sm">
-                      {new Date(entry.date + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      {entry.studyType || 'Análisis'}
+                      <span className="font-normal text-text-secondary"> · {fechaLarga(entry.reportDate)}</span>
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                       {entry.parameters.map(p => {
                         const status = estadoDe(p)
                         const color = statusColor(status)
+                        const activo = claveBiomarcador(p.name) === claveBiomarcador(selectedParam)
                         return (
                           <button
                             key={p.id}
                             onClick={() => setSelectedParam(p.name)}
-                            className={`flex items-center justify-between bg-bg-subtle rounded-lg px-3 py-2 text-left transition-colors ${selectedParam === p.name ? 'ring-1 ring-brand' : ''}`}
+                            className={`flex items-center justify-between bg-bg-subtle rounded-lg px-3 py-2 text-left transition-colors ${activo ? 'ring-1 ring-brand' : ''}`}
                           >
                             <span className="text-xs text-text-secondary truncate">{p.name}</span>
                             <span className="text-xs font-bold ml-2 shrink-0" style={{ color }}>{p.value} {p.unit}</span>
@@ -615,69 +631,45 @@ export default function PatientBiovisor({ profile }) {
               </div>
             )}
 
-            {/* Estudios subidos */}
-            {reports.length > 0 && (
+            {/* Dos listas, no una.
+                "Subidos" son documentos guardados que todavía nadie leyó — es la
+                bandeja de entrada, y donde caen los que el paciente sube desde
+                Análisis en la Bóveda. "Analizados" ya aportan biomarcadores.
+                Mezclados en "Mis estudios (N)" no se veía qué faltaba hacer. */}
+            {sinAnalizar.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs text-text-secondary font-medium uppercase tracking-wide">
-                  Mis estudios ({reports.length})
+                  Documentos subidos ({sinAnalizar.length})
                 </p>
-                {reports.map(r => {
-                  const analizado = r.parameters.length > 0
-                  return (
-                    <div key={r.id} className="card p-3 space-y-2.5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-brand/10 flex items-center justify-center shrink-0">
-                          <Pulse size={18} className="text-brand" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          {/* El tipo de estudio manda sobre la fecha: dos hemogramas y
-                              una tiroidea se veían idénticos en esta lista. */}
-                          <p className="text-sm font-medium text-text-primary truncate">
-                            {r.studyType || 'Análisis'}
-                          </p>
-                          <p className="text-xs text-text-secondary">
-                            {new Date(r.reportDate + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                            {analizado
-                              ? ` · ${r.parameters.length} parámetros`
-                              : ' · sin analizar'}
-                          </p>
-                          {r.documentUrl && (
-                            <SignedDocLink
-                              // Sin `bucket`, SignedDocLink firma contra
-                              // `professional-docs` (su default) y el archivo vive en
-                              // `patient-docs`: el link fallaba para TODOS, incluido el
-                              // paciente que lo había subido.
-                              bucket="patient-docs"
-                              url={r.documentUrl}
-                              className="text-xs text-brand font-medium hover:underline inline-flex items-center gap-1 mt-0.5"
-                            >
-                              <FileArrowDown size={13} /> Ver original
-                            </SignedDocLink>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => handleDelete(r.id)}
-                          className="p-1.5 rounded-lg text-text-muted hover:text-red-500 hover:bg-red-50 transition-colors"
-                        >
-                          <Trash size={15} />
-                        </button>
-                      </div>
+                <p className="text-xs text-text-tertiary -mt-1">
+                  Ya están guardados y tu profesional puede verlos. Analizalos para extraer los biomarcadores.
+                </p>
+                {sinAnalizar.map(r => (
+                  <EstudioCard
+                    key={r.id}
+                    report={r}
+                    resaltado={r.id === resaltado}
+                    analizando={analizandoId === r.id}
+                    onAnalizar={() => handleAnalizar(r)}
+                    onBorrar={() => handleDelete(r.id)}
+                  />
+                ))}
+              </div>
+            )}
 
-                      {/* Analizar es opcional y explícito: gasta tokens de IA. */}
-                      {!analizado && (
-                        <button
-                          onClick={() => handleAnalizar(r)}
-                          disabled={analizandoId === r.id || !r.documentUrl}
-                          className="w-full py-2.5 rounded-xl border border-brand/40 text-brand font-medium text-xs flex items-center justify-center gap-1.5 hover:bg-brand/5 transition-colors disabled:opacity-50"
-                        >
-                          {analizandoId === r.id
-                            ? <><CircleNotch size={14} className="animate-spin" /> Analizando con IA…</>
-                            : <><Sparkle size={14} weight="fill" /> Analizar parámetros con IA</>}
-                        </button>
-                      )}
-                    </div>
-                  )
-                })}
+            {analizados.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs text-text-secondary font-medium uppercase tracking-wide">
+                  Documentos analizados ({analizados.length})
+                </p>
+                {analizados.map(r => (
+                  <EstudioCard
+                    key={r.id}
+                    report={r}
+                    resaltado={r.id === resaltado}
+                    onBorrar={() => handleDelete(r.id)}
+                  />
+                ))}
               </div>
             )}
           </div>
