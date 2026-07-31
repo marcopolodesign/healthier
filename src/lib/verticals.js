@@ -99,6 +99,15 @@ export const VERTICAL_SPECIALTIES = {
   veterinaria: ['veterinaria'],
 }
 
+// Inverso de VERTICAL_SPECIALTIES. Hace falta cuando la reserva arranca desde el
+// perfil de un profesional en vez del wizard: ahí no hay selector de vertical,
+// pero `consultations.vertical` se llena igual y es lo que agrupa la consulta.
+const VERTICAL_BY_SPECIALTY = Object.fromEntries(
+  Object.entries(VERTICAL_SPECIALTIES).flatMap(([vertical, slugs]) => slugs.map(slug => [slug, vertical]))
+)
+
+export const verticalForSpecialty = specialty => VERTICAL_BY_SPECIALTY[specialty] ?? null
+
 // Returns the first pro in `pool` whose specialty matches any slug for the
 // given verticalId. Prefers professionals who can actually receive paid
 // bookings (mp_connected) — spec Sección D4 — falling back to any match so

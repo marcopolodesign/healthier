@@ -68,6 +68,24 @@ async function sha256Hex(input: string): Promise<string> {
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+/**
+ * Pagar un turno agendado es lo que lo confirma.
+ *
+ * `consultations.status` y `consultations.payment_status` son columnas
+ * distintas y hasta acá el pago sólo movía la segunda: el turno se cobraba bien
+ * y le seguía apareciendo "Pendiente" al profesional, porque el badge de la
+ * agenda lee `status`. Confirmar quedaba como un click manual que nadie sabía
+ * que hacía falta.
+ *
+ * Sólo se toca cuando está en `pending`, que es el estado con el que nace un
+ * turno pago en PaymentPage. Un turno ya `in_progress` / `completed` /
+ * `cancelled` no se pisa — el webhook de MP puede llegar tarde o repetido, y en
+ * on-demand la fila nace `confirmed` mucho antes del cobro.
+ */
+function confirmedPatch(currentStatus: string | null | undefined): Record<string, unknown> {
+  return currentStatus === 'pending' ? { status: 'confirmed' } : {}
+}
+
 /** Maps an MP payment status to the `payments`/`consultations` vocabulary. */
 function mapMpStatus(mpStatus: string): { paymentsStatus: 'pending' | 'authorized' | 'approved' | 'rejected'; consultationStatus: 'in_process' | 'paid' | 'rejected' } {
   if (mpStatus === 'approved') return { paymentsStatus: 'approved', consultationStatus: 'paid' }
@@ -144,7 +162,7 @@ Deno.serve(async (req) => {
     // --- 1. Load + validate the consultation ---
     const { data: consultation, error: consErr } = await serviceSupabase
       .from('consultations')
-      .select('id, patient_id, professional_id, payment_status, price_at_booking')
+      .select('id, patient_id, professional_id, status, payment_status, price_at_booking')
       .eq('id', consultationId)
       .single()
 
@@ -265,7 +283,12 @@ Deno.serve(async (req) => {
 
       const { error: updateConsErr } = await serviceSupabase
         .from('consultations')
-        .update({ payment_status: 'paid', paid_at: new Date().toISOString() })
+        .update({
+          payment_status: 'paid',
+          paid_at: new Date().toISOString(),
+          // Pagar es lo que confirma el turno. Ver el comentario de `confirmedPatch`.
+          ...confirmedPatch(consultation.status),
+        })
         .eq('id', consultationId)
       if (updateConsErr) console.error('mp-payment: consultation update error:', updateConsErr.message)
 
@@ -466,7 +489,10 @@ Deno.serve(async (req) => {
       payment_status: consultationStatus,
       mp_payment_id: mpPaymentId,
     }
-    if (consultationStatus === 'paid') consUpdate.paid_at = new Date().toISOString()
+    if (consultationStatus === 'paid') {
+      consUpdate.paid_at = new Date().toISOString()
+      Object.assign(consUpdate, confirmedPatch(consultation.status))
+    }
 
     const { error: updateConsErr } = await serviceSupabase
       .from('consultations')

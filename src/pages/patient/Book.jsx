@@ -3,8 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Calendar, Clock, CurrencyDollar, Tag, ShieldCheck } from '@phosphor-icons/react'
 import { professionalService } from '../../services/professionalService'
 import { availabilityService } from '../../services/availabilityService'
-import { consultationsService } from '../../services/consultationsService'
 import { consultationTypesService } from '../../services/consultationTypesService'
+import { verticalForSpecialty } from '../../lib/verticals'
 import { toast } from '../../components/Toast'
 
 const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
@@ -77,6 +77,8 @@ export default function Book({ profile }) {
   ]
   const modalityLocked = !!selectedType?.modality
 
+  const name = professional?.profiles?.fullName || professional?.profiles?.full_name
+
   // Price resolution
   const consultationPrice = selectedType?.price != null
     ? selectedType.price
@@ -84,36 +86,55 @@ export default function Book({ profile }) {
       ? (professional?.priceVideo      ?? professional?.sessionPrice ?? null)
       : (professional?.pricePresencial ?? professional?.sessionPrice ?? null)
 
-  const confirm = async () => {
+  /**
+   * Confirmar = ir a pagar. Mismo criterio que el wizard de `ReservarConsulta`.
+   *
+   * Antes esta pantalla escribía la consulta directo con `status: 'confirmed'`
+   * y mandaba a `/paciente/consultas`. Era la única forma de sacar un turno
+   * confirmado sin pagarlo nunca — y encima el estado que más confianza
+   * transmite. Ahora la fila la crea `PaymentPage`, que es el único lugar con el
+   * camino real de Mercado Pago (tarjeta guardada, Brick, Healthy Credits).
+   *
+   * De paso arregla el `professional_id`: el `:id` de la URL es el de
+   * `professional_profiles`, no el del usuario, y `consultations.professional_id`
+   * apunta a `profiles(id)`. El insert violaba la FK y esta pantalla no podía
+   * reservar nada. Por eso va `professional.userId`.
+   */
+  const confirm = () => {
     if (!selectedDate || !selectedTime) {
       toast.warning('Seleccioná fecha y hora')
       return
     }
+    if (!professional?.userId) {
+      toast.error('No se pudo identificar al profesional')
+      return
+    }
+    if (consultationPrice == null) {
+      toast.error('Este profesional no tiene precio cargado para esta modalidad.')
+      return
+    }
+
     setSubmitting(true)
-    try {
-      await consultationsService.create({
-        patientId:          profile.id,
-        professionalId:     id,
-        status:             'confirmed',
-        modality,
-        priceAtBooking:     consultationPrice,
+    navigate('/paciente/pago', {
+      state: {
+        professionalId:     professional.userId,
+        professionalName:   name,
+        professionalAvatar: professional.profiles?.avatarUrl ?? professional.profiles?.avatar_url ?? null,
+        specialty:          professional.specialty,
+        verticalId:         verticalForSpecialty(professional.specialty),
+        // PaymentPage habla 'virtual' | 'presencial' y traduce a la modalidad
+        // de la DB; acá el picker usa el vocabulario de la DB ('video').
+        modality:           modality === 'video' ? 'virtual' : 'presencial',
+        price:              consultationPrice,
+        scheduledAt:        new Date(`${selectedDate}T${selectedTime}:00`).toISOString(),
         consultationTypeId: selectedType?.id ?? null,
         obraSocialName:     obraSocialName.trim() || null,
         affiliateNumber:    affiliateNumber.trim() || null,
-        scheduledAt:        new Date(`${selectedDate}T${selectedTime}:00`).toISOString(),
-      })
-      toast.success('¡Turno confirmado!')
-      navigate('/paciente/consultas')
-    } catch {
-      toast.error('No se pudo confirmar el turno')
-    } finally {
-      setSubmitting(false)
-    }
+      },
+    })
   }
 
   if (loading) return <div className="h-96 bg-bg-surface rounded-xl animate-pulse" />
-
-  const name = professional?.profiles?.fullName || professional?.profiles?.full_name
 
   if (professional && professional.mpConnected === false) {
     return (
@@ -284,17 +305,11 @@ export default function Book({ profile }) {
             <span className="text-base font-bold text-brand">{formatARS(consultationPrice)}</span>
           </div>
         )}
-
-        <button
-          onClick={confirm}
-          disabled={submitting || !selectedDate || !selectedTime}
-          className="btn-primary w-full"
-        >
-          {submitting ? 'Confirmando...' : 'Confirmar turno'}
-        </button>
       </div>
 
-      {/* Obra social */}
+      {/* Obra social — va ANTES del CTA a propósito: el botón ahora navega a
+          pagar y estos dos campos viajan con la reserva. Debajo del botón el
+          paciente los completaba después de haber salido de la pantalla. */}
       <div className="card space-y-4">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-brand" />
@@ -333,6 +348,14 @@ export default function Book({ profile }) {
           </p>
         )}
       </div>
+
+      <button
+        onClick={confirm}
+        disabled={submitting || !selectedDate || !selectedTime}
+        className="btn-primary w-full"
+      >
+        {submitting ? 'Un momento...' : 'Continuar al pago'}
+      </button>
     </div>
   )
 }

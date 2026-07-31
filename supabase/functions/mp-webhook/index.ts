@@ -338,6 +338,25 @@ serve(async (req: Request) => {
       );
     }
 
+    // Pagar un turno agendado es lo que lo confirma. `status` y `payment_status`
+    // son columnas distintas y hasta acá el webhook sólo movía la segunda: el
+    // turno se cobraba y le seguía apareciendo "Pendiente" al profesional,
+    // porque el badge de la agenda lee `status`.
+    //
+    // Va como update aparte y filtrado por `status = 'pending'` — el estado con
+    // el que nace un turno pago en PaymentPage. Así es idempotente frente a
+    // webhooks repetidos y no pisa un turno ya empezado, terminado o cancelado
+    // si el evento llega tarde. Mismo criterio que `confirmedPatch` en
+    // mp-payment, que es el otro camino por el que un turno se paga.
+    if (consultationStatus === "paid") {
+      const { error: confirmErr } = await supabase
+        .from("consultations")
+        .update({ status: "confirmed" })
+        .eq("id", consultationId)
+        .eq("status", "pending");
+      if (confirmErr) console.error("mp-webhook: consultation confirm error:", confirmErr.message);
+    }
+
     // ── Update the matching payments row ─────────────────────────────────────
     const paymentUpdate: Record<string, unknown> = {
       status: paymentsStatus,
