@@ -99,6 +99,32 @@ export const professionalService = {
     return toCamelCase(data)
   },
 
+  /**
+   * Profesionales que el paciente puede contratar de verdad: verificados, activos
+   * y **con Mercado Pago conectado**.
+   *
+   * Va por RPC (migración 079) y no por `search()` por dos razones que se
+   * probaron contra la base, no se supusieron:
+   *
+   *  - El `ilike` de PostgREST no distingue mayúsculas pero **sí acentos**:
+   *    "marquez" no encontraba a "Márquez" y "nicolas" no encontraba a
+   *    "Nicolás". Con apellidos argentinos eso rompe la búsqueda justo en los
+   *    casos más comunes, y en silencio. La función usa `unaccent`.
+   *  - El filtro de MP tiene que ser del lado del servidor: hay 15 profesionales
+   *    verificados y sólo 6 cobrables. Traer los 15 para descartar 9 en el
+   *    browser es mandar datos de gente que el paciente no puede contratar.
+   *
+   * @param {{texto?: string, especialidades?: string[]}} opciones
+   */
+  async buscarCobrables({ texto = '', especialidades = null } = {}) {
+    const { data, error } = await supabase.rpc('buscar_profesionales_cobrables', {
+      p_texto: texto?.trim() || null,
+      p_especialidades: especialidades?.length ? especialidades : null,
+    })
+    if (error) throw error
+    return toCamelCase(data ?? [])
+  },
+
   /** Marca/renueva la disponibilidad on-demand del profesional autenticado. */
   async pingOnline() {
     const { data, error } = await supabase.rpc('professional_online_ping')

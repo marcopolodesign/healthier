@@ -55,7 +55,6 @@ import PatientVideoCall from './pages/patient/VideoCall'
 import HistoriaClinicaPaciente from './pages/paciente/HistoriaClinicaPaciente'
 import WaitingRoom from './pages/patient/WaitingRoom'
 import ConsultationReview from './pages/patient/ConsultationReview'
-import BuscarProfesional from './pages/patient/BuscarProfesional'
 import ReservarConsulta from './pages/patient/ReservarConsulta'
 import PaymentPage from './pages/patient/PaymentPage'
 import PatientAIChat from './pages/patient/PatientAIChat'
@@ -258,7 +257,16 @@ export default function App() {
           <Route path="/paciente/comprobantes"     element={<PatientComprobantes profile={profile} />} />
           <Route path="/paciente/videollamada/:id" element={<PatientVideoCall    profile={profile} />} />
           <Route path="/paciente/reservar"            element={<ReservarConsulta   profile={profile} />} />
-          <Route path="/paciente/buscar-profesional"  element={<BuscarProfesional  profile={profile} />} />
+          {/* `/paciente/buscar-profesional` se retiró del ruteo el 2026-07-31 al
+              consolidar la búsqueda en `/paciente/buscar`. Había DOS pantallas de
+              búsqueda ruteadas y sólo una alcanzable: el sidebar y el link de
+              "volver" del perfil apuntan a `/paciente/buscar`, y a la otra no
+              llegaba nadie. El archivo (`pages/patient/BuscarProfesional.jsx`) y
+              su `ProfessionalModal` quedan en el repo: tienen el único flujo que
+              pre-carga el asistente de reserva con un profesional elegido
+              (`/paciente/consultas?vertical=&pro=&modality=`), que la pantalla
+              consolidada todavía no replica — va al perfil del profesional. Si se
+              retoma ese flujo, sale de ahí. */}
           <Route path="/paciente/sala-espera/:consultationId" element={<WaitingRoom profile={profile} />} />
           <Route path="/paciente/pago" element={<PaymentPage profile={profile} />} />
           <Route path="/paciente/consulta/review/:consultationId" element={<ConsultationReview profile={profile} />} />

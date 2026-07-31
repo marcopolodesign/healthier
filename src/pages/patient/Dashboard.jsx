@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
 import {
   MapPin, CaretRight, Star, VideoCamera,
-  Heartbeat, X, Sparkle, CalendarBlank,
+  Heartbeat, X, Sparkle, CalendarBlank, MagnifyingGlass,
 } from '@phosphor-icons/react'
 import { track } from '../../utils/analytics'
 import { supportWhatsAppLink } from '../../lib/support'
@@ -291,6 +291,25 @@ export default function PatientDashboard({ profile }) {
     </button>
   )
 
+  // Buscar por nombre. Va debajo del mapa a propósito: el mapa resuelve "quién
+  // hay cerca" y esto resuelve "me recomendaron a alguien y lo quiero encontrar",
+  // que es la otra mitad y no tenía entrada desde el inicio (Mateo, 2026-07-31).
+  const buscarPorNombreCta = (
+    <button
+      onClick={() => { track('search_by_name_click', {}); navigate('/paciente/buscar') }}
+      className="card-hover w-full flex items-center gap-4 active:scale-[0.98] transition-all text-left"
+    >
+      <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0">
+        <MagnifyingGlass className="w-5 h-5 text-brand" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <span className="font-semibold text-[14px] text-text-primary leading-none">Buscar por nombre</span>
+        <p className="text-[11px] text-text-secondary mt-0.5">Si ya sabés con quién te querés atender</p>
+      </div>
+      <CaretRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+    </button>
+  )
+
   // Mismo canal de soporte que usa el lado profesional (lib/support.js), para
   // que no haya dos números dando vueltas.
   const supportCta = (
@@ -360,6 +379,7 @@ export default function PatientDashboard({ profile }) {
         <div className="px-6 patient-column pt-6 pb-32 flex flex-col gap-5 w-full">
           {specialtyGrid}
           {mapCta}
+          {buscarPorNombreCta}
           {supportCta}
           {aiTriageCta}
           {sosButton}
