@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Stethoscope, CircleNotch, Check,
-  User, Pill, TestTube, HeartStraight, Syringe, CalendarBlank,
+  User, Pill, TestTube, HeartStraight, Syringe, CalendarBlank, FileArrowDown,
 } from '@phosphor-icons/react'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { consultationsService } from '../../services/consultationsService'
@@ -11,6 +11,7 @@ import PreconsultaSummary, { hasPreconsulta } from '../../components/professiona
 import { clinicalService } from '../../services/clinicalService'
 import { profilesService } from '../../services/profilesService'
 import { diagnosticReportService } from '../../services/diagnosticReportService'
+import SignedDocLink from '../../components/SignedDocLink'
 import { toast } from '../../components/Toast'
 import { SPECIALTY_LABELS } from '../../lib/verticals'
 
@@ -60,8 +61,11 @@ function LabReportCard({ report }) {
             <Stethoscope size={18} className="text-brand" />
           </div>
           <div>
-            <p className="font-semibold text-text-primary text-sm">{dateStr}</p>
-            <p className="text-xs text-text-secondary">{report.parameters.length} parámetros · {abnormal.length > 0 ? <span className="text-amber-600">{abnormal.length} fuera de rango</span> : <span className="text-green-600">todos normales</span>}</p>
+            {/* El tipo de estudio manda sobre la fecha, igual que del lado del
+                paciente: dos hemogramas y una tiroidea se ven idénticos si sólo
+                se muestra la fecha. */}
+            <p className="font-semibold text-text-primary text-sm">{report.studyType || 'Análisis'}</p>
+            <p className="text-xs text-text-secondary">{dateStr} · {report.parameters.length} parámetros · {abnormal.length > 0 ? <span className="text-amber-600">{abnormal.length} fuera de rango</span> : <span className="text-green-600">todos normales</span>}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -75,6 +79,19 @@ function LabReportCard({ report }) {
       </button>
       {open && (
         <div className="pt-2 border-t border-border-default grid gap-2">
+          {/* El estudio original, no sólo los valores que extrajo el BioVisor:
+              sin el PDF no hay forma de contrastar un valor raro contra el
+              informe real, ni de leer lo que el extractor no parsea
+              (observaciones del bioquímico, método, muestra). */}
+          {report.documentUrl && (
+            <SignedDocLink
+              bucket="patient-docs"
+              url={report.documentUrl}
+              className="text-xs text-brand font-medium hover:underline inline-flex items-center gap-1 mb-1"
+            >
+              <FileArrowDown size={14} /> Ver estudio original (PDF)
+            </SignedDocLink>
+          )}
           {report.parameters.map(p => {
             const st = paramStatus(p.value, p.min, p.max)
             const col = paramColor(st)

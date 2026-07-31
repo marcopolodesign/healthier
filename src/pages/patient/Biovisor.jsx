@@ -581,6 +581,11 @@ export default function PatientBiovisor({ profile }) {
                       </p>
                       {r.documentUrl && (
                         <SignedDocLink
+                          // Sin `bucket`, SignedDocLink firma contra
+                          // `professional-docs` (su default) y el archivo vive en
+                          // `patient-docs`: el link fallaba para TODOS, incluido el
+                          // paciente que lo había subido.
+                          bucket="patient-docs"
                           url={r.documentUrl}
                           className="text-xs text-brand font-medium hover:underline inline-flex items-center gap-1 mt-0.5"
                         >
