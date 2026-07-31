@@ -1237,7 +1237,7 @@ export default function ProfessionalVideoCall({ profile }) {
             inferior que asoma y sube al tocarla. */}
         {splitScreen && consultation && (
           <div
-            className="vc-panel-pane overflow-hidden bg-bg-primary flex flex-col"
+            className="vc-panel-pane vc-panel-tipografia overflow-hidden bg-bg-primary flex flex-col"
             data-abierta={hojaAbierta ? 'true' : 'false'}
             // Tocar cualquier campo de la HC la abre: si el profesional va a
             // escribir, ya decidió que quiere la hoja arriba.

@@ -479,6 +479,31 @@
   }
 }
 
+/* Tipografía del panel de historia clínica, un escalón más grande.
+   Pedido de Mateo (2026-07-31): "todo, no solamente el título".
+
+   No se toca clase por clase: Tailwind 4 compila `text-sm` a
+   `font-size: var(--text-sm)`, así que redefinir la escala EN EL PANEL alcanza
+   para que suba todo lo que está adentro, incluidos los componentes compartidos
+   (recetas, alergias, pre-consulta) sin cambiarlos ni afectarlos en otras
+   pantallas.
+
+   Los tamaños arbitrarios tipo `text-[11px]` sí compilan a un valor literal y no
+   salen de ninguna variable, así que se suben aparte. Son 47 usos repartidos en
+   siete archivos: mapearlos acá es una regla, no 47 ediciones a mano que la
+   próxima persona tiene que volver a hacer. */
+@utility vc-panel-tipografia {
+  --text-xs: 0.8125rem;              /* 12 → 13 */
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 1rem;                   /* 14 → 16 */
+  --text-sm--line-height: 1.5rem;
+  --text-base: 1.0625rem;            /* 16 → 17 */
+  --text-base--line-height: 1.625rem;
+
+  & .text-\[10px\] { font-size: 0.75rem; }   /* 10 → 12 */
+  & .text-\[11px\] { font-size: 0.8125rem; } /* 11 → 13 */
+}
+
 @utility vc-panel-pane {
   /* ── Mobile: hoja inferior que asoma ──────────────────────────────────────
      En un teléfono partir la pantalla al medio deja las dos mitades inservibles.
