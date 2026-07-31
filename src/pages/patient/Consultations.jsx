@@ -636,13 +636,11 @@ export default function PatientConsultations({ profile }) {
 
                 {/* Right: content */}
                 <div className="flex-1 p-4 flex flex-col gap-2 min-w-0">
-                  {/* Vertical: naked icon + name in vertical color (mobile pattern) */}
-                  <div className="flex items-center justify-between gap-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <vert.icon className="w-4 h-4 shrink-0" style={{ color: vert.color }} />
-                      <span className="text-[13px] font-light" style={{ color: vert.color }}>{vert.nombre}</span>
-                    </div>
-  </div>
+                  {/* Vertical: rounded card with icon + name (Inicio specialties style) */}
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ backgroundColor: vert.bg }}>
+                    <vert.icon className="w-4 h-4 shrink-0" style={{ color: vert.color }} />
+                    <span className="text-[12px] font-medium" style={{ color: vert.color }}>{vert.nombre}</span>
+                  </div>
                   <p className="text-[17px] font-light text-text-primary leading-snug">
                     {t.professional?.fullName || 'Profesional'}
                   </p>
