@@ -3,6 +3,7 @@ import { CurrencyDollar, Users, ArrowClockwise, CheckCircle, CircleNotch, Sparkl
 import { paymentsService } from '../../services/paymentsService'
 import { mpService } from '../../services/mpService'
 import { toast } from '../../components/Toast'
+import Modal from '../../components/Modal'
 
 function formatARS(amount) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(amount || 0)
