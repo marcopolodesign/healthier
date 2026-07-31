@@ -332,18 +332,16 @@ export default function ConsultationDetail({ profile }) {
                 Se avisa acá y no recién al intentar emitirla. */}
             {!consultation.financiadorId && (
               <p className="w-full text-[11px] text-amber-700 font-medium">
-                Falta seleccionarla del catálogo de Innovamed para poder emitir recetas electrónicas.
+                Falta elegirla del catálogo de Innovamed.
               </p>
             )}
           </div>
         ) : (
-          <p className="text-sm text-text-muted">
-            {bloqueada
-              // Con la consulta cerrada ya no se emite nada: hablar de "si emitís
-              // ahora" es ofrecer algo que la pantalla no permite.
-              ? 'Sin definir.'
-              : 'Sin definir — opcional. Si emitís una receta electrónica ahora sale sin cobertura, como particular.'}
-          </p>
+          /* Sólo el resultado, sin explicar (Mateo, 2026-07-31): esta pantalla es
+             para leer el estado de la consulta. El "para qué sirve" vive en el
+             tooltip del encabezado, y el "qué pasa si no la cargás" en el propio
+             formulario de cobertura, que es donde se decide. */
+          <p className="text-sm text-text-muted">Sin definir</p>
         )}
       </div>
 
