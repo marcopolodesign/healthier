@@ -87,13 +87,25 @@ function confirmedPatch(currentStatus: string | null | undefined): Record<string
 }
 
 /** Maps an MP payment status to the `payments`/`consultations` vocabulary. */
-function mapMpStatus(mpStatus: string): { paymentsStatus: 'pending' | 'authorized' | 'approved' | 'rejected'; consultationStatus: 'in_process' | 'paid' | 'rejected' } {
+function mapMpStatus(mpStatus: string): { paymentsStatus: 'pending' | 'authorized' | 'approved' | 'rejected'; consultationStatus: 'in_process' | 'paid' | 'rejected' | 'pending_payment' } {
   if (mpStatus === 'approved') return { paymentsStatus: 'approved', consultationStatus: 'paid' }
   // On-demand pre-authorization (authorizeOnly): reserved on the card, not captured yet.
   if (mpStatus === 'authorized') return { paymentsStatus: 'authorized', consultationStatus: 'in_process' }
   if (mpStatus === 'rejected' || mpStatus === 'cancelled') return { paymentsStatus: 'rejected', consultationStatus: 'rejected' }
-  // in_process, pending, in_mediation, etc.
-  return { paymentsStatus: 'pending', consultationStatus: 'in_process' }
+  /*
+   * in_process, pending, in_mediation, etc. — MP TODAVÍA NO DIJO QUE SÍ.
+   *
+   * Esto mapeaba a `in_process`, el mismo valor que usa una pre-autorización ya
+   * aprobada, así que la consulta quedaba indistinguible de una pagada. Pasó de
+   * verdad el 2026-07-31: MP contestó `pending / pending_review_manual`, después
+   * resolvió `rejected / cc_rejected_high_risk`, y el paciente se quedó con una
+   * consulta confirmada y con acceso a la videollamada sin haber pagado nada.
+   *
+   * `pending_payment` es el estado con el que la consulta ya nace y es el que
+   * habilita reintentar el cobro (ver el chequeo de "is not payable"), así que
+   * "en revisión" vuelve a ser lo que es: todavía no está paga.
+   */
+  return { paymentsStatus: 'pending', consultationStatus: 'pending_payment' }
 }
 
 Deno.serve(async (req) => {
@@ -441,7 +453,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({
-          data: { paymentId, status: 'rejected', approved: false, creditsUsed, chargedAmount },
+          data: { paymentId, status: 'rejected', approved: false, statusDetail: mpData.status_detail ?? null, creditsUsed, chargedAmount },
           error: mpData.message ?? mpData.error ?? 'MercadoPago payment failed',
         }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -493,6 +505,11 @@ Deno.serve(async (req) => {
       consUpdate.paid_at = new Date().toISOString()
       Object.assign(consUpdate, confirmedPatch(consultation.status))
     }
+    // Una pre-autorización aprobada también confirma el turno: la plata está
+    // reservada en la tarjeta y sólo falta capturarla al cerrar la consulta.
+    if (paymentsStatus === 'authorized') {
+      Object.assign(consUpdate, confirmedPatch(consultation.status))
+    }
 
     const { error: updateConsErr } = await serviceSupabase
       .from('consultations')
@@ -506,6 +523,10 @@ Deno.serve(async (req) => {
           paymentId,
           status: paymentsStatus,
           approved: paymentsStatus === 'approved',
+          // El motivo que da MP (`cc_rejected_high_risk`, `pending_review_manual`,
+          // …) es lo único que le permite al front decirle al paciente qué pasó
+          // y qué hacer. Sin esto sólo se puede mostrar un genérico.
+          statusDetail: mpData.status_detail ?? null,
           creditsUsed,
           chargedAmount,
         },

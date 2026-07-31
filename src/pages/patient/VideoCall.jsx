@@ -107,6 +107,23 @@ export default function PatientVideoCall() {
 
     consultationsService.getById(consultationId)
       .then((cons) => {
+        /*
+         * Sin pago no se entra. Esta pantalla no miraba el cobro en absoluto:
+         * alcanzaba con que la consulta estuviera `confirmed`, y una consulta
+         * on-demand nace confirmada ANTES de cobrar. El 2026-07-31 MP rechazó
+         * el pago (`cc_rejected_high_risk`) y la videollamada se pudo abrir
+         * igual — una consulta gratis.
+         *
+         * `in_process` es la pre-autorización aprobada (plata reservada, se
+         * captura al cerrar), así que sí habilita. `pending_payment` incluye
+         * "MP lo está revisando", que todavía no es un sí.
+         */
+        const pagoOk = ['paid', 'in_process'].includes(cons?.paymentStatus)
+        if (cons && !pagoOk) {
+          toast.error('Esta consulta todavía no tiene el pago confirmado.')
+          navigate('/paciente/consultas')
+          return
+        }
         setConsultation(cons)
         // The waiting room now asks this before letting anyone in, so the normal
         // path arrives here already answered — don't ask twice. The form stays as

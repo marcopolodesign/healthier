@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, VideoCamera, Clock, CircleNotch, Check, ShieldCheck, CreditCard,
+  ArrowLeft, VideoCamera, Clock, CircleNotch, Check, ShieldCheck, CreditCard, Warning,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
 import { professionalService } from '../../services/professionalService'
@@ -11,6 +11,7 @@ import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import { buildPool } from '../../lib/onDemandPool'
+import { explicarPagoMP } from '../../lib/mercadoPago'
 import { SPECIALTY_LABELS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
 import { useVerticales } from '../../hooks/useVerticales'
 import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
@@ -53,6 +54,9 @@ export default function OnDemand({ profile }) {
   const [configLoading, setConfigLoading] = useState(true)
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [addCardMode, setAddCardMode] = useState(false)
+  // Lo último que dijo Mercado Pago cuando un cobro no salió: se muestra fijo en
+  // pantalla (no un toast que se va solo) hasta que el paciente hace otra cosa.
+  const [errorPago, setErrorPago] = useState(null)
   const [paying, setPaying] = useState(false)
 
   // Post-authorization countdown + cancel
@@ -94,7 +98,18 @@ export default function OnDemand({ profile }) {
       professionalId: matchedPro.userId,
       vertical:       verticalId,
       modality:       'video',
-      status:         'confirmed',
+      /*
+       * Nace `pending`, NO `confirmed`.
+       *
+       * Nacía confirmada antes de intentar el cobro, así que un pago rechazado
+       * dejaba igual una consulta confirmada: el 2026-07-31 MP rechazó por
+       * `cc_rejected_high_risk` y el paciente se quedó con el banner "Continuar
+       * con tu turno" en el inicio y con la videollamada abierta, gratis.
+       *
+       * La confirma `mp-payment` cuando MP autoriza de verdad (ver
+       * `confirmedPatch`), que es lo mismo que ya hace un turno agendado.
+       */
+      status:         'pending',
       isOnDemand:     true,
       priceAtBooking: price,
       scheduledAt:    new Date().toISOString(),
@@ -163,16 +178,27 @@ export default function OnDemand({ profile }) {
   })
 
   const finishPayment = async ({ data, error }, id, paymentMethod = 'saved_card') => {
-    if (error) throw new Error(error)
+    // Un error de la función igual trae el motivo de MP adentro de `data`: se
+    // usa para explicar, en vez de tirar un mensaje técnico a la pantalla.
+    if (error && !data) throw new Error(error)
     if (data?.status === 'authorized' || data?.status === 'approved' || data?.approved) {
+      setErrorPago(null)
       track('purchase', {
         transaction_id: id, value: price, currency: 'ARS',
         payment_method: paymentMethod, items: consultaItem(),
       })
       await handleAuthorized(id)
     } else {
-      track('payment_error', { error_type: 'declined', value: price, currency: 'ARS' })
-      toast.error('No pudimos autorizar el pago. Probá con otra tarjeta.')
+      // Lo que MP contestó de verdad, traducido — antes acá salía siempre
+      // "No pudimos autorizar el pago. Probá con otra tarjeta", que además a
+      // veces era el consejo equivocado.
+      const explicacion = explicarPagoMP({ status: data?.status, statusDetail: data?.statusDetail })
+      setErrorPago(explicacion)
+      track('payment_error', {
+        error_type: explicacion.enRevision ? 'pending' : 'declined',
+        error_code: explicacion.codigo ?? undefined,
+        value: price, currency: 'ARS',
+      })
     }
   }
 
@@ -212,7 +238,13 @@ export default function OnDemand({ profile }) {
       })
       await finishPayment(result, id, paymentType)
     } catch (err) {
-      toast.error(err?.message || 'Error al procesar el pago')
+      // Incluye el CVV mal puesto de la tarjeta guardada, que ya trae su propio
+      // mensaje desde SavedCardSelector.
+      setErrorPago({
+        motivo: err?.message || 'No pudimos procesar el pago.',
+        accion: 'Revisá los datos y volvé a intentar.',
+        reintentable: true,
+      })
     } finally {
       setPaying(false)
     }
@@ -235,7 +267,14 @@ export default function OnDemand({ profile }) {
       })
       await finishPayment(result, id, paymentType)
     } catch (err) {
-      toast.error(err?.message || 'Error al procesar el pago')
+      // Hasta acá sólo llegan fallas que no son un "no" de MP (red, sesión,
+      // función caída). Se muestran en el mismo lugar que el resto, para que el
+      // paciente nunca se quede sin explicación.
+      setErrorPago({
+        motivo: err?.message || 'No pudimos procesar el pago.',
+        accion: 'Revisá tu conexión y volvé a intentar.',
+        reintentable: true,
+      })
     } finally {
       setPaying(false)
     }
@@ -525,10 +564,41 @@ export default function OnDemand({ profile }) {
                 amount={price ?? undefined}
                 disabled={paying}
                 onNewCardCharge={handleNewCardCharge}
-                onAddCardModeChange={setAddCardMode}
+                onAddCardModeChange={next => { if (next) setErrorPago(null); setAddCardMode(next) }}
               />
             )}
           </div>
+
+          {/* Qué pasó con el último intento de pago.
+              Fijo en pantalla, no un toast: cuando MP rechaza, el paciente se
+              quedaba mirando un botón gris sin ninguna explicación (Mateo,
+              2026-07-31). Dice el motivo real de MP, qué puede hacer, y el
+              código por si termina hablando con soporte. */}
+          {errorPago && (
+            <div className="mb-4 p-4 rounded-[20px] border border-danger/30 bg-danger/5" role="alert">
+              <div className="flex items-start gap-3">
+                <Warning className="w-5 h-5 text-danger shrink-0 mt-0.5" weight="fill" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[14px] font-semibold text-gray-900 leading-snug">{errorPago.motivo}</p>
+                  {errorPago.accion && (
+                    <p className="text-[13px] text-gray-600 leading-snug mt-1">{errorPago.accion}</p>
+                  )}
+                  <div className="flex items-center gap-3 mt-3">
+                    <button
+                      type="button"
+                      onClick={() => { setErrorPago(null); setAddCardMode(true) }}
+                      className="text-[13px] font-semibold text-brand underline underline-offset-2"
+                    >
+                      Probar con otra tarjeta
+                    </button>
+                    {errorPago.codigo && (
+                      <span className="text-[11px] text-gray-400 font-mono truncate">{errorPago.codigo}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Pre-auth explanation — no charge until the consultation ends (moved below
               Método de Pago per Mateo, 2026-07-27) */}

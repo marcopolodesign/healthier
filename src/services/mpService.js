@@ -115,9 +115,18 @@ export const mpService = {
    */
   async saveCard({ cardToken, payerEmail, payerDocType, payerDocNumber }) {
     try {
+      // `userId` es obligatorio del otro lado (la función chequea que uno no
+      // guarde tarjetas a nombre de otro) y no se mandaba: guardar una tarjeta
+      // desde el Perfil fallaba SIEMPRE con "Missing required fields", después
+      // de que el paciente cargara todos los datos.
+      const { data: { session } } = await supabase.auth.getSession()
+      const userId = session?.user?.id ?? null
+      if (!userId) throw new Error('Tenés que volver a iniciar sesión para guardar una tarjeta.')
+
       const result = await callEdgeFunction('mp-save-card', {
         cardToken,
         payerEmail,
+        userId,
         payerDocType: payerDocType ?? null,
         payerDocNumber: payerDocNumber ?? null,
       })

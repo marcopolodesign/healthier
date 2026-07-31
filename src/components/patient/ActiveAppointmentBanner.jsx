@@ -18,9 +18,23 @@ const IN_PROGRESS_AFTER_MS = 6 * 60 * 60 * 1000
 // appears/disappears on its own as its window opens and closes.
 const TICK_MS = 30 * 1000
 
+/**
+ * Estados de pago con los que un turno se puede usar: cobrado, o pre-autorizado
+ * (on-demand reserva la plata en la tarjeta y la captura al cerrar).
+ *
+ * Mirar sólo `status` era un agujero de plata: una consulta on-demand nace
+ * `confirmed` ANTES de cobrar, así que si MP rechazaba el pago la fila quedaba
+ * confirmada igual y este banner la ofrecía en el inicio. Pasó el 2026-07-31 —
+ * MP rechazó por `cc_rejected_high_risk` y el paciente entró igual a la
+ * videollamada. `pending_payment` incluye también "MP lo está revisando", que
+ * todavía no es un sí.
+ */
+const PAGOS_HABILITANTES = ['paid', 'in_process']
+
 function isActive(consultation, now) {
   const status = consultation?.status
   if (status !== 'in_progress' && status !== 'confirmed') return false
+  if (!PAGOS_HABILITANTES.includes(consultation?.paymentStatus)) return false
   if (!consultation.scheduledAt) return false
   const scheduled = new Date(consultation.scheduledAt).getTime()
   if (Number.isNaN(scheduled)) return false

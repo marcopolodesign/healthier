@@ -16,7 +16,8 @@ interface SaveCardBody {
   payerEmail: string
   payerDocType?: string
   payerDocNumber?: string
-  userId: string
+  /** Opcional: si no viene, se toma del JWT. Ver el comentario del handler. */
+  userId?: string
 }
 
 interface MpCustomer {
@@ -77,15 +78,29 @@ Deno.serve(async (req) => {
     const body: SaveCardBody = await req.json()
     const { cardToken, payerEmail, payerDocType, payerDocNumber, userId } = body
 
-    if (!cardToken || !payerEmail || !userId) {
+    // `userId` sale del JWT cuando el cliente no lo manda: es el mismo dato y
+    // ya está verificado acá arriba. Pedirlo por body hacía que un cliente que
+    // lo olvidara fallara con un 400 después de que el paciente cargara la
+    // tarjeta entera — que es exactamente lo que pasaba desde el Perfil.
+    const dueño = userId ?? user.id
+
+    // Enumerar SÓLO lo que falta: el mensaje anterior listaba los tres campos
+    // siempre, así que no se podía saber cuál era el que faltaba de verdad.
+    const faltantes = [
+      !cardToken && 'cardToken',
+      !payerEmail && 'payerEmail',
+      !dueño && 'userId',
+    ].filter(Boolean)
+
+    if (faltantes.length) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: cardToken, payerEmail, userId' }),
+        JSON.stringify({ error: `Missing required fields: ${faltantes.join(', ')}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     // Caller can only save a card for themselves
-    if (userId !== user.id) {
+    if (dueño !== user.id) {
       return new Response(
         JSON.stringify({ error: 'Forbidden' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

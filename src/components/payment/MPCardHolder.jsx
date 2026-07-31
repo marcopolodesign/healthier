@@ -199,7 +199,14 @@ export default function MPCardHolder({
           console.error('[MPCardHolder] brick error:', err)
           // Only surface user-relevant errors (not transient init noise)
           if (err?.cause !== 'already_initialized') {
-            setBrickError('Ocurrió un error con el formulario de pago.')
+            // Decir qué pasó, no "ocurrió un error": los dos casos frecuentes
+            // tienen causa conocida y el genérico deja al paciente creyendo que
+            // cargó mal la tarjeta.
+            const mensajes = {
+              missing_payment_information: 'Mercado Pago no puede procesar este monto con esta tarjeta. Probá con otra.',
+              invalid_card_number: 'El número de tarjeta no es válido. Revisalo y volvé a intentar.',
+            }
+            setBrickError(mensajes[err?.cause] ?? 'Ocurrió un error con el formulario de pago. Volvé a intentar.')
             onError?.(err?.message ?? 'brick_error')
           }
         }}
