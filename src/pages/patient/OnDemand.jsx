@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, VideoCamera, Clock, CircleNotch, Check, ShieldCheck, CreditCard, Warning,
+  ArrowClockwise,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
 import { professionalService } from '../../services/professionalService'
@@ -558,7 +559,10 @@ export default function OnDemand({ profile }) {
               <SavedCardSelector
                 ref={cardSelectorRef}
                 selectedCardId={selectedCardId}
-                onCardSelected={setSelectedCardId}
+                // Elegir otra tarjeta es un intento nuevo: si no se limpia,
+                // el CTA se queda en "Reintentar el pago" y el cartel rojo
+                // sigue hablando de una tarjeta que ya no es la seleccionada.
+                onCardSelected={id => { setErrorPago(null); setSelectedCardId(id) }}
                 publicKey={publicKey}
                 payerEmail={profile?.email ?? ''}
                 amount={price ?? undefined}
@@ -629,9 +633,18 @@ export default function OnDemand({ profile }) {
                   (!isDemoMode && !selectedCardId) ? 'bg-gray-100 text-gray-400' :
                   'bg-brand text-white hover:bg-brand-hover active:scale-95'}`}
             >
+              {/* Después de un rechazo el botón decía "Pagar $1.000 e iniciar"
+                  igual que antes de intentar, con el mismo tilde de confianza —
+                  no había nada que dijera que apretarlo era REINTENTAR sobre la
+                  misma tarjeta que MP acaba de rechazar (Mateo, 2026-07-31).
+                  Vuelve solo a "Pagar" cuando el intento deja de estar fallado:
+                  al cargar otra tarjeta, al elegir otra guardada o al tocar
+                  "Probar con otra tarjeta". */}
               {paying
                 ? <><CircleNotch className="w-5 h-5 animate-spin" /> Autorizando...</>
-                : <><Check className="w-5 h-5" /> {price != null ? `Pagar $${price.toLocaleString('es-AR')} e iniciar` : 'Pagar e iniciar'}</>
+                : errorPago
+                  ? <><ArrowClockwise className="w-5 h-5" /> Reintentar el pago</>
+                  : <><Check className="w-5 h-5" /> {price != null ? `Pagar $${price.toLocaleString('es-AR')} e iniciar` : 'Pagar e iniciar'}</>
               }
             </button>
           )}

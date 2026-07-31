@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, VideoCamera, MapPin, CircleNotch, Check, CreditCard, CheckCircle, Sparkle } from '@phosphor-icons/react'
+import { ArrowLeft, VideoCamera, MapPin, CircleNotch, Check, CreditCard, CheckCircle, Sparkle, ArrowClockwise } from '@phosphor-icons/react'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import { mpService } from '../../services/mpService'
 import { consultationsService } from '../../services/consultationsService'
@@ -36,6 +36,11 @@ export default function PaymentPage({ profile }) {
   const [configLoading, setConfigLoading]   = useState(true)
   const [consultationId, setConsultationId] = useState(null)
   const [addCardMode, setAddCardMode]       = useState(false)
+  /** El último intento de pago falló. Sólo mueve el texto del CTA: acá el
+   *  motivo se cuenta por toast (a diferencia de OnDemand, que tiene panel),
+   *  y un toast se va solo dejando el botón diciendo "Confirmar y Pagar"
+   *  como si nunca hubiera pasado nada. */
+  const [intentoFallido, setIntentoFallido] = useState(false)
 
   // Healthy Credits (spec Sección D7)
   const [creditBalance, setCreditBalance] = useState(0)
@@ -108,6 +113,9 @@ export default function PaymentPage({ profile }) {
       toast.info('Tu pago está siendo procesado. Te avisaremos cuando se confirme.')
       navigate(`/paciente/turno-confirmado/${id}`)
     } else {
+      // Rechazo de MP: no tira excepción, así que sin esto el CTA se quedaba
+      // en "Confirmar y Pagar" después de que el pago fuera rechazado.
+      setIntentoFallido(true)
       track('payment_error', { error_type: 'declined', value: chargeAmount, currency: 'ARS' })
       toast.error('El pago no pudo procesarse. Intentá con otra tarjeta.')
     }
@@ -158,6 +166,7 @@ export default function PaymentPage({ profile }) {
 
     if (chargeAmount > 0 && !selectedCardId) return
     setPaying(true)
+    setIntentoFallido(false)
     try {
       const id = await ensureConsultation()
 
@@ -175,6 +184,7 @@ export default function PaymentPage({ profile }) {
       if (error) throw new Error(error)
       handlePaymentResult(data, id, paymentType)
     } catch (err) {
+      setIntentoFallido(true)
       toast.error(err?.message || 'Error al procesar el pago')
     } finally {
       setPaying(false)
@@ -187,12 +197,14 @@ export default function PaymentPage({ profile }) {
     const paymentType = getPaymentMethod(chargeInfo)
     track('add_payment_info', { payment_type: paymentType, value: chargeAmount, currency: 'ARS' })
     setPaying(true)
+    setIntentoFallido(false)
     try {
       const id = await ensureConsultation()
       const { data, error } = await mpService.createPayment({ consultationId: id, ...chargeInfo, useCredits, description })
       if (error) throw new Error(error)
       handlePaymentResult(data, id, paymentType)
     } catch (err) {
+      setIntentoFallido(true)
       toast.error(err?.message || 'Error al procesar el pago')
     } finally {
       setPaying(false)
@@ -314,13 +326,13 @@ export default function PaymentPage({ profile }) {
             <SavedCardSelector
               ref={cardSelectorRef}
               selectedCardId={selectedCardId}
-              onCardSelected={setSelectedCardId}
+              onCardSelected={id => { setIntentoFallido(false); setSelectedCardId(id) }}
               publicKey={publicKey}
               payerEmail={profile?.email ?? ''}
               amount={chargeAmount}
               disabled={paying || paid}
               onNewCardCharge={handleNewCardCharge}
-              onAddCardModeChange={setAddCardMode}
+              onAddCardModeChange={next => { if (next) setIntentoFallido(false); setAddCardMode(next) }}
             />
           )}
           {price != null && (
@@ -359,9 +371,14 @@ export default function PaymentPage({ profile }) {
                   : 'bg-brand text-white hover:bg-brand-hover active:scale-[0.99]',
             ].join(' ')}
           >
-            {paying && <CircleNotch className="w-5 h-5 animate-spin" />}
-            {paid    && <Check className="w-5 h-5" weight="bold" />}
-            {paid ? '¡Turno Confirmado!' : paying ? 'Procesando...' : 'Confirmar y Pagar'}
+            {paying         && <CircleNotch className="w-5 h-5 animate-spin" />}
+            {paid           && <Check className="w-5 h-5" weight="bold" />}
+            {!paid && !paying && intentoFallido && <ArrowClockwise className="w-5 h-5" />}
+            {paid
+              ? '¡Turno Confirmado!'
+              : paying
+                ? 'Procesando...'
+                : intentoFallido ? 'Reintentar el pago' : 'Confirmar y Pagar'}
           </button>
         )}
 

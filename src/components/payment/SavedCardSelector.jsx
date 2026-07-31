@@ -39,7 +39,7 @@ import {
   SpinnerGap,
   LockKey,
 } from '@phosphor-icons/react'
-import { createCardToken, initMercadoPago } from '@mercadopago/sdk-react'
+import { createCardToken, initMercadoPago, SecurityCode } from '@mercadopago/sdk-react'
 import { mpService } from '../../services/mpService'
 import MPCardHolder from './MPCardHolder'
 import { brandLabel } from './cardBrand'
@@ -124,8 +124,26 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
   const [showAddCard, setShowAddCard] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [deleteError, setDeleteError] = useState(null)
-  const [cvv, setCvv] = useState('')
+  /**
+   * El CVV lo tipea el paciente DENTRO de un iframe de Mercado Pago, así que
+   * este componente nunca ve el valor — sólo si MP lo considera válido.
+   *
+   * Antes era un `<input>` normal y el valor se pasaba a `createCardToken`
+   * como `securityCode`. Eso NO PODÍA funcionar: el `createCardToken` que
+   * exporta la raíz del SDK es el de **Secure Fields** — su tipo de
+   * parámetros (`FieldsCardTokenParams`) ni siquiera tiene `securityCode`, y
+   * por dentro llama a `instance.fields.createCardToken()`, que lee el código
+   * del iframe montado. Con el campo sin montar tiraba antes de pegarle a MP,
+   * y por eso no se veía NINGUNA request de tokenización en la pestaña Network.
+   */
+  const [cvvValido, setCvvValido] = useState(false)
+  const [cvvListo, setCvvListo] = useState(false)
   const [cvvError, setCvvError] = useState(null)
+
+  // El campo seguro no monta sin esto. `initMercadoPago` es idempotente.
+  if (publicKey) {
+    initMercadoPago(publicKey, { locale: 'es-AR' })
+  }
 
   // ── Load saved cards ───────────────────────────────────────────────────────
   const loadCards = useCallback(async () => {
@@ -150,7 +168,8 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
 
   // CVV must be re-entered whenever the selection changes — never carry it over
   useEffect(() => {
-    setCvv('')
+    setCvvValido(false)
+    setCvvListo(false)
     setCvvError(null)
   }, [selectedCardId])
 
@@ -190,17 +209,37 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
     async getSavedCardCharge() {
       const card = cards.find((c) => c.id === selectedCardId)
       if (!card) throw new Error('Seleccioná una tarjeta guardada.')
-      if (!cvv || cvv.length < 3) {
-        setCvvError('Ingresá el código de seguridad de la tarjeta.')
-        throw new Error('Ingresá el código de seguridad de la tarjeta.')
-      }
       if (!publicKey) throw new Error('El pago con tarjeta no está disponible en este momento.')
-      initMercadoPago(publicKey, { locale: 'es-AR' })
+
+      // Quién valida el largo del CVV es MP, adentro del iframe: acá no hay
+      // valor que medir. `cvvValido` viene de su `onValidityChange`.
+      if (!cvvListo) {
+        const aun = 'Esperá un segundo a que cargue el campo del código de seguridad.'
+        setCvvError(aun)
+        throw new Error(aun)
+      }
+      if (!cvvValido) {
+        const falta = 'Ingresá el código de seguridad de la tarjeta.'
+        setCvvError(falta)
+        throw new Error(falta)
+      }
+
+      // Sin `securityCode`: lo toma del campo seguro montado abajo.
       let token
       try {
-        token = await createCardToken({ cardId: card.mpCardId, securityCode: cvv })
-      } catch {
-        token = null
+        token = await createCardToken({ cardId: card.mpCardId })
+      } catch (err) {
+        // Tragarse el error de MP acá es lo que hacía que esto fuera imposible
+        // de diagnosticar: la pantalla decía "revisá el código de seguridad" y
+        // la consola quedaba limpia, aunque el problema no tuviera nada que ver
+        // con lo que el paciente había tipeado.
+        console.error('[SavedCardSelector] createCardToken falló:', err)
+        const detalle = err?.message ?? err?.cause?.[0]?.description ?? null
+        const legible = detalle && !/undefined|\[object/i.test(detalle)
+          ? `No pudimos validar la tarjeta: ${detalle}`
+          : 'No pudimos validar la tarjeta. Revisá el código de seguridad.'
+        setCvvError(legible)
+        throw new Error(legible)
       }
       if (!token?.id) {
         setCvvError('No pudimos validar la tarjeta. Revisá el código de seguridad.')
@@ -213,7 +252,7 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
         savedCardId: card.id,
       }
     },
-  }), [cards, selectedCardId, cvv, publicKey, payerEmail])
+  }), [cards, selectedCardId, cvvValido, cvvListo, publicKey, payerEmail])
 
   const selectedCard = cards.find((c) => c.id === selectedCardId)
 
@@ -271,16 +310,42 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
           <LockKey size={18} className="text-[#6B6560] shrink-0" />
           <div className="flex-1 min-w-0">
             <label className="text-xs font-semibold text-[#2D2A26] block mb-1">Código de seguridad (CVV)</label>
-            <input
-              type="password"
-              inputMode="numeric"
-              maxLength={4}
-              value={cvv}
-              disabled={disabled}
-              onChange={(e) => { setCvv(e.target.value.replace(/\D/g, '')); setCvvError(null) }}
-              placeholder="•••"
-              className="w-24 px-3 py-2 rounded-lg border border-[#D8D4CE] bg-white text-sm font-mono tracking-widest outline-none focus:border-[#7CB38B] disabled:opacity-50"
-            />
+            {/* Campo seguro de MP: es un iframe de ellos, no un input nuestro.
+              *
+              * El `style` de abajo NO es un inline style de React — es config
+              * que viaja a MP para pintar el input que vive DENTRO del iframe,
+              * al que Tailwind no llega por definición. Mismo caso que los
+              * `customVariables` del Brick en MPCardHolder.
+              *
+              * Vale acá la misma regla que el Brick: nunca `display: none` ni
+              * montarlo fuera de pantalla, o WebKit no attachea el iframe. Este
+              * bloque se monta/desmonta de verdad (condicional), que sí está
+              * bien — lo que rompe es esconderlo con CSS.
+              */}
+            <div className="w-28 h-[38px] px-3 rounded-lg border border-[#D8D4CE] bg-white flex items-center">
+              <SecurityCode
+                placeholder="•••"
+                style={{
+                  height: '100%',
+                  width: '100%',
+                  fontSize: '14px',
+                  color: '#2D2A26',
+                  placeholderColor: '#B5AFA8',
+                  letterSpacing: '2px',
+                }}
+                onReady={() => setCvvListo(true)}
+                onValidityChange={(estado) => {
+                  // MP avisa acá si el largo del código corresponde a la marca
+                  // (3 dígitos, 4 en Amex). No hace falta saberlo de este lado.
+                  setCvvValido(Boolean(estado?.isValid ?? !estado?.errorMessages?.length))
+                  setCvvError(null)
+                }}
+                onError={(err) => {
+                  console.error('[SavedCardSelector] campo CVV:', err)
+                  setCvvError('No pudimos cargar el campo del código de seguridad. Recargá la página.')
+                }}
+              />
+            </div>
           </div>
         </div>
       )}
