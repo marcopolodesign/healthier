@@ -149,8 +149,6 @@ export default function ReservarConsulta({ profile }) {
   const [existingConsultations, setExistingConsultations] = useState([])
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedFranja, setSelectedFranja] = useState(null)
-  const [processing, setProcessing]     = useState(false)
-  const [createError, setCreateError]   = useState(null)
   const [matchedPro, setMatchedPro]     = useState(null)
 
   const bookingStartFired = useRef(false)
@@ -277,56 +275,63 @@ export default function ReservarConsulta({ profile }) {
     setStep(selectedVertical.id === 'veterinaria' ? 'pet' : 'professional')
   }
 
-  const handleConfirm = async () => {
-    if (!selectedVertical || !selectedPro) return
+  // Precio del turno según la modalidad elegida. NO se mezcla con
+  // `vertical_settings.ondemand_price`, que es exclusivo de on-demand: un turno
+  // agendado lo sigue cobrando el profesional a su precio.
+  const precioDelTurno = () => (
+    modality === 'presencial'
+      ? (selectedPro?.pricePresencial ?? selectedPro?.price ?? null)
+      : (selectedPro?.priceVideo ?? selectedPro?.price ?? null)
+  )
 
-    // Virtual — navigate to the real payment step (in Consultations modal or OnDemand)
-    if (modality === 'virtual') {
-      // Pass all booking params to the consultas page which has the real MP payment
-      navigate('/paciente/consultas', {
-        state: {
-          autoBook: true,
-          verticalId:   selectedVertical.id,
-          professionalId: selectedPro.id,
-          modality,
-          scheduledAt: selectedDate && selectedFranja
-            ? new Date(`${selectedDate}T${selectedFranja.startTime}`).toISOString()
-            : null,
-        }
-      })
+  /**
+   * Confirmar = ir a pagar, para las DOS modalidades.
+   *
+   * Antes esto se bifurcaba y ninguna de las dos ramas cobraba bien:
+   *  - Presencial escribía la consulta directo con `paymentStatus:
+   *    'pending_payment'` y mandaba al comprobante. El turno quedaba confirmado
+   *    sin que el paciente pagara nunca.
+   *  - Virtual rebotaba a `/paciente/consultas` con `state.autoBook` y un
+   *    profesional de mentira (`name: 'Profesional'`, precios en null). Del otro
+   *    lado el monto se calcula con esos precios, así que daba 0 y entraba por
+   *    la rama de "cobro cero". Un turno pago que cobraba nada.
+   *
+   * Ahora las dos van a `/paciente/pago`, que ya tiene el camino real de Mercado
+   * Pago (tarjeta guardada, Brick de tarjeta nueva, Healthy Credits) y crea la
+   * consulta una sola vez. Sin `authorizeOnly`: la pre-autorización es de
+   * on-demand, donde se retiene y se captura al terminar la consulta. Un turno
+   * agendado se cobra al reservarlo.
+   */
+  const handleConfirm = () => {
+    if (!selectedVertical || !selectedPro) return
+    if (!selectedPro.mpConnected) {
+      toast.error('Este profesional todavía no puede cobrar por Healthier.')
+      return
+    }
+    const price = precioDelTurno()
+    if (price == null) {
+      toast.error('Este profesional no tiene precio cargado para esta modalidad.')
       return
     }
 
-    // Presencial — write directly to DB (no payment gate)
-    if (!profile?.id) { toast.error('Debes iniciar sesión'); return }
-    setProcessing(true)
-    setCreateError(null)
-    try {
-      const createPayload = {
-        patientId:      profile.id,
-        professionalId: selectedPro.id,
-        vertical:       selectedVertical.id,
-        modality:       'presencial',
-        status:         'confirmed',
-        paymentStatus:  'pending_payment',
-        priceAtBooking: modality === 'presencial'
-          ? (selectedPro.pricePresencial ?? selectedPro.price ?? null)
-          : (selectedPro.priceVideo ?? selectedPro.price ?? null),
-        scheduledAt:    selectedDate && selectedFranja
+    navigate('/paciente/pago', {
+      state: {
+        professionalId:     selectedPro.id,
+        professionalName:   selectedPro.name,
+        professionalAvatar: selectedPro.avatarUrl,
+        specialty:          selectedPro.specialty,
+        verticalId:         selectedVertical.id,
+        modality,
+        price,
+        scheduledAt: selectedDate && selectedFranja
           ? new Date(`${selectedDate}T${selectedFranja.startTime}`).toISOString()
-          : new Date().toISOString(),
-      }
-      if (selectedVertical.id === 'veterinaria') {
-        createPayload.petName    = petName    || null
-        createPayload.petSpecies = petSpecies || null
-      }
-      const created = await consultationsService.create(createPayload)
-      navigate(`/paciente/turno-confirmado/${created.id}`)
-    } catch (err) {
-      setCreateError(err?.message || 'Error al guardar el turno. Intentá de nuevo.')
-    } finally {
-      setProcessing(false)
-    }
+          : null,
+        // La mascota se cargó en un paso propio del wizard; si no viaja hasta
+        // acá, se pierde al crear la consulta del otro lado.
+        petName:    selectedVertical.id === 'veterinaria' ? (petName || null)    : null,
+        petSpecies: selectedVertical.id === 'veterinaria' ? (petSpecies || null) : null,
+      },
+    })
   }
 
   const handleConfirmMatched = () => {
@@ -860,7 +865,7 @@ export default function ReservarConsulta({ profile }) {
                     ? `${fmtTime(selectedFranja.startTime)} – ${fmtTime(selectedFranja.endTime)}`
                     : '—',
                 },
-                { label: 'Precio',      value: selectedPro.price != null ? `$${selectedPro.price}` : '—' },
+                { label: 'Precio',      value: precioDelTurno() != null ? `$${Number(precioDelTurno()).toLocaleString('es-AR')}` : '—' },
               ].map((row, i) => (
                 <div key={i} className="flex items-center justify-between px-4 py-3">
                   <span className="text-[13px] text-text-tertiary">{row.label}</span>
@@ -869,20 +874,14 @@ export default function ReservarConsulta({ profile }) {
               ))}
             </div>
 
-            {createError && (
-              <p className="text-[13px] text-center" style={{ color: '#D9534F' }}>
-                {createError}
-              </p>
-            )}
-
+            {/* El CTA ya no promete cosas distintas por modalidad: las dos pagan.
+                Decir "Confirmar y reservar" en presencial era literal —reservaba
+                sin cobrar— y por eso confundía. */}
             <button
               onClick={handleConfirm}
-              disabled={processing}
-              className="w-full py-4 rounded-full font-semibold text-[15px] text-white flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ backgroundColor: '#7CB38B' }}
+              className="btn-primary w-full py-4 rounded-full text-[15px]"
             >
-              {processing && <CircleNotch className="w-4 h-4 animate-spin" />}
-              {modality === 'virtual' ? 'Ir al pago' : 'Confirmar y reservar'}
+              Ir al pago
             </button>
           </>
         )}

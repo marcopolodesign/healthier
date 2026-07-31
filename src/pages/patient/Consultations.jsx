@@ -519,12 +519,17 @@ export default function PatientConsultations({ profile }) {
         )}
       </div>
 
-      {/* Specialty chips — naked icon + vertical-color label (mobile pattern) */}
+      {/* Sacar turno desde la agenda entra al MISMO wizard que Inicio
+          (`/paciente/reservar`), en vez de abrir el modal propio de esta
+          pantalla. Eran dos implementaciones distintas del mismo recorrido y no
+          coincidían: la de acá arrancaba con la modalidad ya fijada en
+          videollamada y saltaba pasos. Pedido de Mateo (2026-07-31): que el
+          flujo de Inicio esté reflejado también acá. */}
       <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-6 -mx-6 px-6">
         {VERTICALS.map(v => (
           <button
             key={v.id}
-            onClick={v.comingSoon ? undefined : () => openModal(v)}
+            onClick={v.comingSoon ? undefined : () => navigate(`/paciente/reservar?vertical=${v.id}`)}
             disabled={v.comingSoon}
             className={`flex items-center gap-2 bg-bg-secondary border border-border-default rounded-[28px] px-4 py-2.5 shrink-0 transition-opacity ${v.comingSoon ? 'opacity-50 cursor-default' : 'active:opacity-80'}`}
           >

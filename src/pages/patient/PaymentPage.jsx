@@ -22,6 +22,10 @@ export default function PaymentPage({ profile }) {
     modality = 'virtual',
     price,
     scheduledAt,
+    // Veterinaria: se cargan en un paso propio del wizard. Si no se persisten
+    // acá se pierden, porque esta pantalla es la que crea la consulta.
+    petName,
+    petSpecies,
   } = state
 
   const [selectedCardId, setSelectedCardId] = useState(null)
@@ -84,6 +88,8 @@ export default function PaymentPage({ profile }) {
       paymentStatus:  'pending_payment',
       priceAtBooking: price ?? null,
       scheduledAt:    scheduledAt ?? new Date().toISOString(),
+      petName:        petName ?? null,
+      petSpecies:     petSpecies ?? null,
     })
     setConsultationId(created.id)
     return created.id
@@ -124,6 +130,8 @@ export default function PaymentPage({ profile }) {
         paymentStatus:  'demo',
         priceAtBooking: price ?? null,
         scheduledAt:    scheduledAt ?? new Date().toISOString(),
+        petName:        petName ?? null,
+        petSpecies:     petSpecies ?? null,
       })
       navigate(`/paciente/turno-confirmado/${created.id}`)
     } catch (err) {
