@@ -45,6 +45,10 @@ Deno.serve(async (req: Request) => {
     // Marca el estado de TODAS las filas de la receta de una sola vez. Sin esto,
     // una receta de tres medicamentos que falla dejaba dos en 'pending' para
     // siempre.
+    //
+    // Devuelve el error en vez de tragarselo: el 2026-07-31 una emision quedo en
+    // `pending` con la UI cantando exito, porque este update fallaba y nadie lo
+    // miraba. Ver `persistirEmision`.
     // deno-lint-ignore no-explicit-any
     const setStatus = (status: string, extra: Record<string, any> = {}) =>
       supabase.from('clinical_medications').update({ rcta_status: status, ...extra }).in('id', ids)
@@ -243,16 +247,53 @@ Deno.serve(async (req: Request) => {
 
     const prescriptionId = receta.idReceta ?? receta.id
     const pdfUrl = receta.s3Link ?? null
-    const issuedAt = receta.fecha ?? new Date().toISOString()
+    const issuedAt = aIso(receta.fecha)
+
+    // Queda registrado que devolvio Innovamed: cuando la persistencia falla, esto
+    // es lo unico que permite recuperar una receta que ya existe del otro lado.
+    console.log('rcta-issue: receta recibida', JSON.stringify(receta))
 
     // ── Persist result ────────────────────────────────────────────────────────
     // Todas las filas de la receta comparten idReceta y PDF: es un unico
     // documento con varios medicamentos.
-    await setStatus('issued', {
+    //
+    // Esta escritura NO puede fallar en silencio. El 2026-07-31 fallo con
+    // `22008 date/time field value out of range` porque `receta.fecha` venia en
+    // formato de Innovamed (DD/MM/AAAA) y la columna es `timestamptz`: Postgres
+    // rechaza el UPDATE entero, la fila queda en `pending` con todo en NULL, y la
+    // funcion igual devolvia 200. El profesional veia "receta emitida" y un
+    // renglon clavado en "Emitiendo...".
+    const { error: persistErr } = await setStatus('issued', {
       rcta_prescription_id: prescriptionId,
       rcta_pdf_url:         pdfUrl,
       rcta_issued_at:       issuedAt,
     })
+
+    if (persistErr) {
+      console.error('rcta-issue: la receta se emitio pero no se pudo guardar:', persistErr.message)
+
+      // Segundo intento sin la fecha, que es el campo con formato ajeno. Se
+      // prefiere guardar el idReceta y el PDF sin fecha antes que perder el
+      // vinculo con una receta que YA existe en Innovamed.
+      const { error: reintentoErr } = await setStatus('issued', {
+        rcta_prescription_id: prescriptionId,
+        rcta_pdf_url:         pdfUrl,
+      })
+
+      if (reintentoErr) {
+        console.error('rcta-issue: reintento sin fecha tambien fallo:', reintentoErr.message)
+        // Sacar la fila de `pending`: un renglon en "Emitiendo..." para siempre es
+        // peor que uno en error, porque no invita a revisar.
+        await setStatus('error')
+        return json({
+          error: 'La receta se emitió en Innovamed pero no se pudo guardar en Healthier. Anotá el número y avisá a soporte.',
+          code: 'RCTA_EMITIDA_SIN_PERSISTIR',
+          prescriptionId,
+          pdfUrl,
+          detail: persistErr.message,
+        }, 500)
+      }
+    }
 
     // ── Pharmacy stock match + patient notification (best-effort — a failure here
     // must never fail the RCTA response, the prescription was already issued) ──
@@ -268,6 +309,28 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Internal error', detail: String(err) }, 500)
   }
 })
+
+/**
+ * La fecha que devuelve Innovamed a algo que Postgres acepte en `timestamptz`.
+ *
+ * Su API trabaja en DD/MM/AAAA (asi estan documentadas las `recetasPostadatas`),
+ * y eso mandado crudo a una columna `timestamptz` revienta el UPDATE con 22008.
+ * Ante cualquier duda se usa la hora del servidor: la fecha exacta de emision es
+ * un dato util, pero perder el vinculo con la receta por un formato no lo es.
+ */
+function aIso(fecha: unknown): string {
+  if (typeof fecha === 'string') {
+    const ddmmaaaa = fecha.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2}))?/)
+    if (ddmmaaaa) {
+      const [, d, m, a, hh = '00', mm = '00'] = ddmmaaaa
+      const iso = new Date(`${a}-${m}-${d}T${hh}:${mm}:00Z`)
+      if (!isNaN(iso.getTime())) return iso.toISOString()
+    }
+    const directa = new Date(fecha)
+    if (!isNaN(directa.getTime())) return directa.toISOString()
+  }
+  return new Date().toISOString()
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

@@ -51,10 +51,21 @@ const STATUS_MAP = {
 }
 
 const RCTA_STATUS_MAP = {
-  pending: { label: 'Emitiendo…',          cls: 'bg-amber-100 text-amber-700', spin: true },
-  issued:  { label: 'RCTA emitida',        cls: 'bg-green-100 text-green-700', spin: false },
-  error:   { label: 'Error RCTA',          cls: 'bg-red-100 text-red-700',     spin: false },
+  issued:  { label: 'Receta emitida', cls: 'bg-green-100 text-green-700', spin: false },
+  error:   { label: 'Error RCTA',     cls: 'bg-red-100 text-red-700',     spin: false },
 }
+
+/**
+ * `pending` en la base NO significa "se está emitiendo ahora".
+ *
+ * Significa que una emisión arrancó y no llegó a confirmarse — la pestaña se
+ * cerró, la función falló al guardar (pasó el 2026-07-31), lo que sea. Mostrarlo
+ * como "Emitiendo…" con spinner deja un renglón girando para siempre y hace
+ * pensar que hay algo en curso. El spinner sólo corresponde mientras ESTA sesión
+ * tiene la emisión en vuelo.
+ */
+const RCTA_PENDING_EN_CURSO = { label: 'Emitiendo…',            cls: 'bg-amber-100 text-amber-700', spin: true }
+const RCTA_PENDING_COLGADO  = { label: 'Emisión sin confirmar', cls: 'bg-amber-100 text-amber-800', spin: false }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
@@ -67,9 +78,11 @@ function StatusBadge({ status }) {
   )
 }
 
-function RctaBadge({ rcta }) {
+function RctaBadge({ rcta, enCurso = false }) {
   if (!rcta) return null
-  const s = RCTA_STATUS_MAP[rcta] ?? RCTA_STATUS_MAP.error
+  const s = rcta === 'pending'
+    ? (enCurso ? RCTA_PENDING_EN_CURSO : RCTA_PENDING_COLGADO)
+    : RCTA_STATUS_MAP[rcta] ?? RCTA_STATUS_MAP.error
   return (
     <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${s.cls}`}>
       {s.spin && <CircleNotch className="h-3 w-3 animate-spin" />}
@@ -80,7 +93,7 @@ function RctaBadge({ rcta }) {
 
 // ── Prescription row ───────────────────────────────────────────────────────────
 
-function PrescriptionRow({ rx, selectable, checked, onToggle }) {
+function PrescriptionRow({ rx, selectable, checked, onToggle, enCurso = false }) {
   const [copied, setCopied] = useState(false)
 
   function handleCopy() {
@@ -132,7 +145,7 @@ function PrescriptionRow({ rx, selectable, checked, onToggle }) {
               )}
             </p>
             <StatusBadge status={rx.status} />
-            {rx.rcta_status && <RctaBadge rcta={rx.rcta_status} />}
+            {rx.rcta_status && <RctaBadge rcta={rx.rcta_status} enCurso={enCurso} />}
           </div>
 
           {(rx.presentation || rx.route) && (
@@ -172,10 +185,13 @@ function PrescriptionRow({ rx, selectable, checked, onToggle }) {
             {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
             {copied ? 'Copiado' : 'Copiar'}
           </button>
+          {/* Emitida: lo que el profesional busca es la receta, no "un PDF".
+              Antes era un link chiquito al costado; ahora se lee como la acción
+              que es. (Mateo, 2026-07-31) */}
           {rx.rcta_pdf_url && (
             <a href={rx.rcta_pdf_url} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[11px] text-brand hover:underline px-2 py-1">
-              <FilePdf className="h-3 w-3" /> PDF
+              className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:bg-brand/10 border border-brand/30 rounded-lg px-2.5 py-1.5 transition-colors">
+              <FilePdf className="h-3.5 w-3.5" /> Ver receta
             </a>
           )}
         </div>
@@ -501,6 +517,18 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
     prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
   )
 
+  /** Relee las recetas del encuentro y devuelve las filas, para poder mirarlas. */
+  async function recargarRecetas() {
+    if (!encounterId) return []
+    const { data } = await supabase
+      .from('clinical_medications')
+      .select('*')
+      .eq('encounter_id', encounterId)
+      .order('created_at', { ascending: false })
+    setPrescriptions(data ?? [])
+    return data ?? []
+  }
+
   async function handleIssueRcta(medicationIds) {
     if (!medicationIds.length) return
     setIssuing(true)
@@ -532,6 +560,21 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
         return
       }
 
+      // No alcanza con que la función haya devuelto 200: hay que ver la receta
+      // guardada. El 2026-07-31 la emisión devolvió éxito, la fila quedó en
+      // `pending` con todo en NULL, y el profesional se fue creyendo que había
+      // recetado. Un "éxito" que el profesional no puede contrastar es peor que
+      // un error, porque no vuelve a intentar.
+      const filas = await recargarRecetas()
+      const confirmadas = filas.filter(
+        rx => medicationIds.includes(rx.id) && rx.rcta_status === 'issued'
+      )
+
+      if (confirmadas.length !== medicationIds.length) {
+        toast.error('La receta no quedó registrada. Revisá el renglón e intentá de nuevo.')
+        return
+      }
+
       toast.success(medicationIds.length > 1
         ? `Receta emitida con ${medicationIds.length} medicamentos`
         : 'Receta electrónica emitida')
@@ -539,13 +582,10 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
     } catch {
       toast.error('Error al conectar con el servicio RCTA')
     } finally {
-      // Refresh prescription list to pick up rcta_status, rcta_pdf_url
-      const { data } = await supabase
-        .from('clinical_medications')
-        .select('*')
-        .eq('encounter_id', encounterId)
-        .order('created_at', { ascending: false })
-      setPrescriptions(data ?? [])
+      // Recarga defensiva: si se salió por un `return` temprano (error de la API,
+      // credenciales), la lista igual tiene que reflejar en qué estado quedó cada
+      // renglón.
+      await recargarRecetas()
       setIssuing(false)
     }
   }
@@ -584,6 +624,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
                 selectable={selectable}
                 checked={selectable && seleccionados.includes(rx.id)}
                 onToggle={toggleSeleccion}
+                enCurso={issuing && seleccionados.includes(rx.id)}
               />
             )
           })}
@@ -654,9 +695,17 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
         />
       ) : (
         !loading && !bloqueada && (
+          /* El mismo botón hace dos cosas distintas y la etiqueta lo dice:
+             con medicamentos sin emitir en la lista, lo que carga se suma a ESA
+             receta; sin nada pendiente, arranca una receta nueva y separada de
+             las ya emitidas. Antes decía siempre "Agregar medicación" y no se
+             entendía que después de emitir se empezaba otra. (Mateo, 2026-07-31) */
           <button type="button" onClick={() => setAddOpen(true)}
-            className="flex items-center gap-1.5 text-sm text-brand hover:underline mt-1">
-            <Plus className="h-4 w-4" /> Agregar medicación
+            className={emitibles.length > 0
+              ? 'flex items-center gap-1.5 text-sm text-brand hover:underline mt-1'
+              : 'flex items-center justify-center gap-1.5 w-full mt-1 py-2.5 rounded-lg border border-brand/40 text-sm font-semibold text-brand hover:bg-brand/10 transition-colors'}>
+            <Plus className="h-4 w-4" />
+            {emitibles.length > 0 ? 'Agregar medicación a esta receta' : 'Nueva receta'}
           </button>
         )
       )}
