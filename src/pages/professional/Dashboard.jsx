@@ -15,6 +15,7 @@ import ProfileCompletenessCard from '../../components/professional/ProfileComple
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
 import IncomingRequests from '../../components/professional/IncomingRequests'
 import OnDemandSwitch from '../../components/professional/OnDemandSwitch'
+import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import Modal from '../../components/Modal'
 import { useWaitingPresence } from '../../hooks/useWaitingPresence'
 import { toast } from '../../components/Toast'
@@ -469,8 +470,8 @@ export default function ProfessionalDashboard({ profile }) {
           href={mpService.getMpConnectUrl(profile.id)}
           className="card flex items-center gap-4 border-red-300 bg-red-50 hover:border-red-400 transition-colors group"
         >
-          <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center shrink-0">
-            <LinkSimple className="h-6 w-6 text-red-600" />
+          <div className="w-12 h-12 rounded-2xl bg-white border border-red-200 flex items-center justify-center shrink-0">
+            <MercadoPagoMark className="w-8 h-8" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs text-red-700 font-bold uppercase tracking-wide">Acción requerida</p>
@@ -484,8 +485,8 @@ export default function ProfessionalDashboard({ profile }) {
       )}
       {!loading && mpStatus?.connected && (
         <div className="card flex items-center gap-4 border-emerald-200 bg-emerald-50">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0">
-            <CheckCircle className="h-6 w-6 text-emerald-600" weight="fill" />
+          <div className="w-12 h-12 rounded-2xl bg-white border border-emerald-200 flex items-center justify-center shrink-0">
+            <MercadoPagoMark className="w-8 h-8" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs text-emerald-700 font-medium uppercase tracking-wide">MercadoPago conectado</p>
@@ -502,8 +503,8 @@ export default function ProfessionalDashboard({ profile }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setShowMpConnectedModal(false)}>
           <div className="bg-white rounded-3xl shadow-xl max-w-lg w-full p-8 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex flex-col items-center text-center mb-6">
-              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4">
-                <CheckCircle className="h-9 w-9 text-emerald-600" weight="fill" />
+              <div className="w-16 h-16 rounded-full bg-white border border-emerald-200 flex items-center justify-center mb-4">
+                <MercadoPagoMark className="w-10 h-10" />
               </div>
               <h2 className="font-serif text-2xl text-text-primary">¡Mercado Pago conectado!</h2>
               <p className="text-sm text-text-secondary mt-1">Ya podés recibir turnos. Así funciona el cobro:</p>

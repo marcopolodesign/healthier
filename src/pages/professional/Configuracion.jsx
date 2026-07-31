@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus, Trash, Clock, CurrencyCircleDollar, Bank, VideoCamera, Buildings, MapPin, CheckCircle, Warning, LinkSimple } from '@phosphor-icons/react'
+import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import { professionalService } from '../../services/professionalService'
 import { consultationTypesService } from '../../services/consultationTypesService'
 import { availabilityService } from '../../services/availabilityService'
@@ -569,8 +570,8 @@ export default function Configuracion({ profile }) {
 
             {mpStatus?.connected ? (
               <div className="flex items-center gap-4 p-4 rounded-xl border border-emerald-200 bg-emerald-50">
-                <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-                  <CheckCircle className="h-5 w-5 text-emerald-600" weight="fill" />
+                <div className="w-11 h-11 rounded-xl bg-white border border-emerald-200 flex items-center justify-center shrink-0">
+                  <MercadoPagoMark className="w-7 h-7" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-text-primary truncate">
@@ -589,8 +590,8 @@ export default function Configuracion({ profile }) {
               </div>
             ) : (
               <div className="flex items-center gap-4 p-4 rounded-xl border border-red-200 bg-red-50">
-                <div className="w-11 h-11 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-                  <Warning className="h-5 w-5 text-red-600" />
+                <div className="w-11 h-11 rounded-xl bg-white border border-red-200 flex items-center justify-center shrink-0">
+                  <MercadoPagoMark className="w-7 h-7" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-text-primary">No conectado</p>
