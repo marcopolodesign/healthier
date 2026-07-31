@@ -23,7 +23,7 @@
  *   onError     {(err) => void}     Called with the error message string
  */
 
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { CardPayment, initMercadoPago } from '@mercadopago/sdk-react'
 import { CheckCircle, Warning } from '@phosphor-icons/react'
 import { mpService } from '../../services/mpService'
@@ -46,6 +46,27 @@ export default function MPCardHolder({
 }) {
   const [brickReady, setBrickReady] = useState(false)
   const [saving, setSaving] = useState(false)
+  /**
+   * El Brick no se monta hasta que su contenedor está REALMENTE en pantalla.
+   *
+   * Es la segunda mitad de la misma lección que el `display: none` (ver el
+   * comentario grande más abajo): Mercado Pago pide que, al renderizar el Brick,
+   * su contenedor ya esté renderizado en pantalla, y WebKit es el que aplica esa
+   * regla en serio — los iframes de los campos sensibles no se attachean si el
+   * contenedor no está visible, y después ya no aparecen.
+   *
+   * `display: none` era una forma de incumplirlo. Estar fuera de la pantalla es
+   * otra, y es la que rompía el perfil: ahí el Brick vive dentro de
+   * `PatientSheet`, que en mobile entra con `animate-slide-up-spring` desde
+   * `translateY(100%)` — o sea que se montaba mientras el contenedor todavía
+   * estaba fuera del viewport. En on-demand el mismo componente anda porque se
+   * monta inline, en una página ya pintada y quieta.
+   *
+   * Se resuelve acá adentro y no en cada pantalla a propósito: cualquier lugar
+   * que monte el Brick hereda la garantía sin tener que saber nada de esto.
+   */
+  const contenedorRef = useRef(null)
+  const [contenedorVisible, setContenedorVisible] = useState(false)
   const [savedCard, setSavedCard] = useState(null) // { lastFour, cardBrand }
   const [brickError, setBrickError] = useState(null)
 
@@ -53,6 +74,28 @@ export default function MPCardHolder({
   if (publicKey) {
     initMercadoPago(publicKey, { locale: 'es-AR' })
   }
+
+  useEffect(() => {
+    const el = contenedorRef.current
+    // Sin IntersectionObserver no se bloquea el pago: se monta como antes.
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setContenedorVisible(true)
+      return
+    }
+    const obs = new IntersectionObserver(
+      entradas => {
+        if (entradas.some(e => e.isIntersecting)) {
+          setContenedorVisible(true)
+          obs.disconnect()
+        }
+      },
+      // Margen generoso: que en una página larga el Brick ya esté listo cuando
+      // el usuario llega scrolleando, en vez de arrancar a cargar recién ahí.
+      { rootMargin: '200px' }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
 
   const handleSubmit = async (cardFormData, additionalData) => {
     if (mode === 'charge') {
@@ -167,7 +210,7 @@ export default function MPCardHolder({
   }
 
   return (
-    <div className={`relative ${brickReady ? '' : 'min-h-[320px]'}`}>
+    <div ref={contenedorRef} className={`relative ${brickReady ? '' : 'min-h-[320px]'}`}>
       {/* Esqueleto ENCIMA del brick, no en su lugar — ver el comentario de abajo. */}
       {!brickReady && (
         <div className="absolute inset-0 z-10 bg-bg-secondary space-y-3 animate-pulse px-1">
@@ -196,9 +239,12 @@ export default function MPCardHolder({
        *
        * Por eso se oculta con opacidad, que mantiene el layout y deja que
        * Safari lo attachee y cargue. El esqueleto va absoluto por encima.
+       *
+       * La otra mitad de la regla —no montarlo mientras el contenedor está
+       * FUERA de la pantalla— vive arriba, en `contenedorVisible`.
        */}
       <div className={brickReady ? 'opacity-100 transition-opacity' : 'opacity-0 pointer-events-none'}>
-        {cardBrick}
+        {contenedorVisible ? cardBrick : null}
       </div>
 
       {/* Inline overlay shown while calling saveCard Edge Function */}
