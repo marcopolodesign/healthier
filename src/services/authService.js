@@ -17,22 +17,41 @@ function buildProfileRow(userId, email, role, fullName, utms = {}) {
   }
 }
 
+// El mail ya existe. Supabase lo dice de varias formas según cómo esté
+// configurada la confirmación por mail, así que se reconocen todas.
+function esMailYaRegistrado(mensaje = '') {
+  return /already registered|already been registered|user already exists/i.test(mensaje)
+}
+
+export const ERROR_MAIL_YA_REGISTRADO =
+  'Ya existe una cuenta con ese email. Iniciá sesión, o recuperá tu contraseña si no la recordás.'
+
 export const authService = {
   async register(email, password, role, fullName, utms = {}) {
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: { full_name: fullName, role },
-      },
+      // El trigger `crear_perfil_al_registrarse` lee estos dos campos para crear
+      // el perfil junto con la cuenta. No sacarlos: sin `role` no crea nada.
+      options: { data: { full_name: fullName, role } },
     })
-    if (authError) throw new Error(authError.message)
+    if (authError) {
+      throw new Error(esMailYaRegistrado(authError.message) ? ERROR_MAIL_YA_REGISTRADO : authError.message)
+    }
 
-    // Create profile row — include UTM attribution if captured from landing page
+    // El perfil ya existe acá: lo creó el trigger, en la misma transacción que la
+    // cuenta (migración 082). Esto sólo le agrega la atribución de marketing.
+    //
+    // Y por eso NO tira si falla. Antes este paso era el que creaba el perfil, y
+    // cuando fallaba dejaba una cuenta imposible de usar y de volver a registrar
+    // —así quedaron 4 cuentas huérfanas, entre ellas la de Mateo del 17/07—.
+    // Ahora lo peor que puede pasar es perder de dónde vino el usuario.
     const { error: profileError } = await supabase
       .from('profiles')
-      .insert(buildProfileRow(authData.user.id, email, role, fullName, utms))
-    if (profileError) throw new Error(profileError.message)
+      .upsert(buildProfileRow(authData.user.id, email, role, fullName, utms), { onConflict: 'id' })
+    if (profileError) {
+      console.error('[register] no se pudo guardar la atribución del perfil:', profileError.message)
+    }
 
     return { user: authData.user, session: authData.session }
   },

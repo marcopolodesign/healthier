@@ -24,9 +24,18 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    // ── Solo profesionales autenticados ──────────────────────────────────────
+    // ── Cualquier usuario autenticado; el vademécum sigue siendo del médico ──
     // El catálogo no es secreto, pero el token que lo consulta sí: sin esta
-    // guarda, cualquiera podría usar nuestra cuota de Innovamed.
+    // guarda, cualquiera podría usar nuestra cuota de Innovamed. Alcanza con
+    // exigir sesión.
+    //
+    // Antes exigía rol profesional y eso rompía dos pantallas del paciente que
+    // necesitan catálogos que no tienen nada de clínico: elegir la obra social
+    // en el onboarding (financiadores) y decir qué estudio subió al BioVisor
+    // (prácticas). Le devolvía 403 y el buscador quedaba mudo.
+    //
+    // `medicamentos` sí sigue siendo sólo del profesional, más abajo: es el
+    // vademécum con el que se prescribe.
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) return json({ error: 'No autorizado' }, 401)
 
@@ -40,9 +49,7 @@ Deno.serve(async (req) => {
 
     const { data: profile } = await supabase
       .from('profiles').select('role').eq('id', user.id).maybeSingle()
-    if (!profile || !['professional', 'admin', 'super_admin'].includes(profile.role)) {
-      return json({ error: 'Solo profesionales pueden consultar el catálogo' }, 403)
-    }
+    if (!profile) return json({ error: 'No autorizado' }, 401)
 
     const RCTA_API_URL = Deno.env.get('RCTA_API_URL')
     const RCTA_API_KEY = Deno.env.get('RCTA_API_KEY')
@@ -74,6 +81,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'medicamentos') {
+      // El vademécum es la herramienta de prescribir: no la abre un paciente.
+      if (!['professional', 'admin', 'super_admin'].includes(profile.role)) {
+        return json({ error: 'Solo profesionales pueden consultar el vademécum' }, 403)
+      }
       const search = (url.searchParams.get('search') ?? '').trim()
       // Menos de 3 caracteres devuelve medio catálogo y no sirve para elegir.
       if (search.length < 3) return json({ medicamentos: [], pageInfo: null })

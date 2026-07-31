@@ -24,9 +24,14 @@ import { rctaService } from '../../services/rctaService'
  * @param {string} props.financiadorName
  * @param {string} props.affiliateNumber
  * @param {(v: {coverageType, financiadorId, financiadorName, affiliateNumber}) => void} props.onChange
+ * @param {React.ReactNode} [props.hintAfiliado] Aclaración bajo el N° de afiliado.
+ *        El paciente en el onboarding lo usa para decir que puede completarlo
+ *        más tarde; el profesional en la consulta no necesita esa aclaración.
  */
 export default function FinanciadorPicker({
   coverageType, financiadorId, financiadorName, affiliateNumber, onChange,
+  hintAfiliado = null,
+  hintSinDefinir = 'Sin definir — opcional. Si emitís una receta ahora sale sin cobertura, como particular.',
 }) {
   const [financiadores, setFinanciadores] = useState(null)
   const [error, setError] = useState(null)
@@ -95,9 +100,7 @@ export default function FinanciadorPicker({
           // Lo que sí importa es no confundir "no preguntamos" con "es
           // particular", porque un afiliado que reciba una receta particular
           // pierde la cobertura del medicamento.
-          <p className="text-[11px] text-text-tertiary mt-1.5">
-            Sin definir — opcional. Si emitís una receta ahora sale sin cobertura, como particular.
-          </p>
+          <p className="text-[11px] text-text-tertiary mt-1.5">{hintSinDefinir}</p>
         )}
       </div>
 
@@ -129,7 +132,8 @@ export default function FinanciadorPicker({
                   value={query}
                   onChange={e => { setQuery(e.target.value); setOpen(true) }}
                   onFocus={() => setOpen(true)}
-                  placeholder={financiadores ? 'Buscá: OSDE, Swiss Medical…' : 'Cargando catálogo…'}
+                  placeholder={financiadores ? 'Buscá: OSDE, Swiss Medical…'
+                    : error ? 'No se pudo cargar el catálogo' : 'Cargando catálogo…'}
                   disabled={!financiadores && !error}
                   className="form-input pl-9"
                   autoComplete="off"
@@ -168,7 +172,13 @@ export default function FinanciadorPicker({
           </div>
 
           <div>
-            <label className="form-label text-xs">N° de afiliado</label>
+            {/* Opcional de verdad, no por cortesía: al emitir, el número viaja
+                como `numero: affiliate_number ?? ''` y la receta sale igual.
+                Frenar el alta por un carnet que el paciente no tiene a mano es
+                perder al paciente por un dato que se completa después. */}
+            <label className="form-label text-xs">
+              N° de afiliado <span className="font-normal text-text-tertiary">(opcional)</span>
+            </label>
             <input
               type="text"
               value={affiliateNumber}
@@ -176,6 +186,9 @@ export default function FinanciadorPicker({
               placeholder="Ej: 23200126801"
               className="form-input"
             />
+            {hintAfiliado && (
+              <p className="text-[11px] text-text-tertiary mt-1">{hintAfiliado}</p>
+            )}
           </div>
         </>
       )}
