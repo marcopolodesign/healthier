@@ -43,6 +43,25 @@ export const rctaService = {
     return d.medicamentos ?? []
   },
 
+  /**
+   * Busca prácticas y estudios en el catálogo de Innovamed. Lo usa el BioVisor
+   * para tipificar qué análisis subió el paciente.
+   *
+   * A diferencia de los medicamentos, acá el código **no es obligatorio**: no hay
+   * ninguna API del otro lado rechazando texto libre, y un estudio que no esté en
+   * el catálogo no puede dejar al paciente sin poder subir su análisis. Si falla
+   * la consulta, devuelve vacío: el buscador degrada a escribir a mano en vez de
+   * romper la pantalla.
+   */
+  async buscarPracticas(search) {
+    try {
+      const d = await callCatalog({ action: 'practicas', search })
+      return d.practicas ?? []
+    } catch {
+      return []
+    }
+  },
+
   /** Catálogo completo de financiadores (~900). Cambia con el tiempo: nunca hardcodear ids. */
   async listarFinanciadores() {
     const d = await callCatalog({ action: 'financiadores' })

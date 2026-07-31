@@ -86,7 +86,24 @@ Deno.serve(async (req) => {
       })
     }
 
-    return json({ error: 'action inválida — usar "medicamentos" o "financiadores"' }, 400)
+    if (action === 'practicas') {
+      // Catálogo de prácticas y estudios de Innovamed. Lo usa el BioVisor para
+      // que el paciente diga QUÉ estudio subió eligiéndolo de una lista real, en
+      // vez de escribir "análisis" y que después nadie sepa de qué se trata.
+      // A diferencia de los medicamentos, acá el código NO es obligatorio: no hay
+      // ninguna API del otro lado rechazando el texto libre, y un estudio raro
+      // que no esté en el catálogo no puede bloquear al paciente.
+      const search = (url.searchParams.get('search') ?? '').trim()
+      if (search.length < 3) return json({ practicas: [], pageInfo: null })
+      return await call('GetPracticas', {
+        search,
+        numeroPagina: url.searchParams.get('numeroPagina') ?? '1',
+        tipo: url.searchParams.get('tipo'),
+        categoria: url.searchParams.get('categoria'),
+      })
+    }
+
+    return json({ error: 'action inválida — usar "medicamentos", "financiadores" o "practicas"' }, 400)
   } catch (err) {
     return json({ error: String(err) }, 500)
   }

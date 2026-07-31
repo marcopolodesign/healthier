@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Pulse, Upload, Trash, TrendUp, TrendDown, Minus, CircleNotch, Sparkle, X } from '@phosphor-icons/react'
+import { ArrowLeft, Pulse, Upload, Trash, TrendUp, TrendDown, Minus, CircleNotch, Sparkle, X, FileArrowDown } from '@phosphor-icons/react'
 import { diagnosticReportService } from '../../services/diagnosticReportService'
+import EstudioSearch from '../../components/patient/EstudioSearch'
+import SignedDocLink from '../../components/SignedDocLink'
 
 const GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20'
 const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY ?? ''
@@ -260,6 +262,9 @@ export default function PatientBiovisor({ profile }) {
   const [uploading, setUploading] = useState(false)
   const [activeTab, setActiveTab] = useState('biovisor')
   const [selectedParam, setSelectedParam] = useState('')
+  // Qué estudio es. Se pregunta ANTES de subir: después de la extracción el
+  // paciente ya está mirando los resultados y no vuelve a completar un campo.
+  const [estudio, setEstudio] = useState({ nombre: '', codigo: null })
   const [error, setError] = useState('')
 
   const history = reports.map(r => ({ id: r.id, date: r.reportDate, parameters: r.parameters }))
@@ -296,9 +301,29 @@ export default function PatientBiovisor({ profile }) {
         setError('No se encontraron parámetros en el documento. Intentá con otro archivo.')
         return
       }
-      const saved = await diagnosticReportService.create({ patientId: profile.id, reportDate: date, parameters })
+
+      // El archivo original se guarda. Antes se extraían los valores y se tiraba
+      // el PDF, así que cuando un valor no cerraba no había con qué contrastarlo.
+      // Si la subida falla, igual se guardan los parámetros: perder la extracción
+      // por un problema de storage sería peor que quedarse sin el adjunto.
+      let documentUrl = null
+      try {
+        documentUrl = await diagnosticReportService.uploadDocumento(profile.id, file)
+      } catch {
+        documentUrl = null
+      }
+
+      const saved = await diagnosticReportService.create({
+        patientId: profile.id,
+        reportDate: date,
+        parameters,
+        documentUrl,
+        studyType: estudio.nombre.trim() || null,
+        practiceCode: estudio.codigo,
+      })
       setReports(prev => [saved, ...prev])
       if (parameters.length > 0) setSelectedParam(parameters[0].name)
+      setEstudio({ nombre: '', codigo: null })
       setActiveTab('biovisor')
     } catch {
       setError('Error al analizar el documento. Verificá tu conexión e intentá de nuevo.')
@@ -517,6 +542,14 @@ export default function PatientBiovisor({ profile }) {
                 <p className="font-semibold text-text-primary text-sm">Analizar nuevo documento</p>
                 <p className="text-xs text-text-secondary mt-1">BioVisor extrae automáticamente los biomarcadores de tu análisis de sangre (PDF o imagen).</p>
               </div>
+
+              <div>
+                <label className="form-label text-xs">
+                  ¿Qué estudio es? <span className="normal-case font-normal text-text-tertiary">(opcional)</span>
+                </label>
+                <EstudioSearch value={estudio} onChange={setEstudio} disabled={uploading} />
+              </div>
+
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
@@ -537,10 +570,23 @@ export default function PatientBiovisor({ profile }) {
                       <Pulse size={18} className="text-brand" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-text-primary">
-                        {new Date(r.reportDate + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      {/* El tipo de estudio manda sobre la fecha: dos hemogramas y
+                          una tiroidea se veían idénticos en esta lista. */}
+                      <p className="text-sm font-medium text-text-primary truncate">
+                        {r.studyType || 'Análisis'}
                       </p>
-                      <p className="text-xs text-text-secondary">{r.parameters.length} parámetros</p>
+                      <p className="text-xs text-text-secondary">
+                        {new Date(r.reportDate + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        {' · '}{r.parameters.length} parámetros
+                      </p>
+                      {r.documentUrl && (
+                        <SignedDocLink
+                          url={r.documentUrl}
+                          className="text-xs text-brand font-medium hover:underline inline-flex items-center gap-1 mt-0.5"
+                        >
+                          <FileArrowDown size={13} /> Ver original
+                        </SignedDocLink>
+                      )}
                     </div>
                     <button
                       onClick={() => handleDelete(r.id)}
