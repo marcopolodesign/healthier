@@ -304,8 +304,13 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
         </div>
       )}
 
-      {/* CVV re-tokenization — required to charge a saved card (spec A.3) */}
-      {selectedCard && !showAddCard && (
+      {/* CVV re-tokenization — required to charge a saved card (spec A.3).
+        *
+        * Se espera a `publicKey` a propósito: el campo seguro monta en un
+        * `useEffect` con debounce que NO depende de la key, así que si se
+        * renderiza antes de que `initMercadoPago` haya corrido con una key de
+        * verdad (llega async) monta contra nada y no se recupera solo. */}
+      {selectedCard && !showAddCard && publicKey && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-[#D8D4CE] bg-[#F6F5F0]">
           <LockKey size={18} className="text-[#6B6560] shrink-0" />
           <div className="flex-1 min-w-0">
@@ -336,8 +341,9 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
                 onReady={() => setCvvListo(true)}
                 onValidityChange={(estado) => {
                   // MP avisa acá si el largo del código corresponde a la marca
-                  // (3 dígitos, 4 en Amex). No hace falta saberlo de este lado.
-                  setCvvValido(Boolean(estado?.isValid ?? !estado?.errorMessages?.length))
+                  // (3 dígitos, 4 en Amex). No hace falta saberlo de este lado:
+                  // el único dato que da es `errorMessages` (no hay `isValid`).
+                  setCvvValido(!estado?.errorMessages?.length)
                   setCvvError(null)
                 }}
                 onError={(err) => {
