@@ -31,4 +31,4 @@ alter table public.diagnostic_reports
 comment on column public.diagnostic_reports.study_type is
   'Qué estudio es, legible. Sale del catálogo de prácticas de Innovamed o lo escribe el paciente.';
 comment on column public.diagnostic_reports.practice_code is
-  'Código de la práctica en el catálogo de Innovamed. NULL cuando el tipo se escribió a mano.';
+  'Código SNOMED de la práctica, que devuelve el catálogo de Innovamed en nomenclador.snomed. Se guarda el SNOMED y no el id interno porque es el estándar que ya usa el modelo clínico. NULL cuando el tipo se escribió a mano.';

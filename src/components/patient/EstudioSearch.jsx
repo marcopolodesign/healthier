@@ -54,7 +54,7 @@ export default function EstudioSearch({ value, onChange, disabled = false }) {
         <Check className="h-4 w-4 text-brand mt-0.5 shrink-0" weight="bold" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-text-primary truncate">{value.nombre}</p>
-          <p className="text-[11px] text-text-tertiary">cód. {value.codigo}</p>
+          <p className="text-[11px] text-text-tertiary">SNOMED {value.codigo}</p>
         </div>
         <button
           type="button"
@@ -85,15 +85,26 @@ export default function EstudioSearch({ value, onChange, disabled = false }) {
 
       {abierto && resultados.length > 0 && (
         <ul className="absolute z-30 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-bg-surface border border-border-default rounded-xl shadow-lg">
+          {/* La forma real de la respuesta (verificada contra el sandbox, no
+              supuesta): `practica` es el nombre, `nomenclador.snomed` el código.
+              Se guarda el SNOMED y no el `id` de Innovamed porque es el estándar
+              que ya usa el modelo clínico del proyecto y sirve fuera de RCTA. */}
           {resultados.map(p => (
-            <li key={p.codigo ?? p.nombre}>
+            <li key={p.id ?? p.practica}>
               <button
                 type="button"
-                onClick={() => { onChange({ nombre: p.nombre, codigo: p.codigo ?? null }); setAbierto(false) }}
+                onClick={() => {
+                  onChange({ nombre: p.practica, codigo: p.nomenclador?.snomed ?? null })
+                  setAbierto(false)
+                }}
                 className="w-full text-left px-3 py-2 hover:bg-brand-muted/40 transition-colors border-b border-border-default last:border-b-0"
               >
-                <p className="text-sm font-medium text-text-primary">{p.nombre}</p>
-                {p.categoria && <p className="text-[11px] text-text-tertiary">{p.categoria}</p>}
+                <p className="text-sm font-medium text-text-primary first-letter:uppercase">{p.practica}</p>
+                {(p.categoria || p.tipo) && (
+                  <p className="text-[11px] text-text-tertiary">
+                    {[p.tipo, p.categoria].filter(Boolean).join(' · ')}
+                  </p>
+                )}
               </button>
             </li>
           ))}
