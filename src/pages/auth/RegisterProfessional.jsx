@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { User, Envelope, Lock, ArrowLeft } from '@phosphor-icons/react';
-import { authService } from '../../services/authService'
+import { authService, ERROR_MAIL_YA_REGISTRADO } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
 import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
@@ -35,9 +35,10 @@ export default function RegisterProfessional({ onLogin }) {
       onLogin(profile)
       navigate('/profesional/onboarding')
     } catch (err) {
-      const error_type = /already registered/i.test(err.message) ? 'email_ya_registrado' : 'server_error'
-      track('sign_up_error', { step: 1, step_name: 'cuenta', error_type, flow: 'profesional' })
+      const yaExiste = err.message === ERROR_MAIL_YA_REGISTRADO
+      track('sign_up_error', { step: 1, step_name: 'cuenta', error_type: yaExiste ? 'email_ya_registrado' : 'server_error', flow: 'profesional' })
       toast.error(err.message)
+      if (yaExiste) navigate(`/login?email=${encodeURIComponent(form.email)}`)
     } finally {
       setLoading(false)
     }

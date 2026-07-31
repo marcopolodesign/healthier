@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Envelope, Lock } from '@phosphor-icons/react';
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
@@ -7,7 +7,10 @@ import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
 import { track, setAnalyticsUser } from '../../utils/analytics'
 
 export default function Login({ onLogin }) {
-  const [form, setForm] = useState({ email: '', password: '' })
+  // Al intentar registrarse con un mail que ya existe, /registro manda acá con
+  // el mail puesto: el usuario sólo tiene que poner la contraseña.
+  const [params] = useSearchParams()
+  const [form, setForm] = useState({ email: params.get('email') ?? '', password: '' })
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
