@@ -203,7 +203,7 @@ export const mpService = {
    * @param {string} [params.description]
    * @returns {{ data: { paymentId, status, approved, creditsUsed, chargedAmount } | null, error: string | null }}
    */
-  async createPayment({ consultationId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits = false, authorizeOnly = false, description }) {
+  async createPayment({ consultationId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits = false, authorizeOnly = false, description, payerDocType, payerDocNumber }) {
     try {
       const result = await callEdgeFunction('mp-payment', {
         consultationId,
@@ -214,6 +214,15 @@ export const mpService = {
         useCredits,
         authorizeOnly,
         description: description ?? 'Consulta Healthier',
+        // DNI tipeado en el Brick (tarjeta nueva); null con tarjeta guardada,
+        // donde el servidor cae al DNI del perfil.
+        payerDocType: payerDocType ?? null,
+        payerDocNumber: payerDocNumber ?? null,
+        // Lo setea el SDK de MP en cuanto carga (identificador del dispositivo).
+        // El servidor lo reenvía a MP como header `X-meli-session-id` — dato
+        // que MP recomienda para que el antifraude no rechace dispositivos
+        // legítimos.
+        deviceId: (typeof window !== 'undefined' && window.MP_DEVICE_SESSION_ID) || null,
       })
       return { data: toCamelCase(result), error: null }
     } catch (err) {

@@ -151,6 +151,11 @@ export default function MPCardHolder({
         cardToken: cardFormData.token,
         paymentMethodId: cardFormData.payment_method_id,
         payerEmail: cardFormData.payer?.email ?? payerEmail,
+        // El DNI que el pagador tipeó en el form. Se venía descartando, y es
+        // uno de los campos que MP recomienda mandar para que el antifraude
+        // apruebe más — ver payer.identification en mp-payment.
+        payerDocType: cardFormData.payer?.identification?.type ?? null,
+        payerDocNumber: cardFormData.payer?.identification?.number ?? null,
       })
       return
     }

@@ -45,6 +45,11 @@ interface PaymentBody {
   useCredits?: boolean
   description?: string
   authorizeOnly?: boolean
+  /** DNI del pagador tal como lo tipeó en el Brick (tarjeta nueva). */
+  payerDocType?: string
+  payerDocNumber?: string
+  /** window.MP_DEVICE_SESSION_ID — lo genera el SDK de MP en el browser. */
+  deviceId?: string
 }
 
 interface PlatformSettings {
@@ -141,7 +146,7 @@ Deno.serve(async (req) => {
 
     // --- Parse body ---
     const body: PaymentBody = await req.json()
-    const { consultationId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits, description, authorizeOnly } = body
+    const { consultationId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits, description, authorizeOnly, payerDocType, payerDocNumber, deviceId } = body
 
     if (!consultationId) {
       return new Response(
@@ -421,6 +426,30 @@ Deno.serve(async (req) => {
       }
     }
 
+    /**
+     * Identidad del pagador — recomendación explícita de MP para mejorar la
+     * aprobación ("Recomendaciones para mejorar la aprobación de pagos"):
+     * mandar identification, first_name/last_name y additional_info. El Brick
+     * YA pide el DNI en el formulario y hasta ahora se descartaba acá.
+     *
+     * Prioridad: lo que tipeó el pagador en el Brick (es el titular de la
+     * tarjeta) → el perfil del paciente como fallback (tarjeta guardada, donde
+     * no hay formulario).
+     */
+    const { data: perfilPagador } = await serviceSupabase
+      .from('profiles')
+      .select('full_name, dni')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const docNumber = payerDocNumber ?? perfilPagador?.dni ?? null
+    const docType = docNumber ? (payerDocType ?? 'DNI') : null
+    const nombreCompleto = (perfilPagador?.full_name ?? '').trim()
+    // Split simple: primera palabra = nombre, el resto = apellido. Para el
+    // antifraude alcanza; no intentamos adivinar apellidos compuestos.
+    const [firstName, ...restoNombre] = nombreCompleto.split(/\s+/)
+    const lastName = restoNombre.join(' ') || null
+
     const mpPayload: Record<string, unknown> = {
       transaction_amount: chargedAmount,
       token: cardToken,
@@ -430,9 +459,27 @@ Deno.serve(async (req) => {
       description: description ? `Healthier — ${description}` : 'Healthier — Consulta médica',
       installments: 1,
       payment_method_id: paymentMethodId,
-      payer: mpCustomerId
-        ? { type: 'customer', id: mpCustomerId, email: payerEmail }
-        : { email: payerEmail },
+      payer: {
+        ...(mpCustomerId ? { type: 'customer', id: mpCustomerId } : {}),
+        email: payerEmail,
+        ...(firstName ? { first_name: firstName } : {}),
+        ...(lastName ? { last_name: lastName } : {}),
+        ...(docNumber ? { identification: { type: docType, number: docNumber } } : {}),
+      },
+      // Más contexto = mejor evaluación del antifraude, según la doc de MP.
+      additional_info: {
+        payer: {
+          ...(firstName ? { first_name: firstName } : {}),
+          ...(lastName ? { last_name: lastName } : {}),
+        },
+        items: [{
+          id: consultationId,
+          title: description ?? 'Consulta médica',
+          category_id: 'services',
+          quantity: 1,
+          unit_price: chargedAmount,
+        }],
+      },
       external_reference: consultationId,
     }
     // MP rechaza application_fee=0; omitirla cuando no hay comisión que cobrar.
@@ -453,6 +500,12 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${sellerAccessToken}`,
         'Content-Type': 'application/json',
         'X-Idempotency-Key': idempotencyKey,
+        // Device ID del browser del pagador (window.MP_DEVICE_SESSION_ID).
+        // La doc de MP pide reenviarlo así cuando el pago se crea del lado
+        // del servidor; ayuda al antifraude a reconocer el dispositivo — el
+        // rechazo que venimos viendo (`cc_rejected_high_risk`) es justo el
+        // caso que este dato mejora.
+        ...(deviceId ? { 'X-meli-session-id': deviceId } : {}),
       },
       body: JSON.stringify(mpPayload),
     })
