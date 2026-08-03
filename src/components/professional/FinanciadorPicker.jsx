@@ -176,6 +176,15 @@ export default function FinanciadorPicker({
               placeholder="Ej: 23200126801"
               className="form-input"
             />
+            {financiadorId && !affiliateNumber.trim() && (
+              // Innovamed rechaza (QBI25) toda receta que informe financiador
+              // sin afiliado — avisarlo acá, antes de que el intento de emisión
+              // falle. Se puede guardar la cobertura igual y completarlo después.
+              <p className="text-[11px] text-danger mt-1 flex items-start gap-1">
+                <Warning className="h-3 w-3 mt-0.5 shrink-0" weight="fill" />
+                Requerido para emitir recetas: con obra social, Innovamed exige el número de afiliado.
+              </p>
+            )}
           </div>
         </>
       )}
