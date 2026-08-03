@@ -263,11 +263,15 @@ export default function ReservarConsulta({ profile }) {
     setStep(steps[i - 1])
   }
 
-  const handleAfterModality = () => {
-    if (!selectedVertical || !modality) return
+  // `verticalOverride` lets this run right after the user picks a vertical,
+  // before the `selectedVertical` state update has committed — used by the
+  // "modality already preselected" path below (see the vertical step button).
+  const handleAfterModality = (verticalOverride) => {
+    const vertical = verticalOverride || selectedVertical
+    if (!vertical || !modality) return
     track('booking_mode_select', {
       mode: modality === 'virtual' ? 'videoconsulta' : modality,
-      vertical: selectedVertical.id,
+      vertical: vertical.id,
     })
     // Con un profesional ya elegido (marcador del mapa, perfil del profesional)
     // se va derecho a la fecha, en las DOS modalidades. Esto va ANTES de la rama
@@ -275,7 +279,7 @@ export default function ReservarConsulta({ profile }) {
     // igual quién lo atiende, y acá ya eligió. Antes videoconsulta caía en
     // `searching` y lo reemplazaba por otro profesional sin decir nada.
     if (paramProId) {
-      setStep(selectedVertical.id === 'veterinaria' ? 'pet' : 'datetime')
+      setStep(vertical.id === 'veterinaria' ? 'pet' : 'datetime')
       return
     }
     // All virtual consultations go through searching → matched → payment
@@ -284,7 +288,7 @@ export default function ReservarConsulta({ profile }) {
       return
     }
     // Presencial standard: professional list (or pet first for vet)
-    setStep(selectedVertical.id === 'veterinaria' ? 'pet' : 'professional')
+    setStep(vertical.id === 'veterinaria' ? 'pet' : 'professional')
   }
 
   // Precio del turno según la modalidad elegida. NO se mezcla con
@@ -428,7 +432,15 @@ export default function ReservarConsulta({ profile }) {
                   <button
                     key={v.id}
                     disabled={v.comingSoon}
-                    onClick={v.comingSoon ? undefined : () => { setSelectedVertical(v); setStep('modality') }}
+                    onClick={v.comingSoon ? undefined : () => {
+                      setSelectedVertical(v)
+                      // Modalidad preseleccionada desde afuera (tarjetas Virtual/Presencial
+                      // de Mi Agenda, `?modality=` en la URL) — no volver a preguntarla,
+                      // saltar directo al paso que corresponda (mismo criterio que
+                      // handleAfterModality, incluida la prioridad de paramProId).
+                      if (modality) handleAfterModality(v)
+                      else setStep('modality')
+                    }}
                     className={`w-full flex items-center gap-3 bg-bg-secondary rounded-2xl border border-border-default px-4 py-4 transition-all text-left ${
                       v.comingSoon
                         ? 'opacity-60 cursor-default'

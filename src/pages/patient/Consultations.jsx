@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import {
   Calendar, Clock, VideoCamera, MapPin, Star, CaretRight, ArrowLeft, CircleNotch, Check,
-  X, FileText, Ambulance, Sparkle, Warning,
+  X, FileText, Ambulance, Sparkle, Warning, FirstAidKit,
 } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
@@ -519,27 +519,35 @@ export default function PatientConsultations({ profile }) {
         )}
       </div>
 
-      {/* Sacar turno desde la agenda entra al MISMO wizard que Inicio
-          (`/paciente/reservar`), en vez de abrir el modal propio de esta
-          pantalla. Eran dos implementaciones distintas del mismo recorrido y no
-          coincidían: la de acá arrancaba con la modalidad ya fijada en
-          videollamada y saltaba pasos. Pedido de Mateo (2026-07-31): que el
-          flujo de Inicio esté reflejado también acá. */}
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-6 -mx-6 px-6">
-        {VERTICALS.map(v => (
-          <button
-            key={v.id}
-            onClick={v.comingSoon ? undefined : () => navigate(`/paciente/reservar?vertical=${v.id}`)}
-            disabled={v.comingSoon}
-            className={`flex items-center gap-2 bg-bg-secondary border border-border-default rounded-[28px] px-4 py-2.5 shrink-0 transition-opacity ${v.comingSoon ? 'opacity-50 cursor-default' : 'active:opacity-80'}`}
-          >
-            <v.icon className="w-[18px] h-[18px] shrink-0" style={{ color: v.color }} />
-            <span className="text-[14px] font-light whitespace-nowrap" style={{ color: v.color }}>{v.nombre}</span>
-            {v.comingSoon && (
-              <span className="text-[9px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded-full ml-0.5" style={{ backgroundColor: v.bg, color: v.color }}>Pronto</span>
-            )}
-          </button>
-        ))}
+      {/* Entrada a reservar turno por modalidad (Zocdoc-style), reemplaza el
+          selector por vertical que había acá (Mateo, 2026-08-03). Antes se
+          elegía primero la especialidad y recién ahí Virtual/Presencial en
+          `/paciente/reservar`; ahora se pregunta la modalidad acá mismo y
+          viaja preseleccionada por `?modality=`, entrando directo a elegir
+          vertical → profesional → turno (ver `selectVerticalStep` en
+          ReservarConsulta.jsx). */}
+      <div className="mb-6">
+        <h2 className="text-[17px] font-semibold text-text-primary leading-tight mb-3">Reservar próximo turno</h2>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { modality: 'virtual', label: 'Virtual', Icon: VideoCamera, bg: 'bg-brand/15', color: 'text-brand' },
+            { modality: 'presencial', label: 'Presencial', Icon: FirstAidKit, bg: 'bg-brand-secondary/20', color: 'text-brand-secondary' },
+          ].map(opt => (
+            <button
+              key={opt.modality}
+              onClick={() => {
+                track('booking_start', { entry: 'agenda_modality_card', modality: opt.modality })
+                navigate(`/paciente/reservar?modality=${opt.modality}`)
+              }}
+              className="bg-bg-secondary border border-border-default rounded-3xl p-6 flex flex-col items-center gap-3 hover:border-brand/40 active:opacity-80 transition-all"
+            >
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center ${opt.bg}`}>
+                <opt.Icon className={`w-8 h-8 ${opt.color}`} />
+              </div>
+              <span className="text-[15px] font-medium text-text-primary">{opt.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Segment control — matches mobile style */}
