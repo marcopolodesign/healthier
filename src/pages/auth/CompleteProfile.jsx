@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { User, Briefcase, Heart } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
 
 export default function CompleteProfile({ authUser, onProfileComplete }) {
+  const navigate = useNavigate()
   const [fullName, setFullName] = useState(authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || '')
   const [role, setRole] = useState('')
   const [loading, setLoading] = useState(false)
@@ -29,6 +31,13 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
       const profile = await authService.completeGoogleProfile(authUser, role, fullName.trim(), utms)
       clearUtms()
       onProfileComplete(profile)
+      // Mismo destino que el alta por email (Register/RegisterProfessional):
+      // el onboarding del rol, donde el paciente acepta el consentimiento
+      // (paso 1 obligatorio) — el texto de abajo lo promete. Sin este navigate
+      // nadie saca al usuario de acá: AuthRedirectHandler excluye
+      // /completar-registro de su redirect a dashboard justamente para que
+      // esta pantalla decida a dónde ir.
+      navigate(profile.role === 'professional' ? '/profesional/onboarding' : '/paciente/onboarding', { replace: true })
     } catch (err) {
       toast.error(err.message)
     } finally {
