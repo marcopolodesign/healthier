@@ -307,7 +307,7 @@ export default function App() {
         {/* Patient onboarding — full-screen, no mobile nav */}
         <Route path="/paciente/onboarding" element={
           <RequireRole profile={profile} allowed={['patient']}>
-            <PatientOnboarding profile={profile} />
+            <PatientOnboarding profile={profile} onProfileUpdate={setProfile} />
           </RequireRole>
         } />
 

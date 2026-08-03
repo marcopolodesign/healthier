@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Check, UserCircle, ShieldCheck, Heartbeat, ShieldPlus } from '@phosphor-icons/react';
 import { profilesService } from '../../services/profilesService'
+import FinanciadorPicker from '../../components/FinanciadorPicker'
 import { toast } from '../../components/Toast'
 import { PATIENT_CONSENT_ITEMS } from '../../lib/consentItems'
 import { track } from '../../utils/analytics'
@@ -26,7 +27,7 @@ const GENDERS = [
   { value: 'prefiero_no_decir', label: 'Prefiero no decir' },
 ]
 
-export default function PatientOnboarding({ profile }) {
+export default function PatientOnboarding({ profile, onProfileUpdate }) {
   const navigate = useNavigate()
   const [step, setStep] = useState(1) // starts at step 1 (account done, consent is next)
   const [saving, setSaving] = useState(false)
@@ -47,6 +48,10 @@ export default function PatientOnboarding({ profile }) {
 
   const [medical, setMedical] = useState({
     bloodType:       profile?.bloodType       || '',
+    // Obra social del catálogo de Innovamed (RCTA) — nunca texto libre: la
+    // receta electrónica necesita el idFinanciador, no el nombre escrito a mano.
+    coverageType:    profile?.coverageType    || null,
+    financiadorId:   profile?.financiadorId   || null,
     insuranceName:   profile?.insuranceName   || '',
     insuranceNum:    profile?.insuranceNum    || '',
     emergencyName:   profile?.emergencyName   || '',
@@ -76,7 +81,7 @@ export default function PatientOnboarding({ profile }) {
 
     setSaving(true)
     try {
-      await profilesService.update(profile.id, {
+      const updated = await profilesService.update(profile.id, {
         dni:        health.dni.trim(),
         birth_date: health.birthDate || null,
         gender:     health.gender    || null,
@@ -84,11 +89,14 @@ export default function PatientOnboarding({ profile }) {
         weight_kg:  health.weightKg  ? Number(health.weightKg)  : null,
         allergies:  health.allergies || null,
       })
+      // Sin esto, App.jsx sigue con el perfil viejo en memoria y el Perfil/
+      // dashboard muestran los campos vacíos hasta recargar la página.
+      onProfileUpdate?.(updated)
       track('sign_up_step_complete', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], flow: 'paciente', has_allergies: !!health.allergies.trim() })
       setStep(3)
-    } catch {
+    } catch (err) {
       track('sign_up_error', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], error_type: 'server_error', flow: 'paciente' })
-      toast.error('Error al guardar. Intentá de nuevo.')
+      toast.error(`No pudimos guardar: ${err.message}`)
     } finally {
       setSaving(false)
     }
@@ -97,21 +105,27 @@ export default function PatientOnboarding({ profile }) {
   const saveStep2 = async () => {
     setSaving(true)
     try {
-      await profilesService.update(profile.id, {
+      const esParticular = medical.coverageType === 'particular'
+      const updated = await profilesService.update(profile.id, {
         blood_type:      medical.bloodType      || null,
-        insurance_name:  medical.insuranceName  || null,
-        insurance_num:   medical.insuranceNum   || null,
+        coverage_type:   medical.coverageType   || null,
+        financiador_id:  esParticular ? null : medical.financiadorId,
+        insurance_name:  esParticular ? null : (medical.insuranceName || null),
+        insurance_num:   esParticular ? null : (medical.insuranceNum.trim() || null),
         emergency_name:  medical.emergencyName  || null,
         emergency_phone: medical.emergencyPhone || null,
         emergency_rel:   medical.emergencyRel   || null,
       })
+      // Sin esto, App.jsx sigue con el perfil viejo en memoria y el Perfil/
+      // dashboard muestran los campos vacíos hasta recargar la página.
+      onProfileUpdate?.(updated)
       track('sign_up_step_complete', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], flow: 'paciente' })
       track('sign_up_complete', { flow: 'paciente', profile_completed: true })
       toast.success('¡Perfil completo!')
       navigate('/paciente/dashboard')
-    } catch {
+    } catch (err) {
       track('sign_up_error', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], error_type: 'server_error', flow: 'paciente' })
-      toast.error('Error al guardar. Intentá de nuevo.')
+      toast.error(`No pudimos guardar: ${err.message}`)
     } finally {
       setSaving(false)
     }
@@ -297,28 +311,21 @@ export default function PatientOnboarding({ profile }) {
 
               <div className="pt-1">
                 <p className="text-xs font-semibold text-text-tertiary uppercase tracking-widest mb-3">Obra social / prepaga</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="form-label">Nombre</label>
-                    <input
-                      type="text"
-                      value={medical.insuranceName}
-                      onChange={e => setMedical(p => ({ ...p, insuranceName: e.target.value }))}
-                      className="form-input"
-                      placeholder="Ej: OSDE, Swiss Medical"
-                    />
-                  </div>
-                  <div>
-                    <label className="form-label">Nro. de socio</label>
-                    <input
-                      type="text"
-                      value={medical.insuranceNum}
-                      onChange={e => setMedical(p => ({ ...p, insuranceNum: e.target.value }))}
-                      className="form-input"
-                      placeholder="Ej: 12345678"
-                    />
-                  </div>
-                </div>
+                {/* Del catálogo de Innovamed, nunca texto libre: la receta
+                    electrónica necesita el idFinanciador (regla RCTA). */}
+                <FinanciadorPicker
+                  coverageType={medical.coverageType}
+                  financiadorId={medical.financiadorId}
+                  financiadorName={medical.insuranceName}
+                  affiliateNumber={medical.insuranceNum}
+                  onChange={v => setMedical(p => ({
+                    ...p,
+                    coverageType:  v.coverageType,
+                    financiadorId: v.financiadorId,
+                    insuranceName: v.financiadorName,
+                    insuranceNum:  v.affiliateNumber,
+                  }))}
+                />
               </div>
 
               <div className="pt-1">

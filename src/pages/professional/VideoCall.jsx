@@ -18,7 +18,7 @@ import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import CloseConsultationModal from '../../components/CloseConsultationModal'
 import ScribeSession from '../../components/professional/ScribeSession'
 import PrescriptionCreator from '../../components/professional/PrescriptionCreator'
-import FinanciadorPicker from '../../components/professional/FinanciadorPicker'
+import FinanciadorPicker from '../../components/FinanciadorPicker'
 import { toast } from '../../components/Toast'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 
