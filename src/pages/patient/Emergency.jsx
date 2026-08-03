@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Warning, CircleNotch, Check, Phone,
@@ -9,6 +9,7 @@ import { mpService } from '../../services/mpService'
 import { brandLabel } from '../../components/payment/cardBrand'
 import InteractiveMap from '../../components/patient/InteractiveMap'
 import PatientSheet from '../../components/patient/PatientSheet'
+import MPCardHolder from '../../components/payment/MPCardHolder'
 import { toast } from '../../components/Toast'
 import {
   EMERGENCY_SYMPTOMS, TRIAGE_SEVERITY_ORDER, computeTriageCode, symptomLabelsFromIds,
@@ -86,12 +87,24 @@ export default function Emergency({ profile }) {
   const [phase, setPhase] = useState('loading')
 
   // ── Triage ──────────────────────────────────────────────────────────────
+  // Flat, ungrouped list for the selection screen — severity is still computed
+  // exactly as before (rojo > amarillo > verde wins), it's just not shown
+  // until the confirm screen. Fixed order preserved from the catalog so the
+  // patient always sees the same sequence.
   const [selectedSymptoms, setSelectedSymptoms] = useState([])
+  const allSymptoms = useMemo(
+    () => TRIAGE_SEVERITY_ORDER.flatMap(code => EMERGENCY_SYMPTOMS[code].items),
+    [],
+  )
   const triageCode = useMemo(() => computeTriageCode(selectedSymptoms), [selectedSymptoms])
 
-  // ── Payment method (display only — never claim a real charge here) ──────
+  // ── Payment method — capturing it here is only the method for the eventual
+  // charge, which happens after the service ends (see the honest "no se cobra
+  // ahora" copy on the confirm screen). No charging logic lives in this file. ─
   const [defaultCard, setDefaultCard] = useState(null)
   const [cardLoading, setCardLoading] = useState(true)
+  const [showAddCard, setShowAddCard] = useState(false)
+  const [mpPublicKey, setMpPublicKey] = useState(null)
 
   // ── SOS settings — precio y disponibilidad, /super-admin/verticales ─────
   const [sosSettings, setSosSettings] = useState(null)
@@ -131,13 +144,31 @@ export default function Emergency({ profile }) {
     return () => { cancelled = true }
   }, [profile?.id])
 
-  // Saved card — display only, the charge happens after the service ends.
-  useEffect(() => {
-    mpService.getMyCards()
+  // Saved card — capture only, the charge happens after the service ends.
+  // getMyCards() orders by created_at desc, so [0] is always the most recent
+  // — reused after a successful add-card so the just-saved card is selected.
+  const loadDefaultCard = useCallback(() => {
+    setCardLoading(true)
+    return mpService.getMyCards()
       .then(({ data }) => setDefaultCard(data?.[0] ?? null))
       .catch(() => setDefaultCard(null))
       .finally(() => setCardLoading(false))
   }, [])
+
+  useEffect(() => { loadDefaultCard() }, [loadDefaultCard])
+
+  // MP public key — needed to mount the CardPayment brick (see MPCardHolder).
+  useEffect(() => {
+    mpService.getPaymentPlatformConfig()
+      .then(({ data }) => setMpPublicKey(data?.publicKey ?? null))
+      .catch(() => setMpPublicKey(null))
+  }, [])
+
+  const handleCardSaved = () => {
+    setShowAddCard(false)
+    toast.success('Tarjeta guardada')
+    loadDefaultCard()
+  }
 
   // Realtime updates while tracking — the only source of truth for status.
   useEffect(() => {
@@ -375,6 +406,7 @@ export default function Emergency({ profile }) {
   if (phase === 'confirm' || phase === 'dispatching') {
     const triage = triageCode ? EMERGENCY_SYMPTOMS[triageCode] : null
     return (
+      <>
       <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex flex-col justify-end sm:items-center sm:justify-center animate-fade-in">
         <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-[60]">
           <button onClick={() => setPhase('triage')} className="w-12 h-12 bg-white rounded-full flex items-center justify-center hover:bg-gray-50 shadow-sm">
@@ -390,8 +422,12 @@ export default function Emergency({ profile }) {
               </div>
               <div>
                 <h2 className="text-[28px] font-light tracking-tight leading-none mb-1 text-gray-900">Confirmar S.O.S</h2>
+                {/* Triage code — computed from the flat selection, shown here for the
+                    first time (the triage screen itself no longer reveals it). */}
                 {triage && (
-                  <p className={`font-semibold text-[13px] uppercase tracking-wider ${triage.badgeClass?.split(' ')[1] ?? 'text-danger'}`}>{triage.label}</p>
+                  <div className={`mt-1 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase inline-flex items-center gap-2 border w-fit ${triage.badgeClass}`}>
+                    <span className={`w-2 h-2 rounded-full ${triage.dotClass}`} /> {triage.label}
+                  </div>
                 )}
               </div>
             </div>
@@ -426,13 +462,23 @@ export default function Emergency({ profile }) {
                   </div>
                 ) : (
                   <button
-                    onClick={() => navigate('/paciente/perfil')}
+                    onClick={() => setShowAddCard(true)}
                     className="text-[14px] font-semibold text-brand underline underline-offset-2"
                   >
                     No tenés una tarjeta guardada — añadir una
                   </button>
                 )}
               </div>
+              {/* Secondary path when a card already exists — this only captures the
+                  method, it's never charged here (see the amber notice above). */}
+              {!cardLoading && defaultCard && (
+                <button
+                  onClick={() => setShowAddCard(true)}
+                  className="mt-2 text-[13px] font-semibold text-gray-500 underline underline-offset-2"
+                >
+                  Añadir otra tarjeta
+                </button>
+              )}
             </div>
 
             <button
@@ -449,6 +495,43 @@ export default function Emergency({ profile }) {
           </div>
         </div>
       </div>
+
+      {/* Añadir tarjeta — mismo Brick que usa Perfil (MPCardHolder), reutilizado
+          tal cual: sólo captura el método de pago, nunca cobra acá. PatientSheet
+          es `fixed z-[80]`, así que siempre queda arriba del backdrop `z-50` de
+          esta pantalla de confirmación (mismo criterio que la hoja de cancelar
+          en la pantalla de tracking, más abajo en este archivo). */}
+      <PatientSheet open={showAddCard} onClose={() => setShowAddCard(false)} maxWidth="max-w-md">
+        <div className="px-6 pt-4 pb-4 flex justify-between items-center flex-shrink-0 border-b border-gray-100">
+          <button onClick={() => setShowAddCard(false)} className="w-10 h-10 bg-white border border-gray-100 shadow-sm rounded-full flex items-center justify-center hover:bg-bg-primary">
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
+          <p className="font-semibold text-[15px] text-gray-900">Añadir tarjeta</p>
+          <div className="w-10" />
+        </div>
+        <div className="overflow-y-auto scrollbar-hide flex-1 p-6 pb-8 bg-bg-primary">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            {mpPublicKey ? (
+              <MPCardHolder
+                publicKey={mpPublicKey}
+                mode="save"
+                payerEmail={profile?.email ?? ''}
+                submitLabel="Guardar tarjeta"
+                onSuccess={handleCardSaved}
+                onError={err => toast.error(err || 'No pudimos guardar la tarjeta.')}
+              />
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-6">
+                Guardar tarjetas no está disponible en este momento. Probá de nuevo más tarde.
+              </p>
+            )}
+          </div>
+          <p className="text-[12px] text-gray-400 text-center mt-4 px-4">
+            Los datos de tu tarjeta se procesan directamente con Mercado Pago. Healthier solo guarda la marca y los últimos 4 dígitos.
+          </p>
+        </div>
+      </PatientSheet>
+      </>
     )
   }
 
@@ -477,46 +560,32 @@ export default function Emergency({ profile }) {
             </p>
           </div>
 
-          {triageCode && (
-            <div className={`flex items-center gap-2 mb-5 px-4 py-2.5 rounded-full border w-fit ${EMERGENCY_SYMPTOMS[triageCode].badgeClass}`}>
-              <span className={`w-2 h-2 rounded-full ${EMERGENCY_SYMPTOMS[triageCode].dotClass}`} />
-              <span className="text-[12px] font-semibold uppercase tracking-widest">{EMERGENCY_SYMPTOMS[triageCode].label}</span>
-            </div>
-          )}
-
-          <div className="space-y-6">
-            {TRIAGE_SEVERITY_ORDER.map(code => {
-              const group = EMERGENCY_SYMPTOMS[code]
+          {/* Sin encabezados de grupo, sin colores de severidad y sin badge en
+              vivo — Mateo pidió que el triage no se le muestre al paciente
+              mientras elige (feedback 2026-08-03). El orden interno del
+              catálogo se mantiene (rojo → amarillo → verde) para que el mapeo
+              a `computeTriageCode` siga siendo el mismo, pero acá no se ve.
+              El código sí se calcula igual y aparece recién en "Confirmar
+              S.O.S". */}
+          <div className="space-y-2.5">
+            {allSymptoms.map(item => {
+              const checked = selectedSymptoms.includes(item.id)
               return (
-                <div key={code}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className={`w-2 h-2 rounded-full ${group.dotClass}`} />
-                    <h3 className="text-[15px] font-semibold text-gray-900">{group.label}</h3>
-                    <span className="text-[12px] text-gray-400 font-medium">— {group.description}</span>
-                  </div>
-                  <div className="space-y-2.5">
-                    {group.items.map(item => {
-                      const checked = selectedSymptoms.includes(item.id)
-                      return (
-                        <label
-                          key={item.id}
-                          className={`flex items-center gap-4 py-4 px-4 rounded-2xl border cursor-pointer transition-colors ${checked ? 'bg-white border-gray-200 shadow-sm' : 'bg-transparent border-gray-100 hover:bg-white/60'}`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleSymptom(item.id)}
-                            className="sr-only"
-                          />
-                          <span className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition-colors ${checked ? group.checkboxClass : 'border-gray-300 bg-white'}`}>
-                            {checked && <Check className="w-4 h-4 text-white" weight="bold" />}
-                          </span>
-                          <span className="text-[15px] font-medium text-gray-800">{item.label}</span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
+                <label
+                  key={item.id}
+                  className={`flex items-center gap-4 py-4 px-4 rounded-2xl border cursor-pointer transition-colors ${checked ? 'bg-white border-gray-200 shadow-sm' : 'bg-transparent border-gray-100 hover:bg-white/60'}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleSymptom(item.id)}
+                    className="sr-only"
+                  />
+                  <span className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition-colors ${checked ? 'border-gray-900 bg-gray-900' : 'border-gray-300 bg-white'}`}>
+                    {checked && <Check className="w-4 h-4 text-white" weight="bold" />}
+                  </span>
+                  <span className="text-[15px] font-medium text-gray-800">{item.label}</span>
+                </label>
               )
             })}
           </div>
