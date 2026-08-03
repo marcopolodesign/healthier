@@ -3,6 +3,7 @@ import { ShieldCheck, X, FileText, UserCircle } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import { toast } from '../../components/Toast'
 import { getSignedDocUrl } from '../../lib/storage'
+import RefepsCheckLink from '../../components/admin/RefepsCheckLink'
 
 const DOC_FIELDS = [
   { key: 'titleDocumentUrl',                  label: 'Título profesional' },
@@ -177,6 +178,13 @@ export default function AdminProfessionals() {
                 {selected.titleDocumentUrl && docUrls.titleDocumentUrl && (
                   <iframe src={docUrls.titleDocumentUrl} className="w-full h-48 rounded-lg border border-border-default" title="Documento" />
                 )}
+
+                <div className="pt-3 border-t border-border-default">
+                  <RefepsCheckLink
+                    fullName={selected.profiles?.fullName || selected.profiles?.full_name}
+                    dni={selected.profiles?.dni}
+                  />
+                </div>
               </div>
 
               <div className="mt-4 space-y-2">

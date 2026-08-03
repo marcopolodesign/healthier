@@ -172,7 +172,7 @@ export const professionalService = {
   async getPendingVerification() {
     const { data, error } = await supabase
       .from('professional_profiles')
-      .select('*, profiles!user_id(full_name, email, avatar_url)')
+      .select('*, profiles!user_id(full_name, email, avatar_url, dni)')
       .eq('is_verified', false)
       .is('rejected_at', null)
       .order('created_at', { ascending: true })

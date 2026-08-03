@@ -7,6 +7,7 @@ import {
 import { supabase } from '../../lib/supabase'
 import { SPECIALTY_LABELS } from '../../lib/verticals'
 import { toast } from '../../components/Toast'
+import RefepsCheckLink from '../../components/admin/RefepsCheckLink'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -395,6 +396,11 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
                   <p className="text-[11px] text-gray-400 text-center">
                     Requiere DNI del profesional + credenciales SISA en Supabase secrets
                   </p>
+
+                  {/* Manual-check companion — REFEPS doesn't support pre-filled URLs */}
+                  <div className="pt-3 mt-1 border-t border-gray-100">
+                    <RefepsCheckLink fullName={name} dni={d?.profile?.dni} />
+                  </div>
                 </div>
               </div>
 
