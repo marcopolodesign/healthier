@@ -4,7 +4,7 @@ import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRi
 import { consultationsService } from '../../services/consultationsService'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 import { professionalService } from '../../services/professionalService'
-import { emergencyService } from '../../services/emergencyService'
+import { emergencyService, EMERGENCY_TERMINAL_STATUSES } from '../../services/emergencyService'
 import { mpService } from '../../services/mpService'
 import { walkInQueueService } from '../../services/walkInQueueService'
 import { availabilityService } from '../../services/availabilityService'
@@ -110,8 +110,7 @@ export default function ProfessionalDashboard({ profile }) {
     .finally(() => setLoading(false))
 
     const unsubEmergency = emergencyService.subscribe(profile.id, (updated) => {
-      const terminal = ['cancelled', 'completed']
-      setActiveEmergency(terminal.includes(updated.status) ? null : updated)
+      setActiveEmergency(EMERGENCY_TERMINAL_STATUSES.includes(updated.status) ? null : updated)
     })
 
     // Live state update — AppLayout handles the toast; this just refreshes the list
@@ -402,16 +401,17 @@ export default function ProfessionalDashboard({ profile }) {
       {activeEmergency && (
         <Link
           to="/profesional/emergencias"
-          className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-white ${CODE_COLORS[activeEmergency.triage_code] ?? 'bg-red-600'} shadow-lg`}
+          className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-white ${CODE_COLORS[activeEmergency.triageCode] ?? 'bg-red-600'} shadow-lg`}
         >
           <Siren className="w-5 h-5 shrink-0 animate-pulse" />
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm leading-tight">Emergencia activa</p>
             <p className="text-xs opacity-80 truncate">
-              {activeEmergency.dispatch_code} · {activeEmergency.triage_code} · {
+              {activeEmergency.dispatchCode} · {activeEmergency.triageCode} · {
                 activeEmergency.status === 'dispatched' ? 'Esperando confirmación'
                 : activeEmergency.status === 'in_transit' ? 'En camino'
-                : 'Llegaste'
+                : activeEmergency.status === 'arrived' ? 'Llegaste'
+                : 'Ver estado'
               }
             </p>
           </div>

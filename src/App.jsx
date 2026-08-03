@@ -76,6 +76,7 @@ import SuperAdminUsuarios from './pages/super-admin/Usuarios'
 import SuperAdminUsuariosProspects from './pages/super-admin/UsuariosProspects'
 import SuperAdminProfesionales from './pages/super-admin/Profesionales'
 import SuperAdminProfesionalesProspects from './pages/super-admin/ProfesionalesProspects'
+import SuperAdminEmergencias from './pages/super-admin/Emergencias'
 
 // ── Role guards ──────────────────────────────────────────
 const ROLE_REDIRECTS = {
@@ -359,6 +360,7 @@ export default function App() {
           <Route path="/super-admin/usuarios/prospects" element={<SuperAdminUsuariosProspects />} />
           <Route path="/super-admin/profesionales" element={<SuperAdminProfesionales />} />
           <Route path="/super-admin/profesionales/prospects" element={<SuperAdminProfesionalesProspects />} />
+          <Route path="/super-admin/emergencias" element={<SuperAdminEmergencias />} />
         </Route>
 
         {/* Catch-all */}

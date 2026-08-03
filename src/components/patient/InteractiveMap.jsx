@@ -2,17 +2,10 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { Map, Marker } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Crosshair } from '@phosphor-icons/react';
-import TopDownAmbulance from './TopDownAmbulance'
 import MapFilters from './MapFilters'
 import { pixelToLatLng } from '../../lib/geo'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
-
-const AMBULANCE_STATIC = [
-  { id: 'a2', x: -180, y:   90 },
-  { id: 'a3', x:  -60, y: -200 },
-  { id: 'a4', x:  150, y:  120 },
-]
 
 const ZOOM = 15
 // Fallback reference point when the user's real location isn't known yet —
@@ -46,8 +39,6 @@ function ProMarker({ vertical, marker, dimmed }) {
 
 export default function InteractiveMap({ appState, sheetState, verticales, markers, onMarkerClick, userLocation, availableNow = false }) {
   const activeMarkers = markers ?? []
-  const [ambPos, setAmbPos] = useState({ x: 180, y: -220 })
-  const [ambRotation, setAmbRotation] = useState(0)
   const [selectedVertical, setSelectedVertical] = useState(null)
   const [localAvailableNow, setLocalAvailableNow] = useState(false)
   const containerRef = useRef(null)
@@ -76,30 +67,7 @@ export default function InteractiveMap({ appState, sheetState, verticales, marke
     }
   }, [userLocation])
 
-  useEffect(() => {
-    let raf
-    if (appState === 'emergency_matched') {
-      const target = { x: 0, y: 0 }
-      const update = () => {
-        setAmbPos(prev => {
-          const dx = target.x - prev.x
-          const dy = target.y - prev.y
-          const dist = Math.sqrt(dx * dx + dy * dy)
-          if (dist < 5) return target
-          const angle = Math.atan2(dy, dx)
-          setAmbRotation(angle * (180 / Math.PI) + 90)
-          return { x: prev.x + (dx / dist) * 0.4, y: prev.y + (dy / dist) * 0.4 }
-        })
-        raf = requestAnimationFrame(update)
-      }
-      raf = requestAnimationFrame(update)
-    } else {
-      setAmbPos({ x: 180, y: -220 })
-    }
-    return () => cancelAnimationFrame(raf)
-  }, [appState])
-
-  const baseY = appState === 'emergency_matched' ? -220 : appState === 'emergency_searching' ? -50 : sheetState === 'half' ? -150 : -50
+  const baseY = appState === 'emergency_matched' ? -220 : sheetState === 'half' ? -150 : -50
 
   // Only offer vertical filters for specialties that actually have a marker on screen right now
   const filterableVerticales = useMemo(() => {
@@ -138,7 +106,7 @@ export default function InteractiveMap({ appState, sheetState, verticales, marke
           )}
 
           {/* Clinical markers — real professional coordinates */}
-          {appState !== 'emergency_searching' && visibleMarkers.map(m => {
+          {visibleMarkers.map(m => {
             const v = verticales.find(v => v.id === m.type)
             if (!v) return null
             const dimmed = effectiveAvailableNow && !m.isOnDemand
@@ -156,32 +124,6 @@ export default function InteractiveMap({ appState, sheetState, verticales, marke
             )
           })}
         </Map>
-
-        {/* Emergency route line */}
-        {appState === 'emergency_matched' && (
-          <svg className="absolute inset-0 w-full h-full pointer-events-none z-[500]" style={{ overflow: 'visible' }}>
-            <line
-              x1={`calc(50% + ${ambPos.x}px)`} y1={`calc(50% + ${ambPos.y}px)`}
-              x2="50%" y2="50%"
-              stroke="#db0000" strokeWidth="5" strokeDasharray="10 10" strokeLinecap="round"
-              className="animate-dash-move drop-shadow-[0_4px_6px_rgba(219,0,0,0.4)]"
-            />
-          </svg>
-        )}
-
-        {/* Radar ambulances */}
-        {appState === 'emergency_searching' && AMBULANCE_STATIC.map(a => (
-          <div key={a.id} className="absolute z-[500] flex flex-col items-center pointer-events-none" style={{ top: `calc(50% + ${a.y}px)`, left: `calc(50% + ${a.x}px)` }}>
-            <TopDownAmbulance className="opacity-90" style={{ transform: `rotate(${Math.random() * 360}deg) scale(0.4)` }} />
-          </div>
-        ))}
-
-        {/* Active ambulance moving */}
-        {appState === 'emergency_matched' && (
-          <div className="absolute z-[500] flex flex-col items-center pointer-events-none" style={{ top: `calc(50% + ${ambPos.y}px)`, left: `calc(50% + ${ambPos.x}px)` }}>
-            <TopDownAmbulance className="transition-transform duration-100" style={{ transform: `rotate(${ambRotation}deg) scale(0.55)` }} />
-          </div>
-        )}
       </div>
 
       {/* Filters — Disponibles ahora + especialidad */}

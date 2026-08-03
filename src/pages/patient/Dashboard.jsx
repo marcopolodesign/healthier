@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
 import {
   MapPin, CaretRight, Star, VideoCamera,
-  Heartbeat, X, Sparkle, CalendarBlank, MagnifyingGlass,
+  Heartbeat, X, Sparkle, CalendarBlank, MagnifyingGlass, Siren,
 } from '@phosphor-icons/react'
 import { track } from '../../utils/analytics'
 import { supportWhatsAppLink } from '../../lib/support'
@@ -13,6 +13,7 @@ const LAST_VERTICAL_KEY = 'healthier_last_vertical'
 import InteractiveMap from '../../components/patient/InteractiveMap'
 import ActiveAppointmentBanner from '../../components/patient/ActiveAppointmentBanner'
 import { professionalService } from '../../services/professionalService'
+import { emergencyService } from '../../services/emergencyService'
 import { VERTICAL_SPECIALTIES, SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
 import { useVerticales } from '../../hooks/useVerticales'
 import { latLngToPixel, haversineKm, formatDistance } from '../../lib/geo'
@@ -45,6 +46,7 @@ export default function PatientDashboard({ profile }) {
   const [mapProFlow, setMapProFlow] = useState(null)
   const [selectedMapPro, setSelectedMapPro] = useState(null)
   const [proPool, setProPool] = useState([])
+  const [activeEmergency, setActiveEmergency] = useState(null)
 
   // One pro per vertical, keyed by vertical id
   const markersByVertical = useMemo(() => {
@@ -104,6 +106,33 @@ export default function PatientDashboard({ profile }) {
       .then(data => setProPool(data))
       .catch(() => {}) // silent — map just shows no markers
   }, [])
+
+  // Active emergency resume banner — a dispatched/in_transit/arrived SOS is a
+  // non-terminal record and must offer a way back into the tracking screen
+  // (State Resilience rule). Re-checked on tab focus so the banner clears
+  // itself once the emergency is resolved elsewhere.
+  const lastEmergencyFetchRef = useRef(0)
+  useEffect(() => {
+    if (!profile?.id) return
+    let cancelled = false
+    const load = () => {
+      lastEmergencyFetchRef.current = Date.now()
+      emergencyService.getActiveForPatient(profile.id)
+        .then(data => { if (!cancelled) setActiveEmergency(data) })
+        .catch(() => {}) // silent — the banner is additive, never blocks the home
+    }
+    load()
+    // Throttled to at most once every 30s — a tab getting focused/blurred
+    // repeatedly (alt-tabbing, switching apps) shouldn't refire this on every
+    // visibilitychange event.
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() - lastEmergencyFetchRef.current < 30_000) return
+      load()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { cancelled = true; document.removeEventListener('visibilitychange', onVisible) }
+  }, [profile?.id])
 
   const handleMarkerClick = type => {
     const pro = markersByVertical[type]
@@ -345,17 +374,39 @@ export default function PatientDashboard({ profile }) {
   )
 
   const sosButton = (
-    <div
-      onClick={() => track('sos_click', {})}
-      className="w-full py-5 px-5 rounded-2xl bg-danger flex items-center gap-4 opacity-40 pointer-events-none relative"
+    <button
+      onClick={() => { track('sos_click', {}); navigate('/paciente/sos') }}
+      className="w-full py-5 px-5 rounded-2xl bg-danger flex items-center gap-4 text-left active:scale-[0.98] transition-all"
     >
       <Heartbeat className="w-7 h-7 text-white flex-shrink-0" />
       <div className="flex flex-col">
         <span className="font-semibold text-[15px] text-white leading-none">EMERGENCIA S.O.S</span>
-        <span className="text-[12px] text-white/80 mt-0.5">Solicitar ambulancia de inmediato</span>
+        <span className="text-[12px] text-white/80 mt-0.5">Solicitar atención de inmediato</span>
       </div>
-      <span className="absolute top-2 right-3 text-[9px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded-full bg-white/90 text-danger">Próximamente</span>
-    </div>
+      <CaretRight className="w-4 h-4 text-white/70 flex-shrink-0 ml-auto" />
+    </button>
+  )
+
+  // Re-entry point for an SOS already dispatched — outranks the regular
+  // appointment banner since an active emergency is the more urgent thing to
+  // resume. Renders nothing when there isn't one (State Resilience rule: a
+  // non-terminal `emergencies` row must offer a way back into tracking).
+  const activeEmergencyBanner = activeEmergency && (
+    <button
+      onClick={() => navigate('/paciente/sos')}
+      className="w-full rounded-[28px] bg-danger/95 border border-white/20 shadow-[0_8px_24px_rgba(217,83,79,0.35)] p-5 flex items-center gap-4 text-left active:scale-[0.98] transition-all"
+    >
+      <div className="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center flex-shrink-0">
+        <Siren className="w-5 h-5 text-white" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <span className="text-[10px] font-semibold tracking-widest uppercase text-white/80">Emergencia en curso</span>
+        <p className="text-[15px] font-semibold text-white leading-tight mt-1 truncate">
+          Código {activeEmergency.dispatchCode ?? '—'}
+        </p>
+      </div>
+      <CaretRight className="w-5 h-5 text-white flex-shrink-0" />
+    </button>
   )
 
   // ── Render ───────────────────────────────────────────────
@@ -368,9 +419,10 @@ export default function PatientDashboard({ profile }) {
             arriba) y cierra redondeado abajo. El saludo vive adentro, así que
             todo el encabezado de la pantalla es una sola pieza. */}
         <div className="bg-gradient-to-br from-brand to-brand-hover rounded-b-[32px] px-6 patient-column pt-safe sm:pt-10 pb-6 flex flex-col gap-5 text-white shadow-[0_12px_32px_rgba(124,179,139,0.28)]">
-          {/* Re-entry point for an appointment already under way — renders
-              nothing when there isn't one. Must stay above the on-demand cards:
-              resuming a paid consultation beats starting a new one. */}
+          {/* Active SOS outranks a resumable appointment — both render nothing
+              when there's nothing to resume. Must stay above the on-demand
+              cards: resuming either beats starting something new. */}
+          {activeEmergencyBanner}
           <ActiveAppointmentBanner profile={profile} />
 
           {onDemandHero}

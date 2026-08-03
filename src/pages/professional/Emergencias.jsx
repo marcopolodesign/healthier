@@ -10,7 +10,7 @@ import {
   Ambulance, MapPin, NavigationArrow, Phone,
   CheckCircle, ArrowLeft, Warning, Pulse, UserCircle,
 } from '@phosphor-icons/react'
-import { emergencyService } from '../../services/emergencyService'
+import { emergencyService, EMERGENCY_TERMINAL_STATUSES } from '../../services/emergencyService'
 import { toast } from '../../components/Toast'
 
 // ── Design tokens per triage code ─────────────────────────────
@@ -20,64 +20,29 @@ const CODE = {
   VERDE:    { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-600', dot: 'bg-emerald-500', btnAccept: 'bg-emerald-600 hover:bg-emerald-700', label: 'Código Verde',    Icon: CheckCircle },
 }
 
-// ── Symptom lists per triage code ─────────────────────────────
-// Mirrors the questionnaire in mobile/app/emergency/triage.tsx.
-// The patient answered YES to at least one item in their code's list.
-// TODO: store the specific triggered symptom(s) in emergencies.notes
-//       so the professional sees exactly what was selected, not the full list.
-const SYMPTOMS = {
-  ROJO: {
-    label: 'Síntomas críticos reportados',
-    note: 'El paciente indicó al menos uno de estos síntomas.',
-    dotColor: 'bg-red-500',
-    items: [
-      'Inconsciencia o no responde',
-      'Dificultad severa para respirar',
-      'Dolor opresivo en el pecho',
-      'Sangrado que no se detiene',
-      'Convulsiones activas',
-    ],
-  },
-  AMARILLO: {
-    label: 'Síntomas urgentes reportados',
-    note: 'El paciente indicó al menos uno de estos síntomas.',
-    dotColor: 'bg-amber-500',
-    items: [
-      'Dolor muy severo o repentino',
-      'Fiebre alta que no baja',
-      'Traumatismo o fractura',
-      'Vómitos o diarrea sin parar',
-      'Dificultad para hablar o moverse',
-    ],
-  },
-  VERDE: {
-    label: 'Sin síntomas de emergencia',
-    note: 'El paciente no reportó síntomas críticos ni urgentes.',
-    dotColor: 'bg-emerald-500',
-    items: [],
-  },
-}
-
-// ── Demo fixtures — used when ?demo=<phase> is in the URL ──────
+// ── Demo fixtures — DEV ONLY. Used when ?demo=<phase> is in the URL.
+// Gated behind import.meta.env.DEV below (search params are ignored in
+// production builds so this fixture data can never reach a real professional).
+// camelCased to match what emergencyService now returns for real rows.
 const DEMO = {
   standby: null,
   dispatched: {
-    id: 'demo-1', dispatch_code: 'UTM-8842', triage_code: 'ROJO',
-    status: 'dispatched', created_at: new Date(Date.now() - 90_000).toISOString(),
-    patient_latitude: -34.5956, patient_longitude: -58.3843,
-    patient: { full_name: 'Juan García', phone: '+54 11 4321-0000' },
+    id: 'demo-1', dispatchCode: 'UTM-8842', triageCode: 'ROJO',
+    status: 'dispatched', createdAt: new Date(Date.now() - 90_000).toISOString(),
+    patientLatitude: -34.5956, patientLongitude: -58.3843,
+    patient: { fullName: 'Juan García', phone: '+54 11 4321-0000' },
   },
   in_transit: {
-    id: 'demo-2', dispatch_code: 'UTM-8842', triage_code: 'ROJO',
-    status: 'in_transit', created_at: new Date(Date.now() - 300_000).toISOString(),
-    patient_latitude: -34.5956, patient_longitude: -58.3843,
-    patient: { full_name: 'Juan García', phone: '+54 11 4321-0000' },
+    id: 'demo-2', dispatchCode: 'UTM-8842', triageCode: 'ROJO',
+    status: 'in_transit', createdAt: new Date(Date.now() - 300_000).toISOString(),
+    patientLatitude: -34.5956, patientLongitude: -58.3843,
+    patient: { fullName: 'Juan García', phone: '+54 11 4321-0000' },
   },
   arrived: {
-    id: 'demo-3', dispatch_code: 'UTM-8842', triage_code: 'ROJO',
-    status: 'arrived', created_at: new Date(Date.now() - 900_000).toISOString(),
-    patient_latitude: -34.5956, patient_longitude: -58.3843,
-    patient: { full_name: 'Juan García', phone: null },
+    id: 'demo-3', dispatchCode: 'UTM-8842', triageCode: 'ROJO',
+    status: 'arrived', createdAt: new Date(Date.now() - 900_000).toISOString(),
+    patientLatitude: -34.5956, patientLongitude: -58.3843,
+    patient: { fullName: 'Juan García', phone: null },
   },
 }
 
@@ -94,8 +59,11 @@ export default function ProfessionalEmergencias({ profile }) {
 
   // ?id=<uuid> — load a specific emergency (deeplink / reconnect)
   const emergenciaId = searchParams.get('id')
-  // ?demo=standby|dispatched|in_transit|arrived — inject mock state for previewing
-  const demoPhase = searchParams.get('demo')
+  // ?demo=standby|dispatched|in_transit|arrived — inject mock state for previewing.
+  // DEV-ONLY: in production builds import.meta.env.DEV is false, so the param
+  // is ignored entirely and the real DB path below always runs — no fixture
+  // data (fake patient, fake coords, fake dispatch code) can ever reach prod.
+  const demoPhase = import.meta.env.DEV ? searchParams.get('demo') : null
 
   const [emergency, setEmergency] = useState(demoPhase !== null ? DEMO[demoPhase] ?? null : undefined)
   const [loading, setLoading] = useState(demoPhase === null)
@@ -127,8 +95,7 @@ export default function ProfessionalEmergencias({ profile }) {
     // Realtime only when not pinned to a specific ID
     if (!emergenciaId) {
       unsubRef.current = emergencyService.subscribe(profile.id, (updated) => {
-        const terminal = ['cancelled', 'completed']
-        setEmergency(terminal.includes(updated.status) ? null : updated)
+        setEmergency(EMERGENCY_TERMINAL_STATUSES.includes(updated.status) ? null : updated)
         if (updated.status === 'dispatched' && navigator.vibrate) {
           navigator.vibrate([200, 100, 200])
         }
@@ -161,11 +128,11 @@ export default function ProfessionalEmergencias({ profile }) {
   }
 
   // ── Derived ────────────────────────────────────────────────
-  const cs          = CODE[emergency?.triage_code] ?? CODE.ROJO
-  const patientName = emergency?.patient?.full_name ?? null
+  const cs          = CODE[emergency?.triageCode] ?? CODE.ROJO
+  const patientName = emergency?.patient?.fullName ?? null
   const patientPhone = emergency?.patient?.phone ?? null
-  const mapsUrl     = emergency?.patient_latitude
-    ? `https://maps.google.com/?q=${emergency.patient_latitude},${emergency.patient_longitude}&navigate=yes`
+  const mapsUrl     = emergency?.patientLatitude
+    ? `https://maps.google.com/?q=${emergency.patientLatitude},${emergency.patientLongitude}&navigate=yes`
     : null
 
   // ── LOADING ────────────────────────────────────────────────
@@ -216,12 +183,12 @@ export default function ProfessionalEmergencias({ profile }) {
 
         <div className="flex-1 flex flex-col gap-4 px-5 py-6">
           <div className="bg-white rounded-3xl p-5 flex flex-col gap-3">
-            <Row label="Código"    value={<span className="font-black text-text-primary text-lg tracking-wider">{emergency.dispatch_code}</span>} />
+            <Row label="Código"    value={<span className="font-black text-text-primary text-lg tracking-wider">{emergency.dispatchCode}</span>} />
             <Divider />
             {patientName && <Row label="Paciente"  value={patientName} />}
-            <Row label="Recibida"  value={elapsed(emergency.created_at)} />
-            {emergency.patient_latitude && (
-              <Row label="Ubicación" value={`${Number(emergency.patient_latitude).toFixed(4)}, ${Number(emergency.patient_longitude).toFixed(4)}`} small />
+            <Row label="Recibida"  value={elapsed(emergency.createdAt)} />
+            {emergency.patientLatitude && (
+              <Row label="Ubicación" value={`${Number(emergency.patientLatitude).toFixed(4)}, ${Number(emergency.patientLongitude).toFixed(4)}`} small />
             )}
           </div>
 
@@ -244,7 +211,7 @@ export default function ProfessionalEmergencias({ profile }) {
             <span className={`w-3 h-3 rounded-full ${cs.dot} animate-pulse`} />
             <span className="text-xs font-black tracking-widest text-white uppercase">En camino</span>
           </div>
-          <h1 className="text-white font-black text-3xl">{emergency.dispatch_code}</h1>
+          <h1 className="text-white font-black text-3xl">{emergency.dispatchCode}</h1>
           <p className={`text-sm font-bold ${cs.text}`}>{cs.label}</p>
         </div>
 
@@ -277,9 +244,9 @@ export default function ProfessionalEmergencias({ profile }) {
           <div className="bg-white rounded-3xl p-5 flex flex-col gap-3 border border-border-default">
             {patientName && <Row label="Paciente"    value={patientName} />}
             <Row label="Código"      value={<span className={`font-black ${cs.text}`}>{cs.label}</span>} />
-            <Row label="Despacho"    value={<span className="font-mono">{emergency.dispatch_code}</span>} />
-            {emergency.patient_latitude && (
-              <Row label="Coordenadas" value={`${Number(emergency.patient_latitude).toFixed(5)}, ${Number(emergency.patient_longitude).toFixed(5)}`} small />
+            <Row label="Despacho"    value={<span className="font-mono">{emergency.dispatchCode}</span>} />
+            {emergency.patientLatitude && (
+              <Row label="Coordenadas" value={`${Number(emergency.patientLatitude).toFixed(5)}, ${Number(emergency.patientLongitude).toFixed(5)}`} small />
             )}
           </div>
 
@@ -294,14 +261,15 @@ export default function ProfessionalEmergencias({ profile }) {
   }
 
   // ── ARRIVED ────────────────────────────────────────────────
-  const sym = SYMPTOMS[emergency.triage_code] ?? SYMPTOMS.ROJO
-
-  // Parse stored symptoms from notes (JSON array set by mobile triage)
+  // Parse the patient's actually-reported symptoms from notes (JSON array set
+  // by mobile triage). Never fall back to a generic per-code list as if it
+  // were "reported" — that was clinically misleading (shown even when notes
+  // was empty). If there's nothing real to show, say so honestly.
   let storedSymptoms = null
   if (emergency.notes) {
     try { storedSymptoms = JSON.parse(emergency.notes) } catch { /* ignore */ }
   }
-  const hasExactSymptoms = Array.isArray(storedSymptoms) && storedSymptoms.length > 0
+  const hasReportedSymptoms = Array.isArray(storedSymptoms) && storedSymptoms.length > 0
 
   return (
     <div className="min-h-screen bg-bg-primary flex flex-col px-6 pt-14 pb-10 gap-6 overflow-y-auto">
@@ -315,33 +283,32 @@ export default function ProfessionalEmergencias({ profile }) {
           {patientName ? `Estás con ${patientName}.` : 'Estás con el paciente.'}{' '}
           La consulta continúa de forma presencial.
         </p>
-        <span className={`font-bold text-sm ${cs.text}`}>{cs.label} · {emergency.dispatch_code}</span>
+        <span className={`font-bold text-sm ${cs.text}`}>{cs.label} · {emergency.dispatchCode}</span>
       </div>
 
-      {/* Symptom summary */}
+      {/* Symptom summary — only ever shows what the patient actually reported */}
       <div className={`rounded-3xl border p-5 flex flex-col gap-3 ${cs.bg} ${cs.border}`}>
         <div className="flex items-center gap-2">
           <cs.Icon className={`w-5 h-5 ${cs.text}`} />
           <span className={`font-black text-sm uppercase tracking-wide ${cs.text}`}>
-            {hasExactSymptoms ? 'Síntomas reportados por el paciente' : sym.label}
+            {hasReportedSymptoms ? 'Síntomas reportados por el paciente' : 'Sin síntomas registrados'}
           </span>
         </div>
-        <p className="text-sm text-text-secondary">
-          {hasExactSymptoms
-            ? 'El paciente seleccionó estos síntomas durante el triage.'
-            : sym.note}
-        </p>
-        <ul className="flex flex-col gap-2 mt-1">
-          {(hasExactSymptoms ? storedSymptoms : sym.items).map(s => (
-            <li key={s} className="flex items-center gap-2.5">
-              <span className={`w-2 h-2 rounded-full shrink-0 ${sym.dotColor}`} />
-              <span className="text-sm font-medium text-text-primary">{s}</span>
-            </li>
-          ))}
-        </ul>
-        {!hasExactSymptoms && sym.items.length > 0 && (
-          <p className="text-xs text-text-tertiary mt-1 italic">
-            El paciente indicó al menos uno de estos síntomas.
+        {hasReportedSymptoms ? (
+          <>
+            <p className="text-sm text-text-secondary">El paciente seleccionó estos síntomas durante el triage.</p>
+            <ul className="flex flex-col gap-2 mt-1">
+              {storedSymptoms.map(s => (
+                <li key={s} className="flex items-center gap-2.5">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${cs.dot}`} />
+                  <span className="text-sm font-medium text-text-primary">{s}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="text-sm text-text-secondary">
+            No quedó registro de síntomas para esta emergencia. Llamá al paciente para relevarlos.
           </p>
         )}
       </div>
@@ -350,7 +317,7 @@ export default function ProfessionalEmergencias({ profile }) {
       <div className="bg-white rounded-3xl p-5 flex flex-col gap-3 border border-border-default">
         {patientName && <Row label="Paciente"  value={patientName} />}
         <Row label="Código"    value={<span className={`font-black ${cs.text}`}>{cs.label}</span>} />
-        <Row label="Despacho"  value={<span className="font-mono">{emergency.dispatch_code}</span>} />
+        <Row label="Despacho"  value={<span className="font-mono">{emergency.dispatchCode}</span>} />
       </div>
 
       <Btn loading={updating} onClick={closeEmergency} color="bg-gray-950 hover:bg-gray-800" icon={<CheckCircle className="w-6 h-6" />}>

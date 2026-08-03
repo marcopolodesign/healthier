@@ -1,4 +1,29 @@
-import { supabase } from '../lib/supabase'
+import { supabase, toCamelCase } from '../lib/supabase'
+
+// ─────────────────────────────────────────────────────────────
+// SOS price — MVP placeholder.
+//
+// vertical_settings (migración 078) sólo modela el precio de consultas
+// on-demand por vertical; no hay una fila/columna equivalente para
+// emergencias SOS (no es una "vertical" en ese sentido). Hasta que haya un
+// lugar real en Settings, el precio vive acá como constante única. Mover a
+// `vertical_settings` (o una tabla propia) cuando se conecte el cobro real.
+// ─────────────────────────────────────────────────────────────
+export const SOS_PRICE = 50
+
+// Mismo pool que usa mobile hoy (EmergencyService.ts findOnCallDoctor):
+// especialidad clínica general, on-demand, verificado y activo. Pre-MVP el
+// pool es de UN solo profesional — no hay zonas, olas de despacho ni scoring
+// de reputación (ver "Estadio del producto" en el CLAUDE.md raíz). Dispatch =
+// elegir UNO al azar entre los elegibles. Sin cola, sin reintento: si no hay
+// nadie elegible, no se inserta la fila — se avisa al paciente.
+const ELIGIBLE_SPECIALTY = 'medicina_general'
+
+// Shared across professional + patient queries and their consumers
+// (professional/Dashboard.jsx, professional/Emergencias.jsx) so the set of
+// "still active" / "already resolved" statuses lives in one place.
+export const EMERGENCY_ACTIVE_STATUSES = ['dispatched', 'in_transit', 'arrived']
+export const EMERGENCY_TERMINAL_STATUSES = ['cancelled', 'completed']
 
 // ─────────────────────────────────────────────────────────────
 // TODO (future): WhatsApp notification on emergency assignment
@@ -15,8 +40,9 @@ import { supabase } from '../lib/supabase'
 //   4. Link must include ?id=<emergencia_id> so the screen loads the right record
 //
 // Do NOT use the Realtime subscription as the sole delivery channel —
-// it only works if the professional already has the app open.
-// WhatsApp is the reliable fallback when the app is closed.
+// it only works if the professional already has the app open. The push
+// notification below (send-push-notification) is the reliable fallback when
+// the app is closed. WhatsApp would be a further fallback on top of that.
 // ─────────────────────────────────────────────────────────────
 
 export const emergencyService = {
@@ -30,7 +56,7 @@ export const emergencyService = {
       .eq('id', emergenciaId)
       .single()
     if (error) throw error
-    return data
+    return toCamelCase(data)
   },
 
   /** Fetch the latest active emergency assigned to this professional */
@@ -39,21 +65,24 @@ export const emergencyService = {
       .from('emergencies')
       .select('*, patient:profiles!patient_id(full_name, avatar_url)')
       .eq('professional_id', professionalId)
-      .in('status', ['dispatched', 'in_transit', 'arrived'])
+      .in('status', EMERGENCY_ACTIVE_STATUSES)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
     if (error) throw error
-    return data
+    return data ? toCamelCase(data) : null
   },
 
-  /** Update emergency status */
+  /** Update emergency status — returns the updated row (camelCased). */
   async updateStatus(emergencyId, status) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('emergencies')
       .update({ status })
       .eq('id', emergencyId)
+      .select()
+      .single()
     if (error) throw error
+    return toCamelCase(data)
   },
 
   /**
@@ -66,12 +95,12 @@ export const emergencyService = {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'emergencies', filter: `professional_id=eq.${professionalId}` },
-        (payload) => onChange(payload.new)
+        (payload) => onChange(toCamelCase(payload.new))
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'emergencies', filter: `professional_id=eq.${professionalId}` },
-        (payload) => onChange(payload.new)
+        (payload) => onChange(toCamelCase(payload.new))
       )
       .subscribe()
 
@@ -88,16 +117,124 @@ export const emergencyService = {
       .eq('patient_id', patientId)
       .order('created_at', { ascending: false })
     if (error) throw error
-    return data ?? []
+    return data ? toCamelCase(data) : []
   },
 
-  async processPayment(_amount) {
-    await new Promise(r => setTimeout(r, 2000))
-    return { success: true, token: `EMG-${Date.now()}` }
+  /**
+   * Fetch the patient's currently active emergency (if any), with the
+   * assigned professional's contact info — used to resume the SOS screen on
+   * refresh/reopen (state resilience rule: any non-terminal record needs a
+   * resume path).
+   */
+  async getActiveForPatient(patientId) {
+    const { data, error } = await supabase
+      .from('emergencies')
+      .select('*, professional:profiles!professional_id(full_name, phone, avatar_url)')
+      .eq('patient_id', patientId)
+      .in('status', EMERGENCY_ACTIVE_STATUSES)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) throw error
+    return data ? toCamelCase(data) : null
   },
 
-  async findUnit(_userLocation) {
-    await new Promise(r => setTimeout(r, 4500))
-    return { unit: 'Móvil 42', paramedic: 'Juan Pérez', etaMinutes: 4, phone: '+54 11 4567-0042' }
+  /**
+   * Create a real SOS dispatch. Pre-MVP dispatch model: pick ONE eligible
+   * professional AT RANDOM (random rotation, not rating-ordered) — no queue,
+   * no retry. If nobody is eligible, do NOT insert a row; return a signal so
+   * the UI can tell the patient nobody is available right now.
+   *
+   * Writes to the DB before any UI confirmation — this is the flow-critical
+   * record for the state-resilience rule (network drop / refresh mid-SOS
+   * must be resumable via getActiveForPatient()).
+   */
+  async create({ patientId, triageCode, symptoms, latitude, longitude, priceAtRequest, paymentMethodId }) {
+    const { data: eligible, error: eligibleError } = await supabase
+      .from('professional_profiles')
+      .select('user_id')
+      .eq('specialty', ELIGIBLE_SPECIALTY)
+      .eq('is_on_demand', true)
+      .eq('is_verified', true)
+      .eq('is_active', true)
+    if (eligibleError) throw eligibleError
+
+    if (!eligible || eligible.length === 0) {
+      return { noProfessional: true }
+    }
+
+    const chosen = eligible[Math.floor(Math.random() * eligible.length)]
+    const dispatchCode = `UTM-${Math.floor(1000 + Math.random() * 9000)}`
+
+    const { data, error } = await supabase
+      .from('emergencies')
+      .insert({
+        patient_id: patientId,
+        professional_id: chosen.user_id,
+        triage_code: triageCode,
+        status: 'dispatched',
+        dispatch_code: dispatchCode,
+        notes: symptoms?.length ? JSON.stringify(symptoms) : null,
+        patient_latitude: latitude ?? null,
+        patient_longitude: longitude ?? null,
+        price_at_request: priceAtRequest ?? null,
+        payment_method_id: paymentMethodId ?? null,
+      })
+      .select('*, professional:profiles!professional_id(full_name, phone, avatar_url)')
+      .single()
+    if (error) throw error
+
+    const result = toCamelCase(data)
+
+    // Fire-and-forget — never let a push failure break the SOS dispatch.
+    supabase.functions.invoke('send-push-notification', {
+      body: {
+        userId: chosen.user_id,
+        title: '🚨 EMERGENCIA SOS',
+        body:  `Nueva emergencia asignada — Código ${triageCode} (${dispatchCode}). Abrí la app para aceptar.`,
+        url:   '/profesional/emergencias',
+      },
+    }).catch(() => {})
+
+    return result
+  },
+
+  /** Patient cancels their own emergency (RLS: emergency_patient_cancel). */
+  async cancel(emergencyId) {
+    const { error } = await supabase
+      .from('emergencies')
+      .update({ status: 'cancelled' })
+      .eq('id', emergencyId)
+    if (error) throw error
+  },
+
+  /**
+   * Subscribe to updates on a single emergency (patient side — status
+   * changes as the professional accepts / arrives / completes).
+   * Returns an unsubscribe function.
+   */
+  subscribeForPatient(emergencyId, onChange) {
+    const channel = supabase
+      .channel(`patient-emergency-${emergencyId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'emergencies', filter: `id=eq.${emergencyId}` },
+        (payload) => onChange(toCamelCase(payload.new))
+      )
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
+  },
+
+  // ── Super admin ─────────────────────────────────────────────────────
+
+  /** All emergencies, newest first, with patient/professional info — /super-admin/emergencias. */
+  async listAllForAdmin() {
+    const { data, error } = await supabase
+      .from('emergencies')
+      .select('*, patient:profiles!patient_id(full_name, phone), professional:profiles!professional_id(full_name)')
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data ?? []).map(toCamelCase)
   },
 }

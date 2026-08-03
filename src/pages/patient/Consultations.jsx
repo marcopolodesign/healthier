@@ -553,8 +553,8 @@ export default function PatientConsultations({ profile }) {
 
       {/* Active emergency banners — always at top of Próximos */}
       {view === 'upcoming' && activeEmergencies.map(emg => {
-        const triage = TRIAGE_CLASSES[emg.triage_code] ?? DEFAULT_TRIAGE
-        const fecha = new Date(emg.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
+        const triage = TRIAGE_CLASSES[emg.triageCode] ?? DEFAULT_TRIAGE
+        const fecha = new Date(emg.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
         return (
           <div key={emg.id} className={`mb-3 rounded-2xl border p-4 flex items-center gap-4 ${triage.border} ${triage.bg}`}>
             <div className={`w-12 h-12 rounded-[14px] flex items-center justify-center shrink-0 ${triage.chip}`}>
@@ -562,10 +562,10 @@ export default function PatientConsultations({ profile }) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-[15px] text-gray-900">Emergencia S.O.S</p>
-              <p className="text-[13px] text-gray-500 font-medium">{fecha} · {emg.dispatch_code ?? '—'}</p>
+              <p className="text-[13px] text-gray-500 font-medium">{fecha} · {emg.dispatchCode ?? '—'}</p>
             </div>
             <div className={`px-2.5 py-1 rounded-md text-[10px] font-semibold tracking-widest uppercase text-white ${triage.solid}`}>
-              {emg.triage_code ?? 'ACTIVA'}
+              {emg.triageCode ?? 'ACTIVA'}
             </div>
           </div>
         )
@@ -573,15 +573,15 @@ export default function PatientConsultations({ profile }) {
 
       {/* Past emergencies in Historial */}
       {view === 'past' && pastEmergencies.map(emg => {
-        const fecha = new Date(emg.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
+        const fecha = new Date(emg.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
         return (
           <div key={emg.id} className="mb-3 bg-bg-secondary rounded-2xl border border-border-default p-4 flex items-center gap-4">
             <div className="w-12 h-12 rounded-[14px] bg-gray-50 flex items-center justify-center shrink-0">
               <Ambulance className="w-6 h-6 text-gray-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-[15px] text-gray-900">Emergencia S.O.S · {emg.triage_code}</p>
-              <p className="text-[13px] text-gray-500 font-medium">{fecha} · {emg.dispatch_code ?? '—'}</p>
+              <p className="font-semibold text-[15px] text-gray-900">Emergencia S.O.S · {emg.triageCode}</p>
+              <p className="text-[13px] text-gray-500 font-medium">{fecha} · {emg.dispatchCode ?? '—'}</p>
             </div>
             <div className="px-2.5 py-1 rounded-md text-[10px] font-semibold bg-gray-100 text-gray-500 uppercase tracking-wider">
               Finalizado

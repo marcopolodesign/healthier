@@ -4,15 +4,7 @@ import { paymentsService } from '../../services/paymentsService'
 import { mpService } from '../../services/mpService'
 import { toast } from '../../components/Toast'
 import Modal from '../../components/Modal'
-
-function formatARS(amount) {
-  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(amount || 0)
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
+import { formatARS, formatDate } from '../../lib/format'
 
 const METHOD_LABELS = { card: 'Tarjeta', credits: 'Créditos', mixed: 'Mixto' }
 // 'authorized' / 'cancelled' come from the on-demand pre-authorization flow
