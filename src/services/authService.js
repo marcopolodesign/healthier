@@ -54,7 +54,12 @@ export const authService = {
   async loginWithGoogle(redirectTo) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: redirectTo || `${window.location.origin}/login` },
+      options: {
+        redirectTo: redirectTo || `${window.location.origin}/login`,
+        // Sin esto, Google saltea el selector cuando hay una sola sesión
+        // activa y entra directo — el usuario nunca puede elegir otra cuenta.
+        queryParams: { prompt: 'select_account' },
+      },
     })
     if (error) throw new Error(error.message)
   },
