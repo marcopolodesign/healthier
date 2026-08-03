@@ -1,4 +1,4 @@
-const STATUS_CONFIG = {
+export const STATUS_CONFIG = {
   pending:               { label: 'Pendiente',             cls: 'status-badge status-pending' },
   confirmed:             { label: 'Confirmada',            cls: 'status-badge status-confirmed' },
   in_progress:           { label: 'En curso',              cls: 'status-badge status-in-progress' },

@@ -400,10 +400,20 @@ export const consultationsService = {
   },
 
   async getAll(filters = {}) {
+    // Super Admin > Consultas necesita paciente/profesional completos (con
+    // email, para buscar) y el tipo de consulta si el profesional definió uno.
+    // AdminConsultations (la vista de /admin) usa este mismo método y sólo lee
+    // patient.fullName / professional.fullName / modality / scheduledAt / status
+    // — el select ampliado es un superset, no le rompe nada.
     let query = supabase
       .from('consultations')
-      .select('*, patient:profiles!patient_id(full_name, email), professional:profiles!professional_id(full_name, professional_profiles!professional_profiles_user_id_fkey(specialty))')
-      .order('scheduled_at', { ascending: false })
+      .select(`
+        *,
+        patient:profiles!patient_id(id, full_name, email),
+        professional:profiles!professional_id(id, full_name, email, professional_profiles!professional_profiles_user_id_fkey(specialty)),
+        consultation_type:consultation_types!consultation_type_id(id, name)
+      `)
+      .order('scheduled_at', { ascending: false, nullsFirst: false })
 
     if (filters.status) query = query.eq('status', filters.status)
 
