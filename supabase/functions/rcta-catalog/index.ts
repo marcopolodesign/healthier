@@ -38,10 +38,18 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return json({ error: 'No autorizado' }, 401)
 
-    const { data: profile } = await supabase
-      .from('profiles').select('role').eq('id', user.id).maybeSingle()
-    if (!profile || !['professional', 'admin', 'super_admin'].includes(profile.role)) {
-      return json({ error: 'Solo profesionales pueden consultar el catálogo' }, 403)
+    const url = new URL(req.url)
+    const action = url.searchParams.get('action')
+
+    // Financiadores lo consulta también el paciente (onboarding: la obra social
+    // se elige del catálogo, nunca texto libre). Medicamentos y prácticas
+    // siguen siendo de profesionales: son los que consumen cuota buscando.
+    if (action !== 'financiadores') {
+      const { data: profile } = await supabase
+        .from('profiles').select('role').eq('id', user.id).maybeSingle()
+      if (!profile || !['professional', 'admin', 'super_admin'].includes(profile.role)) {
+        return json({ error: 'Solo profesionales pueden consultar el catálogo' }, 403)
+      }
     }
 
     const RCTA_API_URL = Deno.env.get('RCTA_API_URL')
@@ -50,9 +58,6 @@ Deno.serve(async (req) => {
     if (!RCTA_API_URL || !RCTA_API_KEY || !RCTA_CLIENT_APP_ID) {
       return json({ error: 'RCTA no configurado', code: 'RCTA_NOT_CONFIGURED' }, 503)
     }
-
-    const url = new URL(req.url)
-    const action = url.searchParams.get('action')
 
     const call = async (path: string, params: Record<string, string | null> = {}) => {
       const qs = new URLSearchParams({ clienteAppId: RCTA_CLIENT_APP_ID })

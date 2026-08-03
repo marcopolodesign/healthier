@@ -31,6 +31,16 @@ el profesional elija de esa lista.
 > es exactamente lo que la API no acepta. Convertir ese campo en un selector
 > alimentado por `GetFinanciadores`, y guardar el ID, es trabajo pendiente.
 
+**`QBI25` — "EL AFILIADO ES REQUERIDO SI SE INFORMA EL FINANCIADOR"** (visto
+2026-08-03): si la receta lleva `cobertura.idFinanciador`, el `numero` de
+afiliado es obligatorio — mandarlo vacío es rechazo seguro. Es la misma regla
+de siempre: **un campo vacío no es lo mismo que un campo omitido**. `rcta-issue`
+corta antes con `RCTA_AFILIADO_FALTANTE` (422) y mensaje accionable, y el
+`FinanciadorPicker` avisa en rojo cuando hay obra social sin afiliado. La
+alternativa de "degradar" a receta particular cuando falta el afiliado se
+descartó a propósito: el paciente declaró cobertura, y una receta particular le
+haría perder el descuento del medicamento sin que nadie lo decida.
+
 ---
 
 ## 2. Nunca inventes códigos: ni de medicamento ni de financiador

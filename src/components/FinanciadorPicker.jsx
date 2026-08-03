@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { MagnifyingGlass, CircleNotch, Check, X, Warning } from '@phosphor-icons/react'
-import { rctaService } from '../../services/rctaService'
+import { rctaService } from '../services/rctaService'
 
 /**
  * Selector de financiador (obra social / prepaga) del catálogo de Innovamed.
@@ -95,8 +95,10 @@ export default function FinanciadorPicker({
           // Lo que sí importa es no confundir "no preguntamos" con "es
           // particular", porque un afiliado que reciba una receta particular
           // pierde la cobertura del medicamento.
+          // Copy neutral: lo lee el profesional en la consulta y el paciente
+          // en su onboarding — no asumir quién emite.
           <p className="text-[11px] text-text-tertiary mt-1.5">
-            Sin definir — opcional. Si emitís una receta ahora sale sin cobertura, como particular.
+            Sin definir — opcional. Sin obra social, las recetas salen sin cobertura, como particular.
           </p>
         )}
       </div>
@@ -176,6 +178,15 @@ export default function FinanciadorPicker({
               placeholder="Ej: 23200126801"
               className="form-input"
             />
+            {financiadorId && !affiliateNumber.trim() && (
+              // Innovamed rechaza (QBI25) toda receta que informe financiador
+              // sin afiliado — avisarlo acá, antes de que el intento de emisión
+              // falle. Se puede guardar la cobertura igual y completarlo después.
+              <p className="text-[11px] text-danger mt-1 flex items-start gap-1">
+                <Warning className="h-3 w-3 mt-0.5 shrink-0" weight="fill" />
+                Requerido para emitir recetas: con obra social, Innovamed exige el número de afiliado.
+              </p>
+            )}
           </div>
         </>
       )}

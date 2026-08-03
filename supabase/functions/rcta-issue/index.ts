@@ -99,7 +99,7 @@ Deno.serve(async (req: Request) => {
     const cobertura = consulta?.coverage_type === 'financiador' && consulta?.financiador_id
       ? {
           idFinanciador: String(consulta.financiador_id),
-          numero: consulta.affiliate_number ?? '',
+          numero: String(consulta.affiliate_number ?? '').trim(),
         }
       : null
 
@@ -107,6 +107,16 @@ Deno.serve(async (req: Request) => {
       return json({
         error: 'La consulta tiene una obra social cargada a mano. Seleccionala del catálogo de Innovamed en "Cobertura médica" para poder emitir la receta.',
         code: 'RCTA_FINANCIADOR_SIN_CODIGO',
+      }, 422)
+    }
+
+    // QBI25 "EL AFILIADO ES REQUERIDO SI SE INFORMA EL FINANCIADOR": informar
+    // cobertura con `numero` vacio es rechazo seguro de la API. Igual que con
+    // la cobertura entera, mandar el campo vacio no es lo mismo que omitirlo.
+    if (cobertura && !cobertura.numero) {
+      return json({
+        error: 'La consulta tiene obra social pero falta el número de afiliado del paciente. Cargalo en "Cobertura médica" para poder emitir la receta.',
+        code: 'RCTA_AFILIADO_FALTANTE',
       }, 422)
     }
 
