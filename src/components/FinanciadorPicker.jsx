@@ -95,8 +95,8 @@ export default function FinanciadorPicker({
           // Lo que sí importa es no confundir "no preguntamos" con "es
           // particular", porque un afiliado que reciba una receta particular
           // pierde la cobertura del medicamento.
-          {/* Copy neutral: lo lee el profesional en la consulta y el paciente
-              en su onboarding — no asumir quién emite. */}
+          // Copy neutral: lo lee el profesional en la consulta y el paciente
+          // en su onboarding — no asumir quién emite.
           <p className="text-[11px] text-text-tertiary mt-1.5">
             Sin definir — opcional. Sin obra social, las recetas salen sin cobertura, como particular.
           </p>
