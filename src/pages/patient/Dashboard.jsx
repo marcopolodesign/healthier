@@ -13,7 +13,7 @@ const LAST_VERTICAL_KEY = 'healthier_last_vertical'
 import InteractiveMap from '../../components/patient/InteractiveMap'
 import ActiveAppointmentBanner from '../../components/patient/ActiveAppointmentBanner'
 import { professionalService } from '../../services/professionalService'
-import { emergencyService } from '../../services/emergencyService'
+import { emergencyService, getSosSettings } from '../../services/emergencyService'
 import { VERTICAL_SPECIALTIES, SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
 import { useVerticales } from '../../hooks/useVerticales'
 import { latLngToPixel, haversineKm, formatDistance } from '../../lib/geo'
@@ -47,6 +47,11 @@ export default function PatientDashboard({ profile }) {
   const [selectedMapPro, setSelectedMapPro] = useState(null)
   const [proPool, setProPool] = useState([])
   const [activeEmergency, setActiveEmergency] = useState(null)
+  // Disponibilidad del servicio S.O.S. — /super-admin/verticales (migración
+  // 087). Arranca en `true` (fail-open, misma filosofía que
+  // `getSosSettings()`): mientras se resuelve el fetch es mejor mostrar el
+  // botón un instante de más que ocultarlo por un fetch lento o caído.
+  const [sosEnabled, setSosEnabled] = useState(true)
 
   // One pro per vertical, keyed by vertical id
   const markersByVertical = useMemo(() => {
@@ -110,7 +115,8 @@ export default function PatientDashboard({ profile }) {
   // Active emergency resume banner — a dispatched/in_transit/arrived SOS is a
   // non-terminal record and must offer a way back into the tracking screen
   // (State Resilience rule). Re-checked on tab focus so the banner clears
-  // itself once the emergency is resolved elsewhere.
+  // itself once the emergency is resolved elsewhere. Fetched alongside the SOS
+  // enabled/disabled toggle since both come from the same mount/focus trigger.
   const lastEmergencyFetchRef = useRef(0)
   useEffect(() => {
     if (!profile?.id) return
@@ -120,6 +126,9 @@ export default function PatientDashboard({ profile }) {
       emergencyService.getActiveForPatient(profile.id)
         .then(data => { if (!cancelled) setActiveEmergency(data) })
         .catch(() => {}) // silent — the banner is additive, never blocks the home
+      // Sin .catch: getSosSettings() ya falla abierto (nunca rechaza) — ver su
+      // propio comentario en emergencyService.js.
+      getSosSettings().then(({ enabled }) => { if (!cancelled) setSosEnabled(enabled) })
     }
     load()
     // Throttled to at most once every 30s — a tab getting focused/blurred
@@ -373,7 +382,11 @@ export default function PatientDashboard({ profile }) {
     </div>
   )
 
-  const sosButton = (
+  // El toggle sólo esconde la ENTRADA a un SOS nuevo. Una emergencia ya en
+  // curso (activeEmergencyBanner) se sigue mostrando siempre — deshabilitar el
+  // servicio no puede dejar a un paciente con una emergencia activa sin forma
+  // de volver a la pantalla de tracking.
+  const sosButton = sosEnabled && (
     <button
       onClick={() => { track('sos_click', {}); navigate('/paciente/sos') }}
       className="w-full py-5 px-5 rounded-2xl bg-danger flex items-center gap-4 text-left active:scale-[0.98] transition-all"

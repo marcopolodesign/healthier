@@ -1,15 +1,35 @@
 import { supabase, toCamelCase } from '../lib/supabase'
+import { verticalsService } from './verticalsService'
 
 // ─────────────────────────────────────────────────────────────
-// SOS price — MVP placeholder.
-//
-// vertical_settings (migración 078) sólo modela el precio de consultas
-// on-demand por vertical; no hay una fila/columna equivalente para
-// emergencias SOS (no es una "vertical" en ese sentido). Hasta que haya un
-// lugar real en Settings, el precio vive acá como constante única. Mover a
-// `vertical_settings` (o una tabla propia) cuando se conecte el cobro real.
+// SOS settings — precio y disponibilidad, configurables desde
+// /super-admin/verticales (migración 087, reusa `vertical_settings` con
+// id='sos'; ver el comentario de esa migración para el porqué de reusar la
+// tabla en vez de crear una nueva). `verticalsService` es la única dueña de
+// las lecturas de esa tabla — acá sólo se envuelve con la semántica propia de
+// S.O.S. (fail-open) y la forma que consume esta pantalla.
 // ─────────────────────────────────────────────────────────────
-export const SOS_PRICE = 50
+export const SOS_FALLBACK = { enabled: true, price: 50 }
+
+/**
+ * Config actual de S.O.S. Fail-open a propósito: si la fila no existe o falla
+ * la lectura (red caída, RLS mal configurada, lo que sea), el flujo de
+ * emergencia NUNCA se bloquea por un problema de disponibilidad — es peor
+ * mostrarle "no disponible" a un paciente con una emergencia real por un error
+ * de lectura que dejar pasar la constante vieja como fallback.
+ */
+export async function getSosSettings() {
+  try {
+    const row = await verticalsService.getById('sos')
+    if (!row) return SOS_FALLBACK
+    return {
+      enabled: row.enabled ?? SOS_FALLBACK.enabled,
+      price: row.ondemandPrice != null ? Number(row.ondemandPrice) : SOS_FALLBACK.price,
+    }
+  } catch {
+    return SOS_FALLBACK
+  }
+}
 
 // Mismo pool que usa mobile hoy (EmergencyService.ts findOnCallDoctor):
 // especialidad clínica general, on-demand, verificado y activo. Pre-MVP el

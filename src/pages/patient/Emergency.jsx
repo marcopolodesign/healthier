@@ -4,7 +4,7 @@ import {
   ArrowLeft, Warning, CircleNotch, Check, Phone,
   User, CheckCircle, PhoneCall, MapPinLine,
 } from '@phosphor-icons/react'
-import { emergencyService, SOS_PRICE } from '../../services/emergencyService'
+import { emergencyService, getSosSettings, SOS_FALLBACK } from '../../services/emergencyService'
 import { mpService } from '../../services/mpService'
 import { brandLabel } from '../../components/payment/cardBrand'
 import InteractiveMap from '../../components/patient/InteractiveMap'
@@ -53,10 +53,36 @@ function formatElapsed(totalSeconds) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+// Pantalla honesta de "no se puede seguir" — misma estética para las dos
+// razones por las que el flujo se corta antes de despachar: nadie elegible
+// ahora mismo (`noProfessional`) o el servicio deshabilitado desde
+// /super-admin/verticales (`unavailable`). Sin cola ni reintento automático en
+// ninguno de los dos casos — se le avisa al paciente y decide él.
+function SosBlockedScreen({ title, body, onBack }) {
+  return (
+    <div className="absolute inset-0 bg-white z-[100] flex flex-col items-center justify-center p-6 animate-fade-in">
+      <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mb-4">
+        <Warning className="w-8 h-8 text-amber-600" />
+      </div>
+      <h2 className="text-[22px] font-light text-gray-900 mb-2 text-center">{title}</h2>
+      <p className="text-gray-500 font-medium text-[15px] text-center mb-3 max-w-xs">{body}</p>
+      <a
+        href={`tel:${SAME_PHONE}`}
+        className="flex items-center gap-2 text-danger font-semibold text-[15px] mb-8"
+      >
+        <PhoneCall className="w-5 h-5" /> Si es riesgo de vida, llamá al {SAME_PHONE} (SAME)
+      </a>
+      <button onClick={onBack} className="btn-primary px-8 py-3">
+        Volver al inicio
+      </button>
+    </div>
+  )
+}
+
 export default function Emergency({ profile }) {
   const navigate = useNavigate()
 
-  // phase: 'loading' | 'triage' | 'confirm' | 'dispatching' | 'noProfessional' | 'tracking' | 'closing'
+  // phase: 'loading' | 'triage' | 'confirm' | 'dispatching' | 'noProfessional' | 'unavailable' | 'tracking' | 'closing'
   const [phase, setPhase] = useState('loading')
 
   // ── Triage ──────────────────────────────────────────────────────────────
@@ -67,6 +93,9 @@ export default function Emergency({ profile }) {
   const [defaultCard, setDefaultCard] = useState(null)
   const [cardLoading, setCardLoading] = useState(true)
 
+  // ── SOS settings — precio y disponibilidad, /super-admin/verticales ─────
+  const [sosSettings, setSosSettings] = useState(null)
+
   // ── Dispatch / tracking ──────────────────────────────────────────────────
   const [emergency, setEmergency] = useState(null) // camelCased emergencies row, incl. .professional
   const [locationWarning, setLocationWarning] = useState(false)
@@ -75,16 +104,25 @@ export default function Emergency({ profile }) {
   const [cancelling, setCancelling] = useState(false)
 
   // ── Resume check on mount — a dispatched/in_transit/arrived row must send
-  // the patient straight back into tracking, per the State Resilience rule. ──
+  // the patient straight back into tracking, per the State Resilience rule.
+  // Se pide junto con la config de S.O.S.: una emergencia activa manda por
+  // encima del toggle de disponibilidad — si ya está en curso, se sigue
+  // acompañando aunque el servicio se haya deshabilitado después. ──────────
   useEffect(() => {
     if (!profile?.id) return
     let cancelled = false
-    emergencyService.getActiveForPatient(profile.id)
-      .then(active => {
+    Promise.all([
+      emergencyService.getActiveForPatient(profile.id),
+      getSosSettings(),
+    ])
+      .then(([active, settings]) => {
         if (cancelled) return
+        setSosSettings(settings)
         if (active) {
           setEmergency(active)
           setPhase('tracking')
+        } else if (!settings.enabled) {
+          setPhase('unavailable')
         } else {
           setPhase('triage')
         }
@@ -150,7 +188,7 @@ export default function Emergency({ profile }) {
         symptoms: symptomLabelsFromIds(selectedSymptoms),
         latitude: coords?.lat ?? null,
         longitude: coords?.lng ?? null,
-        priceAtRequest: SOS_PRICE,
+        priceAtRequest: sosSettings?.price ?? SOS_FALLBACK.price,
         paymentMethodId: defaultCard?.id ?? null,
       })
 
@@ -206,26 +244,23 @@ export default function Emergency({ profile }) {
   // ── No professional available — honest, no queue, no auto-retry ──────────
   if (phase === 'noProfessional') {
     return (
-      <div className="absolute inset-0 bg-white z-[100] flex flex-col items-center justify-center p-6 animate-fade-in">
-        <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mb-4">
-          <Warning className="w-8 h-8 text-amber-600" />
-        </div>
-        <h2 className="text-[22px] font-light text-gray-900 mb-2 text-center">
-          No hay profesionales disponibles en este momento
-        </h2>
-        <p className="text-gray-500 font-medium text-[15px] text-center mb-3 max-w-xs">
-          Por ahora no encontramos a nadie para atenderte por esta vía.
-        </p>
-        <a
-          href={`tel:${SAME_PHONE}`}
-          className="flex items-center gap-2 text-danger font-semibold text-[15px] mb-8"
-        >
-          <PhoneCall className="w-5 h-5" /> Si es riesgo de vida, llamá al {SAME_PHONE} (SAME)
-        </a>
-        <button onClick={() => navigate('/paciente/dashboard')} className="btn-primary px-8 py-3">
-          Volver al inicio
-        </button>
-      </div>
+      <SosBlockedScreen
+        title="No hay profesionales disponibles en este momento"
+        body="Por ahora no encontramos a nadie para atenderte por esta vía."
+        onBack={() => navigate('/paciente/dashboard')}
+      />
+    )
+  }
+
+  // ── Servicio deshabilitado desde /super-admin/verticales — honesto, sin
+  // insistir con reintentos, misma estética que "no hay profesionales" ───────
+  if (phase === 'unavailable') {
+    return (
+      <SosBlockedScreen
+        title="El servicio de S.O.S. no está disponible en este momento"
+        body="Estamos ajustando la disponibilidad. Probá de nuevo más tarde."
+        onBack={() => navigate('/paciente/dashboard')}
+      />
     )
   }
 
@@ -364,7 +399,7 @@ export default function Emergency({ profile }) {
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
               <Warning className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <p className="text-[13px] text-amber-700 leading-snug">
-                El costo del servicio es ${SOS_PRICE}. <span className="font-semibold">No se cobra ahora</span> — se abona al finalizar la atención.
+                El costo del servicio es ${sosSettings?.price ?? SOS_FALLBACK.price}. <span className="font-semibold">No se cobra ahora</span> — se abona al finalizar la atención.
               </p>
             </div>
 
@@ -408,7 +443,7 @@ export default function Emergency({ profile }) {
             >
               {phase === 'dispatching'
                 ? <><CircleNotch className="w-6 h-6 animate-spin" /> Buscando profesional…</>
-                : <>SOLICITAR S.O.S (${SOS_PRICE})</>
+                : <>SOLICITAR S.O.S (${sosSettings?.price ?? SOS_FALLBACK.price})</>
               }
             </button>
           </div>

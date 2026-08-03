@@ -20,6 +20,22 @@ export const verticalsService = {
   },
 
   /**
+   * Config de una sola fila por id. Usado por consumidores que no son
+   * verticales clínicas (p. ej. `emergencyService.getSosSettings()`, fila
+   * 'sos' de la migración 087) — esta tabla es la única dueña de las lecturas
+   * de `vertical_settings`, no cada servicio con su propio `supabase.from()`.
+   */
+  async getById(id) {
+    const { data, error } = await supabase
+      .from('vertical_settings')
+      .select('id, enabled, ondemand_price, sort_order')
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw error
+    return data ? toCamelCase(data) : null
+  },
+
+  /**
    * Habilitar/deshabilitar y fijar precio. super_admin únicamente — lo impone la
    * RLS, no este método.
    */
