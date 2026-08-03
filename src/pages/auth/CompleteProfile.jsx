@@ -21,6 +21,11 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
     setLoading(true)
     try {
       const utms = getStoredUtms()
+      // authService.completeGoogleProfile guarda contra authUser nulo (sesión
+      // perdida mientras completaba el perfil: token vencido, logout en otra
+      // pestaña, etc.) y tira un error con mensaje claro — antes esto
+      // explotaba con "Cannot read properties of null (reading 'id')" acá
+      // mismo. El catch de abajo ya lo muestra vía toast.
       const profile = await authService.completeGoogleProfile(authUser, role, fullName.trim(), utms)
       clearUtms()
       onProfileComplete(profile)

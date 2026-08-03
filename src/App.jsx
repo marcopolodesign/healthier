@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate, useLocation, useParams } from 'react-router-dom'
-import { ToastContainer } from './components/Toast'
+import { ToastContainer, toast } from './components/Toast'
 import AppLayout from './layouts/AppLayout'
 import AuthLayout from './layouts/AuthLayout'
 import PatientMobileLayout from './layouts/PatientMobileLayout'
@@ -110,14 +110,21 @@ function AuthRedirectHandler({ profile, authUser }) {
   const needsCompletion = !!authUser && !profile
 
   useEffect(() => {
-    if (!AUTH_PATHS.includes(location.pathname)) return
-
+    // A Google user without a `profiles` row must finish role selection no
+    // matter where they land — not just on the 4 known auth paths. The OAuth
+    // full-page redirect can land on "/" (e.g. Site URL fallback when the
+    // exact redirectTo isn't in Supabase's allow list), and without this the
+    // user gets stranded on the public landing page looking logged out while
+    // actually holding a live session with no profile (reported 2026-08-03,
+    // repro'd locally: authUser set, profile null, stuck on "/").
     if (needsCompletion) {
       if (location.pathname !== '/completar-registro') {
         navigate('/completar-registro', { replace: true })
       }
       return
     }
+
+    if (!AUTH_PATHS.includes(location.pathname)) return
     if (profile && location.pathname !== '/completar-registro') {
       navigate(ROLE_REDIRECTS[profile.role] || '/', { replace: true })
     }
@@ -167,8 +174,11 @@ export default function App() {
             setAuthUser(user)
           }
         }
-      } catch {
-        // ignore
+      } catch (err) {
+        // Sesión inicial: un fallo acá (red, Supabase caído) antes se
+        // tragaba en silencio y la app quedaba viendo el login sin
+        // explicación. Mostrar el motivo real (regla de Mateo).
+        toast.error(`No pudimos verificar tu sesión: ${err.message}`)
       } finally {
         setLoading(false)
       }
@@ -178,13 +188,19 @@ export default function App() {
     // Auth state listener
     const { data: { subscription } } = authService.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        const p = await authService.getCurrentUserProfile(session.user.id)
-        if (p) {
-          setProfile(p)
-          setAuthUser(null)
-          if (p.role === 'professional') loadProfSpecialty(session.user.id)
-        } else {
-          setAuthUser(session.user)
+        try {
+          const p = await authService.getCurrentUserProfile(session.user.id)
+          if (p) {
+            setProfile(p)
+            setAuthUser(null)
+            if (p.role === 'professional') loadProfSpecialty(session.user.id)
+          } else {
+            setAuthUser(session.user)
+          }
+        } catch (err) {
+          // Sin try/catch acá el rechazo quedaba sin manejar: no pasaba
+          // nada visible, ni error ni pantalla de completar perfil.
+          toast.error(`No pudimos cargar tu perfil: ${err.message}`)
         }
       } else if (event === 'SIGNED_OUT') {
         setProfile(null)

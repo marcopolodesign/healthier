@@ -65,6 +65,12 @@ export const authService = {
   },
 
   async completeGoogleProfile(user, role, fullName, utms = {}) {
+    if (!user?.id) {
+      // Defensa además del guard en CompleteProfile.jsx — nunca dereferenciar
+      // .id de un user nulo (esto es lo que producía el crash reportado:
+      // "Cannot read properties of null (reading 'id')").
+      throw new Error('No hay una sesión activa para completar el perfil. Iniciá sesión de nuevo.')
+    }
     const { data, error } = await supabase
       .from('profiles')
       .insert(buildProfileRow(user.id, user.email, role, fullName, utms))
@@ -107,7 +113,14 @@ export const authService = {
       .eq('id', uid)
       .single()
 
-    if (error) return null
+    if (error) {
+      // PGRST116 = "no rows" — esperado para un usuario recién autenticado
+      // que todavía no tiene fila en `profiles` (Google, o alta a medias).
+      // Cualquier otro error (RLS, red, etc.) se tiene que ver, no
+      // confundirse con "todavía no tiene perfil".
+      if (error.code === 'PGRST116') return null
+      throw new Error(error.message)
+    }
     const profile = toCamelCase(data)
     localStorage.setItem('userProfile', JSON.stringify(profile))
     return profile

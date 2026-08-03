@@ -21,8 +21,17 @@ export default function Login({ onLogin }) {
     setLoading(true)
     try {
       const { profile } = await authService.login(form.email, form.password)
-      await setAnalyticsUser(profile)
       track('login_success', { method: 'email' })
+
+      if (!profile) {
+        // Cuenta autenticada sin fila en `profiles` todavía (p. ej. quedó a
+        // medias, ver migración 082). No hay rol a dónde mandarla — el
+        // AuthRedirectHandler de App.jsx ya está escuchando este mismo login
+        // vía onAuthStateChange y va a mandarla a /completar-registro.
+        return
+      }
+
+      await setAnalyticsUser(profile)
       onLogin(profile)
 
       const redirects = {
