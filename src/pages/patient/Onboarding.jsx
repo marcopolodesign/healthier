@@ -116,9 +116,7 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
         emergency_phone: medical.emergencyPhone || null,
         emergency_rel:   medical.emergencyRel   || null,
       })
-      // Sin esto, App.jsx sigue con el perfil viejo en memoria y el Perfil/
-      // dashboard muestran los campos vacíos hasta recargar la página.
-      onProfileUpdate?.(updated)
+      onProfileUpdate?.(updated) // ver saveStep1
       track('sign_up_step_complete', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], flow: 'paciente' })
       track('sign_up_complete', { flow: 'paciente', profile_completed: true })
       toast.success('¡Perfil completo!')
