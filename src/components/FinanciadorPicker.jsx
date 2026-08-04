@@ -113,7 +113,6 @@ export default function FinanciadorPicker({
                 <Check className="h-4 w-4 text-brand shrink-0" weight="bold" />
                 <span className="flex-1 min-w-0 text-sm font-semibold text-text-primary truncate">
                   {financiadorName}
-                  <span className="font-normal text-text-tertiary"> · id {financiadorId}</span>
                 </span>
                 <button
                   type="button"
