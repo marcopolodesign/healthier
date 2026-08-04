@@ -509,9 +509,6 @@ export default function PatientConsultations({ profile }) {
       <div className="max-w-2xl lg:max-w-4xl mx-auto">
       <div className="mb-8 mt-4">
         <h1 className="text-2xl sm:text-3xl font-light text-gray-900 tracking-tight leading-none">Mi Agenda</h1>
-        <p className="text-gray-500 font-medium text-[15px] mt-2 flex items-center gap-1.5">
-          <Calendar className="w-4 h-4 text-gray-400" /> Reservá tu turno
-        </p>
         {creditBalance > 0 && (
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-muted text-brand text-[12px] font-semibold mt-3 w-fit">
             <Sparkle className="w-3.5 h-3.5" weight="fill" /> Healthy Credits: ${creditBalance.toLocaleString('es-AR')}
@@ -550,10 +547,21 @@ export default function PatientConsultations({ profile }) {
         </div>
       </div>
 
-      {/* Segment control — matches mobile style */}
-      <div className="flex bg-bg-secondary border border-border-default p-1 rounded-2xl mb-5">
+      {/* Turnos ya reservados — mismo submenú que videoconsulta/BioVisor:
+          alineado a la izquierda con subrayado, en vez del segment control
+          (Mateo, 2026-08-03) */}
+      <h2 className="text-[17px] font-semibold text-text-primary leading-tight">Mis turnos ya reservados</h2>
+      <div className="flex justify-start gap-6 border-b border-border-default mb-5">
         {['upcoming', 'past'].map(tab => (
-          <button key={tab} onClick={() => { track('agenda_tab_switch', { tab: tab === 'upcoming' ? 'proximos' : 'historial' }); setView(tab) }} className={`flex-1 py-2 text-[14px] rounded-[28px] transition-all ${view === tab ? 'bg-white font-semibold text-text-primary shadow-sm' : 'font-medium text-text-tertiary'}`}>
+          <button
+            key={tab}
+            onClick={() => { track('agenda_tab_switch', { tab: tab === 'upcoming' ? 'proximos' : 'historial' }); setView(tab) }}
+            className={`py-4 text-[15px] transition-colors border-b-2 ${
+              view === tab
+                ? 'border-brand text-brand font-semibold'
+                : 'border-transparent text-text-tertiary hover:text-text-secondary'
+            }`}
+          >
             {tab === 'upcoming' ? 'Próximos' : 'Historial'}
           </button>
         ))}

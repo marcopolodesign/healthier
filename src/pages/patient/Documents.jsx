@@ -12,7 +12,7 @@ import { track } from '../../utils/analytics'
 import AnalisisVault from '../../components/patient/AnalisisVault'
 
 const CATEGORIES = [
-  { id: 'recetas',       name: 'Recetas Digitales', icon: FileText,   bgClass: 'bg-amber-50',   textClass: 'text-amber-700',   uploadable: false },
+  { id: 'recetas',       name: 'Recetas Digitales', icon: FileText,   bgClass: 'bg-amber-50',   textClass: 'text-amber-700',   uploadable: false, comingSoon: true },
   // Análisis es la única categoría con datos reales: escribe en
   // `diagnostic_reports`, la misma tabla que lee el BioVisor y que el
   // profesional ve en la historia clínica. El resto sigue siendo maqueta.
@@ -24,7 +24,7 @@ const CATEGORIES = [
 ]
 
 const MOCK_DOCS_BY_CATEGORY = {
-  recetas:       [{ id: 1, titulo: 'Receta Ibuprofeno', subtitulo: 'Dr. López • 1 sem', source: 'profesional' }],
+  recetas:       [],
   analisis:      [],
   nutricion:     [{ id: 2, titulo: 'Dieta Hipertrofia', subtitulo: 'Lic. Nutrición • Hoy', source: 'profesional' }],
   entrenamiento: [{ id: 3, titulo: 'Rehabilitación Rodilla', subtitulo: 'Kinesiólogo • 3 días', source: 'profesional' }],
