@@ -18,7 +18,7 @@ const FEATURES = [
   { icon: CalendarCheck, label: 'Agenda integrada', desc: 'Tus horarios y turnos, todo dentro de Healthier' },
   { icon: VideoCamera,   label: 'Consultas on-demand', desc: 'Video y presencial desde el mismo panel' },
   { icon: FileText,      label: 'Historia clínica compartida', desc: 'Tus pacientes ven su historial en un lugar' },
-  { icon: Prescription,  label: 'Receta electrónica', desc: 'Emisión digital vía RCTA' },
+  { icon: Prescription,  label: 'Receta electrónica', desc: 'Emisión digital con validez legal' },
 ]
 
 export default function OnboardingPreview({ step, form, profile, avatarPreview }) {

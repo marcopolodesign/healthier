@@ -264,7 +264,7 @@ export default function ConsultationDetail({ profile }) {
             <InfoTooltip
               align="left"
               title="Para qué sirve"
-              label="Es el financiador que viaja en la receta electrónica (RCTA) para que la farmacia aplique la cobertura. Tiene que elegirse del catálogo de Innovamed: el nombre escrito a mano no lo acepta. No es obligatorio — sin financiador la receta sale como particular."
+              label="Es el financiador que viaja en la receta electrónica para que la farmacia aplique la cobertura. Tiene que elegirse del listado: el nombre escrito a mano no sirve para emitir. No es obligatorio — sin financiador la receta sale como particular."
             >
               <Info className="h-3.5 w-3.5 text-text-tertiary cursor-help" />
             </InfoTooltip>
@@ -332,7 +332,7 @@ export default function ConsultationDetail({ profile }) {
                 Se avisa acá y no recién al intentar emitirla. */}
             {!consultation.financiadorId && (
               <p className="w-full text-[11px] text-amber-700 font-medium">
-                Falta elegirla del catálogo de Innovamed.
+                Falta elegirla del listado de obras sociales.
               </p>
             )}
           </div>

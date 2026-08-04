@@ -52,7 +52,7 @@ const STATUS_MAP = {
 
 const RCTA_STATUS_MAP = {
   issued:  { label: 'Receta emitida', cls: 'bg-green-100 text-green-700', spin: false },
-  error:   { label: 'Error RCTA',     cls: 'bg-red-100 text-red-700',     spin: false },
+  error:   { label: 'Error al emitir', cls: 'bg-red-100 text-red-700',     spin: false },
 }
 
 /**
@@ -548,7 +548,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
       const result = await res.json()
 
       if (result.code === 'RCTA_NOT_CONFIGURED') {
-        toast.warning('Credenciales RCTA no configuradas — contactá a Innovamed para obtener acceso institucional')
+        toast.warning('La emisión de recetas todavía no está habilitada para tu cuenta — contactá al equipo de Healthier para activarla')
         return
       }
       if (!res.ok) {
@@ -556,7 +556,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
         // del vademécum, la obra social no salió del catálogo). Mostrarlo tal
         // cual: un "Error al emitir" genérico no le dice al profesional qué
         // arreglar.
-        toast.error(result.error ?? 'Error al emitir la receta RCTA')
+        toast.error(result.error ?? 'Error al emitir la receta electrónica')
         return
       }
 
@@ -580,7 +580,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
         : 'Receta electrónica emitida')
       onIssued?.()
     } catch {
-      toast.error('Error al conectar con el servicio RCTA')
+      toast.error('Error al conectar con el servicio de recetas')
     } finally {
       // Recarga defensiva: si se salió por un `return` temprano (error de la API,
       // credenciales), la lista igual tiene que reflejar en qué estado quedó cada
@@ -654,7 +654,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
             </button>
             <InfoTooltip
               title="Qué hace este botón"
-              label="Manda la receta a RCTA (Innovamed) y devuelve el PDF firmado con validez legal, que le queda al paciente y sirve en la farmacia. Guardar la medicación sola no emite nada: sólo la deja en la historia clínica. Los medicamentos marcados salen juntos, en una sola receta con un único PDF."
+              label="Genera la receta electrónica y devuelve el PDF firmado con validez legal, que le queda al paciente y sirve en la farmacia. Guardar la medicación sola no emite nada: sólo la deja en la historia clínica. Los medicamentos marcados salen juntos, en una sola receta con un único PDF."
             >
               <Info className="h-4 w-4 text-text-tertiary cursor-help" />
             </InfoTooltip>

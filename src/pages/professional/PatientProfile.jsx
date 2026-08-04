@@ -259,7 +259,7 @@ export default function ProfessionalPatientProfile({ profile }) {
             que el paciente guardó en su perfil y sirve como referencia. */}
         <p className="text-[11px] text-text-tertiary">
           La cobertura que se usa para emitir una receta se confirma en cada consulta,
-          eligiéndola del catálogo de Innovamed.
+          eligiéndola del listado de obras sociales.
         </p>
       </Section>
 

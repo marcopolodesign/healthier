@@ -137,7 +137,7 @@ export default function MedicationSearch({ value, onTextChange, onSelect, select
       {textoLibre && (
         <p className="text-[11px] text-amber-700 mt-1 flex items-start gap-1">
           <Warning className="h-3 w-3 mt-0.5 shrink-0" weight="fill" />
-          Sin resultados en el vademécum de Innovamed. Probá con el nombre comercial o
+          Sin resultados en el vademécum. Probá con el nombre comercial o
           la droga — <strong>hay que elegirlo de la lista</strong> para poder recetarlo.
         </p>
       )}

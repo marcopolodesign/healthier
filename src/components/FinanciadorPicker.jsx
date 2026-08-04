@@ -163,7 +163,7 @@ export default function FinanciadorPicker({
             {error && (
               <p className="text-[11px] text-danger mt-1 flex items-start gap-1">
                 <Warning className="h-3 w-3 mt-0.5 shrink-0" weight="fill" />
-                No pudimos cargar el catálogo de Innovamed. {error}
+                No pudimos cargar el listado de obras sociales. {error}
               </p>
             )}
           </div>
@@ -183,7 +183,7 @@ export default function FinanciadorPicker({
               // falle. Se puede guardar la cobertura igual y completarlo después.
               <p className="text-[11px] text-danger mt-1 flex items-start gap-1">
                 <Warning className="h-3 w-3 mt-0.5 shrink-0" weight="fill" />
-                Requerido para emitir recetas: con obra social, Innovamed exige el número de afiliado.
+                Requerido para emitir recetas con cobertura de la obra social.
               </p>
             )}
           </div>
