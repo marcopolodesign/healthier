@@ -458,6 +458,67 @@
   }
 }
 
+/* ── Videollamada en mobile: safe areas + controles al pie ──────────────────
+   La pantalla se usa a pantalla completa (y embebida en la app iOS, donde el
+   WebView ocupa todo el alto): sin esto el header se metía debajo del Dynamic
+   Island y los controles quedaban pegados al indicador de home.
+   Requiere `viewport-fit=cover` en el meta viewport (index.html). */
+@utility vc-header {
+  padding-top: calc(0.75rem + env(safe-area-inset-top));
+}
+
+/* Controles de llamada (mobile): micrófono · colgar · cámara, centrados abajo
+   sobre el video, como iPhone/WhatsApp. */
+@utility vc-controles {
+  /* Anclados al pie del panel de video, no de la pantalla: abajo del panel
+     empieza la hoja de historia clínica, que ya cubre el área del indicador
+     de home — sumarle el safe-area los metía debajo de la hoja. */
+  position: absolute;
+  inset-inline: 0;
+  bottom: 1.75rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+@utility vc-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 9999px;
+  backdrop-filter: blur(12px);
+  transition: transform 120ms ease, background-color 150ms;
+  &:active {
+    transform: scale(0.94);
+  }
+}
+
+@utility vc-control-on {
+  background-color: rgb(255 255 255 / 0.16);
+  color: #fff;
+}
+
+/* Apagado = invertido (fondo claro, ícono oscuro), igual que iOS. */
+@utility vc-control-off {
+  background-color: rgb(255 255 255 / 0.92);
+  color: #18181b;
+}
+
+@utility vc-control-colgar {
+  width: 4rem;
+  height: 4rem;
+  background-color: #e5484d;
+  color: #fff;
+  box-shadow: 0 8px 24px rgb(229 72 77 / 0.4);
+  &:active {
+    background-color: #cf3c41;
+  }
+}
+
 /* ── Videollamada del profesional: split ajustable video / historia clínica ──
    El ancho del video sale de `--vc-video-w`, que escribe el drag sobre
    `document.documentElement` (ver `useVideoSplit` en professional/VideoCall.jsx).
@@ -519,6 +580,7 @@
   bottom: 0;
   height: 82dvh;
   z-index: 30;
+  padding-bottom: env(safe-area-inset-bottom);
   border-top-left-radius: 1.25rem;
   border-top-right-radius: 1.25rem;
   transform: translateY(calc(100% - 20dvh));

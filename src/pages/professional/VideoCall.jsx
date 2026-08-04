@@ -1020,7 +1020,7 @@ export default function ProfessionalVideoCall({ profile }) {
   return (
     <div className="flex flex-col h-screen bg-zinc-900">
       {/* Header — dark, Healthier-owned controls only */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-white/10 bg-zinc-900 shrink-0">
+      <div className="vc-header flex items-center justify-between px-6 py-3 border-b border-white/10 bg-zinc-900 shrink-0">
         <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-white/50 hover:text-white transition-colors">
           <ArrowLeft className="h-4 w-4" /> Volver
         </button>
@@ -1040,11 +1040,11 @@ export default function ProfessionalVideoCall({ profile }) {
             </Link>
           )}
 
-          {/* Camera toggle */}
+          {/* Camera toggle — en mobile vive en la barra inferior */}
           <button
             onClick={toggleCam}
             title={camOn ? 'Apagar cámara' : 'Encender cámara'}
-            className={`flex items-center justify-center w-9 h-9 rounded-full border transition-colors ${
+            className={`hidden lg:flex items-center justify-center w-9 h-9 rounded-full border transition-colors ${
               camOn
                 ? 'border-white/20 text-white/70 hover:text-white hover:border-white/40'
                 : 'border-red-500/50 bg-red-500/10 text-red-400 hover:bg-red-500/20'
@@ -1053,11 +1053,11 @@ export default function ProfessionalVideoCall({ profile }) {
             {camOn ? <Camera className="h-4 w-4" /> : <CameraSlash className="h-4 w-4" />}
           </button>
 
-          {/* Mic toggle */}
+          {/* Mic toggle — en mobile vive en la barra inferior */}
           <button
             onClick={toggleMic}
             title={micOn ? 'Silenciar micrófono' : 'Activar micrófono'}
-            className={`flex items-center justify-center w-9 h-9 rounded-full border transition-colors ${
+            className={`hidden lg:flex items-center justify-center w-9 h-9 rounded-full border transition-colors ${
               micOn
                 ? 'border-white/20 text-white/70 hover:text-white hover:border-white/40'
                 : 'border-red-500/50 bg-red-500/10 text-red-400 hover:bg-red-500/20'
@@ -1070,7 +1070,7 @@ export default function ProfessionalVideoCall({ profile }) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSplitScreen(s => !s)}
-            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors ${
+            className={`hidden lg:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors ${
               splitScreen
                 ? 'border-brand/60 bg-brand/10 text-brand'
                 : 'border-white/20 text-white/60 hover:text-white hover:border-white/40'
@@ -1081,7 +1081,7 @@ export default function ProfessionalVideoCall({ profile }) {
           </button>
           <button
             onClick={handleLeave}
-            className="btn-danger flex items-center gap-2 px-4 py-2 text-sm"
+            className="hidden lg:flex btn-danger items-center gap-2 px-4 py-2 text-sm"
           >
             <PhoneSlash className="h-4 w-4" />
             Finalizar
@@ -1117,6 +1117,38 @@ export default function ProfessionalVideoCall({ profile }) {
       <div ref={split.containerRef} className="flex-1 relative flex flex-col lg:flex-row overflow-hidden">
         {/* Video area */}
         <div className={`relative bg-zinc-900 ${splitScreen ? 'vc-video-pane' : 'w-full'}`}>
+
+          {/* Controles de llamada — sólo mobile. En el header quedaban chiquitos
+              y lejos del pulgar; acá son los círculos de siempre (iPhone /
+              WhatsApp): micrófono, cámara y colgar en rojo al centro. */}
+          <div className="vc-controles lg:hidden">
+            <button
+              type="button"
+              onClick={toggleMic}
+              aria-label={micOn ? 'Silenciar micrófono' : 'Activar micrófono'}
+              className={`vc-control-btn ${micOn ? 'vc-control-on' : 'vc-control-off'}`}
+            >
+              {micOn ? <Microphone className="h-6 w-6" /> : <MicrophoneSlash className="h-6 w-6" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleLeave}
+              aria-label="Finalizar la consulta"
+              className="vc-control-btn vc-control-colgar"
+            >
+              <PhoneSlash className="h-7 w-7" weight="fill" />
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleCam}
+              aria-label={camOn ? 'Apagar cámara' : 'Encender cámara'}
+              className={`vc-control-btn ${camOn ? 'vc-control-on' : 'vc-control-off'}`}
+            >
+              {camOn ? <Camera className="h-6 w-6" /> : <CameraSlash className="h-6 w-6" />}
+            </button>
+          </div>
 
           {/* Sala de espera — hasta que entramos a la llamada. Antes miraba
               `bothReady` (presencia en vivo), así que un bajón de presencia tapaba
@@ -1244,14 +1276,22 @@ export default function ProfessionalVideoCall({ profile }) {
           <div
             className="vc-panel-pane vc-panel-tipografia overflow-hidden bg-bg-primary flex flex-col"
             data-abierta={hojaAbierta ? 'true' : 'false'}
-            // Tocar cualquier campo de la HC la abre: si el profesional va a
-            // escribir, ya decidió que quiere la hoja arriba.
+            // La hoja sube sola ante cualquier intención de usarla: tocar un
+            // campo, tocar una pestaña (Hoy/Receta/Historia/Datos) o scrollear
+            // el contenido. Antes sólo la abría el foco de un input y el resto
+            // de los toques quedaban a medias, con la hoja tapada abajo
+            // (reportado por Mateo desde el iPhone).
             onFocusCapture={() => setHojaAbierta(true)}
+            onPointerDownCapture={() => setHojaAbierta(true)}
+            onScrollCapture={() => setHojaAbierta(true)}
           >
             {/* Sólo en mobile: la barra que se toca para subirla o bajarla. */}
             <button
               type="button"
               onClick={() => setHojaAbierta(v => !v)}
+              // El contenedor abre con onPointerDownCapture; sin frenarlo acá,
+              // tocar "Bajar" abría y cerraba en el mismo gesto.
+              onPointerDown={e => e.stopPropagation()}
               aria-expanded={hojaAbierta}
               aria-label={hojaAbierta ? 'Bajar la historia clínica' : 'Subir la historia clínica'}
               className="lg:hidden w-full flex flex-col items-center gap-1 pt-2 pb-1 shrink-0"
