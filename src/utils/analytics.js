@@ -62,13 +62,17 @@ function sanitize(params) {
  * it fires (e.g. right after login, before App.jsx's profile-effect would
  * otherwise pick it up), call `await setAnalyticsUser(profile)` first.
  */
-export function track(eventName, params = {}) {
+export function track(eventName, params = {}, cioOnlyParams = {}) {
   // Fan-out a Customer.io con los params SIN sanitizar por PII — Customer.io
   // es mensajería y necesita la identidad real, al revés que GTM. Igual pasa
   // por su propia guarda de datos de salud (`sanitizeEventProps`), que es más
   // estricta en lo clínico y más laxa en lo personal. Va primero para que un
   // fallo del snippet no impida el push al dataLayer.
-  cioTrack(eventName, params)
+  //
+  // `cioOnlyParams` es para lo que Customer.io necesita y GTM no puede recibir
+  // —el nombre del profesional, por ejemplo—: se manda acá y nunca llega al
+  // dataLayer, en vez de mandarlo a los dos y depender del filtro de PII.
+  cioTrack(eventName, { ...params, ...cioOnlyParams })
 
   window.dataLayer = window.dataLayer || []
   const { user_id: _ignoredRawId, user_type: _ignoredRawType, ...rest } = sanitize(params)

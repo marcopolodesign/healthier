@@ -2,11 +2,31 @@ import { Link } from 'react-router-dom'
 import { UserCircle, Lightning } from '@phosphor-icons/react';
 import StarRating from './StarRating'
 import { SPECIALTY_LABELS } from '../lib/verticals'
+import { track } from '../utils/analytics'
 
-export default function ProfessionalCard({ professional }) {
-  const { id, profiles, specialty, bio, averageRating, totalReviews, isOnDemand, sessionPrice } = professional
+export default function ProfessionalCard({ professional, origin = 'listado' }) {
+  const { id, userId, profiles, specialty, bio, averageRating, totalReviews, isOnDemand, sessionPrice } = professional
   const name = profiles?.fullName || profiles?.full_name || 'Profesional'
   const avatar = profiles?.avatarUrl || profiles?.avatar_url
+
+  // El paciente eligió a este profesional. `professional_id` es `profiles.id`,
+  // el mismo uuid con el que se identifica al médico en Customer.io — es lo que
+  // permite matchearlo y mandarle el WhatsApp.
+  //
+  // El nombre va sólo a Customer.io (tercer argumento): a GTM no le puede
+  // llegar el nombre de una persona. La especialidad no va en ningún lado —
+  // atada a un paciente identificado es dato de salud.
+  const onSelect = () => track('doctor_selected', {
+    professional_id:         userId,
+    professional_profile_id: id,
+    rating:                  averageRating ?? undefined,
+    price:                   sessionPrice ?? undefined,
+    currency:                'ARS',
+    is_on_demand:            !!isOnDemand,
+    origin,
+  }, {
+    professional_name: name,
+  })
 
   return (
     <div className="card-hover flex flex-col gap-4">
@@ -50,6 +70,7 @@ export default function ProfessionalCard({ professional }) {
         )}
         <Link
           to={`/paciente/profesional/${id}`}
+          onClick={onSelect}
           className="btn-primary text-sm ml-auto"
         >
           Ver perfil

@@ -138,6 +138,16 @@ export function cioIdentify(profile, extraTraits = {}) {
     role:       profile.role,
     user_type:  ROLE_TO_USER_TYPE[profile.role] ?? profile.role,
     created_at: toUnixSeconds(profile.createdAt ?? profile.created_at),
+    // Atribución del alta. Se capturan en el registro (`buildProfileRow` en
+    // authService) y quedan en `profiles`, así que viajan en todo identify —
+    // no sólo en el del signup — y la persona en Customer.io queda con su
+    // origen de campaña pegado desde el minuto cero.
+    utm_source:   profile.utmSource   ?? profile.utm_source,
+    utm_medium:   profile.utmMedium   ?? profile.utm_medium,
+    utm_campaign: profile.utmCampaign ?? profile.utm_campaign,
+    utm_id:       profile.utmId       ?? profile.utm_id,
+    utm_content:  profile.utmContent  ?? profile.utm_content,
+    referrer_url: profile.referrerUrl ?? profile.referrer_url,
     ...extraTraits,
   }))
   lastIdentifiedId = String(profile.id)

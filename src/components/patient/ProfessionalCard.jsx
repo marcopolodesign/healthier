@@ -1,5 +1,6 @@
 import { Star, SealCheck, VideoCamera, MapPin, Lightning } from '@phosphor-icons/react'
 import { SPECIALTY_LABELS } from '../../lib/verticals'
+import { track } from '../../utils/analytics'
 
 /**
  * ProfessionalCard
@@ -27,12 +28,32 @@ export default function ProfessionalCard({ pro, onSelect, isSelected = false, mo
 
   const initial = name.charAt(0).toUpperCase()
 
+  // Mismo evento que la otra ProfessionalCard (la de `/paciente/buscar`): un
+  // solo nombre para "el paciente eligió médico", venga de la lista que venga,
+  // y `origin` para distinguirlas. El nombre del profesional va sólo a
+  // Customer.io; la especialidad no viaja (dato de salud del paciente).
+  const handleSelect = () => {
+    track('doctor_selected', {
+      professional_id:         pro.userId,
+      professional_profile_id: pro.id,
+      rating:                  rating ?? undefined,
+      price:                   price ?? undefined,
+      currency:                'ARS',
+      modality,
+      is_on_demand:            !!pro.isOnDemand,
+      origin:                  'buscar_profesional',
+    }, {
+      professional_name: name,
+    })
+    onSelect?.()
+  }
+
   return (
     <div
       role="button"
       tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={e => e.key === 'Enter' && onSelect?.()}
+      onClick={handleSelect}
+      onKeyDown={e => e.key === 'Enter' && handleSelect()}
       className={`bg-bg-primary rounded-[24px] border p-4 flex gap-4 cursor-pointer transition-all group
         ${isSelected
           ? 'border-brand shadow-[0_0_0_2px_var(--color-brand)]'

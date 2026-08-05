@@ -7,6 +7,7 @@ import { professionalService } from '../../services/professionalService'
 import { SPECIALTY_LABELS } from '../../lib/verticals'
 import ProfessionalCard from '../../components/ProfessionalCard'
 import { toast } from '../../components/Toast'
+import { track } from '../../utils/analytics'
 
 /**
  * Buscar profesionales por nombre — `/paciente/buscar`
@@ -53,6 +54,17 @@ export default function PatientSearch() {
         especialidades: esp ? [esp] : null,
       })
       setResultados(data)
+      // Se emite acá y no en el onChange del input: con debounce de 300ms esto
+      // corre una vez por búsqueda terminada, no una por tecla, y además ya
+      // tiene la cantidad de resultados — que es el dato que dice si la
+      // búsqueda sirvió o dejó al paciente en una lista vacía.
+      track('busqueda_clinica', {
+        texto_buscado:     q?.trim() || undefined,
+        tiene_texto:       !!q?.trim(),
+        filtro_aplicado:   !!esp,
+        resultados_count:  data.length,
+        sin_resultados:    data.length === 0,
+      })
     } catch {
       setError(true)
       setResultados([])
@@ -207,7 +219,7 @@ export default function PatientSearch() {
                   ProfessionalCard con APIs distintas — el de
                   `components/patient/` sí usa `pro`. */}
               {resultados.map(p => (
-                <ProfessionalCard key={p.id} professional={p} />
+                <ProfessionalCard key={p.id} professional={p} origin="busqueda_por_nombre" />
               ))}
             </div>
           </>
