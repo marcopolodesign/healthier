@@ -53,35 +53,13 @@ export const consultationsService = {
    * returns true exactly once per stay, so the 30s heartbeat stays silent.
    */
   async pingPatientWaiting(consultationId) {
-    const { data: isNewArrival, error } = await supabase
+    const { error } = await supabase
       .rpc('patient_waiting_ping', { p_consultation_id: consultationId })
     if (error) throw error
-    if (!isNewArrival) return
-
-    const { data } = await supabase
-      .from('consultations')
-      .select('professional_id, is_on_demand')
-      .eq('id', consultationId)
-      .maybeSingle()
-    if (!data?.professional_id) return
-
-    // Un solo camino de notificación al profesional, con copy según el tipo.
-    // On-demand solía avisar aparte (`notifyOnDemandAuthorized`) en el momento
-    // de autorizar el pago — o sea antes de que el paciente contestara nada, que
-    // es justo lo que dejaba al profesional esperando. Ahora el único disparador
-    // es la llegada real a la sala, y la llegada solo ocurre cuando el paciente
-    // toca "Iniciar consulta" después de la pre-consulta.
-    const onDemand = data.is_on_demand
-    supabase.functions.invoke('send-push-notification', {
-      body: {
-        userId: data.professional_id,
-        title:  onDemand ? 'Consulta inmediata — paciente listo' : 'Tenés un paciente esperando',
-        body:   onDemand
-          ? 'Un paciente autorizó el pago, completó la pre-consulta y te está esperando ahora.'
-          : 'Un paciente entró a la sala de espera y te está esperando.',
-        url:    `/profesional/videollamada/${consultationId}`,
-      },
-    }).catch(() => {})
+    // El aviso al profesional ya NO sale de acá: lo dispara un trigger sobre
+    // `patient_waiting_since` (migración 091). Mandarlo desde el browser del
+    // paciente significaba perderlo si cerraba la pestaña, y no existía en la
+    // app mobile. Si se vuelve a agregar acá, el profesional recibe dos.
   },
 
   /**
@@ -226,6 +204,10 @@ export const consultationsService = {
           })
         : null
 
+      // Sólo el aviso AL PACIENTE sale de acá. El del profesional lo dispara
+      // un trigger al insertar la consulta (migración 091): desde el browser
+      // se perdía si el paciente cerraba la pestaña, y una reserva hecha desde
+      // la app mobile no avisaba a nadie. Si se reactiva acá, llegan dos.
       const aviso = bookedBy === 'professional'
         ? row.patient_id && {
             userId: row.patient_id,
@@ -235,12 +217,7 @@ export const consultationsService = {
               : 'Tu profesional agendó una consulta de seguimiento.',
             url:    '/paciente/consultas',
           }
-        : row.professional_id && {
-            userId: row.professional_id,
-            title:  'Nuevo turno reservado',
-            body:   'Un paciente reservó un turno contigo.',
-            url:    '/profesional/dashboard',
-          }
+        : null
 
       if (aviso) {
         supabase.functions.invoke('send-push-notification', { body: aviso }).catch(() => {})
