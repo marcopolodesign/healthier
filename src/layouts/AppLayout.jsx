@@ -185,11 +185,18 @@ export default function AppLayout({ profile, profSpecialty }) {
       </div>
 
       {/* Mobile bottom nav — professional only */}
+      {/* Nav de profesional en mobile: barra full-bleed pegada abajo, igual que
+          la de paciente (`PatientMobileLayout`). Antes era una píldora flotante
+          con márgenes, radio y sombra: comía ancho, tapaba contenido y no
+          coincidía con el resto de la app (Mateo, 2026-08-05). El padding
+          interno lo pone el `className` del nav, como hace PatientBottomNav. */}
       {showProfNav && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-4 sm:px-8 sm:pb-6 lg:hidden">
-          <div className="nav-shell-frosted px-6 py-4 max-w-lg mx-auto">
-            <ProfessionalBottomNav profile={profile} profSpecialty={profSpecialty} />
-          </div>
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-border-default lg:hidden">
+          <ProfessionalBottomNav
+            profile={profile}
+            profSpecialty={profSpecialty}
+            className="px-8 pt-3.5 pb-6"
+          />
         </div>
       )}
     </div>
