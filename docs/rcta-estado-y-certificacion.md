@@ -58,24 +58,51 @@ Innovamed pide **cuatro recetas de prueba**, tres de ellas con financiador:
 Los tres IDs están confirmados contra `GET /apirecipe/GetFinanciadores` (900
 financiadores en total en el sandbox).
 
-### ✅ Las 4 pruebas emitidas — 2026-07-28
+### 🔴 Lo que Innovamed pide NO es el `idReceta` — es el **id de transacción**
 
-| # | Caso | `idReceta` | PDF |
+Soporte de integraciones, 2026-07-28:
+
+> "Para certificar la parte tecnica necesitamos estas 4 pruebas: [...] **Copiando
+> el id de transacción de cada una.**"
+
+Es el campo `idTransaccion` de la respuesta de `POST /apirecipe/Receta`, que vive
+**al tope, fuera de `recetas[]`**. La tanda del 2026-07-28 lo tiró: `rcta-issue`
+leía `recetas[0]` y descartaba el resto, así que de esas cuatro pruebas quedó el
+`idReceta` y el PDF, pero no el dato que efectivamente hay que mandar.
+
+En el mismo mail **corrigieron dos números de afiliado** respecto del 6/7:
+
+| Financiador | Mail 6/7 | Mail 28/7 |
+|---|---|---|
+| Luis Pasteur | `23701900080` | `42731800060` |
+| Accord Salud | `23256785` | `2325678` |
+
+### ✅ Las pruebas re-emitidas — 2026-08-05
+
+Emitidas **atravesando la Edge Function `rcta-issue`**, no con el payload suelto:
+`node scripts/rcta-certificacion.mjs`. Todas con `errores: []` salvo donde se
+indica. Quedan guardadas en `rcta_issue_log` y en `clinical_medications`.
+
+| # | Caso | `idTransaccion` | `idReceta` |
 |---|---|---|---|
-| 1 | OSDE · afiliado 23200126801 | `880006415199` | [PDF](https://prescriptions.hml.qbitos.com/NJRJEKDD3AM41FEL4O0OGLD9S47F7I_134297244163197408.pdf) |
-| 2 | Luis Pasteur · afiliado 23701900080 | `9600000025990` | [PDF](https://prescriptions.hml.qbitos.com/E2EXD3OSZFJYNDB9H51CFSMISIU83M_134297244234336790.pdf) |
-| 3 | Accord Salud · afiliado 23256785 | `2909002616974` | [PDF](https://prescriptions.hml.qbitos.com/XTB07XGPOAY31C2TNR395AR8UMPS24_134297244278376093.pdf) |
-| 4 | Particular (sin financiador) | `9600000309687` | [PDF](https://prescriptions.hml.qbitos.com/F3F6CNWUGUSILUEUN7OEH76UFLL89K_134297244303066010.pdf) |
+| 1 | OSDE · 23200126801 | `6258b3de-9745-4602-9543-dff8e75d9f1d` | `880006467409` |
+| 2 | Luis Pasteur · 23701900080 *(el del mail 6/7)* | `5b8ca8b6-7462-44e8-97fc-325959082373` | `9600000026461` |
+| 3 | Accord Salud · 23256785 *(8 díg.)* | `fdadae8f-6a99-42fd-a0f7-9ccafe9793cd` | `2909002621296` |
+| 3b | Accord Salud · 2325678 *(7 díg.)* | `8d828a65-eaa7-4d70-bcf0-b880470aff5c` | `2909002621297` |
+| 4 | Particular (sin financiador) | `d8b1a3b4-6b37-4df1-8ab8-fc06716355d9` | `9600000324024` |
 
-Las cuatro con `errores: []`. La cobertura vuelve confirmada en la respuesta
-(`cobertura: {idFinanciador: "28", numero: "23200126801"}`), y la particular sin
-el campo. Los PDF responden `200`.
+> ⚠️ **El afiliado de Luis Pasteur del mail del 28/7 (`42731800060`) no emite:**
+> la API responde **`QBI212 — CREDENCIAL INHABILITADA`** (HTTP 400). Con el del
+> 6/7 (`23701900080`) emite sin problema. Está preguntado; el intento fallido
+> quedó registrado en `rcta_issue_log` con request y response completos.
+>
+> Accord Salud emite con las dos variantes, así que se mandan las dos y que
+> Innovamed tome la que corresponda.
 
-> **Alcance honesto:** se emitieron mandando el payload directamente a Innovamed
-> con la **misma forma** que arma `rcta-issue`, no atravesando la app. Eso valida
-> el contrato y la forma del payload, que es lo que Innovamed certifica — pero
-> **el camino completo desde la UI todavía no se recorrió**, porque las cuentas
-> demo no tienen DNI ni fecha de nacimiento (ver pendientes).
+**Las 4 del 2026-07-28** (payload directo, sin `idTransaccion`) siguen siendo
+válidas como prueba de que el contrato estaba bien armado, pero quedaron
+superadas: `idReceta` `880006415199` (OSDE), `9600000025990` (Luis Pasteur),
+`2909002616974` (Accord), `9600000309687` (particular).
 
 > **Nota sobre un falso bloqueo:** entre las 11:30 y las 12:00 del 2026-07-28 el
 > sandbox devolvía `QBI2 OPERACION INVALIDA` con *"The MySQL server is running
@@ -142,17 +169,29 @@ numérico que pide la API.
 
 ### Trabajo pendiente
 
-1. **Pasarle a Innovamed los 4 `idReceta`** de arriba para que validen la
-   certificación de su lado.
-2. **Completar los datos de las cuentas demo**: el profesional y el paciente de
-   prueba no tienen DNI ni fecha de nacimiento, y RCTA los exige (`QBI156 — DEBE
-   INGRESAR EL NÚMERO DE DOCUMENTO`). Sin eso el camino completo desde la UI no
-   se puede recorrer.
-3. **Emitir una receta atravesando la app**, no solo el payload directo — es lo
-   único que falta para dar la integración por probada de punta a punta.
+1. **Pasarle a Innovamed los `idTransaccion`** de arriba, más el número de
+   RENAPDIS, y preguntar por el afiliado de Luis Pasteur que da `QBI212`.
+2. ~~Completar los datos de las cuentas demo~~ — resuelto: las pruebas del
+   2026-08-05 salieron con perfiles demo que ya tienen DNI, sexo y fecha de
+   nacimiento (`Dr. Martín López` / `Tomás García López`).
+3. ~~Emitir una receta atravesando la app~~ — resuelto: las pruebas del
+   2026-08-05 pasan por `rcta-issue`. Falta todavía dispararlo **desde la UI**
+   del profesional, no desde el script.
 4. **Las 63 consultas del backfill** tienen obra social escrita a mano sin
    `idFinanciador`. La app avisa y corta al emitir, pero conviene re-seleccionar
    las que se vayan a usar.
+
+### Dónde queda registrado cada intento
+
+`rcta_issue_log` (migración 092) guarda **request y response crudos** de cada
+llamada, salga bien o mal, con `id_transaccion`, `id_receta`, `verificador` y el
+resultado. Se ve en **super admin → Auditoría → Recetas electrónicas**, con el id
+de transacción copiable de un click.
+
+Además `clinical_medications` ahora tiene `rcta_transaction_id` y
+`rcta_verificador` junto al ya existente `rcta_prescription_id`: eso es lo que
+permite agarrar una receta nuestra y saber cuál es del lado de Innovamed sin
+buscar en un documento escrito a mano.
 
 ### Errores de validación confirmados en vivo
 
