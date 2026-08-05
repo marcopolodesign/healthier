@@ -8,14 +8,16 @@ import ConsultationTimeline from '../../components/super-admin/ConsultationTimel
 import { toast } from '../../components/Toast'
 import { SPECIALTY_LABELS } from '../../lib/verticals'
 
-const STATUS_COLORS = { completed: '#7CB38B', confirmed: '#9B8EC4', pending: '#E8927C', cancelled: '#d1d5db', in_progress: '#60a5fa' }
-const STATUS_LABELS = { completed: 'Completadas', confirmed: 'Confirmadas', pending: 'Pendientes', cancelled: 'Canceladas', in_progress: 'En curso' }
+const STATUS_COLORS = { completed: '#7CB38B', confirmed: '#9B8EC4', pending: '#E8927C', cancelled: '#d1d5db', in_progress: '#60a5fa', expired: '#A8A29E', no_show: '#f59e0b' }
+const STATUS_LABELS = { completed: 'Completadas', confirmed: 'Confirmadas', pending: 'Pendientes', cancelled: 'Canceladas', in_progress: 'En curso', expired: 'Vencidas', no_show: 'Ausentes' }
 const STATUS_BADGE_CLASSES = {
   completed: 'bg-emerald-50 text-emerald-600',
   confirmed: 'bg-purple-50 text-purple-600',
   pending: 'bg-orange-50 text-orange-600',
   cancelled: 'bg-gray-100 text-gray-500',
   in_progress: 'bg-blue-50 text-blue-600',
+  expired: 'bg-gray-100 text-gray-500',
+  no_show: 'bg-orange-50 text-orange-600',
 }
 
 export default function SuperAdminDashboard() {

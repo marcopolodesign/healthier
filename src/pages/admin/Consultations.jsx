@@ -42,10 +42,14 @@ export default function AdminConsultations() {
       </div>
 
       <div className="flex gap-2 flex-wrap">
-        {['all', 'pending', 'confirmed', 'in_progress', 'completed', 'cancelled'].map(s => (
+        {['all', 'pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'expired', 'no_show'].map(s => (
           <button key={s} onClick={() => setFilter(s)}
             className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${filter === s ? 'bg-brand text-white' : 'bg-bg-surface text-text-secondary hover:bg-bg-surface-hover'}`}>
-            {s === 'all' ? 'Todas' : s === 'in_progress' ? 'En curso' : s.charAt(0).toUpperCase() + s.slice(1).replace('_', ' ')}
+            {s === 'all' ? 'Todas'
+              : s === 'in_progress' ? 'En curso'
+              : s === 'expired' ? 'Vencidas'
+              : s === 'no_show' ? 'Ausentes'
+              : s.charAt(0).toUpperCase() + s.slice(1).replace('_', ' ')}
           </button>
         ))}
       </div>

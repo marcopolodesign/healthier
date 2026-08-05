@@ -8,6 +8,7 @@ const STATUS_CONFIG = {
   pending_patient_close: { label: 'Esperando confirmación', cls: 'status-badge bg-amber-50 text-amber-600' },
   finalized:             { label: 'Finalizada',            cls: 'status-badge bg-gray-100 text-gray-600' },
   no_show:               { label: 'Ausente',               cls: 'status-badge bg-orange-50 text-orange-700' },
+  expired:               { label: 'Vencida',               cls: 'status-badge status-expired' },
 }
 
 export default function StatusBadge({ status }) {

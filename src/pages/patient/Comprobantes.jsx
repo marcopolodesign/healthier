@@ -34,6 +34,9 @@ const STATUS_BADGE = {
   in_progress:          { label: 'En curso',   cls: 'bg-brand/10 text-brand' },
   pending_pro_close:    { label: 'Finalizada', cls: 'bg-green-100 text-green-700' },
   pending_patient_close:{ label: 'Finalizada', cls: 'bg-green-100 text-green-700' },
+  expired:              { label: 'Vencida',    cls: 'bg-gray-100 text-gray-500' },
+  no_show:              { label: 'Ausente',    cls: 'bg-orange-100 text-orange-700' },
+  cancelled:            { label: 'Cancelada',  cls: 'bg-red-100 text-red-600' },
 }
 
 export default function PatientComprobantes({ profile }) {

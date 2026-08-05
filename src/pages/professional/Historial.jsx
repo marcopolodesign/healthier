@@ -9,6 +9,8 @@ const STATUS_FILTERS = [
   { value: 'all',       label: 'Todas' },
   { value: 'completed', label: 'Completadas' },
   { value: 'cancelled', label: 'Canceladas' },
+  { value: 'expired',   label: 'Vencidas' },
+  { value: 'no_show',   label: 'Ausencias' },
 ]
 
 function fmtDate(iso) {
@@ -34,7 +36,9 @@ export default function Historial({ profile }) {
         const now = new Date()
         const past = data.filter(c => {
           const isPast = c.scheduledAt && new Date(c.scheduledAt) < now
-          const isTerminal = c.status === 'completed' || c.status === 'cancelled'
+          // 'expired' y 'no_show' los escribe el cron una vez vencida la fecha —
+          // son siempre turnos cerrados (ver docs/estados-consulta.md).
+          const isTerminal = ['completed', 'cancelled', 'expired', 'no_show'].includes(c.status)
           return isTerminal || isPast
         })
         setAll(past)

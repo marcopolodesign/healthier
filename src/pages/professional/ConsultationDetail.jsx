@@ -159,13 +159,18 @@ export default function ConsultationDetail({ profile }) {
   const isInProgress = consultation.status === 'in_progress'
   const isCompleted = consultation.status === 'completed'
   const isCancelled = consultation.status === 'cancelled'
+  // 'expired' (nadie usó el turno) y 'no_show' (una parte esperó, la otra no
+  // vino) los escribe el cron al vencer scheduled_at — son terminales igual
+  // que completed/cancelled (ver docs/estados-consulta.md).
+  const isExpired = consultation.status === 'expired'
+  const isNoShow = consultation.status === 'no_show'
   /**
    * Consulta congelada. Cerrar es el punto sin retorno: desde ahí no se edita la
    * cobertura, no se cargan alergias ni medicaciones y no se emiten recetas.
    * Pedido de Mateo (2026-07-30): esta pantalla es el paso intermedio entre la
    * videollamada y el cierre, y el cierre "imprime".
    */
-  const bloqueada = isCompleted || isCancelled
+  const bloqueada = isCompleted || isCancelled || isExpired || isNoShow
   const showCloseButton = isVideo
     ? ['confirmed', 'in_progress', 'pending'].includes(consultation.status)
     : isInProgress
@@ -201,7 +206,10 @@ export default function ConsultationDetail({ profile }) {
           <LockSimple className="h-5 w-5 text-text-tertiary shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold text-text-primary">
-              {isCancelled ? 'Consulta cancelada' : 'Consulta cerrada'}
+              {isCancelled ? 'Consulta cancelada'
+                : isExpired ? 'Turno vencido'
+                : isNoShow ? 'Consulta con ausencia'
+                : 'Consulta cerrada'}
             </p>
             <p className="text-sm text-text-secondary">
               Queda como registro: no se puede editar ni agregar nada más.

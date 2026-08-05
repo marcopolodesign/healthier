@@ -33,10 +33,13 @@ const STATUS_CLASS = {
   cancelled:   'status-cancelled',
   completed:   'status-completed',
   in_progress: 'status-in-progress',
+  expired:     'status-expired',
+  no_show:     'bg-orange-50 text-orange-700',
 }
 const STATUS_LABEL = {
   confirmed: 'Confirmado', pending: 'Pendiente',
   cancelled: 'Cancelado',  completed: 'Finalizado', in_progress: 'En Curso',
+  expired: 'Vencido', no_show: 'Ausente',
 }
 
 // Group slots by date string "dd/mm/yyyy"
@@ -469,8 +472,11 @@ export default function PatientConsultations({ profile }) {
     professional: 'Elegir Profesional', datetime: 'Elegir Horario', payment: 'Confirmar Pago',
   }
 
-  const upcoming = turnos.filter(t => !['completed', 'cancelled'].includes(t.status))
-  const past     = turnos.filter(t =>  ['completed', 'cancelled'].includes(t.status))
+  // 'expired' y 'no_show' los escribe el cron una vez que la fecha ya pasó —
+  // son siempre turnos cerrados, nunca "próximos" (ver docs/estados-consulta.md).
+  const CLOSED_STATUSES = ['completed', 'cancelled', 'expired', 'no_show']
+  const upcoming = turnos.filter(t => !CLOSED_STATUSES.includes(t.status))
+  const past     = turnos.filter(t =>  CLOSED_STATUSES.includes(t.status))
   const shown    = view === 'upcoming' ? upcoming : past
 
   // Fire appointment_view once per appointment the first time it becomes
