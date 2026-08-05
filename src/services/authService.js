@@ -2,12 +2,24 @@ import { supabase, toCamelCase } from '../lib/supabase'
 
 // Shared insert payload for a new `profiles` row — used both by email/password
 // registration and by first-time Google sign-in completion.
-function buildProfileRow(userId, email, role, fullName, utms = {}) {
+//
+// Google avatar (Mateo, 2026-08-04): Supabase mirrors the Google account
+// picture into `user.user_metadata.avatar_url` (some providers/older tokens
+// use `picture` instead) — grab it here so it lands in `profiles.avatar_url`
+// from the very first row insert instead of leaving every Google signup
+// avatarless. Only included when present (`...(avatarUrl ? {...} : {})`) so
+// an email/password signup — which never has this metadata — doesn't insert
+// a null over nothing, and since this only runs on the one-time row INSERT
+// (never called again after the profile exists), it can never clobber an
+// avatar the user later uploads themselves in Perfil/Configuración.
+function buildProfileRow(user, email, role, fullName, utms = {}) {
+  const avatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null
   return {
-    id: userId,
+    id: user.id,
     email,
     full_name: fullName,
     role,
+    ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
     utm_source:   utms.utm_source   ?? null,
     utm_medium:   utms.utm_medium   ?? null,
     utm_campaign: utms.utm_campaign ?? null,
@@ -31,7 +43,7 @@ export const authService = {
     // Create profile row — include UTM attribution if captured from landing page
     const { error: profileError } = await supabase
       .from('profiles')
-      .insert(buildProfileRow(authData.user.id, email, role, fullName, utms))
+      .insert(buildProfileRow(authData.user, email, role, fullName, utms))
     if (profileError) throw new Error(profileError.message)
 
     return { user: authData.user, session: authData.session }
@@ -73,7 +85,7 @@ export const authService = {
     }
     const { data, error } = await supabase
       .from('profiles')
-      .insert(buildProfileRow(user.id, user.email, role, fullName, utms))
+      .insert(buildProfileRow(user, user.email, role, fullName, utms))
       .select()
       .single()
     if (error) throw new Error(error.message)

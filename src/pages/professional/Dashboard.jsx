@@ -34,6 +34,23 @@ function formatARS(amount) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(amount || 0)
 }
 
+// Shared CTA across all 4 "no verificado" states below (rechazado, sin perfil,
+// documentos faltantes, en revisión) — solo cambia el mensaje pre-cargado de
+// WhatsApp según el estado. Factorizado 2026-08-04 para no repetir el mismo
+// <a> 4 veces con distinto texto.
+function SupportWhatsAppLink({ message, className = '' }) {
+  return (
+    <a
+      href={supportWhatsAppLink(message)}
+      target="_blank"
+      rel="noreferrer"
+      className={`inline-flex items-center gap-1.5 text-sm font-medium text-brand ${className}`}
+    >
+      <WhatsappLogo weight="fill" className="h-4 w-4" /> ¿Alguna duda? Escribinos por WhatsApp
+    </a>
+  )
+}
+
 function getThisMonthEarnings(earningsData) {
   const now = new Date()
   return earningsData
@@ -271,9 +288,12 @@ export default function ProfessionalDashboard({ profile }) {
                 <p className="text-sm text-text-secondary mt-2">
                   Revisá la información y volvé a enviar tu perfil con las correcciones necesarias.
                 </p>
-                <Link to="/profesional/onboarding?resubmit=1" className="btn-primary text-sm mt-3 inline-flex">
-                  Corregir y reenviar
-                </Link>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
+                  <Link to="/profesional/onboarding?resubmit=1" className="btn-primary text-sm inline-flex">
+                    Corregir y reenviar
+                  </Link>
+                  <SupportWhatsAppLink message="Hola, tengo una consulta sobre el rechazo de mi perfil profesional en Healthier:" />
+                </div>
               </div>
             </div>
           </div>
@@ -286,9 +306,12 @@ export default function ProfessionalDashboard({ profile }) {
                 <p className="text-sm text-text-secondary mt-1">
                   Para empezar a recibir consultas necesitás completar tu perfil profesional y enviar tu documentación.
                 </p>
-                <Link to="/profesional/onboarding" className="btn-primary text-sm mt-3 inline-flex">
-                  Completar perfil
-                </Link>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
+                  <Link to="/profesional/onboarding" className="btn-primary text-sm inline-flex">
+                    Completar perfil
+                  </Link>
+                  <SupportWhatsAppLink message="Hola, tengo una consulta sobre completar mi perfil profesional en Healthier:" />
+                </div>
               </div>
             </div>
           </div>
@@ -301,9 +324,12 @@ export default function ProfessionalDashboard({ profile }) {
                 <p className="text-sm text-text-secondary mt-1">
                   Enviaste tu perfil sin título, matrícula o DNI — la verificación todavía no arrancó porque necesitamos esos documentos para revisarte. Subilos cuando puedas, no hace falta hacerlo todo de una vez.
                 </p>
-                <Link to="/profesional/onboarding?resubmit=1&step=3" className="btn-primary text-sm mt-3 inline-flex">
-                  Subir documentos
-                </Link>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
+                  <Link to="/profesional/onboarding?resubmit=1&step=2" className="btn-primary text-sm inline-flex">
+                    Subir documentos
+                  </Link>
+                  <SupportWhatsAppLink message="Hola, tengo una consulta sobre los documentos de mi perfil profesional en Healthier:" />
+                </div>
               </div>
             </div>
           </div>
@@ -316,14 +342,7 @@ export default function ProfessionalDashboard({ profile }) {
                 <p className="text-sm text-text-secondary mt-1">
                   Tu documentación está siendo verificada por nuestro equipo. Te notificaremos cuando esté aprobado (24-48 hs).
                 </p>
-                <a
-                  href={supportWhatsAppLink('Hola, tengo una consulta sobre la verificación de mi perfil profesional en Healthier:')}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-brand mt-3"
-                >
-                  <WhatsappLogo weight="fill" className="h-4 w-4" /> ¿Alguna duda? Escribinos por WhatsApp
-                </a>
+                <SupportWhatsAppLink message="Hola, tengo una consulta sobre la verificación de mi perfil profesional en Healthier:" className="mt-3" />
               </div>
             </div>
           </div>

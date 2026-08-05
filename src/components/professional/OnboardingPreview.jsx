@@ -21,7 +21,7 @@ const FEATURES = [
   { icon: Prescription,  label: 'Receta electrónica', desc: 'Emisión digital con validez legal' },
 ]
 
-export default function OnboardingPreview({ step, form, profile, avatarPreview }) {
+export default function OnboardingPreview({ step, form, profile }) {
   const specialtyLabel = SPECIALTY_LABELS[form.specialty]
 
   return (
@@ -41,24 +41,23 @@ export default function OnboardingPreview({ step, form, profile, avatarPreview }
         </div>
       )}
 
+      {/* Datos personales: ya no se pide bio/foto acá (se completan post-login
+          en Perfil), así que la tarjeta de identidad usa la foto de Google si
+          ya se persistió (profile.avatarUrl) o las iniciales, y le sigue el
+          teaser de funcionalidades que antes vivía en el paso de Tarifas. */}
       {step === 1 && (
-        <div className="animate-fade-in-up flex flex-col items-center text-center mt-auto mb-auto">
-          <div className="h-24 w-24 rounded-full bg-brand-muted border-2 border-brand/30 overflow-hidden flex items-center justify-center mb-4">
-            {avatarPreview
-              ? <img src={avatarPreview} alt="preview" className="h-full w-full object-cover" />
-              : <span className="text-3xl font-serif text-brand">{profile?.fullName?.[0] ?? '?'}</span>}
+        <div className="animate-fade-in-up flex flex-col h-full">
+          <div className="flex flex-col items-center text-center mb-8">
+            <div className="h-24 w-24 rounded-full bg-brand-muted border-2 border-brand/30 overflow-hidden flex items-center justify-center mb-4">
+              {profile?.avatarUrl
+                ? <img src={profile.avatarUrl} alt="preview" className="h-full w-full object-cover" />
+                : <span className="text-3xl font-serif text-brand">{profile?.fullName?.[0] ?? '?'}</span>}
+            </div>
+            <h3 className="font-serif text-2xl text-text-primary">{profile?.fullName || 'Tu nombre'}</h3>
+            {specialtyLabel && <p className="text-text-tertiary text-sm mt-1">{specialtyLabel}</p>}
           </div>
-          <h3 className="font-serif text-2xl text-text-primary">{profile?.fullName || 'Tu nombre'}</h3>
-          {specialtyLabel && <p className="text-text-tertiary text-sm mt-1">{specialtyLabel}</p>}
-          {form.bio && <p className="text-text-secondary text-sm mt-4 max-w-xs">{form.bio}</p>}
-        </div>
-      )}
-
-      {step === 2 && (
-        <div className="animate-fade-in-up">
-          <h3 className="font-serif text-2xl text-text-primary mb-1">Funcionalidades de Healthier para tu práctica</h3>
-          <p className="text-text-tertiary text-sm mb-6">Sos de los primeros profesionales en Healthier — así se ve tu panel apenas te aprobemos.</p>
-          <div className="flex flex-row flex-wrap gap-3">
+          <p className="text-text-tertiary text-sm mb-4 text-center">Así te va a ver un paciente en Healthier.</p>
+          <div className="flex flex-row flex-wrap gap-3 mt-auto">
             {FEATURES.map(f => (
               <div key={f.label} className="flex flex-col items-center justify-center text-center gap-1.5 p-4 w-[calc(50%-0.375rem)] rounded-xl bg-bg-surface-hover">
                 <f.icon className="h-6 w-6 text-brand" />
@@ -70,7 +69,7 @@ export default function OnboardingPreview({ step, form, profile, avatarPreview }
         </div>
       )}
 
-      {step === 3 && (
+      {step === 2 && (
         <div className="animate-fade-in-up mt-auto mb-auto text-center">
           <ShieldCheck className="h-12 w-12 text-brand mx-auto mb-4" weight="light" />
           <h3 className="font-serif text-2xl text-text-primary mb-2">Tus documentos, cifrados</h3>
@@ -80,7 +79,7 @@ export default function OnboardingPreview({ step, form, profile, avatarPreview }
         </div>
       )}
 
-      {step === 4 && (
+      {step === 3 && (
         <div className="animate-fade-in-up mt-auto mb-auto">
           <div className="space-y-2.5 mb-8">
             {LAWS.map(l => (
@@ -105,7 +104,7 @@ export default function OnboardingPreview({ step, form, profile, avatarPreview }
         </div>
       )}
 
-      {step === 5 && (
+      {step === 4 && (
         <div className="animate-fade-in-up mt-auto mb-auto text-center">
           <CheckCircle className="h-12 w-12 text-brand mx-auto mb-4" weight="fill" />
           <h3 className="font-serif text-3xl text-text-primary mb-1">

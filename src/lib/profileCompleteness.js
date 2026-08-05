@@ -3,6 +3,12 @@
 // already exists, so no new DB column/migration is needed: a step is "done"
 // exactly when the field it represents is actually populated.
 //
+// Always returns the FULL list of steps (done and pending) — the card
+// (ProfileCompletenessCard.jsx) is what decides how to render each one
+// (checked off vs. actionable). Nothing here is filtered down to "only what's
+// missing"; `completed`/`total`/`isComplete` are just derived counts over the
+// same full `steps` array.
+//
 // `includeVerification` defaults to true (post-verification Dashboard usage,
 // where isVerified is always already true there so this step is never
 // actually pending). Pass false when showing this checklist to a
