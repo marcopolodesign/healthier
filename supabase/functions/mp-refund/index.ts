@@ -179,6 +179,10 @@ Deno.serve(async (req) => {
         .update({
           refund_requested_at: new Date().toISOString(),
           refund_request_status: "pending",
+          // El super admin necesita saber de dónde salió el pedido: el criterio
+          // para aprobar no es el mismo que cuando el turno se venció por
+          // nuestro lado (Mateo, 2026-08-05).
+          refund_request_reason: "cancelacion_paciente",
         })
         .eq("id", payment.id);
       if (requestErr) {

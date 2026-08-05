@@ -28,6 +28,16 @@ const STATUS_LABEL = {
   cancelled:  'Autorización cancelada',
 }
 
+// Motivo de cada solicitud de crédito. `turno_vencido`/`ausencia` las abre el
+// cron cuando la consulta no se prestó; `cancelacion_paciente` la pide el
+// paciente. Ver docs/estados-consulta.md.
+const MOTIVO_REFUND = {
+  turno_vencido:        { label: 'Turno vencido',            cls: 'status-expired' },
+  ausencia:             { label: 'Ausencia',                 cls: 'status-cancelled' },
+  cancelacion_paciente: { label: 'Cancelada por el paciente', cls: 'status-in-progress' },
+}
+const MOTIVOS_PLATAFORMA = ['turno_vencido', 'ausencia']
+
 export default function SuperAdminPayments() {
   const [payments, setPayments] = useState([])
   const [pendingRefunds, setPendingRefunds] = useState([])
@@ -45,6 +55,11 @@ export default function SuperAdminPayments() {
   const [approvingRefundId, setApprovingRefundId] = useState(null)
   const [confirmApproveRefundId, setConfirmApproveRefundId] = useState(null)
   const [rejectingRefundId, setRejectingRefundId] = useState(null)
+  // Dos colas distintas: la falla es nuestra (vencimiento/ausencia) o la
+  // decisión fue del paciente. El criterio para aprobar no es el mismo.
+  const refundsPlataforma = pendingRefunds.filter(p => MOTIVOS_PLATAFORMA.includes(p.refundRequestReason))
+  const refundsPaciente   = pendingRefunds.filter(p => !MOTIVOS_PLATAFORMA.includes(p.refundRequestReason))
+
   const [rejectFormId, setRejectFormId] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
 
@@ -218,21 +233,27 @@ export default function SuperAdminPayments() {
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-text-primary">Devoluciones</h2>
 
-        {/* Solicitudes de devolución (créditos) — nunca automáticas, revisión manual */}
+        {/* Solicitudes de devolución (créditos) — nunca automáticas, revisión
+            manual. Separadas por origen: aprobar un crédito porque el turno se
+            venció de nuestro lado no es la misma decisión que aprobarlo porque
+            el paciente canceló (Mateo, 2026-08-05). */}
         <div className="card border-amber-200 bg-amber-50/60">
-          <h3 className="font-semibold text-amber-800 mb-3 flex items-center gap-2">
-            Solicitudes de devolución (créditos)
-            {pendingRefunds.length > 0 && (
+          <h3 className="font-semibold text-amber-800 mb-1 flex items-center gap-2">
+            Vencidas o con ausencia
+            {refundsPlataforma.length > 0 && (
               <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-600 text-white text-xs font-semibold">
-                {pendingRefunds.length}
+                {refundsPlataforma.length}
               </span>
             )}
           </h3>
-          {pendingRefunds.length === 0 ? (
-            <p className="text-sm text-text-secondary">No hay solicitudes de devolución pendientes.</p>
+          <p className="text-xs text-amber-800/80 mb-3">
+            El paciente pagó y no recibió la consulta. Las abre el sistema.
+          </p>
+          {refundsPlataforma.length === 0 ? (
+            <p className="text-sm text-text-secondary">No hay solicitudes por vencimiento ni ausencia.</p>
           ) : (
             <div className="space-y-2">
-              {pendingRefunds.map(p => (
+              {refundsPlataforma.map(p => (
                 <div key={p.id} className="bg-white rounded-xl p-3 border border-amber-100">
                   <div className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">
@@ -242,6 +263,103 @@ export default function SuperAdminPayments() {
                       <p className="text-xs text-text-secondary mt-0.5">
                         {formatARS(p.grossAmount)} · Turno: {p.consultation?.scheduledAt ? formatDate(p.consultation.scheduledAt) : '—'} · Solicitado el {formatDate(p.refundRequestedAt)}
                       </p>
+                      <span className={`status-badge mt-1.5 ${MOTIVO_REFUND[p.refundRequestReason]?.cls ?? 'status-pending'}`}>
+                        {MOTIVO_REFUND[p.refundRequestReason]?.label ?? 'Motivo sin registrar'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {confirmApproveRefundId === p.id ? (
+                        <>
+                          <button
+                            onClick={() => handleApproveRefund(p.id)}
+                            disabled={approvingRefundId === p.id}
+                            className="btn-primary text-xs px-3 py-2 disabled:opacity-40"
+                          >
+                            {approvingRefundId === p.id ? <CircleNotch className="h-4 w-4 animate-spin" /> : '¿Confirmar?'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmApproveRefundId(null)}
+                            disabled={approvingRefundId === p.id}
+                            className="text-xs text-text-secondary hover:text-text-primary"
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => setConfirmApproveRefundId(p.id)} className="btn-primary text-xs px-3 py-2">
+                          Aprobar
+                        </button>
+                      )}
+                      {rejectFormId !== p.id && (
+                        <button
+                          onClick={() => { setRejectFormId(p.id); setRejectReason('') }}
+                          className="btn-secondary text-xs px-3 py-2"
+                        >
+                          Rechazar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {rejectFormId === p.id && (
+                    <div className="mt-2.5 flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={rejectReason}
+                        onChange={e => setRejectReason(e.target.value)}
+                        placeholder="Motivo del rechazo (opcional)"
+                        className="form-input text-xs flex-1"
+                      />
+                      <button
+                        onClick={() => handleRejectRefund(p.id)}
+                        disabled={rejectingRefundId === p.id}
+                        className="btn-danger text-xs px-3 py-2 shrink-0 disabled:opacity-40"
+                      >
+                        {rejectingRefundId === p.id ? <CircleNotch className="h-4 w-4 animate-spin" /> : 'Confirmar rechazo'}
+                      </button>
+                      <button
+                        onClick={() => { setRejectFormId(null); setRejectReason('') }}
+                        disabled={rejectingRefundId === p.id}
+                        className="text-xs text-text-secondary hover:text-text-primary shrink-0"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="card border-amber-200 bg-amber-50/60">
+          <h3 className="font-semibold text-amber-800 mb-1 flex items-center gap-2">
+            Canceladas por el paciente
+            {refundsPaciente.length > 0 && (
+              <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-600 text-white text-xs font-semibold">
+                {refundsPaciente.length}
+              </span>
+            )}
+          </h3>
+          <p className="text-xs text-amber-800/80 mb-3">
+            Las pide el paciente al cancelar, dentro de la ventana de reembolso.
+          </p>
+          {refundsPaciente.length === 0 ? (
+            <p className="text-sm text-text-secondary">No hay cancelaciones de pacientes pendientes.</p>
+          ) : (
+            <div className="space-y-2">
+              {refundsPaciente.map(p => (
+                <div key={p.id} className="bg-white rounded-xl p-3 border border-amber-100">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-text-primary text-sm truncate">
+                        {p.patient?.fullName || 'Paciente'} <span className="text-text-tertiary font-normal">→</span> {p.professional?.fullName || 'Profesional'}
+                      </p>
+                      <p className="text-xs text-text-secondary mt-0.5">
+                        {formatARS(p.grossAmount)} · Turno: {p.consultation?.scheduledAt ? formatDate(p.consultation.scheduledAt) : '—'} · Solicitado el {formatDate(p.refundRequestedAt)}
+                      </p>
+                      <span className={`status-badge mt-1.5 ${MOTIVO_REFUND[p.refundRequestReason]?.cls ?? 'status-pending'}`}>
+                        {MOTIVO_REFUND[p.refundRequestReason]?.label ?? 'Motivo sin registrar'}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {confirmApproveRefundId === p.id ? (
