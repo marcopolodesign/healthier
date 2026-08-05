@@ -1079,6 +1079,17 @@ export default function ProfessionalVideoCall({ profile }) {
             {splitScreen ? <ArrowsIn className="h-3.5 w-3.5" /> : <ArrowsOut className="h-3.5 w-3.5" />}
             {splitScreen ? 'Ocultar historial' : 'Historia clínica'}
           </button>
+          {/* Con la hoja de HC arriba los círculos del pie quedan tapados: el
+              colgar reaparece acá para no tener que bajarla primero. */}
+          {hojaAbierta && (
+            <button
+              onClick={handleLeave}
+              aria-label="Finalizar la consulta"
+              className="lg:hidden flex items-center justify-center w-9 h-9 rounded-full bg-danger text-white"
+            >
+              <PhoneSlash className="h-4 w-4" weight="fill" />
+            </button>
+          )}
           <button
             onClick={handleLeave}
             className="hidden lg:flex btn-danger items-center gap-2 px-4 py-2 text-sm"
@@ -1121,7 +1132,7 @@ export default function ProfessionalVideoCall({ profile }) {
           {/* Controles de llamada — sólo mobile. En el header quedaban chiquitos
               y lejos del pulgar; acá son los círculos de siempre (iPhone /
               WhatsApp): micrófono, cámara y colgar en rojo al centro. */}
-          <div className="vc-controles lg:hidden">
+          <div className="vc-controles lg:hidden" data-hoja={hojaAbierta ? 'true' : 'false'}>
             <button
               type="button"
               onClick={toggleMic}

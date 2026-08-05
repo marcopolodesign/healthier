@@ -470,12 +470,20 @@
 /* Controles de llamada (mobile): micrófono · colgar · cámara, centrados abajo
    sobre el video, como iPhone/WhatsApp. */
 @utility vc-controles {
-  /* Anclados al pie del panel de video, no de la pantalla: abajo del panel
-     empieza la hoja de historia clínica, que ya cubre el área del indicador
-     de home — sumarle el safe-area los metía debajo de la hoja. */
-  position: absolute;
+  /* Flotan SOBRE la hoja de historia clínica (z 30), no dentro del panel de
+     video: anclados al panel quedaban pegados —y tapados— por el borde de la
+     hoja asomada. Con la hoja abierta se ocultan y el colgar pasa al header,
+     que es el único control que hay que poder tocar siempre. */
+  position: fixed;
   inset-inline: 0;
-  bottom: 1.75rem;
+  bottom: calc(20dvh + 1rem);
+  z-index: 40;
+  transition: opacity 160ms ease, transform 160ms ease;
+  &[data-hoja='true'] {
+    opacity: 0;
+    transform: translateY(1rem);
+    pointer-events: none;
+  }
   z-index: 20;
   display: flex;
   align-items: center;
