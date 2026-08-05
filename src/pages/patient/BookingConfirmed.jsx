@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { CheckCircle, Calendar, VideoCamera, MapPin, CaretRight, Plus } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
+import { isActive as puedeEntrarYa } from '../../components/patient/ActiveAppointmentBanner'
 
 function buildGoogleCalendarUrl(consultation) {
   if (!consultation?.scheduledAt) return null
@@ -51,7 +52,22 @@ export default function BookingConfirmed({ profile }) {
 
   const isVideo   = consultation?.modality === 'video'
   const price     = consultation?.priceAtBooking
-  const calUrl    = buildGoogleCalendarUrl(consultation)
+
+  /*
+   * Una consulta inmediata (on-demand, o videoconsulta con match al momento:
+   * `handleConfirmMatched` en ReservarConsulta no manda `scheduledAt`, así que
+   * el turno queda para ahora) no se agenda para después — el paso siguiente es
+   * entrar. Sin esto la única acción era "Ver mis turnos" y el paciente que
+   * acababa de pagar tenía que buscar el "Entrar a Sala" dentro de Mi Agenda.
+   *
+   * Se reusa la ventana del banner de inicio (misma regla de "está por empezar
+   * o ya empezó" + pago habilitante) para no tener dos definiciones de cuándo
+   * un turno se puede usar.
+   */
+  const entrarAhora = !loading && isVideo && puedeEntrarYa(consultation, Date.now())
+
+  // Un turno que empieza ahora no necesita recordatorio en el calendario.
+  const calUrl    = entrarAhora ? null : buildGoogleCalendarUrl(consultation)
 
   return (
     <div className="absolute inset-0 bg-bg-primary flex items-center justify-center px-5 py-10">
@@ -71,7 +87,9 @@ export default function BookingConfirmed({ profile }) {
             ¡Turno confirmado!
           </h1>
           <p className="text-[14px] text-text-secondary mt-1.5">
-            Recibirás un recordatorio antes de la consulta
+            {entrarAhora
+              ? 'Tu consulta empieza ahora — entrá a la sala'
+              : 'Recibirás un recordatorio antes de la consulta'}
           </p>
         </div>
 
@@ -156,20 +174,42 @@ export default function BookingConfirmed({ profile }) {
 
         {/* CTAs */}
         <div className="w-full flex flex-col gap-3">
-          <button
-            onClick={() => navigate('/paciente/consultas')}
-            className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-full font-bold text-[15px] text-white transition-all shadow-md hover:bg-brand-hover active:scale-95"
-            style={{ backgroundColor: 'var(--color-brand)' }}
-          >
-            <Calendar className="w-5 h-5" />
-            Ver mis turnos
-          </button>
-          <button
-            onClick={() => navigate('/paciente/reservar')}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-[15px] text-brand border-2 border-brand hover:bg-brand/5 transition-all active:scale-95"
-          >
-            Reservar otro turno
-          </button>
+          {entrarAhora ? (
+            <>
+              {/* La sala de espera, no la videollamada directa: es la que toma la
+                  pre-consulta y avisa al profesional que el paciente ya está. */}
+              <button
+                onClick={() => navigate(`/paciente/sala-espera/${consultationId}`)}
+                className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-full font-bold text-[15px] text-white bg-brand hover:bg-brand-hover transition-all shadow-md active:scale-95"
+              >
+                <VideoCamera className="w-5 h-5" weight="fill" />
+                Entrar a la sala
+              </button>
+              <button
+                onClick={() => navigate('/paciente/consultas')}
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-[15px] text-brand border-2 border-brand hover:bg-brand/5 transition-all active:scale-95"
+              >
+                <Calendar className="w-5 h-5" />
+                Ver mis turnos
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => navigate('/paciente/consultas')}
+                className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-full font-bold text-[15px] text-white bg-brand hover:bg-brand-hover transition-all shadow-md active:scale-95"
+              >
+                <Calendar className="w-5 h-5" />
+                Ver mis turnos
+              </button>
+              <button
+                onClick={() => navigate('/paciente/reservar')}
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-[15px] text-brand border-2 border-brand hover:bg-brand/5 transition-all active:scale-95"
+              >
+                Reservar otro turno
+              </button>
+            </>
+          )}
         </div>
 
       </div>

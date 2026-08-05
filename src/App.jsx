@@ -14,7 +14,12 @@ import {
   cioReset,
   cioPage,
   installClickAutocapture,
+  installPathMasking,
 } from './utils/customerio'
+
+// Enmascarado de URLs: se instala al cargar el módulo, antes de que React monte
+// y antes del primer `page()`, para que ningún evento salga con la ruta cruda.
+installPathMasking()
 
 // Pages
 import Landing from './pages/Landing'

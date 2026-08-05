@@ -34,7 +34,7 @@ const PAGOS_HABILITANTES = ['paid', 'in_process']
 /** Sin precio no hay nada que cobrar — no se puede exigir un pago que no existe. */
 const sinCargo = c => c?.priceAtBooking == null || Number(c.priceAtBooking) === 0
 
-function isActive(consultation, now) {
+export function isActive(consultation, now) {
   const status = consultation?.status
   if (status !== 'in_progress' && status !== 'confirmed') return false
   if (!sinCargo(consultation) && !PAGOS_HABILITANTES.includes(consultation?.paymentStatus)) return false

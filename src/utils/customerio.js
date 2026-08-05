@@ -203,11 +203,55 @@ const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * generar una página distinta por consulta.
  */
 export function normalizePath(pathname = '') {
-  const masked = pathname
+  const masked = String(pathname)
     .split('/')
     .map((seg) => (UUID_SEGMENT.test(seg) ? ':id' : seg))
     .join('/')
   return masked.replace(/^\/paciente\/ondemand\/[^/]+/, '/paciente/ondemand/:vertical')
+}
+
+/** Igual que normalizePath pero para una URL completa. */
+function normalizeUrl(url) {
+  try {
+    const u = new URL(url)
+    u.pathname = normalizePath(u.pathname)
+    u.search = '' // los query params nunca son necesarios y sí pueden traer PII
+    return u.toString()
+  } catch {
+    return url
+  }
+}
+
+const URL_FIELDS = ['url', 'referrer']
+const PATH_FIELDS = ['path', 'name']
+
+function maskUrlFields(obj) {
+  if (!obj || typeof obj !== 'object') return
+  for (const f of URL_FIELDS) if (typeof obj[f] === 'string') obj[f] = normalizeUrl(obj[f])
+  for (const f of PATH_FIELDS) if (typeof obj[f] === 'string' && obj[f].startsWith('/')) obj[f] = normalizePath(obj[f])
+}
+
+let maskingInstalled = false
+
+/**
+ * El SDK adjunta `context.page.url/path/referrer` a TODOS los eventos por su
+ * cuenta, con la URL cruda del browser. En `/paciente/ondemand/dermatologia`
+ * eso mete la especialidad del paciente en cada evento de esa pantalla, por
+ * más que nuestro `page_path` vaya enmascarado.
+ *
+ * Este middleware corre sobre todo lo que sale — incluyendo lo que genera el
+ * propio SDK — así que es el único lugar donde el enmascarado es completo.
+ * Se instala antes que nada en App.jsx.
+ */
+export function installPathMasking() {
+  const a = cio()
+  if (!a || maskingInstalled || typeof a.addSourceMiddleware !== 'function') return
+  maskingInstalled = true
+  a.addSourceMiddleware(({ payload, next }) => {
+    maskUrlFields(payload?.obj?.context?.page)
+    maskUrlFields(payload?.obj?.properties)
+    next(payload)
+  })
 }
 
 // ── Auto-capture de clicks ─────────────────────────────────────────────────
