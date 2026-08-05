@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
 import Header from '../components/Header'
 import ProfessionalBottomNav from '../components/professional/ProfessionalBottomNav'
+import SuperAdminBottomNav from '../components/super-admin/SuperAdminBottomNav'
 import AICompanion from '../components/professional/AICompanion'
 import { supabase } from '../lib/supabase'
 import { consultationsService, fueAgendadaPorElProfesional } from '../services/consultationsService'
@@ -84,6 +85,10 @@ export default function AppLayout({ profile, profSpecialty }) {
   const isProfessional = profile?.role === 'professional'
   const hideProfNav = HIDE_PROF_NAV_PREFIXES.some(p => pathname.startsWith(p))
   const showProfNav = isProfessional && !hideProfNav
+  // El super admin sólo tenía la hamburguesa del header: en un teléfono eso
+  // deja Pagos a dos toques y escondido (Mateo, 2026-08-05).
+  const showSuperAdminNav = profile?.role === 'super_admin'
+  const showBottomNav = showProfNav || showSuperAdminNav
 
   // Global booking notification — fires on any professional page when a new consultation arrives
   useEffect(() => {
@@ -176,7 +181,7 @@ export default function AppLayout({ profile, profSpecialty }) {
             </div>
           )}
 
-          <main className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden ${showProfNav ? 'pb-28 lg:pb-0' : ''}`}>
+          <main className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden ${showBottomNav ? 'pb-28 lg:pb-0' : ''}`}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
               <Outlet />
             </div>
@@ -190,13 +195,17 @@ export default function AppLayout({ profile, profSpecialty }) {
           con márgenes, radio y sombra: comía ancho, tapaba contenido y no
           coincidía con el resto de la app (Mateo, 2026-08-05). El padding
           interno lo pone el `className` del nav, como hace PatientBottomNav. */}
-      {showProfNav && (
+      {showBottomNav && (
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-border-default lg:hidden">
-          <ProfessionalBottomNav
-            profile={profile}
-            profSpecialty={profSpecialty}
-            className="px-8 pt-3.5 pb-6"
-          />
+          {showProfNav ? (
+            <ProfessionalBottomNav
+              profile={profile}
+              profSpecialty={profSpecialty}
+              className="px-8 pt-3.5 pb-6"
+            />
+          ) : (
+            <SuperAdminBottomNav className="px-5 pt-3.5 pb-6" />
+          )}
         </div>
       )}
     </div>

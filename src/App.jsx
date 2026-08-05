@@ -75,7 +75,6 @@ import SuperAdminAuditoria from './pages/super-admin/Auditoria'
 import SuperAdminUsuarios from './pages/super-admin/Usuarios'
 import SuperAdminUsuariosProspects from './pages/super-admin/UsuariosProspects'
 import SuperAdminProfesionales from './pages/super-admin/Profesionales'
-import SuperAdminProfesionalesProspects from './pages/super-admin/ProfesionalesProspects'
 import SuperAdminEmergencias from './pages/super-admin/Emergencias'
 
 // ── Role guards ──────────────────────────────────────────
@@ -375,7 +374,6 @@ export default function App() {
           <Route path="/super-admin/usuarios" element={<SuperAdminUsuarios />} />
           <Route path="/super-admin/usuarios/prospects" element={<SuperAdminUsuariosProspects />} />
           <Route path="/super-admin/profesionales" element={<SuperAdminProfesionales />} />
-          <Route path="/super-admin/profesionales/prospects" element={<SuperAdminProfesionalesProspects />} />
           <Route path="/super-admin/emergencias" element={<SuperAdminEmergencias />} />
         </Route>
 

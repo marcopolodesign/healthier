@@ -19,24 +19,37 @@ export default function SuperAdminUsuariosProspects() {
       const [profilesRes, consultationsRes] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, email, full_name, created_at, utm_source, utm_medium, utm_campaign, referrer_url')
+          .select('id, email, full_name, created_at, dni, utm_source, utm_medium, utm_campaign, referrer_url')
           .eq('role', 'patient')
           .order('created_at', { ascending: false }),
+        // Sólo videoconsultas que siguen valiendo: una cancelada o vencida no
+        // cuenta como "ya agendó", vuelve a ser un prospecto.
         supabase
           .from('consultations')
-          .select('patient_id'),
+          .select('patient_id, modality, status'),
       ]);
 
       if (profilesRes.error) throw profilesRes.error;
       if (consultationsRes.error) throw consultationsRes.error;
 
-      const patientIdsWithConsultations = new Set(
-        (consultationsRes.data || []).map((c) => c.patient_id)
+      const VIGENTES = ['pending', 'confirmed', 'in_progress', 'completed'];
+      const conVideo = new Set(
+        (consultationsRes.data || [])
+          .filter((c) => c.modality === 'video' && VIGENTES.includes(c.status))
+          .map((c) => c.patient_id)
       );
 
-      const filtered = (profilesRes.data || []).filter(
-        (p) => !patientIdsWithConsultations.has(p.id)
-      );
+      // Definición de prospecto (Mateo, 2026-08-05): arrancó el onboarding y no
+      // lo terminó, o todavía no agendó una videoconsulta. `dni` es el campo
+      // obligatorio del paso de salud: si está vacío, el onboarding quedó a
+      // mitad de camino.
+      const filtered = (profilesRes.data || [])
+        .map((p) => {
+          const onboardingIncompleto = !p.dni;
+          const sinVideo = !conVideo.has(p.id);
+          return { ...p, onboardingIncompleto, sinVideo };
+        })
+        .filter((p) => p.onboardingIncompleto || p.sinVideo);
 
       setProspects(filtered);
     } catch (err) {
@@ -92,7 +105,7 @@ export default function SuperAdminUsuariosProspects() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Prospectos — Pacientes</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {loading ? '…' : `${prospects.length} pacientes registrados sin consultas`}
+            {loading ? '…' : `${prospects.length} pacientes por recuperar`}
           </p>
         </div>
         <Users size={32} className="text-brand mt-1" weight="duotone" />
@@ -102,7 +115,8 @@ export default function SuperAdminUsuariosProspects() {
       <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-2 flex items-start gap-3">
         <WarningCircle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" weight="fill" />
         <p className="text-sm text-amber-800">
-          Estos pacientes se registraron pero aún no realizaron ninguna consulta. Considerar campañas de re-engagement.
+          Pacientes que dejaron el onboarding a medias o que todavía no agendaron una
+          videoconsulta. Una consulta cancelada o vencida no cuenta como agendada.
         </p>
       </div>
 
@@ -160,6 +174,7 @@ export default function SuperAdminUsuariosProspects() {
             <thead>
               <tr>
                 <th className="table-header">Paciente</th>
+                <th className="table-header">Motivo</th>
                 <th className="table-header">Fuente UTM</th>
                 <th className="table-header">Campaña</th>
                 <th className="table-header">Días desde registro</th>
@@ -176,6 +191,20 @@ export default function SuperAdminUsuariosProspects() {
                         {p.full_name || '(sin nombre)'}
                       </div>
                       <div className="text-xs text-gray-400">{p.email}</div>
+                    </td>
+                    {/* Por qué está en la lista: sin esto un prospecto que dejó
+                        el onboarding a medias y uno que sólo no agendó todavía
+                        se ven idénticos, y la acción para recuperarlos no es la
+                        misma. */}
+                    <td className="table-cell">
+                      <div className="flex flex-col gap-1 items-start">
+                        {p.onboardingIncompleto && (
+                          <span className="status-badge status-pending">Onboarding incompleto</span>
+                        )}
+                        {p.sinVideo && (
+                          <span className="status-badge status-in-progress">Sin videoconsulta</span>
+                        )}
+                      </div>
                     </td>
                     <td className="table-cell">
                       {p.utm_source ? (
