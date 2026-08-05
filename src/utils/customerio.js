@@ -210,12 +210,27 @@ export function normalizePath(pathname = '') {
   return masked.replace(/^\/paciente\/ondemand\/[^/]+/, '/paciente/ondemand/:vertical')
 }
 
+// Query params que sobreviven. Los UTM se conservan a propósito: son la
+// atribución de campaña y el proyecto ya los guarda en `profiles`. Cualquier
+// otro param se descarta — un link armado a mano puede traer un email o un dni.
+const ALLOWED_QUERY_PARAMS = /^(utm_[a-z]+|gclid|fbclid|ref)$/i
+
+function sanitizeSearch(search) {
+  if (!search) return ''
+  const params = new URLSearchParams(search)
+  for (const key of [...params.keys()]) {
+    if (!ALLOWED_QUERY_PARAMS.test(key)) params.delete(key)
+  }
+  const out = params.toString()
+  return out ? '?' + out : ''
+}
+
 /** Igual que normalizePath pero para una URL completa. */
 function normalizeUrl(url) {
   try {
     const u = new URL(url)
     u.pathname = normalizePath(u.pathname)
-    u.search = '' // los query params nunca son necesarios y sí pueden traer PII
+    u.search = sanitizeSearch(u.search)
     return u.toString()
   } catch {
     return url
@@ -229,6 +244,7 @@ function maskUrlFields(obj) {
   if (!obj || typeof obj !== 'object') return
   for (const f of URL_FIELDS) if (typeof obj[f] === 'string') obj[f] = normalizeUrl(obj[f])
   for (const f of PATH_FIELDS) if (typeof obj[f] === 'string' && obj[f].startsWith('/')) obj[f] = normalizePath(obj[f])
+  if (typeof obj.search === 'string') obj.search = sanitizeSearch(obj.search)
 }
 
 let maskingInstalled = false
