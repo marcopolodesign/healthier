@@ -12,6 +12,7 @@ import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 const agendadasPorElProfesional = new Set()
 export const fueAgendadaPorElProfesional = id => agendadasPorElProfesional.has(id)
 import { mpService } from './mpService'
+import { cioService } from './cioService'
 
 /**
  * Waiting-room presence window. The patient's client heartbeats every
@@ -114,6 +115,12 @@ export const consultationsService = {
     })
     if (error) throw error
     const result = toCamelCase(data)
+    // Customer.io: encuesta al paciente + resumen al profesional. Fire-and-forget
+    // y con su propio try/catch adentro — un evento de marketing nunca puede
+    // hacer fallar el cierre de una consulta.
+    if (result.status === 'completed') {
+      cioService.consultationClosed(consultationId, { closedBy: role })
+    }
     // On-demand capture hook (spec Sección D2): on-demand consultations are
     // charged with a pre-authorization hold (capture:false) at booking time —
     // the actual charge only happens here, once the consultation is truly
@@ -189,6 +196,14 @@ export const consultationsService = {
       .select()
       .single()
     if (error) throw error
+
+    // Customer.io: va SIEMPRE, también en on-demand. A diferencia del mail y
+    // del push de abajo — que en on-demand se callan porque el copy es de turno
+    // agendado — acá el evento es el dato crudo y la decisión de si se manda
+    // algo (y con qué texto) la toma la campaña, que ya sabe distinguir por
+    // `is_on_demand`.
+    cioService.appointmentBooked(row, { bookedBy })
+
     // On-demand se calla acá a propósito. La fila se crea en el instante en que
     // el paciente se compromete a pagar, así que avisar acá le mandaba al
     // profesional "Nuevo turno reservado" antes de que el paciente contestara

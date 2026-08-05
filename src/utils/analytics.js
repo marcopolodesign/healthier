@@ -5,6 +5,8 @@
 // blood type/allergies/diagnoses, no chat or document content. Only a
 // hashed user_id, categories/types, booleans, and generic payment methods.
 
+import { cioTrack } from './customerio'
+
 export const ROLE_TO_USER_TYPE = {
   patient: 'paciente',
   professional: 'profesional',
@@ -61,6 +63,13 @@ function sanitize(params) {
  * otherwise pick it up), call `await setAnalyticsUser(profile)` first.
  */
 export function track(eventName, params = {}) {
+  // Fan-out a Customer.io con los params SIN sanitizar por PII — Customer.io
+  // es mensajería y necesita la identidad real, al revés que GTM. Igual pasa
+  // por su propia guarda de datos de salud (`sanitizeEventProps`), que es más
+  // estricta en lo clínico y más laxa en lo personal. Va primero para que un
+  // fallo del snippet no impida el push al dataLayer.
+  cioTrack(eventName, params)
+
   window.dataLayer = window.dataLayer || []
   const { user_id: _ignoredRawId, user_type: _ignoredRawType, ...rest } = sanitize(params)
   window.dataLayer.push({

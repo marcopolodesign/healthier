@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate, useLocation, useParams } from 'react-router-dom'
 import { ToastContainer, toast } from './components/Toast'
 import AppLayout from './layouts/AppLayout'
@@ -8,6 +8,13 @@ import { authService } from './services/authService'
 import { supabase } from './lib/supabase'
 import { professionalService } from './services/professionalService'
 import { setAnalyticsUser, clearAnalyticsUser } from './utils/analytics'
+import {
+  cioIdentify,
+  cioIdentifyProfessional,
+  cioReset,
+  cioPage,
+  installClickAutocapture,
+} from './utils/customerio'
 
 // Pages
 import Landing from './pages/Landing'
@@ -132,6 +139,17 @@ function AuthRedirectHandler({ profile, authUser }) {
   return null
 }
 
+// ── Customer.io: pageview por cada cambio de ruta ────────
+// El snippet de index.html sólo dispara la primera. En una SPA el resto de la
+// navegación es invisible para Customer.io sin esto.
+function CioPageTracker() {
+  const location = useLocation()
+  useEffect(() => {
+    cioPage(location.pathname)
+  }, [location.pathname])
+  return null
+}
+
 // ── Protected layout wrapper ─────────────────────────────
 function ProtectedLayout({ profile, allowed }) {
   return (
@@ -150,10 +168,19 @@ export default function App() {
   const [profSpecialty, setProfSpecialty] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  // `loadProfSpecialty` corre dentro del callback de onAuthStateChange, donde
+  // el `profile` del closure puede estar viejo. El ref siempre tiene el último.
+  const profileRef = useRef(null)
+  profileRef.current = profile
+
   const loadProfSpecialty = async (userId) => {
     try {
       const pp = await professionalService.getByUserId(userId)
       setProfSpecialty(pp?.specialty ?? null)
+      // Customer.io: la especialidad y el precio son atributos del PROFESIONAL
+      // (dato profesional, no de salud), así que acá sí van. Es además lo que
+      // deja segmentar campañas por especialidad sin tocar datos del paciente.
+      if (pp) cioIdentifyProfessional({ ...profileRef.current, id: userId }, pp)
     } catch {
       // non-critical — sidebar just won't show specialty-gated items
     }
@@ -218,6 +245,23 @@ export default function App() {
     else clearAnalyticsUser()
   }, [profile?.id, profile?.role])
 
+  // Customer.io identify — ÚNICO punto de identidad para toda la app.
+  //
+  // No hace falta instrumentar cada login por separado (email+password, Google,
+  // registro paciente, registro profesional, completar-perfil, restore de
+  // sesión): todos terminan en `setProfile(...)`, así que todos pasan por acá.
+  //
+  // Depende también de email/phone/name — a diferencia del efecto de GTM de
+  // arriba — para que editar el teléfono en Perfil actualice el atributo en
+  // Customer.io. Sin el teléfono al día no sale el WhatsApp.
+  useEffect(() => {
+    if (profile) cioIdentify(profile)
+    else cioReset()
+  }, [profile?.id, profile?.role, profile?.email, profile?.phone, profile?.fullName])
+
+  // Auto-capture de clicks sitewide. Se instala una sola vez.
+  useEffect(() => installClickAutocapture(), [])
+
   const handleLogin = (p) => setProfile(p)
   const handleProfileComplete = (p) => {
     setProfile(p)
@@ -239,6 +283,7 @@ export default function App() {
     <Router>
       <ToastContainer />
       <AuthRedirectHandler profile={profile} authUser={authUser} />
+      <CioPageTracker />
       <Routes>
         {/* Public */}
         <Route path="/" element={<Landing />} />
