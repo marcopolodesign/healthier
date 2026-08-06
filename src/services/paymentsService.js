@@ -228,4 +228,52 @@ export const paymentsService = {
       }, {}),
     }
   },
+
+  /**
+   * Cuántos días tarda Mercado Pago en liberar la plata de un profesional
+   * (pedido del CEO — B3). Se calcula, no se inventa: `mp_money_release_date`
+   * es la fecha que informa MP y ya se guarda desde la 074; acá sólo se resta
+   * contra el momento en que el cobro se capturó (`captured_at`, o
+   * `authorized_at`/`created_at` si faltara) para expresarlo en días.
+   *
+   * Sólo entran pagos aprobados con `mp_money_release_date` cargado — un pago
+   * rechazado o pendiente no tiene plazo de liberación que mostrar.
+   *
+   * @param {string} professionalId - profiles.id (NO professional_profiles.id)
+   * @returns {{ data: { count: number, lastDays: number|null, minDays: number|null, maxDays: number|null } | null, error: string|null }}
+   */
+  async getSettlementPlazo(professionalId) {
+    if (!professionalId) return { data: { count: 0, lastDays: null, minDays: null, maxDays: null }, error: null }
+    try {
+      const { data, error } = await supabase
+        .from('payments')
+        .select('mp_money_release_date, captured_at, authorized_at, created_at')
+        .eq('professional_id', professionalId)
+        .eq('status', 'approved')
+        .not('mp_money_release_date', 'is', null)
+        .order('created_at', { ascending: false })
+
+      if (error) return { data: null, error: error.message }
+
+      const dias = (data ?? []).map(r => {
+        const base = new Date(r.captured_at ?? r.authorized_at ?? r.created_at)
+        const release = new Date(r.mp_money_release_date)
+        return Math.round((release - base) / 86400000)
+      }).filter(n => Number.isFinite(n) && n >= 0)
+
+      if (dias.length === 0) return { data: { count: 0, lastDays: null, minDays: null, maxDays: null }, error: null }
+
+      return {
+        data: {
+          count: dias.length,
+          lastDays: dias[0], // el más reciente — el plazo vigente hoy
+          minDays: Math.min(...dias),
+          maxDays: Math.max(...dias),
+        },
+        error: null,
+      }
+    } catch (err) {
+      return { data: null, error: err.message }
+    }
+  },
 }

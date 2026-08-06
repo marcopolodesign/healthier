@@ -126,6 +126,13 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
   const [deleteError, setDeleteError] = useState(null)
   const [cvv, setCvv] = useState('')
   const [cvvError, setCvvError] = useState(null)
+  // ── E1: guardar la tarjeta nueva desde el primer pago ──────────────────────
+  // Elección explícita del paciente — arranca SIEMPRE apagada. Prendida, la
+  // tarjeta nueva se guarda primero (mp-save-card, sin tocar) y el cobro se
+  // hace después con la MISMA mecánica de re-tokenización por CVV que ya
+  // existe para una tarjeta guardada — ver `getSavedCardCharge` más abajo.
+  // Apagada, el camino es exactamente el de siempre (mode="charge").
+  const [guardarNueva, setGuardarNueva] = useState(false)
 
   // ── Load saved cards ───────────────────────────────────────────────────────
   const loadCards = useCallback(async () => {
@@ -183,6 +190,20 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
   const handleNewCardCharge = (chargeInfo) => {
     setAddCardMode(false)
     onNewCardCharge?.(chargeInfo)
+  }
+
+  // ── New card, "guardar para la próxima" marcado ────────────────────────────
+  // El Brick corrió en mode="save": la tarjeta YA está guardada en
+  // `payment_methods` (mp-save-card, sin cambios). Acá no se cobra nada
+  // todavía — se recarga la lista, se selecciona la tarjeta recién guardada
+  // y se cierra el panel. El cobro lo dispara el botón "Confirmar y Pagar"
+  // de siempre, por el camino de tarjeta-guardada-con-CVV que ya existe
+  // (`getSavedCardCharge`) — no hay ningún cobro nuevo que escribir acá.
+  const handleNewCardSaved = async (savedCardData) => {
+    setAddCardMode(false)
+    setGuardarNueva(false)
+    await loadCards()
+    if (savedCardData?.id) onCardSelected?.(savedCardData.id)
   }
 
   // ── Imperative API for the parent's "Confirmar y Pagar" button ────────────
@@ -372,20 +393,61 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
           </div>
 
           {publicKey ? (
-            <MPCardHolder
-              publicKey={publicKey}
-              // El monto real sólo se usa para pedir cuotas; el Brick le pone
-              // su propio piso (MP_MONTO_MINIMO_ARS). Lo que se le cobra al
-              // paciente lo decide el servidor, y lo que ve es `submitLabel`.
-              amount={amount ?? undefined}
-              mode="charge"
-              payerEmail={payerEmail}
-              submitLabel={amount ? `Pagar $${amount.toLocaleString('es-AR')}` : 'Pagar'}
-              onSuccess={handleNewCardCharge}
-              onError={(err) => {
-                console.error('[SavedCardSelector] new card charge error:', err)
-              }}
-            />
+            <>
+              {/* E1 — elección explícita, apagada por default. No se guarda
+                  nada sin que el paciente lo pida. */}
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={guardarNueva}
+                  onChange={(e) => setGuardarNueva(e.target.checked)}
+                  className="h-4 w-4 accent-[#7CB38B]"
+                />
+                <span className="text-sm text-[#2D2A26]">Guardar esta tarjeta para la próxima compra</span>
+              </label>
+
+              {/* `key` fuerza que el Brick se vuelva a montar entero al
+                  cambiar de modo: MPCardHolder congela `mode`/`submitLabel`
+                  en el primer render (ver el comentario de `inicialRef` ahí
+                  adentro) para no vaciarle el formulario al paciente
+                  mientras tipea. Acá el cambio de modo pasa ANTES de tipear
+                  nada, así que remontar es seguro y necesario. */}
+              <MPCardHolder
+                key={guardarNueva ? 'save' : 'charge'}
+                publicKey={publicKey}
+                // El monto real sólo se usa para pedir cuotas; el Brick le pone
+                // su propio piso (MP_MONTO_MINIMO_ARS). Lo que se le cobra al
+                // paciente lo decide el servidor, y lo que ve es `submitLabel`.
+                amount={amount ?? undefined}
+                mode={guardarNueva ? 'save' : 'charge'}
+                payerEmail={payerEmail}
+                submitLabel={
+                  guardarNueva
+                    ? 'Guardar tarjeta'
+                    : (amount ? `Pagar $${amount.toLocaleString('es-AR')}` : 'Pagar')
+                }
+                onSuccess={guardarNueva ? handleNewCardSaved : handleNewCardCharge}
+                onError={(err) => {
+                  console.error('[SavedCardSelector] new card error:', err)
+                }}
+              />
+
+              {/* Si guardar falla, el pago no se pierde: se puede seguir sin
+                  guardar. El token que tokenizó el Brick para "guardar" ya se
+                  gastó en ese intento (MP los invalida en el primer uso), así
+                  que la salida es volver a mode="charge" y cargar la tarjeta
+                  una vez más — no hay forma de recuperar ese token para
+                  cobrar directo sin tocar mp-payment/mp-save-card. */}
+              {guardarNueva && (
+                <button
+                  type="button"
+                  onClick={() => setGuardarNueva(false)}
+                  className="text-xs text-[#6B6560] hover:text-[#2D2A26] underline underline-offset-2 transition-colors"
+                >
+                  ¿Problema para guardarla? Pagá sin guardar la tarjeta
+                </button>
+              )}
+            </>
           ) : (
             <div className="flex items-start gap-2 bg-[#E4A853]/10 border border-[#E4A853]/30 rounded-xl px-4 py-3">
               <Warning size={18} weight="fill" className="text-[#E4A853] mt-0.5 shrink-0" />

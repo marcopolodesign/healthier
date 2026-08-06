@@ -7,6 +7,8 @@ import { consultationTypesService } from '../../services/consultationTypesServic
 import { availabilityService } from '../../services/availabilityService'
 import { zonesService } from '../../services/zonesService'
 import { mpService } from '../../services/mpService'
+import { paymentsService } from '../../services/paymentsService'
+import { formatSettlementPlazo } from '../../lib/format'
 import { toast } from '../../components/Toast'
 
 const MODALITIES = [
@@ -127,10 +129,14 @@ export default function Configuracion({ profile }) {
   // ── Mercado Pago state ──────────────────────────────────────
   const [mpStatus, setMpStatus] = useState(null) // { connected, email }
   const [mpDisconnecting, setMpDisconnecting] = useState(false)
+  // Cuántos días tarda MP en liberar la plata (B3) — null mientras carga o
+  // sin cobros todavía; { count: 0, ... } es el estado vacío real.
+  const [settlementPlazo, setSettlementPlazo] = useState(null)
 
   const loadMpStatus = () => {
     if (!profile?.id) return
     mpService.getConnectionStatus(profile.id).then(({ data }) => setMpStatus(data))
+    paymentsService.getSettlementPlazo(profile.id).then(({ data }) => setSettlementPlazo(data))
   }
 
   useEffect(() => { loadMpStatus() }, [profile?.id])
@@ -569,6 +575,7 @@ export default function Configuracion({ profile }) {
             </div>
 
             {mpStatus?.connected ? (
+              <>
               <div className="flex items-center gap-4 p-4 rounded-xl border border-emerald-200 bg-emerald-50">
                 <div className="w-11 h-11 rounded-xl bg-white border border-emerald-200 flex items-center justify-center shrink-0">
                   <MercadoPagoMark className="w-7 h-7" />
@@ -588,6 +595,26 @@ export default function Configuracion({ profile }) {
                   {mpDisconnecting ? 'Desconectando...' : 'Desconectar'}
                 </button>
               </div>
+
+              {/* Plazo de acreditación (B3) — lo que MP tarda en liberar la
+                  plata después de cobrar, calculado con `mp_money_release_date`
+                  real de tus propios cobros. Sin datos todavía = estado vacío,
+                  nunca "0 días". */}
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border-default bg-bg-secondary">
+                <Clock className="h-4 w-4 text-text-secondary shrink-0" />
+                {settlementPlazo?.count ? (
+                  <p className="text-xs text-text-secondary">
+                    Mercado Pago te libera la plata a los{' '}
+                    <span className="font-semibold text-text-primary">{formatSettlementPlazo(settlementPlazo)}</span>
+                    {' '}de cada cobro, por su comisión.
+                  </p>
+                ) : (
+                  <p className="text-xs text-text-secondary">
+                    El plazo de acreditación se muestra después de tu primer cobro confirmado.
+                  </p>
+                )}
+              </div>
+              </>
             ) : (
               <div className="flex items-center gap-4 p-4 rounded-xl border border-red-200 bg-red-50">
                 <div className="w-11 h-11 rounded-xl bg-white border border-red-200 flex items-center justify-center shrink-0">

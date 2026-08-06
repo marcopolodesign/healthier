@@ -3,6 +3,7 @@ import {
   MagnifyingGlass, ShieldCheck, X, ArrowSquareOut, Warning,
   CircleNotch, Check, IdentificationCard, FileText, ShieldWarning,
   ShieldSlash, User, Pencil, UploadSimple, ClockCounterClockwise, XCircle,
+  Clock,
 } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
@@ -10,6 +11,8 @@ import { toast } from '../../components/Toast'
 import RefepsCheckLink from '../../components/admin/RefepsCheckLink'
 import SignedDocLink from '../../components/SignedDocLink'
 import { professionalService } from '../../services/professionalService'
+import { paymentsService } from '../../services/paymentsService'
+import { formatSettlementPlazo } from '../../lib/format'
 
 // Documentos que puede gestionar el super admin desde el drawer (A6) — mismo
 // nombre de archivo que usa Onboarding.jsx al subir, para que un reemplazo
@@ -126,6 +129,9 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
   // está mostrando el formulario ahora mismo.
   const [showReviewForm, setShowReviewForm] = useState(null)
   const [history, setHistory] = useState([])
+  // B3 — plazo de acreditación de MP para este profesional. null = sin cargar
+  // todavía; { count: 0, ... } = cargado pero sin cobros con el dato.
+  const [settlementPlazo, setSettlementPlazo] = useState(null)
 
   // A6 — subida/reemplazo de documentos por el super admin.
   const fileInputRef = useRef(null)
@@ -148,6 +154,11 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
 
     if (!error && data) {
       setDetail(data)
+      if (data.profile?.id) {
+        // payments.professional_id es profiles.id, no professional_profiles.id
+        // (que es `pro.id`) — por eso va con el id anidado.
+        paymentsService.getSettlementPlazo(data.profile.id).then(({ data: plazo }) => setSettlementPlazo(plazo))
+      }
       setDni(data.profile?.dni ?? '')
       setLicenseType(data.license_type ?? 'MN')
       setLicenseNumber(data.license_number ?? '')
@@ -365,6 +376,24 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
                     <p className="font-medium text-gray-800">{fmt(d.submitted_at)}</p>
                   </div>
                 )}
+              </div>
+
+              {/* Mercado Pago — conexión + plazo de acreditación (B3) */}
+              <div className="rounded-xl border border-gray-200 px-4 py-3 flex items-start gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${d?.mp_connected ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                  <Clock className={`h-4 w-4 ${d?.mp_connected ? 'text-emerald-600' : 'text-red-500'}`} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800">
+                    Mercado Pago: {d?.mp_connected ? 'Conectado' : 'Sin conectar'}
+                    {d?.mp_account_label && <span className="text-gray-400 font-normal"> · {d.mp_account_label}</span>}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {settlementPlazo?.count
+                      ? `Retira su plata a los ${formatSettlementPlazo(settlementPlazo)} de cada cobro.`
+                      : 'Plazo de acreditación: sin cobros liquidados todavía.'}
+                  </p>
+                </div>
               </div>
 
               {/* Credenciales — DNI + Matrícula */}
