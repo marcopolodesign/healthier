@@ -31,6 +31,14 @@ import { ensureFreshMpToken, PAYMENT_REFRESH_MARGIN_MS } from '../_shared/mpRefr
 
 const MP_API_BASE = 'https://api.mercadopago.com/v1'
 
+// Token de la cuenta PROPIA de Healthier. Se usa SOLO para el recupero
+// automático de deuda por reasignación (migración 102, SECCIÓN 6 más abajo) —
+// mismo patrón que mp-save-card / mp-webhook.
+const IS_PROD = Deno.env.get('MP_IS_PROD') === 'true'
+const PLATFORM_ACCESS_TOKEN = IS_PROD
+  ? Deno.env.get('MP_ACCESS_TOKEN_PROD')
+  : Deno.env.get('MP_ACCESS_TOKEN_SANDBOX')
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -328,29 +336,77 @@ Deno.serve(async (req) => {
       )
     }
 
-    const { data: mpAccount, error: mpAccErr } = await serviceSupabase
-      .from('mp_accounts')
-      .select('professional_id, mp_user_id, access_token, refresh_token, expires_at, active')
-      .eq('professional_id', consultation.professional_id)
-      .eq('active', true)
-      .single()
-
-    if (mpAccErr || !mpAccount) {
-      return new Response(
-        JSON.stringify({ data: null, error: 'Professional does not have a linked MercadoPago account' }),
-        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // ── Recupero automático de deuda por reasignación (migración 102) ────────
+    //
+    // Si el super admin reasignó una consulta anterior de este profesional, la
+    // pre-auth de ESA consulta ya quedó (o va a quedar) firmada contra él —
+    // MP no permite redirigirla a quien atendió de verdad (ver el comentario
+    // largo en la migración 102). El original se queda con plata que no le
+    // corresponde. El recupero es automático y hacia adelante: en su PRÓXIMA
+    // consulta, no se le cobra a él — se firma con el token de PLATAFORMA de
+    // Healthier, y lo que hubiera sido su parte se descuenta de la deuda.
+    //
+    // A propósito sólo para cobros directos (`!authorizeOnly`). Una reserva
+    // on-demand se autoriza acá pero se CAPTURA más tarde (mp-capture), y esa
+    // función busca el token del cobrador por `payments.professional_id` sin
+    // reinterpretar nada — si acá se firmara con el token de plataforma, la
+    // captura fallaría porque intentaría cobrar con el token del profesional
+    // sobre un pago que en MP es de otra cuenta. Tocar mp-capture para que
+    // sepa esto quedó fuera de esta tarea a propósito (ver el reporte).
+    let platformDebtToRecover = 0
+    if (!authorizeOnly) {
+      const { data: pendingDebt, error: debtErr } = await serviceSupabase
+        .rpc('get_professional_pending_debt', { p_professional: consultation.professional_id })
+      if (debtErr) {
+        // No cortamos el cobro por esto — mejor cobrarle de más al profesional
+        // por esta vez (recuperable después) que trabar un pago real por un
+        // error de lectura.
+        console.error('mp-payment: get_professional_pending_debt error:', debtErr.message)
+      } else {
+        platformDebtToRecover = Number(pendingDebt) || 0
+      }
     }
+    const collectForPlatform = platformDebtToRecover > 0
 
-    const account = mpAccount as MpAccountRow
-    const refreshResult = await ensureFreshMpToken(serviceSupabase, account, PAYMENT_REFRESH_MARGIN_MS)
-    if (refreshResult.invalidGrant) {
-      return new Response(
-        JSON.stringify({ data: null, error: 'MercadoPago connection expired — professional must reconnect' }),
-        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    let sellerAccessToken: string
+    let collectorMpUserId: string | null = null
+
+    if (collectForPlatform) {
+      if (!PLATFORM_ACCESS_TOKEN) {
+        console.error('mp-payment: falta MP_ACCESS_TOKEN_PROD/SANDBOX — no se puede cobrar para recupero de deuda')
+        return new Response(
+          JSON.stringify({ data: null, error: 'Configuración de plataforma incompleta' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      sellerAccessToken = PLATFORM_ACCESS_TOKEN
+      collectorMpUserId = 'HEALTHIER_PLATFORM'
+    } else {
+      const { data: mpAccount, error: mpAccErr } = await serviceSupabase
+        .from('mp_accounts')
+        .select('professional_id, mp_user_id, access_token, refresh_token, expires_at, active')
+        .eq('professional_id', consultation.professional_id)
+        .eq('active', true)
+        .single()
+
+      if (mpAccErr || !mpAccount) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'Professional does not have a linked MercadoPago account' }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const account = mpAccount as MpAccountRow
+      const refreshResult = await ensureFreshMpToken(serviceSupabase, account, PAYMENT_REFRESH_MARGIN_MS)
+      if (refreshResult.invalidGrant) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'MercadoPago connection expired — professional must reconnect' }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      sellerAccessToken = refreshResult.accessToken
+      collectorMpUserId = account.mp_user_id
     }
-    const sellerAccessToken = refreshResult.accessToken
 
     // ── Split 20/80 flat (decisión de Mateo, 2026-07-29) ──────────────────────
     //
@@ -372,20 +428,36 @@ Deno.serve(async (req) => {
     // MP depende del plazo de acreditación que cada uno tenga configurado en SU
     // cuenta. Por eso lo que se le muestra es `mp_net_received_amount`, que
     // reconcilia mp-capture con el valor real.
-    const applicationFee = Math.min(
+    // Cuando se cobra para plataforma (recupero de deuda) NO hay split: el
+    // 100% de lo cobrado entra a la cuenta de Healthier, no hay `collector`
+    // distinto a quien firma. `application_fee` es exclusivamente para
+    // marketplace — mandarla acá la rechazaría MP (el collector y el
+    // application_fee receiver serían la misma cuenta).
+    const applicationFee = collectForPlatform ? 0 : Math.min(
       round2(amount * commissionRate),
       // Nunca más que lo efectivamente cobrado: con créditos parciales el bruto
       // puede superar lo que pasa por la tarjeta.
       Math.max(0, chargedAmount),
     )
 
+    // Lo que el profesional HUBIERA cobrado en un pago normal — es la unidad en
+    // la que está denominada la deuda (`consultation_reassignments.net_amount`).
+    const netEquivalent = round2(amount * (1 - commissionRate))
     // La PARTE del profesional sobre el bruto, no lo que MP le deposita: de acá
-    // MP todavía descuenta su fee.
-    const netToProfessional = round2(amount * (1 - commissionRate))
+    // MP todavía descuenta su fee. Cobrando para plataforma es 0 — no le llega
+    // nada directo, ver `debtExcessCredit` más abajo para el excedente.
+    const netToProfessional = collectForPlatform ? 0 : netEquivalent
     // Sólo para estimar el depósito mientras la captura no trajo el fee real.
     // Ya no interviene en el split.
     const mpFeeEstimated = round2(chargedAmount * mpFeeEstimateRate)
-    const manualSettlementAmount = round2(creditsUsed * (1 - commissionRate))
+    // Cuánto de este cobro cubre la deuda, y cuánto sobra. "Nunca se le retiene
+    // de más" (decisión del dueño, migración 102): si `netEquivalent` supera la
+    // deuda, el excedente es crédito a favor del profesional — se le paga en la
+    // liquidación mensual manual que ya existe, igual que la porción cubierta
+    // con Healthy Credits.
+    const amountAppliedToDebt = collectForPlatform ? Math.min(netEquivalent, platformDebtToRecover) : 0
+    const debtExcessCredit = collectForPlatform ? round2(netEquivalent - amountAppliedToDebt) : 0
+    const manualSettlementAmount = round2(creditsUsed * (1 - commissionRate)) + debtExcessCredit
 
     const idempotencyKey = await sha256Hex(`${consultationId}:${cardToken}`)
 
@@ -537,7 +609,7 @@ Deno.serve(async (req) => {
         currency: 'ARS',
         status: 'rejected',
         status_detail: mpData.status_detail ?? mpData.message ?? mpData.error ?? 'mp_request_failed',
-        collector_id: account.mp_user_id,
+        collector_id: collectorMpUserId,
       })
 
       await serviceSupabase
@@ -575,9 +647,25 @@ Deno.serve(async (req) => {
       currency: 'ARS',
       status: paymentsStatus,
       status_detail: mpData.status_detail ?? '',
-      collector_id: account.mp_user_id,
+      collector_id: collectorMpUserId,
       ...(paymentsStatus === 'authorized' ? { authorized_at: new Date().toISOString() } : {}),
     })
+
+    // Cobro aprobado con el token de plataforma → recién ACÁ, con la plata ya
+    // adentro de la cuenta de Healthier, se descuenta de la deuda. Nunca antes:
+    // si MP rechaza el cobro no se le tocó nada al profesional.
+    if (collectForPlatform && paymentsStatus === 'approved' && amountAppliedToDebt > 0) {
+      const { error: recoverErr } = await serviceSupabase.rpc('apply_debt_recovery', {
+        p_professional: consultation.professional_id,
+        p_amount: amountAppliedToDebt,
+        p_payment_id: paymentId,
+      })
+      // No se corta la respuesta por esto — el cobro real ya sucedió y no se
+      // puede deshacer. Si esto falla queda desalineado (cobrado de más al
+      // original pero sin descontarse de su deuda) y hay que arreglarlo a
+      // mano; por eso el log explícito.
+      if (recoverErr) console.error('mp-payment: apply_debt_recovery error:', recoverErr.message, { paymentId, amountAppliedToDebt })
+    }
 
     if (creditsUsed > 0) {
       const { error: ledgerErr } = await serviceSupabase.from('patient_credits').insert({

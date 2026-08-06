@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { CalendarCheck, MagnifyingGlass, VideoCamera, MapPin, Lightning, CircleNotch } from '@phosphor-icons/react'
+import { CalendarCheck, MagnifyingGlass, VideoCamera, MapPin, Lightning, CircleNotch, ArrowsLeftRight } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
+import { professionalService } from '../../services/professionalService'
+import { reassignmentsService } from '../../services/reassignmentsService'
 import { toast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import StatusBadge, { STATUS_CONFIG } from '../../components/StatusBadge'
@@ -78,6 +80,13 @@ export default function SuperAdminConsultas() {
   const [form, setForm] = useState(null)         // campos editables del panel
   const [saving, setSaving] = useState(false)
 
+  // Reasignar profesional (migración 102) — lista de profesionales verificados
+  // para elegir a quién pasarle la consulta.
+  const [professionals, setProfessionals] = useState([])
+  const [reassignTo, setReassignTo] = useState('')
+  const [reassignReason, setReassignReason] = useState('')
+  const [reassigning, setReassigning] = useState(false)
+
   const load = () => {
     setLoading(true)
     consultationsService.getAll()
@@ -86,7 +95,10 @@ export default function SuperAdminConsultas() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    professionalService.search({}).then(setProfessionals).catch(() => {})
+  }, [])
 
   const filtered = useMemo(() => {
     const q = filters.search.trim().toLowerCase()
@@ -112,11 +124,40 @@ export default function SuperAdminConsultas() {
       paymentStatus: c.paymentStatus || '',
       cancelReason: c.cancelReason || '',
     })
+    setReassignTo('')
+    setReassignReason('')
   }
 
   const closeDetail = () => {
     setSelected(null)
     setForm(null)
+    setReassignTo('')
+    setReassignReason('')
+  }
+
+  /**
+   * Reasignar el profesional que toma la consulta (migración 102).
+   *
+   * La pre-auth/cobro sigue capturándose contra el profesional ORIGINAL —
+   * esto sólo cambia quién la atiende de acá en más y deja el registro en
+   * `consultation_reassignments`. El recupero de lo que le corresponde al
+   * original vs. al que atendió pasa por `/super-admin/pagos`, no por acá.
+   */
+  const handleReassign = async () => {
+    if (!selected || !reassignTo) return
+    setReassigning(true)
+    try {
+      await reassignmentsService.reassignConsultation(selected.id, reassignTo, reassignReason.trim() || null)
+      toast.success('Consulta reasignada')
+      setReassignTo('')
+      setReassignReason('')
+      load()
+      closeDetail()
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setReassigning(false)
+    }
   }
 
   const handleSave = async () => {
@@ -305,6 +346,16 @@ export default function SuperAdminConsultas() {
                   <p className="text-text-primary">{selected.professional?.fullName || '—'}</p>
                   <p className="text-xs text-text-tertiary">{selected.professional?.email || ''}</p>
                 </div>
+                {/* Se reasignó al menos una vez — la pre-auth/cobro sigue
+                    capturándose contra este, no contra quien la atiende hoy. */}
+                {selected.originalProfessionalId && (
+                  <div className="col-span-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    <span className="text-amber-800 text-xs font-semibold uppercase tracking-wide">Reasignada</span>
+                    <p className="text-text-primary text-sm mt-0.5">
+                      El cobro se captura contra <strong>{selected.originalProfessional?.fullName || 'el profesional original'}</strong> — ver el detalle en <a href="/super-admin/pagos" className="underline">Pagos</a>.
+                    </p>
+                  </div>
+                )}
               </div>
             </section>
 
@@ -342,6 +393,50 @@ export default function SuperAdminConsultas() {
                 <p className="text-sm text-text-primary whitespace-pre-wrap">{selected.closingNotes}</p>
               </section>
             )}
+
+            {/* Reasignar profesional (migración 102) */}
+            <section className="border-t border-border-default pt-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-1 flex items-center gap-1.5">
+                <ArrowsLeftRight className="h-3.5 w-3.5" /> Reasignar profesional
+              </h4>
+              <p className="text-xs text-text-secondary mb-3">
+                Cambia quién atiende la consulta de acá en más. Si ya hay un cobro o una reserva de tarjeta, el cobro sigue yendo contra el profesional original — la deuda y la transferencia quedan en <a href="/super-admin/pagos" className="underline">Pagos</a>.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label">Nuevo profesional</label>
+                  <select
+                    value={reassignTo}
+                    onChange={e => setReassignTo(e.target.value)}
+                    className="form-select text-sm w-full"
+                  >
+                    <option value="">Elegir…</option>
+                    {professionals
+                      .filter(p => p.userId !== selected.professional?.id)
+                      .map(p => (
+                        <option key={p.userId} value={p.userId}>{p.profiles?.fullName || p.userId}</option>
+                      ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Motivo (opcional)</label>
+                  <input
+                    type="text"
+                    value={reassignReason}
+                    onChange={e => setReassignReason(e.target.value)}
+                    placeholder="Ej: el profesional original se enfermó"
+                    className="form-input text-sm w-full"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={handleReassign}
+                disabled={!reassignTo || reassigning}
+                className="btn-secondary text-sm px-4 py-2 mt-3 disabled:opacity-40"
+              >
+                {reassigning ? <CircleNotch className="h-4 w-4 animate-spin" /> : 'Reasignar'}
+              </button>
+            </section>
 
             {/* Edición */}
             <section className="border-t border-border-default pt-4">

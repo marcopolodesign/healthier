@@ -435,6 +435,7 @@ export const consultationsService = {
         *,
         patient:profiles!patient_id(id, full_name, email),
         professional:profiles!professional_id(id, full_name, email, professional_profiles!professional_profiles_user_id_fkey(specialty)),
+        original_professional:profiles!original_professional_id(id, full_name, email),
         consultation_type:consultation_types!consultation_type_id(id, name)
       `)
       .order('scheduled_at', { ascending: false, nullsFirst: false })

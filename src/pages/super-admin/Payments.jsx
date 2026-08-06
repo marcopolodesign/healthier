@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { CurrencyDollar, Users, ArrowClockwise, CheckCircle, CircleNotch, Sparkle, HandCoins, ArrowUUpLeft } from '@phosphor-icons/react'
+import { CurrencyDollar, Users, ArrowClockwise, CheckCircle, CircleNotch, Sparkle, HandCoins, ArrowUUpLeft, ArrowsLeftRight } from '@phosphor-icons/react'
 import { paymentsService } from '../../services/paymentsService'
 import { mpService } from '../../services/mpService'
+import { reassignmentsService } from '../../services/reassignmentsService'
 import { toast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import { formatARS, formatDate } from '../../lib/format'
@@ -43,10 +44,13 @@ export default function SuperAdminPayments() {
   const [pendingRefunds, setPendingRefunds] = useState([])
   const [pendingConversions, setPendingConversions] = useState([])
   const [pendingSettlements, setPendingSettlements] = useState([])
+  const [reassignments, setReassignments] = useState([])
   const [loading, setLoading] = useState(true)
   const [approvingId, setApprovingId] = useState(null)
   const [settlingId, setSettlingId] = useState(null)
   const [confirmSettleId, setConfirmSettleId] = useState(null)
+  const [settlingOwedId, setSettlingOwedId] = useState(null)
+  const [confirmSettleOwedId, setConfirmSettleOwedId] = useState(null)
   const [forceRefundId, setForceRefundId] = useState(null)
   const [forceRefundReason, setForceRefundReason] = useState('')
   const [forcingRefund, setForcingRefund] = useState(false)
@@ -78,12 +82,14 @@ export default function SuperAdminPayments() {
       paymentsService.getPendingRefundRequests(),
       paymentsService.getPendingConversionRequests(),
       paymentsService.getPendingSettlements(),
+      reassignmentsService.getAll(),
     ])
-      .then(([pays, refunds, conversions, settlements]) => {
+      .then(([pays, refunds, conversions, settlements, reassigns]) => {
         setPayments(pays)
         setPendingRefunds(refunds)
         setPendingConversions(conversions)
         setPendingSettlements(settlements)
+        setReassignments(reassigns)
       })
       .catch(() => toast.error('Error al cargar pagos'))
       .finally(() => setLoading(false))
@@ -182,10 +188,48 @@ export default function SuperAdminPayments() {
     }
   }
 
+  /** super_admin marca como pagada (transferencia manual) la parte que se le debe al que atendió de verdad. */
+  const handleMarkOwedPaid = async (reassignmentId) => {
+    setSettlingOwedId(reassignmentId)
+    try {
+      const { error } = await reassignmentsService.markOwedPaid(reassignmentId)
+      if (error) throw new Error(error.message || error)
+      toast.success('Transferencia marcada como pagada')
+      setConfirmSettleOwedId(null)
+      load()
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos marcar la transferencia como pagada')
+    } finally {
+      setSettlingOwedId(null)
+    }
+  }
+
   const settlementsTotal = useMemo(
     () => pendingSettlements.reduce((s, p) => s + Number(p.manualSettlementAmount || 0), 0),
     [pendingSettlements]
   )
+
+  // Reasignaciones vivas (no 'superseded' ni 'no_payment' — esas no mueven plata).
+  const activeReassignments = useMemo(
+    () => reassignments.filter(r => ['pending', 'partially_recovered', 'recovered'].includes(r.status)),
+    [reassignments]
+  )
+  // Saldo pendiente de recuperar, agrupado por profesional original — el
+  // mismo número que lee mp-payment (get_professional_pending_debt) antes de
+  // firmar su próximo cobro directo.
+  const debtByProfessional = useMemo(() => {
+    const map = new Map()
+    for (const r of activeReassignments) {
+      if (!['pending', 'partially_recovered'].includes(r.status)) continue
+      const remaining = Number(r.amountToRecoverFromOriginal || 0) - Number(r.amountRecovered || 0)
+      if (remaining <= 0) continue
+      const key = r.originalProfessionalId
+      const prev = map.get(key) || { professional: r.original, debt: 0 }
+      prev.debt += remaining
+      map.set(key, prev)
+    }
+    return [...map.values()]
+  }, [activeReassignments])
 
   const totals = useMemo(() => {
     // Only 'approved' counts as billed — pre-authorization holds ('authorized')
@@ -575,6 +619,117 @@ export default function SuperAdminPayments() {
                         >
                           Marcar pagado
                         </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Reasignaciones y deudas por profesional (migración 102) */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="font-semibold text-text-primary flex items-center gap-2">
+              <ArrowsLeftRight className="h-5 w-5 text-brand" />
+              Reasignaciones y deudas
+            </h2>
+            <p className="text-xs text-text-secondary mt-1">
+              Consultas reasignadas desde Consultas — el cobro sigue yendo contra el profesional original; su próxima consulta directa se descuenta automáticamente hasta cubrir la deuda.
+            </p>
+          </div>
+        </div>
+
+        {debtByProfessional.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">Saldo pendiente de recuperar</p>
+            <div className="flex flex-wrap gap-2">
+              {debtByProfessional.map(({ professional, debt }) => (
+                <span key={professional?.id ?? debt} className="inline-flex items-center gap-1.5 text-xs bg-amber-50 text-amber-800 border border-amber-200 rounded-full px-3 py-1.5">
+                  {professional?.fullName || 'Profesional'} — debe {formatARS(debt)}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="space-y-2">{[1, 2].map(i => <div key={i} className="h-10 bg-bg-surface rounded-lg animate-pulse" />)}</div>
+        ) : activeReassignments.length === 0 ? (
+          <div className="flex flex-col items-center py-10 text-center">
+            <ArrowsLeftRight className="h-10 w-10 text-text-muted mb-3" />
+            <p className="text-text-secondary text-sm">No hay consultas reasignadas.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="w-full min-w-[920px] text-sm">
+              <thead>
+                <tr>
+                  <th className="table-header">Fecha</th>
+                  <th className="table-header">Original → Atendió</th>
+                  <th className="table-header text-right">Neto en juego</th>
+                  <th className="table-header text-right">Recuperado del original</th>
+                  <th className="table-header text-right">Debe al que atendió</th>
+                  <th className="table-header">Estado</th>
+                  <th className="table-header text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeReassignments.map(r => (
+                  <tr key={r.id} className="table-row">
+                    <td className="table-cell whitespace-nowrap text-text-tertiary">{formatDate(r.createdAt)}</td>
+                    <td className="table-cell">
+                      <p className="text-text-primary truncate max-w-[220px]">
+                        {r.original?.fullName || '—'} <span className="text-text-tertiary font-normal">→</span> {r.covering?.fullName || '—'}
+                      </p>
+                    </td>
+                    <td className="table-cell text-right">{formatARS(r.netAmount)}</td>
+                    <td className="table-cell text-right text-text-tertiary">
+                      {formatARS(r.amountRecovered)} / {formatARS(r.amountToRecoverFromOriginal)}
+                    </td>
+                    <td className="table-cell text-right font-semibold">
+                      {formatARS(r.amountOwedToCoveringProfessional)}
+                      {r.owedSettledAt && <span className="block text-[10px] font-normal text-emerald-600">pagado {formatDate(r.owedSettledAt)}</span>}
+                    </td>
+                    <td className="table-cell">
+                      <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${
+                        r.status === 'recovered' ? 'bg-emerald-50 text-emerald-600'
+                        : r.status === 'partially_recovered' ? 'bg-amber-50 text-amber-700'
+                        : 'bg-amber-50 text-amber-600'
+                      }`}>
+                        {r.status === 'recovered' ? 'Recuperado' : r.status === 'partially_recovered' ? 'Parcial' : 'Pendiente'}
+                      </span>
+                    </td>
+                    <td className="table-cell text-right">
+                      {Number(r.amountOwedToCoveringProfessional || 0) > 0 && !r.owedSettledAt && (
+                        confirmSettleOwedId === r.id ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleMarkOwedPaid(r.id)}
+                              disabled={settlingOwedId === r.id}
+                              className="btn-primary text-xs px-3 py-2 disabled:opacity-40"
+                            >
+                              {settlingOwedId === r.id ? <CircleNotch className="h-4 w-4 animate-spin" /> : '¿Confirmar?'}
+                            </button>
+                            <button
+                              onClick={() => setConfirmSettleOwedId(null)}
+                              disabled={settlingOwedId === r.id}
+                              className="text-xs text-text-secondary hover:text-text-primary"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmSettleOwedId(r.id)}
+                            className="btn-secondary text-xs px-3 py-2"
+                          >
+                            Marcar pagado
+                          </button>
+                        )
                       )}
                     </td>
                   </tr>
