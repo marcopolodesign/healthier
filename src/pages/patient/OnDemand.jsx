@@ -25,6 +25,15 @@ import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytic
 // rápido al siguiente, no esperar mucho al primero.
 const AUTH_WINDOW_SECONDS = 4 * 60
 
+/**
+ * Techo total de espera desde que se creó la consulta, sumando todos los
+ * "Necesito más tiempo". Existe porque cada minuto de espera es plata del
+ * paciente retenida en su tarjeta: extender es decisión suya, pero no puede ser
+ * infinito. El barrido de `mp-capture` tiene su propio tope, más holgado, para
+ * que el servidor nunca cancele antes que la pantalla.
+ */
+const MAX_WAIT_SECONDS = 20 * 60
+
 function formatCountdown(totalSeconds) {
   const m = Math.floor(totalSeconds / 60)
   const s = totalSeconds % 60
@@ -60,9 +69,21 @@ export default function OnDemand({ profile }) {
   const [errorPago, setErrorPago] = useState(null)
   const [paying, setPaying] = useState(false)
 
-  // Post-authorization countdown + cancel
+  // Post-authorization countdown + cancel.
+  //
+  // La cuenta regresiva se deriva de un vencimiento absoluto (`deadlineAt`), no
+  // de un contador que se decrementa: un contador en memoria mentía cada vez que
+  // el navegador suspendía la pestaña (vuelve con el mismo número que dejó,
+  // aunque hayan pasado tres minutos) y se perdía entero con un refresh. El
+  // vencimiento además vive en la base (`ondemand_wait_until`), que es lo que
+  // permite rehidratar la pantalla.
+  const [deadlineAt, setDeadlineAt] = useState(null)
   const [secondsLeft, setSecondsLeft] = useState(AUTH_WINDOW_SECONDS)
   const [cancelling, setCancelling] = useState(false)
+  // `created_at` de la consulta viva: el techo de MAX_WAIT_SECONDS se mide
+  // desde ahí, no desde que se montó la pantalla.
+  const [waitStartedAt, setWaitStartedAt] = useState(null)
+  const [extending, setExtending] = useState(false)
 
   // Checkout exit guard — back arrow (or any other exit affordance) opens this
   // confirm sheet instead of navigating away immediately (Mateo, 2026-07-27).
@@ -125,8 +146,54 @@ export default function OnDemand({ profile }) {
   // sola pregunta. Ahora el único disparador es que el paciente toque "Iniciar
   // consulta" en la sala, después de la pre-consulta (ver WaitingRoom).
   const handleAuthorized = async (id) => {
-    setSecondsLeft(AUTH_WINDOW_SECONDS)
+    const deadline = Date.now() + AUTH_WINDOW_SECONDS * 1000
+    setWaitStartedAt(prev => prev ?? Date.now())
+    aplicarVencimiento(deadline)
     setPhase('assigned')
+    // El vencimiento va a la base para que sobreviva a un refresh y para que el
+    // barrido del servidor no cancele la reserva antes de tiempo. Si esta
+    // escritura falla, la pantalla sigue andando con el vencimiento en memoria
+    // (el comportamiento viejo) — no vale la pena bloquear una consulta médica
+    // por no poder guardar un timestamp.
+    try {
+      await consultationsService.update(id, { ondemandWaitUntil: new Date(deadline).toISOString() })
+    } catch (err) {
+      console.error('[OnDemand] no se pudo guardar el vencimiento de espera:', err)
+    }
+  }
+
+  /** Deja el vencimiento y el contador en hora, en un solo lugar. */
+  const aplicarVencimiento = (deadlineMs) => {
+    setDeadlineAt(deadlineMs)
+    setSecondsLeft(Math.max(0, Math.round((deadlineMs - Date.now()) / 1000)))
+  }
+
+  // ── "Necesito más tiempo" — extiende la espera sin tocar la reserva ──────────
+  // No re-autoriza nada: la retención en la tarjeta ya está hecha y sigue viva,
+  // lo único que se mueve es hasta cuándo esperamos antes de soltarla. Por eso
+  // extender es instantáneo y no vuelve a pasar por el checkout.
+  const handleMoreTime = async () => {
+    if (extending || !consultationId) return
+    const desde = waitStartedAt ?? Date.now()
+    const techo = desde + MAX_WAIT_SECONDS * 1000
+    if (Date.now() >= techo) {
+      toast.info('Ya esperamos todo lo que podemos retener el pago. Probá con otro profesional.')
+      return
+    }
+    setExtending(true)
+    const deadline = Math.min(Date.now() + AUTH_WINDOW_SECONDS * 1000, techo)
+    try {
+      await consultationsService.update(consultationId, {
+        ondemandWaitUntil: new Date(deadline).toISOString(),
+      })
+      aplicarVencimiento(deadline)
+      setPhase('assigned')
+      track('ondemand_wait_extended', { value: price, currency: 'ARS' })
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos extender la espera. Probá de nuevo.')
+    } finally {
+      setExtending(false)
+    }
   }
 
   // ── Cancelar (patient-initiated abandonment) — releases the hold, no charge ──
@@ -143,25 +210,28 @@ export default function OnDemand({ profile }) {
   }
 
   // ── Venció la ventana sin que el profesional se conectara ────────────────────
-  // Antes: se liberaba la autorización, salía un toast y el paciente terminaba
-  // en el dashboard, sin reintentar con nadie. Para un producto que promete
-  // "hablá con un médico ahora", el fallo del core no puede ser un callejón.
-  // Ahora se libera la reserva igual (nunca se cobra) y se ofrece el siguiente
-  // profesional de la cola. No se re-autoriza sola: liberar el hold obliga a una
-  // autorización nueva, así que el paciente decide y vuelve al checkout.
+  // Antes se liberaba la autorización acá mismo y el paciente se enteraba
+  // después, con la reserva ya soltada: si quería seguir esperando cinco
+  // minutos más tenía que volver al checkout y autorizar de nuevo, con el
+  // riesgo de un segundo rechazo antifraude por reintentar la misma tarjeta.
+  //
+  // Ahora vencer no decide nada: se para el reloj y se pregunta. La reserva
+  // sigue viva mientras el paciente elige, y sólo se suelta si él lo pide (o si
+  // se va y la agarra el barrido del servidor).
   const handleTimeout = async () => {
     clearInterval(countdownRef.current)
-    if (consultationId) {
-      const { error } = await mpService.cancelAuthorization(consultationId)
-      if (error) console.error('[OnDemand] timeout cancel-auth failed:', error)
-    }
-    setConsultationId(null)
     setPhase('timeout')
   }
 
-  // Reintentar con el siguiente del pool, desde cero (consulta y autorización
-  // nuevas — la anterior quedó liberada).
-  const handleTryNextPro = () => {
+  // Reintentar con el siguiente del pool, desde cero: se libera la reserva de
+  // este profesional y la próxima autorización crea una consulta nueva.
+  const handleTryNextPro = async () => {
+    if (consultationId) {
+      const { error } = await mpService.cancelAuthorization(consultationId)
+      if (error) console.error('[OnDemand] cancel-auth al cambiar de profesional falló:', error)
+    }
+    setDeadlineAt(null)
+    setWaitStartedAt(null)
     setConsultationId(null)
     setSelectedCardId(null)
     setAddCardMode(false)
@@ -304,8 +374,51 @@ export default function OnDemand({ profile }) {
       ? professionalService.search({ specialty: primarySlug, onDemand: true, onlyLive: true }).catch(() => null)
       : Promise.resolve([])
 
-    fetchPros.then(prosRaw => {
+    /*
+     * Antes de ofrecer el checkout hay que preguntar si el paciente ya pagó.
+     *
+     * Un refresh en la pantalla de espera perdía todo el estado y lo devolvía a
+     * "Pagar e iniciar consulta" con la retención ya hecha en su tarjeta: el
+     * camino directo a autorizar dos veces la misma consulta. Ahora la espera se
+     * rehidrata desde la base — profesional, consulta y vencimiento — y el
+     * checkout ni se muestra.
+     */
+    const rehidratarEspera = async () => {
+      const viva = await consultationsService.getLiveOnDemand(profile?.id)
+      // Sólo se rehidrata la espera de ESTA vertical: si tiene una consulta viva
+      // de otra especialidad, esta pantalla no es la que la tiene que mostrar.
+      if (!viva || viva.vertical !== verticalId) return false
+
+      const pro = await professionalService.getByUserId(viva.professionalId)
+      if (!pro) return false
+
+      const creada = new Date(viva.createdAt).getTime()
+      const vence = viva.ondemandWaitUntil
+        ? new Date(viva.ondemandWaitUntil).getTime()
+        : creada + AUTH_WINDOW_SECONDS * 1000
+
+      if (cancelled) return null
+      setConsultationId(viva.id)
+      setWaitStartedAt(creada)
+      aplicarVencimiento(vence)
+      // Vencida mientras estaba cerrada: se le pregunta si quiere seguir
+      // esperando en vez de decidir por él. La reserva sigue viva.
+      setPhase(vence > Date.now() ? 'assigned' : 'timeout')
+      return pro
+    }
+
+    Promise.all([rehidratarEspera().catch(() => null), fetchPros]).then(([proEnEspera, prosRaw]) => {
       if (cancelled) return
+
+      // Rehidratada: el profesional que ya tiene la reserva va primero, y detrás
+      // queda el resto del pool como cola de failover para "probar con otro".
+      if (proEnEspera) {
+        const resto = buildPool(prosRaw ?? []).filter(p => p.userId !== proEnEspera.userId)
+        setProPool([proEnEspera, ...resto])
+        setPoolIndex(0)
+        return
+      }
+
       if (prosRaw === null) { setPhase('search_error'); return }
 
       // Filtrado por cobrabilidad + rotación — ver src/lib/onDemandPool.js
@@ -316,24 +429,28 @@ export default function OnDemand({ profile }) {
     })
 
     return () => { cancelled = true }
-  }, [vertical, verticalId, cargandoVerticales])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vertical, verticalId, cargandoVerticales, profile?.id])
 
-  // ── Step 4: real 10:00 countdown once authorized — auto cancel-auth at zero ──
+  // ── Step 4: cuenta regresiva contra el vencimiento absoluto ──────────────────
+  // Se recalcula contra el reloj en cada tick en vez de restar 1: así una
+  // pestaña suspendida vuelve mostrando lo que realmente falta, y no el número
+  // que había quedado congelado.
   useEffect(() => {
-    if (phase !== 'assigned') return
-    countdownRef.current = setInterval(() => {
-      setSecondsLeft(s => {
-        if (s <= 1) {
-          clearInterval(countdownRef.current)
-          handleTimeout()
-          return 0
-        }
-        return s - 1
-      })
-    }, 1000)
+    if (phase !== 'assigned' || !deadlineAt) return
+    const tick = () => {
+      const restante = Math.max(0, Math.round((deadlineAt - Date.now()) / 1000))
+      setSecondsLeft(restante)
+      if (restante === 0) {
+        clearInterval(countdownRef.current)
+        handleTimeout()
+      }
+    }
+    tick()
+    countdownRef.current = setInterval(tick, 1000)
     return () => clearInterval(countdownRef.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase])
+  }, [phase, deadlineAt])
 
   if (cargandoVerticales) return null
   if (!vertical || vertical.comingSoon) return null
@@ -388,28 +505,54 @@ export default function OnDemand({ profile }) {
   }
 
   // ── Venció la ventana sin que el profesional se conectara ──────────────────
+  // La reserva sigue viva hasta que el paciente decida: puede esperar más (sin
+  // volver a pasar por el checkout), cambiar de profesional o irse.
   if (phase === 'timeout') {
     const hayOtro = poolIndex + 1 < proPool.length
+    const puedeEsperarMas = !waitStartedAt || Date.now() < waitStartedAt + MAX_WAIT_SECONDS * 1000
     return (
-      <div className="absolute inset-0 bg-white z-[100] flex flex-col items-center justify-center p-6 animate-fade-in">
-        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-          <Clock className="w-8 h-8 text-gray-400" />
-        </div>
-        <h2 className="text-[22px] font-black text-gray-900 mb-2 text-center">{proName} no se conectó</h2>
-        <p className="text-gray-500 font-medium text-[15px] text-center mb-2">
-          No te cobramos nada — la reserva en tu tarjeta ya se liberó.
-        </p>
-        <p className="text-gray-500 font-medium text-[15px] text-center mb-8">
-          {hayOtro
-            ? 'Podemos intentar con otro profesional disponible.'
-            : 'Por ahora no hay otro profesional disponible en esta especialidad.'}
-        </p>
-        {hayOtro && (
-          <button onClick={handleTryNextPro} className="bg-brand text-white px-8 py-3 rounded-[16px] font-bold mb-3">
-            Probar con otro profesional
+      <div className="absolute inset-0 bg-white z-[100] overflow-y-auto animate-fade-in">
+        <div className="min-h-full flex flex-col items-center justify-center p-6">
+          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+            <Clock className="w-8 h-8 text-gray-400" />
+          </div>
+          <h2 className="text-[22px] font-black text-gray-900 mb-2 text-center">{proName} todavía no se conectó</h2>
+          <p className="text-gray-500 font-medium text-[15px] text-center mb-2">
+            {puedeEsperarMas
+              ? 'Todavía no te cobramos nada. La reserva en tu tarjeta sigue tomada mientras decidís.'
+              : 'Todavía no te cobramos nada. No podemos seguir reteniendo el pago más tiempo.'}
+          </p>
+          <p className="text-gray-500 font-medium text-[15px] text-center mb-8">
+            {hayOtro
+              ? 'Podés esperarlo un rato más o probar con otro profesional disponible.'
+              : 'Por ahora no hay otro profesional disponible en esta especialidad.'}
+          </p>
+          {puedeEsperarMas && (
+            <button
+              onClick={handleMoreTime}
+              disabled={extending}
+              className="bg-brand text-white px-8 py-3 rounded-[16px] font-bold mb-3 flex items-center gap-2 disabled:opacity-50"
+            >
+              {extending && <CircleNotch className="w-4 h-4 animate-spin" />}
+              Necesito más tiempo
+            </button>
+          )}
+          {hayOtro && (
+            <button
+              onClick={handleTryNextPro}
+              className={`px-8 py-3 rounded-[16px] font-bold mb-3 ${puedeEsperarMas ? 'bg-gray-50 text-gray-600 hover:bg-gray-100' : 'bg-brand text-white'}`}
+            >
+              Probar con otro profesional
+            </button>
+          )}
+          <button
+            onClick={handleCancel}
+            disabled={cancelling}
+            className="text-gray-500 font-bold text-[15px] py-2 disabled:opacity-50"
+          >
+            {cancelling ? 'Liberando la reserva...' : 'Cancelar y volver al inicio'}
           </button>
-        )}
-        <button onClick={() => navigate('/paciente/dashboard')} className="text-gray-500 font-bold text-[15px] py-2">Volver al inicio</button>
+        </div>
       </div>
     )
   }
@@ -453,7 +596,7 @@ export default function OnDemand({ profile }) {
             </div>
             <div className="flex-1 min-w-0">
               <h4 className="font-bold text-gray-900 text-[15px] mb-1">Pago autorizado — falta un paso</h4>
-              <p className="text-gray-500 text-[13px] leading-snug">Contanos qué te pasa y avisale a {proName} que estás listo. Si no arrancás a tiempo, la reserva se libera sola.</p>
+              <p className="text-gray-500 text-[13px] leading-snug">Contanos qué te pasa y avisale a {proName} que estás listo. Si se acaba el tiempo te preguntamos si querés seguir esperando.</p>
             </div>
             <span className={`font-mono font-black text-[22px] tabular-nums shrink-0 ${urgent ? 'text-red-600' : 'text-gray-900'}`}>
               {formatCountdown(secondsLeft)}

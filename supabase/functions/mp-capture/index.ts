@@ -50,8 +50,21 @@ import { ensureFreshMpToken, PAYMENT_REFRESH_MARGIN_MS, type MpAccountRow } from
 
 const MP_API_BASE = "https://api.mercadopago.com/v1";
 
-// On-demand timeout — must match D1's patient-facing countdown (10:00).
+// On-demand timeout — default cutoff when the consultation carries no explicit
+// deadline (`ondemand_wait_until`): rows created before that column existed, or
+// an authorization whose deadline never llegó a escribirse.
 const AUTH_TIMEOUT_MS = 10 * 60 * 1000;
+
+// Colchón sobre el vencimiento que pidió el paciente. El barrido corre cada 5
+// minutos y la pantalla le pregunta "¿necesitás más tiempo?" justo al vencer:
+// sin este margen, el cron podía soltarle la reserva mientras estaba leyendo la
+// pregunta.
+const SWEEP_GRACE_MS = 2 * 60 * 1000;
+
+// Tope duro de retención, pase lo que pase con los "necesito más tiempo": la
+// plata del paciente no queda tomada indefinidamente porque dejó la pestaña
+// abierta. La pantalla corta antes (20 minutos), esto es el respaldo.
+const MAX_HOLD_MS = 30 * 60 * 1000;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -243,6 +256,7 @@ interface SweepConsultationJoin {
   status: string;
   is_on_demand: boolean;
   created_at: string;
+  ondemand_wait_until: string | null;
 }
 
 interface SweepPaymentRow extends PaymentRow {
@@ -255,13 +269,31 @@ function joinedConsultation(row: SweepPaymentRow): SweepConsultationJoin | null 
   return Array.isArray(row.consultation) ? row.consultation[0] ?? null : row.consultation;
 }
 
+/**
+ * Hasta cuándo hay que dejar viva esta pre-autorización.
+ *
+ * El paciente puede haber pedido más tiempo desde la pantalla de espera
+ * (`ondemand_wait_until`); sin eso vale el default histórico de 10 minutos. En
+ * los dos casos se suma el colchón del cron y se capea con el tope duro, para
+ * que ni el servidor cancele antes que la pantalla ni una pestaña olvidada
+ * retenga plata para siempre.
+ */
+function holdDeadlineMs(consultation: SweepConsultationJoin): number {
+  const createdMs = new Date(consultation.created_at).getTime();
+  const pedido = consultation.ondemand_wait_until
+    ? new Date(consultation.ondemand_wait_until).getTime()
+    : createdMs + AUTH_TIMEOUT_MS;
+  const conColchon = pedido + SWEEP_GRACE_MS;
+  return Math.min(conColchon, createdMs + MAX_HOLD_MS);
+}
+
 async function runSweep(supabase: SupabaseClient) {
-  const cutoffIso = new Date(Date.now() - AUTH_TIMEOUT_MS).toISOString();
+  const ahora = Date.now();
 
   const { data: authorizedPayments, error: fetchErr } = await supabase
     .from("payments")
     .select(
-      "id, mp_payment_id, professional_id, patient_id, status, consultation_id, consultation:consultations!consultation_id(id, status, is_on_demand, created_at)"
+      "id, mp_payment_id, professional_id, patient_id, status, consultation_id, consultation:consultations!consultation_id(id, status, is_on_demand, created_at, ondemand_wait_until)"
     )
     .eq("status", "authorized");
 
@@ -299,7 +331,7 @@ async function runSweep(supabase: SupabaseClient) {
     // (a) Stuck on-demand authorizations — timed out without ever starting the call.
     const isStuck =
       consultation.is_on_demand &&
-      consultation.created_at < cutoffIso &&
+      ahora > holdDeadlineMs(consultation) &&
       !["in_progress", "completed"].includes(consultation.status);
 
     // (b) Orphaned authorizations whose consultation already completed —

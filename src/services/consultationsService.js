@@ -299,6 +299,38 @@ export const consultationsService = {
     return toCamelCase(data)
   },
 
+  /**
+   * La consulta on-demand que el paciente tiene viva ahora mismo: creada,
+   * con la plata ya retenida en la tarjeta y todavía sin empezar.
+   *
+   * Es lo que permite que `/paciente/ondemand` se rehidrate después de un
+   * refresh en vez de devolver al paciente al checkout con la
+   * pre-autorización ya hecha — que era el camino directo a autorizar dos
+   * veces la misma consulta.
+   *
+   * `payment_status: 'in_process'` es exactamente "autorizada, sin capturar"
+   * (ver `mapMpStatus` en `mp-payment`): un pago cobrado queda `paid` y uno
+   * que MP todavía está revisando queda `pending_payment`, así que ninguno de
+   * los dos entra acá.
+   */
+  async getLiveOnDemand(patientId) {
+    if (!patientId) return null
+    const { data, error } = await supabase
+      .from('consultations')
+      .select('*')
+      .eq('patient_id', patientId)
+      .eq('is_on_demand', true)
+      .eq('payment_status', 'in_process')
+      .in('status', ['pending', 'confirmed'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    // Fail-open: si esta lectura falla, el paciente ve el checkout normal. Es
+    // el comportamiento viejo, no algo peor.
+    if (error) return null
+    return data ? toCamelCase(data) : null
+  },
+
   async update(id, fields) {
     const { data, error } = await supabase
       .from('consultations')
