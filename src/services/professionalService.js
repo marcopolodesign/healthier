@@ -26,7 +26,12 @@ export const professionalService = {
       .from('professional_profiles')
       .select('*, profiles!user_id(*)')
       .eq('user_id', userId)
-      .single()
+      // `maybeSingle` y no `single`: "todavía no tiene ficha profesional" es un
+      // estado normal — es el de cualquier profesional recién registrado, y el
+      // que hace que el Dashboard muestre "Completá tu perfil". Con `single()`
+      // PostgREST responde **406** cuando no hay fila, así que cada alta nueva
+      // ensuciaba la consola con un error de red que no era un error.
+      .maybeSingle()
     if (error) return null
     return toCamelCase(data)
   },

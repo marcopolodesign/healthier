@@ -40,10 +40,19 @@ export const authService = {
     })
     if (authError) throw new Error(authError.message)
 
-    // Create profile row — include UTM attribution if captured from landing page
+    // Upsert, no insert: en la base hay un trigger (`crear_perfil_al_registrarse`
+    // sobre `auth.users`) que ya crea la fila de `profiles` con id/email/nombre/rol.
+    // Con `.insert()` esto respondía **409 duplicate key** en TODAS las altas por
+    // mail, `register()` tiraba, la página de registro nunca llegaba a su
+    // `navigate` al onboarding — y como el `signUp` ya había dejado la sesión
+    // iniciada, el usuario terminaba en el dashboard con un toast de error de
+    // Postgres. Reportado 2026-08-06 (pasaba con pacientes y con profesionales).
+    //
+    // El upsert sigue haciendo falta: el trigger no guarda la atribución UTM ni
+    // el avatar, que es justamente lo que sólo conoce el cliente.
     const { error: profileError } = await supabase
       .from('profiles')
-      .insert(buildProfileRow(authData.user, email, role, fullName, utms))
+      .upsert(buildProfileRow(authData.user, email, role, fullName, utms), { onConflict: 'id' })
     if (profileError) throw new Error(profileError.message)
 
     return { user: authData.user, session: authData.session }
