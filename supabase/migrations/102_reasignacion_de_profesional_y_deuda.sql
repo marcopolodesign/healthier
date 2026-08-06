@@ -160,6 +160,16 @@ create index if not exists idx_debt_recoveries_reassignment on public.debt_recov
 create index if not exists idx_debt_recoveries_payment       on public.debt_recoveries(payment_id);
 create index if not exists idx_debt_recoveries_professional  on public.debt_recoveries(professional_id, created_at desc);
 
+-- Un mismo pago NO puede recuperar la MISMA deuda dos veces. No va sobre
+-- `payment_id` solo: un pago puede cubrir varias reasignaciones distintas en
+-- una sola corrida de `apply_debt_recovery` (el loop FIFO inserta una fila por
+-- reasignación que toca) — eso es válido y tiene que poder pasar. Lo que NO
+-- puede pasar es (reassignment_id, payment_id) repetido: eso sólo sucede si la
+-- función se ejecutó dos veces para el mismo cobro. Defensa en profundidad
+-- junto con el advisory lock + la guarda de idempotencia de la función.
+create unique index if not exists idx_debt_recoveries_reassignment_payment
+  on public.debt_recoveries(reassignment_id, payment_id);
+
 alter table public.debt_recoveries enable row level security;
 
 drop policy if exists "debt_recoveries_select_admin" on public.debt_recoveries;
@@ -335,6 +345,26 @@ grant execute on function public.get_professional_pending_debt(uuid) to authenti
 -- mismo criterio que get_credit_balance/056). Ni siquiera el super_admin
 -- desde el browser puede tocar esto directo: la plata sólo se mueve cuando
 -- MP confirma un cobro real, nunca por una edición manual de saldo.
+--
+-- Idempotencia por p_payment_id — POR QUÉ HACE FALTA:
+-- `mp-payment` firma cada cobro con un `X-Idempotency-Key` derivado de
+-- `consultationId:cardToken`. Eso evita que MP cobre dos veces por un
+-- reintento de red o un doble click — el segundo intento vuelve con el MISMO
+-- pago, ya `approved`. Pero sin guarda acá, el código de `mp-payment` seguía
+-- de largo y volvía a llamar a esta función con el mismo `p_payment_id`:
+-- **la deuda se descontaba dos veces por un solo cobro real**, perdonándole al
+-- profesional plata que nunca se recuperó. Se arregla en la base (acá) y no
+-- en la Edge Function porque cualquier otro llamador futuro repetiría el bug
+-- si la garantía sólo viviera del lado de afuera.
+--
+-- El advisory lock (`pg_advisory_xact_lock`, keyed por payment_id) serializa
+-- dos corridas concurrentes para el MISMO pago — sin él, dos llamadas que
+-- entran a la vez podrían pasar el chequeo "¿ya existe una fila con este
+-- payment_id?" ANTES de que la primera confirme su insert (carrera clásica
+-- lectura-antes-de-escritura). Es transaccional: se libera solo al terminar
+-- la función, no hace falta soltarlo a mano. El índice único
+-- `idx_debt_recoveries_reassignment_payment` es la segunda barrera, por si
+-- algún día algo inserta en `debt_recoveries` sin pasar por acá.
 create or replace function public.apply_debt_recovery(
   p_professional uuid,
   p_amount       numeric,
@@ -355,7 +385,15 @@ begin
     raise exception 'No autorizado';
   end if;
 
-  if v_remaining <= 0 then
+  if v_remaining <= 0 or p_payment_id is null then
+    return 0;
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext(p_payment_id::text));
+
+  if exists (select 1 from public.debt_recoveries where payment_id = p_payment_id) then
+    -- Este pago ya recuperó deuda en una corrida anterior — reintento de
+    -- mp-payment sobre un cobro que MP ya había aprobado. No hacer nada.
     return 0;
   end if;
 
