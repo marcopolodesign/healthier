@@ -48,6 +48,30 @@ Healthier — Health-services marketplace MVP connecting patients with healthcar
 
 > **Migrations:** After creating any Supabase migration file, run `npx supabase db push` immediately. Do NOT tell the user to run it — just run it.
 
+> **🔴 Migraciones huérfanas — chequear antes de terminar cualquier tarea que toque `supabase/migrations/`:**
+>
+> ```bash
+> bash scripts/check-migraciones-huerfanas.sh
+> ```
+>
+> Compara cuatro cosas: archivos sin commitear, migraciones que quedaron en un
+> worktree sin mergear, `supabase_migrations.schema_migrations` de producción
+> contra los archivos locales, y huecos en la numeración. Sólo lee.
+>
+> **Por qué existe:** el 2026-08-06 se encontró que las migraciones 082 y 083 del
+> worktree `fix-alta-cuenta-y-obra-social` habían llegado a producción —el trigger
+> `crear_perfil_al_registrarse` y las columnas de cobertura de `profiles` estaban
+> aplicados— pero el worktree nunca se mergeó, así que no había archivo en `main`
+> ni registro en `schema_migrations`. Peor: el código de `main` ya dependía del
+> trigger (el fix del 409 en `authService.register`). Un `db reset` o un entorno
+> nuevo habría dado una base rota sin ninguna pista de por qué. Se recuperaron
+> como 095 y 096.
+>
+> **Trabajar en un worktree es lo que lo causa:** `db push` desde el worktree
+> aplica el SQL a la base compartida al instante, pero el archivo sólo existe en
+> esa rama. Si la rama se abandona, la base queda adelantada al repo. Antes de
+> borrar o abandonar un worktree, correr el chequeo.
+
 ---
 
 ## Roles & Routing
