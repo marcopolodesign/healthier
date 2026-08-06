@@ -1,6 +1,6 @@
 import { CheckCircle, ShieldCheck, CalendarCheck, VideoCamera, FileText, Prescription } from '@phosphor-icons/react'
 import { AnimatedTagCascade } from '../common/AnimatedTagCascade'
-import { SPECIALTY_LABELS } from '../../lib/verticals'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { LAWS } from '../../lib/laws'
 
 // Illustrative clinical-note sections — teases the AI Scribe feature (Fase 3)
@@ -22,7 +22,8 @@ const FEATURES = [
 ]
 
 export default function OnboardingPreview({ step, form, profile, avatarPreview }) {
-  const specialtyLabel = SPECIALTY_LABELS[form.specialty]
+  const { porSlug } = useEspecialidades()
+  const specialtyLabel = porSlug[form.specialty]
 
   return (
     <div className="hidden lg:flex flex-col h-full w-full bg-bg-surface rounded-[1.5rem] border border-border-default p-8 overflow-hidden">

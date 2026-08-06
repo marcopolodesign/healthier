@@ -30,6 +30,11 @@ export const CONSULTATION_EVENTS = {
   CALL_ERROR:              'call_error',
   MARKED_NO_SHOW:          'marked_no_show',
   CONSULTATION_CLOSED:     'consultation_closed',
+  // Código de cierre en la videollamada (migración 099)
+  CODE_REQUESTED:          'closing_code_requested',
+  CODE_SHARED:             'closing_code_shared',
+  CODE_VERIFIED:           'closing_code_verified',
+  CODE_VERIFY_FAILED:      'closing_code_verify_failed',
 }
 
 export const consultationEventsService = {

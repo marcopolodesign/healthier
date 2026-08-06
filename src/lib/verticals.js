@@ -1,19 +1,11 @@
 import { Stethoscope, AppleLogo, Brain, Barbell, PawPrint, Pulse, Question } from '@phosphor-icons/react'
 import Pacifier from '../components/icons/Pacifier'
 
-// Single source of truth for specialty labels, vertical mappings, and options.
-
-export const SPECIALTY_LABELS = {
-  medicina_general: 'Medicina General',
-  pediatria:        'Pediatría',
-  nutricion:        'Nutrición',
-  psicologia:       'Psicología',
-  entrenamiento:    'Entrenamiento Físico',
-  cardiologia:      'Cardiología',
-  dermatologia:     'Dermatología',
-  veterinaria:      'Veterinaria',
-  otra:             'Otra',
-}
+// Especialidades (labels, mapeo a vertical, sub-especialidades) dejaron de
+// vivir acá — migración 101 (`specialties`), editable desde
+// /super-admin/verticales. Fuente: `useEspecialidades()` (src/hooks/useEspecialidades.js).
+// Lo que sigue en este archivo es identidad visual + config que SÍ sigue siendo
+// código (verticales del dashboard del paciente, categorías del onboarding).
 
 // ── Identidad visual de las verticales ───────────────────────────────────────
 // OJO: desde el 2026-07-31 esto NO decide qué vertical está habilitada. Eso vive
@@ -47,15 +39,22 @@ export const VERTICALS = [
 export const VERTICALS_BY_ID = Object.fromEntries(VERTICALS.map(v => [v.id, v]))
 export const isComingSoon = id => !!VERTICALS_BY_ID[id]?.comingSoon
 
-// Option list for select inputs (used in Onboarding and Profile)
-export const SPECIALTIES = Object.entries(SPECIALTY_LABELS).map(([value, label]) => ({ value, label }))
-
-// ── Profession categories — presentation-only grouping over SPECIALTY_LABELS ──
+// ── Profession categories — presentation-only grouping over el catálogo de especialidades ──
 // Purely for the onboarding UX (category chips → cascading specialty tags,
 // Tandem Health-style). Does NOT change what's persisted: form.specialty still
 // stores the exact same flat slug (e.g. 'pediatria') that professionalService,
 // admin approval, and every patient-facing page already expect. No DB/schema
 // change, no blast radius — see catchup.md 2026-07-16 for the reasoning.
+//
+// A propósito sigue siendo código y no una tabla más (migración 101 sólo movió
+// SPECIALTY_LABELS/SPECIALTIES, no esto): es agrupación de UX del wizard de
+// onboarding, no un dato de negocio que el super admin necesite tocar sin
+// deployar. Costo conocido: si se agrega una especialidad nueva desde el admin
+// y no aparece acá en ningún `specialtyValues`, queda invisible en el cascade
+// de Onboarding aunque exista en el catálogo — no hay guard en build-time para
+// esto desde que el catálogo dejó de ser estático (antes lo había, ver git
+// blame). Pendiente: mover esto a DB si el ritmo de altas de especialidades lo
+// justifica.
 export const PROFESSION_CATEGORIES = [
   { id: 'medico',        label: 'Médico',              icon: Stethoscope, specialtyValues: ['medicina_general', 'pediatria', 'cardiologia', 'dermatologia'] },
   { id: 'nutricion',     label: 'Nutrición',            icon: AppleLogo,   specialtyValues: ['nutricion'] },
@@ -65,23 +64,12 @@ export const PROFESSION_CATEGORIES = [
   { id: 'otra',          label: 'Otra',                 icon: Question,    specialtyValues: ['otra'] },
 ]
 
-// Drift guard: PROFESSION_CATEGORIES must partition every SPECIALTY_LABELS key
-// exactly once. If someone adds a specialty without updating the category
-// grouping above, it silently becomes unselectable in onboarding — warn loudly
-// in dev instead of failing silently in production.
-if (import.meta.env.DEV) {
-  const covered = new Set(PROFESSION_CATEGORIES.flatMap(c => c.specialtyValues))
-  const missing = Object.keys(SPECIALTY_LABELS).filter(k => !covered.has(k))
-  if (missing.length) {
-    console.warn(`[verticals.js] PROFESSION_CATEGORIES no cubre: ${missing.join(', ')} — quedarán ocultas en el onboarding de profesionales.`)
-  }
-}
-
-// Specialty options for a given category id, in SPECIALTIES {value,label} shape
-export function specialtiesForCategory(categoryId) {
+// Specialty options for a given category id, en forma {value,label}. `porSlug`
+// viene de `useEspecialidades()` — antes leía el SPECIALTY_LABELS hardcodeado.
+export function specialtiesForCategory(categoryId, porSlug = {}) {
   const category = PROFESSION_CATEGORIES.find(c => c.id === categoryId)
   if (!category) return []
-  return category.specialtyValues.map(value => ({ value, label: SPECIALTY_LABELS[value] }))
+  return category.specialtyValues.map(value => ({ value, label: porSlug[value] ?? value }))
 }
 
 // Reverse lookup — which category a given specialty slug belongs to (used to
@@ -90,31 +78,23 @@ export function categoryForSpecialty(specialtyValue) {
   return PROFESSION_CATEGORIES.find(c => c.specialtyValues.includes(specialtyValue))?.id ?? null
 }
 
-// Maps dashboard vertical IDs → professional_profiles.specialty slug(s)
-export const VERTICAL_SPECIALTIES = {
-  clinica:     ['medicina_general'],
-  pediatria:   ['pediatria'],
-  nutricion:   ['nutricion'],
-  mente:       ['psicologia'],
-  fisico:      ['entrenamiento'],
-  veterinaria: ['veterinaria'],
+// A qué vertical pertenece una especialidad, según el catálogo (migración 101,
+// columna `specialties.vertical_id`). `especialidades` viene de
+// `useEspecialidades()`. Hace falta cuando la reserva arranca desde el perfil de
+// un profesional en vez del wizard: ahí no hay selector de vertical, pero
+// `consultations.vertical` se llena igual y es lo que agrupa la consulta.
+export function verticalForSpecialty(specialty, especialidades = []) {
+  return especialidades.find(e => e.slug === specialty)?.verticalId ?? null
 }
-
-// Inverso de VERTICAL_SPECIALTIES. Hace falta cuando la reserva arranca desde el
-// perfil de un profesional en vez del wizard: ahí no hay selector de vertical,
-// pero `consultations.vertical` se llena igual y es lo que agrupa la consulta.
-const VERTICAL_BY_SPECIALTY = Object.fromEntries(
-  Object.entries(VERTICAL_SPECIALTIES).flatMap(([vertical, slugs]) => slugs.map(slug => [slug, vertical]))
-)
-
-export const verticalForSpecialty = specialty => VERTICAL_BY_SPECIALTY[specialty] ?? null
 
 // Returns the first pro in `pool` whose specialty matches any slug for the
 // given verticalId. Prefers professionals who can actually receive paid
 // bookings (mp_connected) — spec Sección D4 — falling back to any match so
-// the map still shows a marker rather than nothing.
-export function pickProForVertical(pool, verticalId) {
-  const slugs = VERTICAL_SPECIALTIES[verticalId] || []
+// the map still shows a marker rather than nothing. `porVertical` viene de
+// `useEspecialidades()` (verticalId → [slugs]); antes era el VERTICAL_SPECIALTIES
+// hardcodeado.
+export function pickProForVertical(pool, verticalId, porVertical = {}) {
+  const slugs = porVertical[verticalId] || []
   const matches = pool.filter(p => slugs.includes(p.specialty))
   return matches.find(p => p.mpConnected !== false) || matches[0] || null
 }

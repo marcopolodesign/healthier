@@ -136,6 +136,54 @@ export const consultationsService = {
     return result
   },
 
+  /**
+   * Verifica el código de cierre que dictó/compartió el paciente (migración
+   * 099). Puede llamarse EN la videollamada (status in_progress, antes de
+   * colgar) o después, desde el modal de cierre (status closing) — no cierra
+   * la consulta por sí sola, sólo marca `closing_code_verified_at`.
+   *
+   * No tira excepción en un código incorrecto (la RPC devuelve
+   * `{ok:false, intentosRestantes}` a propósito — ver el comentario en la
+   * migración): así el llamador puede mostrar "te quedan N intentos" sin
+   * tratarlo como un error de red.
+   */
+  async verifyClosingCode(consultationId, code) {
+    const { data, error } = await supabase.rpc('verificar_codigo_de_cierre', {
+      p_consultation_id: consultationId,
+      p_code: code,
+    })
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
+  /**
+   * Cierre efectivo de una videoconsulta (closing/in_progress → completed).
+   * Reemplaza a `finalize(..., 'professional', {code})` para video/on-demand:
+   * exige `verifyClosingCode` previo O un motivo para cerrar sin código
+   * (caso normal: el paciente ya se fue de la llamada). Presencial sigue
+   * usando `finalize()` sin cambios.
+   *
+   * Mismo post-proceso que `finalize()` — Customer.io y la captura on-demand
+   * no pueden perderse porque el cierre vino por este camino nuevo.
+   */
+  async completeClosing(consultationId, { closingNotes = null, skipCodeReason = null } = {}) {
+    const { data, error } = await supabase.rpc('completar_cierre_de_consulta', {
+      p_consultation_id: consultationId,
+      p_closing_notes: closingNotes || null,
+      p_motivo_sin_codigo: skipCodeReason || null,
+    })
+    if (error) throw error
+    const result = toCamelCase(data)
+    if (result.status === 'completed') {
+      cioService.consultationClosed(consultationId, { closedBy: 'professional' })
+      if (result.isOnDemand) {
+        mpService.capturePayment(consultationId).then(({ error: captureError }) => {
+          if (captureError) console.error('[consultationsService] on-demand capture failed:', captureError)
+        })
+      }
+    }
+    return result
+  },
 
   async getDailyAccess(consultationId) {
     const { data: { session } } = await supabase.auth.getSession()

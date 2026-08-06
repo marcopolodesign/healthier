@@ -4,8 +4,8 @@ import {
   MagnifyingGlass, ArrowLeft, CircleNotch, SmileyMeh,
 } from '@phosphor-icons/react'
 import { professionalService } from '../../services/professionalService'
-import { VERTICAL_SPECIALTIES, SPECIALTY_LABELS } from '../../lib/verticals'
 import { useVerticales } from '../../hooks/useVerticales'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../../components/Toast'
 import ProfessionalCard from '../../components/patient/ProfessionalCard'
 import ProfessionalModal from '../../components/patient/ProfessionalModal'
@@ -33,6 +33,7 @@ const MODALITY_OPTIONS = [
 export default function BuscarProfesional({ profile }) {
   // Habilitación de cada vertical: sale de `vertical_settings`, no del código.
   const { verticales: VERTICALS } = useVerticales()
+  const { porSlug, porVertical } = useEspecialidades()
 
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -60,7 +61,7 @@ export default function BuscarProfesional({ profile }) {
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchPros = useCallback(async (verticalId) => {
-    const slugs = VERTICAL_SPECIALTIES[verticalId] || []
+    const slugs = porVertical[verticalId] || []
     if (!slugs.length) {
       setPros([])
       setFetched(true)
@@ -79,15 +80,19 @@ export default function BuscarProfesional({ profile }) {
       setLoading(false)
       setFetched(true)
     }
-  }, [])
+  }, [porVertical])
 
-  // Auto-fetch when vertical is pre-set from URL params
+  // Auto-fetch when vertical is pre-set from URL params. Depende de
+  // `fetchPros` (que a su vez depende de `porVertical`, ver arriba) a
+  // propósito: si el catálogo de especialidades todavía no llegó en el primer
+  // render, `porVertical` está vacío y esto buscaría 0 profesionales sin
+  // reintentar cuando el catálogo aparece.
   useEffect(() => {
     if (selectedVerticalId) {
       fetchPros(selectedVerticalId)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [fetchPros])
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleSelectVertical = (id) => {
@@ -133,7 +138,7 @@ export default function BuscarProfesional({ profile }) {
   const filteredPros = searchQuery.trim()
     ? pros.filter(p => {
         const name    = (p.profiles?.fullName || '').toLowerCase()
-        const spec    = (SPECIALTY_LABELS[p.specialty] || '').toLowerCase()
+        const spec    = (porSlug[p.specialty] || '').toLowerCase()
         const q       = searchQuery.toLowerCase()
         return name.includes(q) || spec.includes(q)
       })

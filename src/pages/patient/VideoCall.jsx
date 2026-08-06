@@ -81,6 +81,11 @@ export default function PatientVideoCall() {
 
   // Validation code overlay
   const [validationCode, setValidationCode] = useState(null)
+  // El profesional pidió el código de cierre (migración 099) — se le muestra un
+  // aviso con un solo botón: "Aceptar y compartir". Aceptar ES compartir, no
+  // hace falta que dicte los 4 dígitos.
+  const [solicitudCodigo, setSolicitudCodigo] = useState(false)
+  const [codigoCompartido, setCodigoCompartido] = useState(false)
 
   // Pre-consulta gate
   const [showPreconsulta, setShowPreconsulta] = useState(false)
@@ -185,6 +190,14 @@ export default function PatientVideoCall() {
     let destroyed = false
     const ch = supabase.channel(`consultation-waiting-${consultationId}`)
     channelRef.current = ch
+
+    // El profesional pidió el código de cierre (migración 099). Reusa este
+    // mismo canal de presencia — ya está abierto para el "ready"/no-show — en
+    // vez de armar uno nuevo sólo para esto. Los listeners de broadcast tienen
+    // que registrarse ANTES de `subscribe()`.
+    ch.on('broadcast', { event: 'solicitar_codigo' }, () => {
+      if (!destroyed) setSolicitudCodigo(true)
+    })
 
     ch.on('presence', { event: 'sync' }, () => {
       if (destroyed) return
@@ -396,6 +409,28 @@ export default function PatientVideoCall() {
     }
   }
 
+  // Compartir el código de cierre con el profesional — a mano ("Compartir
+  // código") o aceptando su pedido ("Aceptar y compartir"), es la misma
+  // acción. Va por el canal de presencia que ya está abierto: el profesional
+  // lo recibe y lo auto-verifica, sin que el paciente tenga que dictarlo.
+  async function compartirCodigo() {
+    if (!validationCode || !channelRef.current) return
+    const consultationId = id === '1' ? null : id
+    try {
+      await channelRef.current.send({
+        type: 'broadcast',
+        event: 'codigo_compartido',
+        payload: { code: validationCode },
+      })
+      setSolicitudCodigo(false)
+      setCodigoCompartido(true)
+      consultationEventsService.log(consultationId, CONSULTATION_EVENTS.CODE_SHARED, null, { role: 'patient' })
+      setTimeout(() => setCodigoCompartido(false), 4000)
+    } catch {
+      toast.error('No se pudo compartir el código. Probá de nuevo.')
+    }
+  }
+
   function handleKeepWaitingForProfessional() {
     setNoShowBanner(false)
     // Reset 5-minute timer
@@ -591,13 +626,48 @@ export default function PatientVideoCall() {
           </div>
         )}
 
-        {/* Validation code pill */}
-        {validationCode && (
-          <div className="absolute top-3 right-3 z-20 pointer-events-none flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-white/60 rounded-full px-3 py-1.5 shadow-md">
+        {/* Validation code pill + compartir — el profesional lo necesita para
+            cerrar la consulta (migración 099). "Compartir código" hace lo mismo
+            que aceptar un pedido: se lo manda por el canal ya abierto, sin que
+            el profesional tenga que anotar lo que el paciente dicta. */}
+        {validationCode && !solicitudCodigo && (
+          <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-white/60 rounded-full pl-3 pr-1.5 py-1.5 shadow-md">
             <SealCheck className="w-3.5 h-3.5 text-brand flex-shrink-0" />
             <span className="text-[11px] font-bold text-gray-800 whitespace-nowrap">
               Tu código <span className="text-brand font-black tracking-wide">{validationCode}</span>
             </span>
+            <button
+              onClick={compartirCodigo}
+              className="text-[11px] font-semibold text-white bg-brand rounded-full px-2.5 py-1 hover:bg-brand/90 transition-colors whitespace-nowrap"
+            >
+              {codigoCompartido ? 'Compartido ✓' : 'Compartir'}
+            </button>
+          </div>
+        )}
+
+        {/* El profesional pidió el código — un solo botón: aceptar = compartir. */}
+        {solicitudCodigo && (
+          <div className="absolute inset-x-4 top-3 z-20 flex items-center justify-between gap-3 bg-white/95 backdrop-blur-sm border border-white/70 rounded-2xl px-4 py-3 shadow-md">
+            <div className="flex items-center gap-2 min-w-0">
+              <SealCheck className="w-4 h-4 text-brand flex-shrink-0" />
+              <p className="text-[12px] font-semibold text-gray-800 leading-tight">
+                Tu profesional pidió tu código de cierre
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setSolicitudCodigo(false)}
+                className="text-[11px] font-medium text-gray-500 px-2 py-1.5"
+              >
+                Ahora no
+              </button>
+              <button
+                onClick={compartirCodigo}
+                className="text-[11px] font-bold text-white bg-brand rounded-full px-3 py-1.5 hover:bg-brand/90 transition-colors whitespace-nowrap"
+              >
+                Aceptar y compartir
+              </button>
+            </div>
           </div>
         )}
       </div>

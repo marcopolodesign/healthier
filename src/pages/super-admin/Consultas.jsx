@@ -343,6 +343,21 @@ export default function SuperAdminConsultas() {
               </section>
             )}
 
+            {/* Código de cierre (migración 099) — cómo se validó, o por qué no */}
+            {(selected.closingCodeVerifiedAt || selected.closingSkippedCodeReason) && (
+              <section>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">Código de cierre</h4>
+                {selected.closingCodeVerifiedAt ? (
+                  <Field label="Verificado el" value={formatDate(selected.closingCodeVerifiedAt)} />
+                ) : (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+                    <p className="text-xs font-semibold text-amber-700 mb-1">Cerrada sin código</p>
+                    <p className="text-sm text-text-primary whitespace-pre-wrap">{selected.closingSkippedCodeReason}</p>
+                  </div>
+                )}
+              </section>
+            )}
+
             {/* Edición */}
             <section className="border-t border-border-default pt-4">
               <h4 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-3">Editar</h4>

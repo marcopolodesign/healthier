@@ -5,6 +5,7 @@ import {
   Plus, Check, CircleNotch, User, Microphone, MicrophoneSlash,
   Camera, CameraSlash, Warning, Sparkle, ClockCounterClockwise,
   IdentificationCard, Drop, Phone, Envelope, MapPin, Heartbeat, Pill,
+  Key, SealCheck, PaperPlaneTilt,
 } from '@phosphor-icons/react'
 import DailyIframe from '@daily-co/daily-js'
 import { supabase } from '../../lib/supabase'
@@ -155,7 +156,79 @@ const PANEL_TABS = [
   { id: 'receta', label: 'Receta', icon: Pill },
   { id: 'historia', label: 'Historia', icon: ClockCounterClockwise },
   { id: 'datos', label: 'Datos', icon: IdentificationCard },
+  // Código de cierre EN la llamada, no sólo después de colgar (migración 099,
+  // pedido de Mateo 2026-08-06).
+  { id: 'cerrar', label: 'Cerrar', icon: Key },
 ]
+
+// ── Código de cierre — tab "Cerrar" dentro de la videollamada ─────────────────
+function CerrarTab({
+  codeVerifiedAt, codeInput, onCodeInputChange, onVerify, verifying, verifyError, attemptsLeft,
+  onSolicitar, solicitando, solicitado,
+}) {
+  if (codeVerifiedAt) {
+    return (
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center space-y-1">
+        <SealCheck className="h-6 w-6 text-emerald-600 mx-auto" weight="fill" />
+        <p className="text-sm font-semibold text-emerald-700">Código verificado</p>
+        <p className="text-xs text-emerald-600">
+          Al finalizar, vas a poder cerrar la consulta sin que te lo vuelva a pedir.
+        </p>
+      </div>
+    )
+  }
+  const agotado = attemptsLeft === 0
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border border-border-default bg-bg-surface p-2.5 space-y-2.5">
+        <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Código de cierre</p>
+        <p className="text-xs text-text-secondary leading-relaxed">
+          Pedíselo al paciente o tocá "Solicitar código" para que se lo pidamos por vos.
+          Verificarlo ahora te ahorra tener que pedirlo de nuevo al terminar.
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={4}
+            value={codeInput}
+            onChange={e => onCodeInputChange(e.target.value.replace(/\D/g, ''))}
+            placeholder="0000"
+            disabled={agotado}
+            className="form-input text-center tracking-[0.3em] text-lg font-mono w-24 disabled:opacity-50"
+          />
+          <button
+            type="button"
+            onClick={onVerify}
+            disabled={verifying || agotado || codeInput.length !== 4}
+            className="btn-primary flex-1 text-xs disabled:opacity-50"
+          >
+            {verifying ? 'Verificando…' : 'Verificar'}
+          </button>
+        </div>
+        {verifyError && <p className="text-xs text-red-600">{verifyError}</p>}
+        {agotado && (
+          <p className="text-xs text-amber-700">
+            Se agotaron los intentos. Al finalizar vas a poder cerrar igual dejando un motivo escrito.
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={onSolicitar}
+          disabled={solicitando || agotado}
+          className="btn-secondary w-full text-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
+        >
+          <PaperPlaneTilt className="h-3.5 w-3.5" />
+          {solicitando ? 'Pidiendo…' : solicitado ? 'Código pedido — esperando al paciente' : 'Solicitar código al paciente'}
+        </button>
+      </div>
+      <p className="text-[11px] text-text-tertiary leading-relaxed px-0.5">
+        Si el paciente ya no está en la llamada, vas a poder cerrar igual dejando un motivo
+        escrito cuando finalices la consulta.
+      </p>
+    </div>
+  )
+}
 
 const BLOOD_TYPE_COLORS = {
   'O+': 'bg-red-50 text-red-700 border-red-200',
@@ -350,7 +423,7 @@ function VideoTile({ track, muted = false, mirror = false, className = '' }) {
 }
 
 // ── Clinical notes panel (unchanged) ─────────────────────────────────────────
-function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrack }) {
+function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrack, codigoCierre }) {
   const patientId = consultation?.patientId
   const professionalId = consultation?.professionalId
   const pp = profile?.professionalProfiles?.[0]
@@ -756,6 +829,8 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
         {activeTab === 'datos' && (
           <DatosTab loading={loadingPatientData} patient={patientData} />
         )}
+
+        {activeTab === 'cerrar' && <CerrarTab {...codigoCierre} />}
       </div>
     </div>
   )
@@ -827,6 +902,14 @@ export default function ProfessionalVideoCall({ profile }) {
   const [hojaAbierta, setHojaAbierta] = useState(false)
   const [noShowBanner, setNoShowBanner] = useState(false)
 
+  // ── Código de cierre EN la llamada (migración 099) ───────────────────────
+  const [codigoInput, setCodigoInput] = useState('')
+  const [verificandoCodigo, setVerificandoCodigo] = useState(false)
+  const [errorCodigo, setErrorCodigo] = useState(null)
+  const [intentosRestantes, setIntentosRestantes] = useState(5)
+  const [solicitandoCodigo, setSolicitandoCodigo] = useState(false)
+  const [codigoSolicitado, setCodigoSolicitado] = useState(false)
+
   // Local tracks & controls
   const [camOn, setCamOn] = useState(true)
   const [micOn, setMicOn] = useState(true)
@@ -878,6 +961,15 @@ export default function ProfessionalVideoCall({ profile }) {
 
     const ch = supabase.channel(`consultation-waiting-${id}`)
     channelRef.current = ch
+
+    // El paciente compartió el código de cierre (a mano o aceptando el pedido
+    // — migración 099). Se auto-verifica: no hace falta que el profesional lo
+    // tipee. Listener registrado ANTES de `subscribe()`, como pide Realtime.
+    ch.on('broadcast', { event: 'codigo_compartido' }, ({ payload }) => {
+      if (destroyed || !payload?.code) return
+      setCodigoInput(payload.code)
+      verificarCodigo(payload.code)
+    })
 
     ch.on('presence', { event: 'sync' }, () => {
       if (destroyed) return
@@ -1052,6 +1144,55 @@ export default function ProfessionalVideoCall({ profile }) {
       // non-blocking
     }
     navigate('/profesional/dashboard')
+  }
+
+  // Verifica el código de cierre contra la base (migración 099). `codeOverride`
+  // se usa cuando el código llega por el canal de tiempo real (el paciente lo
+  // compartió/aceptó) — se auto-verifica sin que el profesional tenga que
+  // tipear nada.
+  async function verificarCodigo(codeOverride) {
+    const code = codeOverride ?? codigoInput
+    if (code.length !== 4) return
+    setVerificandoCodigo(true)
+    setErrorCodigo(null)
+    try {
+      const result = await consultationsService.verifyClosingCode(id, code)
+      if (result.ok) {
+        setConsultation(prev => prev ? { ...prev, closingCodeVerifiedAt: result.closingCodeVerifiedAt } : prev)
+        setCodigoSolicitado(false)
+        toast.success('Código verificado')
+        consultationEventsService.log(id, CONSULTATION_EVENTS.CODE_VERIFIED, null, { id: profile?.id, role: 'professional' })
+      } else {
+        setIntentosRestantes(result.intentosRestantes)
+        setErrorCodigo(
+          result.motivo === 'intentos_agotados'
+            ? 'Se agotaron los intentos.'
+            : `Código incorrecto. Quedan ${result.intentosRestantes} intento(s).`
+        )
+        consultationEventsService.log(id, CONSULTATION_EVENTS.CODE_VERIFY_FAILED,
+          { motivo: result.motivo }, { id: profile?.id, role: 'professional' })
+      }
+    } catch (err) {
+      setErrorCodigo(err?.message ?? 'No se pudo verificar el código')
+    } finally {
+      setVerificandoCodigo(false)
+    }
+  }
+
+  // Le pide el código al paciente por el mismo canal de presencia de la sala
+  // de espera — nada de infraestructura nueva.
+  async function solicitarCodigo() {
+    if (!channelRef.current) return
+    setSolicitandoCodigo(true)
+    try {
+      await channelRef.current.send({ type: 'broadcast', event: 'solicitar_codigo', payload: {} })
+      setCodigoSolicitado(true)
+      consultationEventsService.log(id, CONSULTATION_EVENTS.CODE_REQUESTED, null, { id: profile?.id, role: 'professional' })
+    } catch {
+      toast.error('No se pudo pedir el código. Probá de nuevo.')
+    } finally {
+      setSolicitandoCodigo(false)
+    }
   }
 
   function handleKeepWaiting() {
@@ -1364,6 +1505,18 @@ export default function ProfessionalVideoCall({ profile }) {
                 profile={profile}
                 localAudioTrack={localAudioTrack}
                 remoteAudioTrack={remote?.audioTrack}
+                codigoCierre={{
+                  codeVerifiedAt: consultation?.closingCodeVerifiedAt ?? null,
+                  codeInput: codigoInput,
+                  onCodeInputChange: setCodigoInput,
+                  onVerify: () => verificarCodigo(),
+                  verifying: verificandoCodigo,
+                  verifyError: errorCodigo,
+                  attemptsLeft: intentosRestantes,
+                  onSolicitar: solicitarCodigo,
+                  solicitando: solicitandoCodigo,
+                  solicitado: codigoSolicitado,
+                }}
               />
             </div>
           </div>

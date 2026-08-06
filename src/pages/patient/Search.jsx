@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   MagnifyingGlass, ArrowLeft, CircleNotch, SmileyMeh, X,
 } from '@phosphor-icons/react'
 import { professionalService } from '../../services/professionalService'
-import { SPECIALTY_LABELS } from '../../lib/verticals'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import ProfessionalCard from '../../components/ProfessionalCard'
 import { toast } from '../../components/Toast'
 import { track } from '../../utils/analytics'
@@ -23,21 +23,22 @@ import { track } from '../../utils/analytics'
  * `professionalService.buscarCobrables`.
  *
  * La especialidad quedó como un chip opcional y no como un select obligatorio:
- * acota, no gatea. La lista de chips sale de `SPECIALTY_LABELS`, que es la fuente
- * única; la lista que había acá era una copia a mano y ya se le habían quedado
- * afuera pediatría y veterinaria.
+ * acota, no gatea. La lista de chips sale del catálogo (`useEspecialidades`,
+ * migración 101), que es la fuente única; la lista que había acá antes era una
+ * copia a mano y ya se le habían quedado afuera pediatría y veterinaria.
  */
-
-// Un espejo escrito a mano se desactualiza: se derivan de la fuente única, sin
-// 'otra', que como filtro no le dice nada al paciente.
-const CHIPS_ESPECIALIDAD = Object.entries(SPECIALTY_LABELS)
-  .filter(([value]) => value !== 'otra')
-  .map(([value, label]) => ({ value, label }))
 
 const DEBOUNCE_MS = 300
 
 export default function PatientSearch() {
   const navigate = useNavigate()
+  const { activas } = useEspecialidades()
+  // Un espejo escrito a mano se desactualiza: se derivan de la fuente única,
+  // sin 'otra', que como filtro no le dice nada al paciente.
+  const chipsEspecialidad = useMemo(
+    () => activas.filter(e => e.slug !== 'otra').map(e => ({ value: e.slug, label: e.label })),
+    [activas]
+  )
   const [texto, setTexto] = useState('')
   const [especialidad, setEspecialidad] = useState('')
   const [resultados, setResultados] = useState([])
@@ -153,7 +154,7 @@ export default function PatientSearch() {
           >
             Todas
           </button>
-          {CHIPS_ESPECIALIDAD.map(e => (
+          {chipsEspecialidad.map(e => (
             <button
               key={e.value}
               onClick={() => setEspecialidad(especialidad === e.value ? '' : e.value)}

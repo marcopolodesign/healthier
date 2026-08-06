@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Check, Stethoscope, User, FileText, ClipboardText, LockKey, MagnifyingGlass, LinkSimple } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import { profilesService } from '../../services/profilesService'
-import { SPECIALTY_LABELS, PROFESSION_CATEGORIES, specialtiesForCategory, categoryForSpecialty } from '../../lib/verticals'
+import { PROFESSION_CATEGORIES, specialtiesForCategory, categoryForSpecialty } from '../../lib/verticals'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { AnimatedTagCascade } from '../../components/common/AnimatedTagCascade'
 import FileUpload from '../../components/FileUpload'
 import { OPCIONES_SEXO } from '../../lib/datosReceta'
@@ -29,6 +30,7 @@ const STEPS = [
 ]
 
 export default function Onboarding({ profile }) {
+  const { especialidades, porSlug, subEspecialidadesDe } = useEspecialidades()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const isResubmit = searchParams.get('resubmit') === '1'
@@ -59,6 +61,12 @@ export default function Onboarding({ profile }) {
   const [categoryId, setCategoryId]     = useState(null)
   const [specialtySearch, setSpecialtySearch] = useState('')
   const [privacyAccepted, setPrivacyAccepted] = useState(false)
+  const [subSpecialtyCustom, setSubSpecialtyCustom] = useState(false)
+
+  const parentEspecialidad = especialidades.find(e => e.slug === form.specialty)
+  const subOptions = (parentEspecialidad && subEspecialidadesDe[parentEspecialidad.id]) || []
+  const isKnownSub = !form.subSpecialty || subOptions.some(o => o.slug === form.subSpecialty)
+  const showCustomSub = subSpecialtyCustom || (!!form.subSpecialty && !isKnownSub)
 
   useEffect(() => {
     if (!isResubmit || !profile?.id) return
@@ -228,13 +236,14 @@ export default function Onboarding({ profile }) {
                       if (id === categoryId) return
                       setCategoryId(id)
                       setSpecialtySearch('')
-                      setForm(p => ({ ...p, specialty: '' }))
+                      setSubSpecialtyCustom(false)
+                      setForm(p => ({ ...p, specialty: '', subSpecialty: '' }))
                     }}
                   />
                 </div>
 
                 {categoryId && (() => {
-                  const catSpecialties = specialtiesForCategory(categoryId)
+                  const catSpecialties = specialtiesForCategory(categoryId, porSlug)
                   return (
                     <>
                       {catSpecialties.length > 4 && (
@@ -254,7 +263,11 @@ export default function Onboarding({ profile }) {
                           s.label.toLowerCase().includes(specialtySearch.toLowerCase())
                         )}
                         value={form.specialty}
-                        onSelect={value => setForm(p => ({ ...p, specialty: value }))}
+                        onSelect={value => {
+                          if (value === form.specialty) return
+                          setSubSpecialtyCustom(false)
+                          setForm(p => ({ ...p, specialty: value, subSpecialty: '' }))
+                        }}
                         cascadeKey={categoryId}
                       />
                     </>
@@ -263,13 +276,28 @@ export default function Onboarding({ profile }) {
               </div>
               <div>
                 <label className="form-label">Sub-especialidad <span className="text-text-tertiary text-xs">(opcional)</span></label>
-                <input
-                  type="text"
-                  value={form.subSpecialty}
-                  onChange={e => setForm(p => ({ ...p, subSpecialty: e.target.value }))}
-                  className="form-input"
-                  placeholder="Ej: Cardiología Clínica"
-                />
+                <select
+                  value={showCustomSub ? '__otra__' : (form.subSpecialty || '')}
+                  onChange={e => {
+                    if (e.target.value === '__otra__') { setSubSpecialtyCustom(true); setForm(p => ({ ...p, subSpecialty: '' })) }
+                    else { setSubSpecialtyCustom(false); setForm(p => ({ ...p, subSpecialty: e.target.value })) }
+                  }}
+                  className="form-select"
+                  disabled={!form.specialty}
+                >
+                  <option value="">Ninguna</option>
+                  {subOptions.map(s => <option key={s.id} value={s.slug}>{s.label}</option>)}
+                  <option value="__otra__">Otra (especificar)</option>
+                </select>
+                {showCustomSub && (
+                  <input
+                    type="text"
+                    value={form.subSpecialty}
+                    onChange={e => setForm(p => ({ ...p, subSpecialty: e.target.value }))}
+                    className="form-input mt-2"
+                    placeholder="Ej: Cardiología Clínica"
+                  />
+                )}
               </div>
               <div>
                 <label className="form-label">Matrícula <span className="text-danger">*</span></label>
@@ -490,7 +518,7 @@ export default function Onboarding({ profile }) {
             <div className="space-y-4 text-sm">
               <div className="rounded-xl bg-bg-surface divide-y divide-border-default border border-border-default overflow-hidden">
                 {[
-                  ['Especialidad',      SPECIALTY_LABELS[form.specialty] || '—'],
+                  ['Especialidad',      porSlug[form.specialty] || '—'],
                   ['Sub-especialidad',  form.subSpecialty || '—'],
                   ['Matrícula',         form.licenseNumber ? `${form.licenseType} ${form.licenseNumber}` : '—'],
                   ['DNI',               form.dni || '—'],

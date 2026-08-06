@@ -1,19 +1,37 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { professionalService } from '../../services/professionalService'
 import { profilesService } from '../../services/profilesService'
 import FileUpload from '../../components/FileUpload'
 import AddressAutocomplete from '../../components/common/AddressAutocomplete'
-import { SPECIALTIES } from '../../lib/verticals'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { geocodeAddress } from '../../lib/geo'
 import { toast } from '../../components/Toast'
 import { isLikelyTooSmallForFace } from '../../lib/imageCompression'
 
 export default function ProfessionalProfile({ profile }) {
+  const { especialidades, activas, porSlug, subEspecialidadesDe } = useEspecialidades()
   const [profData, setProfData] = useState(null)
   const [form, setForm] = useState({
     specialty: '', subSpecialty: '', bio: '',
     address: '', latitude: null, longitude: null,
   })
+
+  // El profesional puede tener guardado un slug que el super admin desactivó o
+  // que quedó huérfano (ver migración 101) — sin esto el <select> lo mostraría
+  // en blanco aunque el dato siga ahí y se guarde igual al tocar "Guardar".
+  const specialtyOptions = useMemo(() => {
+    const opts = [...activas]
+    if (form.specialty && !opts.some(o => o.slug === form.specialty)) {
+      opts.push({ id: form.specialty, slug: form.specialty, label: porSlug[form.specialty] ?? form.specialty })
+    }
+    return opts
+  }, [activas, form.specialty, porSlug])
+
+  const parentEspecialidad = especialidades.find(e => e.slug === form.specialty)
+  const subOptions = (parentEspecialidad && subEspecialidadesDe[parentEspecialidad.id]) || []
+  const isKnownSub = !form.subSpecialty || subOptions.some(o => o.slug === form.subSpecialty)
+  const [subCustom, setSubCustom] = useState(false)
+  const showCustomSub = subCustom || (!!form.subSpecialty && !isKnownSub)
   const [avatarFile, setAvatarFile] = useState(null)
   const [avatarPreview, setAvatarPreview] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -107,22 +125,37 @@ export default function ProfessionalProfile({ profile }) {
             <label className="form-label">Especialidad</label>
             <select
               value={form.specialty}
-              onChange={e => setForm(p => ({ ...p, specialty: e.target.value }))}
+              onChange={e => { setSubCustom(false); setForm(p => ({ ...p, specialty: e.target.value, subSpecialty: '' })) }}
               className="form-select"
             >
               <option value="">Seleccioná una especialidad</option>
-              {SPECIALTIES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              {specialtyOptions.map(s => <option key={s.slug} value={s.slug}>{s.label}</option>)}
             </select>
           </div>
 
           <div>
-            <label className="form-label">Sub-especialidad</label>
-            <input
-              type="text"
-              value={form.subSpecialty}
-              onChange={e => setForm(p => ({ ...p, subSpecialty: e.target.value }))}
-              className="form-input"
-            />
+            <label className="form-label">Sub-especialidad <span className="text-text-tertiary text-xs">(opcional)</span></label>
+            <select
+              value={showCustomSub ? '__otra__' : (form.subSpecialty || '')}
+              onChange={e => {
+                if (e.target.value === '__otra__') { setSubCustom(true); setForm(p => ({ ...p, subSpecialty: '' })) }
+                else { setSubCustom(false); setForm(p => ({ ...p, subSpecialty: e.target.value })) }
+              }}
+              className="form-select"
+            >
+              <option value="">Ninguna</option>
+              {subOptions.map(s => <option key={s.id} value={s.slug}>{s.label}</option>)}
+              <option value="__otra__">Otra (especificar)</option>
+            </select>
+            {showCustomSub && (
+              <input
+                type="text"
+                value={form.subSpecialty}
+                onChange={e => setForm(p => ({ ...p, subSpecialty: e.target.value }))}
+                placeholder="Ej: Cardiología Clínica"
+                className="form-input mt-2"
+              />
+            )}
           </div>
 
           <div>

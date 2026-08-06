@@ -1,5 +1,5 @@
 import { Star, SealCheck, VideoCamera, MapPin, CalendarPlus, X, ChatCircle, Phone, Lightning } from '@phosphor-icons/react'
-import { SPECIALTY_LABELS } from '../../lib/verticals'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import PatientSheet from './PatientSheet'
 
 /**
@@ -17,6 +17,7 @@ import PatientSheet from './PatientSheet'
  *   vertical  – the vertical object { nombre, color, bg, icon: Icon } (optional, for accent)
  */
 export default function ProfessionalModal({ pro, open, onClose, modality, onBook, vertical }) {
+  const { porSlug } = useEspecialidades()
   if (!pro) return null
 
   const name    = pro.profiles?.fullName || 'Profesional'
@@ -24,7 +25,7 @@ export default function ProfessionalModal({ pro, open, onClose, modality, onBook
   const bio     = pro.profiles?.bio || pro.bio || null
   const rating  = pro.averageRating ?? null
   const reviews = pro.totalReviews   ?? 0
-  const label   = SPECIALTY_LABELS[pro.specialty] ?? pro.specialty ?? '—'
+  const label   = porSlug[pro.specialty] ?? pro.specialty ?? '—'
   const phone   = pro.profiles?.phone || null
 
   const price = modality === 'presencial'

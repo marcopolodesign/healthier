@@ -8,8 +8,8 @@ import { professionalService } from '../../services/professionalService'
 import { availabilityService } from '../../services/availabilityService'
 import { consultationsService } from '../../services/consultationsService'
 import { paymentsService } from '../../services/paymentsService'
-import { VERTICAL_SPECIALTIES, SPECIALTY_LABELS } from '../../lib/verticals'
 import { useVerticales } from '../../hooks/useVerticales'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../../components/Toast'
 import { track } from '../../utils/analytics'
 
@@ -114,6 +114,7 @@ function normalizeProCard(raw, modality = null) {
 export default function ReservarConsulta({ profile }) {
   // Habilitación de cada vertical: sale de `vertical_settings`, no del código.
   const { verticales: VERTICALS } = useVerticales()
+  const { porSlug, porVertical } = useEspecialidades()
 
   const navigate      = useNavigate()
   const [searchParams] = useSearchParams()
@@ -219,20 +220,20 @@ export default function ReservarConsulta({ profile }) {
   // ── Load professionals when entering that step ────────────
   useEffect(() => {
     if (step !== 'professional' || !selectedVertical) return
-    const slugs = VERTICAL_SPECIALTIES[selectedVertical.id] || []
+    const slugs = porVertical[selectedVertical.id] || []
     if (!slugs.length) { setProfessionals([]); return }
     setLoadingPros(true)
     professionalService.search({})
       .then(data => setProfessionals(data.filter(p => slugs.includes(p.specialty)).map(p => normalizeProCard(p, modality))))
       .catch(() => setProfessionals([]))
       .finally(() => setLoadingPros(false))
-  }, [step, selectedVertical])
+  }, [step, selectedVertical, porVertical])
 
   // ── Searching step: fetch best pro + auto-advance after 2.5s ────────────
   useEffect(() => {
     if (step !== 'searching' || !selectedVertical) return
     track('booking_searching_professional', { vertical: selectedVertical.id })
-    const slugs = VERTICAL_SPECIALTIES[selectedVertical.id] || []
+    const slugs = porVertical[selectedVertical.id] || []
     if (slugs.length) {
       professionalService.search({})
         .then(data => {
@@ -254,7 +255,7 @@ export default function ReservarConsulta({ profile }) {
     }
     const t = setTimeout(() => setStep('matched'), 2500)
     return () => clearTimeout(t)
-  }, [step, selectedVertical])
+  }, [step, selectedVertical, porVertical])
 
   // ── Pre-fetch schedule + existing bookings whenever a pro is selected ────
   useEffect(() => {
@@ -603,7 +604,7 @@ export default function ReservarConsulta({ profile }) {
               </h1>
               {(matchedPro?.specialty || selectedVertical?.nombre) && (
                 <p className="text-text-secondary text-[14px] mt-0.5">
-                  {SPECIALTY_LABELS[matchedPro?.specialty] || matchedPro?.specialty || selectedVertical.nombre}
+                  {porSlug[matchedPro?.specialty] || matchedPro?.specialty || selectedVertical.nombre}
                 </p>
               )}
             </div>
@@ -755,7 +756,7 @@ export default function ReservarConsulta({ profile }) {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-[14px] text-text-primary truncate">{pro.name}</div>
-                      <div className="text-[12px] text-text-secondary mt-0.5 truncate">{SPECIALTY_LABELS[pro.specialty] || pro.specialty}</div>
+                      <div className="text-[12px] text-text-secondary mt-0.5 truncate">{porSlug[pro.specialty] || pro.specialty}</div>
                       {!pro.mpConnected ? (
                         <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full mt-1 inline-block">No disponible para reservas online</span>
                       ) : (

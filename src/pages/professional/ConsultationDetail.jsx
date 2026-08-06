@@ -642,6 +642,7 @@ export default function ConsultationDetail({ profile }) {
         consultationId={id}
         patientName={patientName}
         modality={consultation.modality}
+        closingCodeVerifiedAt={consultation.closingCodeVerifiedAt}
         profile={profile}
         patientId={consultation.patientId}
         ensureEncounter={ensureEncounter}

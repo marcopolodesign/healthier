@@ -5,7 +5,7 @@ import {
   ShieldSlash, User, Pencil, UploadSimple, ClockCounterClockwise, XCircle,
 } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
-import { SPECIALTY_LABELS } from '../../lib/verticals'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../../components/Toast'
 import RefepsCheckLink from '../../components/admin/RefepsCheckLink'
 import SignedDocLink from '../../components/SignedDocLink'
@@ -108,6 +108,7 @@ function SisaBadge({ status }) {
 // ── Detail drawer ─────────────────────────────────────────────────────────────
 
 function ProfessionalDrawer({ pro, onClose, onUpdated }) {
+  const { porSlug } = useEspecialidades()
   const [detail, setDetail] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -306,7 +307,7 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
   const d = detail
   const name = d?.profile?.full_name ?? pro.profiles?.full_name ?? '—'
   const email = d?.profile?.email ?? pro.profiles?.email ?? '—'
-  const specialtyLabel = SPECIALTY_LABELS[d?.specialty ?? pro.specialty] ?? d?.specialty ?? '—'
+  const specialtyLabel = porSlug[d?.specialty ?? pro.specialty] ?? d?.specialty ?? '—'
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
@@ -635,6 +636,7 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function SuperAdminProfesionales() {
+  const { porSlug } = useEspecialidades()
   const [professionals, setProfessionals] = useState([])
   const [consultationMap, setConsultationMap] = useState({})
   const [loading, setLoading] = useState(true)
@@ -683,7 +685,7 @@ export default function SuperAdminProfesionales() {
       const q = search.toLowerCase()
       const name = p.profiles?.full_name?.toLowerCase() ?? ''
       const email = p.profiles?.email?.toLowerCase() ?? ''
-      const specialty = (SPECIALTY_LABELS[p.specialty] ?? p.specialty ?? '').toLowerCase()
+      const specialty = (porSlug[p.specialty] ?? p.specialty ?? '').toLowerCase()
       if (!name.includes(q) && !email.includes(q) && !specialty.includes(q)) return false
     }
     return true
@@ -775,7 +777,7 @@ export default function SuperAdminProfesionales() {
                 filtered.map(pro => {
                   const name = pro.profiles?.full_name ?? '—'
                   const email = pro.profiles?.email ?? '—'
-                  const specialtyLabel = SPECIALTY_LABELS[pro.specialty] ?? pro.specialty ?? '—'
+                  const specialtyLabel = porSlug[pro.specialty] ?? pro.specialty ?? '—'
                   const consultCount = consultationMap[pro.profiles?.id] ?? 0
                   const isSelected = selected?.id === pro.id
 

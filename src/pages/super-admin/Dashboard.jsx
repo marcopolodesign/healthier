@@ -6,7 +6,7 @@ import { paymentsService } from '../../services/paymentsService'
 import { WAITING_PRESENCE_TTL_MS } from '../../services/consultationsService'
 import ConsultationTimeline from '../../components/super-admin/ConsultationTimeline'
 import { toast } from '../../components/Toast'
-import { SPECIALTY_LABELS } from '../../lib/verticals'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 
 const STATUS_COLORS = { completed: '#7CB38B', confirmed: '#9B8EC4', pending: '#E8927C', cancelled: '#d1d5db', in_progress: '#60a5fa', expired: '#A8A29E', no_show: '#f59e0b' }
 const STATUS_LABELS = { completed: 'Completadas', confirmed: 'Confirmadas', pending: 'Pendientes', cancelled: 'Canceladas', in_progress: 'En curso', expired: 'Vencidas', no_show: 'Ausentes' }
@@ -21,6 +21,7 @@ const STATUS_BADGE_CLASSES = {
 }
 
 export default function SuperAdminDashboard() {
+  const { porSlug } = useEspecialidades()
   const [stats, setStats] = useState({ users: 0, professionals: 0, pendingVerification: 0, completedConsultations: 0, walkInWaiting: 0, walkInAvailable: 0, inWaitingRoom: 0, avgRating: null, consultationsThisMonth: 0, newPatientsThisMonth: 0 })
   const [paymentsSummary, setPaymentsSummary] = useState({ grossTotal: 0, platformFeeTotal: 0, mpFeeTotal: 0, netProfessionalTotal: 0 })
   const [chartData, setChartData] = useState([])
@@ -141,10 +142,13 @@ export default function SuperAdminDashboard() {
         })
         setAcquisitionData(Object.values(srcMap).sort((a, b) => b.total - a.total))
 
-        // Top professionals
+        // Top professionals — se guarda el slug crudo y se resuelve el label al
+        // renderizar (con `porSlug`, ver abajo): el catálogo puede llegar
+        // después de este fetch, y bakear el label acá adentro lo dejaría
+        // pegado al slug crudo hasta el próximo refresh de la página.
         setTopPros((prosRaw ?? []).map(p => ({
           name: p.profiles?.full_name ?? 'Sin nombre',
-          specialty: SPECIALTY_LABELS[p.specialty] ?? p.specialty ?? '—',
+          specialtySlug: p.specialty,
           rating: p.average_rating ? Number(p.average_rating).toFixed(1) : '—',
           totalReviews: p.total_reviews ?? 0,
         })))
@@ -277,7 +281,7 @@ export default function SuperAdminDashboard() {
                 {topPros.map((p, i) => (
                   <tr key={i} className="table-row">
                     <td className="table-cell font-medium text-text-primary truncate max-w-[160px]">{p.name}</td>
-                    <td className="table-cell text-text-secondary">{p.specialty}</td>
+                    <td className="table-cell text-text-secondary">{porSlug[p.specialtySlug] ?? p.specialtySlug ?? '—'}</td>
                     <td className="table-cell text-right">
                       <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[11px] font-semibold">
                         ★ {p.rating}

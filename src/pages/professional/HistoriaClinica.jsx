@@ -13,7 +13,7 @@ import { profilesService } from '../../services/profilesService'
 import { diagnosticReportService } from '../../services/diagnosticReportService'
 import SignedDocLink from '../../components/SignedDocLink'
 import { toast } from '../../components/Toast'
-import { SPECIALTY_LABELS } from '../../lib/verticals'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { rangoDe, textoRango, estadoDe, estaAnalizado } from '../../lib/biomarcadores'
 
 const SAGE = '#7CB38B'
@@ -123,11 +123,12 @@ function LabReportCard({ report }) {
 }
 
 function EncounterCard({ encounter, notaDeCierre }) {
+  const { porSlug } = useEspecialidades()
   const [open, setOpen] = useState(true)
   const d = new Date(encounter.startedAt || encounter.createdAt)
   const dateStr = d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
   const timeStr = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-  const specialty = SPECIALTY_LABELS[encounter.specialty] || encounter.specialty
+  const specialty = porSlug[encounter.specialty] || encounter.specialty
   const proName = encounter.professional?.fullName || encounter.professional?.full_name
 
   const entries = encounter.entries ?? []

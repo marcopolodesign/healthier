@@ -13,8 +13,8 @@ import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import { buildPool } from '../../lib/onDemandPool'
 import { explicarPagoMP } from '../../lib/mercadoPago'
-import { SPECIALTY_LABELS, VERTICAL_SPECIALTIES } from '../../lib/verticals'
 import { useVerticales } from '../../hooks/useVerticales'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
 
 // Real 10:00 pre-authorization window (spec Sección D1.3/D1.4) — mirrors the
@@ -45,6 +45,7 @@ export default function OnDemand({ profile }) {
   const navigate = useNavigate()
   // Habilitación y precio salen de `vertical_settings`, no del código.
   const { verticalesById, cargando: cargandoVerticales } = useVerticales()
+  const { porSlug, porVertical } = useEspecialidades()
   const vertical = verticalesById[verticalId]
   const cardSelectorRef = useRef(null)
   const countdownRef = useRef(null)
@@ -99,7 +100,7 @@ export default function OnDemand({ profile }) {
   const proName = matchedPro?.profiles?.fullName || 'Profesional'
   const proAvatar = matchedPro?.profiles?.avatarUrl || null
   const proRating = matchedPro?.averageRating ? String(matchedPro.averageRating) : '—'
-  const proSpecialty = matchedPro ? (SPECIALTY_LABELS[matchedPro.specialty] || vertical?.nombre) : vertical?.nombre
+  const proSpecialty = matchedPro ? (porSlug[matchedPro.specialty] || vertical?.nombre) : vertical?.nombre
 
   // ── Guard — unknown/coming-soon vertical redirects home. Runs as an effect
   // (not a conditional early-return before hooks) so every hook below is
@@ -360,7 +361,7 @@ export default function OnDemand({ profile }) {
       if (!cancelled) { setPublicKey(data?.publicKey ?? null); setConfigLoading(false) }
     })
 
-    const slugs = VERTICAL_SPECIALTIES[verticalId] || []
+    const slugs = porVertical[verticalId] || []
     const primarySlug = slugs[0]
 
     // Sin fallback a `search({ specialty })` a secas: ese catch hacía que un
@@ -430,7 +431,7 @@ export default function OnDemand({ profile }) {
 
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vertical, verticalId, cargandoVerticales, profile?.id])
+  }, [vertical, verticalId, cargandoVerticales, profile?.id, porVertical])
 
   // ── Step 4: cuenta regresiva contra el vencimiento absoluto ──────────────────
   // Se recalcula contra el reloj en cada tick en vez de restar 1: así una

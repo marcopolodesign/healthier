@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom'
 import { UserCircle, Lightning } from '@phosphor-icons/react';
 import StarRating from './StarRating'
-import { SPECIALTY_LABELS } from '../lib/verticals'
+import { useEspecialidades } from '../hooks/useEspecialidades'
 import { track } from '../utils/analytics'
 
 export default function ProfessionalCard({ professional, origin = 'listado' }) {
+  const { porSlug } = useEspecialidades()
   const { id, userId, profiles, specialty, bio, averageRating, totalReviews, isOnDemand, sessionPrice } = professional
   const name = profiles?.fullName || profiles?.full_name || 'Profesional'
   const avatar = profiles?.avatarUrl || profiles?.avatar_url
@@ -41,7 +42,7 @@ export default function ProfessionalCard({ professional, origin = 'listado' }) {
         )}
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-text-primary truncate">{name}</h3>
-          <p className="text-sm text-brand">{SPECIALTY_LABELS[specialty] || specialty}</p>
+          <p className="text-sm text-brand">{porSlug[specialty] || specialty}</p>
           {isOnDemand && (
             <span className="inline-flex items-center gap-1 text-xs bg-accent-muted text-accent px-2 py-0.5 rounded-full mt-1">
               <Lightning className="h-3 w-3" />

@@ -14,8 +14,9 @@ import InteractiveMap from '../../components/patient/InteractiveMap'
 import ActiveAppointmentBanner from '../../components/patient/ActiveAppointmentBanner'
 import { professionalService } from '../../services/professionalService'
 import { emergencyService, getSosSettings } from '../../services/emergencyService'
-import { VERTICAL_SPECIALTIES, SPECIALTY_LABELS, pickProForVertical } from '../../lib/verticals'
+import { pickProForVertical } from '../../lib/verticals'
 import { useVerticales } from '../../hooks/useVerticales'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { latLngToPixel, haversineKm, formatDistance } from '../../lib/geo'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
@@ -33,6 +34,7 @@ const FALLBACK_SLOTS = [
 export default function PatientDashboard({ profile }) {
   // Habilitación de cada vertical: sale de `vertical_settings`, no del código.
   const { verticales: VERTICALS } = useVerticales()
+  const { porSlug, porVertical } = useEspecialidades()
 
   const navigate = useNavigate()
 
@@ -58,11 +60,11 @@ export default function PatientDashboard({ profile }) {
     const result = {}
     VERTICALS.forEach(v => {
       if (v.comingSoon) return   // no map pin for coming-soon verticals
-      const pro = pickProForVertical(proPool, v.id)
+      const pro = pickProForVertical(proPool, v.id, porVertical)
       if (pro) result[v.id] = pro
     })
     return result
-  }, [proPool, VERTICALS])
+  }, [proPool, VERTICALS, porVertical])
 
   // Marker list for InteractiveMap — project real lat/lng onto overlay, fallback to fixed slots
   const mapMarkers = useMemo(() =>
@@ -149,7 +151,7 @@ export default function PatientDashboard({ profile }) {
     const vert = VERTICALS.find(v => v.id === type)
     setSelectedMapPro({
       name:       pro.profiles?.fullName || 'Profesional',
-      specialty:  SPECIALTY_LABELS[pro.specialty] || pro.specialty,
+      specialty:  porSlug[pro.specialty] || pro.specialty,
       // Rating stays numeric-or-null: the sheet only renders the badge when the
       // professional actually has reviews, so a pro with none shows nothing
       // instead of a fabricated score.

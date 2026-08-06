@@ -5,11 +5,13 @@ import { professionalService } from '../../services/professionalService'
 import { reviewsService } from '../../services/reviewsService'
 import StarRating from '../../components/StarRating'
 import { toast } from '../../components/Toast'
-import { SPECIALTY_LABELS, verticalForSpecialty } from '../../lib/verticals'
+import { verticalForSpecialty } from '../../lib/verticals'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 
 
 export default function ProfessionalProfile() {
   const { id } = useParams()
+  const { porSlug, especialidades } = useEspecialidades()
   const [professional, setProfessional] = useState(null)
   const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
@@ -42,7 +44,7 @@ export default function ProfessionalProfile() {
   // Sin vertical el wizard arranca en el selector de especialidad en vez de ir
   // derecho a la fecha. Pasa sólo si la especialidad no mapea a ninguna vertical
   // (esas hoy no se pueden reservar igual), así que se manda sin el parámetro.
-  const vertical = verticalForSpecialty(professional.specialty)
+  const vertical = verticalForSpecialty(professional.specialty, especialidades)
   const verticalParam = vertical ? `&vertical=${vertical}` : ''
 
   return (
@@ -63,7 +65,7 @@ export default function ProfessionalProfile() {
           )}
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-text-primary">{name}</h1>
-            <p className="text-brand font-medium">{SPECIALTY_LABELS[professional.specialty] || professional.specialty}</p>
+            <p className="text-brand font-medium">{porSlug[professional.specialty] || professional.specialty}</p>
             {professional.subSpecialty && (
               <p className="text-sm text-text-secondary">{professional.subSpecialty}</p>
             )}

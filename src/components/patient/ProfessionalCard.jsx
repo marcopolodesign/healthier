@@ -1,5 +1,5 @@
 import { Star, SealCheck, VideoCamera, MapPin, Lightning } from '@phosphor-icons/react'
-import { SPECIALTY_LABELS } from '../../lib/verticals'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { track } from '../../utils/analytics'
 
 /**
@@ -15,11 +15,12 @@ import { track } from '../../utils/analytics'
  *   modality     – 'video' | 'presencial' — determines which price to show
  */
 export default function ProfessionalCard({ pro, onSelect, isSelected = false, modality }) {
+  const { porSlug } = useEspecialidades()
   const name    = pro.profiles?.fullName || 'Profesional'
   const avatar  = pro.profiles?.avatarUrl || null
   const rating  = pro.averageRating ?? null
   const reviews = pro.totalReviews   ?? 0
-  const label   = SPECIALTY_LABELS[pro.specialty] ?? pro.specialty ?? '—'
+  const label   = porSlug[pro.specialty] ?? pro.specialty ?? '—'
 
   // Price: prefer the modality-specific price; fall back to the other one
   const price = modality === 'presencial'
