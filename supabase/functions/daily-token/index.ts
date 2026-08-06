@@ -72,6 +72,25 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Gate de servidor (migración 098): mientras el profesional está cargando
+    // el cierre (`status='closing'`) nadie puede volver a entrar a la sala —
+    // la llamada ya terminó, y el paciente tiene que ver "Preparando tu
+    // receta" en vez de reingresar. Esto es lo que hace el bloqueo real: los
+    // botones de la UI se ocultan como cortesía, pero sin esto alcanzaba con
+    // pegar la URL vieja o tocar "atrás" para volver a entrar.
+    // Terminales (completed/cancelled/no_show/expired) también se bloquean:
+    // la sala ya no tiene sentido una vez que la consulta cerró.
+    const noJoinableStatuses = ['closing', 'completed', 'cancelled', 'no_show', 'expired']
+    if (noJoinableStatuses.includes(consultation.status)) {
+      const msg = consultation.status === 'closing'
+        ? 'La consulta está cerrando — todavía no se puede reingresar.'
+        : 'Esta consulta ya terminó.'
+      return new Response(JSON.stringify({ error: msg, status: consultation.status }), {
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const userName = isPatient
       ? (consultation.patient as { full_name: string })?.full_name ?? 'Paciente'
       : (consultation.professional as { full_name: string })?.full_name ?? 'Profesional'

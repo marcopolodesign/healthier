@@ -329,10 +329,15 @@ async function runSweep(supabase: SupabaseClient) {
     };
 
     // (a) Stuck on-demand authorizations — timed out without ever starting the call.
+    // `closing` (migración 098: el profesional cortó la llamada y está cargando
+    // el cierre) tiene que quedar afuera de "stuck" igual que in_progress —
+    // sin esto, apenas el hold deadline vencía (normal: el cierre pasa minutos
+    // después de que arrancó la llamada) el sweep cancelaba la pre-autorización
+    // de una consulta que en realidad SÍ se prestó y está por cobrarse.
     const isStuck =
       consultation.is_on_demand &&
       ahora > holdDeadlineMs(consultation) &&
-      !["in_progress", "completed"].includes(consultation.status);
+      !["in_progress", "closing", "completed"].includes(consultation.status);
 
     // (b) Orphaned authorizations whose consultation already completed —
     //     backstop for a client-side capture call that never fired (D2).

@@ -33,12 +33,15 @@ const STATUS_CLASS = {
   cancelled:   'status-cancelled',
   completed:   'status-completed',
   in_progress: 'status-in-progress',
+  // El profesional cortó la llamada y está cargando el cierre (migración 098).
+  closing:     'bg-amber-50 text-amber-700',
   expired:     'status-expired',
   no_show:     'bg-orange-50 text-orange-700',
 }
 const STATUS_LABEL = {
   confirmed: 'Confirmado', pending: 'Pendiente',
   cancelled: 'Cancelado',  completed: 'Finalizado', in_progress: 'En Curso',
+  closing: 'Preparando receta',
   expired: 'Vencido', no_show: 'Ausente',
 }
 
@@ -627,6 +630,10 @@ export default function PatientConsultations({ profile }) {
           const hasReview = !!patientReviewMap[t.id]
           const isUpcomingActive = view === 'upcoming' && ['confirmed', 'pending'].includes(t.status)
           const isInProgressVideo = view === 'upcoming' && t.status === 'in_progress' && t.modality === 'video'
+          // El profesional cortó la llamada y está cargando el cierre — sin
+          // botón de "Entrar a Sala" (migración 098: el paciente no puede
+          // reingresar), sólo un indicador de que ya está en camino.
+          const isClosing = view === 'upcoming' && t.status === 'closing'
           // La receta que ve el paciente es el PDF firmado que emitió RCTA, no un
           // archivo que subió el profesional (2026-07-29). Una consulta puede tener
           // más de una receta, y cada receta más de un medicamento — se deduplica
@@ -639,7 +646,7 @@ export default function PatientConsultations({ profile }) {
           const isRefundedCredit = view === 'past' && t.paymentStatus === 'refunded' && paymentRow?.refundType === 'credit'
           const isRefundPending  = view === 'past' && paymentRow?.refundRequestStatus === 'pending'
           const isRefundRejected = view === 'past' && paymentRow?.refundRequestStatus === 'rejected'
-          const hasActions = isUpcomingActive || isInProgressVideo || (view === 'past' && t.status === 'completed') || isRefundedCredit || isRefundPending || isRefundRejected
+          const hasActions = isUpcomingActive || isInProgressVideo || isClosing || (view === 'past' && t.status === 'completed') || isRefundedCredit || isRefundPending || isRefundRejected
           return (
             <div key={t.id} className="bg-bg-secondary rounded-2xl border border-border-default overflow-hidden">
               <div className="flex">
@@ -696,6 +703,11 @@ export default function PatientConsultations({ profile }) {
                     <button onClick={() => navigate(`/paciente/videollamada/${t.id}`)} className="flex-1 py-3 text-[13px] font-semibold text-brand flex items-center justify-center gap-1.5 hover:bg-brand-muted transition-colors">
                       <VideoCamera className="w-4 h-4" /> Entrar a Sala
                     </button>
+                  )}
+                  {isClosing && (
+                    <div className="flex-1 py-3 flex items-center justify-center gap-1.5 text-[13px] text-amber-700 font-semibold">
+                      <Clock className="w-4 h-4" /> Preparando tu receta
+                    </div>
                   )}
                   {view === 'upcoming' && ['confirmed', 'pending'].includes(t.status) && (
                     <button onClick={() => { setCancelTarget(t); setCancelReason('') }} className={`py-3 text-[13px] font-semibold text-error flex items-center justify-center gap-1.5 hover:bg-red-50 transition-colors ${t.status === 'confirmed' && t.modality === 'video' ? 'w-24 border-l border-border-default' : 'flex-1'}`}>

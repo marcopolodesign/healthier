@@ -292,7 +292,13 @@ export const consultationsService = {
   async getById(id) {
     const { data, error } = await supabase
       .from('consultations')
-      .select('*, patient:profiles!patient_id(id, full_name, avatar_url, email, phone, dni, gender, birth_date), professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty)), consultation_type:consultation_types!consultation_type_id(id, name, price, modality), payment:payments!consultation_id(id, mp_payment_id, method, gross_amount, credits_used, charged_amount, platform_fee, mp_fee_estimated, mp_fee_actual, net_to_professional, mp_net_received_amount, mp_money_release_date, status, refund_type, refunded_at, refund_request_status, authorized_at, captured_at, created_at)')
+      // El patient join trae también su cobertura ESTABLE (coverage_type,
+      // financiador_id, insurance_name, insurance_num — la que cargó en su
+      // alta) para poder precargar la cobertura de ESTA consulta cuando
+      // todavía no tiene la propia. Son columnas separadas a propósito: la de
+      // la consulta es la que manda al emitir, la del perfil es sólo el punto
+      // de partida.
+      .select('*, patient:profiles!patient_id(id, full_name, avatar_url, email, phone, dni, gender, birth_date, coverage_type, financiador_id, insurance_name, insurance_num), professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty)), consultation_type:consultation_types!consultation_type_id(id, name, price, modality), payment:payments!consultation_id(id, mp_payment_id, method, gross_amount, credits_used, charged_amount, platform_fee, mp_fee_estimated, mp_fee_actual, net_to_professional, mp_net_received_amount, mp_money_release_date, status, refund_type, refunded_at, refund_request_status, authorized_at, captured_at, created_at)')
       .eq('id', id)
       .single()
     if (error) throw error

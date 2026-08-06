@@ -8,12 +8,12 @@ import { formatARS, formatDate } from '../../lib/format'
 import { VERTICALS } from '../../lib/verticals'
 
 // Vocabulario exacto de `consultations.status` — constraint vigente desde la
-// migración 089 (`consultations_status_check`, que amplió el de la 048 con
-// `expired`). No inventar valores nuevos acá: escribir uno que no esté en esta
+// migración 098 (`consultations_status_check`, que amplió el de la 089 con
+// `closing`). No inventar valores nuevos acá: escribir uno que no esté en esta
 // lista rompe el UPDATE contra la base.
 // (STATUS_CONFIG de StatusBadge tiene más valores que el constraint — por eso
 // se enumeran acá sólo los válidos y se toman las etiquetas de ahí.)
-const STATUS_OPTIONS = ['pending', 'confirmed', 'in_progress', 'pending_pro_close', 'completed', 'cancelled', 'no_show', 'expired']
+const STATUS_OPTIONS = ['pending', 'confirmed', 'in_progress', 'closing', 'pending_pro_close', 'completed', 'cancelled', 'no_show', 'expired']
   .map(value => ({ value, label: STATUS_CONFIG[value]?.label ?? value }))
 
 // Vocabulario exacto de `consultations.payment_status` — constraint vigente

@@ -389,15 +389,42 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
   const [editandoCobertura, setEditandoCobertura] = useState(false)
   const [guardandoCobertura, setGuardandoCobertura] = useState(false)
 
+  // Se precarga UNA sola vez por consulta y sólo cuando la consulta todavía no
+  // tiene cobertura propia: si el profesional la corrige acá, un refetch de
+  // `patientData` más tarde (p.ej. al completar el DNI que faltaba, desde
+  // `onDatosActualizados`) no tiene que pisarle la corrección con el valor del
+  // perfil de nuevo.
+  const coberturaPrecargada = useRef(false)
+  useEffect(() => { coberturaPrecargada.current = false }, [consultation?.id])
+
   useEffect(() => {
-    if (!consultation?.id) return
+    if (!consultation?.id || coberturaPrecargada.current) return
+    if (consultation.coverageType != null) {
+      // La consulta ya tiene su propia cobertura cargada: esa manda.
+      setCobertura({
+        coverageType:    consultation.coverageType,
+        financiadorId:   consultation.financiadorId ?? null,
+        obraSocialName:  consultation.obraSocialName ?? '',
+        affiliateNumber: consultation.affiliateNumber ?? '',
+      })
+      coberturaPrecargada.current = true
+      return
+    }
+    // Todavía no hay cobertura propia de esta consulta: se espera a que
+    // termine de cargar el perfil del paciente para precargar con SU
+    // cobertura estable (`profiles.coverage_type`/`financiador_id`/
+    // `insurance_name`/`insurance_num`, cargada en el alta). Precargar no es
+    // forzar — el profesional la corrige acá libremente y "Guardar" sólo
+    // escribe en `consultations`, nunca en el perfil del paciente.
+    if (loadingPatientData) return
     setCobertura({
-      coverageType:    consultation.coverageType ?? null,
-      financiadorId:   consultation.financiadorId ?? null,
-      obraSocialName:  consultation.obraSocialName ?? '',
-      affiliateNumber: consultation.affiliateNumber ?? '',
+      coverageType:    patientData?.coverageType ?? null,
+      financiadorId:   patientData?.financiadorId ?? null,
+      obraSocialName:  patientData?.insuranceName ?? '',
+      affiliateNumber: patientData?.insuranceNum ?? '',
     })
-  }, [consultation?.id])
+    coberturaPrecargada.current = true
+  }, [consultation?.id, consultation?.coverageType, consultation?.financiadorId, consultation?.obraSocialName, consultation?.affiliateNumber, loadingPatientData, patientData])
 
   async function guardarCobertura() {
     setGuardandoCobertura(true)
@@ -691,8 +718,12 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
                   )}
                 </p>
               ) : (
+                // Sin dato, a secas — no es lo mismo que "particular": ese es
+                // un estado elegido a propósito, esto es que nadie lo cargó
+                // todavía. Mostrar "particular" acá haría pensar que ya se
+                // decidió sin cobertura.
                 <p className="text-xs text-text-tertiary">
-                  Sin definir — la receta sale como particular.
+                  Sin definir. Cargala para que la receta salga con cobertura si corresponde.
                 </p>
               )}
             </div>
@@ -994,6 +1025,18 @@ export default function ProfessionalVideoCall({ profile }) {
     hangingUpRef.current = true
     callRef.current?.leave().catch(() => {})
     callRef.current?.destroy()
+    // Corté la llamada → `closing` (migración 098). Es lo que le impide al
+    // paciente volver a entrar a esta sala mientras cargo el cierre: hasta acá
+    // la fila seguía en `in_progress`, el mismo estado que usa el paciente para
+    // saber que puede "Entrar a Sala", así que podía reingresar a una llamada
+    // que ya terminó. Sólo se dispara si venía de `in_progress` — si por lo que
+    // sea todavía no llegó a esa altura, la transición no es válida y no hace
+    // falta forzarla.
+    if (consultation?.status === 'in_progress') {
+      consultationsService
+        .updateStatus(id, 'closing', { closingStartedAt: new Date().toISOString() })
+        .catch(() => {})
+    }
     navigate(`/profesional/consulta/${id}`)
   }
 

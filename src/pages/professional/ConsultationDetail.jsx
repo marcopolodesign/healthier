@@ -59,14 +59,28 @@ export default function ConsultationDetail({ profile }) {
   useEffect(() => { load() }, [load])
 
   useEffect(() => {
-    if (consultation) {
-      setCoverageForm({
-        coverageType:    consultation.coverageType ?? null,
-        financiadorId:   consultation.financiadorId ?? null,
-        obraSocialName:  consultation.obraSocialName || '',
-        affiliateNumber: consultation.affiliateNumber || '',
-      })
-    }
+    if (!consultation) return
+    // La cobertura de la consulta manda si ya se cargó. Si todavía no —
+    // consulta nueva, nunca tocada— se precarga con la cobertura ESTABLE del
+    // paciente (la que cargó en su alta): `profiles.coverage_type` /
+    // `financiador_id` / `insurance_name` / `insurance_num`. Precargar no es
+    // forzar: el profesional edita libre acá y "Guardar" sólo escribe en
+    // `consultations`, nunca en el perfil del paciente.
+    const tieneCoberturaPropia = consultation.coverageType != null
+    setCoverageForm(tieneCoberturaPropia
+      ? {
+          coverageType:    consultation.coverageType,
+          financiadorId:   consultation.financiadorId ?? null,
+          obraSocialName:  consultation.obraSocialName || '',
+          affiliateNumber: consultation.affiliateNumber || '',
+        }
+      : {
+          coverageType:    consultation.patient?.coverageType ?? null,
+          financiadorId:   consultation.patient?.financiadorId ?? null,
+          obraSocialName:  consultation.patient?.insuranceName || '',
+          affiliateNumber: consultation.patient?.insuranceNum || '',
+        }
+    )
   }, [consultation?.id])
 
   const { encounterId: clinicalEncounterId, ensureEncounter } = useClinicalEncounter({
@@ -157,6 +171,11 @@ export default function ConsultationDetail({ profile }) {
   const isVideo = consultation.modality === 'video'
   const isPending = ['pending', 'confirmed'].includes(consultation.status)
   const isInProgress = consultation.status === 'in_progress'
+  // El profesional cortó la llamada y está cargando el cierre (migración 098).
+  // NO es `bloqueada`: es justo la pantalla desde la que se termina de cerrar
+  // — si se tratara como congelada, el propio botón "Cerrar consulta" (y la
+  // receta/alergias que hacen falta para cerrar bien) desaparecerían.
+  const isClosing = consultation.status === 'closing'
   const isCompleted = consultation.status === 'completed'
   const isCancelled = consultation.status === 'cancelled'
   // 'expired' (nadie usó el turno) y 'no_show' (una parte esperó, la otra no
@@ -172,7 +191,7 @@ export default function ConsultationDetail({ profile }) {
    */
   const bloqueada = isCompleted || isCancelled || isExpired || isNoShow
   const showCloseButton = isVideo
-    ? ['confirmed', 'in_progress', 'pending'].includes(consultation.status)
+    ? ['confirmed', 'in_progress', 'pending', 'closing'].includes(consultation.status)
     : isInProgress
 
   return (
@@ -304,7 +323,12 @@ export default function ConsultationDetail({ profile }) {
             />
             <div className="flex gap-2">
               <button
-                onClick={() => { setEditingCoverage(false); setCoverageForm({ obraSocialName: consultation.obraSocialName || '', affiliateNumber: consultation.affiliateNumber || '' }) }}
+                onClick={() => { setEditingCoverage(false); setCoverageForm({
+                  coverageType:    consultation.coverageType ?? consultation.patient?.coverageType ?? null,
+                  financiadorId:   consultation.financiadorId ?? consultation.patient?.financiadorId ?? null,
+                  obraSocialName:  consultation.obraSocialName || consultation.patient?.insuranceName || '',
+                  affiliateNumber: consultation.affiliateNumber || consultation.patient?.insuranceNum || '',
+                }) }}
                 className="btn-secondary flex-1 py-2 flex items-center justify-center gap-1"
               >
                 <X className="h-4 w-4" /> Cancelar

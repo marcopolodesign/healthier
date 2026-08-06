@@ -56,6 +56,9 @@ export default function WaitingRoom({ profile }) {
   // videollamada, y el paciente esperaba sin ninguna señal (migración 071).
   const [admitted, setAdmitted] = useState(false)
   const [doctorReady, setDoctorReady] = useState(false)
+  // El profesional cortó la llamada y está cargando el cierre (migración 098):
+  // la sala ya no existe, no se puede reingresar.
+  const [closing, setClosing] = useState(false)
   const [entering, setEntering] = useState(false)
   const [dots, setDots] = useState('')
   // null = consultation not loaded yet, so we don't flash the form at the patient
@@ -87,6 +90,7 @@ export default function WaitingRoom({ profile }) {
       .then(c => {
         setConsultation(c)
         if (c.status === 'in_progress') setDoctorReady(true)
+        if (c.status === 'closing') setClosing(true)
         if (c.patientAdmittedAt) setAdmitted(true)
         setPreconsultaDone(hasPreconsulta(c.preconsultaData))
         // Volver a una consulta ya iniciada (reload, volver atrás) no debe pedir
@@ -133,6 +137,11 @@ export default function WaitingRoom({ profile }) {
       }, (payload) => {
         if (payload.new?.status === 'in_progress') setDoctorReady(true)
         if (payload.new?.patient_admitted_at) setAdmitted(true)
+        // El profesional cortó la llamada mientras el paciente seguía sentado
+        // acá (migración 098): sin esto `canEnter` podía seguir en `true` por un
+        // `admitted`/`doctorReady` que ya quedó viejo, y el botón mandaba a una
+        // sala que ya no existe.
+        if (payload.new?.status === 'closing') setClosing(true)
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
@@ -174,6 +183,33 @@ export default function WaitingRoom({ profile }) {
         timeZone: 'America/Argentina/Buenos_Aires',
       })
     : null
+
+  // ── Preparando tu receta ─────────────────────────────────────────────────────
+  // El profesional entró, cortó la llamada, y ya está cargando el cierre — va
+  // antes que cualquier otra cosa: la sala de espera de acá para arriba no
+  // sirve más, no hay a qué "entrar".
+  if (closing) {
+    return (
+      <div className="absolute inset-0 bg-bg-primary flex flex-col items-center justify-center px-6 py-10 text-center">
+        <div className="w-20 h-20 rounded-full bg-brand-muted flex items-center justify-center mb-4">
+          <VideoCamera className="w-9 h-9 text-brand" />
+        </div>
+        <h1 className="text-[24px] font-bold text-text-primary leading-tight mb-2">
+          Preparando tu receta
+        </h1>
+        <p className="text-[14px] text-text-secondary leading-relaxed mb-8 max-w-xs">
+          {doctorName} ya terminó la llamada y está cargando los datos de la
+          consulta. En un toque vas a ver el resumen y tu receta desde el inicio.
+        </p>
+        <button
+          onClick={() => navigate('/paciente/dashboard')}
+          className="px-8 py-4 rounded-full font-bold text-[16px] transition-all shadow-md bg-brand text-white hover:bg-brand-hover active:scale-95"
+        >
+          Ir al inicio
+        </button>
+      </div>
+    )
+  }
 
   // ── Pre-consulta gate ───────────────────────────────────────────────────────
   // The patient is not considered "in the room" until this is answered: no presence

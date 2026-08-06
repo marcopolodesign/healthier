@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   PhoneSlash, CircleNotch, SealCheck, User,
-  Microphone, MicrophoneSlash, Camera, CameraSlash, Warning,
+  Microphone, MicrophoneSlash, Camera, CameraSlash, Warning, Pill,
 } from '@phosphor-icons/react'
 import DailyIframe from '@daily-co/daily-js'
 import { supabase } from '../../lib/supabase'
@@ -126,6 +126,13 @@ export default function PatientVideoCall() {
           return
         }
         setConsultation(cons)
+        // El profesional cortó la llamada y está cargando el cierre (migración
+        // 098): no hay nada a lo que unirse — la llamada ya terminó. Se corta
+        // acá, antes de la pre-consulta y de pedir acceso a Daily, y se muestra
+        // la pantalla de "Preparando tu receta" en vez de esto. El bloqueo real
+        // (por si alguien pega la URL o toca "atrás") vive en el servidor:
+        // `daily-token` rechaza el token mientras el estado sea `closing`.
+        if (cons?.status === 'closing') return
         // The waiting room now asks this before letting anyone in, so the normal
         // path arrives here already answered — don't ask twice. The form stays as
         // a fallback for anyone landing on the call URL directly.
@@ -144,6 +151,30 @@ export default function PatientVideoCall() {
       .then(code => { if (code) setValidationCode(code) })
       .catch(() => {})
   }, [id])
+
+  // ── "Preparando tu receta" — el profesional está cerrando (status='closing') ──
+  // Se sondea cada 5s en vez de escuchar Realtime: esta pantalla ya vive casi
+  // siempre unos segundos nomás (el cierre es rápido), así que un poll simple
+  // alcanza y evita sumar una suscripción más a un componente que ya tiene la
+  // del presence channel. Al salir de `closing` (típicamente a `completed`) se
+  // manda al inicio, donde el banner de "Tu consulta terminó" (mismo patrón que
+  // "Continuar con tu turno") ofrece el resumen y la receta.
+  useEffect(() => {
+    if (consultation?.status !== 'closing') return
+    const consultationId = id === '1' ? null : id
+    if (!consultationId) return
+    let cancelled = false
+    const iv = setInterval(() => {
+      consultationsService.getById(consultationId)
+        .then(latest => {
+          if (cancelled) return
+          if (latest?.status === 'closing') { setConsultation(latest); return }
+          navigate('/paciente/dashboard')
+        })
+        .catch(() => {})
+    }, 5000)
+    return () => { cancelled = true; clearInterval(iv) }
+  }, [consultation?.status, id])
 
   // ── Step 2: Join presence channel after preconsulta ─────────────────────────
   useEffect(() => {
@@ -382,6 +413,32 @@ export default function PatientVideoCall() {
           <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           <span className="text-white/60 text-sm font-medium">Preparando sala...</span>
         </div>
+      </div>
+    )
+  }
+
+  // ── Preparando tu receta ─────────────────────────────────────────────────────
+  // El profesional cortó la llamada y está cargando el cierre. No hay nada a lo
+  // que unirse — se corta antes de la pre-consulta y de Daily (ver Step 1) — y
+  // el poll de arriba manda al inicio en cuanto el profesional termina.
+  if (consultation?.status === 'closing') {
+    return (
+      <div className="absolute inset-0 bg-zinc-900 flex flex-col items-center justify-center px-6 text-center">
+        <div className="w-20 h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-5 relative">
+          <Pill className="w-9 h-9 text-brand" />
+          <span className="absolute inset-0 rounded-full border-2 border-brand/30 animate-ping" />
+        </div>
+        <h1 className="text-white text-[20px] font-semibold mb-2">Preparando tu receta</h1>
+        <p className="text-white/50 text-[14px] leading-relaxed max-w-xs mb-8">
+          Tu profesional está terminando de cargar los datos de la consulta. En un
+          toque vas a ver el resumen y tu receta desde el inicio.
+        </p>
+        <button
+          onClick={() => navigate('/paciente/dashboard')}
+          className="text-white/40 text-[13px] font-medium hover:text-white/70 transition-colors"
+        >
+          Volver al inicio
+        </button>
       </div>
     )
   }
