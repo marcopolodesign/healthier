@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { User, Envelope, Lock, ArrowLeft } from '@phosphor-icons/react';
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
+import { marcarDestinoPostRegistro } from '../../lib/postSignupRedirect'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
 import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
 import { track } from '../../utils/analytics'
@@ -27,6 +28,10 @@ export default function RegisterProfessional({ onLogin }) {
     }
     setLoading(true)
     try {
+      // Se deja anotado el destino ANTES de crear la cuenta: el `signUp` de
+      // Supabase inicia sesión al instante y `AuthRedirectHandler` puede
+      // adelantarse al `navigate` de abajo. Ver `lib/postSignupRedirect.js`.
+      marcarDestinoPostRegistro('/profesional/onboarding')
       const utms = getStoredUtms()
       await authService.register(form.email, form.password, 'professional', form.fullName, utms)
       clearUtms()

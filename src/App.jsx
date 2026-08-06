@@ -89,6 +89,7 @@ import SuperAdminUsuarios from './pages/super-admin/Usuarios'
 import SuperAdminUsuariosProspects from './pages/super-admin/UsuariosProspects'
 import SuperAdminProfesionales from './pages/super-admin/Profesionales'
 import SuperAdminEmergencias from './pages/super-admin/Emergencias'
+import { tomarDestinoPostRegistro } from './lib/postSignupRedirect'
 
 // ── Role guards ──────────────────────────────────────────
 const ROLE_REDIRECTS = {
@@ -138,7 +139,12 @@ function AuthRedirectHandler({ profile, authUser }) {
 
     if (!AUTH_PATHS.includes(location.pathname)) return
     if (profile && location.pathname !== '/completar-registro') {
-      navigate(ROLE_REDIRECTS[profile.role] || '/', { replace: true })
+      // Si el usuario está acá porque **acaba** de registrarse, el destino es el
+      // onboarding, no el dashboard. Sin esto, este redirect le gana la carrera
+      // al `navigate` de la página de registro y el alta termina en el dashboard
+      // sin haber pasado por el onboarding. Ver `lib/postSignupRedirect.js`.
+      const destinoDeAlta = tomarDestinoPostRegistro()
+      navigate(destinoDeAlta || ROLE_REDIRECTS[profile.role] || '/', { replace: true })
     }
   }, [profile, needsCompletion, location.pathname])
 
