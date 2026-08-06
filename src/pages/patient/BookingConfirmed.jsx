@@ -70,8 +70,16 @@ export default function BookingConfirmed({ profile }) {
   const calUrl    = entrarAhora ? null : buildGoogleCalendarUrl(consultation)
 
   return (
-    <div className="absolute inset-0 bg-bg-primary flex items-center justify-center px-5 py-10">
-      <div className="w-full max-w-sm flex flex-col items-center gap-6">
+    /*
+     * El scroll va en el contenedor y el centrado en un hijo `min-h-full`: con
+     * `items-center` directamente sobre el que scrollea, el contenido más alto
+     * que la pantalla se recorta arriba y abajo sin poder llegar a los botones
+     * (pasaba en mobile — los CTAs quedaban tapados por el nav de abajo).
+     * `pb-32` es la separación estándar del nav del paciente.
+     */
+    <div className="absolute inset-0 bg-bg-primary overflow-y-auto">
+      <div className="min-h-full flex items-center justify-center px-5 py-10 pb-32">
+        <div className="w-full max-w-sm flex flex-col items-center gap-6">
 
         {/* Success icon */}
         <div className="relative">
@@ -212,6 +220,7 @@ export default function BookingConfirmed({ profile }) {
           )}
         </div>
 
+        </div>
       </div>
     </div>
   )
