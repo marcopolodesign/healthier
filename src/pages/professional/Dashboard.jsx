@@ -262,6 +262,11 @@ export default function ProfessionalDashboard({ profile }) {
 
   if (!profProfile?.isVerified && !loading) {
     const isRejected = !!profProfile?.rejectedAt
+    // "revision" (o rechazos viejos, de antes de la 097, que no tienen
+    // rejection_type) = puede corregir y reenviar. "permanente" = no puede
+    // reenviar más — se lo explica el bloque de abajo, y el trigger de la
+    // migración 097 lo hace cumplir del lado de la base, no sólo acá.
+    const isPermanentlyRejected = isRejected && profProfile?.rejectionType === 'permanente'
     // Submitted via "Subo los documentos después" (onboarding step Documentación) —
     // nothing for an admin to review yet, so this is a distinct state that
     // precedes "Perfil en revisión", not the same thing.
@@ -274,7 +279,7 @@ export default function ProfessionalDashboard({ profile }) {
           <h1 className="page-title">Hola, {profile?.fullName?.split(' ')[0]}</h1>
         </div>
 
-        {isRejected ? (
+        {isPermanentlyRejected ? (
           <div className="card border-red-200 bg-red-50">
             <div className="flex items-start gap-3">
               <XCircle className="h-6 w-6 text-red-500 shrink-0 mt-0.5" />
@@ -286,13 +291,33 @@ export default function ProfessionalDashboard({ profile }) {
                   </p>
                 )}
                 <p className="text-sm text-text-secondary mt-2">
+                  Esta decisión es definitiva y no podés volver a enviar tu perfil. Si creés que es un error, escribinos.
+                </p>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
+                  <SupportWhatsAppLink message="Hola, tengo una consulta sobre el rechazo permanente de mi perfil profesional en Healthier:" />
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : isRejected ? (
+          <div className="card border-warning/30 bg-yellow-50">
+            <div className="flex items-start gap-3">
+              <Warning className="h-6 w-6 text-warning shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold text-text-primary">Tu perfil necesita revisión</p>
+                {profProfile.rejectionReason && (
+                  <p className="text-sm text-text-secondary mt-1 bg-white rounded-lg p-3 border border-yellow-100">
+                    {profProfile.rejectionReason}
+                  </p>
+                )}
+                <p className="text-sm text-text-secondary mt-2">
                   Revisá la información y volvé a enviar tu perfil con las correcciones necesarias.
                 </p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3">
                   <Link to="/profesional/onboarding?resubmit=1" className="btn-primary text-sm inline-flex">
                     Corregir y reenviar
                   </Link>
-                  <SupportWhatsAppLink message="Hola, tengo una consulta sobre el rechazo de mi perfil profesional en Healthier:" />
+                  <SupportWhatsAppLink message="Hola, tengo una consulta sobre la revisión de mi perfil profesional en Healthier:" />
                 </div>
               </div>
             </div>
@@ -350,14 +375,15 @@ export default function ProfessionalDashboard({ profile }) {
 
         {/* Get Started — let a not-yet-verified professional set price/horarios/zona/avatar
             while they wait, instead of losing that time. Shown regardless of isRejected/
-            isMissingDocs/pending state as long as a profile row exists to derive it from;
-            excludes the "documentos" step (includeVerification=false) since it's not
-            actionable here and the card above already explains that state. */}
-        {!!profProfile && (
+            isMissingDocs/pending state as long as a profile row exists to derive it from.
+            Includes the document steps (includeVerification=true, the default) since 2026-08-06 —
+            this is exactly where "te falta subir un documento" is actionable, and the
+            banner above only explains the overall status, not which document is missing.
+            Hidden entirely when permanently rejected: nothing here is actionable then. */}
+        {!!profProfile && !isPermanentlyRejected && (
           <ProfileCompletenessCard
             profProfile={profProfile}
             schedules={schedules}
-            includeVerification={false}
             title="Adelantá tu perfil mientras esperás"
           />
         )}

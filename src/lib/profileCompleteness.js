@@ -9,21 +9,41 @@
 // missing"; `completed`/`total`/`isComplete` are just derived counts over the
 // same full `steps` array.
 //
-// `includeVerification` defaults to true (post-verification Dashboard usage,
-// where isVerified is always already true there so this step is never
-// actually pending). Pass false when showing this checklist to a
-// not-yet-verified professional (e.g. "Perfil en revisión") — verification
-// isn't something they can act on, it has no `href`, and the surrounding
-// banner already explains that state, so including it there would just be
-// confusing dead weight in the list.
+// Documentos requeridos, uno por paso — reemplaza al viejo paso único
+// "Documentación verificada" (2026-08-06). Ese paso sólo miraba
+// `profProfile.isVerified`, así que en la única pantalla donde se
+// renderizaba (ya verificado) siempre aparecía tildado — no servía para
+// avisar que faltaba un documento puntual. El CEO lo pidió explícito: "si no
+// subo documentos tienen que aparecer también en tu lista de pendientes".
+//
+// Sólo se listan los documentos que ya son requeridos en Onboarding.jsx
+// (título, matrícula, DNI siempre; certificado de especialista sólo si
+// declaró sub-especialidad) — seguro de mala praxis y CUIT son "recomendado"/
+// opcionales ahí mismo, así que no se marcan acá como pendientes.
+//
+// El link a onboarding SÓLO se ofrece si el profesional todavía no está
+// verificado: reenviar el onboarding vuelve a poner `is_verified=false` y
+// dispara una revisión nueva (ver handleSubmit en Onboarding.jsx), así que
+// mandar a un profesional YA verificado a "completar" un documento faltante
+// lo desverificaría de rebote. Verificado y con un documento faltante (puede
+// pasar: el super admin puede verificar sin haber cargado los seis
+// documentos) se muestra igual, pero como dato informativo sin acción —
+// ese documento lo tiene que subir el super admin (ver A6).
 export function getProfileCompleteness(profProfile, schedules, { includeVerification = true } = {}) {
   const steps = []
   if (includeVerification) {
-    steps.push({
-      key: 'documentos',
-      label: 'Documentación verificada',
-      done: !!profProfile?.isVerified,
-    })
+    const canSelfUpload = !profProfile?.isVerified
+    const docSteps = [
+      { key: 'doc-titulo',     label: 'Título profesional',   done: !!profProfile?.titleDocumentUrl },
+      { key: 'doc-matricula',  label: 'Matrícula profesional', done: !!profProfile?.licenseDocumentUrl },
+      { key: 'doc-dni',        label: 'DNI',                   done: !!profProfile?.dniDocumentUrl },
+    ]
+    if (profProfile?.subSpecialty) {
+      docSteps.push({ key: 'doc-especialista', label: 'Certificado de especialista', done: !!profProfile?.specialistCertificateDocumentUrl })
+    }
+    for (const d of docSteps) {
+      steps.push(canSelfUpload ? { ...d, href: '/profesional/onboarding?resubmit=1&step=2' } : d)
+    }
   }
   steps.push(
     {

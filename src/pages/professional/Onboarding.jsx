@@ -8,6 +8,7 @@ import { AnimatedTagCascade } from '../../components/common/AnimatedTagCascade'
 import FileUpload from '../../components/FileUpload'
 import { OPCIONES_SEXO } from '../../lib/datosReceta'
 import { toast } from '../../components/Toast'
+import { isLikelyTooSmallForFace } from '../../lib/imageCompression'
 import OnboardingPreview from '../../components/professional/OnboardingPreview'
 import { LAWS } from '../../lib/laws'
 
@@ -80,9 +81,14 @@ export default function Onboarding({ profile }) {
     })
   }, [isResubmit, profile?.id, profile?.dni, profile?.gender])
 
-  const handleAvatar = file => {
+  const handleAvatar = async file => {
     setAvatarFile(file)
     setAvatarPreview(URL.createObjectURL(file))
+    // Aviso blando, no bloqueante: no detectamos caras, sólo avisamos si la
+    // imagen es chica. El profesional decide si la cambia.
+    if (await isLikelyTooSmallForFace(file)) {
+      toast.warning('Esa foto es chica y puede que no se te vea bien la cara. Podés seguir igual o subir otra.')
+    }
   }
 
   // Per-step validation
@@ -307,6 +313,7 @@ export default function Onboarding({ profile }) {
                   onFile={handleAvatar}
                   accept="image/*"
                   label={avatarFile ? avatarFile.name : 'Subir foto (JPG, PNG)'}
+                  hint="Que se te vea la cara con claridad, de frente y con buena luz."
                 />
                 {/* Si la cuenta se creó con Google ya hay una foto guardada
                     (authService la persiste al alta): esto la reemplaza, no la

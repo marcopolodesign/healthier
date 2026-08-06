@@ -1,6 +1,7 @@
 const MAX_DIMENSION = 1600
 const JPEG_QUALITY = 0.82
 const SKIP_BELOW_BYTES = 300 * 1024 // already small enough, not worth re-encoding
+const MIN_FACE_DIMENSION = 200 // px — bajo esto es poco probable que se distinga una cara
 
 // Downscales + re-encodes an image file client-side before upload — phone
 // photos (avatars, DNI/título shot with a camera) routinely come in at
@@ -30,4 +31,17 @@ export async function compressImage(file) {
 
   const newName = file.name.replace(/\.[^.]+$/, '') + '.jpg'
   return new File([blob], newName, { type: 'image/jpeg' })
+}
+
+// Chequeo blando para fotos de perfil: no detecta caras (no hay librería de
+// visión en el proyecto), sólo avisa cuando la imagen es tan chica que es
+// poco probable que se distinga una cara con claridad. Nunca bloquea la
+// subida — es una sugerencia, el profesional decide si la cambia o no.
+export async function isLikelyTooSmallForFace(file) {
+  if (!file || !file.type?.startsWith('image/')) return false
+  const bitmap = await createImageBitmap(file).catch(() => null)
+  if (!bitmap) return false
+  const tooSmall = bitmap.width < MIN_FACE_DIMENSION || bitmap.height < MIN_FACE_DIMENSION
+  bitmap.close?.()
+  return tooSmall
 }

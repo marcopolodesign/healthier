@@ -7,6 +7,7 @@ import {
 import { professionalService } from '../../services/professionalService'
 import { availabilityService } from '../../services/availabilityService'
 import { consultationsService } from '../../services/consultationsService'
+import { paymentsService } from '../../services/paymentsService'
 import { VERTICAL_SPECIALTIES, SPECIALTY_LABELS } from '../../lib/verticals'
 import { useVerticales } from '../../hooks/useVerticales'
 import { toast } from '../../components/Toast'
@@ -17,9 +18,12 @@ const AUTO_MATCH_VERTICALS = ['clinica']
 
 const SPECIES = ['Perro', 'Gato', 'Conejo', 'Ave', 'Otro']
 
-// 15-min slots instead of a whole schedule block — 4 patients/hour with
-// margin for delays, per Nacho Arteaga (2026-07-08).
-const SLOT_DURATION_MINUTES = 15
+// Duración por defecto del slot, en minutos — 4 patients/hour with margin for
+// delays, per Nacho Arteaga (2026-07-08). Configurable desde
+// /super-admin/settings (platform_settings.slot_duration_minutes, migración
+// 100); esto es sólo el fallback mientras esa config carga o si no hay fila
+// (no debería pasar, pero `buildTimeSlots` no puede quedarse sin duración).
+const DEFAULT_SLOT_DURATION_MINUTES = 15
 const ACTIVE_CONSULTATION_STATUSES = ['pending', 'confirmed', 'in_progress']
 
 function addMinutes(hhmmss, minutes) {
@@ -30,14 +34,16 @@ function addMinutes(hhmmss, minutes) {
   return `${hh}:${mm}:00`
 }
 
-// Splits each schedule range ("franja") for the selected day into 15-min
-// slots, skipping any that already have an active consultation booked.
-function buildTimeSlots(franjasForDay, bookedTimes) {
+// Splits each schedule range ("franja") for the selected day into slots of
+// `slotMinutes`, skipping any that already have an active consultation
+// booked. Este es el ÚNICO lugar del código que genera la grilla horaria
+// contra `professional_schedules` — ver comentario en ProfessionalProfile.jsx.
+function buildTimeSlots(franjasForDay, bookedTimes, slotMinutes) {
   const slots = []
   franjasForDay.forEach(fr => {
     let cursor = fr.startTime
     while (cursor < fr.endTime) {
-      const end = addMinutes(cursor, SLOT_DURATION_MINUTES)
+      const end = addMinutes(cursor, slotMinutes)
       if (end > fr.endTime) break
       if (!bookedTimes.has(cursor.slice(0, 5))) {
         slots.push({ id: `${fr.id}-${cursor}`, startTime: cursor, endTime: end })
@@ -151,8 +157,19 @@ export default function ReservarConsulta({ profile }) {
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedFranja, setSelectedFranja] = useState(null)
   const [matchedPro, setMatchedPro]     = useState(null)
+  const [slotDurationMinutes, setSlotDurationMinutes] = useState(DEFAULT_SLOT_DURATION_MINUTES)
 
   const bookingStartFired = useRef(false)
+
+  // Duración del slot configurable desde /super-admin/settings. Se pide una
+  // sola vez al montar — no cambia mientras el paciente arma la reserva, y
+  // así no hay que revalidar `selectedFranja` a mitad de wizard si alguien
+  // toca la config server-side en ese momento.
+  useEffect(() => {
+    paymentsService.getPlatformSettings()
+      .then(s => { if (s?.slotDurationMinutes) setSlotDurationMinutes(s.slotDurationMinutes) })
+      .catch(() => {}) // silencioso — se queda con el default de 15
+  }, [])
 
   const steps = getSteps(selectedVertical?.id, !!paramProId)
 
@@ -171,7 +188,7 @@ export default function ReservarConsulta({ profile }) {
       })
       .map(d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
   )
-  const timeSlots = selectedDate ? buildTimeSlots(franjas, bookedTimesForDate) : []
+  const timeSlots = selectedDate ? buildTimeSlots(franjas, bookedTimesForDate, slotDurationMinutes) : []
 
   // ── Booking wizard start — fire once a vertical is known ──
   useEffect(() => {

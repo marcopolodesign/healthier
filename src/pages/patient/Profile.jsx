@@ -275,7 +275,6 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         <h3 className="font-semibold text-[18px] text-text-primary mb-6 flex items-center gap-2"><User className="w-5 h-5 text-brand" /> Información Básica</h3>
         <div className="space-y-5">
           {field('Nombre', 'nombre')}
-          {field('Email', 'email', 'email')}
           {field('Teléfono', 'telefono', 'tel')}
           {field('Domicilio', 'domicilio')}
         </div>

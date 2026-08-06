@@ -6,6 +6,7 @@ import AddressAutocomplete from '../../components/common/AddressAutocomplete'
 import { SPECIALTIES } from '../../lib/verticals'
 import { geocodeAddress } from '../../lib/geo'
 import { toast } from '../../components/Toast'
+import { isLikelyTooSmallForFace } from '../../lib/imageCompression'
 
 export default function ProfessionalProfile({ profile }) {
   const [profData, setProfData] = useState(null)
@@ -33,9 +34,14 @@ export default function ProfessionalProfile({ profile }) {
     }).finally(() => setLoading(false))
   }, [profile?.id])
 
-  const handleAvatarFile = file => {
+  const handleAvatarFile = async file => {
     setAvatarFile(file)
     setAvatarPreview(URL.createObjectURL(file))
+    // Aviso blando, no bloqueante: no detectamos caras, sólo avisamos si la
+    // imagen es chica. El profesional decide si la cambia.
+    if (await isLikelyTooSmallForFace(file)) {
+      toast.warning('Esa foto es chica y puede que no se te vea bien la cara. Podés seguir igual o subir otra.')
+    }
   }
 
   const save = async (e) => {
@@ -92,6 +98,7 @@ export default function ProfessionalProfile({ profile }) {
                 onFile={handleAvatarFile}
                 accept="image/*"
                 label={avatarFile ? avatarFile.name : 'Cambiar foto'}
+                hint="Que se te vea la cara con claridad, de frente y con buena luz."
               />
             </div>
           </div>

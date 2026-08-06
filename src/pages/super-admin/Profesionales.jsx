@@ -1,13 +1,38 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   MagnifyingGlass, ShieldCheck, X, ArrowSquareOut, Warning,
   CircleNotch, Check, IdentificationCard, FileText, ShieldWarning,
-  ShieldSlash, User, Pencil,
+  ShieldSlash, User, Pencil, UploadSimple, ClockCounterClockwise, XCircle,
 } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
 import { SPECIALTY_LABELS } from '../../lib/verticals'
 import { toast } from '../../components/Toast'
 import RefepsCheckLink from '../../components/admin/RefepsCheckLink'
+import SignedDocLink from '../../components/SignedDocLink'
+import { professionalService } from '../../services/professionalService'
+
+// Documentos que puede gestionar el super admin desde el drawer (A6) — mismo
+// nombre de archivo que usa Onboarding.jsx al subir, para que un reemplazo
+// caiga en el mismo lugar del bucket que el original.
+const DOC_FIELDS = [
+  { label: 'Título',                        urlKey: 'title_document_url',                     camelKey: 'titleDocumentUrl',                     fileName: 'titulo' },
+  { label: 'Matrícula',                     urlKey: 'license_document_url',                   camelKey: 'licenseDocumentUrl',                   fileName: 'matricula' },
+  { label: 'DNI',                           urlKey: 'dni_document_url',                       camelKey: 'dniDocumentUrl',                       fileName: 'dni' },
+  { label: 'Seguro de mala praxis',         urlKey: 'malpractice_insurance_document_url',     camelKey: 'malpracticeInsuranceDocumentUrl',      fileName: 'seguro_mala_praxis' },
+  { label: 'Certificado de especialista',   urlKey: 'specialist_certificate_document_url',    camelKey: 'specialistCertificateDocumentUrl',     fileName: 'certificado_especialista' },
+  { label: 'CUIT / Monotributo',            urlKey: 'cuit_document_url',                      camelKey: 'cuitDocumentUrl',                      fileName: 'cuit' },
+]
+
+function fmtDateTime(dateStr) {
+  if (!dateStr) return '—'
+  return new Date(dateStr).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+const REVIEW_ACTION_LABELS = {
+  approved:            { label: 'Verificado',        cls: 'text-emerald-700' },
+  needs_revision:      { label: 'Pidió revisión',    cls: 'text-amber-700' },
+  rejected_permanent:  { label: 'Rechazo permanente', cls: 'text-red-700' },
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -26,12 +51,33 @@ function fmt(dateStr) {
 
 // ── Status badges ─────────────────────────────────────────────────────────────
 
+// Antes esto era binario (Verificado / Pendiente): un profesional rechazado
+// seguía mostrando "Pendiente" en la tabla, indistinguible de uno que
+// todavía no fue revisado — el CEO lo señaló explícito ("actualizar tabla
+// cuando se rechaza"). Ahora refleja las 4 combinaciones reales de
+// is_verified + rejected_at + rejection_type.
 function VerifiedBadge({ pro }) {
   if (pro.is_verified) {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
         <ShieldCheck className="h-3 w-3" />
         Verificado{pro.verification_source === 'sisa' ? ' · SISA' : pro.verification_source === 'manual' ? ' · Manual' : ''}
+      </span>
+    )
+  }
+  if (pro.rejected_at && pro.rejection_type === 'permanente') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">
+        <XCircle className="h-3 w-3" />
+        Rechazado
+      </span>
+    )
+  }
+  if (pro.rejected_at) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700">
+        <Warning className="h-3 w-3" />
+        Necesita revisión
       </span>
     )
   }
@@ -73,20 +119,31 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
 
   const [verifying, setVerifying] = useState(false)
   const [approving, setApproving] = useState(false)
-  const [rejecting, setRejecting] = useState(false)
+  const [reviewing, setReviewing] = useState(false)
   const [rejectionReason, setRejectionReason] = useState('')
-  const [showRejectForm, setShowRejectForm] = useState(false)
+  // null | 'revision' | 'permanente' — cuál de las dos acciones de rechazo
+  // está mostrando el formulario ahora mismo.
+  const [showReviewForm, setShowReviewForm] = useState(null)
+  const [history, setHistory] = useState([])
+
+  // A6 — subida/reemplazo de documentos por el super admin.
+  const fileInputRef = useRef(null)
+  const pendingFieldRef = useRef(null)
+  const [uploadingDocKey, setUploadingDocKey] = useState(null)
 
   const loadDetail = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('professional_profiles')
-      .select(`
-        *,
-        profile:profiles!user_id(id, full_name, email, phone, dni, created_at)
-      `)
-      .eq('id', pro.id)
-      .single()
+    const [{ data, error }, historyRows] = await Promise.all([
+      supabase
+        .from('professional_profiles')
+        .select(`
+          *,
+          profile:profiles!user_id(id, full_name, email, phone, dni, created_at)
+        `)
+        .eq('id', pro.id)
+        .single(),
+      professionalService.getVerificationHistory(pro.id).catch(() => []),
+    ])
 
     if (!error && data) {
       setDetail(data)
@@ -94,6 +151,7 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
       setLicenseType(data.license_type ?? 'MN')
       setLicenseNumber(data.license_number ?? '')
     }
+    setHistory(historyRows)
     setLoading(false)
   }, [pro.id])
 
@@ -176,33 +234,73 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
 
   async function handleManualApprove() {
     setApproving(true)
-    const now = new Date().toISOString()
-    const { error } = await supabase
-      .from('professional_profiles')
-      .update({ is_verified: true, verification_source: 'manual', verified_at: now })
-      .eq('id', pro.id)
-
-    if (error) { toast.error('Error al verificar'); setApproving(false); return }
-    toast.success('Profesional verificado manualmente')
-    setApproving(false)
-    await loadDetail()
-    onUpdated()
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      await professionalService.approve(pro.id, user?.id ?? null)
+      toast.success('Profesional verificado manualmente')
+      await loadDetail()
+      onUpdated()
+    } catch {
+      toast.error('Error al verificar')
+    } finally {
+      setApproving(false)
+    }
   }
 
-  async function handleReject() {
-    if (!rejectionReason.trim()) { toast.warning('Ingresá el motivo de rechazo'); return }
-    setRejecting(true)
-    const { error } = await supabase
-      .from('professional_profiles')
-      .update({ is_verified: false, is_active: false, rejection_reason: rejectionReason.trim() })
-      .eq('id', pro.id)
+  // Reemplaza al viejo `handleReject` único: ahora son dos acciones
+  // distintas (A4) — "necesita revisión" (el profesional puede corregir y
+  // reenviar) y "rechazo permanente" (no puede reenviar más). El motivo es
+  // obligatorio en las dos, igual que antes.
+  async function handleReview(type) {
+    if (!rejectionReason.trim()) { toast.warning('Ingresá el motivo'); return }
+    setReviewing(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (type === 'revision') {
+        await professionalService.requestRevision(pro.id, user?.id ?? null, rejectionReason.trim())
+        toast.success('Se le pidió revisión al profesional')
+      } else {
+        await professionalService.rejectPermanently(pro.id, user?.id ?? null, rejectionReason.trim())
+        toast.success('Profesional rechazado permanentemente')
+      }
+      setShowReviewForm(null)
+      setRejectionReason('')
+      await loadDetail()
+      onUpdated()
+    } catch {
+      toast.error('Error al guardar la revisión')
+    } finally {
+      setReviewing(false)
+    }
+  }
 
-    if (error) { toast.error('Error al rechazar'); setRejecting(false); return }
-    toast.success('Profesional rechazado')
-    setRejecting(false)
-    setShowRejectForm(false)
-    await loadDetail()
-    onUpdated()
+  // A6 — el super admin sube o reemplaza un documento en nombre del
+  // profesional. Reusa `professionalService.uploadDocument` (mismo código
+  // que Onboarding.jsx) — sólo cambiaron las policies del bucket (097) para
+  // permitirle a `super_admin` escribir en una carpeta que no es la suya.
+  function triggerDocUpload(field) {
+    pendingFieldRef.current = field
+    fileInputRef.current?.click()
+  }
+
+  async function handleDocFileSelected(e) {
+    const file = e.target.files?.[0]
+    const field = pendingFieldRef.current
+    e.target.value = ''
+    if (!file || !field || !detail?.profile?.id) return
+
+    setUploadingDocKey(field.urlKey)
+    try {
+      const url = await professionalService.uploadDocument(detail.profile.id, file, 'professional-docs', field.fileName)
+      await professionalService.upsert(detail.profile.id, { [field.camelKey]: url })
+      toast.success(`${field.label}: documento actualizado`)
+      await loadDetail()
+      onUpdated()
+    } catch {
+      toast.error(`No pudimos subir "${field.label}"`)
+    } finally {
+      setUploadingDocKey(null)
+    }
   }
 
   const d = detail
@@ -336,31 +434,46 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
                 </div>
               </div>
 
-              {/* Documentos subidos */}
+              {/* Documentos subidos — A6: el super admin puede subir/reemplazar
+                  cada uno acá mismo, no sólo verlos. Un solo <input type=file>
+                  oculto, reusado por todas las filas vía triggerDocUpload(). */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                className="hidden"
+                onChange={handleDocFileSelected}
+              />
               <div className="rounded-xl border border-gray-200 overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100 text-sm font-semibold text-gray-700">
                   <FileText className="h-4 w-4 text-gray-400" />
                   Documentos
                 </div>
                 <div className="p-4 space-y-2">
-                  {[
-                    { label: 'Título', url: d?.title_document_url },
-                    { label: 'Matrícula', url: d?.license_document_url },
-                    { label: 'DNI', url: d?.dni_document_url },
-                    { label: 'Seguro de mala praxis', url: d?.malpractice_insurance_document_url },
-                    { label: 'Certificado de especialista', url: d?.specialist_certificate_document_url },
-                    { label: 'CUIT / Monotributo', url: d?.cuit_document_url },
-                  ].map(({ label, url }) => (
-                    <div key={label} className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">{label}</span>
-                      {url
-                        ? <a href={url} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-brand hover:underline text-xs font-medium">
-                            Ver <ArrowSquareOut className="h-3 w-3" />
-                          </a>
-                        : <span className="text-xs text-gray-400">No subido</span>}
-                    </div>
-                  ))}
+                  {DOC_FIELDS.map(field => {
+                    const url = d?.[field.urlKey]
+                    const isUploading = uploadingDocKey === field.urlKey
+                    return (
+                      <div key={field.urlKey} className="flex items-center justify-between text-sm gap-2">
+                        <span className="text-gray-600">{field.label}</span>
+                        <div className="flex items-center gap-3 shrink-0">
+                          {url
+                            ? <SignedDocLink url={url}
+                                className="flex items-center gap-1 text-brand hover:underline text-xs font-medium">
+                                Ver <ArrowSquareOut className="h-3 w-3" />
+                              </SignedDocLink>
+                            : <span className="text-xs text-gray-400">No subido</span>}
+                          <button type="button" onClick={() => triggerDocUpload(field)} disabled={isUploading}
+                            className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-brand transition-colors disabled:opacity-60">
+                            {isUploading
+                              ? <CircleNotch className="h-3 w-3 animate-spin" />
+                              : <UploadSimple className="h-3 w-3" />}
+                            {url ? 'Reemplazar' : 'Subir'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -404,35 +517,81 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
                 </div>
               </div>
 
-              {/* Rechazo */}
+              {/* Estado de rechazo actual — A4: el motivo siempre visible, y
+                  distingue si el profesional puede reenviar o no (el
+                  profesional ve exactamente lo mismo en su dashboard). */}
               {d?.rejection_reason && (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-3">
-                  <p className="text-xs font-semibold text-red-700 mb-1">Motivo de rechazo</p>
-                  <p className="text-sm text-red-700">{d.rejection_reason}</p>
+                <div className={`rounded-xl border p-3 ${d.rejection_type === 'permanente' ? 'border-red-200 bg-red-50' : 'border-orange-200 bg-orange-50'}`}>
+                  <p className={`text-xs font-semibold mb-1 ${d.rejection_type === 'permanente' ? 'text-red-700' : 'text-orange-700'}`}>
+                    {d.rejection_type === 'permanente' ? 'Rechazado permanentemente — motivo' : 'Necesita revisión — motivo'}
+                  </p>
+                  <p className={`text-sm ${d.rejection_type === 'permanente' ? 'text-red-700' : 'text-orange-700'}`}>{d.rejection_reason}</p>
+                  {d.rejection_type === 'permanente' && (
+                    <p className="text-xs text-red-600 mt-1.5">El profesional no puede reenviar su perfil.</p>
+                  )}
                 </div>
               )}
 
-              {/* Reject form */}
-              {showRejectForm && (
+              {/* Review form — un solo formulario, dos acciones (A4). El
+                  motivo es obligatorio para las dos. */}
+              {showReviewForm && (
                 <div className="space-y-2">
                   <textarea
                     value={rejectionReason}
                     onChange={e => setRejectionReason(e.target.value)}
-                    placeholder="Motivo del rechazo (visible solo para el admin)…"
+                    placeholder={showReviewForm === 'permanente'
+                      ? 'Motivo del rechazo permanente (el profesional lo va a ver)…'
+                      : 'Qué le falta corregir (el profesional lo va a ver)…'}
                     rows={3}
                     className="form-textarea resize-none text-sm w-full"
                   />
+                  {showReviewForm === 'permanente' && (
+                    <p className="text-xs text-red-600">Esta acción es definitiva: el profesional no va a poder reenviar su perfil.</p>
+                  )}
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => setShowRejectForm(false)}
+                    <button type="button" onClick={() => { setShowReviewForm(null); setRejectionReason('') }}
                       className="btn-secondary flex-1 py-2 text-sm">Cancelar</button>
-                    <button type="button" onClick={handleReject} disabled={rejecting}
+                    <button type="button" onClick={() => handleReview(showReviewForm)} disabled={reviewing}
                       className="btn-danger flex-1 py-2 text-sm flex items-center justify-center gap-1">
-                      {rejecting ? <CircleNotch className="h-4 w-4 animate-spin" /> : null}
-                      Confirmar rechazo
+                      {reviewing ? <CircleNotch className="h-4 w-4 animate-spin" /> : null}
+                      {showReviewForm === 'permanente' ? 'Confirmar rechazo permanente' : 'Confirmar — pedir revisión'}
                     </button>
                   </div>
                 </div>
               )}
+
+              {/* A5 — quién verificó, cuándo, y el historial completo (puede
+                  pasar varias veces sobre el mismo profesional). */}
+              <div className="rounded-xl border border-gray-200 overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100 text-sm font-semibold text-gray-700">
+                  <ClockCounterClockwise className="h-4 w-4 text-gray-400" />
+                  Historial de verificación
+                </div>
+                <div className="p-4">
+                  {history.length === 0 ? (
+                    <p className="text-xs text-gray-400">Todavía no hay ninguna revisión registrada.</p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {history.map(h => {
+                        const info = REVIEW_ACTION_LABELS[h.action] ?? { label: h.action, cls: 'text-gray-700' }
+                        return (
+                          <li key={h.id} className="text-xs">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`font-semibold ${info.cls}`}>{info.label}</span>
+                              <span className="text-gray-400">{fmtDateTime(h.createdAt)}</span>
+                            </div>
+                            <p className="text-gray-500 mt-0.5">
+                              Por {h.reviewer?.fullName ?? h.reviewer?.full_name ?? 'Admin'}
+                              {(h.reviewer?.email) ? ` · ${h.reviewer.email}` : ''}
+                            </p>
+                            {h.reason && <p className="text-gray-600 mt-0.5 bg-gray-50 rounded-lg p-2">{h.reason}</p>}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
             </>
           )}
         </div>
@@ -451,14 +610,20 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
             ) : (
               <div className="flex items-center justify-center gap-2 text-sm text-emerald-700">
                 <ShieldCheck className="h-4 w-4" />
-                Profesional verificado el {fmt(d?.verified_at ?? d?.updated_at)}
+                Verificado el {fmt(d?.verified_at ?? d?.updated_at)}
               </div>
             )}
-            {!showRejectForm && (
-              <button type="button" onClick={() => setShowRejectForm(true)}
-                className="w-full py-2 rounded-xl border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors">
-                Rechazar
-              </button>
+            {!showReviewForm && (
+              <div className="flex gap-2">
+                <button type="button" onClick={() => { setShowReviewForm('revision'); setRejectionReason('') }}
+                  className="flex-1 py-2 rounded-xl border border-orange-200 text-orange-700 text-sm font-medium hover:bg-orange-50 transition-colors">
+                  Pedir revisión
+                </button>
+                <button type="button" onClick={() => { setShowReviewForm('permanente'); setRejectionReason('') }}
+                  className="flex-1 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors">
+                  Rechazo permanente
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -483,7 +648,7 @@ export default function SuperAdminProfesionales() {
       const [profResult, consultResult] = await Promise.all([
         supabase
           .from('professional_profiles')
-          .select('id, specialty, is_verified, verification_source, sisa_status, mp_connected, mp_account_label, average_rating, total_reviews, created_at, profiles!user_id(id, full_name, email, created_at, utm_source)')
+          .select('id, specialty, is_verified, verification_source, sisa_status, mp_connected, mp_account_label, average_rating, total_reviews, created_at, rejected_at, rejection_type, profiles!user_id(id, full_name, email, created_at, utm_source)')
           .order('created_at', { ascending: false }),
         supabase.from('consultations').select('professional_id'),
       ])
@@ -508,7 +673,11 @@ export default function SuperAdminProfesionales() {
 
   const filtered = professionals.filter(p => {
     if (filter === 'verificados' && !p.is_verified) return false
-    if (filter === 'pendientes' && p.is_verified) return false
+    // "Pendientes" ahora excluye a los ya rechazados (revisión o permanente)
+    // — antes de la 097 no había forma de distinguirlos y quedaban mezclados
+    // acá, que es exactamente lo que el CEO pidió arreglar.
+    if (filter === 'pendientes' && (p.is_verified || p.rejected_at)) return false
+    if (filter === 'rechazados' && !p.rejected_at) return false
     if (filter === 'sin-mp' && p.mp_connected) return false
     if (search.trim()) {
       const q = search.toLowerCase()
@@ -524,6 +693,7 @@ export default function SuperAdminProfesionales() {
     { key: 'todos', label: 'Todos' },
     { key: 'verificados', label: 'Verificados' },
     { key: 'pendientes', label: 'Pendientes' },
+    { key: 'rechazados', label: 'Rechazados' },
     { key: 'sin-mp', label: 'Sin MP' },
   ]
 

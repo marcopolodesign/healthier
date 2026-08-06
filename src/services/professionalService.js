@@ -184,4 +184,96 @@ export const professionalService = {
     if (error) throw error
     return toCamelCase(data)
   },
+
+  // ── Verificación del super admin (2026-08-06) ──────────────────────────
+  //
+  // `reject()` de arriba queda como está — lo sigue usando admin/Professionals.jsx
+  // sin distinguir revisión de rechazo permanente. Estos tres métodos son los
+  // que usa super-admin/Profesionales.jsx: cada uno deja constancia en
+  // `professional_verification_log` (migración 097) de qué admin decidió, así
+  // que la escritura en `professional_profiles` y el registro de auditoría van
+  // siempre juntos — nunca uno sin el otro.
+
+  async _logVerificationReview(professionalProfileId, reviewedBy, action, reason) {
+    const { error } = await supabase
+      .from('professional_verification_log')
+      .insert({
+        professional_profile_id: professionalProfileId,
+        reviewed_by: reviewedBy,
+        action,
+        reason: reason || null,
+      })
+    // Un fallo al loguear no puede tirar abajo la decisión de verificación ya
+    // guardada — se reporta a consola para no perderlo en silencio.
+    if (error) console.error('No se pudo registrar la auditoría de verificación:', error)
+  },
+
+  /** Aprobar manualmente. Limpia cualquier rechazo previo (incluido uno
+   *  permanente) — si no, `rejection_type='permanente'` seguiría bloqueando
+   *  al profesional en el trigger de la 097 aun después de aprobado. */
+  async approve(professionalProfileId, reviewedBy) {
+    const { error } = await supabase
+      .from('professional_profiles')
+      .update({
+        is_verified: true,
+        is_active: true,
+        verification_source: 'manual',
+        verified_at: new Date().toISOString(),
+        verified_by: reviewedBy,
+        rejection_reason: null,
+        rejected_at: null,
+        rejection_type: null,
+      })
+      .eq('id', professionalProfileId)
+    if (error) throw error
+    await this._logVerificationReview(professionalProfileId, reviewedBy, 'approved', null)
+  },
+
+  /** "Necesita revisión" — el profesional ve el motivo y puede corregir y
+   *  reenviar desde onboarding (Onboarding.jsx limpia estos mismos campos al
+   *  reenviar). */
+  async requestRevision(professionalProfileId, reviewedBy, reason) {
+    const { error } = await supabase
+      .from('professional_profiles')
+      .update({
+        is_verified: false,
+        is_active: false,
+        rejection_reason: reason,
+        rejected_at: new Date().toISOString(),
+        rejection_type: 'revision',
+      })
+      .eq('id', professionalProfileId)
+    if (error) throw error
+    await this._logVerificationReview(professionalProfileId, reviewedBy, 'needs_revision', reason)
+  },
+
+  /** Rechazo permanente — el profesional ve el motivo pero no puede reenviar
+   *  (bloqueado por el trigger `professional_profiles_bloquear_rechazo_permanente`,
+   *  migración 097, no sólo por la UI). */
+  async rejectPermanently(professionalProfileId, reviewedBy, reason) {
+    const { error } = await supabase
+      .from('professional_profiles')
+      .update({
+        is_verified: false,
+        is_active: false,
+        rejection_reason: reason,
+        rejected_at: new Date().toISOString(),
+        rejection_type: 'permanente',
+      })
+      .eq('id', professionalProfileId)
+    if (error) throw error
+    await this._logVerificationReview(professionalProfileId, reviewedBy, 'rejected_permanent', reason)
+  },
+
+  /** Historial de revisiones de un profesional, más reciente primero — para
+   *  el panel de super admin ("quién revisó y cuándo"). */
+  async getVerificationHistory(professionalProfileId) {
+    const { data, error } = await supabase
+      .from('professional_verification_log')
+      .select('*, reviewer:profiles!reviewed_by(full_name, email)')
+      .eq('professional_profile_id', professionalProfileId)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return toCamelCase(data)
+  },
 }

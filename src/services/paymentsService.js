@@ -113,7 +113,7 @@ export const paymentsService = {
     return toCamelCase(data)
   },
 
-  /** Single-row platform settings (commission, MP fee estimate, refund window). */
+  /** Single-row platform settings (commission, MP fee estimate, refund window, duración de turno). */
   async getPlatformSettings() {
     const { data, error } = await supabase
       .from('platform_settings')
@@ -125,6 +125,7 @@ export const paymentsService = {
       commissionRate: 0.20,
       mpFeeEstimateRate: 0.0629,
       refundWindowBusinessHours: 48,
+      slotDurationMinutes: 15,
     }
   },
 
