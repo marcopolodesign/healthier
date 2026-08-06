@@ -11,15 +11,17 @@ import { toast } from '../../components/Toast'
 import OnboardingPreview from '../../components/professional/OnboardingPreview'
 import { LAWS } from '../../lib/laws'
 
-// Tarifas (precio/modalidad/zona), bio y foto de perfil se sacaron de acá
-// (Mateo, 2026-08-04): lo único que este wizard necesita capturar es lo que
-// la verificación realmente exige — especialidad, matrícula y documentos.
-// Precio/modalidad/zona ya se configuran en Configuración → Tarifas y la
-// bio/foto en Perfil, ambos accesibles apenas el profesional entra logueado
-// (y resurfaceados por ProfileCompletenessCard en el Dashboard).
+// De acá salieron **sólo las tarifas** — precio, modalidad, zona y dirección —
+// que ya se configuran en Configuración → Tarifas y Perfil, y que el
+// ProfileCompletenessCard del Dashboard resurfacea.
+//
+// Foto y bio **siguen acá** (restauradas 2026-08-06): el 2026-08-04 se sacaron
+// junto con las tarifas, y no era eso lo pedido. Son lo que el paciente ve del
+// profesional, así que pedirlas mientras está completando el perfil es el
+// momento en que más barato sale — después nadie vuelve a Perfil a cargarlas.
 const STEPS = [
   { label: 'Especialidad',       short: 'Especialidad', icon: Stethoscope   },
-  { label: 'Datos personales',   short: 'Datos',        icon: User          },
+  { label: 'Tu presentación',    short: 'Presentación', icon: User          },
   { label: 'Documentación',      short: 'Documentos',   icon: FileText      },
   { label: 'Datos y privacidad', short: 'Privacidad',   icon: LockKey       },
   { label: 'Revisión y envío',   short: 'Revisión',     icon: ClipboardText },
@@ -42,9 +44,11 @@ export default function Onboarding({ profile }) {
   const [form, setForm] = useState({
     dni: profile?.dni || '',
     gender: profile?.gender || '',
-    specialty: '', subSpecialty: '',
+    specialty: '', subSpecialty: '', bio: '',
     licenseType: 'MN', licenseNumber: '', cuitNumber: '',
   })
+  const [avatarFile, setAvatarFile]       = useState(null)
+  const [avatarPreview, setAvatarPreview] = useState(null)
   const [titleFile, setTitleFile]       = useState(null)
   const [licenseFile, setLicenseFile]   = useState(null)
   const [dniFile, setDniFile]           = useState(null)
@@ -67,6 +71,7 @@ export default function Onboarding({ profile }) {
         gender:        profile?.gender || '',
         specialty:     p.specialty     || '',
         subSpecialty:  p.subSpecialty  || '',
+        bio:           p.bio           || '',
         licenseType:   p.licenseType   || 'MN',
         licenseNumber: p.licenseNumber || '',
         cuitNumber:    p.cuitNumber    || '',
@@ -74,6 +79,11 @@ export default function Onboarding({ profile }) {
       if (p.specialty) setCategoryId(categoryForSpecialty(p.specialty))
     })
   }, [isResubmit, profile?.id, profile?.dni, profile?.gender])
+
+  const handleAvatar = file => {
+    setAvatarFile(file)
+    setAvatarPreview(URL.createObjectURL(file))
+  }
 
   // Per-step validation
   const canAdvance = () => {
@@ -94,7 +104,8 @@ export default function Onboarding({ profile }) {
       const uploadDoc = (file, fileName) =>
         file ? professionalService.uploadDocument(profile.id, file, 'professional-docs', fileName) : Promise.resolve('')
 
-      const [titleUrl, licenseUrl, dniUrl, malpracticeUrl, specialistCertUrl, cuitUrl] = await Promise.all([
+      const [, titleUrl, licenseUrl, dniUrl, malpracticeUrl, specialistCertUrl, cuitUrl] = await Promise.all([
+        avatarFile ? profilesService.uploadAvatar(profile.id, avatarFile) : Promise.resolve(null),
         uploadDoc(titleFile, 'titulo'),
         uploadDoc(licenseFile, 'matricula'),
         uploadDoc(dniFile, 'dni'),
@@ -109,7 +120,8 @@ export default function Onboarding({ profile }) {
       const { dni, gender, ...formSinDni } = form
       await profilesService.update(profile.id, { dni: dni.trim(), gender })
 
-      // Precio, modalidad, zona y dirección NO van en este payload a propósito:
+      // Precio, modalidad, zona y dirección NO van en este payload a propósito
+      // (la bio sí, viene dentro de `form`):
       // ese dato se completa después en Configuración/Perfil, y omitir la clave
       // (en vez de mandarla en '' o null) hace que el upsert de Postgres no la
       // toque — así un reenvío nunca pisa lo que el profesional ya haya cargado
@@ -287,6 +299,24 @@ export default function Onboarding({ profile }) {
           {step === 1 && (
             <>
               <div>
+                <label className="form-label">Foto de perfil <span className="text-text-tertiary text-xs">(opcional)</span></label>
+                {avatarPreview && (
+                  <img src={avatarPreview} alt="preview" className="w-20 h-20 rounded-full object-cover mb-3 border-2 border-brand/30" />
+                )}
+                <FileUpload
+                  onFile={handleAvatar}
+                  accept="image/*"
+                  label={avatarFile ? avatarFile.name : 'Subir foto (JPG, PNG)'}
+                />
+                {/* Si la cuenta se creó con Google ya hay una foto guardada
+                    (authService la persiste al alta): esto la reemplaza, no la
+                    exige. */}
+                <p className="text-xs text-text-tertiary mt-1">
+                  Si entraste con Google ya usamos la de tu cuenta. Podés cambiarla acá.
+                </p>
+              </div>
+
+              <div>
                 <label className="form-label">DNI</label>
                 <input
                   type="text"
@@ -295,7 +325,6 @@ export default function Onboarding({ profile }) {
                   onChange={e => setForm(p => ({ ...p, dni: e.target.value.replace(/\D/g, '') }))}
                   placeholder="Sin puntos, ej: 28999888"
                   className="form-input"
-                  autoFocus
                 />
                 {/* Obligatorio: sin DNI del médico Innovamed rechaza la receta
                     con QBI156. Va acá y no en Documentación porque es un dato,
@@ -320,9 +349,21 @@ export default function Onboarding({ profile }) {
                 {/* Igual que el DNI: Innovamed lo exige para el profesional
                     (QBI206) y hasta ahora no se pedía en ningún lado, así que
                     ningún profesional podía emitir aunque tuviera matrícula. */}
-                <p className="text-xs text-text-tertiary mt-1">
+                <p className="text-xs text-text-tertiary mt-1 mb-4">
                   Necesario para emitir recetas electrónicas.
                 </p>
+              </div>
+
+              <div>
+                <label className="form-label">Bio / Presentación <span className="text-text-tertiary text-xs">(opcional)</span></label>
+                <textarea
+                  value={form.bio}
+                  onChange={e => setForm(p => ({ ...p, bio: e.target.value }))}
+                  rows={5}
+                  className="form-textarea"
+                  placeholder="Contale a los pacientes tu experiencia, enfoque y formación..."
+                />
+                <p className="text-xs text-text-tertiary mt-1">{form.bio.length}/500 caracteres</p>
               </div>
             </>
           )}
@@ -447,6 +488,8 @@ export default function Onboarding({ profile }) {
                   ['Matrícula',         form.licenseNumber ? `${form.licenseType} ${form.licenseNumber}` : '—'],
                   ['DNI',               form.dni || '—'],
                   ['Sexo',              OPCIONES_SEXO.find(o => o.value === form.gender)?.label || '—'],
+                  ['Foto de perfil',    avatarFile ? avatarFile.name : (profile?.avatarUrl ? 'La de tu cuenta de Google' : '—')],
+                  ['Bio',               form.bio ? `${form.bio.slice(0, 80)}${form.bio.length > 80 ? '…' : ''}` : '—'],
                   ['Título',           titleFile   ? titleFile.name   : '—'],
                   ['Doc. matrícula',   licenseFile ? licenseFile.name : '—'],
                   ['Doc. DNI',         dniFile     ? dniFile.name     : '—'],
@@ -511,7 +554,7 @@ export default function Onboarding({ profile }) {
           the viewport instead of stretching to match the left form's height
           (which grows a lot on steps like Documentación/Revisión). */}
       <div className="hidden lg:flex lg:sticky lg:top-0 lg:h-screen lg:self-start bg-bg-secondary p-8">
-        <OnboardingPreview step={step} form={form} profile={profile} />
+        <OnboardingPreview step={step} form={form} profile={profile} avatarPreview={avatarPreview} />
       </div>
     </div>
   )
