@@ -43,7 +43,10 @@ export default function Login({ onLogin }) {
       navigate(redirects[profile.role] || '/')
     } catch (err) {
       const error_type = err.message.includes('Credenciales inválidas') ? 'invalid_credentials' : 'network_error'
-      track('login_error', { method: 'email', error_type })
+      // `error_message` va en el anexo B de la spec de tracking. Es el mensaje
+      // que ya se le muestra al usuario (nunca trae PII), y sirve para separar
+      // los `network_error` reales entre sí sin tener que abrir el log.
+      track('login_error', { method: 'email', error_type, error_message: err.message })
       toast.error(err.message)
     } finally {
       setLoading(false)

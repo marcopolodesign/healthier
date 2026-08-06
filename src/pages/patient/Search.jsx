@@ -58,12 +58,18 @@ export default function PatientSearch() {
       // corre una vez por búsqueda terminada, no una por tecla, y además ya
       // tiene la cantidad de resultados — que es el dato que dice si la
       // búsqueda sirvió o dejó al paciente en una lista vacía.
-      track('busqueda_clinica', {
-        texto_buscado:     q?.trim() || undefined,
-        tiene_texto:       !!q?.trim(),
-        filtro_aplicado:   !!esp,
-        resultados_count:  data.length,
-        sin_resultados:    data.length === 0,
+      //
+      // El texto buscado NO se manda: la spec de tracking (§4) prohíbe texto
+      // libre, y este input es el único de la app donde un paciente puede
+      // escribir un síntoma en vez del nombre de un médico. Va `search_type`,
+      // que responde la pregunta de negocio (¿buscan por nombre o exploran?)
+      // sin arrastrar el contenido.
+      track('professional_search', {
+        search_type:    q?.trim() ? 'nombre' : 'listado',
+        has_query:      !!q?.trim(),
+        has_filter:     !!esp,
+        results_count:  data.length,
+        no_results:     data.length === 0,
       })
     } catch {
       setError(true)

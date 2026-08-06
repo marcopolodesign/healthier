@@ -323,8 +323,18 @@ function onDocumentClick(e) {
   const el = e.target?.closest?.(CLICKABLE)
   if (!el || el.closest('[data-cio-ignore]')) return
 
+  // Sólo se emite si el elemento declara su nombre de evento.
+  //
+  // La primera versión mandaba `button_clicked`/`link_clicked` para CUALQUIER
+  // click. Cubría todo, pero llenaba el Activity Log de Customer.io de eventos
+  // genéricos con los que no se puede armar una campaña, y la spec de tracking
+  // (Henry/Hyppo v1.0) define un catálogo de eventos con nombre — no un
+  // catch-all. Así que el auto-capture queda como atajo para instrumentar un
+  // botón sin tocar su handler, no como red de arrastre.
+  const event = el.dataset?.cioEvent
+  if (!event) return
+
   const isLink = el.tagName === 'A'
-  const event = el.dataset?.cioEvent || (isLink ? 'link_clicked' : 'button_clicked')
 
   // Cualquier data-cio-prop-* del elemento entra como propiedad del evento.
   const extra = {}
@@ -351,13 +361,16 @@ function onDocumentClick(e) {
 }
 
 /**
- * Captura TODOS los clicks en botones y links del sitio, sin tocar los
- * componentes. Fase de captura para que un `stopPropagation()` de un handler
- * de React no se coma el evento.
+ * Permite instrumentar un botón por atributo, sin tocar su handler ni importar
+ * nada en el componente. Escucha en fase de captura para que un
+ * `stopPropagation()` de React no se coma el evento.
  *
- * Para excluir una zona clínica: `<div data-cio-ignore>`.
- * Para nombrar un botón: `data-cio-event="reserva_click"`.
- * Para agregarle datos: `data-cio-prop-modality="video"`.
+ *   <button data-cio-event="view_map_click">Ver mapa</button>
+ *   <button data-cio-event="document_download" data-cio-prop-doc-type="receta">
+ *
+ * El nombre del evento tiene que salir de la spec de tracking — no se inventan
+ * nombres acá. Sin `data-cio-event` no se emite nada.
+ * Para excluir una zona clínica entera: `<div data-cio-ignore>`.
  */
 export function installClickAutocapture() {
   if (autocaptureInstalled || typeof document === 'undefined') return () => {}
