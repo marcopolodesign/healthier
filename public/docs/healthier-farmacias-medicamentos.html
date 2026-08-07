@@ -361,7 +361,9 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
 
 /* ===== RESPONSIVE ===== */
 @media(max-width:820px){
-  .flow-track{flex-direction:column;gap:1.5rem}
+  /* En columna el `align-items:flex-start` del track pega los pasos a la
+     izquierda — los iconos quedaban 70px corridos del centro. */
+  .flow-track{flex-direction:column;gap:1.5rem;align-items:center}
   .flow-connector{display:none}
   /* En teléfono varias diapositivas no entran: al pasar el flujo a columna la
      altura crece y el deck usa `overflow:hidden`, así que lo que sobra no se
@@ -395,7 +397,12 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
   /* Menos aire vertical: con el padding de antes (7rem entre arriba y abajo)
      tres diapositivas desbordaban incluso en pantallas de 844px de alto. */
   .slide{padding:3.25rem 1.25rem 3.5rem}
-  .flow-track{gap:1.1rem}
+  /* El flujo en columna medía 640px de alto y hacía desbordar la
+     diapositiva 135px. Achicado lo justo para que entre en 390x844 y
+     centre solo; en pantallas más bajas sigue habiendo scroll. */
+  .flow-track{gap:.85rem;margin-top:.5rem}
+  .flow-step{gap:.4rem;max-width:15rem}
+  .flow-icon{width:44px;height:44px;border-radius:.9rem;font-size:1.15rem}
 }
 </style>
 </head>
@@ -438,7 +445,7 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
     <div class="content">
       <span class="eyebrow"><span class="dash"></span>Healthier × Farmacias</span>
       <h1 class="hero">Pedir medicamentos, tan simple como <span class="lime">pedir un turno.</span></h1>
-      <p class="lead">Healthier suma la posibilidad de comprar medicamentos desde la app o directo desde la consulta — con el pago resuelto antes de llegar al mostrador.</p>
+      <p class="lead">El paciente compra sus medicamentos desde la app, o directo desde una receta que le emitieron — con el pago resuelto antes de llegar al mostrador.</p>
       <p class="caption" style="margin-top:1.5rem;color:rgba(255,255,255,.4)">→ Deslizá, o usá las flechas del teclado</p>
     </div>
   </section>
@@ -453,7 +460,7 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
         <div class="flow-step">
           <div class="flow-icon"><i class="ph ph-pill"></i></div>
           <h4>Selección</h4>
-          <p>El paciente arma su pedido del catálogo, o llega desde una receta.</p>
+          <p>El paciente arma su pedido del catálogo, o lo pide desde una receta que recibió.</p>
         </div>
         <div class="flow-connector"><i class="ph ph-arrow-right"></i></div>
         <div class="flow-step">
@@ -489,12 +496,12 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
           <p>El paciente entra a la sección de medicamentos, elige del catálogo, confirma la dirección y paga.</p>
         </div>
         <div class="feat-card">
-          <div class="icon-wrap lavender"><i class="ph ph-video-camera"></i></div>
-          <h3>Origen B — desde la consulta</h3>
-          <p>Al emitir la receta en la videoconsulta, el médico la envía directo — dispara el mismo flujo de pedido.</p>
+          <div class="icon-wrap lavender"><i class="ph ph-pill"></i></div>
+          <h3>Origen B — desde una receta</h3>
+          <p>El profesional emite la receta y sus medicamentos quedan enlazados al catálogo. El paciente los pide desde ahí.</p>
         </div>
       </div>
-      <p class="lead" style="margin-top:.5rem;font-size:.9rem">En ambos casos el resultado es el mismo: un pedido con la misma estructura de datos en el panel de la farmacia.</p>
+      <p class="lead" style="margin-top:.5rem;font-size:.9rem">En los dos casos el pedido lo hace el paciente, y llega al panel de la farmacia con la misma estructura de datos.</p>
     </div>
   </section>
 
@@ -538,8 +545,8 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
     <div class="two-col flip">
       <div style="display:flex;flex-direction:column;gap:1.25rem">
         <span class="eyebrow"><span class="dash"></span>Origen B en detalle</span>
-        <h2 class="section-title">La receta se convierte<br>en pedido <span class="accent">al instante.</span></h2>
-        <p class="lead">Cuando el médico cierra la consulta con una receta, tiene la opción de enviarla directo a farmacia. El paciente sólo tiene que elegir dirección y confirmar el pago.</p>
+        <h2 class="section-title">La receta ya trae<br>el botón para <span class="accent">pedirla.</span></h2>
+        <p class="lead">El profesional sólo emite la receta. Sus medicamentos quedan enlazados con los que la farmacia tiene cargados en stock, y el paciente decide si los pide: elige dirección y paga. El pedido siempre lo confirma él.</p>
       </div>
       <div style="display:flex;justify-content:center">
         <div class="rx-card">
@@ -558,7 +565,7 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
             <div class="name">Ibuprofeno 400mg</div>
             <div class="dose">Si hay dolor · máx 3/día</div>
           </div>
-          <div class="rx-status"><i class="ph ph-check-circle"></i> Enviada a farmacia automáticamente</div>
+          <div class="rx-status"><i class="ph ph-package"></i> Pedir estos medicamentos</div>
         </div>
       </div>
     </div>
