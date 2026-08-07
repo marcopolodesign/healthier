@@ -27,6 +27,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { RCTA_LOGO_BASE64 } from './logo.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -208,6 +209,13 @@ Deno.serve(async (req: Request) => {
     const { nombre: medicoNombre, apellido: medicoApellido } = splitName(med.professional?.full_name)
     const nombreConsultorio = medicoApellido ? `Consultorio Dr. ${medicoApellido}` : null
 
+    // El logo NUNCA puede impedir que se emita una receta (C4). Si algo falla
+    // al resolverlo, `subemisor` queda en `null` y la clave se OMITE del
+    // payload mas abajo -- nunca se manda vacio ni `null` explicito, eso es
+    // tan invalido como mandar basura. Ver logo.ts para el porque del base64
+    // hardcodeado en vez de una URL o un archivo leido en runtime.
+    const subemisor = resolveSubemisor()
+
     const payload = {
       clienteAppId: Number(RCTA_CLIENT_APP_ID),
       diagnostico: med.cie10_display ?? med.cie10_code ?? null,
@@ -272,52 +280,110 @@ Deno.serve(async (req: Request) => {
         nombreConsultorio,
         domicilio: { ...parseAddress(prof.address), direccion: prof.address },
       } : undefined,
+      // C4 — logo de Healthier en el PDF de la receta. `subemisor` es opcional
+      // en el contrato de Innovamed (Core.Dtos.SubEmisor): se OMITE la clave
+      // entera cuando el logo no se pudo resolver, en vez de mandarlo vacio.
+      ...(subemisor ? { subemisor } : {}),
     }
 
     // ── Call QBI2 API ─────────────────────────────────────────────────────────
-    // La red se atrapa aca y no en el catch de afuera, que no alcanza a
-    // `registrar`: un timeout contra Innovamed tiene que dejar rastro igual que
-    // un rechazo suyo — si no, el caso mas dificil de diagnosticar es el unico
-    // que no queda escrito.
-    let rctaRes: Response
-    try {
-      rctaRes = await fetch(`${RCTA_API_URL}/apirecipe/Receta`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${RCTA_API_KEY}`,
-        },
-        body: JSON.stringify(payload),
-      })
-    } catch (err) {
-      console.error('rcta-issue: no se pudo contactar a Innovamed:', String(err))
+    // La red se atrapa dentro de `postReceta` y no en el catch de afuera, que
+    // no alcanza a `registrar`: un timeout contra Innovamed tiene que dejar
+    // rastro igual que un rechazo suyo — si no, el caso mas dificil de
+    // diagnosticar es el unico que no queda escrito.
+    ctx.request = payload
+    let result = await postReceta(RCTA_API_URL, RCTA_API_KEY, payload)
+
+    if (result.kind === 'network_error') {
+      // Ambiguo: no sabemos si Innovamed llego a recibir este request.
+      // NUNCA se reintenta a partir de un error de red — reintentar podria
+      // duplicar una receta electronica ya creada del otro lado, que es un
+      // acto medico legal. Se propaga el error tal cual, como antes.
+      console.error('rcta-issue: no se pudo contactar a Innovamed:', String(result.err))
       await setStatus('error')
-      ctx.request = payload
       return await fallar('network_error', {
         error: 'No se pudo contactar al servicio de recetas. Reintentá en un momento.',
         code: 'RCTA_SIN_RESPUESTA',
-        detail: String(err),
+        detail: String(result.err),
       }, 504)
     }
 
-    ctx.request     = payload
-    ctx.http_status = rctaRes.status
+    if (result.kind === 'rejected') {
+      console.error('RCTA API error:', result.status, result.body)
 
-    if (!rctaRes.ok) {
-      const errBody = await rctaRes.text()
-      console.error('RCTA API error:', rctaRes.status, errBody)
-      await setStatus('error')
-      // Innovamed manda su codigo (QBI212, QBI105...) tambien en los 4xx, pero
-      // como `MensajeInvalidoResponse` y no como `errores[]`. Se rescata para
-      // que el log se pueda filtrar por codigo sin abrir el JSON a mano.
-      // deno-lint-ignore no-explicit-any
-      let errJson: any = null
-      try { errJson = JSON.parse(errBody) } catch { /* no siempre es JSON */ }
-      return await fallar('api_error', { error: 'RCTA API error', status: rctaRes.status, detail: errBody }, 502,
-        { response: errJson ?? { raw: errBody }, error_code: errJson?.error ?? null })
+      // C4 — reintento UNICO sin el logo, y SOLO ante esto: un rechazo
+      // definitivo de Innovamed, acotado a 4xx. Un 4xx es una negativa a
+      // PROCESAR el request (validacion/contrato/payload) — prueba
+      // razonable de que no se creo nada. Un 5xx es un fallo del LADO DE
+      // ELLOS con resultado desconocido: pudo fallar validando (nada
+      // creado) o pudo fallar recien al armar la respuesta DESPUES de
+      // crear la receta — reintentar ahi arriesga exactamente lo mismo que
+      // un network_error (emitir una segunda receta legalmente valida), asi
+      // que un 5xx se propaga sin reintentar, igual que un network_error.
+      // Encaja ademas con la causa real que motiva este reintento: si a
+      // Innovamed no le gusta el formato de `logoBase64`, contesta 400, no
+      // 500.
+      const esRechazoDe4xx = result.status >= 400 && result.status < 500
+      if ('subemisor' in payload && esRechazoDe4xx) {
+        console.error(`rcta-issue: rechazo con logo puesto (status ${result.status}), reintentando UNA vez sin subemisor`)
+        const { subemisor: _omitido, ...payloadSinLogo } = payload
+        ctx.retry_sin_logo = true
+        const retryResult = await postReceta(RCTA_API_URL, RCTA_API_KEY, payloadSinLogo)
+
+        if (retryResult.kind === 'ok') {
+          console.error(`rcta-issue: receta emitida SIN LOGO tras reintento — Innovamed rechazó "subemisor.logoBase64" (status original ${result.status}: ${result.body}). Evaluar desactivar el logo hasta confirmar el formato exacto que acepta.`)
+          // Se guarda el rechazo original completo en el log de la emision
+          // EXITOSA: es la unica fila que va a quedar escrita para este
+          // intento (el rechazo con logo nunca se registra por separado), y
+          // es justamente el dato que hace falta para diagnosticar sin
+          // adivinar.
+          ctx.logo_rejected = true
+          ctx.logo_rejection_status = result.status
+          ctx.logo_rejection_detail = result.body
+          ctx.request = payloadSinLogo
+          result = retryResult
+          // sigue mas abajo — a esta altura `result.kind === 'ok'`
+        } else if (retryResult.kind === 'network_error') {
+          // Tambien ambiguo — no hay un tercer intento. Se propaga el
+          // rechazo ORIGINAL (con logo), que es la unica certeza real: esa
+          // receta puntual, sabemos con seguridad, no se creo.
+          console.error('rcta-issue: reintento sin logo tambien fallo de red, no se reintenta de nuevo:', String(retryResult.err))
+          await setStatus('error')
+          return await fallar('api_error', { error: 'RCTA API error', status: result.status, detail: result.body }, 502,
+            { response: result.json ?? { raw: result.body }, error_code: result.json?.error ?? null, retry_network_error: String(retryResult.err) })
+        } else {
+          // Rechazado tambien sin logo — el logo no era la causa real.
+          console.error('RCTA API error (reintento sin logo tambien rechazado):', retryResult.status, retryResult.body)
+          await setStatus('error')
+          return await fallar('api_error', { error: 'RCTA API error', status: result.status, detail: result.body }, 502,
+            { response: result.json ?? { raw: result.body }, error_code: result.json?.error ?? null,
+              retry_sin_logo_status: retryResult.status, retry_sin_logo_detail: retryResult.body })
+        }
+      } else {
+        // Aca caen dos casos, sin reintento en ninguno: (1) no habia logo en
+        // el payload, nada que sacar; (2) HABIA logo pero el rechazo fue
+        // 5xx — resultado desconocido del lado de Innovamed, no se reintenta
+        // (ver el comentario de arriba).
+        await setStatus('error')
+        // Innovamed manda su codigo (QBI212, QBI105...) tambien en los 4xx, pero
+        // como `MensajeInvalidoResponse` y no como `errores[]`. Se rescata para
+        // que el log se pueda filtrar por codigo sin abrir el JSON a mano.
+        return await fallar('api_error', { error: 'RCTA API error', status: result.status, detail: result.body }, 502,
+          { response: result.json ?? { raw: result.body }, error_code: result.json?.error ?? null })
+      }
     }
 
-    const rctaData = await rctaRes.json()
+    // Defensivo: a esta altura `result.kind` tiene que ser 'ok' — exito
+    // directo, o exito del reintento sin logo reasignado arriba. Cualquier
+    // otro caso ya devolvio la respuesta antes de llegar aca.
+    if (result.kind !== 'ok') {
+      console.error('rcta-issue: estado inesperado post-reintento', result)
+      await setStatus('error')
+      return await fallar('api_error', { error: 'RCTA API error inesperado' }, 502)
+    }
+
+    ctx.http_status = result.status
+    const rctaData = result.data
     // La respuesta entera, no el resumen: `idTransaccion` vive al tope, fuera de
     // `recetas[]`, y es el campo que Innovamed pide para certificar.
     ctx.response       = rctaData
@@ -484,6 +550,66 @@ async function notifyPharmacyMatch(supabase: any, med: any) {
       url:    '/paciente/farmacia',
     },
   })
+}
+
+// C4 — logo de Healthier en la receta. Nunca puede tumbar una emision: si el
+// logo esta vacio, mal formado, o tirar cualquier excepcion al leerlo, esta
+// funcion devuelve `null` y quien la llama omite la clave `subemisor` del
+// payload entero. La emision sigue exactamente como si el logo no existiera.
+//
+// El chequeo de longitud (>100) es solo para no mandar un string vacio o
+// truncado por error humano al editar logo.ts a mano en el futuro — el PNG
+// real tiene ~2400 caracteres en base64.
+function resolveSubemisor(): { logoBase64: string } | null {
+  try {
+    if (typeof RCTA_LOGO_BASE64 !== 'string' || RCTA_LOGO_BASE64.trim().length < 100) {
+      console.error('rcta-issue: logo omitido del payload — RCTA_LOGO_BASE64 vacío o inválido')
+      return null
+    }
+    return { logoBase64: RCTA_LOGO_BASE64 }
+  } catch (err) {
+    console.error('rcta-issue: logo omitido del payload — error al resolverlo:', String(err))
+    return null
+  }
+}
+
+// C4 — resultado tipado de una llamada a POST /apirecipe/Receta. Un solo tipo
+// para el intento original y el reintento sin logo (ver el bloque de
+// reintento en el handler principal): evita que las dos llamadas diverjan en
+// como arman el request o parsean la respuesta.
+type RctaCallResult =
+  | { kind: 'network_error'; err: unknown }
+  // deno-lint-ignore no-explicit-any
+  | { kind: 'rejected'; status: number; body: string; json: any }
+  // deno-lint-ignore no-explicit-any
+  | { kind: 'ok'; status: number; data: any }
+
+async function postReceta(url: string, apiKey: string, body: Record<string, unknown>): Promise<RctaCallResult> {
+  let res: Response
+  try {
+    res = await fetch(`${url}/apirecipe/Receta`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    })
+  } catch (err) {
+    // Ambiguo: no sabemos si Innovamed llego a recibir el request. El
+    // llamador NUNCA reintenta a partir de esto — ver el bloque de
+    // reintento en el handler principal.
+    return { kind: 'network_error', err }
+  }
+  if (!res.ok) {
+    const text = await res.text()
+    // deno-lint-ignore no-explicit-any
+    let errJson: any = null
+    try { errJson = JSON.parse(text) } catch { /* no siempre es JSON */ }
+    return { kind: 'rejected', status: res.status, body: text, json: errJson }
+  }
+  const data = await res.json()
+  return { kind: 'ok', status: res.status, data }
 }
 
 // RCTA wants separate nombre/apellido — Healthier only stores full_name.

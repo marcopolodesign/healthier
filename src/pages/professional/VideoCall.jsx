@@ -12,6 +12,7 @@ import { supabase } from '../../lib/supabase'
 import { consultationsService } from '../../services/consultationsService'
 import { clinicalService } from '../../services/clinicalService'
 import PreconsultaSummary, { hasPreconsulta } from '../../components/professional/PreconsultaSummary'
+import GuiaClinicaConsulta from '../../components/professional/GuiaClinicaConsulta'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { profilesService } from '../../services/profilesService'
 import { professionalService } from '../../services/professionalService'
@@ -695,6 +696,16 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
       <div className="flex-1 overflow-y-auto px-3 py-4">
         {activeTab === 'nota' && (
           <>
+            <GuiaClinicaConsulta
+              entries={entries}
+              preconsulta={consultation?.preconsultaData}
+              patientId={patientId}
+              professionalId={professionalId}
+              licenseType={licenseType}
+              licenseNumber={licenseNumber}
+              ensureEncounter={ensureEncounter}
+              onEntryAdded={entry => setEntries(prev => [...prev, entry])}
+            />
             {loadingEntries && (
               <div className="flex justify-center py-8">
                 <CircleNotch className="h-5 w-5 animate-spin text-brand" />
