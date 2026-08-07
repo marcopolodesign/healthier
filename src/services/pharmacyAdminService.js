@@ -6,35 +6,9 @@
  */
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 import { medicationOrdersService } from './medicationOrdersService'
+import { callEdgeFunction } from '../lib/edgeFunction'
 
 const PHARMACY_ID = medicationOrdersService.PHARMACY_ID
-
-async function getAccessToken() {
-  const { data: { session } } = await supabase.auth.getSession()
-  return session?.access_token ?? null
-}
-
-async function callEdgeFunction(path, body, token) {
-  const accessToken = token ?? await getAccessToken()
-  const res = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${path}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: JSON.stringify(body),
-    }
-  )
-  const json = await res.json().catch(() => ({ error: 'invalid_response' }))
-  if (!res.ok) throw new Error(json?.error ?? json?.message ?? `HTTP ${res.status}`)
-  if (json && typeof json === 'object' && ('data' in json || 'error' in json)) {
-    if (json.error) throw new Error(json.error)
-    return json.data
-  }
-  return json
-}
 
 export const pharmacyAdminService = {
   PHARMACY_ID,
@@ -74,6 +48,19 @@ export const pharmacyAdminService = {
     const withoutSku = rows.filter(r => !r.sku)
     const summary = { inserted: 0, updated: 0, errors: [] }
 
+    const rowToPayload = r => toSnakeCase({
+      pharmacyId: PHARMACY_ID,
+      sku: r.sku ?? undefined,
+      name: r.nombre,
+      presentation: r.presentacion ?? null,
+      price: r.precio,
+      stockQuantity: r.stock,
+      requiresPrescription: r.requiereReceta,
+      category: r.category ?? 'clinica',
+    })
+
+    const writes = []
+
     if (withSku.length) {
       const { data: existing, error: existingErr } = await supabase
         .from('pharmacy_products')
@@ -83,41 +70,26 @@ export const pharmacyAdminService = {
       if (existingErr) throw existingErr
       const existingBySku = new Map((existing ?? []).map(r => [r.sku, r.id]))
 
-      const payload = withSku.map(r => toSnakeCase({
-        id: existingBySku.get(r.sku),
-        pharmacyId: PHARMACY_ID,
-        sku: r.sku,
-        name: r.nombre,
-        presentation: r.presentacion ?? null,
-        price: r.precio,
-        stockQuantity: r.stock,
-        requiresPrescription: r.requiereReceta,
-        category: r.category ?? 'clinica',
-      }))
+      const payload = withSku.map(r => ({ id: existingBySku.get(r.sku), ...rowToPayload(r) }))
       summary.updated = payload.filter(p => p.id).length
       summary.inserted += payload.filter(p => !p.id).length
 
-      const { error: upsertErr } = await supabase
-        .from('pharmacy_products')
-        .upsert(payload, { onConflict: 'sku' })
-      if (upsertErr) throw upsertErr
+      writes.push(
+        supabase.from('pharmacy_products').upsert(payload, { onConflict: 'sku' })
+          .then(({ error }) => { if (error) throw error })
+      )
     }
 
     if (withoutSku.length) {
-      const payload = withoutSku.map(r => toSnakeCase({
-        pharmacyId: PHARMACY_ID,
-        name: r.nombre,
-        presentation: r.presentacion ?? null,
-        price: r.precio,
-        stockQuantity: r.stock,
-        requiresPrescription: r.requiereReceta,
-        category: r.category ?? 'clinica',
-      }))
-      const { error: insertErr } = await supabase.from('pharmacy_products').insert(payload)
-      if (insertErr) throw insertErr
+      const payload = withoutSku.map(rowToPayload)
       summary.inserted += payload.length
+      writes.push(
+        supabase.from('pharmacy_products').insert(payload)
+          .then(({ error }) => { if (error) throw error })
+      )
     }
 
+    await Promise.all(writes)
     return summary
   },
 

@@ -256,8 +256,6 @@ serve(async (req: Request) => {
       .eq("mp_payment_id", paymentId)
       .maybeSingle();
 
-    const isOrderPayment = !!existingPaymentRow?.order_id;
-
     let sellerAccessToken: string | null = null;
     if (existingPaymentRow?.professional_id) {
       const { data: mpAccount } = await supabase
@@ -309,7 +307,8 @@ serve(async (req: Request) => {
     const currentStatus = existingPaymentRow?.status ?? null;
     const mapping = mapMpStatus(payment.status, currentStatus);
     const entityId = payment.external_reference
-      ?? (isOrderPayment ? existingPaymentRow?.order_id : existingPaymentRow?.consultation_id)
+      ?? existingPaymentRow?.order_id
+      ?? existingPaymentRow?.consultation_id
       ?? null;
 
     if (!entityId) {
@@ -318,6 +317,24 @@ serve(async (req: Request) => {
         JSON.stringify({ received: true, warning: "no external_reference" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Entity type must be established independent of whether a `payments`
+    // row already exists — the row can legitimately not exist yet if this
+    // webhook raced mp-payment's own write (see the reconciliation fallback
+    // below), and guessing the type from a possibly-absent row silently
+    // routes an order's webhook down the consultation-update path (a no-op
+    // UPDATE, no error) instead of ever marking it paid.
+    let isOrderPayment: boolean;
+    if (existingPaymentRow) {
+      isOrderPayment = !!existingPaymentRow.order_id;
+    } else {
+      const { data: orderMatch } = await supabase
+        .from("medication_orders")
+        .select("id")
+        .eq("id", entityId)
+        .maybeSingle();
+      isOrderPayment = !!orderMatch;
     }
 
     if (mapping.skip) {
@@ -424,31 +441,18 @@ serve(async (req: Request) => {
       const { error } = await supabase.from("payments").update(paymentUpdate).eq("id", existingPaymentRow.id);
       paymentUpdateErr = error;
     } else {
-      // Fallback: match by consultation_id/order_id on the most recent
-      // pending/rejected row still missing mp_payment_id (webhook arrived
-      // before mp-payment's own write). Without an existingPaymentRow we
-      // can't know if this is an order — external_reference already told us
-      // via entityId, but not which column it maps to, so try consultation
-      // first (the overwhelmingly common case) then order.
-      let fallbackRow = (await supabase
+      // Fallback: match by consultation_id/order_id (now reliably known via
+      // isOrderPayment, resolved above) on the most recent pending/rejected
+      // row still missing mp_payment_id — webhook arrived before
+      // mp-payment's own write.
+      const { data: fallbackRow } = await supabase
         .from("payments")
         .select("id")
-        .eq("consultation_id", entityId)
+        .eq(isOrderPayment ? "order_id" : "consultation_id", entityId)
         .is("mp_payment_id", null)
         .order("created_at", { ascending: false })
         .limit(1)
-        .maybeSingle()).data;
-
-      if (!fallbackRow) {
-        fallbackRow = (await supabase
-          .from("payments")
-          .select("id")
-          .eq("order_id", entityId)
-          .is("mp_payment_id", null)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle()).data;
-      }
+        .maybeSingle();
 
       if (fallbackRow) {
         const { error } = await supabase.from("payments").update(paymentUpdate).eq("id", fallbackRow.id);

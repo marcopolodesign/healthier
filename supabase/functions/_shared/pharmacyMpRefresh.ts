@@ -67,16 +67,11 @@ async function callMpOAuthRefresh(refreshToken: string): Promise<
 }
 
 async function deactivateAccount(supabase: SupabaseClient, pharmacyId: string): Promise<void> {
-  const { error } = await supabase
-    .from("pharmacy_mp_accounts")
-    .update({ active: false })
-    .eq("pharmacy_id", pharmacyId);
+  const [{ error }, { error: pharmErr }] = await Promise.all([
+    supabase.from("pharmacy_mp_accounts").update({ active: false }).eq("pharmacy_id", pharmacyId),
+    supabase.from("pharmacies").update({ mp_connected: false }).eq("id", pharmacyId),
+  ]);
   if (error) console.error("pharmacyMpRefresh: failed to deactivate pharmacy_mp_accounts row:", error.message);
-
-  const { error: pharmErr } = await supabase
-    .from("pharmacies")
-    .update({ mp_connected: false })
-    .eq("id", pharmacyId);
   if (pharmErr) console.error("pharmacyMpRefresh: failed to unset mp_connected:", pharmErr.message);
 }
 

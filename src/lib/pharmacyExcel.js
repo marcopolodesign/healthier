@@ -1,8 +1,12 @@
 /**
  * pharmacyExcel.js — bidirectional Excel round-trip for the pharmacy
  * catalog. Headers are Spanish, matching the spec verbatim.
+ *
+ * xlsx (SheetJS) is dynamically imported inside each function rather than
+ * statically at module scope — this file is imported from the main App.jsx
+ * route table, and the library is large but only ever needed by a
+ * pharmacy_admin opening Catálogo, not by every visitor's initial bundle.
  */
-import * as XLSX from 'xlsx'
 
 const HEADERS = ['SKU', 'Nombre', 'Presentación', 'Precio', 'Stock', 'Requiere receta', 'Disponible']
 
@@ -14,6 +18,7 @@ function toBool(v) {
 
 /** Reads a File (.xlsx) and returns raw rows mapped to our field names. */
 export async function parseCatalogFile(file) {
+  const XLSX = await import('xlsx')
   const buf = await file.arrayBuffer()
   const wb = XLSX.read(buf, { type: 'array' })
   const sheet = wb.Sheets[wb.SheetNames[0]]
@@ -59,7 +64,8 @@ export function validateRows(rows) {
 }
 
 /** Builds and triggers a download of the current catalog as .xlsx. rows = pharmacyAdminService.exportCatalogRows() output. */
-export function buildCatalogWorkbook(rows) {
+export async function buildCatalogWorkbook(rows) {
+  const XLSX = await import('xlsx')
   const sheet = XLSX.utils.json_to_sheet(rows, { header: HEADERS })
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, sheet, 'Catálogo')

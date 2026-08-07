@@ -182,11 +182,25 @@ Deno.serve(async (req) => {
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
       )
 
-      const { data: order, error: orderErr } = await serviceSupabase
-        .from('medication_orders')
-        .select('id, patient_id, pharmacy_id, payment_status')
-        .eq('id', orderId)
-        .single()
+      // order + items are both keyed off orderId alone — fetch concurrently.
+      const [
+        { data: order, error: orderErr },
+        { data: items, error: itemsErr },
+      ] = await Promise.all([
+        serviceSupabase
+          .from('medication_orders')
+          .select('id, patient_id, pharmacy_id, payment_status')
+          .eq('id', orderId)
+          .single(),
+        // --- Amount comes from the DB, re-priced against the live catalog for
+        //     items linked to a pharmacy_product_id — never trust a client-set
+        //     unit_price on medication_order_items (its INSERT policy only
+        //     checks ownership, not price). ---
+        serviceSupabase
+          .from('medication_order_items')
+          .select('id, pharmacy_product_id, medication_name, quantity, unit_price')
+          .eq('order_id', orderId),
+      ])
 
       if (orderErr || !order) {
         return new Response(
@@ -206,15 +220,6 @@ Deno.serve(async (req) => {
           { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
-
-      // --- Amount comes from the DB, re-priced against the live catalog for
-      //     items linked to a pharmacy_product_id — never trust a client-set
-      //     unit_price on medication_order_items (its INSERT policy only
-      //     checks ownership, not price). ---
-      const { data: items, error: itemsErr } = await serviceSupabase
-        .from('medication_order_items')
-        .select('id, pharmacy_product_id, medication_name, quantity, unit_price')
-        .eq('order_id', orderId)
 
       if (itemsErr || !items?.length) {
         return new Response(
@@ -249,11 +254,23 @@ Deno.serve(async (req) => {
         )
       }
 
-      const { data: pharmacy, error: pharmacyErr } = await serviceSupabase
-        .from('pharmacies')
-        .select('id, commission_rate')
-        .eq('id', order.pharmacy_id)
-        .single()
+      // Both keyed only on order.pharmacy_id, independent of each other.
+      const [
+        { data: pharmacy, error: pharmacyErr },
+        { data: pharmacyMpAccount, error: pharmAccErr },
+      ] = await Promise.all([
+        serviceSupabase
+          .from('pharmacies')
+          .select('id, commission_rate')
+          .eq('id', order.pharmacy_id)
+          .single(),
+        serviceSupabase
+          .from('pharmacy_mp_accounts')
+          .select('pharmacy_id, mp_user_id, access_token, refresh_token, expires_at, active')
+          .eq('pharmacy_id', order.pharmacy_id)
+          .eq('active', true)
+          .single(),
+      ])
 
       if (pharmacyErr || !pharmacy) {
         return new Response(
@@ -261,13 +278,6 @@ Deno.serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
-
-      const { data: pharmacyMpAccount, error: pharmAccErr } = await serviceSupabase
-        .from('pharmacy_mp_accounts')
-        .select('pharmacy_id, mp_user_id, access_token, refresh_token, expires_at, active')
-        .eq('pharmacy_id', order.pharmacy_id)
-        .eq('active', true)
-        .single()
 
       if (pharmAccErr || !pharmacyMpAccount) {
         return new Response(
@@ -289,15 +299,17 @@ Deno.serve(async (req) => {
       const applicationFee = Math.min(round2(amount * commissionRate), amount)
       const netToPharmacy = round2(amount * (1 - commissionRate))
 
+      // Independent of each other — fetch concurrently.
+      const [metodoResult, { data: perfilPagador }] = await Promise.all([
+        savedCardId
+          ? serviceSupabase.from('payment_methods').select('mp_customer_id').eq('id', savedCardId).eq('user_id', user.id).maybeSingle()
+          : Promise.resolve({ data: null }),
+        serviceSupabase.from('profiles').select('full_name, dni').eq('id', user.id).maybeSingle(),
+      ])
+
       let mpCustomerId: string | null = null
       if (savedCardId) {
-        const { data: metodo } = await serviceSupabase
-          .from('payment_methods')
-          .select('mp_customer_id')
-          .eq('id', savedCardId)
-          .eq('user_id', user.id)
-          .maybeSingle()
-        mpCustomerId = metodo?.mp_customer_id ?? null
+        mpCustomerId = metodoResult.data?.mp_customer_id ?? null
         if (!mpCustomerId) {
           return new Response(
             JSON.stringify({ data: null, error: 'No encontramos la tarjeta guardada. Probá con otra tarjeta.' }),
@@ -305,12 +317,6 @@ Deno.serve(async (req) => {
           )
         }
       }
-
-      const { data: perfilPagador } = await serviceSupabase
-        .from('profiles')
-        .select('full_name, dni')
-        .eq('id', user.id)
-        .maybeSingle()
 
       const docNumber = payerDocNumber ?? perfilPagador?.dni ?? null
       const docType = docNumber ? (payerDocType ?? 'DNI') : null

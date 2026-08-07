@@ -26,6 +26,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { encryptToken } from "../_shared/tokenCrypto.ts";
+import { buildOAuthState, verifyOAuthState } from "../_shared/oauthState.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,36 +47,9 @@ const MP_WEBHOOK_SECRET = Deno.env.get("MP_WEBHOOK_SECRET")!; // reused pragmati
 
 // ─── CSRF-hardened state helpers ───────────────────────────────────────────
 
-async function hmacHex(message: string, secret: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const sigBuf = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
-  return Array.from(new Uint8Array(sigBuf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function buildState(professionalId: string): Promise<string> {
-  const sig = (await hmacHex(professionalId, MP_WEBHOOK_SECRET)).slice(0, 16);
-  return `${professionalId}.${sig}`;
-}
-
+const buildState = (professionalId: string) => buildOAuthState(professionalId, MP_WEBHOOK_SECRET);
 /** Returns the professionalId if the state's HMAC checks out, otherwise null. */
-async function verifyState(state: string): Promise<string | null> {
-  const dotIdx = state.indexOf(".");
-  if (dotIdx === -1) return null;
-
-  const professionalId = state.slice(0, dotIdx);
-  const receivedSig = state.slice(dotIdx + 1);
-  const expectedSig = (await hmacHex(professionalId, MP_WEBHOOK_SECRET)).slice(0, 16);
-
-  return receivedSig === expectedSig ? professionalId : null;
-}
+const verifyState = (state: string) => verifyOAuthState(state, MP_WEBHOOK_SECRET);
 
 serve(async (req: Request) => {
   // Handle CORS preflight

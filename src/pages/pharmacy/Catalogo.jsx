@@ -38,7 +38,7 @@ export default function PharmacyCatalog({ profile }) {
   const handleExport = async () => {
     try {
       const rows = await pharmacyAdminService.exportCatalogRows()
-      buildCatalogWorkbook(rows)
+      await buildCatalogWorkbook(rows)
       toast.success('Catálogo exportado')
     } catch {
       toast.error('Error al exportar el catálogo')

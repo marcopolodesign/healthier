@@ -4,14 +4,7 @@ import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { pharmacyAdminService } from '../../services/pharmacyAdminService'
 import { toast } from '../../components/Toast'
 import { formatARS, formatDate } from '../../lib/format'
-
-const STATUS_LABEL = {
-  pendiente: 'Pendiente',
-  en_preparacion: 'En preparación',
-  enviado: 'Enviado',
-  entregado: 'Entregado',
-  cancelado: 'Cancelado',
-}
+import { STATUS_LABEL } from '../../lib/pharmacyOrders'
 
 export default function SuperAdminFarmacia() {
   const [orders, setOrders] = useState([])

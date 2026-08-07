@@ -70,16 +70,6 @@ export const medicationOrdersService = {
     return toCamelCase(data)
   },
 
-  async getMyOrders(patientId) {
-    const { data, error } = await supabase
-      .from('medication_orders')
-      .select(ORDER_ITEMS_SELECT)
-      .eq('patient_id', patientId)
-      .order('created_at', { ascending: false })
-    if (error) throw error
-    return toCamelCase(data)
-  },
-
   async getById(orderId) {
     const { data, error } = await supabase
       .from('medication_orders')

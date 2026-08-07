@@ -1,6 +1,7 @@
 import { supabase, toCamelCase } from '../lib/supabase'
+import { medicationOrdersService } from './medicationOrdersService'
 
-const PHARMACY_ID = '10000000-0000-0000-0000-000000000001' // single MVP tenant
+const PHARMACY_ID = medicationOrdersService.PHARMACY_ID
 
 export const pharmacyService = {
   async getAll() {

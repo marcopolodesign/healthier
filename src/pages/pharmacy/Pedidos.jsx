@@ -4,6 +4,7 @@ import { Package, MapPin } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
 import { formatARS, formatDate } from '../../lib/format'
+import { STATUS_LABEL, NEXT_STATUS } from '../../lib/pharmacyOrders'
 
 const STATUS_BADGE = {
   pendiente:       'bg-amber-50 text-amber-600',
@@ -11,23 +12,6 @@ const STATUS_BADGE = {
   enviado:         'bg-brand-tertiary/10 text-brand-tertiary',
   entregado:       'bg-emerald-50 text-emerald-600',
   cancelado:       'bg-gray-100 text-gray-500',
-}
-const STATUS_LABEL = {
-  pendiente: 'Pendiente',
-  en_preparacion: 'En preparación',
-  enviado: 'Enviado',
-  entregado: 'Entregado',
-  cancelado: 'Cancelado',
-}
-const NEXT_STATUS = {
-  pendiente: 'en_preparacion',
-  en_preparacion: 'enviado',
-  enviado: 'entregado',
-}
-const NEXT_LABEL = {
-  pendiente: 'Marcar en preparación',
-  en_preparacion: 'Marcar enviado',
-  enviado: 'Marcar entregado',
 }
 
 export default function PharmacyOrders({ profile }) {
@@ -137,7 +121,7 @@ export default function PharmacyOrders({ profile }) {
                           disabled={updatingId === o.id}
                           onClick={e => advance(o, e)}
                         >
-                          {updatingId === o.id ? '...' : NEXT_LABEL[o.status]}
+                          {updatingId === o.id ? '...' : `Marcar ${STATUS_LABEL[NEXT_STATUS[o.status]].toLowerCase()}`}
                         </button>
                       )}
                     </td>

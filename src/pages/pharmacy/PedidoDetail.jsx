@@ -4,19 +4,7 @@ import { ArrowLeft, MapPin, Pill } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
 import { formatARS, formatDate } from '../../lib/format'
-
-const STATUS_LABEL = {
-  pendiente: 'Pendiente',
-  en_preparacion: 'En preparación',
-  enviado: 'Enviado',
-  entregado: 'Entregado',
-  cancelado: 'Cancelado',
-}
-const NEXT_STATUS = {
-  pendiente: 'en_preparacion',
-  en_preparacion: 'enviado',
-  enviado: 'entregado',
-}
+import { STATUS_LABEL, NEXT_STATUS } from '../../lib/pharmacyOrders'
 
 export default function PharmacyOrderDetail({ profile }) {
   const { id } = useParams()

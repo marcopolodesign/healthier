@@ -4,16 +4,13 @@ import { ArrowLeft, MagnifyingGlass, Star, ShoppingBag, Pill, Plus, Minus } from
 import { pharmacyService } from '../../services/pharmacyService'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
+import { formatARS as fmtPrice } from '../../lib/format'
 
 const CATEGORY_LABELS = {
   clinica:   'Clínica',
   pediatria: 'Pediatría',
   nutricion: 'Nutrición',
   bienestar: 'Bienestar',
-}
-
-function fmtPrice(price) {
-  return `$${Number(price).toLocaleString('es-AR')}`
 }
 
 function ProductCard({ product, quantity, onAdd, onRemove }) {

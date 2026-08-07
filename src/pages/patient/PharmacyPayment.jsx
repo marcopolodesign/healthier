@@ -5,10 +5,7 @@ import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { mpService } from '../../services/mpService'
 import { toast } from '../../components/Toast'
-
-function fmtPrice(price) {
-  return `$${Number(price).toLocaleString('es-AR')}`
-}
+import { formatARS as fmtPrice } from '../../lib/format'
 
 export default function PharmacyPayment({ profile }) {
   const navigate = useNavigate()

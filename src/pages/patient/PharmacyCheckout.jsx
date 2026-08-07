@@ -3,10 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, MapPin, CircleNotch, Pill } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
-
-function fmtPrice(price) {
-  return `$${Number(price).toLocaleString('es-AR')}`
-}
+import { formatARS as fmtPrice } from '../../lib/format'
 
 export default function PharmacyCheckout({ profile }) {
   const navigate = useNavigate()

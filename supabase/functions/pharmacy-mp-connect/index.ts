@@ -23,6 +23,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { encryptToken } from "../_shared/tokenCrypto.ts";
+import { buildOAuthState, verifyOAuthState } from "../_shared/oauthState.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,31 +41,8 @@ const REDIRECT_URI = Deno.env.get("PHARMACY_MP_REDIRECT_URI")!; // e.g. https://
 const APP_URL = Deno.env.get("APP_URL") ?? "https://healthier.com.ar";
 const MP_WEBHOOK_SECRET = Deno.env.get("MP_WEBHOOK_SECRET")!; // reused as the state-signing secret, same as mp-connect
 
-async function hmacHex(message: string, secret: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const sigBuf = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
-  return Array.from(new Uint8Array(sigBuf)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function buildState(pharmacyId: string): Promise<string> {
-  const sig = (await hmacHex(pharmacyId, MP_WEBHOOK_SECRET)).slice(0, 16);
-  return `${pharmacyId}.${sig}`;
-}
-
-async function verifyState(state: string): Promise<string | null> {
-  const dotIdx = state.indexOf(".");
-  if (dotIdx === -1) return null;
-  const pharmacyId = state.slice(0, dotIdx);
-  const receivedSig = state.slice(dotIdx + 1);
-  const expectedSig = (await hmacHex(pharmacyId, MP_WEBHOOK_SECRET)).slice(0, 16);
-  return receivedSig === expectedSig ? pharmacyId : null;
-}
+const buildState = (pharmacyId: string) => buildOAuthState(pharmacyId, MP_WEBHOOK_SECRET);
+const verifyState = (state: string) => verifyOAuthState(state, MP_WEBHOOK_SECRET);
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -137,14 +115,10 @@ serve(async (req: Request) => {
         });
       }
 
-      const { error: mpErr } = await serviceSupabase
-        .from("pharmacy_mp_accounts")
-        .update({ active: false })
-        .eq("pharmacy_id", pharmacyId);
-      const { error: pharmErr } = await serviceSupabase
-        .from("pharmacies")
-        .update({ mp_connected: false })
-        .eq("id", pharmacyId);
+      const [{ error: mpErr }, { error: pharmErr }] = await Promise.all([
+        serviceSupabase.from("pharmacy_mp_accounts").update({ active: false }).eq("pharmacy_id", pharmacyId),
+        serviceSupabase.from("pharmacies").update({ mp_connected: false }).eq("id", pharmacyId),
+      ]);
 
       if (mpErr || pharmErr) {
         console.error("pharmacy-mp-connect disconnect error:", mpErr?.message, pharmErr?.message);
