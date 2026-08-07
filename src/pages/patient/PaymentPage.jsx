@@ -75,7 +75,7 @@ export default function PaymentPage({ profile }) {
   useEffect(() => {
     if (price == null || beginCheckoutFired.current) return
     beginCheckoutFired.current = true
-    track('begin_checkout', { value: price, currency: 'ARS', items: consultaItem(price) })
+    track('begin_checkout', { value: price, currency: 'ARS', items: consultaItem(price), flow: 'paciente' })
   }, [price]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Creates the consultation row exactly once (DB write before payment
@@ -106,6 +106,7 @@ export default function PaymentPage({ profile }) {
       track('purchase', {
         transaction_id: id, value: chargeAmount, currency: 'ARS',
         payment_method: paymentMethod, items: consultaItem(chargeAmount),
+        flow: 'paciente',
       })
       setPaid(true)
       setTimeout(() => navigate(`/paciente/turno-confirmado/${id}`), 600)
@@ -116,7 +117,7 @@ export default function PaymentPage({ profile }) {
       // Rechazo de MP: no tira excepción, así que sin esto el CTA se quedaba
       // en "Confirmar y Pagar" después de que el pago fuera rechazado.
       setIntentoFallido(true)
-      track('payment_error', { error_type: 'declined', value: chargeAmount, currency: 'ARS' })
+      track('payment_error', { error_type: 'declined', value: chargeAmount, currency: 'ARS', flow: 'paciente' })
       toast.error('El pago no pudo procesarse. Intentá con otra tarjeta.')
     }
   }
@@ -179,7 +180,7 @@ export default function PaymentPage({ profile }) {
 
       const chargeInfo = await cardSelectorRef.current?.getSavedCardCharge()
       const paymentType = getPaymentMethod(chargeInfo)
-      track('add_payment_info', { payment_type: paymentType, value: chargeAmount, currency: 'ARS' })
+      track('add_payment_info', { payment_type: paymentType, value: chargeAmount, currency: 'ARS', flow: 'paciente' })
       const { data, error } = await mpService.createPayment({ consultationId: id, ...chargeInfo, useCredits, description })
       if (error) throw new Error(error)
       handlePaymentResult(data, id, paymentType)
@@ -195,7 +196,7 @@ export default function PaymentPage({ profile }) {
   // is single-use and charged directly (not saved first, see MPCardHolder).
   const handleNewCardCharge = async (chargeInfo) => {
     const paymentType = getPaymentMethod(chargeInfo)
-    track('add_payment_info', { payment_type: paymentType, value: chargeAmount, currency: 'ARS' })
+    track('add_payment_info', { payment_type: paymentType, value: chargeAmount, currency: 'ARS', flow: 'paciente' })
     setPaying(true)
     setIntentoFallido(false)
     try {

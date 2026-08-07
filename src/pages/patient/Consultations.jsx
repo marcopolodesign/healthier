@@ -496,7 +496,7 @@ export default function PatientConsultations({ profile }) {
     shown.forEach(t => {
       if (seen.has(t.id)) return
       seen.add(t.id)
-      track('appointment_view', { appointment_id: t.id, status: view })
+      track('appointment_view', { appointment_id: t.id, status: view, flow: 'paciente' })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, turnos, loading])
@@ -543,7 +543,7 @@ export default function PatientConsultations({ profile }) {
             <button
               key={opt.modality}
               onClick={() => {
-                track('booking_start', { entry: 'agenda_modality_card', modality: opt.modality })
+                track('booking_start', { entry: 'agenda_modality_card', modality: opt.modality, flow: 'paciente' })
                 navigate(`/paciente/reservar?modality=${opt.modality}`)
               }}
               className="bg-bg-secondary border border-border-default rounded-3xl p-6 flex flex-col items-center gap-3 hover:border-brand/40 active:opacity-80 transition-all"
@@ -565,7 +565,7 @@ export default function PatientConsultations({ profile }) {
         {['upcoming', 'past'].map(tab => (
           <button
             key={tab}
-            onClick={() => { track('agenda_tab_switch', { tab: tab === 'upcoming' ? 'proximos' : 'historial' }); setView(tab) }}
+            onClick={() => { track('agenda_tab_switch', { tab: tab === 'upcoming' ? 'proximos' : 'historial', flow: 'paciente' }); setView(tab) }}
             className={`py-4 text-[15px] transition-colors border-b-2 ${
               view === tab
                 ? 'border-brand text-brand font-semibold'

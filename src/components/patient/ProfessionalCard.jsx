@@ -43,6 +43,7 @@ export default function ProfessionalCard({ pro, onSelect, isSelected = false, mo
       modality,
       is_on_demand:            !!pro.isOnDemand,
       origin:                  'buscar_profesional',
+      flow:                    'paciente',
     }, {
       professional_name: name,
     })

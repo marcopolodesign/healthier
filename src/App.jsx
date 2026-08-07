@@ -7,7 +7,7 @@ import PatientMobileLayout from './layouts/PatientMobileLayout'
 import { authService } from './services/authService'
 import { supabase } from './lib/supabase'
 import { professionalService } from './services/professionalService'
-import { setAnalyticsUser, clearAnalyticsUser } from './utils/analytics'
+import { track, setAnalyticsUser, clearAnalyticsUser } from './utils/analytics'
 import {
   cioIdentify,
   cioIdentifyProfessional,
@@ -233,6 +233,18 @@ export default function App() {
             setProfile(p)
             setAuthUser(null)
             if (p.role === 'professional') loadProfSpecialty(session.user.id)
+            // Google OAuth nunca dispara un `login_success` propio — el submit
+            // de Login.jsx sólo puede trackear `login_attempt` porque el
+            // redirect de OAuth corta la ejecución. Acá SÍ vemos el resultado,
+            // así que es el único lugar donde disparar el evento. Se gatea por
+            // provider === 'google' para no duplicar el `login_success` que
+            // Login.jsx ya manda para email/password (que también dispara este
+            // mismo SIGNED_IN). También se gatea por `p` (perfil existente):
+            // un alta nueva por Google cae en el `else` de abajo (sin perfil
+            // todavía) y ese no es un login, es un signup.
+            if (session.user.app_metadata?.provider === 'google') {
+              track('login_success', { method: 'google', flow: p.role === 'professional' ? 'profesional' : 'paciente' })
+            }
           } else {
             setAuthUser(session.user)
           }

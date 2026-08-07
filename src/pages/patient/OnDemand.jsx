@@ -189,7 +189,7 @@ export default function OnDemand({ profile }) {
       })
       aplicarVencimiento(deadline)
       setPhase('assigned')
-      track('ondemand_wait_extended', { value: price, currency: 'ARS' })
+      track('ondemand_wait_extended', { value: price, currency: 'ARS', flow: 'paciente' })
     } catch (err) {
       toast.error(err?.message || 'No pudimos extender la espera. Probá de nuevo.')
     } finally {
@@ -258,6 +258,7 @@ export default function OnDemand({ profile }) {
       track('purchase', {
         transaction_id: id, value: price, currency: 'ARS',
         payment_method: paymentMethod, items: consultaItem(),
+        flow: 'paciente',
       })
       await handleAuthorized(id)
     } else {
@@ -270,6 +271,7 @@ export default function OnDemand({ profile }) {
         error_type: explicacion.enRevision ? 'pending' : 'declined',
         error_code: explicacion.codigo ?? undefined,
         value: price, currency: 'ARS',
+        flow: 'paciente',
       })
     }
   }
@@ -279,7 +281,7 @@ export default function OnDemand({ profile }) {
     if (paying || addCardMode || !matchedPro) return
     if (!profile?.id) { toast.error('Faltan datos para continuar'); return }
 
-    track('begin_checkout', { value: price, currency: 'ARS', items: consultaItem() })
+    track('begin_checkout', { value: price, currency: 'ARS', items: consultaItem(), flow: 'paciente' })
 
     if (isDemoMode) {
       setPaying(true)
@@ -301,7 +303,7 @@ export default function OnDemand({ profile }) {
       const id = await ensureConsultation()
       const chargeInfo = await cardSelectorRef.current?.getSavedCardCharge()
       const paymentType = getPaymentMethod(chargeInfo)
-      track('add_payment_info', { payment_type: paymentType, value: price, currency: 'ARS' })
+      track('add_payment_info', { payment_type: paymentType, value: price, currency: 'ARS', flow: 'paciente' })
       const result = await mpService.createPayment({
         consultationId: id,
         ...chargeInfo,
@@ -325,8 +327,8 @@ export default function OnDemand({ profile }) {
   // ── "Pagar con una tarjeta nueva" Brick's own submit button ───────────────────
   const handleNewCardCharge = async (chargeInfo) => {
     const paymentType = getPaymentMethod(chargeInfo)
-    track('begin_checkout', { value: price, currency: 'ARS', items: consultaItem() })
-    track('add_payment_info', { payment_type: paymentType, value: price, currency: 'ARS' })
+    track('begin_checkout', { value: price, currency: 'ARS', items: consultaItem(), flow: 'paciente' })
+    track('add_payment_info', { payment_type: paymentType, value: price, currency: 'ARS', flow: 'paciente' })
 
     setPaying(true)
     try {

@@ -41,7 +41,12 @@ export function clearAnalyticsUser() {
 
 // Safety net only — correct call sites (never passing PII in the first
 // place) are the real defense. Catches accidental leaks by key name.
-const PII_KEY_PATTERN = /email|password|full[_-]?name|phone|address|dni|blood|allerg|diagnos|insurance|card[_-]?number|cvv|cbu|alias/i
+// `specialty`/`vertical` (which also catches `sub_specialty`) are here for the
+// same reason HEALTH_KEY_PATTERN in customerio.js blocks them: attached to an
+// identified patient they're health data, not just a profile attribute. They
+// still reach Customer.io — but only via `cioIdentifyProfessional`'s identify
+// traits, never via a dataLayer/GTM event.
+const PII_KEY_PATTERN = /email|password|full[_-]?name|phone|address|dni|blood|allerg|diagnos|insurance|card[_-]?number|cvv|cbu|alias|specialty|vertical/i
 
 function sanitize(params) {
   const clean = {}

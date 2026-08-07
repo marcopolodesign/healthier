@@ -195,7 +195,7 @@ export default function ReservarConsulta({ profile }) {
   useEffect(() => {
     if (selectedVertical && !bookingStartFired.current) {
       bookingStartFired.current = true
-      track('booking_start', { vertical: selectedVertical.id })
+      track('booking_start', { vertical: selectedVertical.id, flow: 'paciente' })
     }
   }, [selectedVertical])
 
@@ -232,7 +232,7 @@ export default function ReservarConsulta({ profile }) {
   // ── Searching step: fetch best pro + auto-advance after 2.5s ────────────
   useEffect(() => {
     if (step !== 'searching' || !selectedVertical) return
-    track('booking_searching_professional', { vertical: selectedVertical.id })
+    track('booking_searching_professional', { vertical: selectedVertical.id, flow: 'paciente' })
     const slugs = porVertical[selectedVertical.id] || []
     if (slugs.length) {
       professionalService.search({})
@@ -248,6 +248,7 @@ export default function ReservarConsulta({ profile }) {
               rating: proCard.rating,
               price: proCard.price,
               currency: 'ARS',
+              flow: 'paciente',
             })
           }
         })
@@ -290,6 +291,7 @@ export default function ReservarConsulta({ profile }) {
     track('booking_mode_select', {
       mode: modality === 'virtual' ? 'videoconsulta' : modality,
       vertical: vertical.id,
+      flow: 'paciente',
     })
     // Con un profesional ya elegido (marcador del mapa, perfil del profesional)
     // se va derecho a la fecha, en las DOS modalidades. Esto va ANTES de la rama
@@ -641,7 +643,7 @@ export default function ReservarConsulta({ profile }) {
               </button>
               <button
                 onClick={() => {
-                  track('booking_cancel', { vertical: selectedVertical?.id, professional_id: matchedPro?.id })
+                  track('booking_cancel', { vertical: selectedVertical?.id, professional_id: matchedPro?.id, flow: 'paciente' })
                   setStep('modality'); setMatchedPro(null)
                 }}
                 className="w-full py-4 rounded-full font-semibold text-[15px] text-text-secondary border border-border-default hover:bg-bg-secondary transition-colors"

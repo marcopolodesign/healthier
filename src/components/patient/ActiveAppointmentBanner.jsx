@@ -161,6 +161,7 @@ export default function ActiveAppointmentBanner({ profile }) {
       appointment_id: active.id,
       modality:       active.modality,
       status:         active.status,
+      flow: 'paciente',
     })
   }, [active])
 
@@ -183,6 +184,7 @@ export default function ActiveAppointmentBanner({ profile }) {
       appointment_id: active.id,
       modality:       active.modality,
       status:         active.status,
+      flow: 'paciente',
     })
     if (closing) {
       // Misma pantalla que ya sabe mostrar "Preparando tu receta" y

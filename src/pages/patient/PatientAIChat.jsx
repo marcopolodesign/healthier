@@ -120,7 +120,7 @@ export default function PatientAIChat({ profile }) {
   }, [messages])
 
   useEffect(() => {
-    track('ia_chat_open', {})
+    track('ia_chat_open', { flow: 'paciente' })
   }, [])
 
   useEffect(() => {
@@ -176,7 +176,7 @@ export default function PatientAIChat({ profile }) {
     const trimmed = (text ?? input).trim()
     if (!trimmed || loading) return
 
-    track('ia_message_sent', { message_type: type, message_length: trimmed.length })
+    track('ia_message_sent', { message_type: type, message_length: trimmed.length, flow: 'paciente' })
 
     const userMsg = { role: 'user', content: trimmed }
     setMessages(prev => [...prev, userMsg, { role: 'assistant', content: '', loading: true }])
@@ -191,7 +191,7 @@ export default function PatientAIChat({ profile }) {
 
       const requestStartedAt = Date.now()
       const { text: responseText } = await companionService.sendMessage(history, systemPrompt)
-      track('ia_response_received', { response_time_ms: Date.now() - requestStartedAt })
+      track('ia_response_received', { response_time_ms: Date.now() - requestStartedAt, flow: 'paciente' })
 
       setMessages(prev => {
         const updated = [...prev]
@@ -288,7 +288,7 @@ export default function PatientAIChat({ profile }) {
                 {msg.followUps.map((q, j) => (
                   <button
                     key={j}
-                    onClick={() => { track('ia_suggested_prompt_click', { prompt_id: slugifyPrompt(q) }); sendMessage(q, 'suggested') }}
+                    onClick={() => { track('ia_suggested_prompt_click', { prompt_id: slugifyPrompt(q), flow: 'paciente' }); sendMessage(q, 'suggested') }}
                     disabled={loading}
                     className="text-xs px-3 py-1.5 rounded-full border border-brand/30 text-brand bg-white hover:bg-brand hover:text-white transition-colors disabled:opacity-40"
                   >
@@ -307,7 +307,7 @@ export default function PatientAIChat({ profile }) {
               {QUICK_ACTIONS.map((action, i) => (
                 <button
                   key={i}
-                  onClick={() => { track('ia_suggested_prompt_click', { prompt_id: slugifyPrompt(action) }); sendMessage(action, 'suggested') }}
+                  onClick={() => { track('ia_suggested_prompt_click', { prompt_id: slugifyPrompt(action), flow: 'paciente' }); sendMessage(action, 'suggested') }}
                   disabled={loading}
                   className="text-left text-sm px-3 py-2.5 rounded-xl border border-gray-100 bg-white shadow-sm text-text-secondary hover:border-brand/30 hover:text-brand transition-colors disabled:opacity-50"
                 >

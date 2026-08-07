@@ -12,6 +12,7 @@ import { toast } from '../../components/Toast'
 import { isLikelyTooSmallForFace } from '../../lib/imageCompression'
 import OnboardingPreview from '../../components/professional/OnboardingPreview'
 import { LAWS } from '../../lib/laws'
+import { track } from '../../utils/analytics'
 
 // De acá salieron **sólo las tarifas** — precio, modalidad, zona y dirección —
 // que ya se configuran en Configuración → Tarifas y Perfil, y que el
@@ -158,6 +159,7 @@ export default function Onboarding({ profile }) {
       }
       await professionalService.upsert(profile.id, payload)
 
+      track('sign_up_complete', { flow: 'profesional', profile_completed: true })
       toast.success('¡Perfil enviado! Un administrador lo revisará pronto.')
       navigate('/profesional/dashboard')
     } catch (err) {

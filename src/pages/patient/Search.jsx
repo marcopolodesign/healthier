@@ -71,6 +71,7 @@ export default function PatientSearch() {
         has_filter:     !!esp,
         results_count:  data.length,
         no_results:     data.length === 0,
+        flow: 'paciente',
       })
     } catch {
       setError(true)

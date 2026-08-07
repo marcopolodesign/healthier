@@ -192,7 +192,7 @@ export default function PatientDashboard({ profile }) {
   }
 
   const goToVertical = v => {
-    track('specialty_select', { specialty: v.id, status: v.comingSoon ? 'coming_soon' : 'available' })
+    track('specialty_select', { specialty: v.id, status: v.comingSoon ? 'coming_soon' : 'available', flow: 'paciente' })
     const entry = { id: v.id, nombre: v.nombre }
     localStorage.setItem(LAST_VERTICAL_KEY, JSON.stringify(entry))
     navigate(`/paciente/reservar?vertical=${v.id}`)
@@ -220,7 +220,7 @@ export default function PatientDashboard({ profile }) {
           {onDemandVerticals.map(v => (
             <button
               key={v.id}
-              onClick={() => { track('ondemand_start', { vertical: v.id }); navigate(`/paciente/ondemand/${v.id}`) }}
+              onClick={() => { track('ondemand_start', { vertical: v.id, flow: 'paciente' }); navigate(`/paciente/ondemand/${v.id}`) }}
               className="snap-start shrink-0 w-[256px] h-[280px] lg:w-full lg:h-[320px] relative rounded-[26px] overflow-hidden group active:scale-[0.98] transition-all"
             >
               {v.img && (
@@ -312,7 +312,7 @@ export default function PatientDashboard({ profile }) {
 
   const mapCta = (
     <button
-      onClick={() => { track('view_map_click', {}); setShowMap(true) }}
+      onClick={() => { track('view_map_click', { flow: 'paciente' }); setShowMap(true) }}
       className="w-full bg-bg-secondary rounded-3xl shadow-[0_1px_4px_rgba(45,42,38,0.06)] overflow-hidden text-left active:scale-[0.98] transition-all"
     >
       <img
@@ -336,7 +336,7 @@ export default function PatientDashboard({ profile }) {
   // que es la otra mitad y no tenía entrada desde el inicio (Mateo, 2026-07-31).
   const buscarPorNombreCta = (
     <button
-      onClick={() => { track('search_by_name_click', {}); navigate('/paciente/buscar') }}
+      onClick={() => { track('search_by_name_click', { flow: 'paciente' }); navigate('/paciente/buscar') }}
       className="card-hover w-full flex items-center gap-4 active:scale-[0.98] transition-all text-left"
     >
       <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0">
@@ -357,7 +357,7 @@ export default function PatientDashboard({ profile }) {
       href={supportWhatsAppLink('Hola, soy paciente en Healthier y necesito ayuda con:')}
       target="_blank"
       rel="noreferrer"
-      onClick={() => track('support_whatsapp_click', {})}
+      onClick={() => track('support_whatsapp_click', { flow: 'paciente' })}
       className="card-hover w-full flex items-center gap-4 active:scale-[0.98] transition-all text-left"
     >
       <WhatsAppMark className="w-8 h-8 flex-shrink-0" />
@@ -390,7 +390,7 @@ export default function PatientDashboard({ profile }) {
   // de volver a la pantalla de tracking.
   const sosButton = sosEnabled && (
     <button
-      onClick={() => { track('sos_click', {}); navigate('/paciente/sos') }}
+      onClick={() => { track('sos_click', { flow: 'paciente' }); navigate('/paciente/sos') }}
       className="w-full py-5 px-5 rounded-2xl bg-danger flex items-center gap-4 text-left active:scale-[0.98] transition-all"
     >
       <Heartbeat className="w-7 h-7 text-white flex-shrink-0" />

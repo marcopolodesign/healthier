@@ -12,16 +12,20 @@ export default function Login({ onLogin }) {
   const navigate = useNavigate()
 
   useEffect(() => {
-    track('login_view', { page_path: '/login' })
+    // No hay señal de rol todavía (el usuario ni siquiera escribió el email) —
+    // esta página es compartida entre paciente y profesional, así que hasta
+    // login_success (donde ya tenemos `profile.role`) se manda 'paciente' por
+    // default.
+    track('login_view', { page_path: '/login', flow: 'paciente' })
   }, [])
 
   const submit = async (e) => {
     e.preventDefault()
-    track('login_attempt', { method: 'email' })
+    track('login_attempt', { method: 'email', flow: 'paciente' })
     setLoading(true)
     try {
       const { profile } = await authService.login(form.email, form.password)
-      track('login_success', { method: 'email' })
+      track('login_success', { method: 'email', flow: profile?.role === 'professional' ? 'profesional' : 'paciente' })
 
       if (!profile) {
         // Cuenta autenticada sin fila en `profiles` todavía (p. ej. quedó a
@@ -46,7 +50,7 @@ export default function Login({ onLogin }) {
       // `error_message` va en el anexo B de la spec de tracking. Es el mensaje
       // que ya se le muestra al usuario (nunca trae PII), y sirve para separar
       // los `network_error` reales entre sí sin tener que abrir el log.
-      track('login_error', { method: 'email', error_type, error_message: err.message })
+      track('login_error', { method: 'email', error_type, error_message: err.message, flow: 'paciente' })
       toast.error(err.message)
     } finally {
       setLoading(false)
@@ -104,13 +108,13 @@ export default function Login({ onLogin }) {
         <div className="h-px flex-1 bg-border-default" />
       </div>
 
-      <GoogleAuthButton analyticsEvent="login_attempt" analyticsParams={{ method: 'google' }} />
+      <GoogleAuthButton analyticsEvent="login_attempt" analyticsParams={{ method: 'google', flow: 'paciente' }} />
 
       <p className="text-center text-sm text-text-secondary mt-6">
         ¿No tenés cuenta?{' '}
         <Link
           to="/registro"
-          onClick={() => track('login_to_signup', { source: 'login_page' })}
+          onClick={() => track('login_to_signup', { source: 'login_page', flow: 'paciente' })}
           className="text-brand font-medium hover:underline"
         >
           Registrate

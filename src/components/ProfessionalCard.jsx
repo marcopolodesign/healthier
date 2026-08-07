@@ -25,6 +25,7 @@ export default function ProfessionalCard({ professional, origin = 'listado' }) {
     currency:                'ARS',
     is_on_demand:            !!isOnDemand,
     origin,
+    flow:                    'paciente',
   }, {
     professional_name: name,
   })

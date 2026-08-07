@@ -84,7 +84,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
     if (pushEnabled) {
       await notificationService.unsubscribe(profile?.id)
       setPushEnabled(false)
-      track('notifications_toggle', { channel: 'push', enabled: false })
+      track('notifications_toggle', { channel: 'push', enabled: false, flow: 'paciente' })
       toast.info('Notificaciones desactivadas')
     } else {
       setPushTogglingOn(true)
@@ -92,7 +92,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       setPushEnabled(ok)
       if (ok) {
         toast.success('Notificaciones activadas')
-        track('notifications_toggle', { channel: 'push', enabled: true })
+        track('notifications_toggle', { channel: 'push', enabled: true, flow: 'paciente' })
       } else {
         toast.error('No se pudo activar las notificaciones')
       }
@@ -120,7 +120,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         toast.error('Error al guardar perfil')
       }
     } else {
-      track('profile_edit_click', { section: 'informacion_basica' })
+      track('profile_edit_click', { section: 'informacion_basica', flow: 'paciente' })
     }
     setEditing(!editing)
   }
@@ -320,7 +320,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       <div className="bg-bg-secondary rounded-2xl p-6 shadow-sm border border-border-default mb-6">
         <div className="flex justify-between items-center mb-6">
           <h3 className="font-semibold text-[18px] text-text-primary flex items-center gap-2"><Users className="w-5 h-5 text-emerald-500" /> Grupo Familiar</h3>
-          {!editing && <span onClick={() => { track('family_member_add_click', {}); setShowAddFamiliar(true) }} className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full cursor-pointer hover:bg-emerald-100 transition-colors">+ AÑADIR</span>}
+          {!editing && <span onClick={() => { track('family_member_add_click', { flow: 'paciente' }); setShowAddFamiliar(true) }} className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full cursor-pointer hover:bg-emerald-100 transition-colors">+ AÑADIR</span>}
         </div>
         {familiaresLoading
           ? <p className="text-sm text-text-tertiary text-center py-4">Cargando tu grupo familiar…</p>
@@ -358,7 +358,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           <h3 className="font-semibold text-[18px] text-text-primary flex items-center gap-2"><CreditCard className="w-5 h-5 text-brand" /> Info. de Pago</h3>
           {!editing && (
             <span
-              onClick={() => { track('payment_method_add_click', {}); setShowTarjeta(true) }}
+              onClick={() => { track('payment_method_add_click', { flow: 'paciente' }); setShowTarjeta(true) }}
               className="text-[11px] font-semibold text-brand bg-brand-muted px-3 py-1.5 rounded-full cursor-pointer hover:bg-brand-light"
             >+ AÑADIR</span>
           )}
@@ -470,7 +470,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
 
       {!editing && (
         <button
-          onClick={async () => { track('logout', {}); await authService.logout(); navigate('/') }}
+          onClick={async () => { track('logout', { flow: 'paciente' }); await authService.logout(); navigate('/') }}
           className="w-full bg-danger/10 text-danger py-4 rounded-[20px] font-semibold text-[16px] flex justify-center items-center gap-2 hover:bg-danger/15 transition-colors"
         >
           <SignOut className="w-5 h-5" /> Cerrar Sesión
