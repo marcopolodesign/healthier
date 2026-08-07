@@ -363,6 +363,24 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
 @media(max-width:820px){
   .flow-track{flex-direction:column;gap:1.5rem}
   .flow-connector{display:none}
+  /* En teléfono varias diapositivas no entran: al pasar el flujo a columna la
+     altura crece y el deck usa `overflow:hidden`, así que lo que sobra no se
+     corta — desaparece sin manera de llegar. En 375x667 se perdía entero el
+     último paso ("Farmacia · Recibe el pedido ya pagado").
+     `safe center` mantiene el centrado cuando hay lugar y cae a alineado arriba
+     cuando no. Con `center` a secas el desborde se recorta por ARRIBA y queda
+     inalcanzable aunque haya scroll — es el clásico del centrado en flexbox. */
+  .slide{overflow-y:auto;justify-content:safe center;-webkit-overflow-scrolling:touch;padding-bottom:3.5rem}
+  /* Las flechas se ocultan en teléfono. Son `position:fixed` y, con las
+     diapositivas ahora scrolleables, cualquier posición fija termina sobre el
+     texto en algún punto del scroll: centradas tapaban el párrafo de la
+     portada, y bajadas al pie seguían tapando texto en 360 y 375 de ancho.
+     No hace falta insistir: el deck ya trae swipe (touchstart/touchend con
+     delta horizontal) y navegación por toque en los cuartos laterales, que es
+     el gesto natural en un teléfono. Los puntos de progreso siguen mostrando
+     dónde está uno, y la portada ahora dice "Deslizá". En desktop no cambia
+     nada. */
+  .arrow-btn{display:none}
 }
 @media(max-width:720px){
   .two-col{grid-template-columns:1fr;gap:1.5rem}
@@ -374,7 +392,10 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
 }
 @media(max-width:480px){
   .feat-grid{grid-template-columns:1fr}
-  .slide{padding:4rem 1.25rem 3rem}
+  /* Menos aire vertical: con el padding de antes (7rem entre arriba y abajo)
+     tres diapositivas desbordaban incluso en pantallas de 844px de alto. */
+  .slide{padding:3.25rem 1.25rem 3.5rem}
+  .flow-track{gap:1.1rem}
 }
 </style>
 </head>
@@ -418,7 +439,7 @@ p.caption{font-size:.85rem;color:var(--text-tertiary)}
       <span class="eyebrow"><span class="dash"></span>Healthier × Farmacias</span>
       <h1 class="hero">Pedir medicamentos, tan simple como <span class="lime">pedir un turno.</span></h1>
       <p class="lead">Healthier suma la posibilidad de comprar medicamentos desde la app o directo desde la consulta — con el pago resuelto antes de llegar al mostrador.</p>
-      <p class="caption" style="margin-top:1.5rem;color:rgba(255,255,255,.4)">→ Navegá con las flechas o la barra espaciadora</p>
+      <p class="caption" style="margin-top:1.5rem;color:rgba(255,255,255,.4)">→ Deslizá, o usá las flechas del teclado</p>
     </div>
   </section>
 
