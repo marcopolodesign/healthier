@@ -61,7 +61,7 @@ export default function LandingProfesionales() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link to="/"><CompanyLogo size="sm" inverted /></Link>
           <div className="flex items-center gap-3">
-            <Link to="/login" className="hidden sm:block text-sm text-white/70 hover:text-white transition-colors">
+            <Link to="/login?entry_intent=profesional" className="hidden sm:block text-sm text-white/70 hover:text-white transition-colors">
               Ya soy profesional
             </Link>
             <Link to="/registro-profesional" className="bg-white text-[#26331F] font-semibold rounded-full px-5 py-2 text-sm hover:bg-gray-100 transition-colors">
@@ -224,7 +224,7 @@ export default function LandingProfesionales() {
             <Link to="/registro-profesional" className="bg-white text-[#26331F] font-semibold rounded-full px-8 py-3.5 text-sm hover:bg-gray-100 transition-colors inline-flex items-center gap-2">
               Sumá tu práctica <ArrowRight size={15} weight="bold" />
             </Link>
-            <Link to="/login" className="border border-white/30 text-white font-semibold rounded-full px-8 py-3.5 text-sm hover:bg-white/10 transition-colors">
+            <Link to="/login?entry_intent=profesional" className="border border-white/30 text-white font-semibold rounded-full px-8 py-3.5 text-sm hover:bg-white/10 transition-colors">
               Ya tengo cuenta
             </Link>
           </div>

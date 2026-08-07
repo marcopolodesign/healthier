@@ -17,6 +17,17 @@ export const ROLE_TO_USER_TYPE = {
 let hashedUserId
 let userType
 
+/**
+ * Query param + campo de evento para la señal de INTENCIÓN al entrar a
+ * `/login` desde un link que ya sabe a qué público apunta (ej. la landing de
+ * Profesionales manda `?entry_intent=profesional`). Deliberadamente NO se
+ * llama `flow` ni `role`: en el momento en que se lee, el usuario todavía no
+ * escribió el email — no es un rol confirmado, es de dónde vino el click.
+ * Cualquiera puede entrar por el link "equivocado" y loguearse con el otro
+ * rol. El rol real recién se conoce en `login_success`, con `profile.role`.
+ */
+export const LOGIN_ENTRY_INTENT_PARAM = 'entry_intent'
+
 async function sha256Hex(input) {
   const bytes = new TextEncoder().encode(input)
   const digest = await crypto.subtle.digest('SHA-256', bytes)
@@ -66,6 +77,16 @@ function sanitize(params) {
  * pass either yourself. If an event needs the identity available the moment
  * it fires (e.g. right after login, before App.jsx's profile-effect would
  * otherwise pick it up), call `await setAnalyticsUser(profile)` first.
+ *
+ * `app_path` (never `page_path`): GTM already has a built-in "Page Path"
+ * variable that reads `location.pathname` at the moment the TAG fires — not
+ * when the event was generated. In a SPA those two moments can differ (a
+ * redirect runs in between), and a param named the same as GTM's built-in
+ * confuses anyone reading the debugger: Henry saw a `login_view` with
+ * `page_path: '/login'` (our data, correct) next to the built-in "Page Path"
+ * already showing `/paciente/dashboard` (the real browser URL, also
+ * correct) and read the two as a contradiction. `app_path` doesn't collide
+ * with any GTM built-in.
  */
 export function track(eventName, params = {}, cioOnlyParams = {}) {
   // Fan-out a Customer.io con los params SIN sanitizar por PII — Customer.io

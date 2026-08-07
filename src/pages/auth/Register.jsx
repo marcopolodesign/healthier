@@ -15,7 +15,7 @@ export default function Register({ onLogin }) {
   const navigate = useNavigate()
 
   useEffect(() => {
-    track('sign_up_start', { step: 1, step_name: 'cuenta', flow: 'paciente', page_path: '/registro' })
+    track('sign_up_start', { step: 1, step_name: 'cuenta', flow: 'paciente', app_path: '/registro' })
   }, [])
 
   const submit = async (e) => {

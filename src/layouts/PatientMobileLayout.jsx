@@ -38,7 +38,7 @@ export default function PatientMobileLayout({ profile }) {
 
   useEffect(() => {
     const match = SECTION_BY_PREFIX.find(([prefix]) => pathname.startsWith(prefix))
-    if (match) track('section_view', { section: match[1], page_path: pathname, flow: 'paciente' })
+    if (match) track('section_view', { section: match[1], app_path: pathname, flow: 'paciente' })
   }, [pathname])
 
   async function enablePush() {

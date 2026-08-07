@@ -243,6 +243,12 @@ export default function App() {
             // un alta nueva por Google cae en el `else` de abajo (sin perfil
             // todavía) y ese no es un login, es un signup.
             if (session.user.app_metadata?.provider === 'google') {
+              // El rol real recién se conoce acá — cachearlo ANTES de
+              // trackear login_success para que `user_type` viaje en ese
+              // push (mismo criterio que el login por email/password en
+              // Login.jsx; sin esto el evento sale con el user_type de la
+              // sesión anterior, o sin ninguno la primera vez).
+              await setAnalyticsUser(p)
               track('login_success', { method: 'google', flow: p.role === 'professional' ? 'profesional' : 'paciente' })
             }
           } else {

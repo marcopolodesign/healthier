@@ -15,7 +15,7 @@ export default function RegisterProfessional({ onLogin }) {
   const navigate = useNavigate()
 
   useEffect(() => {
-    track('sign_up_start', { step: 1, step_name: 'cuenta', flow: 'profesional', page_path: '/registro-profesional' })
+    track('sign_up_start', { step: 1, step_name: 'cuenta', flow: 'profesional', app_path: '/registro-profesional' })
   }, [])
 
   const submit = async (e) => {

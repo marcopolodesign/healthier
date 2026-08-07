@@ -4,38 +4,68 @@ import { Envelope, Lock } from '@phosphor-icons/react';
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
-import { track, setAnalyticsUser } from '../../utils/analytics'
+import { track, setAnalyticsUser, LOGIN_ENTRY_INTENT_PARAM } from '../../utils/analytics'
+
+// Lee la señal de intención (no el rol real — ver el comentario en
+// analytics.js) del query param que dejó el link de entrada, si vino de uno
+// que la manda (ej. la landing de Profesionales).
+function getEntryIntent() {
+  const value = new URLSearchParams(window.location.search).get(LOGIN_ENTRY_INTENT_PARAM)
+  return value === 'profesional' ? 'profesional' : undefined
+}
+
+// Google OAuth vuelve acá con `?code=...` (PKCE) o `#access_token=...`
+// (implicit) ANTES de que `AuthRedirectHandler` (App.jsx) navegue al
+// dashboard según el rol. Sin este guard el componente monta un instante de
+// tránsito — el usuario nunca vio el formulario — y dispara un `login_view`
+// espurio. Es justo lo que reportó Henry: un `login_view` con Referrer
+// `accounts.google.com` y la URL ya en `/paciente/dashboard` (2026-07-27).
+function isOAuthCallback() {
+  return new URLSearchParams(window.location.search).has('code') || window.location.hash.includes('access_token')
+}
 
 export default function Login({ onLogin }) {
   const [form, setForm] = useState({ email: '', password: '' })
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
+  // Estable durante toda la vida del componente (el query string no cambia
+  // sin un remount) — se calcula una sola vez acá y se reusa en todos los
+  // eventos de esta pantalla en vez de re-parsear la URL en cada uno.
+  const entryIntent = getEntryIntent()
+  const entryIntentParams = entryIntent ? { entry_intent: entryIntent } : {}
+
   useEffect(() => {
-    // No hay señal de rol todavía (el usuario ni siquiera escribió el email) —
-    // esta página es compartida entre paciente y profesional, así que hasta
-    // login_success (donde ya tenemos `profile.role`) se manda 'paciente' por
-    // default.
-    track('login_view', { page_path: '/login', flow: 'paciente' })
+    if (isOAuthCallback()) return
+    // No hay rol confirmado todavía (el usuario ni siquiera escribió el
+    // email) — esta página es compartida entre paciente y profesional. Sólo
+    // se manda `entry_intent` cuando el link de entrada lo declaró; nunca se
+    // inventa un rol acá. El rol real recién se conoce en login_success.
+    track('login_view', { app_path: '/login', ...entryIntentParams })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const submit = async (e) => {
     e.preventDefault()
-    track('login_attempt', { method: 'email', flow: 'paciente' })
+    track('login_attempt', { method: 'email', ...entryIntentParams })
     setLoading(true)
     try {
       const { profile } = await authService.login(form.email, form.password)
-      track('login_success', { method: 'email', flow: profile?.role === 'professional' ? 'profesional' : 'paciente' })
 
       if (!profile) {
         // Cuenta autenticada sin fila en `profiles` todavía (p. ej. quedó a
         // medias, ver migración 082). No hay rol a dónde mandarla — el
         // AuthRedirectHandler de App.jsx ya está escuchando este mismo login
-        // vía onAuthStateChange y va a mandarla a /completar-registro.
+        // vía onAuthStateChange y va a mandarla a /completar-registro. No es
+        // un login exitoso todavía, así que no se trackea login_success acá.
         return
       }
 
+      // El rol real recién se conoce acá — cachearlo ANTES de trackear
+      // login_success para que `user_type` viaje en ese push y en todos los
+      // siguientes (ver el docstring de `track` en analytics.js).
       await setAnalyticsUser(profile)
+      track('login_success', { method: 'email', flow: profile.role === 'professional' ? 'profesional' : 'paciente' })
       onLogin(profile)
 
       const redirects = {
@@ -50,7 +80,7 @@ export default function Login({ onLogin }) {
       // `error_message` va en el anexo B de la spec de tracking. Es el mensaje
       // que ya se le muestra al usuario (nunca trae PII), y sirve para separar
       // los `network_error` reales entre sí sin tener que abrir el log.
-      track('login_error', { method: 'email', error_type, error_message: err.message, flow: 'paciente' })
+      track('login_error', { method: 'email', error_type, error_message: err.message, ...entryIntentParams })
       toast.error(err.message)
     } finally {
       setLoading(false)
@@ -108,13 +138,13 @@ export default function Login({ onLogin }) {
         <div className="h-px flex-1 bg-border-default" />
       </div>
 
-      <GoogleAuthButton analyticsEvent="login_attempt" analyticsParams={{ method: 'google', flow: 'paciente' }} />
+      <GoogleAuthButton analyticsEvent="login_attempt" analyticsParams={{ method: 'google', ...entryIntentParams }} />
 
       <p className="text-center text-sm text-text-secondary mt-6">
         ¿No tenés cuenta?{' '}
         <Link
           to="/registro"
-          onClick={() => track('login_to_signup', { source: 'login_page', flow: 'paciente' })}
+          onClick={() => track('login_to_signup', { source: 'login_page', ...entryIntentParams })}
           className="text-brand font-medium hover:underline"
         >
           Registrate
