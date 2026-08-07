@@ -160,7 +160,10 @@ export default function GuiaClinicaConsulta({
           <option value="">Elegí un motivo…</option>
           {GUIDE_MOTIVOS.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
-        {sugerido && !motivoGuardado && !motivoLocal && (
+        {/* El cartel es sólo para el motivo inferido de la pre-consulta: se esconde
+            apenas hay uno guardado en la historia o uno elegido a mano, porque ahí
+            ya no es una precarga sino una decisión del profesional. */}
+        {sugerido && !guiaState.motivo && !motivoLocal && (
           <p className="text-[10px] text-text-tertiary mt-1">Precargado desde lo que declaró el paciente.</p>
         )}
       </div>
