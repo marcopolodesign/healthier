@@ -203,10 +203,13 @@ export const mpService = {
    * @param {string} [params.description]
    * @returns {{ data: { paymentId, status, approved, creditsUsed, chargedAmount } | null, error: string | null }}
    */
-  async createPayment({ consultationId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits = false, authorizeOnly = false, description, payerDocType, payerDocNumber }) {
+  // orderId is mutually exclusive with consultationId — a medication-order
+  // charge (no Healthy Credits, no pre-auth, always charged immediately).
+  async createPayment({ consultationId, orderId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits = false, authorizeOnly = false, description, payerDocType, payerDocNumber }) {
     try {
       const result = await callEdgeFunction('mp-payment', {
-        consultationId,
+        consultationId: consultationId ?? null,
+        orderId: orderId ?? null,
         cardToken: cardToken ?? null,
         paymentMethodId: paymentMethodId ?? null,
         payerEmail: payerEmail ?? null,

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck } from '@phosphor-icons/react';
+import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, ShoppingBag } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
 import { toast } from './Toast'
 import { CompanyLogo } from './common/CompanyLogo'
@@ -45,6 +45,18 @@ const NAV_BY_ROLE = {
     { to: '/super-admin/verticales',             icon: Stethoscope,     label: 'Verticales' },
     { to: '/super-admin/auditoria',              icon: Eye,             label: 'Auditoría HC' },
     { to: '/super-admin/settings',               icon: Gear,            label: 'Configuración' },
+    { to: '/super-admin/farmacia',                icon: ShoppingBag,    label: 'Farmacia' },
+  ],
+  pharmacy_admin: [
+    { to: '/farmacia/pedidos',        icon: ClipboardText, label: 'Pedidos' },
+    { to: '/farmacia/catalogo',       icon: ShoppingBag,   label: 'Catálogo' },
+    { to: '/farmacia/configuracion',  icon: Gear,          label: 'Configuración' },
+  ],
+  pharmacy_operator: [
+    { to: '/farmacia/pedidos', icon: ClipboardText, label: 'Pedidos' },
+  ],
+  pharmacy_readonly: [
+    { to: '/farmacia/pedidos', icon: ClipboardText, label: 'Pedidos' },
   ],
 }
 

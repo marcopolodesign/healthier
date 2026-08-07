@@ -38,6 +38,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ensureFreshMpToken, PAYMENT_REFRESH_MARGIN_MS } from "../_shared/mpRefresh.ts";
+import { ensureFreshPharmacyMpToken } from "../_shared/pharmacyMpRefresh.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -251,9 +252,11 @@ serve(async (req: Request) => {
     //    under that seller's account (SECCIÓN A.8-d — unverified in sandbox yet).
     const { data: existingPaymentRow } = await supabase
       .from("payments")
-      .select("id, consultation_id, professional_id, status")
+      .select("id, consultation_id, professional_id, order_id, pharmacy_id, status")
       .eq("mp_payment_id", paymentId)
       .maybeSingle();
+
+    const isOrderPayment = !!existingPaymentRow?.order_id;
 
     let sellerAccessToken: string | null = null;
     if (existingPaymentRow?.professional_id) {
@@ -266,6 +269,18 @@ serve(async (req: Request) => {
 
       if (mpAccount) {
         const refreshResult = await ensureFreshMpToken(supabase, mpAccount, PAYMENT_REFRESH_MARGIN_MS);
+        sellerAccessToken = refreshResult.accessToken;
+      }
+    } else if (existingPaymentRow?.pharmacy_id) {
+      const { data: pharmacyMpAccount } = await supabase
+        .from("pharmacy_mp_accounts")
+        .select("pharmacy_id, access_token, refresh_token, expires_at, active")
+        .eq("pharmacy_id", existingPaymentRow.pharmacy_id)
+        .eq("active", true)
+        .maybeSingle();
+
+      if (pharmacyMpAccount) {
+        const refreshResult = await ensureFreshPharmacyMpToken(supabase, pharmacyMpAccount, PAYMENT_REFRESH_MARGIN_MS);
         sellerAccessToken = refreshResult.accessToken;
       }
     }
@@ -293,9 +308,11 @@ serve(async (req: Request) => {
 
     const currentStatus = existingPaymentRow?.status ?? null;
     const mapping = mapMpStatus(payment.status, currentStatus);
-    const consultationId = payment.external_reference ?? existingPaymentRow?.consultation_id ?? null;
+    const entityId = payment.external_reference
+      ?? (isOrderPayment ? existingPaymentRow?.order_id : existingPaymentRow?.consultation_id)
+      ?? null;
 
-    if (!consultationId) {
+    if (!entityId) {
       console.warn("mp-webhook: payment has no external_reference and no matching payments row", paymentId);
       return new Response(
         JSON.stringify({ received: true, warning: "no external_reference" }),
@@ -305,7 +322,7 @@ serve(async (req: Request) => {
 
     if (mapping.skip) {
       console.log(
-        `mp-webhook: ignoring stale/out-of-order event (mp status=${payment.status}, current DB status=${currentStatus}) for consultation ${consultationId}`
+        `mp-webhook: ignoring stale/out-of-order event (mp status=${payment.status}, current DB status=${currentStatus}) for ${isOrderPayment ? "order" : "consultation"} ${entityId}`
       );
       return new Response(
         JSON.stringify({ received: true, skipped: true }),
@@ -316,45 +333,62 @@ serve(async (req: Request) => {
     const { consultationStatus, paymentsStatus } = mapping;
     const mpFeeActual = extractMpFeeActual(payment);
 
-    // ── Update consultations ─────────────────────────────────────────────────
-    const consUpdate: Record<string, unknown> = {
-      payment_status: consultationStatus,
-      mp_payment_id: String(payment.id),
-    };
-    if (consultationStatus === "paid" && payment.date_approved) {
-      consUpdate.paid_at = payment.date_approved;
-    }
+    if (isOrderPayment) {
+      // ── Medication order: only payment_status matters, no order/consultation
+      //    workflow-state confirmation to do here.
+      const orderPaymentStatus = paymentsStatus === "approved" ? "pagado" : "no_pagado";
+      const { error: orderUpdateErr } = await supabase
+        .from("medication_orders")
+        .update({ payment_status: orderPaymentStatus })
+        .eq("id", entityId);
+      if (orderUpdateErr) {
+        console.error("mp-webhook: medication_orders update error:", orderUpdateErr);
+        return new Response(
+          JSON.stringify({ error: "DB update failed", detail: orderUpdateErr.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      // ── Update consultations ─────────────────────────────────────────────────
+      const consUpdate: Record<string, unknown> = {
+        payment_status: consultationStatus,
+        mp_payment_id: String(payment.id),
+      };
+      if (consultationStatus === "paid" && payment.date_approved) {
+        consUpdate.paid_at = payment.date_approved;
+      }
 
-    const { error: consUpdateErr } = await supabase
-      .from("consultations")
-      .update(consUpdate)
-      .eq("id", consultationId);
-
-    if (consUpdateErr) {
-      console.error("mp-webhook: consultations update error:", consUpdateErr);
-      return new Response(
-        JSON.stringify({ error: "DB update failed", detail: consUpdateErr.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Pagar un turno agendado es lo que lo confirma. `status` y `payment_status`
-    // son columnas distintas y hasta acá el webhook sólo movía la segunda: el
-    // turno se cobraba y le seguía apareciendo "Pendiente" al profesional,
-    // porque el badge de la agenda lee `status`.
-    //
-    // Va como update aparte y filtrado por `status = 'pending'` — el estado con
-    // el que nace un turno pago en PaymentPage. Así es idempotente frente a
-    // webhooks repetidos y no pisa un turno ya empezado, terminado o cancelado
-    // si el evento llega tarde. Mismo criterio que `confirmedPatch` en
-    // mp-payment, que es el otro camino por el que un turno se paga.
-    if (consultationStatus === "paid") {
-      const { error: confirmErr } = await supabase
+      const { error: consUpdateErr } = await supabase
         .from("consultations")
-        .update({ status: "confirmed" })
-        .eq("id", consultationId)
-        .eq("status", "pending");
-      if (confirmErr) console.error("mp-webhook: consultation confirm error:", confirmErr.message);
+        .update(consUpdate)
+        .eq("id", entityId);
+
+      if (consUpdateErr) {
+        console.error("mp-webhook: consultations update error:", consUpdateErr);
+        return new Response(
+          JSON.stringify({ error: "DB update failed", detail: consUpdateErr.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Pagar un turno agendado es lo que lo confirma. `status` y `payment_status`
+      // son columnas distintas y hasta acá el webhook sólo movía la segunda: el
+      // turno se cobraba y le seguía apareciendo "Pendiente" al profesional,
+      // porque el badge de la agenda lee `status`.
+      //
+      // Va como update aparte y filtrado por `status = 'pending'` — el estado con
+      // el que nace un turno pago en PaymentPage. Así es idempotente frente a
+      // webhooks repetidos y no pisa un turno ya empezado, terminado o cancelado
+      // si el evento llega tarde. Mismo criterio que `confirmedPatch` en
+      // mp-payment, que es el otro camino por el que un turno se paga.
+      if (consultationStatus === "paid") {
+        const { error: confirmErr } = await supabase
+          .from("consultations")
+          .update({ status: "confirmed" })
+          .eq("id", entityId)
+          .eq("status", "pending");
+        if (confirmErr) console.error("mp-webhook: consultation confirm error:", confirmErr.message);
+      }
     }
 
     // ── Update the matching payments row ─────────────────────────────────────
@@ -390,22 +424,37 @@ serve(async (req: Request) => {
       const { error } = await supabase.from("payments").update(paymentUpdate).eq("id", existingPaymentRow.id);
       paymentUpdateErr = error;
     } else {
-      // Fallback: match by consultation_id on the most recent pending/rejected row
-      // still missing mp_payment_id (webhook arrived before mp-payment's own write).
-      const { data: fallbackRow } = await supabase
+      // Fallback: match by consultation_id/order_id on the most recent
+      // pending/rejected row still missing mp_payment_id (webhook arrived
+      // before mp-payment's own write). Without an existingPaymentRow we
+      // can't know if this is an order — external_reference already told us
+      // via entityId, but not which column it maps to, so try consultation
+      // first (the overwhelmingly common case) then order.
+      let fallbackRow = (await supabase
         .from("payments")
         .select("id")
-        .eq("consultation_id", consultationId)
+        .eq("consultation_id", entityId)
         .is("mp_payment_id", null)
         .order("created_at", { ascending: false })
         .limit(1)
-        .maybeSingle();
+        .maybeSingle()).data;
+
+      if (!fallbackRow) {
+        fallbackRow = (await supabase
+          .from("payments")
+          .select("id")
+          .eq("order_id", entityId)
+          .is("mp_payment_id", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()).data;
+      }
 
       if (fallbackRow) {
         const { error } = await supabase.from("payments").update(paymentUpdate).eq("id", fallbackRow.id);
         paymentUpdateErr = error;
       } else {
-        console.warn(`mp-webhook: no payments row found to reconcile for consultation ${consultationId}`);
+        console.warn(`mp-webhook: no payments row found to reconcile for ${isOrderPayment ? "order" : "consultation"} ${entityId}`);
       }
     }
 
@@ -426,16 +475,16 @@ serve(async (req: Request) => {
     // ahora la realidad se guarda aparte en `mp_net_received_amount`.
     if (mpFeeActual !== null) {
       console.log(
-        `mp-webhook: consultation ${consultationId} reconciled mp_fee_actual=${mpFeeActual} (payment ${payment.id})`
+        `mp-webhook: ${isOrderPayment ? "order" : "consultation"} ${entityId} reconciled mp_fee_actual=${mpFeeActual} (payment ${payment.id})`
       );
     }
 
     console.log(
-      `mp-webhook: consultation ${consultationId} → payment_status=${consultationStatus} (mp_payment_id=${payment.id})`
+      `mp-webhook: ${isOrderPayment ? "order" : "consultation"} ${entityId} → payment_status=${isOrderPayment ? (paymentsStatus === "approved" ? "pagado" : "no_pagado") : consultationStatus} (mp_payment_id=${payment.id})`
     );
 
     return new Response(
-      JSON.stringify({ received: true, status: consultationStatus }),
+      JSON.stringify({ received: true, status: isOrderPayment ? paymentsStatus : consultationStatus }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
