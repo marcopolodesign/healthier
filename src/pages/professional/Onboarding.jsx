@@ -108,8 +108,28 @@ export default function Onboarding({ profile }) {
     return true
   }
 
-  const next = () => { if (canAdvance()) setStep(s => s + 1) }
+  // Fire-and-forget: le sirve al funnel de super-admin (Prospectos
+  // Profesionales) para ver en qué paso se frenan los que no terminan. Nunca
+  // debe bloquear la navegación del wizard si falla.
+  const trackStep = newStep =>
+    profilesService.update(profile.id, { onboardingStep: newStep }).catch(() => {})
+
+  const next = () => {
+    if (!canAdvance()) return
+    setStep(s => {
+      const newStep = s + 1
+      trackStep(newStep)
+      return newStep
+    })
+  }
   const prev = () => setStep(s => s - 1)
+
+  // Cubre a quien abre el wizard y lo abandona sin tocar "Siguiente" nunca —
+  // sin esto, `next()` solo captura a quien avanzó al menos un paso.
+  useEffect(() => {
+    if (profile?.id) trackStep(initialStep)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id])
 
   const submit = async () => {
     setLoading(true)

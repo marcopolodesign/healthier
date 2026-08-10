@@ -2,7 +2,8 @@
 
 This document provides context for Claude Code when working on this React/Supabase project.
 
-> **🚀 MANDATORY — Vercel deploy check:** After every `git push`, verify the deploy succeeded via Vercel API before reporting the task as done. Run: `source ~/Local/.env && curl -s "https://api.vercel.com/v6/deployments?projectId=prj_Cd1LUNQYJjg7A5vhUkNGwVVgewRb&limit=1&teamId=marco-polos-projects-1eab697a" -H "Authorization: Bearer $VERCEL_TOKEN" | python3 -c "import sys,json; d=json.load(sys.stdin)['deployments'][0]; print(d['state'], d['uid'])"`. If state is ERROR, fetch the build logs and fix before reporting done.
+> **🚀 MANDATORY — Vercel deploy check:** After every `git push`, verify the deploy succeeded. **The Vercel API token in `~/Local/.env` does NOT have access to the `healthier-app` team scope** (needs interactive re-auth in the Vercel dashboard — a platform quirk on newly-created teams, not fixable via API). Check deploy status via browser instead: `https://vercel.com/healthier-app/gethealthier/deployments`. If state is ERROR, open the deployment and check build logs before reporting done.
+> - Project: `gethealthier` (`prj_F9HOcYdCOixNhKC3WDhzdKt16Zgn`) — team `healthier-app`, migrated 2026-08-10 from the shared `marco-polos-projects-1eab697a` team (that team has 25+ unrelated client/personal projects and is Hobby-plan, non-commercial per Vercel ToS — not appropriate for a paying client in production).
 
 > **📝 MANDATORY:** After completing ANY implementation, add a `[website]`-tagged entry at the top of **`~/Local/Healthier/catchup.md`** (the single unified log). Do NOT write to `website/catchup.md` — it is a stub. Do NOT ask the user — just do it.
 >
