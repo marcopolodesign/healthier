@@ -1,11 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
-import { CircleNotch, Check, Warning, Siren, Plus, PencilSimple, CaretUp, CaretDown, TreeStructure } from '@phosphor-icons/react'
+import { CircleNotch, Check, Warning, Siren, Plus, PencilSimple, CaretUp, CaretDown, TreeStructure, Trash } from '@phosphor-icons/react'
 import { VERTICALS } from '../../lib/verticals'
 import { verticalsService } from '../../services/verticalsService'
 import { especialidadesService } from '../../services/especialidadesService'
 import { invalidarVerticales } from '../../hooks/useVerticales'
 import { useEspecialidades, invalidarEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../../components/Toast'
+import { useBulkSelection } from '../../hooks/useBulkSelection'
+import BulkActionBar from '../../components/super-admin/BulkActionBar'
+import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
 
 /**
  * Habilitación y precio on-demand de cada vertical.
@@ -239,7 +242,7 @@ function FormNuevaEspecialidad({ parent, onCreated, onCancel }) {
   )
 }
 
-function EspecialidadRow({ especialidad, siblings, sub = false, onReload, onAddSub, addingSubTo }) {
+function EspecialidadRow({ especialidad, siblings, sub = false, onReload, onAddSub, addingSubTo, selection, onDeleteOne }) {
   const [editando, setEditando] = useState(false)
   const [label, setLabel] = useState(especialidad.label)
   const [verticalId, setVerticalId] = useState(especialidad.verticalId ?? '')
@@ -304,6 +307,8 @@ function EspecialidadRow({ especialidad, siblings, sub = false, onReload, onAddS
           </button>
         </div>
 
+        <input type="checkbox" checked={selection.isSelected(especialidad.id)} onChange={() => selection.toggle(especialidad.id)} className="rounded border-border-default shrink-0" />
+
         {editando ? (
           <div className="flex-1 flex flex-col sm:flex-row gap-2 sm:items-center">
             <input value={label} onChange={e => setLabel(e.target.value)} className="form-input text-sm flex-1" autoFocus />
@@ -359,6 +364,9 @@ function EspecialidadRow({ especialidad, siblings, sub = false, onReload, onAddS
               >
                 <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${especialidad.active ? 'translate-x-6' : 'translate-x-1'}`} />
               </button>
+              <button type="button" onClick={() => onDeleteOne(especialidad.id)} className="p-1.5 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger-muted" title="Eliminar">
+                <Trash className="h-4 w-4" />
+              </button>
             </div>
           </>
         )}
@@ -384,6 +392,31 @@ function EspecialidadesPanel() {
   )
 
   const recargar = () => invalidarEspecialidades()
+
+  const allIds = useMemo(
+    () => especialidades.map(e => e.id),
+    [especialidades]
+  )
+  const selection = useBulkSelection(allIds)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const deleteSelected = async (ids) => {
+    setDeleting(true)
+    try {
+      await especialidadesService.deleteMany(ids)
+      selection.clear()
+      setConfirmOpen(false)
+      recargar()
+      toast.success(`${ids.length} especialidad${ids.length === 1 ? '' : 'es'} eliminada${ids.length === 1 ? '' : 's'}`)
+    } catch (err) {
+      toast.error(err.message || 'No se pudo eliminar')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const onDeleteOne = (id) => { selection.toggle(id); setConfirmOpen(true) }
 
   return (
     <div className="space-y-4">
@@ -425,6 +458,8 @@ function EspecialidadesPanel() {
                 onReload={recargar}
                 onAddSub={target => setAddingSubTo(prev => (prev === target.id ? null : target.id))}
                 addingSubTo={addingSubTo}
+                selection={selection}
+                onDeleteOne={onDeleteOne}
               />
               {(subEspecialidadesDe[esp.id] || []).map(sub => (
                 <EspecialidadRow
@@ -435,12 +470,24 @@ function EspecialidadesPanel() {
                   onReload={recargar}
                   onAddSub={() => {}}
                   addingSubTo={addingSubTo}
+                  selection={selection}
+                  onDeleteOne={onDeleteOne}
                 />
               ))}
             </div>
           ))}
         </div>
       )}
+
+      <BulkActionBar count={selection.count} onDelete={() => setConfirmOpen(true)} onClear={selection.clear} />
+      <ConfirmDeleteDialog
+        open={confirmOpen}
+        title={`Eliminar ${selection.count} especialidad${selection.count === 1 ? '' : 'es'}`}
+        message="Las sub-especialidades hijas de una especialidad borrada quedan sin categoría padre."
+        loading={deleting}
+        onConfirm={() => deleteSelected(selection.selectedIds)}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   )
 }

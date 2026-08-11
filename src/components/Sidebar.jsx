@@ -1,5 +1,6 @@
-import { NavLink, useNavigate } from 'react-router-dom'
-import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel } from '@phosphor-icons/react';
+import { useState } from 'react'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
 import { toast } from './Toast'
 import { CompanyLogo } from './common/CompanyLogo'
@@ -35,24 +36,58 @@ const NAV_BY_ROLE = {
   super_admin: [
     { to: '/super-admin/dashboard',              icon: ChartBar,        label: 'Dashboard' },
     { to: '/super-admin/pagos',                  icon: CurrencyDollar,  label: 'Pagos' },
-    { to: '/super-admin/consultas',              icon: CalendarCheck,   label: 'Consultas' },
-    { to: '/super-admin/emergencias',            icon: Siren,           label: 'Emergencias' },
-    { to: '/super-admin/admins',                 icon: ShieldCheck,     label: 'Admins' },
-    { to: '/super-admin/usuarios',               icon: Users,           label: 'Usuarios' },
-    { to: '/super-admin/usuarios/prospects',     icon: UserCirclePlus,  label: 'Prospectos' },
-    { to: '/super-admin/profesionales',          icon: ShieldCheck,     label: 'Profesionales' },
-    { to: '/super-admin/profesionales/prospects',icon: Funnel,          label: 'Prospectos Prof.' },
-    { to: '/super-admin/zonas',                  icon: MapPin,          label: 'Zonas' },
-    { to: '/super-admin/verticales',             icon: Stethoscope,     label: 'Verticales' },
+    {
+      group: 'consultas', label: 'Consultas', icon: CalendarCheck,
+      items: [
+        { to: '/super-admin/consultas',    icon: CalendarCheck, label: 'Consultas' },
+        { to: '/super-admin/emergencias',  icon: Siren,         label: 'Emergencias' },
+      ],
+    },
+    {
+      group: 'pacientes', label: 'Pacientes', icon: Users,
+      items: [
+        { to: '/super-admin/usuarios/prospects',       icon: UserCirclePlus, label: 'Prospectos' },
+        { to: '/super-admin/usuarios',                 icon: Users,          label: 'Pacientes' },
+      ],
+    },
+    {
+      group: 'profesionales', label: 'Profesionales', icon: ShieldCheck,
+      items: [
+        { to: '/super-admin/profesionales/prospects',            icon: Funnel,         label: 'Prospectos' },
+        { to: '/super-admin/profesionales?filter=pendientes',    icon: ShieldWarning,  label: 'Pendientes verificación' },
+        { to: '/super-admin/profesionales',                      icon: ShieldCheck,    label: 'Profesionales' },
+      ],
+    },
     { to: '/super-admin/auditoria',              icon: Eye,             label: 'Auditoría HC' },
-    { to: '/super-admin/settings',               icon: Gear,            label: 'Configuración' },
+    {
+      group: 'configuracion', label: 'Configuración', icon: Gear,
+      items: [
+        { to: '/super-admin/settings',      icon: Gear,         label: 'General' },
+        { to: '/super-admin/zonas',         icon: MapPin,       label: 'Zonas' },
+        { to: '/super-admin/verticales',    icon: Stethoscope,  label: 'Verticales' },
+        { to: '/super-admin/admins',        icon: ShieldCheck,  label: 'Admins' },
+      ],
+    },
   ],
 }
 
 export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onClose, companionOpen, onOpenCompanion }) {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const allItems = NAV_BY_ROLE[role] || []
   const items = allItems.filter(item => !item.specialty || item.specialty === profSpecialty)
+
+  // Grupos colapsables (Configuración, Consultas+Emergencias, Pacientes,
+  // Profesionales): abiertos por default si la ruta activa está adentro, si
+  // no arrancan cerrados.
+  const [openGroups, setOpenGroups] = useState(() => {
+    const initial = {}
+    for (const item of items) {
+      if (item.group) initial[item.group] = item.items.some(sub => pathname === sub.to.split('?')[0])
+    }
+    return initial
+  })
+  const toggleGroup = (group) => setOpenGroups(prev => ({ ...prev, [group]: !prev[group] }))
 
   const handleLogout = async () => {
     await authService.logout()
@@ -80,7 +115,42 @@ export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onCl
 
         {/* Nav items */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {items.map(item => (
+          {items.map(item => {
+            if (item.group) {
+              const isOpen = openGroups[item.group]
+              const hasActiveChild = item.items.some(sub => pathname === sub.to.split('?')[0])
+              return (
+                <div key={item.group}>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(item.group)}
+                    className={`${hasActiveChild ? 'nav-pill-active' : 'nav-pill-inactive'} w-full justify-between`}
+                  >
+                    <span className="flex items-center gap-3">
+                      <item.icon className="h-[22px] w-[22px] shrink-0" />
+                      {item.label}
+                    </span>
+                    <CaretDown className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isOpen && (
+                    <div className="ml-4 pl-3 border-l border-border-default space-y-1 mt-1 mb-1">
+                      {item.items.map(sub => (
+                        <NavLink
+                          key={sub.to}
+                          to={sub.to}
+                          onClick={onClose}
+                          className={({ isActive }) => `${isActive ? 'nav-pill-active' : 'nav-pill-inactive'} text-sm`}
+                        >
+                          <sub.icon className="h-[18px] w-[18px] shrink-0" />
+                          {sub.label}
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            }
+            return (
             <NavLink
               key={item.to}
               to={item.to}
@@ -90,7 +160,8 @@ export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onCl
               <item.icon className="h-[22px] w-[22px] shrink-0" />
               {item.label}
             </NavLink>
-          ))}
+            )
+          })}
         </nav>
 
         {/* Healthy IA */}

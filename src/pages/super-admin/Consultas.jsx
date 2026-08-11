@@ -1,11 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
-import { CalendarCheck, MagnifyingGlass, VideoCamera, MapPin, Lightning, CircleNotch } from '@phosphor-icons/react'
+import { CalendarCheck, MagnifyingGlass, VideoCamera, MapPin, Lightning, CircleNotch, Trash } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import StatusBadge, { STATUS_CONFIG } from '../../components/StatusBadge'
 import { formatARS, formatDate } from '../../lib/format'
 import { VERTICALS } from '../../lib/verticals'
+import { useBulkSelection } from '../../hooks/useBulkSelection'
+import BulkActionBar from '../../components/super-admin/BulkActionBar'
+import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
 
 // Vocabulario exacto de `consultations.status` — constraint vigente desde la
 // migración 098 (`consultations_status_check`, que amplió el de la 089 con
@@ -103,6 +106,26 @@ export default function SuperAdminConsultas() {
       return true
     })
   }, [consultations, filters])
+
+  const selection = useBulkSelection(filtered.map(c => c.id))
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const deleteSelected = async (ids) => {
+    setDeleting(true)
+    try {
+      await consultationsService.deleteMany(ids)
+      setConsultations(prev => prev.filter(c => !ids.includes(c.id)))
+      selection.clear()
+      setConfirmOpen(false)
+      if (selected && ids.includes(selected.id)) closeDetail()
+      toast.success(`${ids.length} consulta${ids.length === 1 ? '' : 's'} eliminada${ids.length === 1 ? '' : 's'}`)
+    } catch (err) {
+      toast.error(err.message || 'No se pudo eliminar')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const openDetail = (c) => {
     setSelected(c)
@@ -212,6 +235,9 @@ export default function SuperAdminConsultas() {
             <table className="w-full min-w-[1080px] text-sm">
               <thead>
                 <tr>
+                  <th className="table-header w-8">
+                    <input type="checkbox" checked={selection.isAllSelected} onChange={selection.toggleAll} onClick={e => e.stopPropagation()} className="rounded border-border-default" />
+                  </th>
                   <th className="table-header">Fecha</th>
                   <th className="table-header">Paciente</th>
                   <th className="table-header">Profesional</th>
@@ -219,6 +245,7 @@ export default function SuperAdminConsultas() {
                   <th className="table-header">Modalidad</th>
                   <th className="table-header">Estado</th>
                   <th className="table-header">Pago</th>
+                  <th className="table-header w-8" />
                 </tr>
               </thead>
               <tbody>
@@ -226,6 +253,9 @@ export default function SuperAdminConsultas() {
                   const vertical = verticalInfo(c.vertical)
                   return (
                     <tr key={c.id} className="table-row cursor-pointer" onClick={() => openDetail(c)}>
+                      <td className="table-cell" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={selection.isSelected(c.id)} onChange={() => selection.toggle(c.id)} className="rounded border-border-default" />
+                      </td>
                       <td className="table-cell whitespace-nowrap text-text-tertiary">{formatDate(c.scheduledAt)}</td>
                       <td className="table-cell">
                         <p className="text-text-primary truncate max-w-[160px]">{c.patient?.fullName || '—'}</p>
@@ -263,6 +293,11 @@ export default function SuperAdminConsultas() {
                         <PaymentBadge status={c.paymentStatus} />
                         <p className="text-xs text-text-tertiary mt-0.5">{formatARS(c.priceAtBooking)}</p>
                       </td>
+                      <td className="table-cell" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => { selection.toggle(c.id); setConfirmOpen(true) }} className="p-1 text-text-tertiary hover:text-danger transition-colors" title="Eliminar">
+                          <Trash className="h-4 w-4" />
+                        </button>
+                      </td>
                     </tr>
                   )
                 })}
@@ -271,6 +306,16 @@ export default function SuperAdminConsultas() {
           </div>
         )}
       </div>
+
+      <BulkActionBar count={selection.count} onDelete={() => setConfirmOpen(true)} onClear={selection.clear} />
+      <ConfirmDeleteDialog
+        open={confirmOpen}
+        title={`Eliminar ${selection.count} consulta${selection.count === 1 ? '' : 's'}`}
+        message="Esta acción no se puede deshacer."
+        loading={deleting}
+        onConfirm={() => deleteSelected(selection.selectedIds)}
+        onCancel={() => setConfirmOpen(false)}
+      />
 
       {/* Detail / edit panel */}
       <Modal open={Boolean(selected)} onClose={closeDetail} title="Detalle de la consulta" size="xl">

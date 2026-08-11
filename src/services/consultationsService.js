@@ -532,4 +532,10 @@ export const consultationsService = {
       mpAccountConnected: !!(mpAccount?.accessToken),
     }
   },
+
+  /** Borra una o más consultas — super admin. */
+  async deleteMany(ids) {
+    const { error } = await supabase.from('consultations').delete().in('id', ids)
+    if (error) throw new Error(error.message || 'Error al eliminar')
+  },
 }

@@ -52,4 +52,11 @@ export const especialidadesService = {
   async reorder(items) {
     await Promise.all(items.map(({ id, sortOrder }) => this.update(id, { sortOrder })))
   },
+
+  /** Borra una o más especialidades — super admin. Las sub-especialidades
+   *  hijas quedan con parent_id NULL (no se borran en cascada). */
+  async deleteMany(ids) {
+    const { error } = await supabase.from('specialties').delete().in('id', ids)
+    if (error) throw new Error(error.message || 'Error al eliminar')
+  },
 }

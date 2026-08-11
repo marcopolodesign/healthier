@@ -276,4 +276,10 @@ export const paymentsService = {
       return { data: null, error: err.message }
     }
   },
+
+  /** Borra uno o más pagos — super admin. */
+  async deleteMany(ids) {
+    const { error } = await supabase.from('payments').delete().in('id', ids)
+    if (error) throw new Error(error.message || 'Error al eliminar')
+  },
 }

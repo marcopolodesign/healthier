@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ChartBar, CurrencyDollar, ShieldCheck, Users, DotsThree, X,
-  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut,
+  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning,
 } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
@@ -18,14 +18,43 @@ const MAIN_TABS = [
   { id: 'usuarios',      path: '/super-admin/usuarios',      icon: Users,          label: 'Usuarios' },
 ]
 
-const MORE_LINKS = [
-  { path: '/super-admin/emergencias',        icon: Siren,          label: 'Emergencias',  sub: 'S.O.S en curso' },
-  { path: '/super-admin/usuarios/prospects', icon: UserCirclePlus, label: 'Prospectos',   sub: 'Pacientes a recuperar' },
-  { path: '/super-admin/zonas',              icon: MapPin,         label: 'Zonas',        sub: 'Cobertura' },
-  { path: '/super-admin/verticales',         icon: Stethoscope,    label: 'Verticales',   sub: 'Precios y disponibilidad' },
-  { path: '/super-admin/admins',             icon: ShieldCheck,    label: 'Admins',       sub: 'Equipo interno' },
-  { path: '/super-admin/auditoria',          icon: Eye,            label: 'Auditoría HC', sub: 'Accesos a historias clínicas' },
-  { path: '/super-admin/settings',           icon: Gear,           label: 'Configuración', sub: 'Comisiones y ventanas' },
+// Agrupado igual que el sidebar de desktop: Consultas+Emergencias juntos,
+// Usuarios+Profesionales+Prospectos juntos, Zonas/Verticales/Admins dentro de Configuración.
+const MORE_GROUPS = [
+  {
+    title: 'Consultas y emergencias',
+    links: [
+      { path: '/super-admin/emergencias', icon: Siren, label: 'Emergencias', sub: 'S.O.S en curso' },
+    ],
+  },
+  {
+    title: 'Pacientes',
+    links: [
+      { path: '/super-admin/usuarios/prospects', icon: UserCirclePlus, label: 'Prospectos', sub: 'Pacientes a recuperar' },
+    ],
+  },
+  {
+    title: 'Profesionales',
+    links: [
+      { path: '/super-admin/profesionales/prospects',         icon: UserCirclePlus, label: 'Prospectos',              sub: 'Empezaron el registro y no lo terminaron' },
+      { path: '/super-admin/profesionales?filter=pendientes', icon: ShieldWarning,  label: 'Pendientes verificación', sub: 'Esperando revisión' },
+    ],
+  },
+  {
+    title: 'Otros',
+    links: [
+      { path: '/super-admin/auditoria', icon: Eye, label: 'Auditoría HC', sub: 'Accesos a historias clínicas' },
+    ],
+  },
+  {
+    title: 'Configuración',
+    links: [
+      { path: '/super-admin/settings',    icon: Gear,        label: 'General',    sub: 'Comisiones y ventanas' },
+      { path: '/super-admin/zonas',       icon: MapPin,      label: 'Zonas',      sub: 'Cobertura' },
+      { path: '/super-admin/verticales',  icon: Stethoscope, label: 'Verticales', sub: 'Precios y disponibilidad' },
+      { path: '/super-admin/admins',      icon: ShieldCheck, label: 'Admins',     sub: 'Equipo interno' },
+    ],
+  },
 ]
 
 export default function SuperAdminBottomNav({ className = '' }) {
@@ -102,20 +131,27 @@ export default function SuperAdminBottomNav({ className = '' }) {
                 </button>
               </div>
 
-              {MORE_LINKS.map(link => (
-                <button
-                  key={link.path}
-                  onClick={() => irA(link.path)}
-                  className="flex items-center gap-4 w-full px-3 py-3.5 rounded-2xl text-left hover:bg-white/60 active:bg-white/80 transition-colors"
-                >
-                  <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
-                    <link.icon className="h-5 w-5 text-brand" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">{link.label}</p>
-                    <p className="text-xs text-text-secondary">{link.sub}</p>
-                  </div>
-                </button>
+              {MORE_GROUPS.map(group => (
+                <div key={group.title} className="mb-2">
+                  <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
+                    {group.title}
+                  </p>
+                  {group.links.map(link => (
+                    <button
+                      key={link.path}
+                      onClick={() => irA(link.path)}
+                      className="flex items-center gap-4 w-full px-3 py-3.5 rounded-2xl text-left hover:bg-white/60 active:bg-white/80 transition-colors"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
+                        <link.icon className="h-5 w-5 text-brand" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-text-primary">{link.label}</p>
+                        <p className="text-xs text-text-secondary">{link.sub}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               ))}
 
               <button

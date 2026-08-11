@@ -1,10 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
-import { CurrencyDollar, Users, ArrowClockwise, CheckCircle, CircleNotch, Sparkle, HandCoins, ArrowUUpLeft } from '@phosphor-icons/react'
+import { CurrencyDollar, Users, ArrowClockwise, CheckCircle, CircleNotch, Sparkle, HandCoins, ArrowUUpLeft, Trash } from '@phosphor-icons/react'
 import { paymentsService } from '../../services/paymentsService'
 import { mpService } from '../../services/mpService'
 import { toast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import { formatARS, formatDate } from '../../lib/format'
+import { useBulkSelection } from '../../hooks/useBulkSelection'
+import BulkActionBar from '../../components/super-admin/BulkActionBar'
+import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
 
 const METHOD_LABELS = { card: 'Tarjeta', credits: 'Créditos', mixed: 'Mixto' }
 // 'authorized' / 'cancelled' come from the on-demand pre-authorization flow
@@ -64,6 +67,25 @@ export default function SuperAdminPayments() {
   const [rejectReason, setRejectReason] = useState('')
 
   const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', status: '', method: '' })
+
+  const paymentsSelection = useBulkSelection(payments.map(p => p.id))
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [deletingPayments, setDeletingPayments] = useState(false)
+
+  const deleteSelectedPayments = async (ids) => {
+    setDeletingPayments(true)
+    try {
+      await paymentsService.deleteMany(ids)
+      setPayments(prev => prev.filter(p => !ids.includes(p.id)))
+      paymentsSelection.clear()
+      setConfirmDeleteOpen(false)
+      toast.success(`${ids.length} pago${ids.length === 1 ? '' : 's'} eliminado${ids.length === 1 ? '' : 's'}`)
+    } catch (err) {
+      toast.error(err.message || 'No se pudo eliminar')
+    } finally {
+      setDeletingPayments(false)
+    }
+  }
 
   const load = () => {
     setLoading(true)
@@ -603,6 +625,9 @@ export default function SuperAdminPayments() {
             <table className="w-full min-w-[1100px] text-sm">
               <thead>
                 <tr>
+                  <th className="table-header w-8">
+                    <input type="checkbox" checked={paymentsSelection.isAllSelected} onChange={paymentsSelection.toggleAll} className="rounded border-border-default" />
+                  </th>
                   <th className="table-header">Fecha</th>
                   <th className="table-header">Paciente</th>
                   <th className="table-header">Profesional</th>
@@ -616,6 +641,7 @@ export default function SuperAdminPayments() {
                   <th className="table-header">Método</th>
                   <th className="table-header">Estado</th>
                   <th className="table-header">MP ID / Refund</th>
+                  <th className="table-header w-8" />
                 </tr>
               </thead>
               <tbody>
@@ -623,6 +649,9 @@ export default function SuperAdminPayments() {
                   const commission = Number(p.platformFee || 0)
                   return (
                     <tr key={p.id} className="table-row">
+                      <td className="table-cell">
+                        <input type="checkbox" checked={paymentsSelection.isSelected(p.id)} onChange={() => paymentsSelection.toggle(p.id)} className="rounded border-border-default" />
+                      </td>
                       <td className="table-cell whitespace-nowrap text-text-tertiary">{formatDate(p.createdAt)}</td>
                       <td className="table-cell truncate max-w-[140px]">{p.patient?.fullName || '—'}</td>
                       <td className="table-cell truncate max-w-[140px]">{p.professional?.fullName || '—'}</td>
@@ -685,6 +714,11 @@ export default function SuperAdminPayments() {
                           </p>
                         )}
                       </td>
+                      <td className="table-cell">
+                        <button onClick={() => { paymentsSelection.toggle(p.id); setConfirmDeleteOpen(true) }} className="p-1 text-text-tertiary hover:text-danger transition-colors" title="Eliminar">
+                          <Trash className="h-4 w-4" />
+                        </button>
+                      </td>
                     </tr>
                   )
                 })}
@@ -693,6 +727,16 @@ export default function SuperAdminPayments() {
           </div>
         )}
       </div>
+
+      <BulkActionBar count={paymentsSelection.count} onDelete={() => setConfirmDeleteOpen(true)} onClear={paymentsSelection.clear} />
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        title={`Eliminar ${paymentsSelection.count} pago${paymentsSelection.count === 1 ? '' : 's'}`}
+        message="Esta acción no se puede deshacer y no revierte el cobro real en Mercado Pago."
+        loading={deletingPayments}
+        onConfirm={() => deleteSelectedPayments(paymentsSelection.selectedIds)}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
 
       {/* Devolución directa — pide motivo antes de mover plata real. */}
       <Modal

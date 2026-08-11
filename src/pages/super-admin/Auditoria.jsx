@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Eye, PencilSimple, MagnifyingGlass, CircleNotch, Copy, FilePdf, CheckCircle, XCircle } from '@phosphor-icons/react'
+import { Eye, PencilSimple, MagnifyingGlass, CircleNotch, Copy, FilePdf, CheckCircle, XCircle, Trash } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
 import { toast } from '../../components/Toast'
+import { useBulkSelection } from '../../hooks/useBulkSelection'
+import BulkActionBar from '../../components/super-admin/BulkActionBar'
+import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
 
 /**
  * Auditoría. Dos solapas:
@@ -103,6 +106,26 @@ export default function SuperAdminAuditoria() {
     })()
   }, [tab, recetas.length, loadingRecetas])
 
+  const recetasSelection = useBulkSelection(recetas.map(r => r.id))
+  const [recetasConfirmOpen, setRecetasConfirmOpen] = useState(false)
+  const [recetasDeleting, setRecetasDeleting] = useState(false)
+
+  const deleteRecetasRows = async (ids) => {
+    setRecetasDeleting(true)
+    try {
+      const { error } = await supabase.from('rcta_issue_log').delete().in('id', ids)
+      if (error) throw error
+      setRecetas(prev => prev.filter(r => !ids.includes(r.id)))
+      recetasSelection.clear()
+      setRecetasConfirmOpen(false)
+      toast.success(`${ids.length} registro${ids.length === 1 ? '' : 's'} eliminado${ids.length === 1 ? '' : 's'}`)
+    } catch (err) {
+      toast.error(err.message || 'No se pudo eliminar')
+    } finally {
+      setRecetasDeleting(false)
+    }
+  }
+
   const copiar = async (texto) => {
     try {
       await navigator.clipboard.writeText(texto)
@@ -120,6 +143,29 @@ export default function SuperAdminAuditoria() {
       .filter(Boolean)
       .some(v => v.toLowerCase().includes(needle))
   })
+
+  const hcSelection = useBulkSelection(filtered.map(r => r.id))
+  const [hcConfirmOpen, setHcConfirmOpen] = useState(false)
+  const [hcDeleting, setHcDeleting] = useState(false)
+
+  // El asiento de HC está protegido por Ley 26.529 (retención 10 años) — un
+  // trigger en la base rechaza el DELETE. Se deja intentar igual y se muestra
+  // el motivo real, no un error genérico.
+  const deleteHcRows = async (ids) => {
+    setHcDeleting(true)
+    try {
+      const { error } = await supabase.from('clinical_access_log').delete().in('id', ids)
+      if (error) throw error
+      setRows(prev => prev.filter(r => !ids.includes(r.id)))
+      hcSelection.clear()
+      setHcConfirmOpen(false)
+      toast.success(`${ids.length} registro${ids.length === 1 ? '' : 's'} eliminado${ids.length === 1 ? '' : 's'}`)
+    } catch (err) {
+      toast.error(err.message || 'No se pudo eliminar')
+    } finally {
+      setHcDeleting(false)
+    }
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -149,7 +195,24 @@ export default function SuperAdminAuditoria() {
       </div>
 
       {tab === 'recetas' ? (
-        <RecetasTab recetas={recetas} loading={loadingRecetas} onCopiar={copiar} />
+        <>
+          <RecetasTab
+            recetas={recetas}
+            loading={loadingRecetas}
+            onCopiar={copiar}
+            selection={recetasSelection}
+            onDeleteOne={(id) => { recetasSelection.toggle(id); setRecetasConfirmOpen(true) }}
+          />
+          <BulkActionBar count={recetasSelection.count} onDelete={() => setRecetasConfirmOpen(true)} onClear={recetasSelection.clear} />
+          <ConfirmDeleteDialog
+            open={recetasConfirmOpen}
+            title={`Eliminar ${recetasSelection.count} receta${recetasSelection.count === 1 ? '' : 's'} del log`}
+            message="Esta acción no se puede deshacer."
+            loading={recetasDeleting}
+            onConfirm={() => deleteRecetasRows(recetasSelection.selectedIds)}
+            onCancel={() => setRecetasConfirmOpen(false)}
+          />
+        </>
       ) : (
       <>
       <div className="flex flex-wrap gap-3 items-center">
@@ -188,11 +251,15 @@ export default function SuperAdminAuditoria() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border-default text-left text-xs uppercase tracking-wide text-text-tertiary">
+                <th className="px-4 py-3 w-8">
+                  <input type="checkbox" checked={hcSelection.isAllSelected} onChange={hcSelection.toggleAll} className="rounded border-border-default" />
+                </th>
                 <th className="px-4 py-3 font-semibold">Fecha</th>
                 <th className="px-4 py-3 font-semibold">Quién</th>
                 <th className="px-4 py-3 font-semibold">Acción</th>
                 <th className="px-4 py-3 font-semibold">Recurso</th>
                 <th className="px-4 py-3 font-semibold">Paciente</th>
+                <th className="px-4 py-3 w-8" />
               </tr>
             </thead>
             <tbody>
@@ -200,6 +267,9 @@ export default function SuperAdminAuditoria() {
                 const a = ACTION_LABELS[r.action] ?? { label: r.action, cls: 'bg-gray-100 text-gray-700', Icon: Eye }
                 return (
                   <tr key={r.id} className="border-b border-border-default last:border-0">
+                    <td className="px-4 py-3">
+                      <input type="checkbox" checked={hcSelection.isSelected(r.id)} onChange={() => hcSelection.toggle(r.id)} className="rounded border-border-default" />
+                    </td>
                     <td className="px-4 py-3 text-text-secondary whitespace-nowrap">
                       {new Date(r.accessed_at).toLocaleString('es-AR', {
                         day: '2-digit', month: '2-digit', year: '2-digit',
@@ -221,6 +291,11 @@ export default function SuperAdminAuditoria() {
                       {RESOURCE_LABELS[r.resource_type] ?? r.resource_type}
                     </td>
                     <td className="px-4 py-3 text-text-primary">{r.patient?.full_name ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => { hcSelection.toggle(r.id); setHcConfirmOpen(true) }} className="p-1 text-text-tertiary hover:text-danger transition-colors" title="Eliminar">
+                        <Trash className="h-4 w-4" />
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
@@ -234,6 +309,16 @@ export default function SuperAdminAuditoria() {
           Mostrando los últimos {PAGE_SIZE} accesos.
         </p>
       )}
+
+      <BulkActionBar count={hcSelection.count} onDelete={() => setHcConfirmOpen(true)} onClear={hcSelection.clear} />
+      <ConfirmDeleteDialog
+        open={hcConfirmOpen}
+        title={`Eliminar ${hcSelection.count} registro${hcSelection.count === 1 ? '' : 's'} de auditoría`}
+        message="La ley 26.529 exige retener estos accesos a la historia clínica — probablemente la base rechace el borrado."
+        loading={hcDeleting}
+        onConfirm={() => deleteHcRows(hcSelection.selectedIds)}
+        onCancel={() => setHcConfirmOpen(false)}
+      />
       </>
       )}
     </div>
@@ -245,7 +330,7 @@ export default function SuperAdminAuditoria() {
  * porque es lo que se pide desde afuera: para certificar la integración hay que
  * mandarlo, y para reclamar por una receta puntual también.
  */
-function RecetasTab({ recetas, loading, onCopiar }) {
+function RecetasTab({ recetas, loading, onCopiar, selection, onDeleteOne }) {
   if (loading) {
     return (
       <div className="flex justify-center py-16">
@@ -269,6 +354,9 @@ function RecetasTab({ recetas, loading, onCopiar }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border-default text-left text-xs uppercase tracking-wide text-text-tertiary">
+            <th className="px-4 py-3 w-8">
+              <input type="checkbox" checked={selection.isAllSelected} onChange={selection.toggleAll} className="rounded border-border-default" />
+            </th>
             <th className="px-4 py-3 font-semibold">Fecha</th>
             <th className="px-4 py-3 font-semibold">Resultado</th>
             <th className="px-4 py-3 font-semibold">Id de transacción</th>
@@ -277,6 +365,7 @@ function RecetasTab({ recetas, loading, onCopiar }) {
             <th className="px-4 py-3 font-semibold">Paciente</th>
             <th className="px-4 py-3 font-semibold">Profesional</th>
             <th className="px-4 py-3 font-semibold">PDF</th>
+            <th className="px-4 py-3 w-8" />
           </tr>
         </thead>
         <tbody>
@@ -285,6 +374,9 @@ function RecetasTab({ recetas, loading, onCopiar }) {
             const cobertura = r.request?.paciente?.cobertura
             return (
               <tr key={r.id} className="border-b border-border-default last:border-0">
+                <td className="px-4 py-3">
+                  <input type="checkbox" checked={selection.isSelected(r.id)} onChange={() => selection.toggle(r.id)} className="rounded border-border-default" />
+                </td>
                 <td className="px-4 py-3 text-text-secondary whitespace-nowrap">
                   {new Date(r.created_at).toLocaleString('es-AR', {
                     day: '2-digit', month: '2-digit', year: '2-digit',
@@ -326,6 +418,11 @@ function RecetasTab({ recetas, loading, onCopiar }) {
                       <FilePdf className="h-4 w-4" /> Ver
                     </a>
                   ) : '—'}
+                </td>
+                <td className="px-4 py-3">
+                  <button onClick={() => onDeleteOne(r.id)} className="p-1 text-text-tertiary hover:text-danger transition-colors" title="Eliminar">
+                    <Trash className="h-4 w-4" />
+                  </button>
                 </td>
               </tr>
             )

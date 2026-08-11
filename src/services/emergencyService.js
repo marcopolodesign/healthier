@@ -257,4 +257,10 @@ export const emergencyService = {
     if (error) throw error
     return (data ?? []).map(toCamelCase)
   },
+
+  /** Borra una o más emergencias — super admin. */
+  async deleteMany(ids) {
+    const { error } = await supabase.from('emergencies').delete().in('id', ids)
+    if (error) throw new Error(error.message || 'Error al eliminar')
+  },
 }

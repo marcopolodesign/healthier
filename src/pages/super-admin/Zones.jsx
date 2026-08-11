@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { MapPin, Plus, Trash, Users } from '@phosphor-icons/react';
 import { supabase } from '../../lib/supabase'
 import { toast } from '../../components/Toast'
+import { useBulkSelection } from '../../hooks/useBulkSelection'
+import BulkActionBar from '../../components/super-admin/BulkActionBar'
+import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
 
 export default function SuperAdminZones() {
   const [zones, setZones] = useState([])
@@ -52,11 +55,40 @@ export default function SuperAdminZones() {
     setAdding(false)
   }
 
-  const deleteZone = async (zone) => {
-    const { error } = await supabase.from('zones').delete().eq('id', zone.id)
-    if (error) { toast.error('Error al eliminar'); return }
-    setZones(prev => prev.filter(z => z.id !== zone.id))
-    toast.success(`${zone.name} eliminada`)
+  const zonesSelection = useBulkSelection(zones.map(z => z.id))
+  const [confirmZonesOpen, setConfirmZonesOpen] = useState(false)
+  const [deletingZones, setDeletingZones] = useState(false)
+
+  const deleteSelectedZones = async (ids) => {
+    setDeletingZones(true)
+    const { error } = await supabase.from('zones').delete().in('id', ids)
+    if (error) {
+      toast.error(error.message || 'Error al eliminar')
+    } else {
+      setZones(prev => prev.filter(z => !ids.includes(z.id)))
+      zonesSelection.clear()
+      setConfirmZonesOpen(false)
+      toast.success(`${ids.length} zona${ids.length === 1 ? '' : 's'} eliminada${ids.length === 1 ? '' : 's'}`)
+    }
+    setDeletingZones(false)
+  }
+
+  const waitlistSelection = useBulkSelection(waitlist.map(w => w.id))
+  const [confirmWaitlistOpen, setConfirmWaitlistOpen] = useState(false)
+  const [deletingWaitlist, setDeletingWaitlist] = useState(false)
+
+  const deleteSelectedWaitlist = async (ids) => {
+    setDeletingWaitlist(true)
+    const { error } = await supabase.from('waitlist').delete().in('id', ids)
+    if (error) {
+      toast.error(error.message || 'Error al eliminar')
+    } else {
+      setWaitlist(prev => prev.filter(w => !ids.includes(w.id)))
+      waitlistSelection.clear()
+      setConfirmWaitlistOpen(false)
+      toast.success(`${ids.length} entrada${ids.length === 1 ? '' : 's'} eliminada${ids.length === 1 ? '' : 's'}`)
+    }
+    setDeletingWaitlist(false)
   }
 
   // Debounced auto-save (600ms after the last edit to THIS zone's pricing),
@@ -147,9 +179,16 @@ export default function SuperAdminZones() {
 
           {/* Zone list */}
           <div className="card divide-y divide-border">
+            {zones.length > 0 && (
+              <div className="flex items-center gap-3 pb-2">
+                <input type="checkbox" checked={zonesSelection.isAllSelected} onChange={zonesSelection.toggleAll} className="rounded border-border-default" />
+                <span className="text-xs text-text-tertiary">Seleccionar todas</span>
+              </div>
+            )}
             {zones.map(zone => (
               <div key={zone.id} className="py-3 space-y-2">
                 <div className="flex items-center gap-3">
+                  <input type="checkbox" checked={zonesSelection.isSelected(zone.id)} onChange={() => zonesSelection.toggle(zone.id)} className="rounded border-border-default shrink-0" />
                   <MapPin className="h-4 w-4 text-text-tertiary shrink-0" />
                   <span className="flex-1 text-sm font-medium text-text-primary">{zone.name}</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -166,7 +205,7 @@ export default function SuperAdminZones() {
                     <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform shadow-sm ${zone.active ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
                   <button
-                    onClick={() => deleteZone(zone)}
+                    onClick={() => { zonesSelection.toggle(zone.id); setConfirmZonesOpen(true) }}
                     className="p-1 text-text-tertiary hover:text-danger transition-colors"
                     title="Eliminar zona"
                   >
@@ -219,9 +258,16 @@ export default function SuperAdminZones() {
             </div>
           ) : (
             <div className="card divide-y divide-border">
+              {waitlist.length > 0 && (
+                <div className="flex items-center gap-3 pb-2">
+                  <input type="checkbox" checked={waitlistSelection.isAllSelected} onChange={waitlistSelection.toggleAll} className="rounded border-border-default" />
+                  <span className="text-xs text-text-tertiary">Seleccionar todos</span>
+                </div>
+              )}
               {waitlist.map(entry => (
                 <div key={entry.id} className="flex items-start justify-between gap-4 py-3">
-                  <div className="min-w-0">
+                  <input type="checkbox" checked={waitlistSelection.isSelected(entry.id)} onChange={() => waitlistSelection.toggle(entry.id)} className="rounded border-border-default shrink-0 mt-1" />
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-text-primary">{entry.nombre} {entry.apellido}</p>
                     <p className="text-xs text-text-secondary mt-0.5 truncate">{entry.email}</p>
                     <p className="text-xs text-text-tertiary mt-0.5">
@@ -239,6 +285,9 @@ export default function SuperAdminZones() {
                         Marcar avisado
                       </button>
                     )}
+                    <button onClick={() => { waitlistSelection.toggle(entry.id); setConfirmWaitlistOpen(true) }} className="p-1 text-text-tertiary hover:text-danger transition-colors" title="Eliminar">
+                      <Trash className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -246,6 +295,28 @@ export default function SuperAdminZones() {
           )}
         </div>
       )}
+
+      <BulkActionBar
+        count={tab === 'zones' ? zonesSelection.count : waitlistSelection.count}
+        onDelete={() => tab === 'zones' ? setConfirmZonesOpen(true) : setConfirmWaitlistOpen(true)}
+        onClear={() => tab === 'zones' ? zonesSelection.clear() : waitlistSelection.clear()}
+      />
+      <ConfirmDeleteDialog
+        open={confirmZonesOpen}
+        title={`Eliminar ${zonesSelection.count} zona${zonesSelection.count === 1 ? '' : 's'}`}
+        message="Esta acción no se puede deshacer."
+        loading={deletingZones}
+        onConfirm={() => deleteSelectedZones(zonesSelection.selectedIds)}
+        onCancel={() => setConfirmZonesOpen(false)}
+      />
+      <ConfirmDeleteDialog
+        open={confirmWaitlistOpen}
+        title={`Eliminar ${waitlistSelection.count} entrada${waitlistSelection.count === 1 ? '' : 's'} de la lista de espera`}
+        message="Esta acción no se puede deshacer."
+        loading={deletingWaitlist}
+        onConfirm={() => deleteSelectedWaitlist(waitlistSelection.selectedIds)}
+        onCancel={() => setConfirmWaitlistOpen(false)}
+      />
     </div>
   )
 }

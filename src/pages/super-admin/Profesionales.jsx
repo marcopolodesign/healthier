@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   MagnifyingGlass, ShieldCheck, X, ArrowSquareOut, Warning,
   CircleNotch, Check, IdentificationCard, FileText, ShieldWarning,
   ShieldSlash, User, Pencil, UploadSimple, ClockCounterClockwise, XCircle,
-  Clock,
+  Clock, Trash,
 } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
@@ -12,7 +13,11 @@ import RefepsCheckLink from '../../components/admin/RefepsCheckLink'
 import SignedDocLink from '../../components/SignedDocLink'
 import { professionalService } from '../../services/professionalService'
 import { paymentsService } from '../../services/paymentsService'
+import { adminService } from '../../services/adminService'
 import { formatSettlementPlazo } from '../../lib/format'
+import { useBulkSelection } from '../../hooks/useBulkSelection'
+import BulkActionBar from '../../components/super-admin/BulkActionBar'
+import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
 
 // Documentos que puede gestionar el super admin desde el drawer (A6) — mismo
 // nombre de archivo que usa Onboarding.jsx al subir, para que un reemplazo
@@ -669,7 +674,10 @@ export default function SuperAdminProfesionales() {
   const [professionals, setProfessionals] = useState([])
   const [consultationMap, setConsultationMap] = useState({})
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('todos')
+  // El nav "Pendientes verificación" linkea acá con ?filter=pendientes en vez
+  // de duplicar esta página — así el filtro y los datos son siempre los mismos.
+  const [searchParams] = useSearchParams()
+  const [filter, setFilter] = useState(searchParams.get('filter') || 'todos')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
 
@@ -728,6 +736,28 @@ export default function SuperAdminProfesionales() {
     { key: 'sin-mp', label: 'Sin MP' },
   ]
 
+  // El id borrable es el del profile (profiles.id), no el de professional_profiles —
+  // deleteProfiles cascadea profiles → professional_profiles/consultas/etc.
+  const selection = useBulkSelection(filtered.map(p => p.profiles?.id).filter(Boolean))
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const deleteSelected = async (ids) => {
+    setDeleting(true)
+    try {
+      await adminService.deleteProfiles(ids)
+      setProfessionals(prev => prev.filter(p => !ids.includes(p.profiles?.id)))
+      selection.clear()
+      setConfirmOpen(false)
+      if (selected && ids.includes(selected.profiles?.id)) setSelected(null)
+      toast.success(`${ids.length} profesional${ids.length === 1 ? '' : 'es'} eliminado${ids.length === 1 ? '' : 's'}`)
+    } catch (err) {
+      toast.error(err.message || 'No se pudo eliminar')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -763,6 +793,9 @@ export default function SuperAdminProfesionales() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
+                <th className="table-header w-8">
+                  <input type="checkbox" checked={selection.isAllSelected} onChange={selection.toggleAll} onClick={e => e.stopPropagation()} className="rounded border-border-default" />
+                </th>
                 <th className="table-header">Profesional</th>
                 <th className="table-header">Especialidad</th>
                 <th className="table-header">Estado</th>
@@ -771,6 +804,7 @@ export default function SuperAdminProfesionales() {
                 <th className="table-header">Rating</th>
                 <th className="table-header">Consultas</th>
                 <th className="table-header">Registro</th>
+                <th className="table-header w-8" />
               </tr>
             </thead>
             <tbody>
@@ -810,10 +844,16 @@ export default function SuperAdminProfesionales() {
                   const consultCount = consultationMap[pro.profiles?.id] ?? 0
                   const isSelected = selected?.id === pro.id
 
+                  const profileId = pro.profiles?.id
                   return (
                     <tr key={pro.id}
                       onClick={() => setSelected(isSelected ? null : pro)}
                       className={`table-row cursor-pointer transition-colors ${isSelected ? 'bg-brand/5' : 'hover:bg-gray-50'}`}>
+                      <td className="table-cell" onClick={e => e.stopPropagation()}>
+                        {profileId && (
+                          <input type="checkbox" checked={selection.isSelected(profileId)} onChange={() => selection.toggle(profileId)} className="rounded border-border-default" />
+                        )}
+                      </td>
                       <td className="table-cell">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-[#e8f0eb] text-[#7CB38B] flex items-center justify-center text-xs font-semibold shrink-0">
@@ -863,6 +903,13 @@ export default function SuperAdminProfesionales() {
                       <td className="table-cell">
                         <span className="text-sm text-gray-500">{fmt(pro.created_at)}</span>
                       </td>
+                      <td className="table-cell" onClick={e => e.stopPropagation()}>
+                        {profileId && (
+                          <button onClick={() => { selection.toggle(profileId); setConfirmOpen(true) }} className="p-1 text-text-tertiary hover:text-danger transition-colors" title="Eliminar">
+                            <Trash className="h-4 w-4" />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   )
                 })
@@ -871,6 +918,16 @@ export default function SuperAdminProfesionales() {
           </table>
         </div>
       </div>
+
+      <BulkActionBar count={selection.count} onDelete={() => setConfirmOpen(true)} onClear={selection.clear} />
+      <ConfirmDeleteDialog
+        open={confirmOpen}
+        title={`Eliminar ${selection.count} profesional${selection.count === 1 ? '' : 'es'}`}
+        message="Esta acción no se puede deshacer. Si tiene historia clínica escrita, la ley 26.529 impide borrarlo."
+        loading={deleting}
+        onConfirm={() => deleteSelected(selection.selectedIds)}
+        onCancel={() => setConfirmOpen(false)}
+      />
 
       {selected && (
         <ProfessionalDrawer

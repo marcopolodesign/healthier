@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Siren, MapPin } from '@phosphor-icons/react'
+import { Siren, MapPin, Trash } from '@phosphor-icons/react'
 import { emergencyService } from '../../services/emergencyService'
 import { toast } from '../../components/Toast'
 import { formatARS, formatDate } from '../../lib/format'
 import { EMERGENCY_SYMPTOMS } from '../../data/emergencySymptoms'
+import { useBulkSelection } from '../../hooks/useBulkSelection'
+import BulkActionBar from '../../components/super-admin/BulkActionBar'
+import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
 
 const STATUS_BADGE = {
   dispatched:  'bg-amber-50 text-amber-700',
@@ -32,6 +35,25 @@ export default function SuperAdminEmergencias() {
       .finally(() => setLoading(false))
   }, [])
 
+  const selection = useBulkSelection(emergencies.map(e => e.id))
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const deleteSelected = async (ids) => {
+    setDeleting(true)
+    try {
+      await emergencyService.deleteMany(ids)
+      setEmergencies(prev => prev.filter(e => !ids.includes(e.id)))
+      selection.clear()
+      setConfirmOpen(false)
+      toast.success(`${ids.length} emergencia${ids.length === 1 ? '' : 's'} eliminada${ids.length === 1 ? '' : 's'}`)
+    } catch (err) {
+      toast.error(err.message || 'No se pudo eliminar')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -57,6 +79,9 @@ export default function SuperAdminEmergencias() {
             <table className="w-full min-w-[980px] text-sm">
               <thead>
                 <tr>
+                  <th className="table-header w-8">
+                    <input type="checkbox" checked={selection.isAllSelected} onChange={selection.toggleAll} className="rounded border-border-default" />
+                  </th>
                   <th className="table-header">Fecha</th>
                   <th className="table-header">Código</th>
                   <th className="table-header">Triage</th>
@@ -65,6 +90,7 @@ export default function SuperAdminEmergencias() {
                   <th className="table-header">Profesional</th>
                   <th className="table-header">Ubicación</th>
                   <th className="table-header text-right">Precio</th>
+                  <th className="table-header w-8" />
                 </tr>
               </thead>
               <tbody>
@@ -74,6 +100,9 @@ export default function SuperAdminEmergencias() {
                     : null
                   return (
                     <tr key={e.id} className="table-row">
+                      <td className="table-cell">
+                        <input type="checkbox" checked={selection.isSelected(e.id)} onChange={() => selection.toggle(e.id)} className="rounded border-border-default" />
+                      </td>
                       <td className="table-cell whitespace-nowrap text-text-tertiary">{formatDate(e.createdAt)}</td>
                       <td className="table-cell font-mono">{e.dispatchCode || '—'}</td>
                       <td className="table-cell">
@@ -108,6 +137,11 @@ export default function SuperAdminEmergencias() {
                         )}
                       </td>
                       <td className="table-cell text-right font-semibold">{formatARS(e.priceAtRequest)}</td>
+                      <td className="table-cell">
+                        <button onClick={() => { selection.toggle(e.id); setConfirmOpen(true) }} className="p-1 text-text-tertiary hover:text-danger transition-colors" title="Eliminar">
+                          <Trash className="h-4 w-4" />
+                        </button>
+                      </td>
                     </tr>
                   )
                 })}
@@ -116,6 +150,16 @@ export default function SuperAdminEmergencias() {
           </div>
         )}
       </div>
+
+      <BulkActionBar count={selection.count} onDelete={() => setConfirmOpen(true)} onClear={selection.clear} />
+      <ConfirmDeleteDialog
+        open={confirmOpen}
+        title={`Eliminar ${selection.count} emergencia${selection.count === 1 ? '' : 's'}`}
+        message="Esta acción no se puede deshacer."
+        loading={deleting}
+        onConfirm={() => deleteSelected(selection.selectedIds)}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   )
 }

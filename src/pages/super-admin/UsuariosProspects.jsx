@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
-import { MagnifyingGlass, Users, WarningCircle, CheckCircle } from '@phosphor-icons/react';
+import { MagnifyingGlass, Users, WarningCircle, CheckCircle, Trash } from '@phosphor-icons/react';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../components/Toast';
+import { adminService } from '../../services/adminService';
+import { useBulkSelection } from '../../hooks/useBulkSelection';
+import BulkActionBar from '../../components/super-admin/BulkActionBar';
+import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog';
 
 export default function SuperAdminUsuariosProspects() {
   const [prospects, setProspects] = useState([]);
@@ -71,6 +75,25 @@ export default function SuperAdminUsuariosProspects() {
     const matchUtm = !utmFilter || p.utm_source === utmFilter;
     return matchSearch && matchUtm;
   });
+
+  const selection = useBulkSelection(filtered.map((p) => p.id));
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function deleteSelected(ids) {
+    setDeleting(true);
+    try {
+      await adminService.deleteProfiles(ids);
+      setProspects((prev) => prev.filter((p) => !ids.includes(p.id)));
+      selection.clear();
+      setConfirmOpen(false);
+      toast.success(`${ids.length} prospecto${ids.length === 1 ? '' : 's'} eliminado${ids.length === 1 ? '' : 's'}`);
+    } catch (err) {
+      toast.error(err.message || 'No se pudo eliminar');
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   function daysSince(dateStr) {
     return Math.floor((Date.now() - new Date(dateStr)) / 86400000);
@@ -173,12 +196,16 @@ export default function SuperAdminUsuariosProspects() {
           <table className="w-full text-sm">
             <thead>
               <tr>
+                <th className="table-header w-8">
+                  <input type="checkbox" checked={selection.isAllSelected} onChange={selection.toggleAll} className="rounded border-border-default" />
+                </th>
                 <th className="table-header">Paciente</th>
                 <th className="table-header">Motivo</th>
                 <th className="table-header">Fuente UTM</th>
                 <th className="table-header">Campaña</th>
                 <th className="table-header">Días desde registro</th>
                 <th className="table-header">Acción</th>
+                <th className="table-header w-8" />
               </tr>
             </thead>
             <tbody>
@@ -186,6 +213,9 @@ export default function SuperAdminUsuariosProspects() {
                 const days = daysSince(p.created_at);
                 return (
                   <tr key={p.id} className="table-row">
+                    <td className="table-cell">
+                      <input type="checkbox" checked={selection.isSelected(p.id)} onChange={() => selection.toggle(p.id)} className="rounded border-border-default" />
+                    </td>
                     <td className="table-cell">
                       <div className="font-medium text-gray-900">
                         {p.full_name || '(sin nombre)'}
@@ -228,6 +258,11 @@ export default function SuperAdminUsuariosProspects() {
                         Ver perfil
                       </a>
                     </td>
+                    <td className="table-cell">
+                      <button onClick={() => { selection.toggle(p.id); setConfirmOpen(true); }} className="p-1 text-text-tertiary hover:text-danger transition-colors" title="Eliminar">
+                        <Trash className="h-4 w-4" />
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -235,6 +270,16 @@ export default function SuperAdminUsuariosProspects() {
           </table>
         )}
       </div>
+
+      <BulkActionBar count={selection.count} onDelete={() => setConfirmOpen(true)} onClear={selection.clear} />
+      <ConfirmDeleteDialog
+        open={confirmOpen}
+        title={`Eliminar ${selection.count} prospecto${selection.count === 1 ? '' : 's'}`}
+        message="Esta acción no se puede deshacer."
+        loading={deleting}
+        onConfirm={() => deleteSelected(selection.selectedIds)}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }

@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
-import { MagnifyingGlass, Users, DownloadSimple } from '@phosphor-icons/react';
+import { MagnifyingGlass, Users, DownloadSimple, Trash } from '@phosphor-icons/react';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../components/Toast';
+import { adminService } from '../../services/adminService';
+import { useBulkSelection } from '../../hooks/useBulkSelection';
+import BulkActionBar from '../../components/super-admin/BulkActionBar';
+import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog';
 
 export default function SuperAdminUsuarios() {
   const [patients, setPatients] = useState([]);
@@ -97,6 +101,25 @@ export default function SuperAdminUsuarios() {
     toast.success('CSV exportado correctamente');
   }
 
+  const selection = useBulkSelection(filteredPatients.map((p) => p.id));
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function deleteSelected(ids) {
+    setDeleting(true);
+    try {
+      await adminService.deleteProfiles(ids);
+      setPatients((prev) => prev.filter((p) => !ids.includes(p.id)));
+      selection.clear();
+      setConfirmOpen(false);
+      toast.success(`${ids.length} usuario${ids.length === 1 ? '' : 's'} eliminado${ids.length === 1 ? '' : 's'}`);
+    } catch (err) {
+      toast.error(err.message || 'No se pudo eliminar');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const filterPills = [
     { key: 'todos', label: 'Todos' },
     { key: 'con_consultas', label: 'Con consultas' },
@@ -157,10 +180,14 @@ export default function SuperAdminUsuarios() {
           <table className="w-full">
             <thead>
               <tr>
+                <th className="table-header w-8">
+                  <input type="checkbox" checked={selection.isAllSelected} onChange={selection.toggleAll} className="rounded border-border-default" />
+                </th>
                 <th className="table-header">Usuario</th>
                 <th className="table-header">Fuente UTM</th>
                 <th className="table-header">Consultas</th>
                 <th className="table-header">Registro</th>
+                <th className="table-header w-8" />
               </tr>
             </thead>
             <tbody>
@@ -186,7 +213,7 @@ export default function SuperAdminUsuarios() {
                 ))
               ) : filteredPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-16 text-center">
+                  <td colSpan={6} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-3 text-text-tertiary">
                       <Users size={40} weight="thin" />
                       <span className="text-sm">No se encontraron usuarios</span>
@@ -198,6 +225,9 @@ export default function SuperAdminUsuarios() {
                   const count = consultationMap[patient.id] || 0;
                   return (
                     <tr key={patient.id} className="table-row">
+                      <td className="table-cell">
+                        <input type="checkbox" checked={selection.isSelected(patient.id)} onChange={() => selection.toggle(patient.id)} className="rounded border-border-default" />
+                      </td>
                       {/* Usuario */}
                       <td className="table-cell">
                         <div>
@@ -232,6 +262,11 @@ export default function SuperAdminUsuarios() {
                       <td className="table-cell text-sm text-text-secondary">
                         {formatDate(patient.created_at)}
                       </td>
+                      <td className="table-cell">
+                        <button onClick={() => { selection.toggle(patient.id); setConfirmOpen(true); }} className="p-1 text-text-tertiary hover:text-danger transition-colors" title="Eliminar">
+                          <Trash className="h-4 w-4" />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })
@@ -240,6 +275,16 @@ export default function SuperAdminUsuarios() {
           </table>
         </div>
       </div>
+
+      <BulkActionBar count={selection.count} onDelete={() => setConfirmOpen(true)} onClear={selection.clear} />
+      <ConfirmDeleteDialog
+        open={confirmOpen}
+        title={`Eliminar ${selection.count} usuario${selection.count === 1 ? '' : 's'}`}
+        message="Esta acción no se puede deshacer. Si el usuario tiene historia clínica, la ley 26.529 impide borrarlo."
+        loading={deleting}
+        onConfirm={() => deleteSelected(selection.selectedIds)}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }
