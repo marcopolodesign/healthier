@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment } from 'react'
-import { Users, Calendar, ShieldCheck, CurrencyDollar, Lightning, ClockCountdown, SealCheck, Star, ChartBar, Sparkle, UserCircle } from '@phosphor-icons/react'
+import { useNavigate } from 'react-router-dom'
+import { Users, Calendar, ShieldCheck, CurrencyDollar, Lightning, ClockCountdown, SealCheck, Star, ChartBar, Sparkle, UserCircle, ShieldWarning, Funnel, UserCirclePlus, CaretRight } from '@phosphor-icons/react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { supabase } from '../../lib/supabase'
 import { paymentsService } from '../../services/paymentsService'
@@ -21,8 +22,17 @@ const STATUS_BADGE_CLASSES = {
 }
 
 export default function SuperAdminDashboard() {
+  const navigate = useNavigate()
   const { porSlug } = useEspecialidades()
   const [stats, setStats] = useState({ users: 0, professionals: 0, pendingVerification: 0, completedConsultations: 0, walkInWaiting: 0, walkInAvailable: 0, inWaitingRoom: 0, avgRating: null, consultationsThisMonth: 0, newPatientsThisMonth: 0 })
+  // Foco MVP (Mateo, 2026-08-11): lo que importa ahora es captar profesionales
+  // y pacientes — quién está pendiente de verificación y quién arrancó el
+  // registro sin terminarlo. Las métricas generales (facturación, rating,
+  // walk-in) van más abajo, ya no son lo primero que se ve.
+  const [pendingVerificationList, setPendingVerificationList] = useState([])
+  const [professionalProspectsList, setProfessionalProspectsList] = useState([])
+  const [patientProspectsList, setPatientProspectsList] = useState([])
+  const [captureCounts, setCaptureCounts] = useState({ pendingVerification: 0, professionalProspects: 0, patientProspects: 0 })
   const [paymentsSummary, setPaymentsSummary] = useState({ grossTotal: 0, platformFeeTotal: 0, mpFeeTotal: 0, netProfessionalTotal: 0 })
   const [chartData, setChartData] = useState([])
   const [statusData, setStatusData] = useState([])
@@ -55,6 +65,11 @@ export default function SuperAdminDashboard() {
           { data: recentRaw },
           { data: utmProfiles },
           summary,
+          { data: pendingProsRaw },
+          { data: allProfessionalProfileUserIds },
+          { data: professionalCandidates },
+          { data: patientCandidates },
+          { data: prospectConsultations },
         ] = await Promise.all([
           supabase.from('profiles').select('*', { count: 'exact', head: true }),
           supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('is_verified', true),
@@ -76,6 +91,19 @@ export default function SuperAdminDashboard() {
           supabase.from('consultations').select('id, status, scheduled_at, modality, profiles!patient_id(full_name), professional:profiles!professional_id(full_name)').order('created_at', { ascending: false }).limit(8),
           supabase.from('profiles').select('utm_source, role'),
           paymentsService.getPaymentsSummary().catch(() => ({ grossTotal: 0, platformFeeTotal: 0, mpFeeTotal: 0, netProfessionalTotal: 0 })),
+          // Pendientes de verificación — mismo criterio que el filtro "Pendientes"
+          // de /super-admin/profesionales: no verificado y no rechazado.
+          supabase.from('professional_profiles').select('id, created_at, specialty, profiles!user_id(full_name, email)')
+            .eq('is_verified', false).is('rejected_at', null)
+            .order('created_at', { ascending: false }).limit(5),
+          supabase.from('professional_profiles').select('user_id'),
+          supabase.from('profiles').select('id, full_name, email, created_at').eq('role', 'professional')
+            .order('created_at', { ascending: false }).limit(50),
+          // Mismo criterio que /super-admin/usuarios/prospects: onboarding
+          // incompleto (sin DNI) o sin videoconsulta vigente todavía.
+          supabase.from('profiles').select('id, full_name, email, created_at, dni').eq('role', 'patient')
+            .order('created_at', { ascending: false }).limit(50),
+          supabase.from('consultations').select('patient_id, modality, status'),
         ])
 
         const completed = (consultations ?? []).filter(c => c.status === 'completed')
@@ -142,6 +170,34 @@ export default function SuperAdminDashboard() {
         })
         setAcquisitionData(Object.values(srcMap).sort((a, b) => b.total - a.total))
 
+        // Captura MVP — pendientes de verificación, y prospectos (arrancaron
+        // el registro y no lo terminaron) de profesionales y pacientes.
+        setPendingVerificationList((pendingProsRaw ?? []).map(p => ({
+          id: p.id,
+          name: p.profiles?.full_name ?? 'Sin nombre',
+          specialtySlug: p.specialty,
+          createdAt: p.created_at,
+        })))
+
+        const conProfesionalProfile = new Set((allProfessionalProfileUserIds ?? []).map(pp => pp.user_id))
+        const profProspects = (professionalCandidates ?? []).filter(p => !conProfesionalProfile.has(p.id))
+        setProfessionalProspectsList(profProspects.slice(0, 5))
+
+        const VIGENTES = ['pending', 'confirmed', 'in_progress', 'completed']
+        const conVideoVigente = new Set(
+          (prospectConsultations ?? [])
+            .filter(c => c.modality === 'video' && VIGENTES.includes(c.status))
+            .map(c => c.patient_id)
+        )
+        const patientProspects = (patientCandidates ?? []).filter(p => !p.dni || !conVideoVigente.has(p.id))
+        setPatientProspectsList(patientProspects.slice(0, 5))
+
+        setCaptureCounts({
+          pendingVerification: pending ?? 0,
+          professionalProspects: profProspects.length,
+          patientProspects: patientProspects.length,
+        })
+
         // Top professionals — se guarda el slug crudo y se resuelve el label al
         // renderizar (con `porSlug`, ver abajo): el catálogo puede llegar
         // después de este fetch, y bakear el label acá adentro lo dejaría
@@ -181,6 +237,15 @@ export default function SuperAdminDashboard() {
     setChartData(Object.entries(map).map(([date, count]) => ({ date, count })))
   }
 
+  function daysSinceLabel(dateStr) {
+    const days = Math.floor((Date.now() - new Date(dateStr)) / 86400000)
+    return days === 0 ? 'hoy' : days === 1 ? '1 día' : `${days} días`
+  }
+
+  function countLabel(n) {
+    return n >= 50 ? '50+' : String(n)
+  }
+
   const cards = [
     { label: 'Usuarios totales',          value: stats.users,                                     icon: Users,          color: 'text-brand bg-brand-muted' },
     { label: 'Profesionales verificados', value: stats.professionals,                              icon: ShieldCheck,    color: 'text-purple-600 bg-purple-50' },
@@ -200,25 +265,63 @@ export default function SuperAdminDashboard() {
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="page-title-lg">Dashboard</h1>
-        <p className="text-text-secondary mt-1">Métricas generales de la plataforma</p>
+        <p className="text-text-secondary mt-1">Foco MVP: captar profesionales, pacientes y consultas</p>
       </div>
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {cards.map(c => (
-          <div key={c.label} className="card">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${c.color}`}>
-              <c.icon className="h-5 w-5" />
-            </div>
-            <p className="text-2xl font-semibold text-text-primary">
-              {loading ? '—' : c.raw ? c.value : typeof c.value === 'number' ? c.value.toLocaleString() : c.value}
-            </p>
-            <p className="text-xs text-text-secondary mt-0.5">{c.label}</p>
-          </div>
-        ))}
+      {/* Captura — foco MVP: quién está pendiente de verificación y quién
+          arrancó el registro sin terminarlo. Esto es lo primero que se ve. */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <CaptureCard
+          title="Pendientes de verificación"
+          icon={ShieldWarning}
+          iconColor="text-amber-600 bg-amber-50"
+          count={captureCounts.pendingVerification}
+          countLabel={countLabel(captureCounts.pendingVerification)}
+          loading={loading}
+          items={pendingVerificationList.map(p => ({
+            key: p.id,
+            primary: p.name,
+            secondary: porSlug[p.specialtySlug] ?? p.specialtySlug ?? '—',
+            tag: daysSinceLabel(p.createdAt),
+          }))}
+          emptyLabel="No hay profesionales esperando revisión"
+          onSeeAll={() => navigate('/super-admin/profesionales?filter=pendientes')}
+        />
+        <CaptureCard
+          title="Prospectos — Profesionales"
+          icon={Funnel}
+          iconColor="text-brand bg-brand-muted"
+          count={captureCounts.professionalProspects}
+          countLabel={countLabel(captureCounts.professionalProspects)}
+          loading={loading}
+          items={professionalProspectsList.map(p => ({
+            key: p.id,
+            primary: p.full_name || '(sin nombre)',
+            secondary: p.email,
+            tag: daysSinceLabel(p.created_at),
+          }))}
+          emptyLabel="Todos los que se registraron completaron el alta"
+          onSeeAll={() => navigate('/super-admin/profesionales/prospects')}
+        />
+        <CaptureCard
+          title="Prospectos — Pacientes"
+          icon={UserCirclePlus}
+          iconColor="text-purple-600 bg-purple-50"
+          count={captureCounts.patientProspects}
+          countLabel={countLabel(captureCounts.patientProspects)}
+          loading={loading}
+          items={patientProspectsList.map(p => ({
+            key: p.id,
+            primary: p.full_name || '(sin nombre)',
+            secondary: p.email,
+            tag: daysSinceLabel(p.created_at),
+          }))}
+          emptyLabel="Todos los pacientes ya avanzaron"
+          onSeeAll={() => navigate('/super-admin/usuarios/prospects')}
+        />
       </div>
 
-      {/* Charts row */}
+      {/* Charts row — consultas, lo tercer foco del MVP */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Consultations per day */}
         <div className="card lg:col-span-2">
@@ -261,6 +364,79 @@ export default function SuperAdminDashboard() {
             <div className="flex-1 flex items-center justify-center text-text-tertiary text-sm">Sin datos</div>
           )}
         </div>
+      </div>
+
+      {/* Recent consultations */}
+      {recentConsultations.length > 0 && (
+        <div className="card">
+          <h2 className="font-semibold text-text-primary mb-4">Consultas recientes</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr>
+                  <th className="table-header">Paciente</th>
+                  <th className="table-header">Profesional</th>
+                  <th className="table-header">Fecha</th>
+                  <th className="table-header">Modalidad</th>
+                  <th className="table-header">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentConsultations.map((c) => (
+                  <Fragment key={c.id}>
+                  <tr
+                    onClick={() => setExpandedId(prev => prev === c.id ? null : c.id)}
+                    className="table-row cursor-pointer hover:bg-brand-muted/20"
+                  >
+                    <td className="table-cell font-medium text-text-primary truncate max-w-[140px]">{c.patient}</td>
+                    <td className="table-cell text-text-secondary truncate max-w-[140px]">{c.professional}</td>
+                    <td className="table-cell text-text-tertiary whitespace-nowrap">{c.date}</td>
+                    <td className="table-cell">
+                      <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${c.modality === 'video' ? 'bg-brand-muted text-brand' : 'bg-emerald-50 text-emerald-600'}`}>
+                        {c.modality === 'video' ? 'Video' : 'Presencial'}
+                      </span>
+                    </td>
+                    <td className="table-cell">
+                      <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${STATUS_BADGE_CLASSES[c.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                        {STATUS_LABELS[c.status] ?? c.status}
+                      </span>
+                    </td>
+                  </tr>
+                  {/* El estado final no cuenta la historia: "cancelled" no dice
+                      si el paciente nunca llegó, si el profesional no se conectó
+                      o si el video falló. Esto la despliega. */}
+                  {expandedId === c.id && (
+                    <tr>
+                      <td colSpan={5} className="px-3 bg-bg-primary/60">
+                        <ConsultationTimeline consultationId={c.id} />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Métricas generales — de acá para abajo, ya no es lo primero que se ve */}
+      <div className="pt-2">
+        <h2 className="text-lg font-semibold text-text-primary">Métricas generales</h2>
+        <p className="text-sm text-text-secondary">El resto de los números de la plataforma</p>
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {cards.map(c => (
+          <div key={c.label} className="card">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${c.color}`}>
+              <c.icon className="h-5 w-5" />
+            </div>
+            <p className="text-2xl font-semibold text-text-primary">
+              {loading ? '—' : c.raw ? c.value : typeof c.value === 'number' ? c.value.toLocaleString() : c.value}
+            </p>
+            <p className="text-xs text-text-secondary mt-0.5">{c.label}</p>
+          </div>
+        ))}
       </div>
 
       {/* Top professionals */}
@@ -343,59 +519,46 @@ export default function SuperAdminDashboard() {
         )}
       </div>
 
-      {/* Recent consultations */}
-      {recentConsultations.length > 0 && (
-        <div className="card">
-          <h2 className="font-semibold text-text-primary mb-4">Consultas recientes</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr>
-                  <th className="table-header">Paciente</th>
-                  <th className="table-header">Profesional</th>
-                  <th className="table-header">Fecha</th>
-                  <th className="table-header">Modalidad</th>
-                  <th className="table-header">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentConsultations.map((c) => (
-                  <Fragment key={c.id}>
-                  <tr
-                    onClick={() => setExpandedId(prev => prev === c.id ? null : c.id)}
-                    className="table-row cursor-pointer hover:bg-brand-muted/20"
-                  >
-                    <td className="table-cell font-medium text-text-primary truncate max-w-[140px]">{c.patient}</td>
-                    <td className="table-cell text-text-secondary truncate max-w-[140px]">{c.professional}</td>
-                    <td className="table-cell text-text-tertiary whitespace-nowrap">{c.date}</td>
-                    <td className="table-cell">
-                      <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${c.modality === 'video' ? 'bg-brand-muted text-brand' : 'bg-emerald-50 text-emerald-600'}`}>
-                        {c.modality === 'video' ? 'Video' : 'Presencial'}
-                      </span>
-                    </td>
-                    <td className="table-cell">
-                      <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${STATUS_BADGE_CLASSES[c.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                        {STATUS_LABELS[c.status] ?? c.status}
-                      </span>
-                    </td>
-                  </tr>
-                  {/* El estado final no cuenta la historia: "cancelled" no dice
-                      si el paciente nunca llegó, si el profesional no se conectó
-                      o si el video falló. Esto la despliega. */}
-                  {expandedId === c.id && (
-                    <tr>
-                      <td colSpan={5} className="px-3 bg-bg-primary/60">
-                        <ConsultationTimeline consultationId={c.id} />
-                      </td>
-                    </tr>
-                  )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
+    </div>
+  )
+}
+
+/** Card de captura MVP — cuenta + preview de hasta 5 registros + link a la lista completa. */
+function CaptureCard({ title, icon: Icon, iconColor, count, countLabel, loading, items, emptyLabel, onSeeAll }) {
+  return (
+    <div className="card flex flex-col">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2.5">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconColor}`}>
+            <Icon className="h-[18px] w-[18px]" />
           </div>
+          <h2 className="font-semibold text-text-primary text-sm">{title}</h2>
+        </div>
+        <span className="text-2xl font-bold text-text-primary">{loading ? '—' : countLabel}</span>
+      </div>
+
+      {!loading && items.length === 0 ? (
+        <p className="text-sm text-text-tertiary py-3">{emptyLabel}</p>
+      ) : (
+        <div className="divide-y divide-border-default -mx-1">
+          {items.map(item => (
+            <div key={item.key} className="flex items-center justify-between gap-3 px-1 py-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-text-primary truncate">{item.primary}</p>
+                <p className="text-xs text-text-tertiary truncate">{item.secondary}</p>
+              </div>
+              <span className="text-[11px] text-text-tertiary shrink-0">{item.tag}</span>
+            </div>
+          ))}
         </div>
       )}
+
+      <button
+        onClick={onSeeAll}
+        className="mt-auto pt-3 flex items-center justify-center gap-1 text-sm font-medium text-brand hover:underline"
+      >
+        Ver todos <CaretRight className="h-3.5 w-3.5" />
+      </button>
     </div>
   )
 }
