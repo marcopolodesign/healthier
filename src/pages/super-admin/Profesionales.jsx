@@ -18,6 +18,7 @@ import { formatSettlementPlazo } from '../../lib/format'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
+import WhatsAppButton from '../../components/super-admin/WhatsAppButton'
 
 // Documentos que puede gestionar el super admin desde el drawer (A6) — mismo
 // nombre de archivo que usa Onboarding.jsx al subir, para que un reemplazo
@@ -687,7 +688,7 @@ export default function SuperAdminProfesionales() {
       const [profResult, consultResult] = await Promise.all([
         supabase
           .from('professional_profiles')
-          .select('id, specialty, is_verified, verification_source, sisa_status, mp_connected, mp_account_label, average_rating, total_reviews, created_at, rejected_at, rejection_type, profiles!user_id(id, full_name, email, created_at, utm_source)')
+          .select('id, specialty, is_verified, verification_source, sisa_status, mp_connected, mp_account_label, average_rating, total_reviews, created_at, rejected_at, rejection_type, profiles!user_id(id, full_name, email, phone, created_at, utm_source)')
           .order('created_at', { ascending: false }),
         supabase.from('consultations').select('professional_id'),
       ])
@@ -862,6 +863,9 @@ export default function SuperAdminProfesionales() {
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
                             <p className="text-xs text-gray-400 truncate">{email}</p>
+                          </div>
+                          <div onClick={e => e.stopPropagation()}>
+                            <WhatsAppButton phone={pro.profiles?.phone} />
                           </div>
                         </div>
                       </td>

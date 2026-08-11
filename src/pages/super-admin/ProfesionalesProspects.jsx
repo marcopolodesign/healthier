@@ -3,6 +3,7 @@ import { MagnifyingGlass, Stethoscope, WarningCircle, CheckCircle, Trash } from 
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../components/Toast';
 import { adminService } from '../../services/adminService';
+import WhatsAppButton from '../../components/super-admin/WhatsAppButton';
 import { useBulkSelection } from '../../hooks/useBulkSelection';
 import BulkActionBar from '../../components/super-admin/BulkActionBar';
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog';
@@ -27,7 +28,7 @@ export default function SuperAdminProfesionalesProspects() {
       const [profilesRes, professionalProfilesRes] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, email, full_name, created_at, onboarding_step, utm_source, utm_medium, utm_campaign, referrer_url')
+          .select('id, email, full_name, phone, created_at, onboarding_step, utm_source, utm_medium, utm_campaign, referrer_url')
           .eq('role', 'professional')
           .order('created_at', { ascending: false }),
         supabase.from('professional_profiles').select('user_id'),
@@ -238,8 +239,11 @@ export default function SuperAdminProfesionalesProspects() {
                       <input type="checkbox" checked={selection.isSelected(p.id)} onChange={() => selection.toggle(p.id)} className="rounded border-border-default" />
                     </td>
                     <td className="table-cell">
-                      <div className="font-medium text-gray-900">
-                        {p.full_name || '(sin nombre)'}
+                      <div className="flex items-center gap-1.5">
+                        <div className="font-medium text-gray-900">
+                          {p.full_name || '(sin nombre)'}
+                        </div>
+                        <WhatsAppButton phone={p.phone} />
                       </div>
                       <div className="text-xs text-gray-400">{p.email}</div>
                     </td>
