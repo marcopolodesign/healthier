@@ -75,15 +75,21 @@ function ProspectDrawer({ prospect, onClose }) {
               <p className="text-xs text-gray-400 mb-0.5">Medio UTM</p>
               <p className="font-medium text-gray-800">{p.utm_medium || '—'}</p>
             </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Se registró con</p>
+              <p className="font-medium text-gray-800">
+                {p.auth_provider === 'google' ? 'Google' : p.auth_provider === 'email' ? 'Email y contraseña' : '—'}
+              </p>
+            </div>
             <div className="col-span-2">
               <p className="text-xs text-gray-400 mb-0.5">Campaña</p>
-              <p className="font-medium text-gray-800">{p.utm_campaign || '—'}</p>
+              <p className="font-medium text-gray-800 break-words">{p.utm_campaign || '—'}</p>
             </div>
             {p.referrer_url && (
               <div className="col-span-2">
                 <p className="text-xs text-gray-400 mb-0.5">Referrer</p>
-                <a href={p.referrer_url} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline break-all inline-flex items-center gap-1">
-                  {p.referrer_url} <ArrowSquareOut className="h-3.5 w-3.5 shrink-0" />
+                <a href={p.referrer_url} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline inline-flex items-center gap-1">
+                  Ver página de origen <ArrowSquareOut className="h-3.5 w-3.5 shrink-0" />
                 </a>
               </div>
             )}
@@ -137,7 +143,17 @@ export default function SuperAdminProfesionalesProspects() {
       const completaron = new Set((professionalProfilesRes.data || []).map((p) => p.user_id));
       const filtered = (profilesRes.data || []).filter((p) => !completaron.has(p.id));
 
-      setProspects(filtered);
+      // Google vs. email/contraseña vive en auth.users, no en profiles — se
+      // trae de la vista auth_providers_super_admin (sólo devuelve filas
+      // para super_admin, ver migración 110).
+      const { data: providersData } = await supabase
+        .from('auth_providers_super_admin')
+        .select('id, auth_provider')
+        .in('id', filtered.map((p) => p.id));
+      const providerById = new Map((providersData || []).map((r) => [r.id, r.auth_provider]));
+      const withProvider = filtered.map((p) => ({ ...p, auth_provider: providerById.get(p.id) ?? null }));
+
+      setProspects(withProvider);
     } catch (err) {
       console.error(err);
       toast.error('Error al cargar los prospectos.');
