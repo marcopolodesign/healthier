@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, Briefcase, Heart } from '@phosphor-icons/react'
+import { User, Briefcase, Heart, Phone } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
@@ -9,6 +9,7 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
   const navigate = useNavigate()
   const [fullName, setFullName] = useState(authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || '')
   const [role, setRole] = useState('')
+  const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
 
   const roles = [
@@ -20,6 +21,7 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
     e.preventDefault()
     if (!role) { toast.error('Seleccioná un tipo de cuenta'); return }
     if (!fullName.trim()) { toast.error('Ingresá tu nombre completo'); return }
+    if (role === 'professional' && !phone.trim()) { toast.error('Ingresá tu teléfono'); return }
     setLoading(true)
     try {
       const utms = getStoredUtms()
@@ -28,7 +30,7 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
       // pestaña, etc.) y tira un error con mensaje claro — antes esto
       // explotaba con "Cannot read properties of null (reading 'id')" acá
       // mismo. El catch de abajo ya lo muestra vía toast.
-      const profile = await authService.completeGoogleProfile(authUser, role, fullName.trim(), utms)
+      const profile = await authService.completeGoogleProfile(authUser, role, fullName.trim(), utms, phone.trim() || null)
       clearUtms()
       onProfileComplete(profile)
       // Mismo destino que el alta por email (Register/RegisterProfessional):
@@ -88,6 +90,23 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
             />
           </div>
         </div>
+
+        {role === 'professional' && (
+          <div>
+            <label className="form-label">Teléfono (WhatsApp)</label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+              <input
+                type="tel"
+                required
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                placeholder="+54 9 11 1234 5678"
+                className="form-input pl-9"
+              />
+            </div>
+          </div>
+        )}
 
         <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-2 disabled:opacity-40 disabled:cursor-not-allowed">
           {loading ? 'Guardando...' : 'Continuar'}

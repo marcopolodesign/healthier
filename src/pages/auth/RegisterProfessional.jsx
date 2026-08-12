@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { User, Envelope, Lock, ArrowLeft } from '@phosphor-icons/react';
+import { User, Envelope, Lock, Phone, ArrowLeft } from '@phosphor-icons/react';
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { marcarDestinoPostRegistro } from '../../lib/postSignupRedirect'
@@ -10,7 +10,7 @@ import { track } from '../../utils/analytics'
 
 export default function RegisterProfessional({ onLogin }) {
   const [step, setStep] = useState('choose')
-  const [form, setForm] = useState({ fullName: '', email: '', password: '' })
+  const [form, setForm] = useState({ fullName: '', email: '', password: '', phone: '' })
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
@@ -33,7 +33,7 @@ export default function RegisterProfessional({ onLogin }) {
       // adelantarse al `navigate` de abajo. Ver `lib/postSignupRedirect.js`.
       marcarDestinoPostRegistro('/profesional/onboarding')
       const utms = getStoredUtms()
-      await authService.register(form.email, form.password, 'professional', form.fullName, utms)
+      await authService.register(form.email, form.password, 'professional', form.fullName, utms, form.phone.trim() || null)
       clearUtms()
       track('sign_up_step_complete', { step: 1, step_name: 'cuenta', method: 'email', flow: 'profesional' })
       const { profile } = await authService.login(form.email, form.password)
@@ -133,6 +133,21 @@ export default function RegisterProfessional({ onLogin }) {
               value={form.email}
               onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
               placeholder="tu@email.com"
+              className="form-input pl-9"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="form-label">Teléfono (WhatsApp)</label>
+          <div className="relative">
+            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+            <input
+              type="tel"
+              required
+              value={form.phone}
+              onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
+              placeholder="+54 9 11 1234 5678"
               className="form-input pl-9"
             />
           </div>
