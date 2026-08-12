@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MagnifyingGlass, Stethoscope, WarningCircle, CheckCircle, Trash } from '@phosphor-icons/react';
+import { MagnifyingGlass, Stethoscope, WarningCircle, CheckCircle, Trash, X, ArrowSquareOut } from '@phosphor-icons/react';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../components/Toast';
 import { adminService } from '../../services/adminService';
@@ -11,6 +11,101 @@ import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialo
 // Mismos labels que STEPS en pages/professional/Onboarding.jsx — si ese
 // wizard cambia de pasos, actualizar acá también.
 const STEP_LABELS = ['Especialidad', 'Presentación', 'Documentos', 'Privacidad', 'Revisión'];
+
+function getInitials(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(' ').filter(Boolean);
+  return parts.length === 1
+    ? parts[0][0].toUpperCase()
+    : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function fmtDateTime(dateStr) {
+  if (!dateStr) return '—';
+  return new Date(dateStr).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function StepBadge({ step }) {
+  if (step == null) {
+    return <span className="status-badge">Sin dato</span>;
+  }
+  return <span className="status-badge status-pending">{STEP_LABELS[step] ?? `Paso ${step}`}</span>;
+}
+
+function ProspectDrawer({ prospect, onClose }) {
+  const p = prospect;
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-50 w-full max-w-md bg-white shadow-2xl flex flex-col h-full overflow-hidden">
+        <div className="flex items-start gap-3 p-5 border-b border-gray-100">
+          <div className="w-10 h-10 rounded-full bg-[#e8f0eb] text-[#7CB38B] flex items-center justify-center font-semibold shrink-0">
+            {getInitials(p.full_name)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-gray-900 truncate">{p.full_name || '(sin nombre)'}</p>
+            <p className="text-xs text-gray-400 truncate">{p.email}</p>
+            <div className="mt-1.5">
+              <StepBadge step={p.onboarding_step} />
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 shrink-0">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Teléfono</p>
+              <div className="flex items-center gap-1.5">
+                <p className="font-medium text-gray-800">{p.phone || '—'}</p>
+                <WhatsAppButton phone={p.phone} />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Registro</p>
+              <p className="font-medium text-gray-800">{fmtDateTime(p.created_at)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Fuente UTM</p>
+              <p className="font-medium text-gray-800">{p.utm_source || '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Medio UTM</p>
+              <p className="font-medium text-gray-800">{p.utm_medium || '—'}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-xs text-gray-400 mb-0.5">Campaña</p>
+              <p className="font-medium text-gray-800">{p.utm_campaign || '—'}</p>
+            </div>
+            {p.referrer_url && (
+              <div className="col-span-2">
+                <p className="text-xs text-gray-400 mb-0.5">Referrer</p>
+                <a href={p.referrer_url} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline break-all inline-flex items-center gap-1">
+                  {p.referrer_url} <ArrowSquareOut className="h-3.5 w-3.5 shrink-0" />
+                </a>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-gray-200 px-4 py-3">
+            <p className="text-xs font-medium text-gray-500 mb-1">Dónde se quedó</p>
+            <p className="text-sm text-gray-800">
+              {p.onboarding_step == null
+                ? 'Sin dato — se registró antes del 2026-08-10, cuando se empezó a trackear el paso.'
+                : `Llegó hasta "${STEP_LABELS[p.onboarding_step] ?? `Paso ${p.onboarding_step}`}" y no envió el perfil para revisión.`}
+            </p>
+          </div>
+
+          <a href={`mailto:${p.email}`} className="btn-secondary text-sm inline-block">
+            Escribir por email
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function SuperAdminProfesionalesProspects() {
   const [prospects, setProspects] = useState([]);
@@ -100,6 +195,7 @@ export default function SuperAdminProfesionalesProspects() {
   const selection = useBulkSelection(filtered.map((p) => p.id));
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [selectedProspect, setSelectedProspect] = useState(null);
 
   async function deleteSelected(ids) {
     setDeleting(true);
@@ -114,13 +210,6 @@ export default function SuperAdminProfesionalesProspects() {
     } finally {
       setDeleting(false);
     }
-  }
-
-  function StepBadge({ step }) {
-    if (step == null) {
-      return <span className="status-badge">Sin dato</span>;
-    }
-    return <span className="status-badge status-pending">{STEP_LABELS[step] ?? `Paso ${step}`}</span>;
   }
 
   return (
@@ -234,8 +323,8 @@ export default function SuperAdminProfesionalesProspects() {
               {filtered.map((p) => {
                 const days = daysSince(p.created_at);
                 return (
-                  <tr key={p.id} className="table-row">
-                    <td className="table-cell">
+                  <tr key={p.id} className="table-row cursor-pointer" onClick={() => setSelectedProspect(p)}>
+                    <td className="table-cell" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selection.isSelected(p.id)} onChange={() => selection.toggle(p.id)} className="rounded border-border-default" />
                     </td>
                     <td className="table-cell">
@@ -243,7 +332,9 @@ export default function SuperAdminProfesionalesProspects() {
                         <div className="font-medium text-gray-900">
                           {p.full_name || '(sin nombre)'}
                         </div>
-                        <WhatsAppButton phone={p.phone} />
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <WhatsAppButton phone={p.phone} />
+                        </div>
                       </div>
                       <div className="text-xs text-gray-400">{p.email}</div>
                     </td>
@@ -267,12 +358,12 @@ export default function SuperAdminProfesionalesProspects() {
                     <td className="table-cell">
                       <DaysPill days={days} />
                     </td>
-                    <td className="table-cell">
+                    <td className="table-cell" onClick={(e) => e.stopPropagation()}>
                       <a href={`mailto:${p.email}`} className="btn-secondary text-xs">
                         Escribir
                       </a>
                     </td>
-                    <td className="table-cell">
+                    <td className="table-cell" onClick={(e) => e.stopPropagation()}>
                       <button onClick={() => { selection.toggle(p.id); setConfirmOpen(true); }} className="p-1 text-text-tertiary hover:text-danger transition-colors" title="Eliminar">
                         <Trash className="h-4 w-4" />
                       </button>
@@ -294,6 +385,9 @@ export default function SuperAdminProfesionalesProspects() {
         onConfirm={() => deleteSelected(selection.selectedIds)}
         onCancel={() => setConfirmOpen(false)}
       />
+      {selectedProspect && (
+        <ProspectDrawer prospect={selectedProspect} onClose={() => setSelectedProspect(null)} />
+      )}
     </div>
   );
 }
