@@ -21,7 +21,7 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
     e.preventDefault()
     if (!role) { toast.error('Seleccioná un tipo de cuenta'); return }
     if (!fullName.trim()) { toast.error('Ingresá tu nombre completo'); return }
-    if (role === 'professional' && !phone.trim()) { toast.error('Ingresá tu teléfono'); return }
+    if (!phone.trim()) { toast.error('Ingresá tu teléfono'); return }
     setLoading(true)
     try {
       const utms = getStoredUtms()
@@ -91,22 +91,20 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
           </div>
         </div>
 
-        {role === 'professional' && (
-          <div>
-            <label className="form-label">Teléfono (WhatsApp)</label>
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
-              <input
-                type="tel"
-                required
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                placeholder="+54 9 11 1234 5678"
-                className="form-input pl-9"
-              />
-            </div>
+        <div>
+          <label className="form-label">Teléfono (WhatsApp)</label>
+          <div className="relative">
+            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+            <input
+              type="tel"
+              required
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              placeholder="+54 9 11 1234 5678"
+              className="form-input pl-9"
+            />
           </div>
-        )}
+        </div>
 
         <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-2 disabled:opacity-40 disabled:cursor-not-allowed">
           {loading ? 'Guardando...' : 'Continuar'}
