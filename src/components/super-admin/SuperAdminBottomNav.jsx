@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ChartBar, CurrencyDollar, ShieldCheck, Users, DotsThree, X,
-  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning,
+  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning, Path,
 } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
@@ -37,6 +37,7 @@ const MORE_GROUPS = [
     title: 'Profesionales',
     links: [
       { path: '/super-admin/profesionales/prospects',         icon: UserCirclePlus, label: 'Prospectos',              sub: 'Empezaron el registro y no lo terminaron' },
+      { path: '/super-admin/profesionales/recorrido',         icon: Path,           label: 'Recorrido',               sub: 'Dónde se frenaron y cuándo retomaron' },
       { path: '/super-admin/profesionales?filter=pendientes', icon: ShieldWarning,  label: 'Pendientes verificación', sub: 'Esperando revisión' },
     ],
   },

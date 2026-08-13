@@ -90,6 +90,7 @@ import SuperAdminUsuarios from './pages/super-admin/Usuarios'
 import SuperAdminUsuariosProspects from './pages/super-admin/UsuariosProspects'
 import SuperAdminProfesionalesProspects from './pages/super-admin/ProfesionalesProspects'
 import SuperAdminProfesionales from './pages/super-admin/Profesionales'
+import SuperAdminProfesionalesRecorrido from './pages/super-admin/ProfesionalesRecorrido'
 import SuperAdminEmergencias from './pages/super-admin/Emergencias'
 import { tomarDestinoPostRegistro } from './lib/postSignupRedirect'
 
@@ -454,6 +455,7 @@ export default function App() {
           <Route path="/super-admin/usuarios/prospects" element={<SuperAdminUsuariosProspects />} />
           <Route path="/super-admin/profesionales" element={<SuperAdminProfesionales />} />
           <Route path="/super-admin/profesionales/prospects" element={<SuperAdminProfesionalesProspects />} />
+          <Route path="/super-admin/profesionales/recorrido" element={<SuperAdminProfesionalesRecorrido />} />
           <Route path="/super-admin/emergencias" element={<SuperAdminEmergencias />} />
         </Route>
 

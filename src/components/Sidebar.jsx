@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning } from '@phosphor-icons/react';
+import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
 import { toast } from './Toast'
 import { CompanyLogo } from './common/CompanyLogo'
@@ -54,6 +54,7 @@ const NAV_BY_ROLE = {
       group: 'profesionales', label: 'Profesionales', icon: ShieldCheck,
       items: [
         { to: '/super-admin/profesionales/prospects',            icon: Funnel,         label: 'Prospectos' },
+        { to: '/super-admin/profesionales/recorrido',            icon: Path,           label: 'Recorrido' },
         { to: '/super-admin/profesionales?filter=pendientes',    icon: ShieldWarning,  label: 'Pendientes verificación' },
         { to: '/super-admin/profesionales',                      icon: ShieldCheck,    label: 'Profesionales' },
       ],

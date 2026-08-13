@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { MagnifyingGlass, Stethoscope, WarningCircle, CheckCircle, Trash, X, ArrowSquareOut } from '@phosphor-icons/react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../components/Toast';
 import { adminService } from '../../services/adminService';
@@ -7,6 +8,7 @@ import WhatsAppButton from '../../components/super-admin/WhatsAppButton';
 import { useBulkSelection } from '../../hooks/useBulkSelection';
 import BulkActionBar from '../../components/super-admin/BulkActionBar';
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog';
+import RecorridoProfesional from '../../components/super-admin/RecorridoProfesional';
 
 // Mismos labels que STEPS en pages/professional/Onboarding.jsx — si ese
 // wizard cambia de pasos, actualizar acá también.
@@ -102,6 +104,13 @@ function ProspectDrawer({ prospect, onClose }) {
                 ? 'Sin dato — se registró antes del 2026-08-10, cuando se empezó a trackear el paso.'
                 : `Llegó hasta "${STEP_LABELS[p.onboarding_step] ?? `Paso ${p.onboarding_step}`}" y no envió el perfil para revisión.`}
             </p>
+          </div>
+
+          {/* El paso solo dice hasta dónde llegó. El recorrido dice cuándo se
+              frenó y si volvió — que es lo que decide si vale la pena escribirle. */}
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-2">Recorrido</p>
+            <RecorridoProfesional userId={p.id} pro={{ createdAt: p.created_at, onboardingStep: p.onboarding_step }} />
           </div>
 
           <a href={`mailto:${p.email}`} className="btn-secondary text-sm inline-block">
@@ -260,7 +269,12 @@ export default function SuperAdminProfesionalesProspects() {
       {!loading && (
         <div className="card p-4">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-medium text-gray-500">Dónde se frenan</p>
+            <div className="flex items-center gap-3">
+              <p className="text-xs font-medium text-gray-500">Dónde se frenan</p>
+              <Link to="/super-admin/profesionales/recorrido" className="text-xs font-medium text-brand hover:underline">
+                Ver cuándo →
+              </Link>
+            </div>
             {stepFilter != null && (
               <button
                 type="button"

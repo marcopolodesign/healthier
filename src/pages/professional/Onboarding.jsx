@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Check, Stethoscope, User, FileText, ClipboardText, LockKey, MagnifyingGlass, LinkSimple } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import { profilesService } from '../../services/profilesService'
+import { professionalOnboardingService } from '../../services/professionalOnboardingService'
 import { PROFESSION_CATEGORIES, specialtiesForCategory, categoryForSpecialty } from '../../lib/verticals'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { AnimatedTagCascade } from '../../components/common/AnimatedTagCascade'
@@ -126,8 +127,15 @@ export default function Onboarding({ profile }) {
 
   // Cubre a quien abre el wizard y lo abandona sin tocar "Siguiente" nunca —
   // sin esto, `next()` solo captura a quien avanzó al menos un paso.
+  //
+  // El evento `wizard_opened` es lo que hace visible una REAPERTURA en el
+  // recorrido del super admin: `onboarding_step` no baja (trigger de la
+  // migración 112), así que volver a entrar no cambia nada en `profiles` y sin
+  // este asiento sería indistinguible de no haber vuelto nunca.
   useEffect(() => {
-    if (profile?.id) trackStep(initialStep)
+    if (!profile?.id) return
+    trackStep(initialStep)
+    professionalOnboardingService.logWizardOpened(profile.id, initialStep, { resubmit: isResubmit })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id])
 
