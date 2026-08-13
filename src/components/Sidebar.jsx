@@ -56,7 +56,7 @@ const NAV_BY_ROLE = {
         { to: '/super-admin/profesionales/prospects',            icon: Funnel,         label: 'Prospectos' },
         { to: '/super-admin/profesionales/recorrido',            icon: Path,           label: 'Recorrido' },
         { to: '/super-admin/profesionales?filter=pendientes',    icon: ShieldWarning,  label: 'Pendientes verificación' },
-        { to: '/super-admin/profesionales',                      icon: ShieldCheck,    label: 'Profesionales' },
+        { to: '/super-admin/profesionales?filter=verificados',   icon: ShieldCheck,    label: 'Verificados' },
       ],
     },
     { to: '/super-admin/auditoria',              icon: Eye,             label: 'Auditoría HC' },

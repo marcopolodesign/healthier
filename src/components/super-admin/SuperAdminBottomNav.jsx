@@ -14,7 +14,7 @@ import { toast } from '../Toast'
 const MAIN_TABS = [
   { id: 'dashboard',     path: '/super-admin/dashboard',     icon: ChartBar,       label: 'Inicio' },
   { id: 'pagos',         path: '/super-admin/pagos',         icon: CurrencyDollar, label: 'Pagos' },
-  { id: 'profesionales', path: '/super-admin/profesionales', icon: ShieldCheck,    label: 'Profesionales' },
+  { id: 'profesionales', path: '/super-admin/profesionales', query: '?filter=verificados', icon: ShieldCheck, label: 'Verificados' },
   { id: 'usuarios',      path: '/super-admin/usuarios',      icon: Users,          label: 'Usuarios' },
 ]
 
@@ -60,12 +60,15 @@ const MORE_GROUPS = [
 
 export default function SuperAdminBottomNav({ className = '' }) {
   const navigate = useNavigate()
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const [open, setOpen] = useState(false)
 
   // `/super-admin/usuarios/prospects` no debe marcar activo el tab Usuarios:
   // se compara la ruta exacta salvo para las que tienen subrutas propias.
-  const activeId = MAIN_TABS.find(t => pathname === t.path)?.id
+  // "Verificados" y "Pendientes verificación" comparten pathname (sólo las
+  // distingue `?filter=`) — comparar también el query evita que el tab quede
+  // resaltado estando en la otra sección.
+  const activeId = MAIN_TABS.find(t => pathname === t.path && search === (t.query || ''))?.id
 
   const irA = (path) => {
     setOpen(false)
@@ -87,7 +90,7 @@ export default function SuperAdminBottomNav({ className = '' }) {
           return (
             <button
               key={tab.id}
-              onClick={() => navigate(tab.path)}
+              onClick={() => navigate(tab.path + (tab.query || ''))}
               className={`flex flex-col items-center gap-1 transition-all duration-200 px-2 ${active ? 'text-brand' : 'text-gray-400 hover:text-gray-500'}`}
             >
               <tab.icon

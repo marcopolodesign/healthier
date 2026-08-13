@@ -71,25 +71,37 @@ export default function Onboarding({ profile }) {
   const showCustomSub = subSpecialtyCustom || (!!form.subSpecialty && !isKnownSub)
 
   useEffect(() => {
-    if (!isResubmit || !profile?.id) return
-    professionalService.getByUserId(profile.id).then(p => {
-      if (!p) return
-      setForm({
-        // Vienen de `profiles`, no de `professional_profiles`: si no se
-        // recuperan acá, reenviar el legajo los pisa con '' y el paso queda
-        // trabado pidiendo datos que el profesional ya había cargado.
-        dni:           profile?.dni    || '',
-        gender:        profile?.gender || '',
-        specialty:     p.specialty     || '',
-        subSpecialty:  p.subSpecialty  || '',
-        bio:           p.bio           || '',
-        licenseType:   p.licenseType   || 'MN',
-        licenseNumber: p.licenseNumber || '',
-        cuitNumber:    p.cuitNumber    || '',
+    if (!profile?.id) return
+    if (isResubmit) {
+      professionalService.getByUserId(profile.id).then(p => {
+        if (!p) return
+        setForm({
+          // Vienen de `profiles`, no de `professional_profiles`: si no se
+          // recuperan acá, reenviar el legajo los pisa con '' y el paso queda
+          // trabado pidiendo datos que el profesional ya había cargado.
+          dni:           profile?.dni    || '',
+          gender:        profile?.gender || '',
+          specialty:     p.specialty     || '',
+          subSpecialty:  p.subSpecialty  || '',
+          bio:           p.bio           || '',
+          licenseType:   p.licenseType   || 'MN',
+          licenseNumber: p.licenseNumber || '',
+          cuitNumber:    p.cuitNumber    || '',
+        })
+        if (p.specialty) setCategoryId(categoryForSpecialty(p.specialty))
       })
-      if (p.specialty) setCategoryId(categoryForSpecialty(p.specialty))
-    })
-  }, [isResubmit, profile?.id, profile?.dni, profile?.gender])
+      return
+    }
+    // Prospecto que ya había avanzado algún paso y volvió después (cerró la
+    // pestaña, otro día): sin esto arranca de cero siempre, aunque haya
+    // guardado especialidad/matrícula/bio en un intento anterior. El draft se
+    // guarda en cada "Siguiente" — ver trackStep.
+    const d = profile.onboardingDraft
+    if (d) {
+      setForm(f => ({ ...f, ...d }))
+      if (d.specialty) setCategoryId(categoryForSpecialty(d.specialty))
+    }
+  }, [isResubmit, profile?.id, profile?.dni, profile?.gender, profile?.onboardingDraft])
 
   const handleAvatar = async file => {
     setAvatarFile(file)
@@ -110,16 +122,24 @@ export default function Onboarding({ profile }) {
   }
 
   // Fire-and-forget: le sirve al funnel de super-admin (Prospectos
-  // Profesionales) para ver en qué paso se frenan los que no terminan. Nunca
-  // debe bloquear la navegación del wizard si falla.
-  const trackStep = newStep =>
-    profilesService.update(profile.id, { onboardingStep: newStep }).catch(() => {})
+  // Profesionales) para ver en qué paso se frenan los que no terminan, y
+  // desde 2026-08-13 también para ver QUÉ cargaron hasta ese punto (antes no
+  // se guardaba nada del wizard hasta el envío final — un prospecto que
+  // llegaba a "Documentos" y se frenaba no tenía ni la especialidad
+  // guardada). `includeDraft` sólo va en true en avances reales del usuario
+  // (`next()`) — el trackStep de montaje NO manda draft, para no pisar un
+  // draft bueno de una sesión anterior con el form vacío del arranque.
+  const trackStep = (newStep, includeDraft = false) =>
+    profilesService.update(profile.id, {
+      onboardingStep: newStep,
+      ...(includeDraft ? { onboardingDraft: form } : {}),
+    }).catch(() => {})
 
   const next = () => {
     if (!canAdvance()) return
     setStep(s => {
       const newStep = s + 1
-      trackStep(newStep)
+      trackStep(newStep, true)
       return newStep
     })
   }

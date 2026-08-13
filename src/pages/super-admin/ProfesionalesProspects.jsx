@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MagnifyingGlass, Stethoscope, WarningCircle, CheckCircle, Trash, X, ArrowSquareOut } from '@phosphor-icons/react';
+import { MagnifyingGlass, Stethoscope, WarningCircle, CheckCircle, Trash, X, ArrowSquareOut, SignIn } from '@phosphor-icons/react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../components/Toast';
@@ -9,6 +9,7 @@ import { useBulkSelection } from '../../hooks/useBulkSelection';
 import BulkActionBar from '../../components/super-admin/BulkActionBar';
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog';
 import RecorridoProfesional from '../../components/super-admin/RecorridoProfesional';
+import { useEspecialidades } from '../../hooks/useEspecialidades';
 
 // Mismos labels que STEPS en pages/professional/Onboarding.jsx — si ese
 // wizard cambia de pasos, actualizar acá también.
@@ -34,8 +35,32 @@ function StepBadge({ step }) {
   return <span className="status-badge status-pending">{STEP_LABELS[step] ?? `Paso ${step}`}</span>;
 }
 
+async function impersonate(p) {
+  const nombre = p.full_name || p.email;
+  if (!window.confirm(`¿Iniciar sesión como ${nombre}? Queda registrado en el log de auditoría.`)) return;
+  // window.open sincrónico con la data del click — si se abre recién después
+  // del await, el popup blocker lo frena en la mayoría de los browsers.
+  const win = window.open('', '_blank');
+  try {
+    const url = await adminService.impersonate(p.id);
+    if (win) win.location.href = url;
+    else window.open(url, '_blank');
+  } catch (err) {
+    win?.close();
+    toast.error(err.message || 'No se pudo iniciar sesión como este usuario');
+  }
+}
+
 function ProspectDrawer({ prospect, onClose }) {
   const p = prospect;
+  const { porSlug } = useEspecialidades();
+  // Antes del 2026-08-13 el wizard no guardaba nada del form hasta el envío
+  // final — un prospecto que llegaba a "Documentos" no tenía ni la
+  // especialidad guardada en ningún lado. Ahora `onboarding_draft` se
+  // actualiza en cada "Siguiente" (ver Onboarding.jsx). Prospectos de antes
+  // de ese cambio, o que nunca avanzaron del primer paso, no van a tener nada acá.
+  const d = p.onboarding_draft || {};
+  const hasDraft = Object.values(d).some(Boolean);
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
@@ -113,9 +138,70 @@ function ProspectDrawer({ prospect, onClose }) {
             <RecorridoProfesional userId={p.id} pro={{ createdAt: p.created_at, onboardingStep: p.onboarding_step }} />
           </div>
 
-          <a href={`mailto:${p.email}`} className="btn-secondary text-sm inline-block">
-            Escribir por email
-          </a>
+          {hasDraft && (
+            <div className="rounded-xl border border-gray-200 px-4 py-3">
+              <p className="text-xs font-medium text-gray-500 mb-2">Datos cargados hasta ahora</p>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {d.specialty && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Especialidad</p>
+                    <p className="font-medium text-gray-800">{porSlug[d.specialty] || d.specialty}</p>
+                  </div>
+                )}
+                {d.sub_specialty && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Sub-especialidad</p>
+                    <p className="font-medium text-gray-800">{d.sub_specialty}</p>
+                  </div>
+                )}
+                {d.license_number && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Matrícula</p>
+                    <p className="font-medium text-gray-800">{d.license_type || 'MN'} {d.license_number}</p>
+                  </div>
+                )}
+                {d.cuit_number && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">CUIT</p>
+                    <p className="font-medium text-gray-800">{d.cuit_number}</p>
+                  </div>
+                )}
+                {d.dni && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">DNI</p>
+                    <p className="font-medium text-gray-800">{d.dni}</p>
+                  </div>
+                )}
+                {d.gender && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Género</p>
+                    <p className="font-medium text-gray-800">{d.gender}</p>
+                  </div>
+                )}
+                {d.bio && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-gray-400 mb-0.5">Presentación</p>
+                    <p className="font-medium text-gray-800 break-words">{d.bio}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <a href={`mailto:${p.email}`} className="btn-secondary text-sm inline-block">
+              Escribir por email
+            </a>
+            <button
+              type="button"
+              onClick={() => impersonate(p)}
+              className="btn-secondary text-sm inline-flex items-center gap-1.5"
+              title="Iniciar sesión como este usuario"
+            >
+              <SignIn className="h-4 w-4" />
+              Iniciar sesión como
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -140,7 +226,7 @@ export default function SuperAdminProfesionalesProspects() {
       const [profilesRes, professionalProfilesRes] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, email, full_name, phone, created_at, onboarding_step, utm_source, utm_medium, utm_campaign, referrer_url')
+          .select('id, email, full_name, phone, created_at, onboarding_step, onboarding_draft, utm_source, utm_medium, utm_campaign, referrer_url')
           .eq('role', 'professional')
           .order('created_at', { ascending: false }),
         supabase.from('professional_profiles').select('user_id'),

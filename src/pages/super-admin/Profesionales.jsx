@@ -679,6 +679,13 @@ export default function SuperAdminProfesionales() {
   // de duplicar esta página — así el filtro y los datos son siempre los mismos.
   const [searchParams] = useSearchParams()
   const [filter, setFilter] = useState(searchParams.get('filter') || 'todos')
+  // El nav linkea con distintos ?filter= a esta misma ruta — sin esto, ir de
+  // "Verificados" a "Pendientes verificación" (o viceversa) por el sidebar no
+  // remonta el componente, así que el useState de arriba no vuelve a leer la
+  // URL y el filtro visual queda pegado en lo que estaba antes.
+  useEffect(() => {
+    setFilter(searchParams.get('filter') || 'todos')
+  }, [searchParams])
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
 
