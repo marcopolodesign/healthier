@@ -73,7 +73,7 @@ const NAV_BY_ROLE = {
 
 export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onClose, companionOpen, onOpenCompanion }) {
   const navigate = useNavigate()
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const allItems = NAV_BY_ROLE[role] || []
   const items = allItems.filter(item => !item.specialty || item.specialty === profSpecialty)
 
@@ -134,17 +134,26 @@ export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onCl
                   </button>
                   {isOpen && (
                     <div className="ml-4 pl-3 border-l border-border-default space-y-1 mt-1 mb-1">
-                      {item.items.map(sub => (
-                        <NavLink
-                          key={sub.to}
-                          to={sub.to}
-                          onClick={onClose}
-                          className={({ isActive }) => `${isActive ? 'nav-pill-active' : 'nav-pill-inactive'} text-sm`}
-                        >
-                          <sub.icon className="h-[18px] w-[18px] shrink-0" />
-                          {sub.label}
-                        </NavLink>
-                      ))}
+                      {item.items.map(sub => {
+                        // NavLink's isActive de react-router sólo compara pathname,
+                        // ignora el query string — "Profesionales" y "Pendientes
+                        // verificación" comparten la misma ruta (`?filter=` es lo
+                        // único que las distingue) y quedaban las dos resaltadas
+                        // a la vez. Match exacto de pathname + search en su lugar.
+                        const [subPath, subQuery] = sub.to.split('?')
+                        const subActive = pathname === subPath && search === (subQuery ? `?${subQuery}` : '')
+                        return (
+                          <NavLink
+                            key={sub.to}
+                            to={sub.to}
+                            onClick={onClose}
+                            className={`${subActive ? 'nav-pill-active' : 'nav-pill-inactive'} text-sm`}
+                          >
+                            <sub.icon className="h-[18px] w-[18px] shrink-0" />
+                            {sub.label}
+                          </NavLink>
+                        )
+                      })}
                     </div>
                   )}
                 </div>

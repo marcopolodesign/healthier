@@ -118,6 +118,8 @@ export default function SuperAdminProfesionalesProspects() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [utmFilter, setUtmFilter] = useState('');
+  // null = sin filtro, número = índice de STEP_LABELS, 'sin_dato' = onboarding_step null.
+  const [stepFilter, setStepFilter] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -171,7 +173,10 @@ export default function SuperAdminProfesionalesProspects() {
       (p.full_name || '').toLowerCase().includes(q) ||
       (p.email || '').toLowerCase().includes(q);
     const matchUtm = !utmFilter || p.utm_source === utmFilter;
-    return matchSearch && matchUtm;
+    const matchStep =
+      stepFilter == null ||
+      (stepFilter === 'sin_dato' ? p.onboarding_step == null : p.onboarding_step === stepFilter);
+    return matchSearch && matchUtm && matchStep;
   });
 
   // Cuenta cuántos prospectos llegaron a cada paso — a los que nunca abrieron
@@ -254,18 +259,42 @@ export default function SuperAdminProfesionalesProspects() {
       {/* Funnel */}
       {!loading && (
         <div className="card p-4">
-          <p className="text-xs font-medium text-gray-500 mb-3">Dónde se frenan</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-medium text-gray-500">Dónde se frenan</p>
+            {stepFilter != null && (
+              <button
+                type="button"
+                onClick={() => setStepFilter(null)}
+                className="text-xs font-medium text-brand hover:underline"
+              >
+                Ver todos
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
             {STEP_LABELS.map((label, i) => (
-              <div key={label} className="text-center">
+              <button
+                type="button"
+                key={label}
+                onClick={() => setStepFilter((prev) => (prev === i ? null : i))}
+                className={`text-center rounded-lg py-2 transition-colors ${
+                  stepFilter === i ? 'bg-brand-muted ring-1 ring-brand' : 'hover:bg-gray-50'
+                }`}
+              >
                 <p className="text-2xl font-bold text-gray-900">{funnelCounts[i]}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{label}</p>
-              </div>
+              </button>
             ))}
-            <div className="text-center">
+            <button
+              type="button"
+              onClick={() => setStepFilter((prev) => (prev === 'sin_dato' ? null : 'sin_dato'))}
+              className={`text-center rounded-lg py-2 transition-colors ${
+                stepFilter === 'sin_dato' ? 'bg-gray-200 ring-1 ring-gray-400' : 'hover:bg-gray-50'
+              }`}
+            >
               <p className="text-2xl font-bold text-gray-400">{sinDatoCount}</p>
               <p className="text-xs text-gray-400 mt-0.5">Sin dato</p>
-            </div>
+            </button>
           </div>
         </div>
       )}
