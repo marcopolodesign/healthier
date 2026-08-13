@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Healthier — Guía del panel Super Admin</title>
+  <style>
+    :root {
+      --sage:   #7CB38B;
+      --coral:  #E8927C;
+      --ivory:  #F6F5F0;
+      --bg2:    #FDFCF9;
+      --text:   #2D2A26;
+      --muted:  #6B6760;
+      --border: #E2DFD8;
+      --shadow: 0 1px 3px rgba(0,0,0,.07), 0 4px 16px rgba(0,0,0,.05);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--ivory);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.55;
+    }
+    header {
+      background: white;
+      border-bottom: 1px solid var(--border);
+      padding: 24px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .logo {
+      width: 40px; height: 40px;
+      background: var(--sage);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 20px;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 19px; font-weight: 600; }
+    header p  { font-size: 13px; color: var(--muted); margin-top: 1px; }
+
+    main {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 40px 24px 100px;
+    }
+
+    .intro {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 22px;
+      box-shadow: var(--shadow);
+      margin-bottom: 36px;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .intro a { color: var(--sage); font-weight: 600; text-decoration: none; }
+    .intro a:hover { text-decoration: underline; }
+
+    section { margin-bottom: 36px; }
+    section h2 {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .item {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      box-shadow: var(--shadow);
+      margin-bottom: 12px;
+    }
+    .item-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    .item-icon { font-size: 17px; }
+    .item-desc {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .item-desc code {
+      background: var(--ivory);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 1px 5px;
+      font-size: 12px;
+    }
+
+    .tip {
+      background: #EEF7F1;
+      border: 1px solid #C3DFC9;
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #2f5d3d;
+      margin-top: 6px;
+    }
+    .tip strong { color: #234a2f; }
+
+    footer {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 0 24px 60px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 18px 20px; }
+      main { padding: 28px 16px 80px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🌿</div>
+  <div>
+    <h1>Healthier — Panel Super Admin</h1>
+    <p>Guía para navegar y operar el panel de administración</p>
+  </div>
+</header>
+
+<main>
+
+  <div class="intro">
+    El panel de Super Admin es donde se gestiona toda la operación de Healthier: pacientes, profesionales, consultas, pagos y configuración de la plataforma. Se accede desde <a href="https://gethealthier.vercel.app/super-admin/dashboard">gethealthier.vercel.app/super-admin/dashboard</a> con las credenciales que te compartimos por email.
+  </div>
+
+  <section>
+    <h2>Dashboard</h2>
+    <div class="item">
+      <div class="item-title"><span class="item-icon">📊</span> Foco en captación</div>
+      <div class="item-desc">Arriba de todo se ven tres paneles: <strong>Pendientes de verificación</strong>, <strong>Prospectos — Profesionales</strong> y <strong>Prospectos — Pacientes</strong>. Cada uno muestra los últimos registros con un link "Ver todos" a la tabla completa. Debajo, en "Métricas generales", están los números totales de la plataforma (usuarios, consultas, facturación, ratings).</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Pacientes</h2>
+    <div class="item">
+      <div class="item-title"><span class="item-icon">🧑‍🤝‍🧑</span> Prospectos</div>
+      <div class="item-desc">Personas que se registraron como paciente pero no completaron el onboarding. Se puede ver de dónde vinieron (fuente/campaña) y hace cuánto están sin completar el registro.</div>
+    </div>
+    <div class="item">
+      <div class="item-title"><span class="item-icon">✅</span> Pacientes</div>
+      <div class="item-desc">Todos los pacientes que ya tienen cuenta activa en la plataforma.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Profesionales</h2>
+    <div class="item">
+      <div class="item-title"><span class="item-icon">🩺</span> Prospectos</div>
+      <div class="item-desc">Profesionales que crearon cuenta pero no enviaron su perfil para revisión. Se ve en qué paso del alta se quedaron (Especialidad, Presentación, Documentos, Privacidad, Revisión) y un ícono de WhatsApp para contactarlos directamente cuando cargaron su teléfono. Un click en cualquier fila abre el detalle completo.</div>
+    </div>
+    <div class="item">
+      <div class="item-title"><span class="item-icon">⏳</span> Pendientes de verificación</div>
+      <div class="item-desc">Profesionales que ya enviaron su perfil y están esperando aprobación — documentación, matrícula, etc.</div>
+    </div>
+    <div class="item">
+      <div class="item-title"><span class="item-icon">👩‍⚕️</span> Profesionales</div>
+      <div class="item-desc">Todos los profesionales verificados y activos en la plataforma, con su estado, especialidad y datos de contacto.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Consultas</h2>
+    <div class="item">
+      <div class="item-title"><span class="item-icon">📅</span> Consultas</div>
+      <div class="item-desc">Todas las consultas agendadas o realizadas — paciente, profesional, modalidad, estado y pago.</div>
+    </div>
+    <div class="item">
+      <div class="item-title"><span class="item-icon">🚨</span> Emergencias</div>
+      <div class="item-desc">Solicitudes de atención inmediata (S.O.S) y su estado de despacho.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Otras secciones</h2>
+    <div class="item">
+      <div class="item-title"><span class="item-icon">💳</span> Pagos</div>
+      <div class="item-desc">Todas las transacciones de la plataforma, con la consulta asociada.</div>
+    </div>
+    <div class="item">
+      <div class="item-title"><span class="item-icon">📋</span> Auditoría HC</div>
+      <div class="item-desc">Registro de accesos a historia clínica y de recetas electrónicas emitidas, para trazabilidad.</div>
+    </div>
+    <div class="item">
+      <div class="item-title"><span class="item-icon">⚙️</span> Configuración</div>
+      <div class="item-desc">Datos generales de la plataforma, zonas de cobertura, especialidades/verticales y administradores con acceso al panel.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Cómo usar las tablas</h2>
+    <div class="tip">
+      <strong>Selección múltiple:</strong> cada tabla tiene un checkbox por fila (y uno para seleccionar todas). Con una o más filas seleccionadas aparece una barra abajo con la opción de eliminar en bloque. También hay un ícono individual por fila para borrar un solo registro.
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  Healthier — <a href="https://gethealthier.vercel.app" style="color:inherit;">gethealthier.vercel.app</a>
+</footer>
+
+</body>
+</html>
