@@ -16,8 +16,12 @@ const CATEGORY_LABELS = {
 function ProductCard({ product, quantity, onAdd, onRemove }) {
   return (
     <div className="rounded-2xl border border-border-default bg-bg-secondary p-4 flex flex-col gap-2">
-      <div className="w-full aspect-square rounded-xl bg-bg-primary flex items-center justify-center">
-        <ShoppingBag className="w-7 h-7 text-text-tertiary" />
+      <div className="w-full aspect-square rounded-xl bg-bg-primary flex items-center justify-center overflow-hidden">
+        {product.imageUrl ? (
+          <img src={product.imageUrl} alt={product.name} className="w-full h-full object-contain p-2" loading="lazy" />
+        ) : (
+          <ShoppingBag className="w-7 h-7 text-text-tertiary" />
+        )}
       </div>
       <div className="flex-1">
         <p className="font-semibold text-[14px] text-text-primary leading-tight">{product.name}</p>
