@@ -35,6 +35,8 @@ import TerminosYCondiciones from './pages/TerminosYCondiciones'
 
 import PatientDashboard from './pages/patient/Dashboard'
 import PatientOnboarding from './pages/patient/Onboarding'
+import CompletarDatos from './pages/patient/CompletarDatos'
+import RequireDatosReceta from './components/patient/RequireDatosReceta'
 import PatientSearch from './pages/patient/Search'
 import ProfessionalProfile from './pages/patient/ProfessionalProfile'
 import PatientConsultations from './pages/patient/Consultations'
@@ -344,7 +346,15 @@ export default function App() {
           <Route path="/paciente/consultas"        element={<PatientConsultations profile={profile} />} />
           <Route path="/paciente/documentos"       element={<PatientDocuments    profile={profile} />} />
           <Route path="/paciente/perfil"           element={<PatientProfile      profile={profile} onProfileUpdate={setProfile} />} />
-          <Route path="/paciente/ondemand/:vertical" element={<OnDemand          profile={profile} />} />
+          {/* Reservar requiere los datos que exige la receta electrónica. El
+              guard va acá y no en cada botón: "consultar" se dispara desde el
+              dashboard, el buscador, el perfil del profesional, el resumen de
+              salud y deep links — en la ruta se cubren todos, incluidos los que
+              se agreguen después. */}
+          <Route path="/paciente/completar-datos"   element={<CompletarDatos    profile={profile} onProfileUpdate={setProfile} />} />
+          <Route path="/paciente/ondemand/:vertical" element={
+            <RequireDatosReceta profile={profile}><OnDemand profile={profile} /></RequireDatosReceta>
+          } />
           <Route path="/paciente/sos"              element={<Emergency           profile={profile} />} />
           {/* Legacy routes kept for backward compatibility */}
           <Route path="/paciente/buscar"           element={<PatientSearch       profile={profile} />} />
@@ -360,7 +370,9 @@ export default function App() {
           <Route path="/paciente/farmacia"         element={<PatientPharmacy     profile={profile} />} />
           <Route path="/paciente/comprobantes"     element={<PatientComprobantes profile={profile} />} />
           <Route path="/paciente/videollamada/:id" element={<PatientVideoCall    profile={profile} />} />
-          <Route path="/paciente/reservar"            element={<ReservarConsulta   profile={profile} />} />
+          <Route path="/paciente/reservar"            element={
+            <RequireDatosReceta profile={profile}><ReservarConsulta profile={profile} /></RequireDatosReceta>
+          } />
           {/* `/paciente/buscar-profesional` se retiró del ruteo el 2026-07-31 al
               consolidar la búsqueda en `/paciente/buscar`. Había DOS pantallas de
               búsqueda ruteadas y sólo una alcanzable: el sidebar y el link de
@@ -377,7 +389,9 @@ export default function App() {
           <Route path="/paciente/consulta/resumen/:id" element={<ConsultationSummary profile={profile} />} />
           <Route path="/paciente/historia-clinica" element={<HistoriaClinicaPaciente profile={profile} />} />
           <Route path="/paciente/ia"              element={<PatientAIChat           profile={profile} />} />
-          <Route path="/paciente/fastpass"        element={<WalkInQueue             profile={profile} />} />
+          <Route path="/paciente/fastpass"        element={
+            <RequireDatosReceta profile={profile}><WalkInQueue profile={profile} /></RequireDatosReceta>
+          } />
           <Route path="/paciente/salud"           element={<HealthSnapshot          profile={profile} />} />
           <Route path="/paciente/turno-confirmado/:consultationId" element={<BookingConfirmed profile={profile} />} />
         </Route>

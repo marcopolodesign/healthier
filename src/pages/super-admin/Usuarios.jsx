@@ -6,6 +6,16 @@ import { adminService } from '../../services/adminService';
 import { useBulkSelection } from '../../hooks/useBulkSelection';
 import BulkActionBar from '../../components/super-admin/BulkActionBar';
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog';
+import { faltanDatosPaciente, listar } from '../../lib/datosReceta';
+
+// Esta pantalla lee `profiles` sin pasar por el service, así que las filas
+// vienen en snake_case y `faltanDatosPaciente` espera camelCase. Se adapta sólo
+// lo que la función mira, en vez de convertir la fila entera.
+const faltanRcta = row => faltanDatosPaciente({
+  dni: row.dni,
+  gender: row.gender,
+  birthDate: row.birth_date,
+});
 
 export default function SuperAdminUsuarios() {
   const [patients, setPatients] = useState([]);
@@ -24,7 +34,9 @@ export default function SuperAdminUsuarios() {
       const [profilesRes, consultationsRes] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, email, full_name, created_at, utm_source, utm_medium, utm_campaign')
+          // dni/gender/birth_date: son los que exige la receta electrónica y los
+          // que hoy frenan la reserva si faltan — ver la columna "Datos receta".
+          .select('id, email, full_name, created_at, utm_source, utm_medium, utm_campaign, dni, gender, birth_date')
           .eq('role', 'patient')
           .order('created_at', { ascending: false }),
         supabase
@@ -185,6 +197,7 @@ export default function SuperAdminUsuarios() {
                 </th>
                 <th className="table-header">Usuario</th>
                 <th className="table-header">Fuente UTM</th>
+                <th className="table-header">Datos receta</th>
                 <th className="table-header">Consultas</th>
                 <th className="table-header">Registro</th>
                 <th className="table-header w-8" />
@@ -213,7 +226,7 @@ export default function SuperAdminUsuarios() {
                 ))
               ) : filteredPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center">
+                  <td colSpan={7} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-3 text-text-tertiary">
                       <Users size={40} weight="thin" />
                       <span className="text-sm">No se encontraron usuarios</span>
@@ -246,6 +259,22 @@ export default function SuperAdminUsuarios() {
                           </span>
                         ) : (
                           <span className="text-text-tertiary">—</span>
+                        )}
+                      </td>
+
+                      {/* Datos receta — lo que hoy le frena la reserva */}
+                      <td className="table-cell">
+                        {faltanRcta(patient).length === 0 ? (
+                          <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-brand-muted text-brand">
+                            Completo
+                          </span>
+                        ) : (
+                          <span
+                            className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700"
+                            title={`No puede reservar hasta cargar: ${listar(faltanRcta(patient))}`}
+                          >
+                            Falta {listar(faltanRcta(patient))}
+                          </span>
                         )}
                       </td>
 
