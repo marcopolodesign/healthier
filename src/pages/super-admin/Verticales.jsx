@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { CircleNotch, Check, Warning, Siren, Plus, PencilSimple, CaretUp, CaretDown, TreeStructure, Trash } from '@phosphor-icons/react'
+import { CircleNotch, Check, Warning, Siren, Plus, PencilSimple, CaretUp, CaretDown, TreeStructure, Trash, Pill } from '@phosphor-icons/react'
 import { VERTICALS } from '../../lib/verticals'
 import { verticalsService } from '../../services/verticalsService'
 import { especialidadesService } from '../../services/especialidadesService'
@@ -261,6 +261,18 @@ function EspecialidadRow({ especialidad, siblings, sub = false, onReload, onAddS
     }
   }
 
+  // Quién puede recetar (migración 116). Sólo tiene sentido en especialidades de
+  // primer nivel: `professional_profiles.specialty` guarda ese slug, la
+  // sub-especialidad no decide nada.
+  const toggleRecetar = async () => {
+    try {
+      await especialidadesService.update(especialidad.id, { puedeRecetar: !especialidad.puedeRecetar })
+      onReload()
+    } catch {
+      toast.error('No pudimos actualizar el permiso de recetar')
+    }
+  }
+
   const mover = async direccion => {
     const otro = siblings[idx + direccion]
     if (!otro) return
@@ -340,8 +352,26 @@ function EspecialidadRow({ especialidad, siblings, sub = false, onReload, onAddS
               {!especialidad.active && (
                 <span className="ml-2 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">Inactiva</span>
               )}
+              {!sub && especialidad.puedeRecetar && (
+                <span className="ml-2 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-brand-muted text-brand">Receta</span>
+              )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
+              {!sub && (
+                <button
+                  type="button"
+                  onClick={toggleRecetar}
+                  className={`p-1.5 rounded-lg ${especialidad.puedeRecetar
+                    ? 'text-brand bg-brand/10'
+                    : 'text-text-tertiary hover:text-text-primary hover:bg-bg-surface'}`}
+                  aria-pressed={!!especialidad.puedeRecetar}
+                  title={especialidad.puedeRecetar
+                    ? 'Puede emitir recetas — click para quitar el permiso'
+                    : 'No puede emitir recetas — click para habilitarlo'}
+                >
+                  <Pill className="h-4 w-4" />
+                </button>
+              )}
               {!sub && (
                 <button
                   type="button"

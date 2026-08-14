@@ -133,6 +133,20 @@ Deno.serve(async (req: Request) => {
     const yaEmitida = meds.find((m: { rcta_status: string }) => m.rcta_status === 'issued')
     if (yaEmitida) return await fallar('validation_error', { error: 'Already issued', code: 'RCTA_YA_EMITIDA' }, 409)
 
+    // Sólo recetan las especialidades marcadas en el catálogo (migración 116).
+    // El trigger sobre `clinical_medications` ya frena la carga, pero esto se
+    // chequea igual: las filas cargadas ANTES de la 116 siguen existiendo, y sin
+    // este guard un profesional sin permiso podría emitirlas ahora.
+    const { data: puedeRecetar, error: permErr } = await supabase
+      .rpc('profesional_puede_recetar', { p_professional_id: meds[0].professional_id })
+    if (permErr) return await fallar('server_error', { error: permErr.message }, 500)
+    if (!puedeRecetar) {
+      return await fallar('validation_error', {
+        error: 'Tu especialidad no tiene habilitada la emisión de recetas en Healthier.',
+        code: 'RCTA_ESPECIALIDAD_SIN_PERMISO',
+      }, 403)
+    }
+
     // El primer medicamento aporta los datos comunes de la receta (paciente,
     // profesional, cobertura, diagnostico general).
     const med = meds[0]

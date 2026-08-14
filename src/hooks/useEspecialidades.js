@@ -81,6 +81,16 @@ export function useEspecialidades() {
     [especialidades]
   )
 
+  // Qué especialidades pueden recetar (migración 116). Es sólo para decidir qué
+  // mostrar: el bloqueo real está en el trigger de `clinical_medications` y en
+  // `rcta-issue`. Mientras el catálogo no cargó devuelve `false` — es preferible
+  // esconder el recetario un instante de más que ofrecérselo a quien no puede.
+  const puedeRecetar = useMemo(() => {
+    const map = {}
+    especialidades.forEach(e => { map[e.slug] = !!e.puedeRecetar })
+    return slug => !!map[slug]
+  }, [especialidades])
+
   const subEspecialidadesDe = useMemo(() => {
     const map = {}
     especialidades.forEach(e => {
@@ -97,6 +107,7 @@ export function useEspecialidades() {
     porSlug,
     porVertical,
     activas,
+    puedeRecetar,
     subEspecialidadesDe,
     cargando: config === null,
     invalidar: invalidarEspecialidades,

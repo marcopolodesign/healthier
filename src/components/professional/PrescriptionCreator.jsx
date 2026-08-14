@@ -8,6 +8,7 @@ import MedicationSearch from './MedicationSearch'
 import InfoTooltip from '../common/InfoTooltip'
 import DatosRecetaFaltantes from './DatosRecetaFaltantes'
 import { logClinicalAccess } from '../../services/clinicalService'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../Toast'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -486,10 +487,20 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
   // en vez de tres — así es como funciona una receta en papel.
   const [selectedIds, setSelectedIds] = useState([])
 
+  // Sólo recetan las especialidades marcadas en el catálogo (migración 116).
+  // Esconder el recetario es lo cosmético; el bloqueo real está en el trigger de
+  // `clinical_medications` y en `rcta-issue`. Mientras el catálogo carga,
+  // `puedeRecetar` devuelve false — se prefiere mostrarlo un instante tarde que
+  // ofrecérselo a quien no puede.
+  const { puedeRecetar } = useEspecialidades()
+  const sinPermisoParaRecetar = !puedeRecetar(profProfile?.specialty)
+
   // Con la consulta cerrada no se agrega ni se emite nada: cerrar es el momento en
   // que la consulta queda congelada. Una receta emitida después del cierre sería un
   // acto médico fuera del acto médico.
-  const emitibles = bloqueada
+  const congelada = bloqueada || sinPermisoParaRecetar
+
+  const emitibles = congelada
     ? []
     : prescriptions.filter(rx => rx.status === 'active' && rx.rcta_status !== 'issued')
   const seleccionados = selectedIds.filter(id => emitibles.some(rx => rx.id === id))
@@ -596,7 +607,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
           recién cuando la API lo rechaza es la peor version de esto. Y ahora
           además se puede resolver desde acá — el cartel solía terminar en "se lo
           pedimos la próxima vez que entre", que para esta consulta es nunca. */}
-      {!bloqueada && <DatosRecetaFaltantes
+      {!congelada && <DatosRecetaFaltantes
         profile={profile}
         profProfile={profProfile}
         paciente={paciente}
@@ -679,7 +690,14 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
         </p>
       )}
 
-      {addOpen && !bloqueada ? (
+      {!bloqueada && sinPermisoParaRecetar && (
+        <p className="text-xs text-text-secondary leading-relaxed rounded-lg border border-border-default bg-bg-surface px-3 py-2.5">
+          Tu especialidad no tiene habilitada la prescripción de medicamentos en Healthier.
+          Podés dejar todo lo demás asentado en la historia clínica.
+        </p>
+      )}
+
+      {addOpen && !congelada ? (
         <AddPrescriptionForm
           patientId={patientId}
           encounterId={encounterId}
@@ -694,7 +712,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
           onCancel={() => setAddOpen(false)}
         />
       ) : (
-        !loading && !bloqueada && (
+        !loading && !congelada && (
           /* El mismo botón hace dos cosas distintas y la etiqueta lo dice:
              con medicamentos sin emitir en la lista, lo que carga se suma a ESA
              receta; sin nada pendiente, arranca una receta nueva y separada de
