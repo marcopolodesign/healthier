@@ -4,6 +4,7 @@ import { User, Briefcase, Heart, Phone } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
+import { getStoredReferral, clearReferral, referralUtms } from '../../lib/referral'
 
 export default function CompleteProfile({ authUser, onProfileComplete }) {
   const navigate = useNavigate()
@@ -24,14 +25,18 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
     if (!phone.trim()) { toast.error('Ingresá tu teléfono'); return }
     setLoading(true)
     try {
-      const utms = getStoredUtms()
+      // El referido sólo aplica a pacientes: el link `/r/<codigo>` es para que un
+      // profesional traiga a los suyos, no para atribuirse otro profesional.
+      const referral = role === 'patient' ? getStoredReferral() : null
+      const utms = { ...referralUtms(referral), ...getStoredUtms() }
       // authService.completeGoogleProfile guarda contra authUser nulo (sesión
       // perdida mientras completaba el perfil: token vencido, logout en otra
       // pestaña, etc.) y tira un error con mensaje claro — antes esto
       // explotaba con "Cannot read properties of null (reading 'id')" acá
       // mismo. El catch de abajo ya lo muestra vía toast.
-      const profile = await authService.completeGoogleProfile(authUser, role, fullName.trim(), utms, phone.trim() || null)
+      const profile = await authService.completeGoogleProfile(authUser, role, fullName.trim(), utms, phone.trim() || null, referral?.professionalId ?? null)
       clearUtms()
+      clearReferral()
       onProfileComplete(profile)
       // Mismo destino que el alta por email (Register/RegisterProfessional):
       // el onboarding del rol, donde el paciente acepta el consentimiento

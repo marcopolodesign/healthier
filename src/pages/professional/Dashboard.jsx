@@ -12,6 +12,7 @@ import { supabase } from '../../lib/supabase'
 import { supportWhatsAppLink } from '../../lib/support'
 import StatusBadge from '../../components/StatusBadge'
 import ProfileCompletenessCard from '../../components/professional/ProfileCompletenessCard'
+import ReferralLinkCard from '../../components/professional/ReferralLinkCard'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
 import IncomingRequests from '../../components/professional/IncomingRequests'
 import OnDemandSwitch from '../../components/professional/OnDemandSwitch'
@@ -470,6 +471,8 @@ export default function ProfessionalDashboard({ profile }) {
       </div>
 
       {!loading && <ProfileCompletenessCard profProfile={profProfile} schedules={schedules} />}
+
+      {!loading && <ReferralLinkCard codigo={profProfile?.referralCode} nombre={profile?.fullName} />}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

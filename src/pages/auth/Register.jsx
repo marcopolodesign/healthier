@@ -5,6 +5,7 @@ import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { marcarDestinoPostRegistro } from '../../lib/postSignupRedirect'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
+import { getStoredReferral, clearReferral, referralUtms } from '../../lib/referral'
 import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
 import { track } from '../../utils/analytics'
 
@@ -32,9 +33,14 @@ export default function Register({ onLogin }) {
       // Supabase inicia sesión al instante y `AuthRedirectHandler` puede
       // adelantarse al `navigate` de abajo. Ver `lib/postSignupRedirect.js`.
       marcarDestinoPostRegistro('/paciente/onboarding')
-      const utms = getStoredUtms()
-      await authService.register(form.email, form.password, 'patient', form.fullName, utms, form.phone.trim() || null)
+      // Las UTMs explícitas de la URL pisan a las del referido: si el link se
+      // mandó dentro de una campaña, la campaña es la fuente. La atribución al
+      // profesional viaja aparte y no depende de eso.
+      const referral = getStoredReferral()
+      const utms = { ...referralUtms(referral), ...getStoredUtms() }
+      await authService.register(form.email, form.password, 'patient', form.fullName, utms, form.phone.trim() || null, referral?.professionalId ?? null)
       clearUtms()
+      clearReferral()
       track('sign_up_step_complete', { step: 1, step_name: 'cuenta', method: 'email', flow: 'paciente' })
       const { profile } = await authService.login(form.email, form.password)
       onLogin(profile)
