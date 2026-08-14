@@ -8,10 +8,13 @@ import { professionalService } from '../../services/professionalService'
 import { availabilityService } from '../../services/availabilityService'
 import { consultationsService } from '../../services/consultationsService'
 import { paymentsService } from '../../services/paymentsService'
+import { profilesService } from '../../services/profilesService'
 import { useVerticales } from '../../hooks/useVerticales'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../../components/Toast'
 import { track } from '../../utils/analytics'
+import CompletarDatosReceta from '../../components/patient/CompletarDatosReceta'
+import { faltanDatosPaciente } from '../../lib/datosReceta'
 
 // Verticals that trigger the clinica auto-match flow
 const AUTO_MATCH_VERTICALS = ['clinica']
@@ -145,6 +148,76 @@ export default function ReservarConsulta({ profile }) {
     if (v) { setSelectedVertical(v); setStep(s => (s === 'vertical' ? 'modality' : s)) }
   }, [VERTICALS, paramVerticalId, selectedVertical])
 
+
+  // ── Datos obligatorios para la receta electrónica ──────────
+  // Se piden acá, al reservar, y no en el alta: en el registro son tres campos
+  // más que sólo suben el abandono, y acá el paciente ya decidió que quiere el
+  // turno. Sin esto, el faltante recién aparece cuando el profesional intenta
+  // recetar — con el paciente adelante y la consulta corriendo.
+  //
+  // Veterinaria queda afuera: la receta electrónica es del registro de recetas
+  // humanas, y el DNI del dueño no habilita nada ahí.
+  const [perfil, setPerfil] = useState(profile)
+  const [perfilFresco, setPerfilFresco] = useState(false)
+  const pasoPendiente = useRef(null)
+
+  // El `profile` que llega por props sale de `localStorage`, escrito al iniciar
+  // sesión: puede tener horas o días. Para decidir si se muestra un cartel
+  // alcanzaría, pero esto decide si se puede reservar o no — y si el dato
+  // cacheado dice "completo" y la base dice que no, el faltante reaparece cuando
+  // el profesional intenta recetar, que es justo lo que esto viene a evitar. Un
+  // gate lee de la fuente.
+  useEffect(() => {
+    if (!profile?.id) { setPerfilFresco(true); return }
+    let vivo = true
+    profilesService.getById(profile.id)
+      .then(p => { if (vivo && p) setPerfil(p) })
+      .catch(() => {}) // sin red se sigue con el perfil en memoria; las redes de seguridad de más abajo vuelven a chequear
+      .finally(() => { if (vivo) setPerfilFresco(true) })
+    return () => { vivo = false }
+  }, [profile?.id])
+
+  const faltanDatosPara = vertical =>
+    vertical?.id === 'veterinaria' ? [] : faltanDatosPaciente(perfil)
+
+  /**
+   * Único lugar por el que se sale del paso "vertical". Si faltan datos, se
+   * intercala el paso de datos y se recuerda a dónde iba.
+   */
+  const continuarDesdeVertical = (v, siguiente) => {
+    if (faltanDatosPara(v).length > 0) {
+      pasoPendiente.current = siguiente
+      track('booking_datos_receta_requeridos', { vertical: v?.id ?? null })
+      setStep('datos')
+      return
+    }
+    siguiente()
+  }
+
+  const onDatosCompletos = actualizado => {
+    setPerfil(actualizado)
+    const seguir = pasoPendiente.current
+    pasoPendiente.current = null
+    if (seguir) seguir()
+    else setStep('modality')
+  }
+
+  // Entrar por URL con la vertical ya elegida (marcador del mapa, perfil del
+  // profesional, tarjetas de Mi Agenda) saltea el paso "vertical" y con él la
+  // verificación. Se vuelve a chequear apenas se sabe qué vertical es — antes no
+  // se puede, porque veterinaria está exenta.
+  const gateInicialHecho = useRef(false)
+  useEffect(() => {
+    if (gateInicialHecho.current || !perfilFresco) return
+    if (!selectedVertical || step === 'vertical' || step === 'datos') return
+    gateInicialHecho.current = true
+    if (faltanDatosPara(selectedVertical).length === 0) return
+    const volverA = step
+    pasoPendiente.current = () => setStep(volverA)
+    track('booking_datos_receta_requeridos', { vertical: selectedVertical.id, via: 'url' })
+    setStep('datos')
+  }, [selectedVertical, step, perfilFresco]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [modality, setModality] = useState(paramModality || null) // 'virtual' | 'presencial'
   const [petName, setPetName]           = useState('')
   const [petSpecies, setPetSpecies]     = useState('')
@@ -276,6 +349,9 @@ export default function ReservarConsulta({ profile }) {
   }, [selectedPro?.id])
 
   const goBack = () => {
+    // El paso de datos se intercala, no está en `steps`: volver desde ahí es
+    // volver a elegir especialidad, y se descarta a dónde iba.
+    if (step === 'datos') { pasoPendiente.current = null; setStep('vertical'); return }
     if (step === 'searching' || step === 'matched') { setStep('modality'); setMatchedPro(null); return }
     const i = steps.indexOf(step)
     if (i <= 0) { navigate(-1); return }
@@ -340,6 +416,14 @@ export default function ReservarConsulta({ profile }) {
    */
   const handleConfirm = () => {
     if (!selectedVertical || !selectedPro) return
+    // Red de seguridad: el gate real está al elegir la especialidad, pero el
+    // wizard tiene caminos que lo saltean (deep links, vuelta atrás) y esto es
+    // lo último antes de crear la consulta y cobrar.
+    if (faltanDatosPara(selectedVertical).length > 0) {
+      pasoPendiente.current = () => setStep('confirm')
+      setStep('datos')
+      return
+    }
     if (!selectedPro.mpConnected) {
       toast.error('Este profesional todavía no puede cobrar por Healthier.')
       return
@@ -372,6 +456,13 @@ export default function ReservarConsulta({ profile }) {
 
   const handleConfirmMatched = () => {
     if (!selectedVertical || !matchedPro) return
+    // Misma red de seguridad que en `handleConfirm`: la videoconsulta con
+    // auto-match llega al pago por otro camino y también crea una consulta.
+    if (faltanDatosPara(selectedVertical).length > 0) {
+      pasoPendiente.current = () => setStep('matched')
+      setStep('datos')
+      return
+    }
     navigate('/paciente/pago', {
       state: {
         professionalId: matchedPro.id,
@@ -439,6 +530,16 @@ export default function ReservarConsulta({ profile }) {
 
       <div className="px-4 py-6 pb-32 max-w-lg mx-auto space-y-4">
 
+        {/* ── STEP: Datos obligatorios para la receta ── */}
+        {step === 'datos' && (
+          <CompletarDatosReceta
+            profile={perfil}
+            faltan={faltanDatosPara(selectedVertical)}
+            onListo={onDatosCompletos}
+            onCancelar={goBack}
+          />
+        )}
+
         {/* ── STEP: Vertical ── */}
         {step === 'vertical' && (
           <>
@@ -458,8 +559,10 @@ export default function ReservarConsulta({ profile }) {
                       // de Mi Agenda, `?modality=` en la URL) — no volver a preguntarla,
                       // saltar directo al paso que corresponda (mismo criterio que
                       // handleAfterModality, incluida la prioridad de paramProId).
-                      if (modality) handleAfterModality(v)
-                      else setStep('modality')
+                      continuarDesdeVertical(v, () => {
+                        if (modality) handleAfterModality(v)
+                        else setStep('modality')
+                      })
                     }}
                     className={`w-full flex items-center gap-3 bg-bg-secondary rounded-2xl border border-border-default px-4 py-4 transition-all text-left ${
                       v.comingSoon
