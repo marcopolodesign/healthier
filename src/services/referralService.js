@@ -47,4 +47,32 @@ export const referralService = {
   buildUrl(codigo) {
     return `${window.location.origin}/r/${codigo}`
   },
+
+  /**
+   * A dónde mandar a un paciente recién dado de alta que llegó por un link.
+   *
+   * Se resuelve contra la base (`profiles.referred_by_professional_id`) y no
+   * contra el localStorage: el alta y el onboarding pueden pasar en momentos
+   * distintos, y la atribución ya quedó guardada. Devuelve `null` si no vino
+   * referido — el caller cae al dashboard de siempre.
+   *
+   * El `/r/<codigo>` guarda el user_id del profesional, pero la ficha pública
+   * se rutea por el id de `professional_profiles`, que es otro. Por eso la
+   * traducción vive acá y no en la pantalla.
+   */
+  async destinoDelReferido(profile) {
+    const proUserId = profile?.referredByProfessionalId
+    if (!proUserId) return null
+    try {
+      const { data, error } = await supabase
+        .from('professional_profiles')
+        .select('id')
+        .eq('user_id', proUserId)
+        .maybeSingle()
+      if (error || !data?.id) return null
+      return `/paciente/profesional/${data.id}`
+    } catch {
+      return null
+    }
+  },
 }

@@ -86,6 +86,13 @@ export default function ReferralLanding({ profile }) {
   const especialidad = ESPECIALIDAD_LABEL[pro.specialty] ?? pro.specialty
   const nombre = pro.fullName
 
+  // Para tutear al paciente hace falta el nombre de pila, no el tratamiento:
+  // `fullName` casi siempre empieza con "Dr."/"Dra.", y quedaba "Sacás turno con
+  // Dra.". Si después del tratamiento no queda nada, se usa el nombre completo.
+  const primerNombre = nombre
+    .split(' ')
+    .filter(p => !/^(dr|dra|lic|prof|mg|mgtr)\.?$/i.test(p))[0] ?? nombre
+
   return (
     <div className="min-h-screen bg-bg-primary flex flex-col">
       <header className="px-6 py-5">
@@ -142,7 +149,7 @@ export default function ReferralLanding({ profile }) {
           <ul className="mt-6 space-y-2 text-sm text-text-secondary">
             <li className="flex items-start gap-2">
               <SealCheck weight="fill" className="h-4 w-4 text-brand mt-0.5 shrink-0" />
-              Sacás turno con {nombre.split(' ')[0]} por videollamada o en consultorio.
+              Sacás turno con {primerNombre} por videollamada o en consultorio.
             </li>
             <li className="flex items-start gap-2">
               <SealCheck weight="fill" className="h-4 w-4 text-brand mt-0.5 shrink-0" />

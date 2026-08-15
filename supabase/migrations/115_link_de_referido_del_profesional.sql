@@ -140,6 +140,12 @@ ALTER TABLE public.professional_referral_visits ENABLE ROW LEVEL SECURITY;
 -- Se escribe SÓLO desde `resolver_link_de_referido` (SECURITY DEFINER). No hay
 -- policy de INSERT a propósito: el link es público y una policy abierta lo
 -- convertiría en un contador que cualquiera puede inflar desde la consola.
+-- `DROP ... IF EXISTS` para que la migración se pueda volver a correr entera:
+-- `CREATE POLICY` no tiene `IF NOT EXISTS`, y sin esto un segundo pase (una
+-- corrección de una función, por ejemplo) muere acá.
+DROP POLICY IF EXISTS "referral_visits_select_propio" ON public.professional_referral_visits;
+DROP POLICY IF EXISTS "referral_visits_select_admin"  ON public.professional_referral_visits;
+
 CREATE POLICY "referral_visits_select_propio"
   ON public.professional_referral_visits FOR SELECT
   USING (professional_id = auth.uid());
@@ -253,6 +259,10 @@ BEGIN
     RAISE EXCEPTION 'Sólo la administración puede ver el resumen de referidos';
   END IF;
 
+  -- Los alias `pro_id` no son cosméticos: las sub-consultas agrupaban por una
+  -- columna que se llama igual que un parámetro OUT de esta función
+  -- (`professional_id`), y plpgsql resuelve eso a favor de la variable —
+  -- `column reference "professional_id" is ambiguous`, 400 en toda la pantalla.
   RETURN QUERY
   SELECT
     p.id,
@@ -268,13 +278,13 @@ BEGIN
   FROM public.profiles p
   JOIN public.professional_profiles pp ON pp.user_id = p.id
   LEFT JOIN (
-    SELECT professional_id, count(*) AS visitas, max(created_at) AS ultima
-    FROM public.professional_referral_visits
-    GROUP BY professional_id
-  ) v ON v.professional_id = p.id
+    SELECT rv.professional_id AS pro_id, count(*) AS visitas, max(rv.created_at) AS ultima
+    FROM public.professional_referral_visits rv
+    GROUP BY rv.professional_id
+  ) v ON v.pro_id = p.id
   LEFT JOIN (
     SELECT
-      pr.referred_by_professional_id AS professional_id,
+      pr.referred_by_professional_id AS pro_id,
       count(*) AS registros,
       count(*) FILTER (WHERE EXISTS (
         SELECT 1 FROM public.consultations c WHERE c.patient_id = pr.id
@@ -282,7 +292,7 @@ BEGIN
     FROM public.profiles pr
     WHERE pr.referred_by_professional_id IS NOT NULL
     GROUP BY pr.referred_by_professional_id
-  ) r ON r.professional_id = p.id
+  ) r ON r.pro_id = p.id
   WHERE p.role = 'professional'
   ORDER BY coalesce(r.registros, 0) DESC, coalesce(v.visitas, 0) DESC, p.full_name;
 END;
