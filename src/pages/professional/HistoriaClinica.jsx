@@ -20,9 +20,12 @@ const SAGE = '#7CB38B'
 const WARNING_COLOR = '#E4A853'
 const ALERT_COLOR = '#D9534F'
 
+// Mismo rótulo que en la videollamada (`VideoCall.jsx`): lo que se carga en la
+// consulta es un diagnóstico presuntivo, y tiene que leerse igual en los dos
+// lados o parece otra cosa. El valor guardado no cambia.
 const ENTRY_TYPE_LABELS = {
   note:             'Nota',
-  diagnosis:        'Diagnóstico',
+  diagnosis:        'Diagnóstico presuntivo',
   indication:       'Indicación',
   prescription_ref: 'Receta',
   addendum:         'Addendum',
