@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eliminar mi cuenta — Healthier</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --brand: #7CB38B; --brand-dark: #5a8f6a; --coral: #E8927C;
+      --bg: #F6F5F0; --bg2: #FDFCF9; --text: #2D2A26; --text2: #6b6560;
+      --border: #e0ddd8; --red: #D9534F; --red-bg: #fbeceb;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.6;
+    }
+    .page { max-width: 720px; margin: 0 auto; padding: 48px 24px 80px; }
+    .header { display: flex; align-items: center; gap: 16px; margin-bottom: 40px; padding-bottom: 28px; border-bottom: 2px solid var(--brand); }
+    .logo-mark { width: 44px; height: 44px; border-radius: 12px; background: var(--brand); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: #fff; flex-shrink: 0; }
+    .header h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+    .header p { color: var(--text2); font-size: 14px; margin-top: 2px; }
+    h2 { font-size: 18px; font-weight: 700; margin: 40px 0 14px; }
+    p { margin-bottom: 14px; color: var(--text); }
+    .steps { list-style: none; counter-reset: step; }
+    .steps li { counter-increment: step; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 10px; display: flex; gap: 14px; align-items: flex-start; }
+    .steps li::before { content: counter(step); flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 22px 24px; margin: 18px 0; }
+    .card.email { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .email-addr { font-weight: 700; color: var(--brand-dark); font-size: 16px; }
+    .sla { font-size: 13px; color: var(--text2); margin-top: 6px; }
+    .warn { background: var(--red-bg); border-radius: 12px; padding: 16px 18px; margin: 20px 0; font-size: 14px; }
+    .warn strong { color: var(--red); }
+    ul.plain { padding-left: 20px; margin-bottom: 14px; }
+    ul.plain li { margin-bottom: 8px; }
+    footer { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text2); }
+    footer a { color: var(--brand-dark); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <div class="logo-mark">H</div>
+      <div><h1>Eliminar mi cuenta</h1><p>Healthier — cómo dar de baja tu cuenta y qué pasa con tus datos</p></div>
+    </div>
+
+    <h2>Opción 1 — Desde la app</h2>
+    <ol class="steps">
+      <li>Abrí Healthier y entrá a <strong>Perfil</strong>.</li>
+      <li>En la sección <strong>Seguridad</strong>, tocá <strong>"Eliminar mi cuenta"</strong>.</li>
+      <li>Confirmá dos veces (te avisamos que la acción no se puede deshacer).</li>
+      <li>Listo — tu cuenta queda eliminada al instante, sin esperar respuesta de nadie.</li>
+    </ol>
+
+    <h2>Opción 2 — Por email</h2>
+    <div class="card email">
+      <div>
+        <div class="email-addr">privacidad@gethealthier.app</div>
+        <div class="sla">Asunto: "Eliminar cuenta" — te confirmamos en menos de 48&nbsp;horas.</div>
+      </div>
+    </div>
+
+    <h2>¿Qué pasa con tus datos?</h2>
+    <ul class="plain">
+      <li><strong>Acceso:</strong> se revoca al instante — no vas a poder volver a entrar con esa cuenta.</li>
+      <li><strong>Datos personales:</strong> nombre, teléfono, domicilio, DNI, obra social, contacto de emergencia y demás datos de perfil se eliminan de forma permanente.</li>
+      <li><strong>Historia clínica:</strong> por la <strong>Ley 26.529 (Art. 18)</strong>, los registros médicos (consultas, diagnósticos, recetas) tienen que conservarse por un mínimo de 10 años — es una obligación legal, no una decisión nuestra. Esos registros quedan <strong>desvinculados de tu identidad</strong>: no te van a poder relacionar a vos ni tu cuenta va a poder acceder a ellos.</li>
+      <li><strong>Nunca compartimos tus datos</strong> con terceros para publicidad ni los usamos con ningún fin comercial.</li>
+    </ul>
+
+    <div class="warn">
+      <strong>Esta acción no se puede deshacer.</strong> Una vez eliminada la cuenta, no hay forma de recuperar el acceso ni los datos de perfil.
+    </div>
+
+    <footer>
+      Más información en nuestros <a href="/terminos">Términos y Condiciones</a> y Política de Privacidad. ¿Dudas? Escribinos a <a href="mailto:privacidad@gethealthier.app">privacidad@gethealthier.app</a>.
+    </footer>
+  </div>
+</body>
+</html>
