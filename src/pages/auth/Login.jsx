@@ -150,6 +150,17 @@ export default function Login({ onLogin }) {
           Registrate
         </Link>
       </p>
+
+      <p className="text-center text-sm text-text-secondary mt-2">
+        ¿Sos profesional?{' '}
+        <Link
+          to="/registro-profesional"
+          onClick={() => track('login_to_signup', { source: 'login_page', flow: 'profesional', ...entryIntentParams })}
+          className="text-brand font-medium hover:underline"
+        >
+          Sumate acá
+        </Link>
+      </p>
     </div>
   )
 }
