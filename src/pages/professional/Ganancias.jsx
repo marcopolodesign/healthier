@@ -24,10 +24,11 @@ const STATUS_LABELS = {
 }
 
 const RANGE_OPTIONS = [
-  { label: '3 meses', months: 3 },
-  { label: '6 meses', months: 6 },
-  { label: '1 año',   months: 12 },
-  { label: 'Todo',    months: 999 },
+  { label: 'Este mes', months: 1 },
+  { label: '3 meses',  months: 3 },
+  { label: '6 meses',  months: 6 },
+  { label: '1 año',    months: 12 },
+  { label: 'Todo',     months: 999 },
 ]
 
 // Date used to bucket a payment into a month/week — prefer when the
@@ -39,7 +40,7 @@ function paymentDate(p) {
 export default function Ganancias({ profile }) {
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
-  const [range, setRange] = useState(6)
+  const [range, setRange] = useState(1)
   const [showRangeMenu, setShowRangeMenu] = useState(false)
   const [settlementBalance, setSettlementBalance] = useState(0)
 
@@ -138,7 +139,7 @@ export default function Ganancias({ profile }) {
     return payments.filter(p => new Date(paymentDate(p)) >= cutoff)
   }, [payments, range])
 
-  const selectedRangeLabel = RANGE_OPTIONS.find(r => r.months === range)?.label || '6 meses'
+  const selectedRangeLabel = RANGE_OPTIONS.find(r => r.months === range)?.label || 'Este mes'
 
   if (loading) {
     return (
