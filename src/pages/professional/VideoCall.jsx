@@ -142,9 +142,13 @@ function useVideoSplit() {
   return { containerRef, pct, onPointerDown, onKeyDown, reset }
 }
 
+// El valor guardado sigue siendo `diagnosis` — sólo cambia lo que se lee. Un
+// diagnóstico asentado durante la consulta es presuntivo hasta que lo confirme
+// un estudio, y llamarlo "Diagnóstico" a secas empuja a escribirlo con más
+// certeza de la que hay. (Mateo, 2026-08-14)
 const ENTRY_TYPE_LABELS = {
   note: 'Nota',
-  diagnosis: 'Diagnóstico',
+  diagnosis: 'Diagnóstico presuntivo',
   indication: 'Indicación',
   addendum: 'Addendum',
 }
