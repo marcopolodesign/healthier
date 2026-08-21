@@ -5,7 +5,7 @@ import {
   Plus, Check, CircleNotch, User, Microphone, MicrophoneSlash,
   Camera, CameraSlash, Warning, Sparkle, ClockCounterClockwise,
   IdentificationCard, Drop, Phone, Envelope, MapPin, Heartbeat, Pill,
-  Key, SealCheck, PaperPlaneTilt,
+  Key, SealCheck, PaperPlaneTilt, AppleLogo, ArrowSquareOut,
 } from '@phosphor-icons/react'
 import DailyIframe from '@daily-co/daily-js'
 import { supabase } from '../../lib/supabase'
@@ -13,6 +13,7 @@ import { consultationsService } from '../../services/consultationsService'
 import { clinicalService } from '../../services/clinicalService'
 import PreconsultaSummary, { hasPreconsulta } from '../../components/professional/PreconsultaSummary'
 import GuiaClinicaConsulta from '../../components/professional/GuiaClinicaConsulta'
+import { CLINICAL_GUIDE_SPECIALTIES } from '../../lib/clinicalGuideKB'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { profilesService } from '../../services/profilesService'
 import { professionalService } from '../../services/professionalService'
@@ -161,6 +162,31 @@ const PANEL_TABS = [
   // pedido de Mateo 2026-08-06).
   { id: 'cerrar', label: 'Cerrar', icon: Key },
 ]
+
+// ── Pestaña "Hoy" para nutricionistas — sin guía clínica (esa es sólo para
+// medicina_general/pediatria, ver CLINICAL_GUIDE_SPECIALTIES), acceso directo
+// a NutriPlan Pro con el paciente de esta consulta precargado.
+function NutriplanEnConsulta({ patientId }) {
+  return (
+    <div className="rounded-lg border border-border-default bg-bg-surface p-3 mb-4 flex items-start gap-3">
+      <div className="h-8 w-8 rounded-full bg-brand-muted/30 flex items-center justify-center shrink-0">
+        <AppleLogo className="h-4 w-4 text-brand" weight="fill" />
+      </div>
+      <div className="flex-1">
+        <p className="text-xs font-semibold text-text-primary">NutriPlan Pro</p>
+        <p className="text-[11px] text-text-secondary mt-0.5">Armá o editá el plan nutricional de este paciente.</p>
+        <a
+          href={`/profesional/nutriplan?patientId=${patientId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand hover:text-brand/80"
+        >
+          Abrir NutriPlan <ArrowSquareOut className="h-3.5 w-3.5" />
+        </a>
+      </div>
+    </div>
+  )
+}
 
 // ── Código de cierre — tab "Cerrar" dentro de la videollamada ─────────────────
 function CerrarTab({
@@ -427,10 +453,6 @@ function VideoTile({ track, muted = false, mirror = false, className = '' }) {
 function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrack, codigoCierre }) {
   const patientId = consultation?.patientId
   const professionalId = consultation?.professionalId
-  const pp = profile?.professionalProfiles?.[0]
-  const licenseType = pp?.licenseType ?? 'MN'
-  const licenseNumber = pp?.licenseNumber ?? '0'
-  const specialty = pp?.specialty ?? 'otra'
 
   const [entries, setEntries] = useState([])
   const [loadingEntries, setLoadingEntries] = useState(true)
@@ -443,12 +465,19 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
   const [loadingHistoria, setLoadingHistoria] = useState(true)
   const [patientData, setPatientData] = useState(null)
   // Perfil profesional propio: hace falta para saber si tiene matrícula y
-  // domicilio, que RCTA exige para emitir.
+  // domicilio, que RCTA exige para emitir. También es la ÚNICA fuente real de
+  // licencia/especialidad acá — `profile` (el de sesión) nunca trae
+  // `professionalProfiles` embebido, así que leer de ahí (como hacía este
+  // panel antes) siempre caía en los defaults 'MN'/'0'/'otra', sin importar
+  // quién estuviera atendiendo. Se vuelve a `otra` mientras carga.
   const [profProfile, setProfProfile] = useState(null)
   useEffect(() => {
     if (!profile?.id) return
     professionalService.getByUserId(profile.id).then(setProfProfile).catch(() => {})
   }, [profile?.id])
+  const licenseType = profProfile?.licenseType ?? 'MN'
+  const licenseNumber = profProfile?.licenseNumber ?? '0'
+  const specialty = profProfile?.specialty ?? 'otra'
   const [loadingPatientData, setLoadingPatientData] = useState(true)
   // La cobertura se editaba SOLO en el detalle de la consulta, así que desde la
   // videollamada era imposible elegir el financiador del catálogo — y sin él la
@@ -696,16 +725,24 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
       <div className="flex-1 overflow-y-auto px-3 py-4">
         {activeTab === 'nota' && (
           <>
-            <GuiaClinicaConsulta
-              entries={entries}
-              preconsulta={consultation?.preconsultaData}
-              patientId={patientId}
-              professionalId={professionalId}
-              licenseType={licenseType}
-              licenseNumber={licenseNumber}
-              ensureEncounter={ensureEncounter}
-              onEntryAdded={entry => setEntries(prev => [...prev, entry])}
-            />
+            {/* Guía clínica: sólo clínicos/pediatras recetan y examinan con
+                este flujo (mismo gate que las recetas, ver
+                CLINICAL_GUIDE_SPECIALTIES). Nutrición usa NutriPlan Pro en su
+                lugar; el resto de las verticales (psicología, etc.) sólo
+                tiene la nota libre de abajo. */}
+            {CLINICAL_GUIDE_SPECIALTIES.includes(specialty) && (
+              <GuiaClinicaConsulta
+                entries={entries}
+                preconsulta={consultation?.preconsultaData}
+                patientId={patientId}
+                professionalId={professionalId}
+                licenseType={licenseType}
+                licenseNumber={licenseNumber}
+                ensureEncounter={ensureEncounter}
+                onEntryAdded={entry => setEntries(prev => [...prev, entry])}
+              />
+            )}
+            {specialty === 'nutricion' && <NutriplanEnConsulta patientId={patientId} />}
             {loadingEntries && (
               <div className="flex justify-center py-8">
                 <CircleNotch className="h-5 w-5 animate-spin text-brand" />
