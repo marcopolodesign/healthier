@@ -51,14 +51,20 @@ export const referralService = {
   /**
    * A dónde mandar a un paciente recién dado de alta que llegó por un link.
    *
+   * Antes caía directo en la ficha pública del profesional (2026-08-14) — el
+   * link se manda para sacar un turno, y hacerlo buscar de nuevo entre todos
+   * es perderlo en el último paso. Mateo pidió (2026-08-21) que en vez de eso
+   * vaya a SU dashboard con un popup del profesional (llamar ahora / agendar):
+   * así el paciente arranca en su propia casa, no en una página ajena, y de
+   * paso conoce el resto de la app antes de decidir.
+   *
    * Se resuelve contra la base (`profiles.referred_by_professional_id`) y no
    * contra el localStorage: el alta y el onboarding pueden pasar en momentos
    * distintos, y la atribución ya quedó guardada. Devuelve `null` si no vino
-   * referido — el caller cae al dashboard de siempre.
+   * referido — el caller cae al dashboard de siempre, sin el parámetro.
    *
-   * El `/r/<codigo>` guarda el user_id del profesional, pero la ficha pública
-   * se rutea por el id de `professional_profiles`, que es otro. Por eso la
-   * traducción vive acá y no en la pantalla.
+   * Sólo confirma que el legajo del profesional siga existiendo (mismo chequeo
+   * que antes) — el popup en sí resuelve sus propios datos en el dashboard.
    */
   async destinoDelReferido(profile) {
     const proUserId = profile?.referredByProfessionalId
@@ -70,7 +76,7 @@ export const referralService = {
         .eq('user_id', proUserId)
         .maybeSingle()
       if (error || !data?.id) return null
-      return `/paciente/profesional/${data.id}`
+      return '/paciente/dashboard?ref_popup=1'
     } catch {
       return null
     }
