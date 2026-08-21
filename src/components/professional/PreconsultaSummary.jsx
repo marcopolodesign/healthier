@@ -41,7 +41,11 @@ export function preconsultaToText(preconsulta) {
   const lines = ['Pre-consulta declarada por el paciente:']
 
   if (preconsulta.symptom) {
-    const s = preconsulta.symptom
+    // Misma normalización que `Structured` — acá pesa más: esto se asienta en
+    // la HC, que es append-only, así que un "Motivo: no especificado" con el
+    // texto disponible queda escrito para siempre.
+    const raw = preconsulta.symptom
+    const s = typeof raw === 'string' ? { label: raw } : raw
     const code = s.icd10Code ?? s.icd10_code
     const freeText = s.freeText ?? s.free_text
     lines.push(`Motivo: ${s.label ?? 'no especificado'}${code ? ` (CIE-10 ${code})` : ' (sin codificar)'}`)
@@ -67,7 +71,11 @@ export function preconsultaToText(preconsulta) {
 // keys pueden llegar en cualquiera de las dos formas según cómo se haya leído.
 // Leer solo una dejaba las preguntas en blanco.
 function Structured({ preconsulta }) {
-  const s = preconsulta.symptom ?? {}
+  // `symptom` puede venir como string en vez de objeto (payloads viejos y
+  // sembrados). Sin normalizar, `s.label` daba undefined y el motivo salía
+  // como "Motivo no especificado" teniendo el texto ahí mismo.
+  const raw = preconsulta.symptom
+  const s = typeof raw === 'string' ? { label: raw } : (raw ?? {})
   const answers = Array.isArray(preconsulta.answers) ? preconsulta.answers : []
   const med = preconsulta.medication ?? {}
   const code = s.icd10Code ?? s.icd10_code
@@ -141,10 +149,31 @@ function Legacy({ preconsulta }) {
 
 export default function PreconsultaSummary({ preconsulta }) {
   if (!hasPreconsulta(preconsulta)) return null
+
+  // Se elige por FORMA, y SÓLO por forma — `version` ya no participa.
+  //
+  // `hasPreconsulta` daba `true` con sólo tener `symptom` (la clave de v2),
+  // pero el ruteo miraba `version === 2`: cualquier payload con `symptom` y
+  // sin el marcador `version` pasaba el guard, caía en `Legacy` —que sólo sabe
+  // leer los tres campos de v1— y pintaba una tarjeta VACÍA, sólo el
+  // encabezado. Guard y renderer decían cosas distintas.
+  //
+  // Mirar `version` además de la forma arreglaba un sentido y dejaba el otro
+  // roto: un payload marcado `version: 2` pero con campos v1 iba a `Structured`,
+  // que muestra "Motivo no especificado" y descarta el texto — la misma
+  // tarjeta inútil, desde el otro lado. `symptom` es lo único que distingue de
+  // verdad los dos formatos, así que decide él solo.
+  //
+  // Se vio con una fila sembrada (`{ source: 'demo', symptom: 'Dolor de
+  // garganta' }`) pero no es problema de esa fila. Pesa más desde que esta
+  // tarjeta encabeza la pestaña "Hoy" (2026-08-21): antes una tarjeta vacía
+  // quedaba enterrada en "Historia", ahora es lo primero que ve el profesional.
+  const esEstructurada = Boolean(preconsulta.symptom)
+
   return (
     <div className="rounded-lg border border-brand/20 bg-brand-muted/20 p-2.5 space-y-2">
       <p className="text-[10px] font-bold text-brand uppercase tracking-wide">Pre-consulta del paciente</p>
-      {preconsulta.version === 2
+      {esEstructurada
         ? <Structured preconsulta={preconsulta} />
         : <Legacy preconsulta={preconsulta} />}
     </div>

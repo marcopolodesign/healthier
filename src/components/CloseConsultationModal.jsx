@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Modal from './Modal'
 import { consultationsService } from '../services/consultationsService'
 import { clinicalService } from '../services/clinicalService'
+import FacturaConsulta from './professional/FacturaConsulta'
 import { toast } from './Toast'
 
 export default function CloseConsultationModal({
@@ -10,9 +11,35 @@ export default function CloseConsultationModal({
   // Ya verificado EN la videollamada (migración 099, tab "Cerrar"). Si viene
   // seteado, este modal no vuelve a pedir el código.
   closingCodeVerifiedAt,
+  // Factura ya subida antes (desde el detalle de la consulta), para que el
+  // modal muestre "Reemplazar" en vez de ofrecer subir una como si no hubiera
+  // ninguna — y el profesional no la pise sin darse cuenta.
+  invoiceUrl, invoiceUploadedAt,
 }) {
   const [form, setForm] = useState({ notes: '', code: '', sinCodigo: false, motivoSinCodigo: '' })
   const [closing, setClosing] = useState(false)
+  // La factura se sube DESPUÉS de que el cierre haya salido bien: si se subiera
+  // al elegir el archivo, un cierre que falla (código incorrecto, red) dejaría
+  // una factura colgada de una consulta que sigue abierta.
+  //
+  // En un ref y no en estado: `subirFactura` se llama desde un handler que
+  // quedó capturado en el render del click, así que leer un `useState` de acá
+  // devolvía el valor viejo — tocar "Quitar" con el cierre ya en vuelo subía
+  // igual el archivo que se acababa de sacar.
+  const facturaRef = useRef(null)
+
+  const subirFactura = async () => {
+    const factura = facturaRef.current
+    if (!factura || !profile?.id) return
+    try {
+      await consultationsService.uploadInvoice(consultationId, profile.id, factura)
+    } catch (err) {
+      // No revierte el cierre — se avisa y se puede reintentar desde el detalle
+      // de la consulta, que deja reemplazarla incluso ya cerrada.
+      console.error('No se pudo subir la factura:', err)
+      toast.warning(`La consulta se cerró, pero la factura no se subió: ${err?.message ?? 'error desconocido'}. Podés subirla desde el detalle.`)
+    }
+  }
 
   const esVideo = modality !== 'presencial'
   const yaVerificado = Boolean(closingCodeVerifiedAt)
@@ -55,6 +82,7 @@ export default function CloseConsultationModal({
       code: null,
     })
     await asentarNotaEnHC()
+    await subirFactura()
     if (result.status === 'completed') {
       toast.success('Consulta finalizada correctamente')
       onFinalized?.()
@@ -91,6 +119,7 @@ export default function CloseConsultationModal({
       skipCodeReason: yaVerificado || form.code.trim().length === 4 ? null : form.motivoSinCodigo.trim(),
     })
     await asentarNotaEnHC()
+    await subirFactura()
     toast.success('Consulta finalizada correctamente')
     onFinalized?.()
   }
@@ -129,6 +158,22 @@ export default function CloseConsultationModal({
             placeholder="Resumen, indicaciones, diagnóstico…"
             className="form-textarea"
           />
+        </div>
+
+        <div>
+          <label className="form-label">
+            Factura <span className="text-text-tertiary font-normal">(opcional)</span>
+          </label>
+          <FacturaConsulta
+            modo="diferido"
+            invoiceUrl={invoiceUrl}
+            invoiceUploadedAt={invoiceUploadedAt}
+            onArchivoElegido={f => { facturaRef.current = f }}
+            disabled={closing}
+          />
+          <p className="text-xs text-text-muted mt-1">
+            Podés subirla ahora o después, desde el detalle de la consulta.
+          </p>
         </div>
 
         {esVideo && yaVerificado && (

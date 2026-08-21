@@ -37,13 +37,18 @@ export const paymentsService = {
    * @param {string} [filters.status]   - pending|authorized|approved|rejected|refunded|cancelled
    * @param {string} [filters.professionalId]
    * @param {string} [filters.method]   - card|credits|mixed
+   *
+   * Ojo: el `*` es de `payments`. El embed de `consultations` lista columnas a
+   * mano, así que todo dato de la consulta que quiera verse en el panel hay que
+   * agregarlo ahí explícitamente — es el caso de la factura del profesional
+   * (migración 119), que se muestra como columna en super-admin/Payments.jsx.
    */
   async getAllPayments(filters = {}) {
     let query = supabase
       .from('payments')
       .select(`
         *,
-        consultation:consultations!consultation_id(id, status, scheduled_at, modality),
+        consultation:consultations!consultation_id(id, status, scheduled_at, modality, invoice_url, invoice_uploaded_at),
         patient:profiles!patient_id(full_name, email),
         professional:profiles!professional_id(full_name, email)
       `)

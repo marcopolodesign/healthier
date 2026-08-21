@@ -111,6 +111,15 @@ export const CLINICAL_GUIDE_KB = {
 export const GUIDE_MOTIVOS = Object.keys(CLINICAL_GUIDE_KB)
 
 /**
+ * Especialidades (`professional_profiles.specialty`) que recetan y examinan
+ * de esta forma — mismo criterio que ya se usa para habilitar recetas (ver
+ * migración de vertical_settings / catchup 2026-08-06: "arranca prendido sólo
+ * en medicina_general y pediatria"). Cardiología y Dermatología están en el
+ * catálogo pero hoy no hay ningún profesional dado de alta con ellas.
+ */
+export const CLINICAL_GUIDE_SPECIALTIES = ['medicina_general', 'pediatria']
+
+/**
  * Mapeo del catálogo de síntomas de la pre-consulta (`src/data/symptoms.js`,
  * id de cada síntoma) al motivo de guía clínica correspondiente, para
  * preseleccionar el motivo en la pestaña "Hoy" sin que el profesional tenga

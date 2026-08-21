@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Leaf, User, AppleLogo, SquaresFour, Pulse,
   Plus, Minus, X, MagnifyingGlass,
@@ -7,6 +8,7 @@ import {
   Calendar, ChartBar, Info, ProhibitInset
 } from '@phosphor-icons/react'
 import { professionalService } from '../../services/professionalService'
+import { profilesService } from '../../services/profilesService'
 import { toast } from '../../components/Toast'
 import localFoodDatabase from '../../data/localFoods'
 import {
@@ -994,6 +996,13 @@ export default function NutriPlan({ profile }) {
   const [profProfile, setProfProfile] = useState(null)
   const [gateLoading, setGateLoading] = useState(true)
 
+  // Paciente precargado desde la videollamada (?patientId=) — sólo prefill de
+  // los campos del cálculo, esta pantalla todavía no guarda el plan contra un
+  // paciente en la base (ver nota en `linkPatient` más abajo).
+  const [searchParams] = useSearchParams()
+  const linkedPatientId = searchParams.get('patientId')
+  const [linkedPatient, setLinkedPatient] = useState(null)
+
   // Active tab
   const [activeTab, setActiveTab] = useState('paciente')
 
@@ -1041,6 +1050,29 @@ export default function NutriPlan({ profile }) {
       .catch(() => toast.error('Error al verificar especialidad'))
       .finally(() => setGateLoading(false))
   }, [profile?.id])
+
+  // Precarga desde el paciente de la videollamada — sólo pisa lo que el
+  // perfil trae cargado, el resto se queda en el default del calculador para
+  // que el nutricionista lo complete a mano.
+  useEffect(() => {
+    if (!linkedPatientId) return
+    profilesService.getById(linkedPatientId)
+      .then(p => {
+        setLinkedPatient(p)
+        if (p.gender === 'femenino') setGender('female')
+        else if (p.gender === 'masculino') setGender('male')
+        if (p.birthDate) {
+          const b = new Date(p.birthDate), t = new Date()
+          let a = t.getFullYear() - b.getFullYear()
+          const m = t.getMonth() - b.getMonth()
+          if (m < 0 || (m === 0 && t.getDate() < b.getDate())) a--
+          if (a > 0) setAge(a)
+        }
+        if (p.weightKg) setWeight(p.weightKg)
+        if (p.heightCm) setHeight(p.heightCm)
+      })
+      .catch(() => toast.error('No se pudo cargar el paciente de la consulta'))
+  }, [linkedPatientId])
 
   // Computed nutrition results
   const results = useMemo(() =>
@@ -1157,6 +1189,13 @@ export default function NutriPlan({ profile }) {
           </div>
         )}
       </div>
+
+      {linkedPatient && (
+        <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm" style={{ backgroundColor: SAGE_BG, color: SAGE_DARK }}>
+          <User className="h-4 w-4 shrink-0" />
+          Plan para <strong>{linkedPatient.fullName}</strong> — datos precargados desde la consulta, revisalos antes de calcular.
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">

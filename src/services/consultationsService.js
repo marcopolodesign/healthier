@@ -396,6 +396,44 @@ export const consultationsService = {
     return toCamelCase(data)
   },
 
+  /**
+   * Sube (o reemplaza) la factura del profesional por esta consulta.
+   * Migración 119 — el archivo va al bucket privado `professional-docs`.
+   *
+   * Cada subida escribe un path NUEVO (timestamp) en vez de pisar el anterior
+   * con `upsert: true`: el bucket tiene policy de INSERT para el dueño pero
+   * NO de UPDATE (sólo super_admin la tiene, ver migración 097), así que
+   * sobrescribir el mismo path le fallaría al profesional. Reemplazar es
+   * entonces "subir uno nuevo y repuntar la columna" — el archivo viejo queda
+   * huérfano en el bucket, que es aceptable: tampoco hay policy de DELETE para
+   * el dueño, y son PDFs chicos.
+   *
+   * El primer segmento del path TIENE que ser el `auth.uid()` del que escribe:
+   * todas las policies de este bucket comparan contra
+   * `(storage.foldername(name))[1]`.
+   *
+   * Se guarda el PATH, no `getPublicUrl()`: el bucket es privado y esa URL da
+   * 404 (ver `lib/storage.js`). Para mostrarlo, `SignedDocLink`.
+   */
+  async uploadInvoice(consultationId, professionalUserId, file) {
+    // `.pdf` fijo, no derivado de `file.name`: la validación de arriba ya
+    // garantiza un PDF, y derivarlo del nombre rompía con un archivo llamado
+    // "factura" (sin extensión) pero con el MIME correcto — pasaba la
+    // validación y se guardaba como "…1755792000000.factura", que después el
+    // browser no abre.
+    const path = `${professionalUserId}/facturas/${consultationId}_${Date.now()}.pdf`
+
+    const { error: uploadError } = await supabase.storage
+      .from('professional-docs')
+      .upload(path, file)
+    if (uploadError) throw uploadError
+
+    return this.update(consultationId, {
+      invoiceUrl: path,
+      invoiceUploadedAt: new Date().toISOString(),
+    })
+  },
+
   async startConsultation(id, code) {
     const { data, error } = await supabase.rpc('start_consultation', {
       p_consultation_id: id,
