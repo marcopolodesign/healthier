@@ -470,7 +470,17 @@ export default function ProfessionalDashboard({ profile }) {
         <p className="text-text-secondary mt-1">Tu agenda de hoy</p>
       </div>
 
-      {!loading && <ProfileCompletenessCard profProfile={profProfile} schedules={schedules} />}
+      {/* "Completá tu perfil" ya NO se muestra acá (Mateo, 2026-08-21).
+          Este bloque es el dashboard del profesional YA VERIFICADO, y una vez
+          verificado la tarjeta se va sola: el que ya pasó la revisión no
+          necesita seguir viendo un checklist. Sigue viva en el estado "en
+          revisión" (`title="Adelantá tu perfil mientras esperás"`, más arriba
+          en este mismo archivo), que es donde sí es accionable.
+
+          Nota: no lleva X. Se evaluó, pero con este criterio la tarjeta nunca
+          llega a estar visible para un verificado, así que no hay nada que
+          cerrar — y una X exigiría una columna nueva para recordar el
+          descarte. */}
 
       {!loading && <ReferralLinkCard codigo={profProfile?.referralCode} nombre={profile?.fullName} />}
 
