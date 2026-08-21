@@ -268,7 +268,16 @@ const BLOOD_TYPE_COLORS = {
   'AB-': 'bg-amber-50 text-amber-700 border-amber-200',
 }
 
-function HistoriaTab({ loading, encounters, allergies, preconsulta }) {
+/**
+ * "Historia": lo que el paciente trae de ANTES — turnos previos con sus notas,
+ * y sus alergias activas. Nada de lo de esta consulta.
+ *
+ * La pre-consulta que el paciente declaró para ESTA consulta vivía acá y se
+ * movió a "Hoy" (Mateo, 2026-08-21): es el motivo por el que entró hoy, no
+ * historia previa, y el profesional la necesita al lado de la guía clínica
+ * cuando arranca — no escondida en otra pestaña.
+ */
+function HistoriaTab({ loading, encounters, allergies }) {
   if (loading) {
     return (
       <div className="flex justify-center py-8">
@@ -277,8 +286,7 @@ function HistoriaTab({ loading, encounters, allergies, preconsulta }) {
     )
   }
   const isFirstConsultation = encounters.length === 0
-  const showPreconsulta = hasPreconsulta(preconsulta)
-  if (isFirstConsultation && allergies.length === 0 && !showPreconsulta) {
+  if (isFirstConsultation && allergies.length === 0) {
     return (
       <div className="text-center py-8 text-text-secondary">
         <ClockCounterClockwise className="h-8 w-8 mx-auto mb-2 opacity-30" />
@@ -288,10 +296,6 @@ function HistoriaTab({ loading, encounters, allergies, preconsulta }) {
   }
   return (
     <div className="space-y-3">
-      {/* Ya no se limita a la primera consulta: desde que la sala de espera la
-          exige, toda consulta trae pre-consulta y el profesional la necesita
-          para saber a qué viene el paciente esta vez, no solo la primera. */}
-      {showPreconsulta && <PreconsultaSummary preconsulta={preconsulta} />}
       {allergies.length > 0 && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-2.5">
           <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide mb-1.5">Alergias activas</p>
@@ -633,23 +637,18 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
           <ClipboardText className="h-4 w-4 text-brand" />
           <span className="font-semibold text-sm text-text-primary">Historia Clínica</span>
         </div>
-        {activeTab === 'nota' && (
-          <div className="flex items-center gap-1.5">
-            {SCRIBE_EN_LLAMADA && (
-              <button
-                onClick={() => setShowScribe(s => !s)}
-                className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full bg-brand text-white hover:bg-brand/90"
-              >
-                <Sparkle weight="fill" className="h-3 w-3" /> IA
-              </button>
-            )}
-            <button
-              onClick={() => setShowForm(s => !s)}
-              className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border border-border-default text-text-secondary hover:bg-bg-surface-hover"
-            >
-              <Plus className="h-3 w-3" /> Nota
-            </button>
-          </div>
+        {/* El "+ Nota" chico que vivía acá se fue al cuerpo de la pestaña
+            "Hoy" como botón de ancho completo (Mateo, 2026-08-21): en este
+            encabezado, al lado del título y en un panel angosto, no se veía —
+            y es la acción principal de la pestaña. El de IA se queda: es
+            secundario y hoy está apagado por flag. */}
+        {activeTab === 'nota' && SCRIBE_EN_LLAMADA && (
+          <button
+            onClick={() => setShowScribe(s => !s)}
+            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full bg-brand text-white hover:bg-brand/90"
+          >
+            <Sparkle weight="fill" className="h-3 w-3" /> IA
+          </button>
         )}
       </div>
 
@@ -691,41 +690,68 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
         </div>
       )}
 
-      {activeTab === 'nota' && showForm && (
-        <form onSubmit={handleSubmit} className="p-3 border-b border-border-default space-y-2 shrink-0 bg-bg-subtle">
-          <select
-            className="form-select text-xs py-1 w-full"
-            value={form.entryType}
-            onChange={e => setForm(f => ({ ...f, entryType: e.target.value }))}
-          >
-            {Object.entries(ENTRY_TYPE_LABELS).map(([v, label]) => (
-              <option key={v} value={v}>{label}</option>
-            ))}
-          </select>
-          <textarea
-            required
-            rows={3}
-            className="form-input text-xs resize-none py-1.5"
-            placeholder="Nota clínica..."
-            value={form.content}
-            onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
-          />
-          <div className="flex justify-end gap-1.5">
-            <button type="button" onClick={() => setShowForm(false)} className="text-xs px-3 py-1.5 rounded border border-border-default text-text-secondary hover:text-text-primary">
-              Cancelar
-            </button>
-            <button type="submit" disabled={submitting} className="text-xs px-3 py-1.5 rounded bg-brand text-white flex items-center gap-1">
-              {submitting ? <CircleNotch className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-              Guardar
-            </button>
-          </div>
-        </form>
-      )}
-
       <div className="flex-1 overflow-y-auto px-3 py-4">
         {activeTab === 'nota' && (
           <>
-            {/* Guía clínica: sólo clínicos/pediatras recetan y examinan con
+            {/* 1 · Nueva nota — la acción principal de la pestaña, de ancho
+                completo y arriba de todo. El formulario se abre acá mismo,
+                debajo del botón, para que no queden separados. */}
+            {!showForm ? (
+              // `sticky` y no un botón más del scroll: el "+ Nota" viejo vivía
+              // en el encabezado `shrink-0`, siempre visible. Un botón normal
+              // acá se iría de pantalla apenas el profesional scrollea una
+              // historia larga — que es justo el caso en el que lo necesita.
+              // `-mx-3 px-3` para que el fondo tape de borde a borde el
+              // padding horizontal del contenedor al quedar fijo.
+              <div className="sticky -top-4 z-10 bg-white -mx-3 px-3 pt-1 pb-3 mb-1">
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand text-white font-semibold text-sm hover:bg-brand/90 transition-colors"
+                >
+                  <Plus className="h-4 w-4" weight="bold" /> Nueva nota
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="mb-4 rounded-xl border border-border-default bg-bg-subtle p-3 space-y-2">
+                <select
+                  className="form-select text-xs py-1 w-full"
+                  value={form.entryType}
+                  onChange={e => setForm(f => ({ ...f, entryType: e.target.value }))}
+                >
+                  {Object.entries(ENTRY_TYPE_LABELS).map(([v, label]) => (
+                    <option key={v} value={v}>{label}</option>
+                  ))}
+                </select>
+                <textarea
+                  required
+                  autoFocus
+                  rows={4}
+                  className="form-input text-xs resize-none py-1.5"
+                  placeholder="Nota clínica..."
+                  value={form.content}
+                  onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
+                />
+                <div className="flex justify-end gap-1.5">
+                  <button type="button" onClick={() => setShowForm(false)} className="text-xs px-3 py-1.5 rounded border border-border-default text-text-secondary hover:text-text-primary">
+                    Cancelar
+                  </button>
+                  <button type="submit" disabled={submitting} className="text-xs px-3 py-1.5 rounded bg-brand text-white flex items-center gap-1">
+                    {submitting ? <CircleNotch className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                    Guardar
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* 2 · Lo que declaró el paciente antes de entrar. Vivía en la
+                pestaña "Historia" — es de esta consulta, no historia previa. */}
+            {hasPreconsulta(consultation?.preconsultaData) && (
+              <div className="mb-4">
+                <PreconsultaSummary preconsulta={consultation.preconsultaData} />
+              </div>
+            )}
+
+            {/* 3 · Guía clínica: sólo clínicos/pediatras recetan y examinan con
                 este flujo (mismo gate que las recetas, ver
                 CLINICAL_GUIDE_SPECIALTIES). Nutrición usa NutriPlan Pro en su
                 lugar; el resto de las verticales (psicología, etc.) sólo
@@ -871,7 +897,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
         )}
 
         {activeTab === 'historia' && (
-          <HistoriaTab loading={loadingHistoria} encounters={historia.encounters} allergies={historia.allergies} preconsulta={consultation?.preconsultaData} />
+          <HistoriaTab loading={loadingHistoria} encounters={historia.encounters} allergies={historia.allergies} />
         )}
 
         {activeTab === 'datos' && (
@@ -1577,6 +1603,8 @@ export default function ProfessionalVideoCall({ profile }) {
           onClose={() => setCloseModal(false)}
           consultationId={id}
           patientName={consultation.patient?.fullName}
+          invoiceUrl={consultation.invoiceUrl}
+          invoiceUploadedAt={consultation.invoiceUploadedAt}
           profile={profile}
           patientId={consultation.patientId}
           ensureEncounter={ensureEncounterForClose}

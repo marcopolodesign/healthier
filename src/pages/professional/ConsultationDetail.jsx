@@ -16,6 +16,7 @@ import Modal from '../../components/Modal'
 import AllergyPanel from '../../components/professional/AllergyPanel'
 import PreconsultaSummary, { hasPreconsulta } from '../../components/professional/PreconsultaSummary'
 import ConsultationPaymentCard from '../../components/professional/ConsultationPaymentCard'
+import FacturaConsulta from '../../components/professional/FacturaConsulta'
 import FinanciadorPicker from '../../components/FinanciadorPicker'
 import PrescriptionCreator from '../../components/professional/PrescriptionCreator'
 import ScribeSession from '../../components/professional/ScribeSession'
@@ -580,6 +581,39 @@ export default function ConsultationDetail({ profile }) {
       )}
 
       {/* ── Cobro ── */}
+      {/* Factura del profesional (migración 119).
+
+          Excepción deliberada a `bloqueada`: es lo ÚNICO que se puede seguir
+          editando con la consulta ya cerrada. Una factura se emite tarde, se
+          emite mal y se reemplaza — eso es la operación normal, no un dato
+          clínico que haya que congelar. */}
+      {/* No se ofrece en consultas canceladas, con ausencia o vencidas: no hubo
+          atención, no hay nada que facturar. */}
+      {!(isCancelled || isNoShow || isExpired) && (
+        <div className="card space-y-3">
+          <div className="flex items-center gap-2">
+            <FilePdf className="h-5 w-5 text-brand" />
+            <h2 className="font-semibold text-text-primary">Factura</h2>
+          </div>
+          <FacturaConsulta
+            invoiceUrl={consultation.invoiceUrl}
+            invoiceUploadedAt={consultation.invoiceUploadedAt}
+            onSubir={async file => {
+              // Se aplica la fila que devuelve el update en vez de llamar a
+              // `load()`: `load()` prende `loading` y toda la pantalla parpadea
+              // a esqueleto por subir un archivo de una tarjeta.
+              const actualizada = await consultationsService.uploadInvoice(consultation.id, profile.id, file)
+              setConsultation(prev => ({
+                ...prev,
+                invoiceUrl: actualizada.invoiceUrl,
+                invoiceUploadedAt: actualizada.invoiceUploadedAt,
+              }))
+              toast.success('Factura subida')
+            }}
+          />
+        </div>
+      )}
+
       {/* Cobro de esta consulta */}
       <ConsultationPaymentCard payment={consultation.payment} />
 
@@ -643,6 +677,8 @@ export default function ConsultationDetail({ profile }) {
         patientName={patientName}
         modality={consultation.modality}
         closingCodeVerifiedAt={consultation.closingCodeVerifiedAt}
+        invoiceUrl={consultation.invoiceUrl}
+        invoiceUploadedAt={consultation.invoiceUploadedAt}
         profile={profile}
         patientId={consultation.patientId}
         ensureEncounter={ensureEncounter}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { CurrencyDollar, Users, ArrowClockwise, CheckCircle, CircleNotch, Sparkle, HandCoins, ArrowUUpLeft, Trash } from '@phosphor-icons/react'
+import { CurrencyDollar, Users, ArrowClockwise, CheckCircle, CircleNotch, Sparkle, HandCoins, ArrowUUpLeft, Trash, FilePdf } from '@phosphor-icons/react'
 import { paymentsService } from '../../services/paymentsService'
 import { mpService } from '../../services/mpService'
 import { toast } from '../../components/Toast'
@@ -8,6 +8,10 @@ import { formatARS, formatDate } from '../../lib/format'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
+// La factura vive en el bucket privado `professional-docs` y lo que guardamos
+// es un path, no una URL: un <a href> tira 404. SignedDocLink firma al hacer
+// click, en vez de firmar todas las filas de la tabla al cargar la página.
+import SignedDocLink from '../../components/SignedDocLink'
 
 const METHOD_LABELS = { card: 'Tarjeta', credits: 'Créditos', mixed: 'Mixto' }
 // 'authorized' / 'cancelled' come from the on-demand pre-authorization flow
@@ -622,7 +626,9 @@ export default function SuperAdminPayments() {
           </div>
         ) : (
           <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <table className="w-full min-w-[1100px] text-sm">
+            {/* min-w sube con la columna de factura: si no, el scroll horizontal
+                aprieta las columnas de plata y quedan ilegibles. */}
+            <table className="w-full min-w-[1220px] text-sm">
               <thead>
                 <tr>
                   <th className="table-header w-8">
@@ -632,6 +638,7 @@ export default function SuperAdminPayments() {
                   <th className="table-header">Paciente</th>
                   <th className="table-header">Profesional</th>
                   <th className="table-header">Consulta</th>
+                  <th className="table-header">Factura</th>
                   <th className="table-header text-right">Bruto</th>
                   <th className="table-header text-right">Créditos</th>
                   <th className="table-header text-right">Cobrado</th>
@@ -659,6 +666,32 @@ export default function SuperAdminPayments() {
                         {p.consultation?.scheduledAt ? formatDate(p.consultation.scheduledAt) : '—'}
                         {p.consultation?.status && (
                           <span className="ml-1.5 text-[10px] uppercase tracking-wide text-text-muted">{p.consultation.status}</span>
+                        )}
+                      </td>
+                      {/* Factura del profesional (migración 119). Tres estados
+                          distintos a propósito: hay factura / la consulta existe
+                          y el profesional todavía no facturó / el pago no tiene
+                          consulta asociada, donde no hay nada que reclamar. Sin
+                          esa diferencia, un guión se lee como "no cargó la
+                          columna" y el admin no sabe a quién reclamarle. */}
+                      <td className="table-cell">
+                        {!p.consultation ? (
+                          <span className="text-xs text-text-muted">Sin consulta</span>
+                        ) : p.consultation.invoiceUrl ? (
+                          <SignedDocLink
+                            bucket="professional-docs"
+                            url={p.consultation.invoiceUrl}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"
+                          >
+                            <FilePdf className="h-3.5 w-3.5" /> Ver factura
+                          </SignedDocLink>
+                        ) : (
+                          <span className="text-xs text-text-tertiary">Sin factura</span>
+                        )}
+                        {p.consultation?.invoiceUploadedAt && (
+                          <p className="text-[10px] text-text-tertiary mt-0.5 whitespace-nowrap">
+                            {formatDate(p.consultation.invoiceUploadedAt)}
+                          </p>
                         )}
                       </td>
                       <td className="table-cell text-right">{formatARS(p.grossAmount)}</td>
