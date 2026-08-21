@@ -1,17 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, VideoCamera, Clock, CircleNotch, Check, ShieldCheck, CreditCard, Warning,
   ArrowClockwise,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
-import { professionalService } from '../../services/professionalService'
+import { professionalService, ON_DEMAND_PRESENCE_TTL_MS } from '../../services/professionalService'
 import { consultationsService } from '../../services/consultationsService'
 import { mpService } from '../../services/mpService'
 import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
-import { buildPool } from '../../lib/onDemandPool'
+import { buildPool, isPayable } from '../../lib/onDemandPool'
 import { explicarPagoMP } from '../../lib/mercadoPago'
 import { useVerticales } from '../../hooks/useVerticales'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
@@ -42,6 +42,11 @@ function formatCountdown(totalSeconds) {
 
 export default function OnDemand({ profile }) {
   const { vertical: verticalId } = useParams()
+  // `?pro=<userId>` — llamada directa a un profesional puntual, en vez del pool
+  // de la especialidad (2026-08-21, tarjeta "tu médico de cabecera" del
+  // dashboard). Ver el armado del pool más abajo, en el Step 1.
+  const [searchParams] = useSearchParams()
+  const direccionamientoDirecto = searchParams.get('pro')
   const navigate = useNavigate()
   // Habilitación y precio salen de `vertical_settings`, no del código.
   const { verticalesById, cargando: cargandoVerticales } = useVerticales()
@@ -370,12 +375,33 @@ export default function OnDemand({ profile }) {
     // error de red terminara matcheando contra TODOS los profesionales de la
     // especialidad, incluidos los que nunca se anotaron a on-demand. Un fallo
     // de lectura ahora es "no hay nadie", que es lo honesto.
-    const fetchPros = primarySlug
+    const fetchPoolDeLaEspecialidad = () => primarySlug
       // `onlyLive` existía y nunca se pasaba: entraban al pool médicos que habían
       // tildado el switch hacía meses. Ahora "vivo" es haberlo declarado en la
       // última hora, no tener una pestaña abierta.
       ? professionalService.search({ specialty: primarySlug, onDemand: true, onlyLive: true }).catch(() => null)
       : Promise.resolve([])
+
+    /*
+     * `?pro=<userId>` — se llama a ESE profesional puntual, no al pool de la
+     * especialidad entera. `getByUserId` no aplica ninguno de los filtros que
+     * sí aplica `search()` (verificado, activo, on-demand, presencia viva), así
+     * que se re-chequean acá a mano. Si no pasa alguno — se desconectó, dejó de
+     * estar on-demand, etc. — se cae al pool normal de la especialidad en vez
+     * de dejar al paciente sin nada: el link se lo mandó un profesional
+     * puntual, pero la promesa es "atenderte ahora", no "esperar a que
+     * vuelva a conectarse".
+     */
+    const fetchPros = direccionamientoDirecto
+      ? professionalService.getByUserId(direccionamientoDirecto).then(pro => {
+          const especialidadCoincide = !primarySlug || pro?.specialty === primarySlug
+          const elegible = pro?.isVerified && pro?.isActive && pro?.isOnDemand && especialidadCoincide
+            && pro?.onDemandLastSeenAt && (Date.now() - new Date(pro.onDemandLastSeenAt).getTime()) < ON_DEMAND_PRESENCE_TTL_MS
+            && isPayable(pro)
+          if (elegible) return [pro]
+          return fetchPoolDeLaEspecialidad()
+        }).catch(() => fetchPoolDeLaEspecialidad())
+      : fetchPoolDeLaEspecialidad()
 
     /*
      * Antes de ofrecer el checkout hay que preguntar si el paciente ya pagó.
@@ -433,7 +459,7 @@ export default function OnDemand({ profile }) {
 
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vertical, verticalId, cargandoVerticales, profile?.id, porVertical])
+  }, [vertical, verticalId, cargandoVerticales, profile?.id, porVertical, direccionamientoDirecto])
 
   // ── Step 4: cuenta regresiva contra el vencimiento absoluto ──────────────────
   // Se recalcula contra el reloj en cada tick en vez de restar 1: así una

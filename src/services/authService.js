@@ -12,7 +12,13 @@ import { supabase, toCamelCase } from '../lib/supabase'
 // a null over nothing, and since this only runs on the one-time row INSERT
 // (never called again after the profile exists), it can never clobber an
 // avatar the user later uploads themselves in Perfil/Configuración.
-function buildProfileRow(user, email, role, fullName, utms = {}, phone = null) {
+//
+// Referido (2026-08-14): `referredByProfessionalId` viene del link `/r/<codigo>`
+// que el profesional le manda a sus pacientes. Se escribe acá, en el INSERT de
+// la fila, porque la columna es write-once del lado de la base (migración 115) —
+// después de esto ya no se puede corregir desde el cliente. Sólo se incluye
+// cuando hay valor, por la misma razón que el avatar.
+function buildProfileRow(user, email, role, fullName, utms = {}, phone = null, referredByProfessionalId = null) {
   const avatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null
   return {
     id: user.id,
@@ -21,6 +27,7 @@ function buildProfileRow(user, email, role, fullName, utms = {}, phone = null) {
     role,
     ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
     ...(phone ? { phone } : {}),
+    ...(referredByProfessionalId ? { referred_by_professional_id: referredByProfessionalId } : {}),
     utm_source:   utms.utm_source   ?? null,
     utm_medium:   utms.utm_medium   ?? null,
     utm_campaign: utms.utm_campaign ?? null,
@@ -31,7 +38,7 @@ function buildProfileRow(user, email, role, fullName, utms = {}, phone = null) {
 }
 
 export const authService = {
-  async register(email, password, role, fullName, utms = {}, phone = null) {
+  async register(email, password, role, fullName, utms = {}, phone = null, referredByProfessionalId = null) {
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -53,7 +60,7 @@ export const authService = {
     // el avatar, que es justamente lo que sólo conoce el cliente.
     const { error: profileError } = await supabase
       .from('profiles')
-      .upsert(buildProfileRow(authData.user, email, role, fullName, utms, phone), { onConflict: 'id' })
+      .upsert(buildProfileRow(authData.user, email, role, fullName, utms, phone, referredByProfessionalId), { onConflict: 'id' })
     if (profileError) throw new Error(profileError.message)
 
     return { user: authData.user, session: authData.session }
@@ -86,7 +93,7 @@ export const authService = {
     if (error) throw new Error(error.message)
   },
 
-  async completeGoogleProfile(user, role, fullName, utms = {}, phone = null) {
+  async completeGoogleProfile(user, role, fullName, utms = {}, phone = null, referredByProfessionalId = null) {
     if (!user?.id) {
       // Defensa además del guard en CompleteProfile.jsx — nunca dereferenciar
       // .id de un user nulo (esto es lo que producía el crash reportado:
@@ -95,7 +102,7 @@ export const authService = {
     }
     const { data, error } = await supabase
       .from('profiles')
-      .insert(buildProfileRow(user, user.email, role, fullName, utms, phone))
+      .insert(buildProfileRow(user, user.email, role, fullName, utms, phone, referredByProfessionalId))
       .select()
       .single()
     if (error) throw new Error(error.message)

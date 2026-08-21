@@ -3,19 +3,21 @@ import { useNavigate } from 'react-router-dom'
 import {
   User, PencilSimple, Check, Camera, ShieldCheck, Heartbeat,
   Phone, Users, CreditCard, Receipt, SignOut, ArrowLeft,
-  FileText, Trash, Bell, CaretRight,
+  FileText, Trash, Bell, CaretRight, UserCircle,
 } from '@phosphor-icons/react'
 import { profilesService } from '../../services/profilesService'
 import { authService } from '../../services/authService'
 import { mpService } from '../../services/mpService'
 import { familyService } from '../../services/familyService'
 import { consultationsService } from '../../services/consultationsService'
+import { professionalService } from '../../services/professionalService'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
 import MPCardHolder from '../../components/payment/MPCardHolder'
 import { BUILD_ETIQUETA } from '../../lib/buildInfo'
 import { brandLabel } from '../../components/payment/cardBrand'
 import { notificationService } from '../../services/notificationService'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { track } from '../../utils/analytics'
 
 // Mismas etiquetas y formato que /paciente/comprobantes, para que el resumen del
@@ -234,6 +236,20 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       .finally(() => setComprobantesLoading(false))
   }, [profile?.id])
 
+  // ── Médico de cabecera (2026-08-21) ──────────────────────────────────────
+  // Se muestra SIEMPRE que exista el vínculo (`referred_by_professional_id`),
+  // sin importar `medico_cabecera_dismissed` — esa columna sólo controla la
+  // tarjeta promocional del dashboard; acá es un dato de hecho del paciente,
+  // como su DNI o su obra social, no algo que se pueda "cerrar".
+  const [medicoCabecera, setMedicoCabecera] = useState(null)
+  const { porSlug: especialidadPorSlug } = useEspecialidades()
+  useEffect(() => {
+    if (!profile?.referredByProfessionalId) return
+    professionalService.getByUserId(profile.referredByProfessionalId)
+      .then(setMedicoCabecera)
+      .catch(() => {})
+  }, [profile?.referredByProfessionalId])
+
   // Main profile view
   return (
     <div className="absolute inset-0 bg-bg-primary pt-6 sm:pt-8 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
@@ -279,6 +295,32 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           {field('Domicilio', 'domicilio')}
         </div>
       </div>
+
+      {/* Médico de cabecera — sólo si vino referido por un profesional */}
+      {medicoCabecera && (
+        <div className="bg-bg-secondary rounded-2xl p-6 shadow-sm border border-border-default mb-6">
+          <h3 className="font-semibold text-[18px] text-text-primary mb-6 flex items-center gap-2">
+            <UserCircle className="w-5 h-5 text-brand" /> Tu Médico de Cabecera
+          </h3>
+          <button
+            onClick={() => navigate(`/paciente/profesional/${medicoCabecera.id}`)}
+            className="w-full flex items-center gap-4 text-left hover:opacity-80 transition-opacity"
+          >
+            {medicoCabecera.profiles?.avatarUrl ? (
+              <img src={medicoCabecera.profiles.avatarUrl} alt="" className="w-14 h-14 rounded-full object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-14 h-14 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0">
+                <UserCircle className="w-7 h-7 text-brand" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-[16px] text-text-primary truncate">{medicoCabecera.profiles?.fullName}</p>
+              <p className="text-sm text-text-secondary truncate">{especialidadPorSlug[medicoCabecera.specialty] || medicoCabecera.specialty}</p>
+            </div>
+            <CaretRight className="w-5 h-5 text-text-tertiary flex-shrink-0" />
+          </button>
+        </div>
+      )}
 
       {/* Clinical profile */}
       <div className="bg-bg-secondary rounded-2xl p-6 shadow-sm border border-border-default mb-6">

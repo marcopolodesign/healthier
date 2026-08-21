@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
 import {
   MapPin, CaretRight, Star, VideoCamera,
@@ -12,6 +12,8 @@ import WhatsAppMark from '../../components/icons/WhatsAppMark'
 const LAST_VERTICAL_KEY = 'healthier_last_vertical'
 import InteractiveMap from '../../components/patient/InteractiveMap'
 import ActiveAppointmentBanner from '../../components/patient/ActiveAppointmentBanner'
+import MedicoCabeceraCard from '../../components/patient/MedicoCabeceraCard'
+import MedicoCabeceraModal from '../../components/patient/MedicoCabeceraModal'
 import { professionalService } from '../../services/professionalService'
 import { emergencyService, getSosSettings } from '../../services/emergencyService'
 import { pickProForVertical } from '../../lib/verticals'
@@ -37,6 +39,40 @@ export default function PatientDashboard({ profile }) {
   const { porSlug, porVertical } = useEspecialidades()
 
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // ── "Tu médico de cabecera" (2026-08-21) ──────────────────────────────────
+  // El profesional que refirió a este paciente (`referred_by_professional_id`,
+  // migración 115). Se trae UNA vez acá porque tanto la tarjeta persistente
+  // como el popup post-onboarding lo necesitan, y evita que cada uno haga su
+  // propio fetch redundante.
+  const [medicoCabecera, setMedicoCabecera] = useState(null)
+  const [showMedicoCabeceraModal, setShowMedicoCabeceraModal] = useState(false)
+  // Estado local, no el de `profile`: nadie refresca el `profile` global de
+  // App.jsx después de un `PATCH`, así que sin esto la tarjeta reaparecería en
+  // cuanto el componente re-renderizara por cualquier otra razón.
+  const [medicoCabeceraDismissed, setMedicoCabeceraDismissed] = useState(!!profile?.medicoCabeceraDismissed)
+  useEffect(() => {
+    if (!profile?.referredByProfessionalId) return
+    let cancelled = false
+    professionalService.getByUserId(profile.referredByProfessionalId)
+      .then(pro => { if (!cancelled) setMedicoCabecera(pro) })
+      .catch(() => {}) // aditivo — nunca bloquea el resto del dashboard
+    return () => { cancelled = true }
+  }, [profile?.referredByProfessionalId])
+
+  // El popup se abre UNA sola vez, recién saliendo del onboarding —
+  // `referralService.destinoDelReferido()` es quien manda acá con
+  // `?ref_popup=1`. Se saca el parámetro apenas se lee (con `replace`, sin
+  // agregar una entrada al historial) para que un refresh no lo vuelva a
+  // abrir — la tarjeta persistente de abajo queda como el único re-ingreso.
+  useEffect(() => {
+    if (searchParams.get('ref_popup') !== '1' || !medicoCabecera) return
+    setShowMedicoCabeceraModal(true)
+    track('referral_post_onboarding_popup_view', { professional_id: medicoCabecera.userId, flow: 'paciente' })
+    setSearchParams(prev => { prev.delete('ref_popup'); return prev }, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, medicoCabecera])
 
   const [userLocation, setUserLocation] = useState(null)
   // El precio de la consulta inmediata ya no se calcula acá: lo fija la vertical
@@ -443,6 +479,21 @@ export default function PatientDashboard({ profile }) {
           {onDemandHero}
         </div>
 
+        {/* "Tu médico de cabecera" — sólo si vino referido y no la cerró.
+            Entre el bloque verde y la grilla de especialidades a propósito
+            (Mateo, 2026-08-21): es lo primero que ve después del saludo, antes
+            de que el resto de la app le ofrezca elegir entre todos. */}
+        {medicoCabecera && !medicoCabeceraDismissed && (
+          <div className="px-6 patient-column pt-5 w-full">
+            <MedicoCabeceraCard
+              profile={profile}
+              professional={medicoCabecera}
+              onOpen={() => setShowMedicoCabeceraModal(true)}
+              onDismissed={() => setMedicoCabeceraDismissed(true)}
+            />
+          </div>
+        )}
+
         <div className="px-6 patient-column pt-6 pb-32 flex flex-col gap-5 w-full">
           {specialtyGrid}
           {mapCta}
@@ -576,6 +627,12 @@ export default function PatientDashboard({ profile }) {
 
         </div>
       </PatientSheet>
+
+      <MedicoCabeceraModal
+        open={showMedicoCabeceraModal}
+        onClose={() => setShowMedicoCabeceraModal(false)}
+        professional={medicoCabecera}
+      />
     </div>
   )
 }

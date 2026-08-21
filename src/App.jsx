@@ -32,6 +32,7 @@ import Register from './pages/auth/Register'
 import RegisterProfessional from './pages/auth/RegisterProfessional'
 import CompleteProfile from './pages/auth/CompleteProfile'
 import TerminosYCondiciones from './pages/TerminosYCondiciones'
+import ReferralLanding from './pages/ReferralLanding'
 
 import PatientDashboard from './pages/patient/Dashboard'
 import PatientOnboarding from './pages/patient/Onboarding'
@@ -91,6 +92,7 @@ import SuperAdminUsuariosProspects from './pages/super-admin/UsuariosProspects'
 import SuperAdminProfesionalesProspects from './pages/super-admin/ProfesionalesProspects'
 import SuperAdminProfesionales from './pages/super-admin/Profesionales'
 import SuperAdminProfesionalesRecorrido from './pages/super-admin/ProfesionalesRecorrido'
+import SuperAdminReferidos from './pages/super-admin/Referidos'
 import SuperAdminEmergencias from './pages/super-admin/Emergencias'
 import { tomarDestinoPostRegistro } from './lib/postSignupRedirect'
 
@@ -325,6 +327,9 @@ export default function App() {
         <Route path="/landing/medico-online"   element={<LandingMedicoOnline />} />
         <Route path="/landing/profesionales"   element={<LandingProfesionales />} />
         <Route path="/terminos" element={<TerminosYCondiciones />} />
+        {/* Link de referido del profesional. Público: quien lo recibe por
+            WhatsApp todavía no tiene cuenta. */}
+        <Route path="/r/:codigo" element={<ReferralLanding profile={profile} />} />
 
         {/* Auth */}
         <Route element={<AuthLayout />}>
@@ -456,6 +461,7 @@ export default function App() {
           <Route path="/super-admin/profesionales" element={<SuperAdminProfesionales />} />
           <Route path="/super-admin/profesionales/prospects" element={<SuperAdminProfesionalesProspects />} />
           <Route path="/super-admin/profesionales/recorrido" element={<SuperAdminProfesionalesRecorrido />} />
+          <Route path="/super-admin/profesionales/referidos" element={<SuperAdminReferidos />} />
           <Route path="/super-admin/emergencias" element={<SuperAdminEmergencias />} />
         </Route>
 

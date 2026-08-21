@@ -6,6 +6,7 @@ import FinanciadorPicker from '../../components/FinanciadorPicker'
 import { toast } from '../../components/Toast'
 import { PATIENT_CONSENT_ITEMS } from '../../lib/consentItems'
 import { track } from '../../utils/analytics'
+import { referralService } from '../../services/referralService'
 
 // Internal step (1=consentimiento, 2=salud_general, 3=informacion_medica) mapped
 // to Henry's spec numbering, which also counts the account-creation step (step 1,
@@ -102,6 +103,19 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
     }
   }
 
+  /**
+   * Al terminar el onboarding, quien llegó por el link de un profesional va
+   * directo a la ficha de ESE profesional, no al dashboard: el link se mandó
+   * para sacar un turno con él, y hacerlo buscar de nuevo entre todos los
+   * profesionales es perder al paciente en el último paso. Si no vino referido
+   * —o el profesional ya no está— cae al dashboard de siempre.
+   */
+  const irAlDestinoFinal = async (perfilActualizado) => {
+    const destino = await referralService.destinoDelReferido(perfilActualizado ?? profile)
+    if (destino) track('referral_post_onboarding_redirect', { flow: 'paciente' })
+    navigate(destino ?? '/paciente/dashboard')
+  }
+
   const saveStep2 = async () => {
     setSaving(true)
     try {
@@ -120,7 +134,7 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
       track('sign_up_step_complete', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], flow: 'paciente' })
       track('sign_up_complete', { flow: 'paciente', profile_completed: true })
       toast.success('¡Perfil completo!')
-      navigate('/paciente/dashboard')
+      await irAlDestinoFinal(updated)
     } catch (err) {
       track('sign_up_error', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], error_type: 'server_error', flow: 'paciente' })
       toast.error(`No pudimos guardar: ${err.message}`)
@@ -405,7 +419,7 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
           <button
             onClick={() => {
               track('sign_up_skip_step', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], flow: 'paciente' })
-              navigate('/paciente/dashboard')
+              irAlDestinoFinal()
             }}
             className="mt-3 w-full text-center text-sm text-text-tertiary hover:text-text-secondary transition-colors"
           >
