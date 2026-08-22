@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Healthier — El panel clínico de la videollamada</title>
+<style>
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Light.woff2') format('woff2');font-weight:300;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Regular.woff2') format('woff2');font-weight:400 600;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-RegularItalic.woff2') format('woff2');font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+:root{
+  --sage:#7CB38B;--sage-hover:#5f9470;--sage-muted:rgba(124,179,139,.1);--sage-muted2:rgba(124,179,139,.18);
+  --coral:#E8927C;--lavender:#9B8EC4;--danger:#D9534F;--gold:#E4A853;--sky:#6BAFCF;--green:#6BBF7B;
+  --bg-primary:#F6F5F0;--bg-secondary:#FDFCF9;--surface:#fff;
+  --text-primary:#2D2A26;--text-secondary:#6B6560;--text-tertiary:#A8A29E;
+  --border:#D8D4CE;--border-hover:#C4BFB8;
+  --radius-pill:999px;--radius-card:1.5rem;--radius-card-sm:1rem;
+  --shadow-card:0 1px 4px rgba(45,42,38,.06);--shadow-hover:0 8px 28px rgba(124,179,139,.14);
+  --t:all .36s cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-primary)}
+body{font-family:'Everett',-apple-system,BlinkMacSystemFont,sans-serif;color:var(--text-primary);-webkit-font-smoothing:antialiased}
+button{all:unset;cursor:pointer}
+
+/* DECK */
+#deck{position:fixed;inset:0;overflow:hidden}
+.slide{
+  position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;
+  padding:5rem 2rem 4rem;opacity:0;pointer-events:none;
+  transition:opacity .42s cubic-bezier(.4,0,.2,1),transform .42s cubic-bezier(.4,0,.2,1);
+  transform:translateY(20px);overflow:hidden;
+}
+.slide.active{opacity:1;pointer-events:auto;transform:translateY(0)}
+@media(prefers-reduced-motion:reduce){.slide{transition:opacity .15s}}
+.slide-ivory{background:var(--bg-primary)}
+.slide-cream{background:var(--bg-secondary)}
+.slide-white{background:var(--surface)}
+.slide-sage{background:var(--sage);color:#fff}
+.slide-dark{background:#1d1e1a;color:#f9f8f5}
+
+/* NAV */
+#nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;
+  padding:.75rem 1.5rem;height:52px;background:rgba(246,245,240,.82);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);transition:background .3s,border-color .3s}
+#brand{font-size:.8rem;font-weight:700;color:var(--sage);letter-spacing:-.01em;min-width:4rem}
+#dots{display:flex;align-items:center;gap:.35rem;flex:1;justify-content:center}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--border);transition:var(--t);cursor:pointer}
+.dot.active{background:var(--sage);width:18px;border-radius:3px}
+#counter{font-size:.75rem;font-weight:600;color:var(--text-tertiary);letter-spacing:.04em;min-width:4rem;text-align:right}
+.arrow-btn{position:fixed;top:50%;z-index:99;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.7);backdrop-filter:blur(8px);
+  border:1px solid var(--border);color:var(--text-secondary);transition:var(--t);opacity:.55}
+.arrow-btn:hover{opacity:1;background:#fff;color:var(--text-primary)}
+#btn-prev{left:.75rem}#btn-next{right:.75rem}
+.arrow-btn.hidden{opacity:0;pointer-events:none}
+.progress-bar{position:fixed;bottom:0;left:0;height:2px;background:var(--sage);transition:width .4s cubic-bezier(.4,0,.2,1);z-index:100}
+
+/* LAYOUT */
+.content{width:100%;max-width:880px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:1.5rem;text-align:center}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:2.5rem;align-items:center;width:100%;max-width:980px}
+.two-col.r{direction:rtl}.two-col.r>*{direction:ltr}
+@media(max-width:840px){.two-col{grid-template-columns:1fr;gap:1.5rem}}
+
+/* TYPOGRAPHY */
+.eyebrow{display:inline-flex;align-items:center;gap:.4rem;font-size:.75rem;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;background:var(--sage-muted);color:var(--sage);padding:.3rem .85rem;border-radius:var(--radius-pill)}
+.eyebrow.coral{background:rgba(232,146,124,.1);color:#c2614a}
+.eyebrow.lavender{background:rgba(155,142,196,.1);color:#6d5fa3}
+.eyebrow.gold{background:rgba(228,168,83,.1);color:#9a6c1a}
+.eyebrow.onsage{background:rgba(255,255,255,.18);color:#fff}
+.eyebrow.ondark{background:rgba(255,255,255,.1);color:#cfe6d6}
+/* En las columnas de .two-col el pill no debe estirarse al ancho de la columna. */
+.two-col .eyebrow{align-self:flex-start}
+h1.hero{font-size:clamp(2.4rem,5.5vw,4.2rem);font-weight:700;line-height:1.1;letter-spacing:-.02em;max-width:18ch}
+h1.hero .a{color:var(--sage)}
+h2.st{font-size:clamp(1.9rem,4vw,2.9rem);font-weight:700;line-height:1.15;letter-spacing:-.02em;max-width:22ch}
+h2.st .a{color:var(--sage)}
+h2.st .ac{color:var(--coral)}
+h2.st .al{color:var(--lavender)}
+h2.st .ag{color:var(--gold)}
+.lead{font-size:clamp(.95rem,1.8vw,1.15rem);color:var(--text-secondary);line-height:1.65;max-width:52ch}
+.lead strong{color:var(--text-primary);font-weight:600}
+.slide-sage .lead,.slide-dark .lead{color:rgba(255,255,255,.82)}
+.slide-sage .lead strong,.slide-dark .lead strong{color:#fff}
+
+/* LISTAS */
+.bl{display:flex;flex-direction:column;gap:.55rem;list-style:none}
+.bl li{display:flex;align-items:flex-start;gap:.6rem;font-size:.88rem;color:var(--text-secondary);line-height:1.55}
+.bl .bi{width:22px;height:22px;border-radius:50%;background:var(--sage-muted);display:flex;align-items:center;
+  justify-content:center;color:var(--sage);flex-shrink:0;margin-top:.05rem}
+.slide-sage .bl li,.slide-dark .bl li{color:rgba(255,255,255,.8)}
+.slide-sage .bl .bi{background:rgba(255,255,255,.2);color:#fff}
+.slide-dark .bl .bi{background:rgba(124,179,139,.22);color:var(--sage)}
+
+/* FEATURE GRID */
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.85rem;width:100%;max-width:900px}
+.fc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:1.1rem 1.3rem;
+  text-align:left;box-shadow:var(--shadow-card);transition:var(--t)}
+.fc:hover{box-shadow:var(--shadow-hover);border-color:rgba(124,179,139,.3);transform:translateY(-2px)}
+.ic{width:38px;height:38px;border-radius:.7rem;display:flex;align-items:center;justify-content:center;margin-bottom:.65rem}
+.ic.s{background:var(--sage-muted);color:var(--sage)}
+.ic.c{background:rgba(232,146,124,.1);color:var(--coral)}
+.ic.l{background:rgba(155,142,196,.1);color:var(--lavender)}
+.ic.g{background:rgba(228,168,83,.1);color:var(--gold)}
+.ic.k{background:rgba(107,175,207,.1);color:var(--sky)}
+.ic.d{background:rgba(217,83,79,.1);color:var(--danger)}
+.fc h3{font-size:.9rem;font-weight:700;margin-bottom:.25rem}
+.fc p{font-size:.8rem;color:var(--text-secondary);line-height:1.5}
+.slide-dark .fc{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12)}
+.slide-dark .fc p{color:rgba(255,255,255,.68)}
+
+/* ── MOCK DEL PANEL DE LA VIDEOLLAMADA ───────────────────── */
+.call-mock{display:flex;width:100%;max-width:520px;border-radius:var(--radius-card);overflow:hidden;
+  border:1px solid var(--border);box-shadow:var(--shadow-card);background:var(--surface)}
+.cm-video{width:38%;background:#1d1e1a;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.45rem;padding:1.2rem .6rem;flex-shrink:0}
+.cm-av{width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.1);display:flex;align-items:center;
+  justify-content:center;color:rgba(255,255,255,.45)}
+.cm-vt{font-size:.62rem;color:rgba(255,255,255,.4)}
+.cm-panel{flex:1;display:flex;flex-direction:column;min-width:0}
+
+.pm-tabs{display:flex;gap:.7rem;padding:.5rem .7rem 0;border-bottom:1px solid var(--border);overflow:hidden}
+.pm-tab{font-size:.56rem;font-weight:600;color:var(--text-tertiary);padding-bottom:.45rem;
+  border-bottom:2px solid transparent;white-space:nowrap}
+.pm-tab.on{color:var(--sage);border-bottom-color:var(--sage);font-weight:700}
+
+.pm-body{padding:.6rem;display:flex;flex-direction:column;gap:.45rem;background:var(--surface)}
+.pm-pat{display:flex;align-items:center;gap:.4rem;border:1px solid var(--border);border-radius:.6rem;padding:.4rem .5rem;background:#fff}
+.pm-pat .av{width:16px;height:16px;border-radius:50%;background:var(--sage-muted);flex-shrink:0}
+.pm-pat .nm{font-size:.6rem;font-weight:700;flex:1}
+.pm-pat .sh{font-size:.52rem;font-weight:700;color:var(--sage);white-space:nowrap}
+.pm-pat.fixed{box-shadow:0 2px 6px rgba(45,42,38,.07)}
+
+.pm-btns{display:grid;grid-template-columns:1fr 1fr;gap:.35rem}
+.pm-btn{border:1px solid var(--border);background:#fff;border-radius:.65rem;padding:.42rem .3rem;
+  font-size:.55rem;font-weight:600;text-align:center;color:var(--text-primary)}
+.pm-btn.hl{border-color:var(--sage);color:var(--sage-hover);background:var(--sage-muted)}
+
+.pm-block{border:1px solid var(--border);border-radius:.55rem;padding:.35rem .45rem;background:var(--bg-secondary)}
+.pm-lbl{font-size:.46rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:.15rem}
+.pm-txt{font-size:.56rem;font-weight:600}
+.pm-line{height:5px;border-radius:3px;background:var(--border);opacity:.55}
+.pm-red{border-color:rgba(217,83,79,.3);background:rgba(217,83,79,.05)}
+.pm-red .pm-lbl{color:var(--danger)}
+
+/* MINI-BARRA de índice para la slide del índice */
+.idx{display:flex;flex-direction:column;gap:.5rem;width:100%;max-width:400px}
+.idx-row{display:flex;align-items:center;gap:.6rem;border:1px solid var(--border);border-radius:.8rem;
+  padding:.55rem .75rem;background:var(--surface);box-shadow:var(--shadow-card)}
+.idx-row .k{width:26px;height:26px;border-radius:.55rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.idx-row .t{font-size:.78rem;font-weight:700;flex:1}
+.idx-row .m{font-size:.62rem;color:var(--text-tertiary);white-space:nowrap}
+.k.scroll{background:var(--sage-muted);color:var(--sage)}
+.k.view{background:rgba(155,142,196,.12);color:var(--lavender)}
+
+.pill-row{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center}
+.pill{font-size:.8rem;font-weight:500;padding:.35rem .9rem;border-radius:var(--radius-pill);
+  border:1px solid var(--border);background:var(--surface);color:var(--text-secondary)}
+
+.hint{font-size:.82rem;color:var(--text-tertiary);margin-top:1rem}
+</style>
+</head>
+<body>
+
+<div id="nav">
+  <span id="brand">Healthier</span>
+  <div id="dots"></div>
+  <span id="counter">01 / 13</span>
+</div>
+
+<button class="arrow-btn hidden" id="btn-prev" aria-label="Anterior">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+</button>
+<button class="arrow-btn" id="btn-next" aria-label="Siguiente">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+</button>
+<div class="progress-bar" style="width:7.7%"></div>
+
+<div id="deck">
+
+<!-- 1 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory active" data-slide="1">
+  <div class="content">
+    <span class="eyebrow">Consulta por videollamada · Para profesionales</span>
+    <h1 class="hero">La historia clínica,<br>sin salir de la <span class="a">llamada.</span></h1>
+    <p class="lead">Escribir la consulta, ver por qué vino el paciente, apoyarse en la guía clínica, emitir la receta y cerrar — todo en la mitad derecha de la pantalla, mientras el paciente sigue del otro lado.</p>
+    <div class="pill-row">
+      <span class="pill">Notas de consulta</span>
+      <span class="pill">Guía clínica</span>
+      <span class="pill">Receta electrónica</span>
+      <span class="pill">Cierre y factura</span>
+    </div>
+    <p class="hint">→ Navegá con las flechas o la barra espaciadora</p>
+  </div>
+</section>
+
+<!-- 2 ─────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="2">
+  <div class="two-col">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow">De un vistazo</span>
+      <h2 class="st">La pantalla<br><span class="a">se parte en dos.</span></h2>
+      <p class="lead">A la izquierda, el paciente. A la derecha, el panel clínico. El profesional nunca tiene que elegir entre mirar a quien atiende y escribir lo que pasa.</p>
+      <ul class="bl">
+        <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Nada de abrir otra pestaña ni perder la llamada</li>
+        <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>El ancho del panel se ajusta arrastrando</li>
+        <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>En el teléfono, el panel sube como una hoja</li>
+      </ul>
+    </div>
+    <div style="display:flex;justify-content:center">
+      <div class="call-mock">
+        <div class="cm-video">
+          <div class="cm-av"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div>
+          <span class="cm-vt">Videollamada</span>
+        </div>
+        <div class="cm-panel">
+          <div class="pm-tabs">
+            <span class="pm-tab on">Notas</span><span class="pm-tab">Historia</span>
+            <span class="pm-tab">Receta</span><span class="pm-tab">Cerrar</span>
+          </div>
+          <div class="pm-body">
+            <div class="pm-pat"><span class="av"></span><span class="nm">Lucía Fernández</span></div>
+            <div class="pm-btns">
+              <span class="pm-btn">Nota</span><span class="pm-btn">Diagnóstico</span>
+              <span class="pm-btn">Indicación</span><span class="pm-btn">Addendum</span>
+            </div>
+            <div class="pm-block"><div class="pm-lbl">Pre-consulta</div><div class="pm-txt">Dolor de garganta</div></div>
+            <div class="pm-line"></div><div class="pm-line" style="width:70%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="3">
+  <div class="two-col r">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow lavender">El índice</span>
+      <h2 class="st">Cuatro entradas,<br><span class="al">dos comportamientos.</span></h2>
+      <p class="lead">La barra de arriba no es una fila de pestañas cualquiera. Dos entradas te llevan <strong>scrolleando</strong> dentro de la misma planilla; dos <strong>reemplazan</strong> el panel entero.</p>
+      <p class="lead" style="font-size:.85rem">Por eso el cierre nunca queda enterrado: en plena llamada tiene que estar a un gesto, sin importar cuán larga sea la historia del paciente.</p>
+    </div>
+    <div style="display:flex;justify-content:center">
+      <div class="idx">
+        <div class="idx-row"><span class="k scroll"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg></span><span class="t">Notas de Consulta</span><span class="m">scrollea</span></div>
+        <div class="idx-row"><span class="k scroll"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg></span><span class="t">Historia Clínica</span><span class="m">scrollea</span></div>
+        <div class="idx-row"><span class="k view"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 8h16M4 8l4-4M4 8l4 4M20 16H4M20 16l-4-4M20 16l-4 4"/></svg></span><span class="t">Generar Receta</span><span class="m">vista propia</span></div>
+        <div class="idx-row"><span class="k view"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 8h16M4 8l4-4M4 8l4 4M20 16H4M20 16l-4-4M20 16l-4 4"/></svg></span><span class="t">Cerrar Consulta</span><span class="m">vista propia</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="4">
+  <div class="two-col">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow">La planilla</span>
+      <h2 class="st">Una sola tira,<br><span class="a">de arriba abajo.</span></h2>
+      <p class="lead">El paciente encabeza y queda <strong>fijo</strong>. Debajo, todo lo de esta consulta; más abajo, sus datos y su historia previa.</p>
+      <p class="lead" style="font-size:.85rem">Se puede escribir una nota mirando la historia sin saltar de pantalla. La barra de arriba marca sola en qué sección estás mientras scrolleás.</p>
+    </div>
+    <div style="display:flex;justify-content:center">
+      <div class="call-mock" style="max-width:300px">
+        <div class="cm-panel">
+          <div class="pm-tabs"><span class="pm-tab on">Notas</span><span class="pm-tab">Historia</span><span class="pm-tab">Receta</span><span class="pm-tab">Cerrar</span></div>
+          <div class="pm-body">
+            <div class="pm-pat fixed"><span class="av"></span><span class="nm">Lucía Fernández</span></div>
+            <div class="pm-btns"><span class="pm-btn">Nota</span><span class="pm-btn">Diagnóstico</span><span class="pm-btn">Indicación</span><span class="pm-btn">Addendum</span></div>
+            <div class="pm-block"><div class="pm-lbl">Pre-consulta</div><div class="pm-txt">Dolor de garganta</div></div>
+            <div class="pm-block"><div class="pm-lbl">Guía clínica</div><div class="pm-line" style="margin-top:.2rem"></div></div>
+            <div class="pm-block"><div class="pm-lbl">Datos del paciente</div></div>
+            <div class="pm-block"><div class="pm-lbl">Historia clínica</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 ─────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="5">
+  <div class="two-col r">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow">Paciente</span>
+      <h2 class="st">Siempre<br><span class="a">a la vista.</span></h2>
+      <p class="lead">La fila con el nombre encabeza la planilla y es lo único que queda fijo al scrollear. Nunca hay duda sobre a quién se está atendiendo.</p>
+      <ul class="bl">
+        <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Tocar el nombre lleva a sus datos: DNI, cobertura, grupo sanguíneo, contacto de emergencia</li>
+        <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Al scrollear aparece ahí mismo un atajo <strong>Nueva nota</strong></li>
+        <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Ese atajo devuelve al principio, donde están los botones para escribir</li>
+      </ul>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:.7rem;align-items:center">
+      <div class="call-mock" style="max-width:290px">
+        <div class="cm-panel"><div class="pm-body" style="gap:.35rem">
+          <div class="pm-pat fixed"><span class="av"></span><span class="nm">Lucía Fernández</span><span class="sh">+ Nueva nota</span></div>
+          <div class="pm-line"></div><div class="pm-line" style="width:80%"></div><div class="pm-line" style="width:65%"></div>
+          <div class="pm-line" style="width:88%"></div><div class="pm-line" style="width:55%"></div>
+        </div></div>
+      </div>
+      <span style="font-size:.7rem;color:var(--text-tertiary)">Scrolleado — aparece el atajo</span>
+    </div>
+  </div>
+</section>
+
+<!-- 6 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="6">
+  <div class="content">
+    <span class="eyebrow">Notas de consulta</span>
+    <h2 class="st" style="max-width:26ch">El tipo se elige <span class="a">antes</span> de escribir.</h2>
+    <p class="lead">Cuatro botones, uno por tipo de asiento. Se toca el que corresponde y se abre el campo listo — el tipo ya queda definido.</p>
+    <div class="fg" style="max-width:660px;grid-template-columns:repeat(2,1fr)">
+      <div class="fc"><div class="ic s"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><h3>Nota</h3><p>La observación general de la consulta.</p></div>
+      <div class="fc"><div class="ic c"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M8 2v4M16 2v4M3 10h18"/><rect x="3" y="4" width="18" height="18" rx="2"/></svg></div><h3>Diagnóstico presuntivo</h3><p>Presuntivo hasta que un estudio lo confirme — el nombre lo dice.</p></div>
+      <div class="fc"><div class="ic l"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>Indicación</h3><p>Lo que el paciente tiene que hacer: reposo, estudios, pautas de alarma.</p></div>
+      <div class="fc"><div class="ic g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div><h3>Addendum</h3><p>Lo que se agrega después, sin tocar lo ya asentado.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="7">
+  <div class="two-col">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow coral">Pre-consulta</span>
+      <h2 class="st">Por qué<br><span class="ac">entró el paciente.</span></h2>
+      <p class="lead">Antes de la llamada, el paciente declara su motivo desde el catálogo de síntomas. Eso aparece arriba de todo en la consulta.</p>
+      <ul class="bl">
+        <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>El motivo, con su código <strong>CIE-10</strong> cuando lo eligió del catálogo</li>
+        <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Sus respuestas, con los <strong>signos de alarma</strong> marcados</li>
+        <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Si toma medicación, y cuál</li>
+      </ul>
+      <p class="lead" style="font-size:.85rem">Ese motivo además <strong>precarga la guía clínica</strong>: el profesional arranca con el trabajo encaminado.</p>
+    </div>
+    <div style="display:flex;justify-content:center">
+      <div class="call-mock" style="max-width:300px"><div class="cm-panel"><div class="pm-body">
+        <div class="pm-block" style="background:var(--sage-muted);border-color:rgba(124,179,139,.3)">
+          <div class="pm-lbl" style="color:var(--sage-hover)">Pre-consulta del paciente</div>
+          <div class="pm-txt" style="font-size:.72rem">Dolor de garganta</div>
+          <div class="pm-lbl" style="margin-top:.35rem">Medicación actual</div>
+          <div class="pm-txt" style="font-weight:500">No toma medicación</div>
+        </div>
+        <div class="pm-block"><div class="pm-lbl">Motivo de consulta</div><div class="pm-txt">Dolor torácico ▾</div></div>
+      </div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 ─────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="8">
+  <div class="content">
+    <span class="eyebrow onsage">Guía clínica</span>
+    <h2 class="st" style="max-width:24ch">Preguntar y documentar,<br>un solo gesto.</h2>
+    <p class="lead">Elegido el motivo, la guía propone qué descartar y qué preguntar. <strong>Tocar cada ítem lo deja asentado</strong> en la historia clínica — no hay que escribirlo de nuevo.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem;width:100%;max-width:620px;margin-top:.5rem">
+      <div style="background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);border-radius:1rem;padding:.9rem 1rem;text-align:left">
+        <div style="font-size:.62rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.4rem">Banderas rojas</div>
+        <p style="font-size:.78rem;line-height:1.5;color:rgba(255,255,255,.85)">Lo que no se puede pasar por alto. Cada una se marca <strong style="color:#fff">descartada</strong> o <strong style="color:#fff">presente</strong>.</p>
+      </div>
+      <div style="background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);border-radius:1rem;padding:.9rem 1rem;text-align:left">
+        <div style="font-size:.62rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.4rem">Preguntas dirigidas</div>
+        <p style="font-size:.78rem;line-height:1.5;color:rgba(255,255,255,.85)">Las que conviene hacer para ese motivo. Se tocan mientras se conversa y quedan documentadas.</p>
+      </div>
+    </div>
+    <p class="lead" style="font-size:.85rem;margin-top:.3rem">Más abajo, también tocables: <strong>examen sugerido</strong>, <strong>estudios sugeridos</strong> y <strong>diagnósticos diferenciales</strong> con su CIE-10 y los urgentes resaltados.</p>
+  </div>
+</section>
+
+<!-- 9 ─────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="9">
+  <div class="two-col r">
+    <div style="display:flex;flex-direction:column;gap:1.1rem">
+      <span class="eyebrow lavender">Receta</span>
+      <h2 class="st">La receta se emite<br><span class="al">en la consulta.</span></h2>
+      <p class="lead">Sin salir de la llamada y sin perder el hilo. Es cuando el profesional decide medicar, así que es donde tiene que estar.</p>
+      <ul class="bl">
+        <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>El medicamento se elige del <strong>vademécum</strong>, no se escribe a mano</li>
+        <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>La cobertura del paciente viene precargada y se corrige ahí mismo</li>
+        <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Queda como receta electrónica válida, asociada a la consulta</li>
+      </ul>
+    </div>
+    <div style="display:flex;justify-content:center">
+      <div class="call-mock" style="max-width:290px"><div class="cm-panel">
+        <div class="pm-tabs"><span class="pm-tab">Notas</span><span class="pm-tab">Historia</span><span class="pm-tab on">Receta</span><span class="pm-tab">Cerrar</span></div>
+        <div class="pm-body">
+          <div class="pm-block"><div class="pm-lbl">Cobertura</div><div class="pm-txt">OSDE · 88801230</div></div>
+          <div class="pm-block"><div class="pm-lbl">Medicamento</div><div class="pm-txt">Ibupirac 600 mg</div></div>
+          <div class="pm-btn hl" style="text-align:center">Emitir receta</div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="10">
+  <div class="content">
+    <span class="eyebrow gold">Cierre</span>
+    <h2 class="st" style="max-width:24ch">Cerrar la consulta, <span class="ag">en tres pasos.</span></h2>
+    <div class="fg" style="max-width:760px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+      <div class="fc"><div class="ic s"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><h3>1 · Notas de cierre</h3><p>El resumen de la consulta, que también se asienta en la historia clínica.</p></div>
+      <div class="fc"><div class="ic g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div><h3>2 · Factura</h3><p>El profesional adjunta su factura en PDF. Puede subirla después y reemplazarla cuando quiera.</p></div>
+      <div class="fc"><div class="ic k"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div><h3>3 · Código</h3><p>El paciente da un código de 4 dígitos que confirma que la consulta ocurrió.</p></div>
+    </div>
+    <p class="lead" style="font-size:.85rem">Si el paciente ya se fue, la consulta se cierra igual dejando el motivo. <strong>La factura es lo único editable después del cierre</strong> — se emite tarde y se reemplaza, y eso es normal.</p>
+  </div>
+</section>
+
+<!-- 11 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="11">
+  <div class="content">
+    <span class="eyebrow">Por especialidad</span>
+    <h2 class="st" style="max-width:24ch">Cada profesional <span class="a">ve lo suyo.</span></h2>
+    <p class="lead">El panel no es igual para todos: la guía clínica sólo tiene sentido para quien examina y receta.</p>
+    <div class="fg" style="max-width:820px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))">
+      <div class="fc"><div class="ic s"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 2v6a6 6 0 0 0 12 0V2"/><path d="M12 14v3a4 4 0 0 0 8 0v-2"/><circle cx="20" cy="13" r="2"/></svg></div><h3>Clínica y Pediatría</h3><p>Guía clínica completa: banderas rojas, preguntas, examen, estudios y diferenciales. Más el recetario.</p></div>
+      <div class="fc"><div class="ic gr" style="background:rgba(107,191,123,.12);color:var(--green)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 22c5-3 8-7 8-12a8 8 0 0 0-16 0c0 5 3 9 8 12z"/><path d="M12 10v6"/></svg></div><h3>Nutrición</h3><p>En lugar de la guía, acceso directo a <strong>NutriPlan</strong> con el paciente ya cargado.</p></div>
+      <div class="fc"><div class="ic l"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2Z"/><path d="M9 21h6"/></svg></div><h3>Otras especialidades</h3><p>La nota clínica libre, los cuatro tipos de asiento y la historia del paciente.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 12 ────────────────────────────────────────────── -->
+<section class="slide slide-dark" data-slide="12">
+  <div class="content">
+    <span class="eyebrow ondark">Marco legal</span>
+    <h2 class="st" style="max-width:24ch">Todo lo que se toca<br>queda asentado.</h2>
+    <p class="lead">Cada nota, cada bandera roja marcada, cada pregunta hecha y cada diagnóstico queda en la historia clínica del paciente, firmado con la matrícula del profesional y con su fecha.</p>
+    <ul class="bl" style="max-width:52ch;text-align:left;margin-top:.4rem">
+      <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Los asientos <strong>no se editan ni se borran</strong>: si algo cambia, se agrega un addendum</li>
+      <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Se conservan por diez años, como exige la <strong>Ley 26.529</strong></li>
+      <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Si el profesional recarga o se le corta la llamada, <strong>lo cargado sigue ahí</strong></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 13 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="13">
+  <div class="content">
+    <span class="eyebrow">En una línea</span>
+    <h1 class="hero" style="font-size:clamp(1.9rem,4.2vw,3.2rem);max-width:24ch">Entrar, ver, documentar,<br>recetar y <span class="a">cerrar.</span></h1>
+    <p class="lead">El profesional entra a la llamada, ve quién es el paciente y por qué vino, documenta mientras conversa apoyándose en la guía, receta si hace falta y cierra la consulta. Todo en la misma pantalla — y todo queda escrito.</p>
+    <div class="pill-row" style="margin-top:.5rem">
+      <span class="pill">Healthier · Plataforma clínica</span>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+const slides=[...document.querySelectorAll('.slide')];
+const TOTAL=slides.length;
+const dotsEl=document.getElementById('dots');
+const counter=document.getElementById('counter');
+const progress=document.querySelector('.progress-bar');
+const btnPrev=document.getElementById('btn-prev');
+const btnNext=document.getElementById('btn-next');
+let current=1;
+
+slides.forEach((_,i)=>{
+  const d=document.createElement('span');
+  d.className='dot'+(i===0?' active':'');
+  d.addEventListener('click',()=>goTo(i+1));
+  dotsEl.appendChild(d);
+});
+
+function pad(n){return String(n).padStart(2,'0')}
+
+function goTo(n){
+  if(n<1||n>TOTAL||n===current) return;
+  slides[current-1].classList.remove('active');
+  current=n;
+  slides[current-1].classList.add('active');
+  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===current-1));
+  counter.textContent=`${pad(current)} / ${pad(TOTAL)}`;
+  progress.style.width=`${(current/TOTAL)*100}%`;
+  btnPrev.classList.toggle('hidden',current===1);
+  btnNext.classList.toggle('hidden',current===TOTAL);
+  history.replaceState(null,'',`#${current}`);
+
+  // La barra de arriba se adapta a las slides de fondo oscuro/sage.
+  const s=slides[current-1];
+  const dark=s.classList.contains('slide-dark')||s.classList.contains('slide-sage');
+  const nav=document.getElementById('nav');
+  nav.style.background=dark?'rgba(0,0,0,.25)':'rgba(246,245,240,.82)';
+  nav.style.borderBottomColor=dark?'rgba(255,255,255,.12)':'var(--border)';
+  counter.style.color=dark?'rgba(255,255,255,.45)':'var(--text-tertiary)';
+  document.getElementById('brand').style.color=dark?'#fff':'var(--sage)';
+  document.querySelectorAll('.dot').forEach(d=>{
+    d.style.background=dark
+      ?(d.classList.contains('active')?'#fff':'rgba(255,255,255,.28)')
+      :(d.classList.contains('active')?'var(--sage)':'var(--border)');
+  });
+}
+
+btnNext.addEventListener('click',()=>goTo(current+1));
+btnPrev.addEventListener('click',()=>goTo(current-1));
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='Enter'){e.preventDefault();goTo(current+1)}
+  else if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();goTo(current-1)}
+  else if(e.key==='Home'){e.preventDefault();goTo(1)}
+  else if(e.key==='End'){e.preventDefault();goTo(TOTAL)}
+  else if(e.key==='f'||e.key==='F'){
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  }
+});
+
+document.getElementById('deck').addEventListener('click',e=>{
+  if(e.target.closest('button')||e.target.closest('a')) return;
+  const x=e.clientX/window.innerWidth;
+  if(x<0.25) goTo(current-1); else if(x>0.75) goTo(current+1);
+});
+
+let tx=0;
+document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX},{passive:true});
+document.addEventListener('touchend',e=>{
+  const dx=tx-e.changedTouches[0].clientX;
+  if(Math.abs(dx)>50) dx>0?goTo(current+1):goTo(current-1);
+},{passive:true});
+
+counter.textContent=`01 / ${pad(TOTAL)}`;
+// Entrar directo por #N: se pasa por goTo para que la barra de arriba también se adapte.
+const hash=parseInt(location.hash.replace('#',''));
+if(hash>=1&&hash<=TOTAL&&hash!==1) goTo(hash);
+</script>
+</body>
+</html>
