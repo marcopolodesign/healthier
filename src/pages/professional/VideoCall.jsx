@@ -5,7 +5,7 @@ import {
   Plus, Check, CircleNotch, User, Microphone, MicrophoneSlash,
   Camera, CameraSlash, Warning, Sparkle, ClockCounterClockwise,
   IdentificationCard, Drop, Phone, Envelope, MapPin, Heartbeat, Pill,
-  Key, SealCheck, PaperPlaneTilt, AppleLogo, ArrowSquareOut,
+  Key, SealCheck, PaperPlaneTilt, AppleLogo, ArrowSquareOut, CaretRight,
 } from '@phosphor-icons/react'
 import DailyIframe from '@daily-co/daily-js'
 import { supabase } from '../../lib/supabase'
@@ -154,17 +154,23 @@ const ENTRY_TYPE_LABELS = {
   addendum: 'Addendum',
 }
 
+// Etiquetas explícitas (Mateo, 2026-08-21): las viejas ("Hoy", "Receta",
+// "Datos") eran cortas pero ambiguas — "Datos" no decía datos de quién, y
+// "Hoy" no decía qué se hace ahí. Ahora cada una nombra la acción o el
+// contenido completo. El encabezado "Historia Clínica" que estaba arriba se
+// sacó en el mismo cambio, así que las pestañas son el único rótulo del panel
+// y tienen que sostenerse solas.
 const PANEL_TABS = [
-  { id: 'nota', label: 'Hoy', icon: ClipboardText },
+  { id: 'nota', label: 'Notas de Consulta', icon: ClipboardText },
   // Generar la receta durante la consulta y no después: el profesional está
   // acá cuando decide medicar, y mandarlo al detalle de la consulta le hace
   // perder el hilo (y al paciente, esperando del otro lado).
-  { id: 'receta', label: 'Receta', icon: Pill },
-  { id: 'historia', label: 'Historia', icon: ClockCounterClockwise },
-  { id: 'datos', label: 'Datos', icon: IdentificationCard },
+  { id: 'receta', label: 'Generar Receta Electrónica', icon: Pill },
+  { id: 'historia', label: 'Historia Clínica', icon: ClockCounterClockwise },
+  { id: 'datos', label: 'Paciente', icon: IdentificationCard },
   // Código de cierre EN la llamada, no sólo después de colgar (migración 099,
   // pedido de Mateo 2026-08-06).
-  { id: 'cerrar', label: 'Cerrar', icon: Key },
+  { id: 'cerrar', label: 'Cerrar Consulta', icon: Key },
 ]
 
 // ── Pestaña "Hoy" para nutricionistas — sin guía clínica (esa es sólo para
@@ -636,45 +642,42 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
 
   return (
     <div className="flex flex-col h-full bg-white lg:border-l border-border-default">
-      <div className="px-4 py-3 border-b border-border-default flex items-center justify-between shrink-0 bg-bg-surface">
-        <div className="flex items-center gap-2">
-          <ClipboardText className="h-4 w-4 text-brand" />
-          <span className="font-semibold text-sm text-text-primary">Historia Clínica</span>
+      {/* El encabezado "Historia Clínica" se sacó (Mateo, 2026-08-21): repetía
+          lo que ya dice una de las pestañas y le comía alto a un panel que en
+          la llamada comparte pantalla con el video. Las pestañas quedan como
+          único rótulo — por eso ahora nombran completo lo que hacen.
+
+          El botón de IA, que vivía en ese encabezado, se muda acá arriba a la
+          derecha de las pestañas. Hoy está apagado por flag. */}
+      <div className="flex items-center shrink-0 bg-bg-surface border-b border-border-default">
+        {/* Las etiquetas largas ya no entran repartiéndose el ancho: la barra
+            scrollea en horizontal y cada pestaña conserva su ancho natural
+            (`whitespace-nowrap` + `shrink-0`). Antes usaban `flex-1` en mobile,
+            que con "Generar Receta Electrónica" partía el texto en tres
+            renglones y descuadraba toda la fila. */}
+        <div className="flex-1 flex gap-5 px-4 overflow-x-auto scrollbar-hide">
+          {PANEL_TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 text-xs lg:text-sm py-4 border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? 'border-brand text-brand font-semibold'
+                  : 'border-transparent text-text-tertiary hover:text-text-secondary'
+              }`}
+            >
+              <tab.icon className="h-3.5 w-3.5 lg:h-4 lg:w-4 shrink-0" /> {tab.label}
+            </button>
+          ))}
         </div>
-        {/* El "+ Nota" chico que vivía acá se fue al cuerpo de la pestaña
-            "Hoy" como botón de ancho completo (Mateo, 2026-08-21): en este
-            encabezado, al lado del título y en un panel angosto, no se veía —
-            y es la acción principal de la pestaña. El de IA se queda: es
-            secundario y hoy está apagado por flag. */}
         {activeTab === 'nota' && SCRIBE_EN_LLAMADA && (
           <button
             onClick={() => setShowScribe(s => !s)}
-            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full bg-brand text-white hover:bg-brand/90"
+            className="mr-4 shrink-0 flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full bg-brand text-white hover:bg-brand/90"
           >
             <Sparkle weight="fill" className="h-3 w-3" /> IA
           </button>
         )}
-      </div>
-
-      {/* En desktop las pestañas dejan de repartirse el ancho: con `flex-1` cada
-          una quedaba centrada en su porción y separadas por el ancho del panel,
-          que ahora es la mitad de la pantalla. Alineadas a la izquierda con gap
-          se leen como una barra de navegación. En mobile siguen repartiéndose,
-          que ahí el ancho es poco y centrado funciona. (Mateo, 2026-07-31) */}
-      <div className="flex lg:justify-start lg:gap-6 lg:px-4 shrink-0 bg-bg-surface">
-        {PANEL_TABS.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 lg:flex-none flex items-center justify-center gap-1.5 text-xs lg:text-sm py-4 border-b-2 transition-colors ${
-              activeTab === tab.id
-                ? 'border-brand text-brand font-semibold'
-                : 'border-transparent text-text-tertiary hover:text-text-secondary'
-            }`}
-          >
-            <tab.icon className="h-3.5 w-3.5 lg:h-4 lg:w-4" /> {tab.label}
-          </button>
-        ))}
       </div>
 
       {activeTab === 'nota' && showScribe && (
@@ -697,41 +700,72 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
       <div className="flex-1 overflow-y-auto px-3 py-4">
         {activeTab === 'nota' && (
           <>
-            {/* 1 · Nueva nota — la acción principal de la pestaña, de ancho
-                completo y arriba de todo. El formulario se abre acá mismo,
-                debajo del botón, para que no queden separados. */}
-            {!showForm ? (
-              // `sticky` y no un botón más del scroll: el "+ Nota" viejo vivía
-              // en el encabezado `shrink-0`, siempre visible. Un botón normal
-              // acá se iría de pantalla apenas el profesional scrollea una
-              // historia larga — que es justo el caso en el que lo necesita.
-              // `-mx-3 px-3` para que el fondo tape de borde a borde el
-              // padding horizontal del contenedor al quedar fijo.
-              <div className="sticky -top-4 z-10 bg-white -mx-3 px-3 pt-1 pb-3 mb-1">
-                <button
-                  onClick={() => setShowForm(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-brand text-white font-semibold text-sm hover:bg-brand/90 transition-colors"
-                >
-                  <Plus className="h-4 w-4" weight="bold" /> Nueva nota
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="mb-4 rounded-xl border border-border-default bg-bg-subtle p-3 space-y-2">
-                <select
-                  className="form-select text-xs py-1 w-full"
-                  value={form.entryType}
-                  onChange={e => setForm(f => ({ ...f, entryType: e.target.value }))}
-                >
-                  {Object.entries(ENTRY_TYPE_LABELS).map(([v, label]) => (
-                    <option key={v} value={v}>{label}</option>
+            {/* 1 · Quién es el paciente + los 4 tipos de nota.
+                Todo junto en un bloque `sticky`: son la identidad y la acción
+                principal de la pestaña, y tienen que seguir a mano cuando el
+                profesional scrollea una historia larga — que es justo cuando
+                los necesita. `-mx-3 px-3` para que el fondo tape de borde a
+                borde el padding del contenedor al quedar fijo. */}
+            <div className="sticky -top-4 z-10 bg-white -mx-3 px-3 pt-1 pb-3 mb-1 space-y-2">
+              {/* Atajo al detalle del paciente: el nombre estaba sólo en la
+                  barra de arriba de la videollamada, y para ver sus datos
+                  había que descubrir la pestaña. (Mateo, 2026-08-21) */}
+              <button
+                onClick={() => setActiveTab('datos')}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-border-default hover:border-brand hover:bg-brand-muted/20 transition-colors text-left"
+              >
+                <div className="h-7 w-7 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
+                  <User className="h-3.5 w-3.5 text-brand" />
+                </div>
+                <span className="flex-1 min-w-0 text-sm font-semibold text-text-primary truncate">
+                  {consultation?.patient?.fullName ?? 'Paciente'}
+                </span>
+                <span className="text-[11px] text-text-tertiary shrink-0">Ver datos</span>
+                <CaretRight className="h-3.5 w-3.5 text-text-tertiary shrink-0" />
+              </button>
+
+              {/* Un botón por tipo en vez de un "Nueva nota" genérico + select
+                  adentro del formulario (Mateo, 2026-08-21): el tipo se elige
+                  ANTES de escribir, que es como se piensa la nota, y de paso
+                  los 4 tipos quedan a la vista — el select los escondía. */}
+              {!showForm && (
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(ENTRY_TYPE_LABELS).map(([value, label]) => (
+                    <button
+                      key={value}
+                      onClick={() => { setForm({ entryType: value, content: '' }); setShowForm(true) }}
+                      className="flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl bg-brand text-white font-semibold text-xs hover:bg-brand/90 transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5 shrink-0" weight="bold" />
+                      <span className="truncate">{label}</span>
+                    </button>
                   ))}
-                </select>
+                </div>
+              )}
+            </div>
+
+            {showForm && (
+              <form onSubmit={handleSubmit} className="mb-4 rounded-xl border border-border-default bg-bg-subtle p-3 space-y-2">
+                {/* El tipo ya se eligió con el botón — se muestra como
+                    encabezado, y se puede cambiar sin perder lo escrito. */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-brand">{ENTRY_TYPE_LABELS[form.entryType]}</span>
+                  <select
+                    className="form-select text-[11px] py-1 w-auto"
+                    value={form.entryType}
+                    onChange={e => setForm(f => ({ ...f, entryType: e.target.value }))}
+                  >
+                    {Object.entries(ENTRY_TYPE_LABELS).map(([v, label]) => (
+                      <option key={v} value={v}>{label}</option>
+                    ))}
+                  </select>
+                </div>
                 <textarea
                   required
                   autoFocus
                   rows={4}
                   className="form-input text-xs resize-none py-1.5"
-                  placeholder="Nota clínica..."
+                  placeholder={`${ENTRY_TYPE_LABELS[form.entryType]}…`}
                   value={form.content}
                   onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
                 />
