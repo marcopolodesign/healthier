@@ -181,7 +181,6 @@ const ENTRY_TYPE_LABELS = {
 // fila que lleva a su sección.
 const PANEL_TABS = [
   { id: 'nota',     kind: 'section', label: 'Notas de Consulta', icon: ClipboardText },
-  { id: 'datos',    kind: 'section', label: 'Paciente',          icon: IdentificationCard },
   { id: 'historia', kind: 'section', label: 'Historia Clínica',  icon: ClockCounterClockwise },
   // Generar la receta durante la consulta y no después: el profesional está
   // acá cuando decide medicar, y mandarlo al detalle de la consulta le hace
@@ -192,6 +191,10 @@ const PANEL_TABS = [
   { id: 'cerrar',   kind: 'view',    label: 'Cerrar Consulta',    icon: Key },
 ]
 
+// Las que el índice de arriba puede marcar. `datos` es sección (se scrollea
+// hasta ella desde la fila del paciente) pero NO está en la barra: la fila del
+// paciente es sticky y vive siempre a la vista, así que una entrada para
+// llegar ahí no aportaba nada (Mateo, 2026-08-22).
 const SECTION_IDS = PANEL_TABS.filter(t => t.kind === 'section').map(t => t.id)
 
 /** Encabezado de cada sección dentro de la planilla continua. */
@@ -515,6 +518,10 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
   const [activeSection, setActiveSection] = useState('nota')
   const chartRef = useRef(null)
   const sectionRefs = useRef({})
+  // Los 4 botones de tipo de nota, para saber cuándo se fueron de pantalla y
+  // ofrecer el atajo en la fila (sticky) del paciente.
+  const botonesRef = useRef(null)
+  const [atajoNota, setAtajoNota] = useState(false)
 
   /** Click en la barra: scrollea si es sección, cambia de vista si no. */
   const irA = (tab) => {
@@ -571,6 +578,13 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
         if (el && el.getBoundingClientRect().top <= limite) visible = id
       }
       setActiveSection(prev => (prev === visible ? prev : visible))
+
+      // Los botones ya no son sticky: el atajo aparece cuando su bloque salió
+      // por arriba. `bottom <= limite` y no `< 0` para que aparezca recién
+      // cuando quedaron tapados por la propia fila del paciente.
+      const bts = botonesRef.current
+      const fuera = bts ? bts.getBoundingClientRect().bottom <= limite : false
+      setAtajoNota(prev => (prev === fuera ? prev : fuera))
     }
     const onScroll = () => { if (raf == null) raf = requestAnimationFrame(spy) }
     cont.addEventListener('scroll', onScroll, { passive: true })
@@ -579,7 +593,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
       cont.removeEventListener('scroll', onScroll)
       if (raf != null) cancelAnimationFrame(raf)
     }
-  }, [activeView, loadingHistoria, loadingPatientData])
+  }, [activeView, loadingHistoria, loadingPatientData, showForm])
   // La cobertura se editaba SOLO en el detalle de la consulta, así que desde la
   // videollamada era imposible elegir el financiador del catálogo — y sin él la
   // receta no se puede emitir con cobertura. Se mantiene una copia local para no
@@ -790,42 +804,60 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
             la barra de arriba es el índice. Ver PANEL_TABS. */}
         {activeView === 'chart' && (
           <>
-            <section ref={el => { sectionRefs.current.nota = el }} className="scroll-mt-4">
-            {/* 1 · Quién es el paciente + los 4 tipos de nota.
-                Todo junto en un bloque `sticky`: son la identidad y la acción
-                principal de la pestaña, y tienen que seguir a mano cuando el
-                profesional scrollea una historia larga — que es justo cuando
-                los necesita. `-mx-3 px-3` para que el fondo tape de borde a
-                borde el padding del contenedor al quedar fijo. */}
-            <div className="sticky -top-4 z-10 bg-white -mx-3 px-3 pt-1 pb-3 mb-1 space-y-2">
-              {/* Atajo al detalle del paciente: el nombre estaba sólo en la
-                  barra de arriba de la videollamada, y para ver sus datos
-                  había que descubrir la pestaña. (Mateo, 2026-08-21) */}
-              <button
-                onClick={() => irA({ id: 'datos', kind: 'section' })}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-border-default hover:border-brand hover:bg-brand-muted/20 transition-colors text-left"
-              >
-                <div className="h-7 w-7 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
-                  <User className="h-3.5 w-3.5 text-brand" />
-                </div>
-                <span className="flex-1 min-w-0 text-sm font-semibold text-text-primary truncate">
-                  {consultation?.patient?.fullName ?? 'Paciente'}
-                </span>
-                <span className="text-[11px] text-text-tertiary shrink-0">Ver sus datos</span>
-                <CaretRight className="h-3.5 w-3.5 text-text-tertiary shrink-0" />
-              </button>
+            {/* Paciente: primero arriba de todo y lo ÚNICO sticky del panel
+                (Mateo, 2026-08-22). Salió del índice de arriba justamente por
+                esto — estando siempre a la vista, una entrada en la barra para
+                llegar a él no aportaba nada. Tocarlo lleva a sus datos.
 
+                `-mx-3 px-3` para que el fondo tape de borde a borde el padding
+                del contenedor cuando queda fijo. */}
+            <div className="sticky -top-4 z-20 bg-white -mx-3 px-3 pt-1 pb-3 mb-1">
+              <div className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-border-default bg-white">
+                <button
+                  onClick={() => irA({ id: 'datos', kind: 'section' })}
+                  className="flex-1 min-w-0 flex items-center gap-2.5 text-left group"
+                >
+                  <div className="h-7 w-7 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
+                    <User className="h-3.5 w-3.5 text-brand" />
+                  </div>
+                  <span className="flex-1 min-w-0 text-sm font-semibold text-text-primary truncate group-hover:text-brand transition-colors">
+                    {consultation?.patient?.fullName ?? 'Paciente'}
+                  </span>
+                  <CaretRight className="h-3.5 w-3.5 text-text-tertiary shrink-0 group-hover:text-brand transition-colors" />
+                </button>
+
+                {/* Atajo que aparece SÓLO cuando los 4 botones de nota ya se
+                    fueron de pantalla: los botones dejaron de ser sticky, así
+                    que sin esto había que scrollear a mano hasta arriba para
+                    escribir. Devuelve al principio, que es donde vuelven a
+                    estar a la vista. */}
+                {atajoNota && !showForm && (
+                  <button
+                    onClick={() => chartRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+                    className="shrink-0 flex items-center gap-1 pl-2.5 ml-0.5 border-l border-border-default text-[11px] font-semibold text-brand hover:text-brand-hover transition-colors"
+                  >
+                    <Plus className="h-3 w-3" weight="bold" /> Nueva nota
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <section ref={el => { sectionRefs.current.nota = el }} className="scroll-mt-4">
               {/* Un botón por tipo en vez de un "Nueva nota" genérico + select
                   adentro del formulario (Mateo, 2026-08-21): el tipo se elige
                   ANTES de escribir, que es como se piensa la nota, y de paso
-                  los 4 tipos quedan a la vista — el select los escondía. */}
+                  los 4 tipos quedan a la vista — el select los escondía.
+
+                  Ya no son sticky (2026-08-22): ocupaban demasiado alto fijo en
+                  un panel que comparte pantalla con el video. El atajo de la
+                  fila del paciente cubre el caso de necesitarlos scrolleado. */}
               {!showForm && (
-                <div className="grid grid-cols-2 gap-2">
+                <div ref={botonesRef} className="grid grid-cols-2 gap-2.5 mb-4">
                   {Object.entries(ENTRY_TYPE_LABELS).map(([value, label]) => (
                     <button
                       key={value}
                       onClick={() => { setForm({ entryType: value, content: '' }); setShowForm(true) }}
-                      className="flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl bg-brand text-white font-semibold text-xs hover:bg-brand/90 transition-colors"
+                      className="flex items-center justify-center gap-1.5 py-4 px-2 rounded-2xl bg-white border border-border-default text-text-primary font-semibold text-xs hover:border-brand hover:text-brand hover:bg-brand-muted/20 transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5 shrink-0" weight="bold" />
                       <span className="truncate">{label}</span>
@@ -833,7 +865,6 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
                   ))}
                 </div>
               )}
-            </div>
 
             {showForm && (
               <form onSubmit={handleSubmit} className="mb-4 rounded-xl border border-border-default bg-bg-subtle p-3 space-y-2">
