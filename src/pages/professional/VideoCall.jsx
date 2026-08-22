@@ -160,18 +160,50 @@ const ENTRY_TYPE_LABELS = {
 // contenido completo. El encabezado "Historia Clínica" que estaba arriba se
 // sacó en el mismo cambio, así que las pestañas son el único rótulo del panel
 // y tienen que sostenerse solas.
+// Dos clases de entrada en la barra (Mateo, 2026-08-22):
+//
+//  · `kind: 'section'` — no cambia de vista: scrollea a su sección dentro de
+//    UNA sola planilla continua (Notas → Paciente → Historia). Son lectura y
+//    escritura sobre lo mismo y verlas juntas ayuda; separarlas en pestañas
+//    obligaba a saltar de ida y vuelta para escribir una nota mirando la
+//    historia. Es el patrón del prototipo de Nacho (índice + planilla larga).
+//
+//  · `kind: 'view'` — reemplaza el panel. Receta y Cierre NO entran a la
+//    planilla a propósito: son flujos con pasos propios. La receta es un
+//    formulario de varios campos que conviene que se quede quieto mientras se
+//    completa, y el cierre tiene que estar a un gesto en plena llamada — al
+//    fondo de una planilla que crece con la historia del paciente (medida: ya
+//    ~6 pantallas con una historia liviana) sería el peor lugar posible.
+//
+// El orden de las secciones arranca en Notas y no en Paciente: es lo que más
+// se usa, y ponerlo segundo obligaba a scrollear en cada apertura del panel
+// para escribir. La identidad del paciente igual está arriba de todo, en la
+// fila que lleva a su sección.
 const PANEL_TABS = [
-  { id: 'nota', label: 'Notas de Consulta', icon: ClipboardText },
+  { id: 'nota',     kind: 'section', label: 'Notas de Consulta', icon: ClipboardText },
+  { id: 'datos',    kind: 'section', label: 'Paciente',          icon: IdentificationCard },
+  { id: 'historia', kind: 'section', label: 'Historia Clínica',  icon: ClockCounterClockwise },
   // Generar la receta durante la consulta y no después: el profesional está
   // acá cuando decide medicar, y mandarlo al detalle de la consulta le hace
   // perder el hilo (y al paciente, esperando del otro lado).
-  { id: 'receta', label: 'Generar Receta Electrónica', icon: Pill },
-  { id: 'historia', label: 'Historia Clínica', icon: ClockCounterClockwise },
-  { id: 'datos', label: 'Paciente', icon: IdentificationCard },
+  { id: 'receta',   kind: 'view',    label: 'Generar Receta Electrónica', icon: Pill },
   // Código de cierre EN la llamada, no sólo después de colgar (migración 099,
   // pedido de Mateo 2026-08-06).
-  { id: 'cerrar', label: 'Cerrar Consulta', icon: Key },
+  { id: 'cerrar',   kind: 'view',    label: 'Cerrar Consulta',    icon: Key },
 ]
+
+const SECTION_IDS = PANEL_TABS.filter(t => t.kind === 'section').map(t => t.id)
+
+/** Encabezado de cada sección dentro de la planilla continua. */
+function SectionHeader({ icon: Icon, label }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <Icon className="h-4 w-4 text-brand shrink-0" />
+      <h3 className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">{label}</h3>
+      <span className="flex-1 h-px bg-border-default" />
+    </div>
+  )
+}
 
 // ── Pestaña "Hoy" para nutricionistas — sin guía clínica (esa es sólo para
 // medicina_general/pediatria, ver CLINICAL_GUIDE_SPECIALTIES), acceso directo
@@ -474,7 +506,30 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
   const [form, setForm] = useState({ entryType: 'note', content: '' })
   const [submitting, setSubmitting] = useState(false)
   const [showScribe, setShowScribe] = useState(false)
-  const [activeTab, setActiveTab] = useState('nota')
+  // Qué ocupa el panel: la planilla continua (`chart`) o una de las dos vistas
+  // propias. Ver PANEL_TABS.
+  const [activeView, setActiveView] = useState('chart')
+  // Sección visible dentro de la planilla — sólo para marcar la barra
+  // (scroll-spy). No decide qué se renderiza: en `chart` se renderizan las
+  // tres siempre.
+  const [activeSection, setActiveSection] = useState('nota')
+  const chartRef = useRef(null)
+  const sectionRefs = useRef({})
+
+  /** Click en la barra: scrollea si es sección, cambia de vista si no. */
+  const irA = (tab) => {
+    if (tab.kind === 'view') { setActiveView(tab.id); return }
+    setActiveSection(tab.id)
+    if (activeView !== 'chart') {
+      // Venimos de Receta/Cierre: hay que montar la planilla antes de poder
+      // scrollear, así que el scroll va al frame siguiente.
+      setActiveView('chart')
+      requestAnimationFrame(() => sectionRefs.current[tab.id]?.scrollIntoView({ block: 'start' }))
+      return
+    }
+    sectionRefs.current[tab.id]?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }
+
   const [historia, setHistoria] = useState({ encounters: [], allergies: [] })
   const [loadingHistoria, setLoadingHistoria] = useState(true)
   const [patientData, setPatientData] = useState(null)
@@ -493,6 +548,38 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
   const licenseNumber = profProfile?.licenseNumber ?? '0'
   const specialty = profProfile?.specialty ?? 'otra'
   const [loadingPatientData, setLoadingPatientData] = useState(true)
+
+  /**
+   * Scroll-spy: marca en la barra la sección que se está mirando.
+   *
+   * Se compara contra el tope del contenedor + un margen, no contra el
+   * viewport: este panel es un scroller propio (mitad de la pantalla en
+   * desktop, hoja en mobile), así que `IntersectionObserver` contra el
+   * viewport marcaría cualquier cosa.
+   */
+  useEffect(() => {
+    if (activeView !== 'chart') return
+    const cont = chartRef.current
+    if (!cont) return
+    let raf = null
+    const spy = () => {
+      raf = null
+      const limite = cont.getBoundingClientRect().top + 80
+      let visible = SECTION_IDS[0]
+      for (const id of SECTION_IDS) {
+        const el = sectionRefs.current[id]
+        if (el && el.getBoundingClientRect().top <= limite) visible = id
+      }
+      setActiveSection(prev => (prev === visible ? prev : visible))
+    }
+    const onScroll = () => { if (raf == null) raf = requestAnimationFrame(spy) }
+    cont.addEventListener('scroll', onScroll, { passive: true })
+    spy()
+    return () => {
+      cont.removeEventListener('scroll', onScroll)
+      if (raf != null) cancelAnimationFrame(raf)
+    }
+  }, [activeView, loadingHistoria, loadingPatientData])
   // La cobertura se editaba SOLO en el detalle de la consulta, así que desde la
   // videollamada era imposible elegir el financiador del catálogo — y sin él la
   // receta no se puede emitir con cobertura. Se mantiene una copia local para no
@@ -574,9 +661,9 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
   // La receta también lo necesita, así que se asegura al abrir su pestaña —
   // si no, se guardaría con encounter_id en null y quedaría huérfana.
   useEffect(() => {
-    if (activeTab === 'receta' && !encounterId) ensureEncounter().catch(() => {})
+    if (activeView === 'receta' && !encounterId) ensureEncounter().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, encounterId])
+  }, [activeView, encounterId])
 
 
   // Combines Daily.co's already-live local mic + remote participant audio
@@ -659,9 +746,9 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
           {PANEL_TABS.map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => irA(tab)}
               className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 text-xs lg:text-sm py-4 border-b-2 transition-colors ${
-                activeTab === tab.id
+                (tab.kind === 'view' ? activeView === tab.id : activeView === 'chart' && activeSection === tab.id)
                   ? 'border-brand text-brand font-semibold'
                   : 'border-transparent text-text-tertiary hover:text-text-secondary'
               }`}
@@ -670,7 +757,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
             </button>
           ))}
         </div>
-        {activeTab === 'nota' && SCRIBE_EN_LLAMADA && (
+        {activeView === 'chart' && SCRIBE_EN_LLAMADA && (
           <button
             onClick={() => setShowScribe(s => !s)}
             className="mr-4 shrink-0 flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full bg-brand text-white hover:bg-brand/90"
@@ -680,7 +767,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
         )}
       </div>
 
-      {activeTab === 'nota' && showScribe && (
+      {activeView === 'chart' && showScribe && (
         <div className="p-3 border-b border-border-default shrink-0">
           <ScribeSession
             patientId={patientId}
@@ -697,9 +784,13 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-3 py-4">
-        {activeTab === 'nota' && (
+      <div ref={chartRef} className="flex-1 overflow-y-auto px-3 py-4">
+        {/* ── Planilla continua: Notas → Paciente → Historia ──────────────
+            Las tres se renderizan SIEMPRE juntas y se navegan scrolleando;
+            la barra de arriba es el índice. Ver PANEL_TABS. */}
+        {activeView === 'chart' && (
           <>
+            <section ref={el => { sectionRefs.current.nota = el }} className="scroll-mt-4">
             {/* 1 · Quién es el paciente + los 4 tipos de nota.
                 Todo junto en un bloque `sticky`: son la identidad y la acción
                 principal de la pestaña, y tienen que seguir a mano cuando el
@@ -711,7 +802,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
                   barra de arriba de la videollamada, y para ver sus datos
                   había que descubrir la pestaña. (Mateo, 2026-08-21) */}
               <button
-                onClick={() => setActiveTab('datos')}
+                onClick={() => irA({ id: 'datos', kind: 'section' })}
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-border-default hover:border-brand hover:bg-brand-muted/20 transition-colors text-left"
               >
                 <div className="h-7 w-7 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
@@ -720,7 +811,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
                 <span className="flex-1 min-w-0 text-sm font-semibold text-text-primary truncate">
                   {consultation?.patient?.fullName ?? 'Paciente'}
                 </span>
-                <span className="text-[11px] text-text-tertiary shrink-0">Ver datos</span>
+                <span className="text-[11px] text-text-tertiary shrink-0">Ver sus datos</span>
                 <CaretRight className="h-3.5 w-3.5 text-text-tertiary shrink-0" />
               </button>
 
@@ -841,10 +932,21 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
                 })}
               </ol>
             )}
+            </section>
+
+            <section ref={el => { sectionRefs.current.datos = el }} className="scroll-mt-4 mt-8">
+              <SectionHeader icon={IdentificationCard} label="Paciente" />
+              <DatosTab loading={loadingPatientData} patient={patientData} />
+            </section>
+
+            <section ref={el => { sectionRefs.current.historia = el }} className="scroll-mt-4 mt-8 pb-4">
+              <SectionHeader icon={ClockCounterClockwise} label="Historia Clínica" />
+              <HistoriaTab loading={loadingHistoria} encounters={historia.encounters} allergies={historia.allergies} />
+            </section>
           </>
         )}
 
-        {activeTab === 'receta' && (
+        {activeView === 'receta' && (
           <div className="space-y-3">
             {/* Cobertura, editable acá mismo: es lo que decide si la receta sale con
                 obra social o como particular, y hasta ahora sólo se podía tocar
@@ -934,15 +1036,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
           </div>
         )}
 
-        {activeTab === 'historia' && (
-          <HistoriaTab loading={loadingHistoria} encounters={historia.encounters} allergies={historia.allergies} />
-        )}
-
-        {activeTab === 'datos' && (
-          <DatosTab loading={loadingPatientData} patient={patientData} />
-        )}
-
-        {activeTab === 'cerrar' && <CerrarTab {...codigoCierre} />}
+        {activeView === 'cerrar' && <CerrarTab {...codigoCierre} />}
       </div>
     </div>
   )
