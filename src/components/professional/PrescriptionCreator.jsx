@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   MagnifyingGlass, X, CircleNotch, Check, Pill,
   Plus, Copy, FilePdf, ArrowSquareOut, Warning, Info,
 } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
+import { capitalizarNombreCatalogo } from '../../lib/format'
 import MedicationSearch from './MedicationSearch'
 import InfoTooltip from '../common/InfoTooltip'
 import DatosRecetaFaltantes from './DatosRecetaFaltantes'
@@ -140,7 +141,7 @@ function PrescriptionRow({ rx, selectable, checked, onToggle, enCurso = false })
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-semibold text-text-primary leading-tight">
-              {rx.medication_name}
+              {capitalizarNombreCatalogo(rx.medication_name)}
               {rx.concentration && (
                 <span className="font-normal text-text-secondary"> {rx.concentration}</span>
               )}
@@ -317,7 +318,10 @@ function AddPrescriptionForm({ patientId, encounterId, ensureEncounter, professi
             onSelect={m => setForm(p => m ? {
               ...p,
               catalogo: m,
-              medicationName: m.nombreProducto,
+              // Capitalizado al elegirse: el vademécum viene en cualquier
+              // casing y este nombre termina en la HC y la receta que ve el
+              // paciente. RCTA matchea por `regNo`, no por el texto.
+              medicationName: capitalizarNombreCatalogo(m.nombreProducto),
               // La presentación del catálogo es la fuente de verdad: el mismo
               // producto tiene varias y la que se receta es la elegida.
               presentation: m.presentacion ?? p.presentation,
@@ -515,6 +519,21 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
       .then(({ data }) => setPrescriptions(data ?? []))
       .finally(() => setLoading(false))
   }, [encounterId])
+
+  // Sin medicamentos cargados, el formulario abre solo — el paso intermedio
+  // de "acá no hay nada, tocá el botón" era friccion pura para el caso más
+  // común (primera receta de la consulta). `autoAbierto` es un "ya lo hice
+  // una vez": si el profesional cancela con la lista todavía vacía, el efecto
+  // no se dispara de nuevo — cancelar tiene que dejar el botón normal, no
+  // reabrir el form solo. (Mateo, 2026-08-24)
+  const autoAbierto = useRef(false)
+  useEffect(() => {
+    if (loading || congelada || autoAbierto.current) return
+    if (prescriptions.length === 0) {
+      autoAbierto.current = true
+      setAddOpen(true)
+    }
+  }, [loading, congelada, prescriptions.length])
 
   // Todo lo emitible arranca marcado: recetar un solo medicamento tiene que
   // seguir siendo un clic, y desmarcar es más fácil que marcar.

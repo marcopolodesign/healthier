@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { MagnifyingGlass, CircleNotch, Check, X } from '@phosphor-icons/react'
 import { rctaService } from '../../services/rctaService'
+import { capitalizarNombreCatalogo } from '../../lib/format'
 
 /**
  * Qué estudio es: buscador contra el catálogo de prácticas de Innovamed, con
@@ -53,8 +54,9 @@ export default function EstudioSearch({ value, onChange, disabled = false }) {
       <div className="rounded-xl border border-brand/40 bg-brand-muted/30 px-3 py-2.5 flex items-start gap-2">
         <Check className="h-4 w-4 text-brand mt-0.5 shrink-0" weight="bold" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-text-primary truncate">{value.nombre}</p>
-          <p className="text-[11px] text-text-tertiary">SNOMED {value.codigo}</p>
+          {/* Sin el código SNOMED abajo (Mateo, 2026-08-24): al que elige no le
+              dice nada — el código igual se guarda en `value.codigo`. */}
+          <p className="text-sm font-semibold text-text-primary truncate">{capitalizarNombreCatalogo(value.nombre)}</p>
         </div>
         <button
           type="button"
@@ -99,7 +101,7 @@ export default function EstudioSearch({ value, onChange, disabled = false }) {
                 }}
                 className="w-full text-left px-3 py-2 hover:bg-brand-muted/40 transition-colors border-b border-border-default last:border-b-0"
               >
-                <p className="text-sm font-medium text-text-primary first-letter:uppercase">{p.practica}</p>
+                <p className="text-sm font-medium text-text-primary">{capitalizarNombreCatalogo(p.practica)}</p>
                 {(p.categoria || p.tipo) && (
                   <p className="text-[11px] text-text-tertiary">
                     {[p.tipo, p.categoria].filter(Boolean).join(' · ')}

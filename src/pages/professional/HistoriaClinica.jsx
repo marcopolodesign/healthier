@@ -29,6 +29,8 @@ const ENTRY_TYPE_LABELS = {
   indication:       'Indicación',
   prescription_ref: 'Receta',
   addendum:         'Addendum',
+  // Cargada desde el Recetario > "Recetar estudios" (EstudiosCreator).
+  order:            'Orden de estudios',
 }
 
 const ENTRY_COLORS = {
@@ -37,6 +39,7 @@ const ENTRY_COLORS = {
   indication:       '#E8927C',
   prescription_ref: '#5B8DB8',
   addendum:         '#95A5A6',
+  order:            '#4A9B8E',
 }
 
 function paramColor(status) {

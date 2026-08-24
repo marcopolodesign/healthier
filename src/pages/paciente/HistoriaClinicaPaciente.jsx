@@ -12,7 +12,7 @@ const ENTRY_TYPE_LABEL = {
   soap_assessment: 'Diagnóstico',
   soap_plan: 'Plan',
   evolution: 'Evolución',
-  order: 'Orden',
+  order: 'Orden de estudios',
   prescription: 'Receta',
   free_text: 'Nota',
 }

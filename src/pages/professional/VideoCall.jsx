@@ -20,7 +20,7 @@ import { professionalService } from '../../services/professionalService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import ScribeSession from '../../components/professional/ScribeSession'
-import PrescriptionCreator from '../../components/professional/PrescriptionCreator'
+import Recetario from '../../components/professional/Recetario'
 import FinanciadorPicker from '../../components/FinanciadorPicker'
 import { toast } from '../../components/Toast'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
@@ -147,11 +147,23 @@ function useVideoSplit() {
 // diagnóstico asentado durante la consulta es presuntivo hasta que lo confirme
 // un estudio, y llamarlo "Diagnóstico" a secas empuja a escribirlo con más
 // certeza de la que hay. (Mateo, 2026-08-14)
-const ENTRY_TYPE_LABELS = {
+// Los 4 tipos que se crean desde acá con un botón (ver la grilla más abajo).
+// "order" NO es uno de ellos a propósito: esas entradas las genera el
+// Recetario > "Recetar estudios" (EstudiosCreator) con su propio formulario
+// estructurado (varios estudios + indicaciones), no esta nota libre.
+const NOTE_TYPE_LABELS = {
   note: 'Nota',
   diagnosis: 'Diagnóstico presuntivo',
   indication: 'Indicación',
   addendum: 'Addendum',
+}
+
+// Todo lo que puede aparecer en la planilla de esta consulta, para leerlo con
+// nombre en vez del valor crudo. Superset de NOTE_TYPE_LABELS: agrega los
+// tipos que se cargan desde otro lado (las órdenes de estudios, acá arriba).
+const ENTRY_TYPE_LABELS = {
+  ...NOTE_TYPE_LABELS,
+  order: 'Orden de estudios',
 }
 
 // Etiquetas explícitas (Mateo, 2026-08-21): las viejas ("Hoy", "Receta",
@@ -182,10 +194,13 @@ const ENTRY_TYPE_LABELS = {
 const PANEL_TABS = [
   { id: 'nota',     kind: 'section', label: 'Notas de Consulta', icon: ClipboardText },
   { id: 'historia', kind: 'section', label: 'Historia Clínica',  icon: ClockCounterClockwise },
-  // Generar la receta durante la consulta y no después: el profesional está
-  // acá cuando decide medicar, y mandarlo al detalle de la consulta le hace
-  // perder el hilo (y al paciente, esperando del otro lado).
-  { id: 'receta',   kind: 'view',    label: 'Generar Receta Electrónica', icon: Pill },
+  // Recetar durante la consulta y no después: el profesional está acá cuando
+  // decide medicar o pedir un estudio, y mandarlo al detalle de la consulta
+  // le hace perder el hilo (y al paciente, esperando del otro lado).
+  // "Recetario" (Mateo, 2026-08-24) — antes decía "Generar Receta
+  // Electrónica" y sólo cubría medicamentos; ahora adentro hay un selector
+  // de 2 tarjetas (medicamentos / estudios), ver `Recetario.jsx`.
+  { id: 'receta',   kind: 'view',    label: 'Recetario', icon: Pill },
   // Código de cierre EN la llamada, no sólo después de colgar (migración 099,
   // pedido de Mateo 2026-08-06).
   { id: 'cerrar',   kind: 'view',    label: 'Cerrar Consulta',    icon: Key },
@@ -787,8 +802,8 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
     }
   }
 
-  // Sólo se ofrece "Generar Receta Electrónica" cuando el profesional puede
-  // recetar (fix del punto 7). Mientras se está cargando esa respuesta,
+  // Sólo se ofrece "Recetario" cuando el profesional puede recetar (fix del
+  // punto 7). Mientras se está cargando esa respuesta,
   // `puedeRecetarProfesional` da `false`, así que la pestaña queda oculta y
   // no "parpadea" apareciendo tarde.
   const visibleTabs = PANEL_TABS.filter(tab => tab.id !== 'receta' || puedeRecetarProfesional)
@@ -907,7 +922,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
                   fila del paciente cubre el caso de necesitarlos scrolleado. */}
               {!showForm && (
                 <div ref={botonesRef} className="grid grid-cols-2 gap-2.5 mb-4">
-                  {Object.entries(ENTRY_TYPE_LABELS).map(([value, label]) => (
+                  {Object.entries(NOTE_TYPE_LABELS).map(([value, label]) => (
                     <button
                       key={value}
                       onClick={() => { setForm({ entryType: value, content: '' }); setShowForm(true) }}
@@ -925,13 +940,13 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
                 {/* El tipo ya se eligió con el botón — se muestra como
                     encabezado, y se puede cambiar sin perder lo escrito. */}
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-brand">{ENTRY_TYPE_LABELS[form.entryType]}</span>
+                  <span className="text-xs font-semibold text-brand">{NOTE_TYPE_LABELS[form.entryType]}</span>
                   <select
                     className="form-select text-[11px] py-1 w-auto"
                     value={form.entryType}
                     onChange={e => setForm(f => ({ ...f, entryType: e.target.value }))}
                   >
-                    {Object.entries(ENTRY_TYPE_LABELS).map(([v, label]) => (
+                    {Object.entries(NOTE_TYPE_LABELS).map(([v, label]) => (
                       <option key={v} value={v}>{label}</option>
                     ))}
                   </select>
@@ -941,7 +956,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
                   autoFocus
                   rows={4}
                   className="form-input text-xs resize-none py-1.5"
-                  placeholder={`${ENTRY_TYPE_LABELS[form.entryType]}…`}
+                  placeholder={`${NOTE_TYPE_LABELS[form.entryType]}…`}
                   value={form.content}
                   onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
                 />
@@ -1105,10 +1120,11 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
               )}
             </div>
 
-            <PrescriptionCreator
+            <Recetario
               patientId={consultation?.patientId ?? null}
               encounterId={encounterId}
               ensureEncounter={ensureEncounter}
+              onEntryAdded={entry => setEntries(prev => [...prev, entry])}
               professionalId={profile?.id ?? null}
               profile={profile}
               profProfile={profProfile}

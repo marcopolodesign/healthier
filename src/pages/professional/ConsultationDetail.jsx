@@ -18,7 +18,7 @@ import PreconsultaSummary, { hasPreconsulta } from '../../components/professiona
 import ConsultationPaymentCard from '../../components/professional/ConsultationPaymentCard'
 import FacturaConsulta from '../../components/professional/FacturaConsulta'
 import FinanciadorPicker from '../../components/FinanciadorPicker'
-import PrescriptionCreator from '../../components/professional/PrescriptionCreator'
+import Recetario from '../../components/professional/Recetario'
 import ScribeSession from '../../components/professional/ScribeSession'
 import { toast } from '../../components/Toast'
 
@@ -498,13 +498,13 @@ export default function ConsultationDetail({ profile }) {
 
         <div className="border-t border-border-default" />
 
-        {/* Prescriptions subsection */}
+        {/* Recetario subsection */}
         <div>
           <div className="flex items-center gap-2 mb-3">
             <Pill className="h-4 w-4 text-brand" />
-            <p className="text-sm font-semibold text-text-primary">Recetas digitales</p>
+            <p className="text-sm font-semibold text-text-primary">Recetario</p>
           </div>
-          <PrescriptionCreator
+          <Recetario
             patientId={consultation.patientId}
             encounterId={clinicalEncounterId}
             ensureEncounter={ensureEncounter}

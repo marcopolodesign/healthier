@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { MagnifyingGlass, CircleNotch, Check, Warning, X } from '@phosphor-icons/react'
 import { rctaService } from '../../services/rctaService'
+import { capitalizarNombreCatalogo } from '../../lib/format'
 
 /**
  * Buscador de medicamentos contra el catálogo de Innovamed.
@@ -67,10 +68,10 @@ export default function MedicationSearch({ value, onTextChange, onSelect, select
         <Check className="h-4 w-4 text-brand mt-0.5 shrink-0" weight="bold" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-text-primary truncate">
-            {selected.nombreProducto} <span className="font-normal text-text-secondary">{selected.presentacion}</span>
+            {capitalizarNombreCatalogo(selected.nombreProducto)} <span className="font-normal text-text-secondary">{selected.presentacion}</span>
           </p>
           <p className="text-[11px] text-text-tertiary">
-            {selected.nombreDroga} · cód. {selected.regNo}
+            {capitalizarNombreCatalogo(selected.nombreDroga)} · cód. {selected.regNo}
             {selected.tieneCobertura === false && ' · sin cobertura'}
           </p>
           {(selected.psicofarmaco || selected.estupefaciente || selected.requiereDuplicado) && (
@@ -114,10 +115,10 @@ export default function MedicationSearch({ value, onTextChange, onSelect, select
                 className="w-full text-left px-3 py-2 hover:bg-brand-muted/40 transition-colors border-b border-border-default last:border-b-0"
               >
                 <p className="text-sm font-medium text-text-primary">
-                  {m.nombreProducto} <span className="text-text-secondary font-normal">{m.presentacion}</span>
+                  {capitalizarNombreCatalogo(m.nombreProducto)} <span className="text-text-secondary font-normal">{m.presentacion}</span>
                 </p>
                 <p className="text-[11px] text-text-tertiary">
-                  {m.nombreDroga}
+                  {capitalizarNombreCatalogo(m.nombreDroga)}
                   {m.tieneCobertura === false && ' · sin cobertura'}
                   {m.psicofarmaco && ' · psicofármaco'}
                   {m.estupefaciente && ' · estupefaciente'}
