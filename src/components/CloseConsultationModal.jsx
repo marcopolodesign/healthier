@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import Modal from './Modal'
 import { consultationsService } from '../services/consultationsService'
 import { clinicalService } from '../services/clinicalService'
+import { hydrateDraft, hasMeaningfulContent, guardarConsultaEnHC } from '../lib/consultaDraft'
 import FacturaConsulta from './professional/FacturaConsulta'
 import { toast } from './Toast'
 
@@ -15,6 +16,11 @@ export default function CloseConsultationModal({
   // modal muestre "Reemplazar" en vez de ofrecer subir una como si no hubiera
   // ninguna — y el profesional no la pise sin darse cuenta.
   invoiceUrl, invoiceUploadedAt,
+  // Borrador de la consulta estructurada (`consultations.hc_draft`, migración
+  // 122) — si el profesional documentó algo en la videollamada y todavía no
+  // lo guardó a mano ("Guardar consulta en la HC"), se asienta acá solo, para
+  // que cerrar sin haber tocado ese botón no pierda lo cargado.
+  hcDraft,
 }) {
   const [form, setForm] = useState({ notes: '', code: '', sinCodigo: false, motivoSinCodigo: '' })
   const [closing, setClosing] = useState(false)
@@ -71,6 +77,38 @@ export default function CloseConsultationModal({
     }
   }
 
+  // Auto-asentado de la consulta estructurada (migración 122): si el
+  // profesional documentó algo con "Consulta" (motivo, enfermedad actual,
+  // antecedentes, síntomas, vitales, examen, diagnóstico) y todavía no tocó
+  // "Guardar consulta en la HC" (`draft.asentada === false`), se compone y se
+  // guarda acá — mismo helper puro que usa ese botón
+  // (`src/lib/consultaDraft.js`), para que el texto no dependa de por dónde
+  // se cerró la consulta.
+  //
+  // Best-effort a propósito: si falla, se avisa pero NO frena el cierre — la
+  // consulta ya se cerró (o se está por cerrar) y es lo que el profesional
+  // pidió; perder la oportunidad de asentar la nota es preferible a dejar la
+  // consulta trabada.
+  const asentarConsultaEstructurada = async () => {
+    if (!ensureEncounter || !patientId) return
+    const draft = hydrateDraft(hcDraft)
+    if (draft.asentada || !hasMeaningfulContent(draft)) return
+    try {
+      await guardarConsultaEnHC({
+        draft, ensureEncounter, patientId,
+        professionalId: profile.id,
+        licenseType, licenseNumber,
+      })
+      // Best-effort también: marca el borrador como asentado para que un
+      // segundo cierre (o el propio botón, si el profesional vuelve a
+      // entrar) no duplique la entrada.
+      consultationsService.update(consultationId, { hcDraft: { ...draft, asentada: true } }).catch(() => {})
+    } catch (err) {
+      console.error('No se pudo auto-asentar la consulta estructurada:', err)
+      toast.warning('La consulta se cerró, pero lo documentado en "Consulta" no se pudo asentar en la historia clínica.')
+    }
+  }
+
   const handleSubmitPresencial = async () => {
     // La receta ya NO se sube a mano acá (decisión de Mateo, 2026-07-29): una
     // imagen o un PDF que subimos nosotros no es una receta. La receta es el PDF
@@ -82,6 +120,7 @@ export default function CloseConsultationModal({
       code: null,
     })
     await asentarNotaEnHC()
+    await asentarConsultaEstructurada()
     await subirFactura()
     if (result.status === 'completed') {
       toast.success('Consulta finalizada correctamente')
@@ -119,6 +158,7 @@ export default function CloseConsultationModal({
       skipCodeReason: yaVerificado || form.code.trim().length === 4 ? null : form.motivoSinCodigo.trim(),
     })
     await asentarNotaEnHC()
+    await asentarConsultaEstructurada()
     await subirFactura()
     toast.success('Consulta finalizada correctamente')
     onFinalized?.()

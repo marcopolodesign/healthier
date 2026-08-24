@@ -31,6 +31,11 @@ const ENTRY_TYPE_LABELS = {
   addendum:         'Addendum',
   // Cargada desde el Recetario > "Recetar estudios" (EstudiosCreator).
   order:            'Orden de estudios',
+  // Todo lo documentado con la "consulta estructurada" de la videollamada
+  // (motivo, enfermedad actual, antecedentes, síntomas, vitales, examen
+  // físico, diagnóstico) — una sola entrada de este tipo por consulta
+  // (Mateo, 2026-08-24, ver ConsultaEstructurada.jsx).
+  consultation:     'Consulta',
 }
 
 const ENTRY_COLORS = {
@@ -40,6 +45,7 @@ const ENTRY_COLORS = {
   prescription_ref: '#5B8DB8',
   addendum:         '#95A5A6',
   order:            '#4A9B8E',
+  consultation:     '#C49CAB',
 }
 
 function paramColor(status) {

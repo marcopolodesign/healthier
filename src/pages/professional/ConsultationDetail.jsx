@@ -684,6 +684,7 @@ export default function ConsultationDetail({ profile }) {
         ensureEncounter={ensureEncounter}
         licenseType={profProfile?.licenseType}
         licenseNumber={profProfile?.licenseNumber}
+        hcDraft={consultation.hcDraft}
         onFinalized={() => navigate('/profesional/dashboard')}
       />
 

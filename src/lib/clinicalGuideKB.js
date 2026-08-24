@@ -111,6 +111,51 @@ export const CLINICAL_GUIDE_KB = {
 export const GUIDE_MOTIVOS = Object.keys(CLINICAL_GUIDE_KB)
 
 /**
+ * Antecedentes personales patológicos — chips de "04. Antecedentes" de la
+ * consulta estructurada (`ConsultaEstructurada.jsx`). Mismo listado que el
+ * prototipo de Nacho (docs/referencias/nacho-kb-2026-08-24.js), verificado
+ * carácter por carácter contra ese archivo el 2026-08-24.
+ */
+export const ANTEC_CHIPS = [
+  'HTA', 'Diabetes', 'Dislipemia', 'Asma', 'EPOC', 'Cardiopatía isquémica',
+  'Insuf. cardíaca', 'ERC', 'Hepatopatía', 'Hipotiroidismo', 'ACV/AIT',
+  'Cáncer', 'Anticoagulación',
+]
+
+/** Antecedentes familiares — chips de "04. Antecedentes". Mismo origen que ANTEC_CHIPS. */
+export const FAM_CHIPS = [
+  'Cardiopatía precoz', 'Muerte súbita', 'Diabetes', 'Cáncer mama/colon', 'HTA', 'Enf. tiroidea',
+]
+
+/**
+ * Sistemas del examen físico — filas de "07. Examen físico" de la consulta
+ * estructurada, cada una con toggle Normal/Alterado. Mismo origen que
+ * ANTEC_CHIPS.
+ */
+export const SISTEMAS_EXAMEN = [
+  'Estado general', 'Piel y faneras', 'Cabeza y cuello', 'Cardiovascular',
+  'Respiratorio', 'Abdomen', 'Genitourinario', 'Neurológico', 'Osteoarticular',
+]
+
+/**
+ * Rangos de referencia de los signos vitales — de "06. Vitales". Los usa
+ * `evaluarTA`/`evaluarFC`/`evaluarFR`/`evaluarTemp`/`evaluarSat` en
+ * `src/lib/consultaDraft.js` para resaltar valores fuera de rango; se
+ * documentan acá junto al resto del contenido clínico de Nacho.
+ *
+ *   TA 120/80 mmHg (alto ≥140/90, bajo <90 sistólica) · FC 60–100 lpm ·
+ *   FR 12–20 rpm · T° 36–37,5 °C (alto ≥38, bajo <35) · SatO₂ ≥95 % ·
+ *   Peso kg · Talla cm
+ */
+export const VITALES_RANGOS = {
+  ta: '120/80 mmHg',
+  fc: '60–100 lpm',
+  fr: '12–20 rpm',
+  temp: '36–37,5 °C',
+  sat: '≥95 %',
+}
+
+/**
  * Especialidades (`professional_profiles.specialty`) que recetan y examinan
  * de esta forma — mismo criterio que ya se usa para habilitar recetas (ver
  * migración de vertical_settings / catchup 2026-08-06: "arranca prendido sólo

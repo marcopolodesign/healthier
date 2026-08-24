@@ -4,7 +4,7 @@ import {
   ArrowLeft, PhoneSlash, ClipboardText, ArrowsOut, ArrowsIn,
   Plus, Check, CircleNotch, User, Microphone, MicrophoneSlash,
   Camera, CameraSlash, Warning, Sparkle, ClockCounterClockwise,
-  IdentificationCard, Drop, Phone, Envelope, MapPin, Heartbeat, Pill,
+  IdentificationCard, Pill,
   Key, SealCheck, PaperPlaneTilt, AppleLogo, ArrowSquareOut, CaretRight,
 } from '@phosphor-icons/react'
 import DailyIframe from '@daily-co/daily-js'
@@ -12,7 +12,8 @@ import { supabase } from '../../lib/supabase'
 import { consultationsService } from '../../services/consultationsService'
 import { clinicalService } from '../../services/clinicalService'
 import PreconsultaSummary, { hasPreconsulta } from '../../components/professional/PreconsultaSummary'
-import GuiaClinicaConsulta from '../../components/professional/GuiaClinicaConsulta'
+import ConsultaEstructurada from '../../components/professional/ConsultaEstructurada'
+import DatosPacienteTab from '../../components/professional/DatosPacienteTab'
 import { CLINICAL_GUIDE_SPECIALTIES } from '../../lib/clinicalGuideKB'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { profilesService } from '../../services/profilesService'
@@ -164,6 +165,10 @@ const NOTE_TYPE_LABELS = {
 const ENTRY_TYPE_LABELS = {
   ...NOTE_TYPE_LABELS,
   order: 'Orden de estudios',
+  // La consulta estructurada (ConsultaEstructurada.jsx) asienta TODO lo
+  // documentado (motivo, enfermedad actual, antecedentes, síntomas, vitales,
+  // examen físico, diagnóstico) como una única entrada de este tipo.
+  consultation: 'Consulta',
 }
 
 // Etiquetas explícitas (Mateo, 2026-08-21): las viejas ("Hoy", "Receta",
@@ -259,94 +264,6 @@ function NutriplanEnConsulta({ patientId }) {
 }
 
 // ── Código de cierre — tab "Cerrar" dentro de la videollamada ─────────────────
-function CerrarTab({
-  codeVerifiedAt, codeInput, onCodeInputChange, onVerify, verifying, verifyError, attemptsLeft,
-  onSolicitar, solicitando, solicitado,
-}) {
-  if (codeVerifiedAt) {
-    return (
-      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center space-y-1">
-        <SealCheck className="h-6 w-6 text-emerald-600 mx-auto" weight="fill" />
-        <p className="text-sm font-semibold text-emerald-700">Código verificado</p>
-        <p className="text-xs text-emerald-600">
-          Al finalizar, vas a poder cerrar la consulta sin que te lo vuelva a pedir.
-        </p>
-      </div>
-    )
-  }
-  const agotado = attemptsLeft === 0
-  return (
-    <div className="space-y-3">
-      <div className="rounded-lg border border-border-default bg-bg-surface p-2.5 space-y-2.5">
-        <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Código de cierre</p>
-        <p className="text-xs text-text-secondary leading-relaxed">
-          Pedíselo al paciente o tocá "Solicitar código" para que se lo pidamos por vos.
-          Verificarlo ahora te ahorra tener que pedirlo de nuevo al terminar.
-        </p>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            inputMode="numeric"
-            maxLength={4}
-            value={codeInput}
-            onChange={e => onCodeInputChange(e.target.value.replace(/\D/g, ''))}
-            placeholder="0000"
-            disabled={agotado}
-            className="form-input text-center tracking-[0.3em] text-lg font-mono w-24 disabled:opacity-50"
-          />
-          <button
-            type="button"
-            onClick={onVerify}
-            disabled={verifying || agotado || codeInput.length !== 4}
-            className="btn-primary flex-1 text-xs disabled:opacity-50"
-          >
-            {verifying ? 'Verificando…' : 'Verificar'}
-          </button>
-        </div>
-        {verifyError && <p className="text-xs text-red-600">{verifyError}</p>}
-        {agotado && (
-          <p className="text-xs text-amber-700">
-            Se agotaron los intentos. Al finalizar vas a poder cerrar igual dejando un motivo escrito.
-          </p>
-        )}
-        <button
-          type="button"
-          onClick={onSolicitar}
-          disabled={solicitando || agotado}
-          className="btn-secondary w-full text-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
-        >
-          <PaperPlaneTilt className="h-3.5 w-3.5" />
-          {solicitando ? 'Pidiendo…' : solicitado ? 'Código pedido — esperando al paciente' : 'Solicitar código al paciente'}
-        </button>
-      </div>
-      <p className="text-[11px] text-text-tertiary leading-relaxed px-0.5">
-        Si el paciente ya no está en la llamada, vas a poder cerrar igual dejando un motivo
-        escrito cuando finalices la consulta.
-      </p>
-    </div>
-  )
-}
-
-const BLOOD_TYPE_COLORS = {
-  'O+': 'bg-red-50 text-red-700 border-red-200',
-  'O-': 'bg-red-50 text-red-700 border-red-200',
-  'A+': 'bg-blue-50 text-blue-700 border-blue-200',
-  'A-': 'bg-blue-50 text-blue-700 border-blue-200',
-  'B+': 'bg-purple-50 text-purple-700 border-purple-200',
-  'B-': 'bg-purple-50 text-purple-700 border-purple-200',
-  'AB+': 'bg-amber-50 text-amber-700 border-amber-200',
-  'AB-': 'bg-amber-50 text-amber-700 border-amber-200',
-}
-
-/**
- * "Historia": lo que el paciente trae de ANTES — turnos previos con sus notas,
- * y sus alergias activas. Nada de lo de esta consulta.
- *
- * La pre-consulta que el paciente declaró para ESTA consulta vivía acá y se
- * movió a "Hoy" (Mateo, 2026-08-21): es el motivo por el que entró hoy, no
- * historia previa, y el profesional la necesita al lado de la guía clínica
- * cuando arranca — no escondida en otra pestaña.
- */
 function HistoriaTab({ loading, encounters, allergies }) {
   if (loading) {
     return (
@@ -415,83 +332,70 @@ function HistoriaTab({ loading, encounters, allergies }) {
   )
 }
 
-// ── Basic patient data tab — profile, contact, emergency contact ──────────────
-function DatosTab({ loading, patient }) {
-  if (loading) {
+function CerrarTab({
+  codeVerifiedAt, codeInput, onCodeInputChange, onVerify, verifying, verifyError, attemptsLeft,
+  onSolicitar, solicitando, solicitado,
+}) {
+  if (codeVerifiedAt) {
     return (
-      <div className="flex justify-center py-8">
-        <CircleNotch className="h-5 w-5 animate-spin text-brand" />
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center space-y-1">
+        <SealCheck className="h-6 w-6 text-emerald-600 mx-auto" weight="fill" />
+        <p className="text-sm font-semibold text-emerald-700">Código verificado</p>
+        <p className="text-xs text-emerald-600">
+          Al finalizar, vas a poder cerrar la consulta sin que te lo vuelva a pedir.
+        </p>
       </div>
     )
   }
-  if (!patient) {
-    return (
-      <div className="text-center py-8 text-text-secondary">
-        <IdentificationCard className="h-8 w-8 mx-auto mb-2 opacity-30" />
-        <p className="text-xs">No se pudo cargar el perfil</p>
-      </div>
-    )
-  }
-  const bloodTypeClass = BLOOD_TYPE_COLORS[patient.bloodType] ?? 'bg-bg-surface text-text-primary border-border-default'
-  const age = patient.birthDate
-    ? Math.floor((Date.now() - new Date(patient.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
-    : null
-
+  const agotado = attemptsLeft === 0
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center shrink-0 overflow-hidden">
-          {patient.avatarUrl
-            ? <img src={patient.avatarUrl} alt={patient.fullName} className="w-full h-full object-cover" />
-            : <User className="h-5 w-5 text-brand" />
-          }
+      <div className="rounded-lg border border-border-default bg-bg-surface p-2.5 space-y-2.5">
+        <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Código de cierre</p>
+        <p className="text-xs text-text-secondary leading-relaxed">
+          Pedíselo al paciente o tocá "Solicitar código" para que se lo pidamos por vos.
+          Verificarlo ahora te ahorra tener que pedirlo de nuevo al terminar.
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={4}
+            value={codeInput}
+            onChange={e => onCodeInputChange(e.target.value.replace(/\D/g, ''))}
+            placeholder="0000"
+            disabled={agotado}
+            className="form-input text-center tracking-[0.3em] text-lg font-mono w-24 disabled:opacity-50"
+          />
+          <button
+            type="button"
+            onClick={onVerify}
+            disabled={verifying || agotado || codeInput.length !== 4}
+            className="btn-primary flex-1 text-xs disabled:opacity-50"
+          >
+            {verifying ? 'Verificando…' : 'Verificar'}
+          </button>
         </div>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-text-primary truncate">{patient.fullName || '—'}</p>
-          <p className="text-[11px] text-text-secondary">{age != null ? `${age} años` : '—'}</p>
-        </div>
-      </div>
-
-      {patient.bloodType && (
-        <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border w-fit ${bloodTypeClass}`}>
-          <Drop className="h-3 w-3" /> Grupo {patient.bloodType}
-        </span>
-      )}
-
-      <div className="rounded-lg border border-border-default bg-bg-surface p-2.5 space-y-1.5">
-        <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Contacto</p>
-        {patient.phone && (
-          <p className="flex items-center gap-1.5 text-xs text-text-secondary"><Phone className="h-3 w-3 shrink-0" /> {patient.phone}</p>
-        )}
-        {patient.email && (
-          <p className="flex items-center gap-1.5 text-xs text-text-secondary"><Envelope className="h-3 w-3 shrink-0" /> {patient.email}</p>
-        )}
-        {patient.address && (
-          <p className="flex items-center gap-1.5 text-xs text-text-secondary"><MapPin className="h-3 w-3 shrink-0" /> {patient.address}</p>
-        )}
-      </div>
-
-      {(patient.dni || patient.insuranceName) && (
-        <div className="rounded-lg border border-border-default bg-bg-surface p-2.5 space-y-1.5">
-          <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide flex items-center gap-1">
-            <Heartbeat className="h-3 w-3" /> Perfil clínico
+        {verifyError && <p className="text-xs text-red-600">{verifyError}</p>}
+        {agotado && (
+          <p className="text-xs text-amber-700">
+            Se agotaron los intentos. Al finalizar vas a poder cerrar igual dejando un motivo escrito.
           </p>
-          {patient.dni && <p className="text-xs text-text-secondary">DNI: {patient.dni}</p>}
-          {patient.insuranceName && (
-            <p className="text-xs text-text-secondary">
-              {patient.insuranceName}{patient.insuranceNum ? ` · N° ${patient.insuranceNum}` : ''}
-            </p>
-          )}
-        </div>
-      )}
-
-      {(patient.emergencyName || patient.emergencyPhone) && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 space-y-1.5">
-          <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide">Contacto de emergencia</p>
-          {patient.emergencyName && <p className="text-xs text-red-700">{patient.emergencyName}{patient.emergencyRel ? ` (${patient.emergencyRel})` : ''}</p>}
-          {patient.emergencyPhone && <p className="text-xs text-red-700">{patient.emergencyPhone}</p>}
-        </div>
-      )}
+        )}
+        <button
+          type="button"
+          onClick={onSolicitar}
+          disabled={solicitando || agotado}
+          className="btn-secondary w-full text-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
+        >
+          <PaperPlaneTilt className="h-3.5 w-3.5" />
+          {solicitando ? 'Pidiendo…' : solicitado ? 'Código pedido — esperando al paciente' : 'Solicitar código al paciente'}
+        </button>
+      </div>
+      <p className="text-[11px] text-text-tertiary leading-relaxed px-0.5">
+        Si el paciente ya no está en la llamada, vas a poder cerrar igual dejando un motivo
+        escrito cuando finalices la consulta.
+      </p>
     </div>
   )
 }
@@ -813,13 +717,15 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
       {/* Paciente: chrome fijo del panel, siempre visible (Mateo, 2026-08-23).
           Antes vivía DENTRO del scroller con un `sticky -top-4` — salió de ahí
           para no depender de ese truco y quedar en su lugar natural, arriba de
-          todo, junto con la barra de pestañas. La planilla (Notas → Paciente
+          todo, junto con la barra de pestañas. La planilla (Notas → Consulta
           → Historia) scrollea por debajo de las dos. Tocarlo lleva a la
-          sección "Paciente" de la planilla. */}
+          sección "Consulta" de la planilla (antes "Paciente" — Mateo,
+          2026-08-24: esa sección se absorbió en "01. Filiación" de la nueva
+          consulta estructurada). */}
       <div className="shrink-0 bg-white border-b border-border-default px-3 py-2.5">
         <div className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-border-default bg-white">
           <button
-            onClick={() => irA({ id: 'datos', kind: 'section' })}
+            onClick={() => irA({ id: 'consulta', kind: 'section' })}
             className="flex-1 min-w-0 flex items-center gap-2.5 text-left group"
           >
             <div className="h-7 w-7 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
@@ -955,7 +861,11 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
                   required
                   autoFocus
                   rows={4}
-                  className="form-input text-xs resize-none py-1.5"
+                  // `form-input` es un pill (border-radius: 999px) pensado
+                  // para inputs de una línea — en una textarea de varias
+                  // líneas se ve muy redondeado (Mateo, 2026-08-24: "border
+                  // radius normal, no tan pronunciado"). rounded-lg en su lugar.
+                  className="w-full rounded-lg border border-border-default bg-bg-secondary px-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand resize-none transition-colors"
                   placeholder={`${NOTE_TYPE_LABELS[form.entryType]}…`}
                   value={form.content}
                   onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
@@ -985,24 +895,6 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
               </div>
             )}
 
-            {/* 3 · Guía clínica: sólo clínicos/pediatras recetan y examinan con
-                este flujo (mismo gate que las recetas, ver
-                CLINICAL_GUIDE_SPECIALTIES). Nutrición usa NutriPlan Pro en su
-                lugar; el resto de las verticales (psicología, etc.) sólo
-                tiene la nota libre de abajo. */}
-            {CLINICAL_GUIDE_SPECIALTIES.includes(specialty) && (
-              <GuiaClinicaConsulta
-                entries={entries}
-                preconsulta={consultation?.preconsultaData}
-                patientId={patientId}
-                professionalId={professionalId}
-                licenseType={licenseType}
-                licenseNumber={licenseNumber}
-                ensureEncounter={ensureEncounter}
-                onEntryAdded={entry => setEntries(prev => [...prev, entry])}
-              />
-            )}
-            {specialty === 'nutricion' && <NutriplanEnConsulta patientId={patientId} />}
             {loadingEntries && (
               <div className="flex justify-center py-8">
                 <CircleNotch className="h-5 w-5 animate-spin text-brand" />
@@ -1039,9 +931,37 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
             )}
             </section>
 
-            <section ref={el => { sectionRefs.current.datos = el }} className="scroll-mt-6 mt-8">
-              <SectionHeader icon={IdentificationCard} label="Paciente" />
-              <DatosTab loading={loadingPatientData} patient={patientData} />
+            {/* "Consulta": absorbe la vieja sección "Paciente" (ahora
+                "01. Filiación", dentro de ConsultaEstructurada) y el viejo
+                GuiaClinicaConsulta (ahora el copiloto clínico de la columna
+                derecha). Sólo clínicos/pediatras tienen el formulario
+                completo — mismo gate que antes tenía la guía y que sigue
+                teniendo la receta (CLINICAL_GUIDE_SPECIALTIES). Nutrición
+                usa NutriPlan Pro en su lugar; el resto de las verticales
+                (psicología, etc.) sólo tiene la nota libre de arriba — la
+                sección igual se muestra para todos, para que Filiación no
+                desaparezca en esos casos. */}
+            <section ref={el => { sectionRefs.current.consulta = el }} className="scroll-mt-6 mt-8">
+              <SectionHeader icon={IdentificationCard} label="Consulta" />
+              {CLINICAL_GUIDE_SPECIALTIES.includes(specialty) ? (
+                <ConsultaEstructurada
+                  consultation={consultation}
+                  patientId={patientId}
+                  professionalId={professionalId}
+                  specialty={specialty}
+                  licenseType={licenseType}
+                  licenseNumber={licenseNumber}
+                  loadingProfProfile={loadingProfProfile}
+                  ensureEncounter={ensureEncounter}
+                  onEntryAdded={entry => setEntries(prev => [...prev, entry])}
+                  patientData={patientData}
+                  loadingPatientData={loadingPatientData}
+                  historia={historia}
+                />
+              ) : (
+                <DatosPacienteTab loading={loadingPatientData} patient={patientData} />
+              )}
+              {specialty === 'nutricion' && <NutriplanEnConsulta patientId={patientId} />}
             </section>
 
             <section ref={el => { sectionRefs.current.historia = el }} className="scroll-mt-6 mt-8 pb-4">

@@ -15,6 +15,8 @@ const ENTRY_TYPE_LABEL = {
   order: 'Orden de estudios',
   prescription: 'Receta',
   free_text: 'Nota',
+  // Consulta estructurada de la videollamada (Mateo, 2026-08-24).
+  consultation: 'Consulta',
 }
 
 const MED_STATUS_LABEL = {
