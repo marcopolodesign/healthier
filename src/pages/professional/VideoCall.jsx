@@ -42,7 +42,10 @@ const SCRIBE_EN_LLAMADA = false
 
 // ── Split ajustable de la videollamada ───────────────────────────────────────
 const SPLIT_STORAGE_KEY = 'healthier:vc-video-width'
-const SPLIT_DEFAULT_PCT = 50
+// 30% cámara / 70% panel clínico (Mateo, 2026-08-24): durante la consulta el
+// trabajo pasa por el panel — la cámara acompaña. El profesional igual puede
+// arrastrar el divisor, y su elección queda guardada por encima del default.
+const SPLIT_DEFAULT_PCT = 30
 // Mínimos en px, no en porcentaje: en un monitor de 2560 un 25% es enorme y en
 // uno de 1280 es inusable. Lo que importa es que el panel clínico siga siendo
 // legible (tiene formularios adentro) y que el video no quede en miniatura.
