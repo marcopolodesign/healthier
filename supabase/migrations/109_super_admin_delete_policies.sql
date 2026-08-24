@@ -21,9 +21,25 @@ create policy "payments_delete_super_admin" on payments
   for delete
   using (get_my_role() = 'super_admin');
 
-create policy "medication_orders_delete_super_admin" on medication_orders
-  for delete
-  using (get_my_role() = 'super_admin');
+-- `medication_orders` la crea la rama de farmacia (`feature/farmacia-medicamentos`,
+-- migraciones 103-107 y 111), que NO está mergeada a `main`. En producción esta
+-- policy se creó porque allá farmacia sí se aplicó; en cualquier base levantada
+-- desde el repo la tabla no existe y esta migración fallaba.
+-- Se condiciona a que la tabla exista (2026-08-24): cuando farmacia se mergee,
+-- la policy se crea sola; mientras tanto, la migración pasa limpia.
+do $farmacia$
+begin
+  if to_regclass('public.medication_orders') is not null then
+    execute $policy$
+      create policy "medication_orders_delete_super_admin" on medication_orders
+        for delete
+        using (get_my_role() = 'super_admin');
+    $policy$;
+  else
+    raise notice 'medication_orders no existe (rama de farmacia sin mergear): se omite su policy de borrado.';
+  end if;
+end
+$farmacia$;
 
 create policy "waitlist_delete_super_admin" on waitlist
   for delete

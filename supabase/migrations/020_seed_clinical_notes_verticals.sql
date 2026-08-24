@@ -14,6 +14,16 @@ DECLARE
   v_matias   uuid := '00000004-0000-0000-0000-000000000004';  -- Lic. Matías Fernández (Kinesiología)
   v_martin   uuid := '00000001-0000-0000-0000-000000000001';  -- Dr. Martín López (Medicina Clínica)
 BEGIN
+  -- Guard agregado el 2026-08-24: estos datos demo apuntan a usuarios de
+  -- `auth.users` con UUID fijo que existen en producción pero NO en una base
+  -- nueva. Sin esto, reconstruir la base desde el repo fallaba acá por
+  -- violación de foreign key. Donde no están los usuarios, la migración
+  -- simplemente no siembra nada — que es lo correcto: son datos de demo, no
+  -- esquema. (Ver la migración 000 y el catchup del 2026-08-24.)
+  if not exists (select 1 from public.profiles where id = v_patient) then
+    raise notice 'Seed omitido: no existe el paciente demo en esta base.';
+    return;
+  end if;
 
 -- ── MEDICINA CLÍNICA ─────────────────────────────────────────────────────────
 

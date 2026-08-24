@@ -26,6 +26,16 @@ DECLARE
 
   c_id uuid;
 BEGIN
+  -- Guard agregado el 2026-08-24: estos datos demo apuntan a usuarios de
+  -- `auth.users` con UUID fijo que existen en producción pero NO en una base
+  -- nueva. Sin esto, reconstruir la base desde el repo fallaba acá por
+  -- violación de foreign key. Donde no están los usuarios, la migración
+  -- simplemente no siembra nada — que es lo correcto: son datos de demo, no
+  -- esquema. (Ver la migración 000 y el catchup del 2026-08-24.)
+  if not exists (select 1 from public.profiles where id = v_pro) then
+    raise notice 'Seed omitido: no existe la profesional demo en esta base.';
+    return;
+  end if;
 
   -- ────────────────────────────────────────────────────────────
   -- 1. Auth users (minimal — email-confirmed, no password needed
