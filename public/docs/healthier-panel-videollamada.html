@@ -216,12 +216,12 @@ h2.st .ag{color:var(--gold)}
           <span class="cm-vt">Videollamada</span>
         </div>
         <div class="cm-panel">
+          <div class="pm-pat fixed" style="margin:.6rem .6rem 0"><span class="av"></span><span class="nm">Lucía Fernández</span></div>
           <div class="pm-tabs">
             <span class="pm-tab on">Notas</span><span class="pm-tab">Historia</span>
             <span class="pm-tab">Receta</span><span class="pm-tab">Cerrar</span>
           </div>
           <div class="pm-body">
-            <div class="pm-pat"><span class="av"></span><span class="nm">Lucía Fernández</span></div>
             <div class="pm-btns">
               <span class="pm-btn">Nota</span><span class="pm-btn">Diagnóstico</span>
               <span class="pm-btn">Indicación</span><span class="pm-btn">Addendum</span>
@@ -261,15 +261,15 @@ h2.st .ag{color:var(--gold)}
     <div style="display:flex;flex-direction:column;gap:1.1rem">
       <span class="eyebrow">La planilla</span>
       <h2 class="st">Una sola tira,<br><span class="a">de arriba abajo.</span></h2>
-      <p class="lead">El paciente encabeza y queda <strong>fijo</strong>. Debajo, todo lo de esta consulta; más abajo, sus datos y su historia previa.</p>
+      <p class="lead">El paciente y la barra de secciones quedan <strong>fijos</strong> arriba del panel. Debajo, la planilla scrollea: primero todo lo de esta consulta, más abajo sus datos y su historia previa.</p>
       <p class="lead" style="font-size:.85rem">Se puede escribir una nota mirando la historia sin saltar de pantalla. La barra de arriba marca sola en qué sección estás mientras scrolleás.</p>
     </div>
     <div style="display:flex;justify-content:center">
       <div class="call-mock" style="max-width:300px">
         <div class="cm-panel">
+          <div class="pm-pat fixed" style="margin:.6rem .6rem 0"><span class="av"></span><span class="nm">Lucía Fernández</span></div>
           <div class="pm-tabs"><span class="pm-tab on">Notas</span><span class="pm-tab">Historia</span><span class="pm-tab">Receta</span><span class="pm-tab">Cerrar</span></div>
           <div class="pm-body">
-            <div class="pm-pat fixed"><span class="av"></span><span class="nm">Lucía Fernández</span></div>
             <div class="pm-btns"><span class="pm-btn">Nota</span><span class="pm-btn">Diagnóstico</span><span class="pm-btn">Indicación</span><span class="pm-btn">Addendum</span></div>
             <div class="pm-block"><div class="pm-lbl">Pre-consulta</div><div class="pm-txt">Dolor de garganta</div></div>
             <div class="pm-block"><div class="pm-lbl">Guía clínica</div><div class="pm-line" style="margin-top:.2rem"></div></div>
@@ -288,20 +288,23 @@ h2.st .ag{color:var(--gold)}
     <div style="display:flex;flex-direction:column;gap:1.1rem">
       <span class="eyebrow">Paciente</span>
       <h2 class="st">Siempre<br><span class="a">a la vista.</span></h2>
-      <p class="lead">La fila con el nombre encabeza la planilla y es lo único que queda fijo al scrollear. Nunca hay duda sobre a quién se está atendiendo.</p>
+      <p class="lead">La fila con el nombre es fija arriba de todo el panel, junto con la barra de secciones. Nunca hay duda sobre a quién se está atendiendo.</p>
       <ul class="bl">
         <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Tocar el nombre lleva a sus datos: DNI, cobertura, grupo sanguíneo, contacto de emergencia</li>
-        <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Al scrollear aparece ahí mismo un atajo <strong>Nueva nota</strong></li>
+        <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Al scrollear la planilla aparece ahí mismo un atajo <strong>Nueva nota</strong> (sólo en Notas e Historia, no en Receta ni Cierre)</li>
         <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Ese atajo devuelve al principio, donde están los botones para escribir</li>
       </ul>
     </div>
     <div style="display:flex;flex-direction:column;gap:.7rem;align-items:center">
       <div class="call-mock" style="max-width:290px">
-        <div class="cm-panel"><div class="pm-body" style="gap:.35rem">
-          <div class="pm-pat fixed"><span class="av"></span><span class="nm">Lucía Fernández</span><span class="sh">+ Nueva nota</span></div>
-          <div class="pm-line"></div><div class="pm-line" style="width:80%"></div><div class="pm-line" style="width:65%"></div>
-          <div class="pm-line" style="width:88%"></div><div class="pm-line" style="width:55%"></div>
-        </div></div>
+        <div class="cm-panel">
+          <div class="pm-pat fixed" style="margin:.6rem .6rem 0"><span class="av"></span><span class="nm">Lucía Fernández</span><span class="sh">+ Nueva nota</span></div>
+          <div class="pm-tabs"><span class="pm-tab on">Notas</span><span class="pm-tab">Historia</span><span class="pm-tab">Receta</span><span class="pm-tab">Cerrar</span></div>
+          <div class="pm-body" style="gap:.35rem">
+            <div class="pm-line"></div><div class="pm-line" style="width:80%"></div><div class="pm-line" style="width:65%"></div>
+            <div class="pm-line" style="width:88%"></div><div class="pm-line" style="width:55%"></div>
+          </div>
+        </div>
       </div>
       <span style="font-size:.7rem;color:var(--text-tertiary)">Scrolleado — aparece el atajo</span>
     </div>
