@@ -18,7 +18,7 @@ import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { profilesService } from '../../services/profilesService'
 import { professionalService } from '../../services/professionalService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
-import CloseConsultationModal from '../../components/CloseConsultationModal'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import ScribeSession from '../../components/professional/ScribeSession'
 import PrescriptionCreator from '../../components/professional/PrescriptionCreator'
 import FinanciadorPicker from '../../components/FinanciadorPicker'
@@ -196,6 +196,16 @@ const PANEL_TABS = [
 // paciente es sticky y vive siempre a la vista, así que una entrada para
 // llegar ahí no aportaba nada (Mateo, 2026-08-22).
 const SECTION_IDS = PANEL_TABS.filter(t => t.kind === 'section').map(t => t.id)
+
+// Colchón entre el tope del scroller y el encabezado de una sección. Tiene que
+// ser el MISMO número que usa el scroll-spy (más abajo) y que el `scroll-mt-*`
+// de cada <section> — si no, saltar desde el índice deja el título tapado (o
+// el spy tarda en marcar la pestaña siguiente) porque uno mira un colchón y el
+// otro, otro. Ahora que la fila del paciente y la barra de pestañas salieron
+// del scroller (chrome fijo del panel, ver el JSX más abajo), el offset ya no
+// tiene que compensar el alto de nada superpuesto — es sólo un margen visual
+// chico. `scroll-mt-6` de Tailwind = 1.5rem = 24px.
+const SECTION_SCROLL_OFFSET = 24
 
 /** Encabezado de cada sección dentro de la planilla continua. */
 function SectionHeader({ icon: Icon, label }) {
@@ -525,7 +535,14 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
 
   /** Click en la barra: scrollea si es sección, cambia de vista si no. */
   const irA = (tab) => {
-    if (tab.kind === 'view') { setActiveView(tab.id); return }
+    if (tab.kind === 'view') {
+      setActiveView(tab.id)
+      // Receta/Cerrar abren siempre arriba de todo — sin esto quedaban en el
+      // scroll que tenía la planilla (p.ej. a mitad de la Historia Clínica).
+      // rAF porque el contenido nuevo (Receta/Cerrar) todavía no montó.
+      requestAnimationFrame(() => { if (chartRef.current) chartRef.current.scrollTop = 0 })
+      return
+    }
     setActiveSection(tab.id)
     if (activeView !== 'chart') {
       // Venimos de Receta/Cierre: hay que montar la planilla antes de poder
@@ -534,7 +551,12 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
       requestAnimationFrame(() => sectionRefs.current[tab.id]?.scrollIntoView({ block: 'start' }))
       return
     }
-    sectionRefs.current[tab.id]?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    // Instantáneo a propósito (2026-08-24): el scroll suave programático se
+    // interrumpe y queda a mitad de camino cuando algo re-renderiza durante la
+    // animación (p.ej. el timer de la sala de espera) o con zoom distinto de
+    // 100% — el salto quedaba "a medias" sin error. El instantáneo llega
+    // siempre; la vuelta desde Receta/Cierre (arriba) ya era instantánea.
+    sectionRefs.current[tab.id]?.scrollIntoView({ block: 'start' })
   }
 
   const [historia, setHistoria] = useState({ encounters: [], allergies: [] })
@@ -547,9 +569,19 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
   // panel antes) siempre caía en los defaults 'MN'/'0'/'otra', sin importar
   // quién estuviera atendiendo. Se vuelve a `otra` mientras carga.
   const [profProfile, setProfProfile] = useState(null)
+  // Mientras esto está en `true` no se sabe todavía la matrícula/especialidad
+  // real — crear el encuentro clínico en esta ventana lo deja para siempre con
+  // la firma de relleno ('otra'/'MN'/'0'), porque el encuentro se crea una
+  // sola vez (ver useClinicalEncounter). No bloquea escribir la nota: sólo el
+  // botón "Guardar" espera, con spinner (ver el form más abajo).
+  const [loadingProfProfile, setLoadingProfProfile] = useState(true)
   useEffect(() => {
-    if (!profile?.id) return
-    professionalService.getByUserId(profile.id).then(setProfProfile).catch(() => {})
+    if (!profile?.id) { setLoadingProfProfile(false); return }
+    setLoadingProfProfile(true)
+    professionalService.getByUserId(profile.id)
+      .then(setProfProfile)
+      .catch(() => {})
+      .finally(() => setLoadingProfProfile(false))
   }, [profile?.id])
   const licenseType = profProfile?.licenseType ?? 'MN'
   const licenseNumber = profProfile?.licenseNumber ?? '0'
@@ -571,7 +603,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
     let raf = null
     const spy = () => {
       raf = null
-      const limite = cont.getBoundingClientRect().top + 80
+      const limite = cont.getBoundingClientRect().top + SECTION_SCROLL_OFFSET
       let visible = SECTION_IDS[0]
       for (const id of SECTION_IDS) {
         const el = sectionRefs.current[id]
@@ -593,7 +625,11 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
       cont.removeEventListener('scroll', onScroll)
       if (raf != null) cancelAnimationFrame(raf)
     }
-  }, [activeView, loadingHistoria, loadingPatientData, showForm])
+    // `loadingEntries`/`entries.length` entran acá porque la lista de notas
+    // cambia el alto de la sección "Notas" — sin recalcular, la sección activa
+    // y el atajo "Nueva nota" quedan con la geometría vieja hasta el próximo
+    // scroll manual. `activeView` ya cubre "al volver de Receta/Cierre".
+  }, [activeView, loadingHistoria, loadingPatientData, showForm, loadingEntries, entries.length])
   // La cobertura se editaba SOLO en el detalle de la consulta, así que desde la
   // videollamada era imposible elegir el financiador del catálogo — y sin él la
   // receta no se puede emitir con cobertura. Se mantiene una copia local para no
@@ -671,13 +707,23 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
     preconsulta: consultation?.preconsultaData,
   })
 
+  // Sólo las especialidades marcadas en el catálogo recetan (migración 116).
+  // Mientras el catálogo o el perfil profesional todavía están cargando se
+  // considera que NO puede — es preferible esconder la pestaña un instante de
+  // más que ofrecerla (y de paso crear un encuentro clínico) a quien no puede.
+  const { puedeRecetar, cargando: cargandoEspecialidades } = useEspecialidades()
+  const puedeRecetarProfesional = !cargandoEspecialidades && !loadingProfProfile && puedeRecetar(specialty)
+
   // El encuentro clínico se crea perezosamente (al guardar la primera nota).
   // La receta también lo necesita, así que se asegura al abrir su pestaña —
-  // si no, se guardaría con encounter_id en null y quedaría huérfana.
+  // si no, se guardaría con encounter_id en null y quedaría huérfana. Pero
+  // sólo si el profesional puede recetar: si no puede, la pestaña ni se
+  // ofrece (ver PANEL_TABS filtrado más abajo), y tocarla no tiene que crear
+  // un clinical_encounter que no sirve para nada.
   useEffect(() => {
-    if (activeView === 'receta' && !encounterId) ensureEncounter().catch(() => {})
+    if (activeView === 'receta' && !encounterId && puedeRecetarProfesional) ensureEncounter().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeView, encounterId])
+  }, [activeView, encounterId, puedeRecetarProfesional])
 
 
   // Combines Daily.co's already-live local mic + remote participant audio
@@ -741,8 +787,54 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
     }
   }
 
+  // Sólo se ofrece "Generar Receta Electrónica" cuando el profesional puede
+  // recetar (fix del punto 7). Mientras se está cargando esa respuesta,
+  // `puedeRecetarProfesional` da `false`, así que la pestaña queda oculta y
+  // no "parpadea" apareciendo tarde.
+  const visibleTabs = PANEL_TABS.filter(tab => tab.id !== 'receta' || puedeRecetarProfesional)
+
   return (
     <div className="flex flex-col h-full bg-white lg:border-l border-border-default">
+      {/* Paciente: chrome fijo del panel, siempre visible (Mateo, 2026-08-23).
+          Antes vivía DENTRO del scroller con un `sticky -top-4` — salió de ahí
+          para no depender de ese truco y quedar en su lugar natural, arriba de
+          todo, junto con la barra de pestañas. La planilla (Notas → Paciente
+          → Historia) scrollea por debajo de las dos. Tocarlo lleva a la
+          sección "Paciente" de la planilla. */}
+      <div className="shrink-0 bg-white border-b border-border-default px-3 py-2.5">
+        <div className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-border-default bg-white">
+          <button
+            onClick={() => irA({ id: 'datos', kind: 'section' })}
+            className="flex-1 min-w-0 flex items-center gap-2.5 text-left group"
+          >
+            <div className="h-7 w-7 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
+              <User className="h-3.5 w-3.5 text-brand" />
+            </div>
+            <span className="flex-1 min-w-0 text-sm font-semibold text-text-primary truncate group-hover:text-brand transition-colors">
+              {consultation?.patient?.fullName ?? 'Paciente'}
+            </span>
+            <CaretRight className="h-3.5 w-3.5 text-text-tertiary shrink-0 group-hover:text-brand transition-colors" />
+          </button>
+
+          {/* Atajo que aparece SÓLO cuando los 4 botones de nota ya se fueron
+              de pantalla: los botones dejaron de ser sticky, así que sin esto
+              había que scrollear a mano hasta arriba para escribir. Devuelve
+              al principio, que es donde vuelven a estar a la vista. Sólo en la
+              planilla — en Receta/Cierre scrollear arriba no lleva a los
+              botones de nota. Usa el mismo scrollIntoView del índice y no
+              `chartRef.scrollTo({behavior:'smooth'})`, que resultó no
+              completar en algunos entornos (verificación 2026-08-24). */}
+          {atajoNota && !showForm && activeView === 'chart' && (
+            <button
+              onClick={() => irA({ id: 'nota', kind: 'section' })}
+              className="shrink-0 flex items-center gap-1 pl-2.5 ml-0.5 border-l border-border-default text-[11px] font-semibold text-brand hover:text-brand-hover transition-colors"
+            >
+              <Plus className="h-3 w-3" weight="bold" /> Nueva nota
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* El encabezado "Historia Clínica" se sacó (Mateo, 2026-08-21): repetía
           lo que ya dice una de las pestañas y le comía alto a un panel que en
           la llamada comparte pantalla con el video. Las pestañas quedan como
@@ -757,7 +849,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
             que con "Generar Receta Electrónica" partía el texto en tres
             renglones y descuadraba toda la fila. */}
         <div className="flex-1 flex gap-5 px-4 overflow-x-auto scrollbar-hide">
-          {PANEL_TABS.map(tab => (
+          {visibleTabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => irA(tab)}
@@ -804,45 +896,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
             la barra de arriba es el índice. Ver PANEL_TABS. */}
         {activeView === 'chart' && (
           <>
-            {/* Paciente: primero arriba de todo y lo ÚNICO sticky del panel
-                (Mateo, 2026-08-22). Salió del índice de arriba justamente por
-                esto — estando siempre a la vista, una entrada en la barra para
-                llegar a él no aportaba nada. Tocarlo lleva a sus datos.
-
-                `-mx-3 px-3` para que el fondo tape de borde a borde el padding
-                del contenedor cuando queda fijo. */}
-            <div className="sticky -top-4 z-20 bg-white -mx-3 px-3 pt-1 pb-3 mb-1">
-              <div className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-border-default bg-white">
-                <button
-                  onClick={() => irA({ id: 'datos', kind: 'section' })}
-                  className="flex-1 min-w-0 flex items-center gap-2.5 text-left group"
-                >
-                  <div className="h-7 w-7 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
-                    <User className="h-3.5 w-3.5 text-brand" />
-                  </div>
-                  <span className="flex-1 min-w-0 text-sm font-semibold text-text-primary truncate group-hover:text-brand transition-colors">
-                    {consultation?.patient?.fullName ?? 'Paciente'}
-                  </span>
-                  <CaretRight className="h-3.5 w-3.5 text-text-tertiary shrink-0 group-hover:text-brand transition-colors" />
-                </button>
-
-                {/* Atajo que aparece SÓLO cuando los 4 botones de nota ya se
-                    fueron de pantalla: los botones dejaron de ser sticky, así
-                    que sin esto había que scrollear a mano hasta arriba para
-                    escribir. Devuelve al principio, que es donde vuelven a
-                    estar a la vista. */}
-                {atajoNota && !showForm && (
-                  <button
-                    onClick={() => chartRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-                    className="shrink-0 flex items-center gap-1 pl-2.5 ml-0.5 border-l border-border-default text-[11px] font-semibold text-brand hover:text-brand-hover transition-colors"
-                  >
-                    <Plus className="h-3 w-3" weight="bold" /> Nueva nota
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <section ref={el => { sectionRefs.current.nota = el }} className="scroll-mt-4">
+            <section ref={el => { sectionRefs.current.nota = el }} className="scroll-mt-6">
               {/* Un botón por tipo en vez de un "Nueva nota" genérico + select
                   adentro del formulario (Mateo, 2026-08-21): el tipo se elige
                   ANTES de escribir, que es como se piensa la nota, y de paso
@@ -895,8 +949,13 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
                   <button type="button" onClick={() => setShowForm(false)} className="text-xs px-3 py-1.5 rounded border border-border-default text-text-secondary hover:text-text-primary">
                     Cancelar
                   </button>
-                  <button type="submit" disabled={submitting} className="text-xs px-3 py-1.5 rounded bg-brand text-white flex items-center gap-1">
-                    {submitting ? <CircleNotch className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                  <button
+                    type="submit"
+                    disabled={submitting || loadingProfProfile}
+                    title={loadingProfProfile ? 'Esperando el perfil profesional…' : undefined}
+                    className="text-xs px-3 py-1.5 rounded bg-brand text-white flex items-center gap-1 disabled:opacity-60"
+                  >
+                    {(submitting || loadingProfProfile) ? <CircleNotch className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                     Guardar
                   </button>
                 </div>
@@ -965,12 +1024,12 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
             )}
             </section>
 
-            <section ref={el => { sectionRefs.current.datos = el }} className="scroll-mt-4 mt-8">
+            <section ref={el => { sectionRefs.current.datos = el }} className="scroll-mt-6 mt-8">
               <SectionHeader icon={IdentificationCard} label="Paciente" />
               <DatosTab loading={loadingPatientData} patient={patientData} />
             </section>
 
-            <section ref={el => { sectionRefs.current.historia = el }} className="scroll-mt-4 mt-8 pb-4">
+            <section ref={el => { sectionRefs.current.historia = el }} className="scroll-mt-6 mt-8 pb-4">
               <SectionHeader icon={ClockCounterClockwise} label="Historia Clínica" />
               <HistoriaTab loading={loadingHistoria} encounters={historia.encounters} allergies={historia.allergies} />
             </section>
@@ -1090,29 +1149,6 @@ export default function ProfessionalVideoCall({ profile }) {
   const [admitting, setAdmitting] = useState(false)
 
   const [consultation, setConsultation] = useState(null)
-  // El modal de cierre necesita el encuentro clínico y la matrícula para asentar
-  // la nota en la HC, y vive en ESTE componente, no en `ClinicalPanel` — que es
-  // donde estaba el hook. Al pasarle `ensureEncounter` sin tenerlo en scope, la
-  // pantalla entera crasheaba con "ensureEncounter is not defined" (el build no lo
-  // detecta: es una referencia libre válida para el bundler). Ahora tiene su propia
-  // instancia del hook, que es segura porque `ensureEncounter` re-consulta la base
-  // antes de crear y hay un índice único por consulta (migración 076).
-  const [ownProfProfile, setOwnProfProfile] = useState(null)
-  useEffect(() => {
-    if (!profile?.id) return
-    professionalService.getByUserId(profile.id).then(setOwnProfProfile).catch(() => {})
-  }, [profile?.id])
-
-  const { ensureEncounter: ensureEncounterForClose } = useClinicalEncounter({
-    consultationId: consultation?.id,
-    patientId: consultation?.patientId,
-    professionalId: profile?.id,
-    specialty: ownProfProfile?.specialty,
-    modality: consultation?.modality,
-    licenseType: ownProfProfile?.licenseType,
-    licenseNumber: ownProfProfile?.licenseNumber,
-    preconsulta: consultation?.preconsultaData,
-  })
 
   /**
    * Compuerta para ENTRAR a Daily. Late una sola vez y no vuelve atrás.
@@ -1132,7 +1168,6 @@ export default function ProfessionalVideoCall({ profile }) {
   const [joinGate, setJoinGate] = useState(false)
   // joining: actively connecting to Daily.co (after bothReady)
   const [joining, setJoining] = useState(false)
-  const [closeModal, setCloseModal] = useState(false)
   const [splitScreen, setSplitScreen] = useState(true)
   const split = useVideoSplit()
   // Hoja de la HC en mobile. Arranca abajo: lo primero es ver al paciente.
@@ -1759,23 +1794,6 @@ export default function ProfessionalVideoCall({ profile }) {
           </div>
         )}
       </div>
-
-      {consultation && (
-        <CloseConsultationModal
-          open={closeModal}
-          onClose={() => setCloseModal(false)}
-          consultationId={id}
-          patientName={consultation.patient?.fullName}
-          invoiceUrl={consultation.invoiceUrl}
-          invoiceUploadedAt={consultation.invoiceUploadedAt}
-          profile={profile}
-          patientId={consultation.patientId}
-          ensureEncounter={ensureEncounterForClose}
-          licenseType={ownProfProfile?.licenseType}
-          licenseNumber={ownProfProfile?.licenseNumber}
-          onFinalized={handleFinalized}
-        />
-      )}
     </div>
   )
 }

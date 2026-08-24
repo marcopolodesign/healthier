@@ -116,6 +116,10 @@ export default function GuiaClinicaConsulta({
 
   async function elegirMotivo(nuevo) {
     if (!nuevo || nuevo === motivo) return
+    // Se guarda el valor anterior para poder revertir el override optimista si
+    // el guardado falla — `anterior` es el último motivo que de verdad quedó
+    // asentado (o `null`, si todavía no se había elegido ninguno acá).
+    const anterior = motivoLocal
     setMotivoLocal(nuevo)
     setGuardandoMotivo(true)
     try {
@@ -128,6 +132,9 @@ export default function GuiaClinicaConsulta({
       })
       onEntryAdded(entry)
     } catch {
+      // Si no se guardó, la guía no puede seguir mostrando ni documentando
+      // bajo un motivo que nunca quedó asentado.
+      setMotivoLocal(anterior)
       toast.error('No se pudo guardar el motivo de consulta')
     } finally {
       setGuardandoMotivo(false)
