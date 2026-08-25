@@ -279,6 +279,32 @@ export default function ProfessionalDashboard({ profile }) {
           <h1 className="page-title">Hola, {profile?.fullName?.split(' ')[0]}</h1>
         </div>
 
+        {/* Mercado Pago también acá (Mateo, 2026-08-25). Este `return` temprano
+            es una pantalla aparte de la del profesional verificado, así que el
+            banner de más abajo no se renderiza nunca para quien está en
+            revisión — y sin MP conectado no puede recibir turnos igual que le
+            pasa al verificado. Conectarlo NO depende de la verificación, así
+            que puede ir adelantándolo mientras espera, que es justo lo que
+            propone el resto de esta pantalla. */}
+        {!loading && mpStatus && !mpStatus.connected && (
+          <a
+            href={mpService.getMpConnectUrl(profile.id)}
+            className="card flex items-center gap-4 border-red-300 bg-red-50 hover:border-red-400 transition-colors group"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-white border border-red-200 flex items-center justify-center shrink-0">
+              <MercadoPagoMark className="w-8 h-8" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-red-700 font-bold uppercase tracking-wide">Acción requerida</p>
+              <p className="text-base font-semibold text-text-primary mt-0.5">Conectá tu Mercado Pago</p>
+              <p className="text-xs text-text-secondary mt-0.5">Podés hacerlo ahora, sin esperar la verificación. Sin esto no vas a poder recibir turnos.</p>
+            </div>
+            <div className="flex items-center gap-1 text-red-600 text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">
+              Conectar <ArrowRight className="h-4 w-4" />
+            </div>
+          </a>
+        )}
+
         {isPermanentlyRejected ? (
           <div className="card border-red-200 bg-red-50">
             <div className="flex items-start gap-3">

@@ -3,8 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   House, Calendar, Users, Plus, X,
-  ClockCounterClockwise, TrendUp, ForkKnife, User, SignOut, Question,
-} from '@phosphor-icons/react'
+  ClockCounterClockwise, TrendUp, ForkKnife, User, SignOut, Question, Gear } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
 
@@ -39,6 +38,11 @@ export default function ProfessionalBottomNav({ profile, profSpecialty, classNam
     ...(profSpecialty === 'nutricion' ? [
       { path: '/profesional/nutriplan', icon: ForkKnife, label: 'NutriPlan Pro', sub: 'Planes nutricionales' },
     ] : []),
+    // Configuración estaba SÓLO en el sidebar de escritorio: desde el teléfono
+    // no había forma de llegar, y ahí adentro vive la conexión con Mercado Pago
+    // — sin la cual el profesional no puede recibir turnos. Una psicóloga se
+    // quedó sin poder vincular su cuenta por esto (Mateo, 2026-08-25).
+    { path: '/profesional/configuracion', icon: Gear, label: 'Configuración', sub: 'Horarios, tarifas y cobros' },
     { path: '/profesional/ayuda', icon: Question, label: 'Centro de ayuda', sub: 'FAQ y contacto' },
   ]
 
