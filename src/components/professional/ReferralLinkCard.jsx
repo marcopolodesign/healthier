@@ -68,10 +68,15 @@ export default function ReferralLinkCard({ codigo, nombre }) {
             <div className="flex-1 min-w-0 rounded-xl border border-border-default bg-bg-surface px-3 py-2.5">
               <p className="font-mono text-sm text-text-primary truncate" title={url}>{url}</p>
             </div>
-            <div className="flex gap-2 shrink-0">
+            {/* En mobile la columna de contenido queda angosta (la tarjeta le
+                come 48px con el ícono), y los tres botones sumaban ~430px en
+                ~270px disponibles: se salían de la tarjeta (verificado en el
+                simulador, 2026-08-25). Ahora envuelven y se reparten el ancho
+                de a dos por fila; en desktop siguen en una sola línea. */}
+            <div className="flex flex-wrap gap-2 sm:flex-nowrap sm:shrink-0">
               <button
                 onClick={copiar}
-                className="btn-secondary inline-flex items-center gap-1.5 whitespace-nowrap"
+                className="btn-secondary inline-flex flex-1 sm:flex-none min-w-[7.5rem] items-center justify-center gap-1.5 whitespace-nowrap"
               >
                 {copiado
                   ? <><Check className="h-4 w-4" /> Copiado</>
@@ -82,12 +87,12 @@ export default function ReferralLinkCard({ codigo, nombre }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => track('referral_link_share', { codigo, method: 'whatsapp' })}
-                className="btn-secondary inline-flex items-center gap-1.5 whitespace-nowrap"
+                className="btn-secondary inline-flex flex-1 sm:flex-none min-w-[7.5rem] items-center justify-center gap-1.5 whitespace-nowrap"
               >
                 <WhatsAppMark className="w-4 h-4" /> WhatsApp
               </a>
               {typeof navigator !== 'undefined' && navigator.share && (
-                <button onClick={compartir} className="btn-secondary sm:hidden inline-flex items-center gap-1.5">
+                <button onClick={compartir} className="btn-secondary sm:hidden inline-flex flex-1 min-w-[7.5rem] items-center justify-center gap-1.5 whitespace-nowrap">
                   <ShareNetwork className="h-4 w-4" /> Compartir
                 </button>
               )}
