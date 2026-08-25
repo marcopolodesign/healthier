@@ -206,10 +206,13 @@ async function sembrarProfesionales() {
     { ...base, user_id: PRO.nutricion.id, specialty: 'nutricion', license_number: PRO.nutricion.matricula,
       bio: 'Nutrición clínica y deportiva.',
       session_price: 15000, price_video: 15000, is_verified: true },
-    // Sin verificar: es el que se ve en la cola de verificación del super admin.
+    // Sin verificar y SIN Mercado Pago: es el estado real de un profesional
+    // recién dado de alta — el que se ve en la cola del super admin, y con el
+    // que se prueba que el aviso de "conectá tu Mercado Pago" aparezca también
+    // mientras está en revisión (Mateo, 2026-08-25).
     { ...base, user_id: PRO.pendiente.id, specialty: 'medicina_general', license_number: PRO.pendiente.matricula,
       bio: 'Pendiente de verificación.', session_price: 16000, price_video: 16000,
-      submitted_at: dias(-2) },
+      submitted_at: dias(-2), mp_connected: false },
   ]
   const { error } = await db.from('professional_profiles').upsert(filas, { onConflict: 'user_id' })
   if (error) throw new Error(`professional_profiles: ${error.message}`)
