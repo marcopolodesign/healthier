@@ -46,6 +46,20 @@ export function getProfileCompleteness(profProfile, schedules, { includeVerifica
     }
   }
   steps.push(
+    // Mercado Pago va PRIMERO y para todos, verificados o no (Mateo,
+    // 2026-08-25). Sin MP conectado el profesional no puede recibir turnos —
+    // exactamente igual que sin precio o sin horarios— pero antes no figuraba
+    // acá, así que quien estaba en revisión no se enteraba de que le faltaba.
+    // Conectarlo NO depende de la verificación: se puede adelantar mientras
+    // espera, que es justo para lo que sirve esta lista. `mpConnected` sale de
+    // la columna `mp_connected` que ya trae `getByUserId` con su `select('*')`,
+    // así que sigue sin haber una llamada de red nueva.
+    {
+      key: 'mercadopago',
+      label: 'Conectar Mercado Pago',
+      done: !!profProfile?.mpConnected,
+      href: '/profesional/configuracion?tab=cuenta',
+    },
     {
       key: 'precio',
       label: 'Precio de consulta',
