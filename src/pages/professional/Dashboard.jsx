@@ -14,7 +14,6 @@ import StatusBadge from '../../components/StatusBadge'
 import ProfileCompletenessCard from '../../components/professional/ProfileCompletenessCard'
 import ReferralLinkCard from '../../components/professional/ReferralLinkCard'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
-import IncomingRequests from '../../components/professional/IncomingRequests'
 import OnDemandSwitch from '../../components/professional/OnDemandSwitch'
 import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import Modal from '../../components/Modal'
@@ -441,7 +440,6 @@ export default function ProfessionalDashboard({ profile }) {
 
       {/* Pedidos de consulta inmediata esperando a que alguien los tome.
           Va primero a propósito: es lo único de esta pantalla que caduca. */}
-      <IncomingRequests profile={profile} />
 
       {/* Emergency banner */}
       {activeEmergency && (
