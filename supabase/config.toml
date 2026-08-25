@@ -1,0 +1,41 @@
+# Configuración del proyecto Supabase de Healthier.
+#
+# 🔴 **Este archivo existe por un incidente de producción (2026-08-25).**
+#
+# Una profesional real no podía vincular su cuenta de Mercado Pago: al tocar
+# "vincular", el browser aterrizaba en una página de Supabase con
+# `UNAUTHORIZED_NO_AUTH_HEADER — Missing authorization header`. Causa: las Edge
+# Functions se estaban deployando SIN este archivo, y el default del CLI es
+# `verify_jwt = true`. Con eso prendido, el gateway de Supabase exige un JWT de
+# Supabase ANTES de que la función corra — y hay tres funciones a las que
+# nadie les puede mandar ese JWT:
+#
+#   · `mp-connect` — el profesional llega por una navegación normal del browser
+#     (`window.location` a `/functions/v1/mp-connect?action=authorize`), y
+#     después Mercado Pago redirige de vuelta al callback. Ninguna de las dos
+#     lleva Authorization.
+#   · `pharmacy-mp-connect` — mismo flujo de OAuth, para la farmacia.
+#   · `mp-webhook` — lo llaman los servidores de Mercado Pago, que obviamente
+#     no tienen sesión de Supabase. Con `verify_jwt = true` los avisos de pago
+#     rebotaban con 401.
+#
+# Las tres validan por su cuenta quién las llama (HMAC en el `state` del OAuth,
+# firma del webhook): la seguridad no depende del gateway.
+#
+# El resto de las funciones queda con `verify_jwt = true`, que es lo correcto:
+# las llama la app con la sesión del usuario, o un cron con la service key.
+#
+# ⚠️ Sin este archivo, cualquier `supabase functions deploy` vuelve a romper el
+# vínculo de Mercado Pago, en silencio y sin que nada falle en el build. Por eso
+# vive en el repo y no como un flag suelto en la línea de comandos.
+
+project_id = "aixjejdoofervrkggbkd"
+
+[functions.mp-connect]
+verify_jwt = false
+
+[functions.pharmacy-mp-connect]
+verify_jwt = false
+
+[functions.mp-webhook]
+verify_jwt = false
