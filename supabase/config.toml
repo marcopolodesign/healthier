@@ -18,6 +18,13 @@
 #   · `mp-webhook` — lo llaman los servidores de Mercado Pago, que obviamente
 #     no tienen sesión de Supabase. Con `verify_jwt = true` los avisos de pago
 #     rebotaban con 401.
+#   · `mp-refresh-tokens` — la dispara `pg_cron` todos los lunes vía
+#     `net.http_post`, y ese llamado NO manda Authorization: se autentica con su
+#     propio header `x-cron-secret`. Si se le prende verify_jwt, la renovación
+#     semanal de los tokens de Mercado Pago muere en silencio y los tokens se
+#     vencen. (Las otras dos funciones que corren por cron —
+#     `appointment-reminders` y `mp-capture` — sí mandan Authorization con la
+#     service key, así que se quedan en `verify_jwt = true`.)
 #
 # Las tres validan por su cuenta quién las llama (HMAC en el `state` del OAuth,
 # firma del webhook): la seguridad no depende del gateway.
@@ -38,4 +45,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.mp-webhook]
+verify_jwt = false
+
+[functions.mp-refresh-tokens]
 verify_jwt = false
