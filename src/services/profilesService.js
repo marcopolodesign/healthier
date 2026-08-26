@@ -29,7 +29,11 @@ export const profilesService = {
     if (uploadError) throw uploadError
 
     const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
-    await supabase.from('profiles').update({ avatar_url: urlData.publicUrl }).eq('id', userId)
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ avatar_url: urlData.publicUrl })
+      .eq('id', userId)
+    if (updateError) throw updateError
     return urlData.publicUrl
   },
 }
