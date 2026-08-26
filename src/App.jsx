@@ -62,6 +62,8 @@ import ProfessionalAyuda from './pages/professional/Ayuda'
 import PatientBiovisor from './pages/patient/Biovisor'
 import PatientNutriPlan from './pages/patient/NutriPlan'
 import PatientPharmacy from './pages/patient/Pharmacy'
+import PatientPharmacyCheckout from './pages/patient/PharmacyCheckout'
+import PatientPharmacyPayment from './pages/patient/PharmacyPayment'
 import PatientComprobantes from './pages/patient/Comprobantes'
 import PatientVideoCall from './pages/patient/VideoCall'
 import HistoriaClinicaPaciente from './pages/paciente/HistoriaClinicaPaciente'
@@ -94,6 +96,12 @@ import SuperAdminProfesionales from './pages/super-admin/Profesionales'
 import SuperAdminProfesionalesRecorrido from './pages/super-admin/ProfesionalesRecorrido'
 import SuperAdminReferidos from './pages/super-admin/Referidos'
 import SuperAdminEmergencias from './pages/super-admin/Emergencias'
+import SuperAdminFarmacia from './pages/super-admin/Farmacia'
+
+import PharmacyOrders from './pages/pharmacy/Pedidos'
+import PharmacyOrderDetail from './pages/pharmacy/PedidoDetail'
+import PharmacyCatalog from './pages/pharmacy/Catalogo'
+import PharmacyConfiguracion from './pages/pharmacy/Configuracion'
 import { tomarDestinoPostRegistro } from './lib/postSignupRedirect'
 
 // ── Role guards ──────────────────────────────────────────
@@ -102,6 +110,9 @@ const ROLE_REDIRECTS = {
   professional: '/profesional/dashboard',
   admin: '/admin/profesionales',
   super_admin: '/super-admin/dashboard',
+  pharmacy_admin: '/farmacia/pedidos',
+  pharmacy_operator: '/farmacia/pedidos',
+  pharmacy_readonly: '/farmacia/pedidos',
 }
 
 // Ver el comentario de la ruta `/paciente/agendar/:id`.
@@ -362,7 +373,9 @@ export default function App() {
           <Route path="/paciente/agendar/:id"      element={<RedirectToProfesional />} />
           <Route path="/paciente/biovisor"         element={<PatientBiovisor     profile={profile} />} />
           <Route path="/paciente/nutriplan"        element={<PatientNutriPlan    profile={profile} />} />
-          <Route path="/paciente/farmacia"         element={<PatientPharmacy     profile={profile} />} />
+          <Route path="/paciente/farmacia"          element={<PatientPharmacy         profile={profile} />} />
+          <Route path="/paciente/farmacia/checkout" element={<PatientPharmacyCheckout profile={profile} />} />
+          <Route path="/paciente/farmacia/pago"     element={<PatientPharmacyPayment  profile={profile} />} />
           <Route path="/paciente/comprobantes"     element={<PatientComprobantes profile={profile} />} />
           <Route path="/paciente/videollamada/:id" element={<PatientVideoCall    profile={profile} />} />
           <Route path="/paciente/reservar"            element={<ReservarConsulta   profile={profile} />} />
@@ -463,6 +476,19 @@ export default function App() {
           <Route path="/super-admin/profesionales/recorrido" element={<SuperAdminProfesionalesRecorrido />} />
           <Route path="/super-admin/profesionales/referidos" element={<SuperAdminReferidos />} />
           <Route path="/super-admin/emergencias" element={<SuperAdminEmergencias />} />
+          <Route path="/super-admin/farmacia" element={<SuperAdminFarmacia />} />
+        </Route>
+
+        {/* Farmacia */}
+        <Route element={
+          <RequireRole profile={profile} allowed={['pharmacy_admin', 'pharmacy_operator', 'pharmacy_readonly']}>
+            <AppLayout profile={profile} />
+          </RequireRole>
+        }>
+          <Route path="/farmacia/pedidos" element={<PharmacyOrders profile={profile} />} />
+          <Route path="/farmacia/pedidos/:id" element={<PharmacyOrderDetail profile={profile} />} />
+          <Route path="/farmacia/catalogo" element={<PharmacyCatalog profile={profile} />} />
+          <Route path="/farmacia/configuracion" element={<PharmacyConfiguracion profile={profile} />} />
         </Route>
 
         {/* Catch-all */}
