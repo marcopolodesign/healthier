@@ -28,6 +28,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { ensureFreshMpToken, PAYMENT_REFRESH_MARGIN_MS } from '../_shared/mpRefresh.ts'
+import { ensureFreshPharmacyMpToken } from '../_shared/pharmacyMpRefresh.ts'
 
 const MP_API_BASE = 'https://api.mercadopago.com/v1'
 
@@ -37,7 +38,8 @@ const corsHeaders = {
 }
 
 interface PaymentBody {
-  consultationId: string
+  consultationId?: string
+  orderId?: string
   cardToken?: string
   paymentMethodId?: string
   payerEmail?: string
@@ -146,7 +148,320 @@ Deno.serve(async (req) => {
 
     // --- Parse body ---
     const body: PaymentBody = await req.json()
-    const { consultationId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits, description, authorizeOnly, payerDocType, payerDocNumber, deviceId } = body
+    const { consultationId, orderId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits, description, authorizeOnly, payerDocType, payerDocNumber, deviceId } = body
+
+    // --- Medication order charge (mutually exclusive with consultationId) ---
+    // Own, self-contained code path: no Healthy Credits, no pre-authorization,
+    // always an immediate binary_mode charge against the pharmacy's own MP
+    // OAuth token instead of a professional's. Kept separate from the
+    // consultation flow below rather than threading order-awareness through
+    // it, so the existing (production) consultation payment path is
+    // untouched by this change.
+    if (orderId) {
+      if (consultationId) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'orderId and consultationId are mutually exclusive' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      if (useCredits) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'Los pedidos de medicamentos no admiten Healthy Credits' }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      if (!cardToken || !paymentMethodId || !payerEmail) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'Missing required fields for card charge: cardToken, paymentMethodId, payerEmail' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const serviceSupabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      )
+
+      // order + items are both keyed off orderId alone — fetch concurrently.
+      const [
+        { data: order, error: orderErr },
+        { data: items, error: itemsErr },
+      ] = await Promise.all([
+        serviceSupabase
+          .from('medication_orders')
+          .select('id, patient_id, pharmacy_id, payment_status')
+          .eq('id', orderId)
+          .single(),
+        // --- Amount comes from the DB, re-priced against the live catalog for
+        //     items linked to a pharmacy_product_id — never trust a client-set
+        //     unit_price on medication_order_items (its INSERT policy only
+        //     checks ownership, not price). ---
+        serviceSupabase
+          .from('medication_order_items')
+          .select('id, pharmacy_product_id, medication_name, quantity, unit_price')
+          .eq('order_id', orderId),
+      ])
+
+      if (orderErr || !order) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'Order not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      if (order.patient_id !== user.id) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'Forbidden: only the patient can pay for this order' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      if (order.payment_status !== 'no_pagado') {
+        return new Response(
+          JSON.stringify({ data: null, error: `Order is not payable (payment_status=${order.payment_status})` }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (itemsErr || !items?.length) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'Order has no items' }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const catalogIds = items.map((it) => it.pharmacy_product_id).filter(Boolean) as string[]
+      const currentPrices = new Map<string, number>()
+      if (catalogIds.length) {
+        const { data: catalogRows } = await serviceSupabase
+          .from('pharmacy_products')
+          .select('id, price')
+          .in('id', catalogIds)
+        for (const row of catalogRows ?? []) currentPrices.set(row.id, Number(row.price))
+      }
+
+      let amount = 0
+      for (const it of items) {
+        const unitPrice = it.pharmacy_product_id && currentPrices.has(it.pharmacy_product_id)
+          ? currentPrices.get(it.pharmacy_product_id)!
+          : Number(it.unit_price)
+        amount += unitPrice * it.quantity
+      }
+      amount = round2(amount)
+
+      if (amount <= 0) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'Order has no valid amount' }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Both keyed only on order.pharmacy_id, independent of each other.
+      const [
+        { data: pharmacy, error: pharmacyErr },
+        { data: pharmacyMpAccount, error: pharmAccErr },
+      ] = await Promise.all([
+        serviceSupabase
+          .from('pharmacies')
+          .select('id, commission_rate')
+          .eq('id', order.pharmacy_id)
+          .single(),
+        serviceSupabase
+          .from('pharmacy_mp_accounts')
+          .select('pharmacy_id, mp_user_id, access_token, refresh_token, expires_at, active')
+          .eq('pharmacy_id', order.pharmacy_id)
+          .eq('active', true)
+          .single(),
+      ])
+
+      if (pharmacyErr || !pharmacy) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'Pharmacy not found' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (pharmAccErr || !pharmacyMpAccount) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'Pharmacy does not have a linked MercadoPago account' }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const refreshResult = await ensureFreshPharmacyMpToken(serviceSupabase, pharmacyMpAccount, PAYMENT_REFRESH_MARGIN_MS)
+      if (refreshResult.invalidGrant) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'MercadoPago connection expired — pharmacy must reconnect' }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      const sellerAccessToken = refreshResult.accessToken
+      const commissionRate = Number(pharmacy.commission_rate)
+
+      const applicationFee = Math.min(round2(amount * commissionRate), amount)
+      const netToPharmacy = round2(amount * (1 - commissionRate))
+
+      // Independent of each other — fetch concurrently.
+      const [metodoResult, { data: perfilPagador }] = await Promise.all([
+        savedCardId
+          ? serviceSupabase.from('payment_methods').select('mp_customer_id').eq('id', savedCardId).eq('user_id', user.id).maybeSingle()
+          : Promise.resolve({ data: null }),
+        serviceSupabase.from('profiles').select('full_name, dni').eq('id', user.id).maybeSingle(),
+      ])
+
+      let mpCustomerId: string | null = null
+      if (savedCardId) {
+        mpCustomerId = metodoResult.data?.mp_customer_id ?? null
+        if (!mpCustomerId) {
+          return new Response(
+            JSON.stringify({ data: null, error: 'No encontramos la tarjeta guardada. Probá con otra tarjeta.' }),
+            { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      }
+
+      const docNumber = payerDocNumber ?? perfilPagador?.dni ?? null
+      const docType = docNumber ? (payerDocType ?? 'DNI') : null
+      const nombreCompleto = (perfilPagador?.full_name ?? '').trim()
+      const [firstName, ...restoNombre] = nombreCompleto.split(/\s+/)
+      const lastName = restoNombre.join(' ') || null
+
+      const idempotencyKey = await sha256Hex(`${orderId}:${cardToken}`)
+
+      const mpPayload: Record<string, unknown> = {
+        transaction_amount: amount,
+        token: cardToken,
+        description: description ? `Healthier — ${description}` : 'Healthier — Pedido de medicamentos',
+        installments: 1,
+        payment_method_id: paymentMethodId,
+        payer: {
+          ...(mpCustomerId ? { type: 'customer', id: mpCustomerId } : {}),
+          email: payerEmail,
+          ...(firstName ? { first_name: firstName } : {}),
+          ...(lastName ? { last_name: lastName } : {}),
+          ...(docNumber ? { identification: { type: docType, number: docNumber } } : {}),
+        },
+        additional_info: {
+          payer: {
+            ...(firstName ? { first_name: firstName } : {}),
+            ...(lastName ? { last_name: lastName } : {}),
+          },
+          items: items.map((it) => ({
+            id: it.pharmacy_product_id ?? it.id,
+            title: it.medication_name,
+            category_id: 'health',
+            quantity: it.quantity,
+            unit_price: it.pharmacy_product_id && currentPrices.has(it.pharmacy_product_id) ? currentPrices.get(it.pharmacy_product_id)! : Number(it.unit_price),
+          })),
+        },
+        external_reference: orderId,
+        binary_mode: true,
+      }
+      if (applicationFee > 0) mpPayload.application_fee = applicationFee
+
+      const { data: existingPayment } = await serviceSupabase
+        .from('payments')
+        .select('id')
+        .eq('order_id', orderId)
+        .in('status', ['pending', 'rejected'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      async function upsertOrderPayment(row: Record<string, unknown>): Promise<string> {
+        if (existingPayment) {
+          const { error } = await serviceSupabase.from('payments').update(row).eq('id', existingPayment.id)
+          if (error) throw new Error(`payments update failed: ${error.message}`)
+          return existingPayment.id
+        }
+        const { data, error } = await serviceSupabase.from('payments').insert(row).select('id').single()
+        if (error) throw new Error(`payments insert failed: ${error.message}`)
+        return data.id
+      }
+
+      const mpRes = await fetch(`${MP_API_BASE}/payments`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${sellerAccessToken}`,
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': idempotencyKey,
+          ...(deviceId ? { 'X-meli-session-id': deviceId } : {}),
+        },
+        body: JSON.stringify(mpPayload),
+      })
+
+      const mpData = await mpRes.json() as { id?: number; status?: string; status_detail?: string; error?: string; message?: string }
+
+      if (!mpRes.ok || !mpData.id) {
+        console.error('mp-payment (order): MP payment error:', JSON.stringify(mpData))
+        const paymentId = await upsertOrderPayment({
+          order_id: orderId,
+          pharmacy_id: order.pharmacy_id,
+          patient_id: user.id,
+          method: 'card',
+          gross_amount: amount,
+          credits_used: 0,
+          charged_amount: amount,
+          platform_fee: applicationFee,
+          mp_fee_estimated: 0,
+          net_to_professional: netToPharmacy,
+          manual_settlement_amount: 0,
+          currency: 'ARS',
+          status: 'rejected',
+          status_detail: mpData.status_detail ?? mpData.message ?? mpData.error ?? 'mp_request_failed',
+          collector_id: pharmacyMpAccount.mp_user_id,
+        })
+        return new Response(
+          JSON.stringify({
+            data: { paymentId, status: 'rejected', approved: false, statusDetail: mpData.status_detail ?? null, chargedAmount: amount },
+            error: mpData.message ?? mpData.error ?? 'MercadoPago payment failed',
+          }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const mpPaymentId = String(mpData.id)
+      const { paymentsStatus } = mapMpStatus(mpData.status ?? 'unknown')
+
+      const paymentId = await upsertOrderPayment({
+        order_id: orderId,
+        pharmacy_id: order.pharmacy_id,
+        patient_id: user.id,
+        mp_payment_id: mpPaymentId,
+        method: 'card',
+        gross_amount: amount,
+        credits_used: 0,
+        charged_amount: amount,
+        platform_fee: applicationFee,
+        mp_fee_estimated: 0,
+        net_to_professional: netToPharmacy,
+        manual_settlement_amount: 0,
+        currency: 'ARS',
+        status: paymentsStatus,
+        status_detail: mpData.status_detail ?? '',
+        collector_id: pharmacyMpAccount.mp_user_id,
+      })
+
+      if (paymentsStatus === 'approved') {
+        const { error: orderUpdateErr } = await serviceSupabase
+          .from('medication_orders')
+          .update({ payment_status: 'pagado', subtotal: amount, total: amount })
+          .eq('id', orderId)
+        if (orderUpdateErr) console.error('mp-payment (order): medication_orders update error:', orderUpdateErr.message)
+      }
+
+      return new Response(
+        JSON.stringify({
+          data: {
+            paymentId,
+            status: paymentsStatus,
+            approved: paymentsStatus === 'approved',
+            statusDetail: mpData.status_detail ?? null,
+            chargedAmount: amount,
+          },
+          error: null,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     if (!consultationId) {
       return new Response(
