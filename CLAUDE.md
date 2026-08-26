@@ -5,7 +5,7 @@ This document provides context for Claude Code when working on this React/Supaba
 > **🚀 MANDATORY — Vercel deploy check:** After every `git push`, verify the deploy succeeded. **The Vercel API token in `~/Local/.env` does NOT have access to the `healthier-app` team scope** (needs interactive re-auth in the Vercel dashboard — a platform quirk on newly-created teams, not fixable via API). Check deploy status via browser instead: `https://vercel.com/healthier-app/gethealthier/deployments`. If state is ERROR, open the deployment and check build logs before reporting done.
 > - Project: `gethealthier` (`prj_F9HOcYdCOixNhKC3WDhzdKt16Zgn`) — team `healthier-app`, migrated 2026-08-10 from the shared `marco-polos-projects-1eab697a` team (that team has 25+ unrelated client/personal projects and is Hobby-plan, non-commercial per Vercel ToS — not appropriate for a paying client in production).
 
-> **🔴 PRIORIDAD MÁXIMA — pagos:** ante CUALQUIER cambio que roce Edge Functions, env vars, dominios o deploys, **probar el vínculo de Mercado Pago y el webhook antes de cerrar la tarea** (checklist con comandos en el `CLAUDE.md` del monorepo). El 2026-08-07 un redeploy sin `supabase/config.toml` puso `verify_jwt=true` en `mp-connect`/`mp-webhook` y ningún profesional pudo vincular su cuenta durante 18 días — sin que fallara el build ni apareciera nada en los logs. **No borrar `supabase/config.toml`.**
+> **🔴 PRIORIDAD MÁXIMA — pagos:** ante CUALQUIER cambio que roce Edge Functions, env vars, dominios o deploys, correr **`node scripts/verificar-pagos.mjs`** antes de cerrar la tarea. Si sale en rojo, no se cierra. **No borrar `supabase/config.toml`** — es lo único que evita que `functions deploy` rompa Mercado Pago en silencio (pasó el 2026-08-07 y estuvo 18 días roto). Runbook completo: **[`../docs/testing.md`](../docs/testing.md)**.
 
 > **📝 MANDATORY:** After completing ANY implementation, add a `[website]`-tagged entry at the top of **`~/Local/Healthier/catchup.md`** (the single unified log). Do NOT write to `website/catchup.md` — it is a stub. Do NOT ask the user — just do it.
 >
@@ -264,8 +264,12 @@ Built entire Healthier MVP from scratch: 4 roles, Supabase schema (6 tables + RL
 
 ## Verificación en browser (obligatorio)
 
-Después de implementar cualquier cambio en un proyecto web o de UI, SIEMPRE verificar el resultado en el browser antes de reportar la tarea como completada. Usar el skill `/verify` o abrir el browser manualmente. No reportar "listo" sin haber visto el resultado funcionando.
+Después de cualquier cambio de UI, verlo funcionando antes de reportar la tarea
+como completada — en desktop **y en el Safari del simulador** si toca algo que
+se use en teléfono.
 
+📖 Cómo: **[`../docs/testing.md`](../docs/testing.md)** (magic link para entrar
+sin teclear, apuntar el simulador a `localhost`, cuentas de cada entorno).
 
 ## Actualizar AMBOS timelines (obligatorio)
 
