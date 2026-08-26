@@ -4,7 +4,7 @@ import {
   MagnifyingGlass, ShieldCheck, X, ArrowSquareOut, Warning,
   CircleNotch, Check, IdentificationCard, FileText, ShieldWarning,
   ShieldSlash, User, Pencil, UploadSimple, ClockCounterClockwise, XCircle,
-  Clock, Trash,
+  Clock, Trash, Camera,
 } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
@@ -12,6 +12,7 @@ import { toast } from '../../components/Toast'
 import RefepsCheckLink from '../../components/admin/RefepsCheckLink'
 import SignedDocLink from '../../components/SignedDocLink'
 import { professionalService } from '../../services/professionalService'
+import { profilesService } from '../../services/profilesService'
 import { paymentsService } from '../../services/paymentsService'
 import { adminService } from '../../services/adminService'
 import { formatSettlementPlazo } from '../../lib/format'
@@ -51,6 +52,84 @@ function getInitials(name) {
   return parts.length === 1
     ? parts[0][0].toUpperCase()
     : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+// Foto de perfil en vez de iniciales cuando existe (Mateo, 2026-08-26): la
+// misma celda se usa en el listado (chica) y en el header del sidecart
+// (grande) — un solo componente para no duplicar el fallback de iniciales.
+function Avatar({ name, url, size = 32, onClick }) {
+  const px = `${size}px`
+  const clickable = typeof onClick === 'function'
+  if (url) {
+    return (
+      <img
+        src={url}
+        alt={name || 'Foto de perfil'}
+        onClick={onClick}
+        className={`rounded-full object-cover shrink-0 ${clickable ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
+        style={{ width: px, height: px }}
+      />
+    )
+  }
+  return (
+    <div
+      onClick={onClick}
+      className={`rounded-full bg-[#e8f0eb] text-[#7CB38B] flex items-center justify-center font-semibold shrink-0 ${clickable ? 'cursor-pointer' : ''}`}
+      style={{ width: px, height: px, fontSize: size <= 32 ? '0.75rem' : '1rem' }}
+    >
+      {getInitials(name)}
+    </div>
+  )
+}
+
+// Ver la foto en grande + subir otra, desde el sidecart. Reusa
+// `profilesService.uploadAvatar` — el mismo upload que ya usa el propio
+// profesional desde su perfil, al bucket público `avatars`.
+function PhotoLightbox({ name, url, profileId, onClose, onUploaded }) {
+  const fileRef = useRef(null)
+  const [uploading, setUploading] = useState(false)
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !profileId) return
+    setUploading(true)
+    try {
+      const newUrl = await profilesService.uploadAvatar(profileId, file)
+      onUploaded(newUrl)
+      toast.success('Foto actualizada')
+    } catch {
+      toast.error('No se pudo subir la foto')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-6" onClick={onClose}>
+      <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
+        <button type="button" onClick={onClose}
+          className="absolute -top-11 right-0 p-2 rounded-lg text-white/80 hover:text-white">
+          <X className="h-6 w-6" />
+        </button>
+        {url ? (
+          <img src={url} alt={name || 'Foto de perfil'} className="w-full rounded-2xl object-contain max-h-[70vh] bg-black" />
+        ) : (
+          <div className="w-full aspect-square rounded-2xl bg-[#e8f0eb] text-[#7CB38B] flex items-center justify-center text-5xl font-semibold">
+            {getInitials(name)}
+          </div>
+        )}
+        <div className="mt-4 flex justify-center">
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+          <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white text-sm font-semibold text-gray-900 hover:bg-gray-100 disabled:opacity-60">
+            {uploading ? <CircleNotch className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+            {uploading ? 'Subiendo...' : (url ? 'Cambiar foto' : 'Subir foto')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function fmt(dateStr) {
@@ -143,6 +222,10 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
   const fileInputRef = useRef(null)
   const pendingFieldRef = useRef(null)
   const [uploadingDocKey, setUploadingDocKey] = useState(null)
+  const [photoOpen, setPhotoOpen] = useState(false)
+  // Override local: tras subir una foto nueva, el sidecart la muestra al toque
+  // sin esperar a que `loadDetail()` vuelva a pegarle a la base.
+  const [avatarOverride, setAvatarOverride] = useState(null)
 
   const loadDetail = useCallback(async () => {
     setLoading(true)
@@ -151,7 +234,7 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
         .from('professional_profiles')
         .select(`
           *,
-          profile:profiles!user_id(id, full_name, email, phone, dni, created_at)
+          profile:profiles!user_id(id, full_name, email, phone, dni, created_at, avatar_url)
         `)
         .eq('id', pro.id)
         .single(),
@@ -324,9 +407,11 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
   const d = detail
   const name = d?.profile?.full_name ?? pro.profiles?.full_name ?? '—'
   const email = d?.profile?.email ?? pro.profiles?.email ?? '—'
+  const avatarUrl = avatarOverride ?? d?.profile?.avatar_url ?? pro.profiles?.avatar_url ?? null
   const specialtyLabel = porSlug[d?.specialty ?? pro.specialty] ?? d?.specialty ?? '—'
 
   return (
+    <>
     <div className="fixed inset-0 z-40 flex justify-end">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
@@ -335,9 +420,7 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
       <div className="relative z-50 w-full max-w-md bg-white shadow-2xl flex flex-col h-full overflow-hidden">
         {/* Header */}
         <div className="flex items-start gap-3 p-5 border-b border-gray-100">
-          <div className="w-10 h-10 rounded-full bg-[#e8f0eb] text-[#7CB38B] flex items-center justify-center font-semibold shrink-0">
-            {getInitials(name)}
-          </div>
+          <Avatar name={name} url={avatarUrl} size={40} onClick={() => setPhotoOpen(true)} />
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-gray-900 truncate">{name}</p>
             <p className="text-xs text-gray-400 truncate">{email}</p>
@@ -665,6 +748,16 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
         )}
       </div>
     </div>
+    {photoOpen && (
+      <PhotoLightbox
+        name={name}
+        url={avatarUrl}
+        profileId={d?.profile?.id ?? pro.profiles?.id}
+        onClose={() => setPhotoOpen(false)}
+        onUploaded={newUrl => setAvatarOverride(newUrl)}
+      />
+    )}
+    </>
   )
 }
 
@@ -695,7 +788,7 @@ export default function SuperAdminProfesionales() {
       const [profResult, consultResult] = await Promise.all([
         supabase
           .from('professional_profiles')
-          .select('id, specialty, is_verified, verification_source, sisa_status, mp_connected, mp_account_label, average_rating, total_reviews, created_at, rejected_at, rejection_type, profiles!user_id(id, full_name, email, phone, created_at, utm_source)')
+          .select('id, specialty, is_verified, verification_source, sisa_status, mp_connected, mp_account_label, average_rating, total_reviews, created_at, rejected_at, rejection_type, profiles!user_id(id, full_name, email, phone, created_at, utm_source, avatar_url)')
           .order('created_at', { ascending: false }),
         supabase.from('consultations').select('professional_id'),
       ])
@@ -864,9 +957,7 @@ export default function SuperAdminProfesionales() {
                       </td>
                       <td className="table-cell">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#e8f0eb] text-[#7CB38B] flex items-center justify-center text-xs font-semibold shrink-0">
-                            {getInitials(name)}
-                          </div>
+                          <Avatar name={name} url={pro.profiles?.avatar_url} size={32} />
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
                             <p className="text-xs text-gray-400 truncate">{email}</p>
