@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   House, Calendar, Users, Plus, X,
-  ClockCounterClockwise, TrendUp, ForkKnife, User, SignOut, Question, Gear } from '@phosphor-icons/react'
+  ClockCounterClockwise, TrendUp, ForkKnife, User, SignOut, Question, Gear, Pill } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
 
@@ -35,6 +35,7 @@ export default function ProfessionalBottomNav({ profile, profSpecialty, classNam
   const modalLinks = [
     { path: '/profesional/historial',  icon: ClockCounterClockwise, label: 'Historial',   sub: 'Consultas anteriores' },
     { path: '/profesional/ganancias',  icon: TrendUp,               label: 'Ganancias',   sub: 'Resumen de ingresos' },
+    { path: '/profesional/farmacia',   icon: Pill,                  label: 'Farmacia',    sub: 'Catálogo de productos' },
     ...(profSpecialty === 'nutricion' ? [
       { path: '/profesional/nutriplan', icon: ForkKnife, label: 'NutriPlan Pro', sub: 'Planes nutricionales' },
     ] : []),
