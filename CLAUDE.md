@@ -220,6 +220,29 @@ npm run preview  # Preview production build
 
 ## Recent Changes
 
+### 2026-08-27: La dirección del consultorio se le pide a quien atiende presencial
+
+El onboarding **nunca** pidió la dirección y el campo vive en `/profesional/perfil` (sólo
+accesible desde "Más"), así que de 27 profesionales sólo 2 la tenían. Sin dirección no hay
+lat/lng y el profesional no aparece en el mapa de pacientes de mobile.
+
+- `lib/profileCompleteness.js`: paso "Dirección del consultorio", agregado **sólo** si
+  `modality_preference` es `'presencial'`/`'ambas'`. Nueva `atiendePresencial()` — único lugar
+  donde se define el criterio; `null` cuenta como virtual.
+- `professional/Dashboard.jsx`: aviso ámbar puntual para el **verificado** que declaró presencial
+  y no tiene dirección. El checklist completo no se le muestra a un verificado a propósito
+  (2026-08-21) y justamente los que tienen el problema ya están verificados, así que nunca lo
+  verían. Es un único item que se va solo al completarse — no es el checklist de vuelta.
+
+> **Al agregar un paso al checklist, preguntarse a quién le llega.** El checklist sólo lo ven los
+> **no verificados**. Si el problema lo tienen los verificados, el paso no alcanza y hace falta
+> una superficie propia en su dashboard.
+
+**Abierto:** el paso de zona trata `modality_preference = null` como no-virtual (le pide zona) y
+el de dirección lo trata como virtual (no le pide nada). Lo consistente sería pedirle **elegir la
+modalidad** a quien nunca la definió; hoy nadie se lo pregunta.
+
+
 ### 2026-04-29: Professional onboarding split into 5 steps (Especialidad → Presentación → Tarifas → Documentación → Revisión)
 
 ### 2026-04-29: Bug fix pass — auth, RLS, ConsultationDetail, Profile, Dashboard, mobile bóveda
