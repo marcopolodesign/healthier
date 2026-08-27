@@ -59,7 +59,6 @@ import ProfessionalPacientes from './pages/professional/Pacientes'
 import ProfessionalGanancias from './pages/professional/Ganancias'
 import ProfessionalConfiguracion from './pages/professional/Configuracion'
 import ProfessionalAyuda from './pages/professional/Ayuda'
-import ProfessionalFarmacia from './pages/professional/Farmacia'
 import PatientBiovisor from './pages/patient/Biovisor'
 import PatientNutriPlan from './pages/patient/NutriPlan'
 import PatientPharmacy from './pages/patient/Pharmacy'
@@ -442,7 +441,6 @@ export default function App() {
           <Route path="/profesional/pacientes" element={<ProfessionalPacientes profile={profile} />} />
           <Route path="/profesional/ganancias" element={<ProfessionalGanancias profile={profile} />} />
           <Route path="/profesional/configuracion" element={<ProfessionalConfiguracion profile={profile} />} />
-          <Route path="/profesional/farmacia" element={<ProfessionalFarmacia profile={profile} />} />
           <Route path="/profesional/ayuda" element={<ProfessionalAyuda profile={profile} />} />
         </Route>
 
