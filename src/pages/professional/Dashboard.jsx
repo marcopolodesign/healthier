@@ -568,9 +568,15 @@ export default function ProfessionalDashboard({ profile }) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs text-amber-700 font-bold uppercase tracking-wide">Falta un dato</p>
-            <p className="text-base font-semibold text-text-primary mt-0.5">Cargá la dirección de tu consultorio</p>
+            <p className="text-base font-semibold text-text-primary mt-0.5">¿Atendés en un consultorio?</p>
+            {/* NO decir "dijiste que atendés presencial": `modality_preference`
+                tiene DEFAULT 'ambas' en la base (migración 049) y nadie se lo
+                pregunta en el alta, así que 11 de los 15 'ambas' de producción
+                nunca eligieron nada — afirmarlo sería ponerles en la boca algo
+                que no dijeron. Hasta que se les pregunte de verdad (ver
+                nextsteps), el aviso ofrece las dos salidas. */}
             <p className="text-xs text-text-secondary mt-0.5">
-              Dijiste que atendés presencial, pero sin dirección no aparecés en el mapa de pacientes
+              Tu perfil figura como presencial. Cargá la dirección para aparecer en el mapa, o pasalo a sólo videollamada en Configuración.
             </p>
           </div>
           <div className="flex items-center gap-1 text-amber-700 text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">
