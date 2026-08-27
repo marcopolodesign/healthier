@@ -29,6 +29,18 @@
 // pasar: el super admin puede verificar sin haber cargado los seis
 // documentos) se muestra igual, pero como dato informativo sin acción —
 // ese documento lo tiene que subir el super admin (ver A6).
+/**
+ * Atiende en un consultorio físico. `modality_preference` (migración 049) es
+ * 'virtual' | 'presencial' | 'ambas'; su comentario en la base la define como
+ * lo que "controla si el profesional aparece en búsquedas presenciales".
+ * `null` cuenta como virtual: es el default de quien nunca tocó el campo, y
+ * no corresponde reclamarle un consultorio que nunca dijo tener.
+ */
+export function atiendePresencial(profProfile) {
+  const m = profProfile?.modalityPreference
+  return m === 'presencial' || m === 'ambas'
+}
+
 export function getProfileCompleteness(profProfile, schedules, { includeVerification = true } = {}) {
   const steps = []
   if (includeVerification) {
@@ -85,6 +97,26 @@ export function getProfileCompleteness(profProfile, schedules, { includeVerifica
       href: '/profesional/perfil',
     },
   )
+
+  // Dirección del consultorio — SÓLO para quien declaró que atiende
+  // presencial (Mateo, 2026-08-27). A diferencia de los pasos de arriba este
+  // no se pushea siempre: a un profesional 100% virtual no le falta nada, y
+  // un paso tildado que dice "consultorio" cuando no tiene consultorio
+  // confunde más de lo que ayuda.
+  //
+  // Por qué hacía falta: el onboarding nunca pide la dirección y el campo
+  // vive escondido en /profesional/perfil, así que de 27 profesionales sólo
+  // 2 la tenían cargada — y sin dirección (que es lo que se geocodifica a
+  // lat/lng al guardar) el profesional no puede aparecer en el mapa de
+  // pacientes aunque haya dicho que atiende presencial.
+  if (atiendePresencial(profProfile)) {
+    steps.push({
+      key: 'direccion',
+      label: 'Dirección del consultorio',
+      done: !!profProfile?.address,
+      href: '/profesional/perfil',
+    })
+  }
 
   const completed = steps.filter(s => s.done).length
   const total = steps.length

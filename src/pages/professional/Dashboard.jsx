@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle, X, CircleNotch, WhatsappLogo, FileText, Lightning, ArrowsClockwise } from '@phosphor-icons/react';
+import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle, X, CircleNotch, WhatsappLogo, FileText, Lightning, ArrowsClockwise, MapPin } from '@phosphor-icons/react';
 import { consultationsService } from '../../services/consultationsService'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 import { professionalService } from '../../services/professionalService'
@@ -12,6 +12,7 @@ import { supabase } from '../../lib/supabase'
 import { supportWhatsAppLink } from '../../lib/support'
 import StatusBadge from '../../components/StatusBadge'
 import ProfileCompletenessCard from '../../components/professional/ProfileCompletenessCard'
+import { atiendePresencial } from '../../lib/profileCompleteness'
 import ReferralLinkCard from '../../components/professional/ReferralLinkCard'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
 import OnDemandSwitch from '../../components/professional/OnDemandSwitch'
@@ -545,6 +546,38 @@ export default function ProfessionalDashboard({ profile }) {
           Ver desglose <ArrowRight className="h-4 w-4" />
         </div>
       </Link>
+
+      {/* Dirección del consultorio — aviso puntual, NO el checklist completo.
+          El checklist general no se muestra a un verificado a propósito
+          (2026-08-21, ver el comentario más arriba), pero este caso concreto
+          se le escapaba: el profesional declaró que atiende presencial y no
+          tiene dirección cargada, así que **no aparece en el mapa de
+          pacientes** aunque esté verificado y cobrando. De 27 profesionales
+          sólo 2 tenían dirección, porque el onboarding nunca la pide y el
+          campo vive en /profesional/perfil (Mateo, 2026-08-27).
+
+          Es un único item accionable que desaparece solo al completarse — no
+          reabre la discusión del checklist para verificados. */}
+      {!loading && atiendePresencial(profProfile) && !profProfile?.address && (
+        <Link
+          to="/profesional/perfil"
+          className="card flex items-center gap-4 border-amber-300 bg-amber-50 hover:border-amber-400 transition-colors group"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-white border border-amber-200 flex items-center justify-center shrink-0">
+            <MapPin className="h-6 w-6 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-amber-700 font-bold uppercase tracking-wide">Falta un dato</p>
+            <p className="text-base font-semibold text-text-primary mt-0.5">Cargá la dirección de tu consultorio</p>
+            <p className="text-xs text-text-secondary mt-0.5">
+              Dijiste que atendés presencial, pero sin dirección no aparecés en el mapa de pacientes
+            </p>
+          </div>
+          <div className="flex items-center gap-1 text-amber-700 text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">
+            Cargar <ArrowRight className="h-4 w-4" />
+          </div>
+        </Link>
+      )}
 
       {/* MercadoPago connection banner — red/urgent: bookings are blocked without it (spec D4) */}
       {!loading && mpStatus && !mpStatus.connected && (
