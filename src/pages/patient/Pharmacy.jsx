@@ -256,14 +256,16 @@ export default function Pharmacy({ profile }) {
 
       {/* Cart bar */}
       {cartCount > 0 && (
-        <div className="absolute bottom-0 left-0 right-0 p-4 patient-column">
-          <button
-            onClick={goToCheckout}
-            className="w-full py-4 rounded-full bg-brand text-white font-bold text-[15px] flex items-center justify-between px-6 shadow-lg"
-          >
-            <span>{cartCount} producto{cartCount !== 1 ? 's' : ''}</span>
-            <span>Continuar — {fmtPrice(cartTotal)}</span>
-          </button>
+        <div className="fixed bottom-24 left-0 right-0 p-4 bg-bg-primary border-t border-border-default z-40">
+          <div className="patient-column">
+            <button
+              onClick={goToCheckout}
+              className="w-full py-4 rounded-full bg-brand text-white font-bold text-[15px] flex items-center justify-between px-6 shadow-lg"
+            >
+              <span>{cartCount} producto{cartCount !== 1 ? 's' : ''}</span>
+              <span>Continuar — {fmtPrice(cartTotal)}</span>
+            </button>
+          </div>
         </div>
       )}
     </div>
