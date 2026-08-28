@@ -276,5 +276,5 @@ receta.
 - Referencia de la API: `docs/rcta-integration.md`
 - Buenas prácticas: `docs/rcta-buenas-practicas.md`
 - Swagger (sandbox): https://apirecipe.hml.qbitos.com/swagger/index.html
-- Acceso institucional: https://innovamed.com.ar/rcta-institucional
+- Acceso institucional: https://web.innovamed.com.ar/rcta-institucional
 - Receta electrónica / RENAPDIS: https://www.argentina.gob.ar/receta-electronica

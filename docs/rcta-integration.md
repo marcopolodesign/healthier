@@ -212,4 +212,4 @@ npx supabase functions deploy rcta-issue
 
 ## 8. Pricing (reference, from original scaffold comment)
 
-~$50.000 ARS/mes por médico (institucional). Apply for production access: `innovamed.com.ar/rcta-institucional`.
+~$50.000 ARS/mes por médico (institucional). Apply for production access: `web.innovamed.com.ar/rcta-institucional`.

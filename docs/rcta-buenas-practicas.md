@@ -6,6 +6,7 @@ sandbox, no de leer la documentación.
 
 - **Referencia de la API** (endpoints, esquemas): `docs/rcta-integration.md`
 - **Estado y camino a certificar**: `docs/rcta-estado-y-certificacion.md`
+- **Qué valida realmente Innovamed**: `docs/rcta-que-valida-innovamed.md`
 
 ---
 
