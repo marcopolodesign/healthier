@@ -4,7 +4,47 @@ Complementa `docs/rcta-integration.md`, que es la **referencia de la API**
 (endpoints, esquemas, contrato). Este documento es el **estado**: qué funciona
 hoy, qué falta, y qué hace falta para que Innovamed nos habilite producción.
 
-Última verificación contra la API: **2026-07-28**.
+Última verificación contra la API: **2026-08-28**.
+
+---
+
+## 🟢 Producción activa desde el 2026-08-28
+
+Innovamed entregó las claves de producción y ya están cargadas en los **Supabase
+secrets del proyecto de producción** (`aixjejdoofervrkggbkd`):
+
+| Secret | Valor |
+|---|---|
+| `RCTA_API_URL` | `https://apirecipe.qbitos.com` (sin barra final) |
+| `RCTA_CLIENT_APP_ID` | `343` |
+| `RCTA_API_KEY` | JWT nuevo (`sha256` `ec645625…acad`) |
+
+Cuenta del portal asociada: `Info@unitedhealth.com.ar`. Los tres valores quedaron
+además en `~/Local/.env` como `HEALTHIER_RCTA_PROD_*` para poder reponerlos —
+Supabase sólo muestra el hash, nunca el valor.
+
+**Verificación (2026-08-28):**
+
+- `GET /apirecipe/GetFinanciadores?clienteAppId=343` contra `apirecipe.qbitos.com` → **200**, 835 financiadores.
+- El mismo `343` contra homologación → `QBI29 VERIFIQUE EL CLIENTE APP ID` (404). El `597` contra producción → el mismo `QBI29`. O sea, son claves de producción de verdad, no una copia de las de sandbox.
+- A través de la Edge Function `rcta-catalog` ya deployada en producción, con un JWT real de profesional: `action=financiadores` y `action=medicamentos&search=AMIXEN` devuelven el **catálogo de producción** (AMIXEN 500mg comp.x16 → `regNo` `10605`). No hizo falta redeployar nada: los secrets se leen en runtime.
+
+**Staging se queda en homologación** (`apirecipe.hml.qbitos.com`, `clienteAppId`
+597) a propósito. Emitir una receta en producción es un acto médico legalmente
+válido; las pruebas van a staging.
+
+### ⚠️ Dos cosas para mirar
+
+1. **El token de producción llegó vencido y con `iss`/`aud` = `Test.com`.** Su
+   `exp` es 2026-08-28 12:21 UTC — cuatro horas antes de recibirlo. La API igual
+   responde `200`, exactamente como pasa en homologación desde julio. Funciona,
+   pero es la misma dependencia frágil de siempre: falta pedirle a Innovamed la
+   política de renovación.
+2. **Quedan 7 recetas de certificación en la base de producción**
+   (`clinical_medications` con `[CERTIFICACIÓN RCTA]` en `notes`, matrícula
+   ficticia `MN 123123`, PDFs en `prescriptions.hml.qbitos.com`). Son de
+   homologación y no valen nada legalmente, pero conviene borrarlas antes de que
+   entren profesionales reales, para que nadie las confunda con recetas emitidas.
 
 ---
 
@@ -19,14 +59,15 @@ credenciales ya estaban configuradas.
 | Edge Function `rcta-issue` | ✅ Construida |
 | UI (`PrescriptionCreator`, badges de estado RCTA) | ✅ Construida |
 | Accesible desde la videollamada | ✅ Desde el 2026-07-28 |
-| Credenciales de homologación en Supabase secrets | ✅ Configuradas |
+| Credenciales de homologación en Supabase secrets (staging) | ✅ Configuradas |
+| Credenciales de **producción** en Supabase secrets (prod) | ✅ Configuradas — 2026-08-28 |
 | Conectividad con el sandbox | ✅ Verificada — `GET /apirecipe/GetFinanciadores` → **200** |
 | Código de medicamento (`regNo`) en el payload | ✅ Autocompletado contra `GetMedicamento` (2026-07-28) |
 | Cobertura (financiador + afiliado) en el payload | ✅ Selector contra `GetFinanciadores` (2026-07-28) |
 | **Las 4 pruebas de certificación** | ✅ **Emitidas — 2026-07-28** |
-| Credenciales de producción | ❌ Requieren contrato + RENAPDIS + 4 pruebas |
+| Credenciales de producción entregadas por Innovamed | ✅ **Recibidas y verificadas — 2026-08-28** |
 
-### Sobre las credenciales
+### Sobre las credenciales de homologación
 
 Las que Innovamed reenvió el 2026-07-28 son **idénticas** a las ya configuradas
 — verificado comparando el SHA-256 de cada valor contra el digest que expone
@@ -206,17 +247,18 @@ Sirven para saber qué valida Innovamed **antes** de escribir:
 
 ## Lo que depende de Mateo, no del código
 
-Para que Innovamed entregue las claves de **producción** hacen falta tres cosas,
-y ninguna se resuelve programando:
+Innovamed pedía tres cosas antes de entregar claves de producción, y **las
+entregó el 2026-08-28**, así que se asumen cumplidas:
 
-1. **Firmar el contrato.** Innovamed mandó el modelo de carta oferta el
-   2026-07-28 y quedó esperando conformidad para arrancar el proceso de firmas.
-2. **Registrarse como recetario en RENAPDIS** —
+1. **Contrato firmado.** Modelo de carta oferta mandado el 2026-07-28.
+2. **Registro como recetario en RENAPDIS** —
    https://www.argentina.gob.ar/receta-electronica
-3. **Pasar la certificación** con las 4 recetas de arriba.
+3. **Certificación** con las 4 recetas de prueba (emitidas el 2026-08-05).
 
-El punto 3 sí depende del trabajo listado en la sección anterior. Los puntos 1 y
-2 se pueden avanzar en paralelo desde ya.
+**Confirmar que las tres estén efectivamente cerradas del lado de Innovamed** —
+las claves llegaron por chat, sin el mail de cierre formal. Si alguna quedó
+abierta, conviene saberlo antes de que un profesional real emita la primera
+receta.
 
 ---
 

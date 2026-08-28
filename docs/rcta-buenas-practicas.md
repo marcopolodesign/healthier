@@ -98,26 +98,42 @@ obvio.
 
 ---
 
-## 6. El token de homologación vence, pero el sandbox no lo aplica
+## 6. Los tokens vienen vencidos y la API no aplica el `exp`
 
 El JWT de sandbox venció el **2026-07-06** y sin embargo las llamadas siguen
 devolviendo `200` (verificado el 2026-07-28, 22 días después).
 
+**Lo mismo pasa con el token de producción.** El que Innovamed entregó el
+2026-08-28 trae `exp` = 2026-08-28 12:21 UTC — o sea, ya vencido cuando llegó —
+y además `iss` / `aud` = `Test.com`. Igual responde `200` contra
+`apirecipe.qbitos.com`. Ninguna de esas tres señales es motivo para rechazar
+unas claves: **la única prueba válida es llamar a la API.**
+
 **No confíes en eso.** Que hoy no se aplique no significa que no se aplique
-mañana, y menos en producción. Si algo falla con `401`, lo primero a revisar es
-el vencimiento antes de buscar bugs en el payload.
+mañana. Si algo falla con `401`, lo primero a revisar es el vencimiento antes de
+buscar bugs en el payload. Está pendiente pedirle a Innovamed la política de
+renovación del token de producción.
 
 ---
 
 ## 7. Sandbox y producción son URLs distintas, no un flag
 
-| Ambiente | Base URL |
-|---|---|
-| Homologación | `https://apirecipe.hml.qbitos.com` |
-| Producción | `https://apirecipe.qbitos.com` |
+| Ambiente | Base URL | `clienteAppId` | Dónde está configurado |
+|---|---|---|---|
+| Homologación | `https://apirecipe.hml.qbitos.com` | `597` | Supabase **staging** (`itjhrvlzuqvyhqtffumc`) |
+| Producción | `https://apirecipe.qbitos.com` | `343` | Supabase **producción** (`aixjejdoofervrkggbkd`) |
 
 Va en el secret `RCTA_API_URL`, **sin barra final** — la función le agrega
 `/apirecipe/...`. Una barra de más rompe la URL y el error no lo dice.
+
+**La URL y el `clienteAppId` van juntos, no se mezclan.** Cruzarlos devuelve
+`QBI29 — VERIFIQUE EL CLIENTE APP ID INGRESADO` (HTTP 404): el `343` no existe
+en homologación y el `597` no existe en producción. Ese error es la forma más
+rápida de saber que un ambiente quedó mal armado.
+
+**Producción es producción.** Desde el 2026-08-28 el proyecto de prod apunta a
+la API real: cada emisión es una receta legalmente válida. Las pruebas van a
+staging, que se queda en homologación a propósito.
 
 ---
 
@@ -152,7 +168,29 @@ opcionales:
 
 ---
 
-## 10. Para pasar a producción no alcanza con que ande
+## 10bis. Los catálogos de los dos ambientes NO son el mismo
+
+Verificado el 2026-08-28 comparando `GetFinanciadores` en los dos ambientes:
+**835 financiadores en producción, 900 en homologación, y 381 ids que apuntan a
+entidades distintas.** El `537` es "Prueba PAMI" en el sandbox y "Andina ART" en
+producción; el `534` es "CONVENIO PRUEBA EXTERNO" y "OSEP Catamarca".
+
+Consecuencia: **un `financiador_id` guardado desde el sandbox puede emitir una
+receta contra la obra social equivocada.** Los ids bajos coinciden (OSDE `28`,
+Luis Pasteur `9`, Accord Salud `96` son iguales en los dos), pero eso es suerte,
+no garantía.
+
+Los `regNo` de medicamentos sí resultaron estables entre ambientes en las
+muestras probadas (`30127` = ACTRON cáps. x10 en los dos), pero el **orden y el
+contenido de los resultados de búsqueda difieren**, así que tampoco vale copiar
+un código de una corrida de sandbox a producción sin verificarlo.
+
+Regla práctica: **datos de prueba emitidos contra homologación no se reutilizan
+en producción.** Ni el financiador, ni el medicamento, ni la receta.
+
+---
+
+## 11. Para pasar a producción no alcanza con que ande
 
 Innovamed pide tres cosas, y dos no son código:
 
