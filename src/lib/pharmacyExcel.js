@@ -8,13 +8,31 @@
  * pharmacy_admin opening Catálogo, not by every visitor's initial bundle.
  */
 
-const HEADERS = ['SKU', 'Nombre', 'Presentación', 'Precio', 'Stock', 'Requiere receta', 'Disponible']
+const HEADERS = ['SKU', 'Nombre', 'Presentación', 'Precio', 'Stock', 'Categoría receta', 'Disponible']
+
+const PRESCRIPTION_TYPE_LABELS = {
+  venta_libre: 'Venta libre',
+  receta: 'Receta',
+  receta_archivada: 'Receta archivada',
+}
+const PRESCRIPTION_TYPES = Object.keys(PRESCRIPTION_TYPE_LABELS)
+const LABEL_TO_PRESCRIPTION_TYPE = Object.fromEntries(
+  Object.entries(PRESCRIPTION_TYPE_LABELS).map(([type, label]) => [label.toUpperCase(), type])
+)
 
 function toBool(v) {
   if (typeof v === 'boolean') return v
   const s = String(v ?? '').trim().toUpperCase()
   return s === 'SI' || s === 'SÍ' || s === 'TRUE' || s === '1'
 }
+
+/** Maps a free-text cell to one of the 3 prescription categories, or null if unrecognized. */
+function toPrescriptionType(v) {
+  const s = String(v ?? '').trim().toUpperCase()
+  return LABEL_TO_PRESCRIPTION_TYPE[s] ?? null
+}
+
+export { PRESCRIPTION_TYPE_LABELS, PRESCRIPTION_TYPES }
 
 /** Reads a File (.xlsx) and returns raw rows mapped to our field names. */
 export async function parseCatalogFile(file) {
@@ -31,7 +49,7 @@ export async function parseCatalogFile(file) {
     presentacion: row['Presentación'] != null ? String(row['Presentación']).trim() : null,
     precio: row['Precio'],
     stock: row['Stock'],
-    requiereReceta: toBool(row['Requiere receta']),
+    prescriptionType: toPrescriptionType(row['Categoría receta']),
     disponible: toBool(row['Disponible']),
   }))
 }
@@ -52,6 +70,9 @@ export function validateRows(rows) {
     if (row.precio == null || Number.isNaN(precio) || precio < 0) rowErrors.push('Precio inválido')
     const stock = Number(row.stock)
     if (row.stock == null || Number.isNaN(stock) || stock < 0 || !Number.isInteger(stock)) rowErrors.push('Stock inválido')
+    if (!row.prescriptionType) {
+      rowErrors.push(`Categoría receta inválida — usar: ${PRESCRIPTION_TYPES.map(t => PRESCRIPTION_TYPE_LABELS[t]).join(' / ')}`)
+    }
 
     if (rowErrors.length) {
       errors.push({ row: row._row, field: rowErrors.join('; '), message: `Fila ${row._row}: ${rowErrors.join('; ')}` })

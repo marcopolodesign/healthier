@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { UploadSimple, DownloadSimple, ShoppingBag, Lock } from '@phosphor-icons/react'
 import { pharmacyAdminService } from '../../services/pharmacyAdminService'
-import { parseCatalogFile, validateRows, buildCatalogWorkbook } from '../../lib/pharmacyExcel'
+import { parseCatalogFile, validateRows, buildCatalogWorkbook, PRESCRIPTION_TYPE_LABELS } from '../../lib/pharmacyExcel'
 import { toast } from '../../components/Toast'
 import { formatARS } from '../../lib/format'
 
@@ -129,7 +129,7 @@ export default function PharmacyCatalog({ profile }) {
                 <th className="table-header hidden md:table-cell">Presentación</th>
                 <th className="table-header">Precio</th>
                 <th className="table-header">Stock</th>
-                <th className="table-header hidden sm:table-cell">Receta</th>
+                <th className="table-header hidden sm:table-cell">Categoría receta</th>
               </tr>
             </thead>
             <tbody>
@@ -140,7 +140,7 @@ export default function PharmacyCatalog({ profile }) {
                   <td className="table-cell hidden md:table-cell text-text-secondary">{p.presentation || '—'}</td>
                   <td className="table-cell">{formatARS(p.price)}</td>
                   <td className="table-cell">{p.stockQuantity}</td>
-                  <td className="table-cell hidden sm:table-cell">{p.requiresPrescription ? 'Sí' : 'No'}</td>
+                  <td className="table-cell hidden sm:table-cell">{PRESCRIPTION_TYPE_LABELS[p.prescriptionType] ?? PRESCRIPTION_TYPE_LABELS.venta_libre}</td>
                 </tr>
               ))}
             </tbody>

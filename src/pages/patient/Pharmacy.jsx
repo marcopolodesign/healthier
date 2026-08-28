@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, MagnifyingGlass, Star, ShoppingBag, Pill, Plus, Minus, FunnelSimple } from '@phosphor-icons/react'
+import { ArrowLeft, MagnifyingGlass, Star, ShoppingBag, Pill, Plus, Minus, FunnelSimple, Stethoscope } from '@phosphor-icons/react'
 import { pharmacyService } from '../../services/pharmacyService'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
@@ -77,8 +77,17 @@ export default function Pharmacy({ profile }) {
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [showStockOnly, setShowStockOnly] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
+  const [canBuy, setCanBuy] = useState(null) // null = todavía no se sabe
 
   useEffect(() => {
+    if (!profile?.id) return
+    pharmacyService.hasBeenAttended(profile.id)
+      .then(setCanBuy)
+      .catch(() => setCanBuy(true)) // no bloquear por un error de red, sólo por la regla
+  }, [profile?.id])
+
+  useEffect(() => {
+    if (canBuy !== true) return
     Promise.all([
       pharmacyService.getAll(),
       pharmacyService.getFeatured(),
@@ -95,7 +104,7 @@ export default function Pharmacy({ profile }) {
       })
       .catch(err => toast.error(err?.message || 'Error al cargar la farmacia'))
       .finally(() => setLoading(false))
-  }, [profile?.id])
+  }, [canBuy, profile?.id])
 
   const addToCart = (product) => {
     setCart(prev => ({ ...prev, [product.id]: { product, quantity: (prev[product.id]?.quantity ?? 0) + 1 } }))
@@ -162,6 +171,34 @@ export default function Pharmacy({ profile }) {
 
     return result
   }, [allProducts, query, selectedCategory, showStockOnly])
+
+  if (canBuy === false) {
+    return (
+      <div className="absolute inset-0 flex flex-col bg-bg-primary">
+        <div className="flex items-center gap-3 px-4 patient-column pt-6 pb-4 border-b border-border-default bg-bg-surface sticky top-0 z-30">
+          <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-lg hover:bg-bg-muted">
+            <ArrowLeft size={20} className="text-text-secondary" />
+          </button>
+          <h1 className="font-bold text-text-primary">Farmacia</h1>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-4 patient-column">
+          <div className="w-16 h-16 rounded-full bg-brand/10 flex items-center justify-center">
+            <Stethoscope className="w-7 h-7 text-brand" />
+          </div>
+          <div>
+            <p className="font-semibold text-text-primary">Todavía no tenés una consulta realizada</p>
+            <p className="text-sm text-text-secondary mt-1">Para comprar en la farmacia primero tenés que atenderte con un profesional de Healthier.</p>
+          </div>
+          <button
+            onClick={() => navigate('/paciente/dashboard')}
+            className="px-5 py-3 rounded-full bg-brand text-white text-sm font-semibold"
+          >
+            Reservar una consulta
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="absolute inset-0 flex flex-col bg-bg-primary">

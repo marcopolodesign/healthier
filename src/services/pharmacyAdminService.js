@@ -7,6 +7,7 @@
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 import { medicationOrdersService } from './medicationOrdersService'
 import { callEdgeFunction } from '../lib/edgeFunction'
+import { PRESCRIPTION_TYPE_LABELS } from '../lib/pharmacyExcel'
 
 const PHARMACY_ID = medicationOrdersService.PHARMACY_ID
 
@@ -55,7 +56,7 @@ export const pharmacyAdminService = {
       presentation: r.presentacion ?? null,
       price: r.precio,
       stockQuantity: r.stock,
-      requiresPrescription: r.requiereReceta,
+      prescriptionType: r.prescriptionType,
       category: r.category ?? 'clinica',
     })
 
@@ -101,7 +102,7 @@ export const pharmacyAdminService = {
       Presentación: p.presentation ?? '',
       Precio: p.price,
       Stock: p.stockQuantity,
-      'Requiere receta': p.requiresPrescription ? 'SI' : 'NO',
+      'Categoría receta': PRESCRIPTION_TYPE_LABELS[p.prescriptionType] ?? PRESCRIPTION_TYPE_LABELS.venta_libre,
       Disponible: p.inStock ? 'SI' : 'NO',
     }))
   },

@@ -4,6 +4,22 @@ import { medicationOrdersService } from './medicationOrdersService'
 const PHARMACY_ID = medicationOrdersService.PHARMACY_ID
 
 export const pharmacyService = {
+  /**
+   * La farmacia sólo está habilitada para pacientes que ya se atendieron al
+   * menos una vez con un profesional de Healthier — mismo criterio que la
+   * policy de INSERT en medication_orders (migración 129), acá sólo para
+   * mostrar el mensaje antes de dejarlos armar un carrito.
+   */
+  async hasBeenAttended(patientId) {
+    const { count, error } = await supabase
+      .from('consultations')
+      .select('id', { count: 'exact', head: true })
+      .eq('patient_id', patientId)
+      .eq('status', 'completed')
+    if (error) throw error
+    return (count ?? 0) > 0
+  },
+
   async getAll() {
     const { data, error } = await supabase
       .from('pharmacy_products')
