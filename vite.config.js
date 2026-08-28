@@ -28,9 +28,11 @@ function versionDelBuild() {
   }
 }
 
+const buildInfo = versionDelBuild()
+
 export default defineConfig({
   define: {
-    __BUILD_INFO__: JSON.stringify(versionDelBuild()),
+    __BUILD_INFO__: JSON.stringify(buildInfo),
   },
   plugins: [
     react(),
@@ -38,12 +40,16 @@ export default defineConfig({
     // Sube source maps a Sentry para que los stack traces minificados se
     // lean como el código real. Sólo corre si hay SENTRY_AUTH_TOKEN (no
     // seteado en dev local) — sin token, el plugin no hace nada y el build
-    // no se rompe.
+    // no se rompe. El release tiene que ser EXACTAMENTE el mismo string que
+    // `Sentry.init({ release })` en runtime (src/lib/sentry.js, vía
+    // BUILD_COMMIT) — si no matchean, Sentry no puede asociar el map subido
+    // acá con el error que reporta el browser, y el stack trace queda
+    // minificado igual.
     process.env.SENTRY_AUTH_TOKEN && sentryVitePlugin({
       org: process.env.SENTRY_ORG,
       project: process.env.SENTRY_PROJECT,
       authToken: process.env.SENTRY_AUTH_TOKEN,
-      release: { name: process.env.VERCEL_GIT_COMMIT_SHA },
+      release: { name: buildInfo.commit },
       sourcemaps: { filesToDeleteAfterUpload: ['dist/**/*.js.map'] },
     }),
   ],
