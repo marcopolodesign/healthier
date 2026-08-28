@@ -1,5 +1,6 @@
 import { Component } from 'react'
 import { WarningCircle, ArrowClockwise } from '@phosphor-icons/react'
+import { Sentry } from '../lib/sentry'
 
 // Root error boundary — regla de Mateo: nunca una pantalla blanca sin
 // explicación, siempre mostrar el error real. Tiene que ser un componente de
@@ -18,6 +19,7 @@ export default class ErrorBoundary extends Component {
   componentDidCatch(error, info) {
     // eslint-disable-next-line no-console
     console.error('ErrorBoundary capturó un error:', error, info?.componentStack)
+    Sentry.captureException(error, { contexts: { react: { componentStack: info?.componentStack } } })
   }
 
   render() {

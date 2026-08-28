@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 import { execSync } from 'node:child_process'
 
 /**
@@ -31,7 +32,27 @@ export default defineConfig({
   define: {
     __BUILD_INFO__: JSON.stringify(versionDelBuild()),
   },
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    // Sube source maps a Sentry para que los stack traces minificados se
+    // lean como el código real. Sólo corre si hay SENTRY_AUTH_TOKEN (no
+    // seteado en dev local) — sin token, el plugin no hace nada y el build
+    // no se rompe.
+    process.env.SENTRY_AUTH_TOKEN && sentryVitePlugin({
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      release: { name: process.env.VERCEL_GIT_COMMIT_SHA },
+      sourcemaps: { filesToDeleteAfterUpload: ['dist/**/*.js.map'] },
+    }),
+  ],
+  build: {
+    // Sólo emite .map cuando se van a subir y borrar después — si no hay
+    // token no tiene sentido generarlos (y evita que queden públicos en el
+    // deploy por accidente).
+    sourcemap: !!process.env.SENTRY_AUTH_TOKEN,
+  },
   server: {
     proxy: {
       '/api/anthropic': {
