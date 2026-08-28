@@ -64,6 +64,20 @@ function ProductCard({ product, quantity, onAdd, onRemove }) {
   )
 }
 
+function PharmacyHeader({ onBack, subtitle }) {
+  return (
+    <div className="flex items-center gap-3 px-4 patient-column pt-6 pb-4 border-b border-border-default bg-bg-surface sticky top-0 z-30">
+      <button onClick={onBack} className="p-2 -ml-2 rounded-lg hover:bg-bg-muted">
+        <ArrowLeft size={20} className="text-text-secondary" />
+      </button>
+      <div>
+        <h1 className="font-bold text-text-primary">Farmacia</h1>
+        {subtitle && <p className="text-xs text-text-secondary">{subtitle}</p>}
+      </div>
+    </div>
+  )
+}
+
 export default function Pharmacy({ profile }) {
   const navigate = useNavigate()
   const [allProducts, setAllProducts] = useState([])
@@ -80,20 +94,21 @@ export default function Pharmacy({ profile }) {
   const [canBuy, setCanBuy] = useState(null) // null = todavía no se sabe
 
   useEffect(() => {
+    setCanBuy(null) // vuelve a "no se sabe" hasta que resuelva para este perfil
     if (!profile?.id) return
-    pharmacyService.hasBeenAttended(profile.id)
+
+    pharmacyService.hasBeenAttended()
       .then(setCanBuy)
       .catch(() => setCanBuy(true)) // no bloquear por un error de red, sólo por la regla
-  }, [profile?.id])
 
-  useEffect(() => {
-    if (canBuy !== true) return
+    // Se pide en paralelo al chequeo de arriba, no en cadena — si el paciente
+    // no puede comprar, la pantalla de bloqueo reemplaza todo esto igual.
     Promise.all([
       pharmacyService.getAll(),
       pharmacyService.getFeatured(),
-      profile?.id ? pharmacyService.getSuggested(profile.id) : Promise.resolve([]),
-      profile?.id ? pharmacyService.getPrescribedMatches(profile.id) : Promise.resolve([]),
-      profile?.id ? medicationOrdersService.getPendingDraft(profile.id) : Promise.resolve(null),
+      pharmacyService.getSuggested(profile.id),
+      pharmacyService.getPrescribedMatches(profile.id),
+      medicationOrdersService.getPendingDraft(profile.id),
     ])
       .then(([all, feat, sugg, presc, draft]) => {
         setAllProducts(all)
@@ -104,7 +119,7 @@ export default function Pharmacy({ profile }) {
       })
       .catch(err => toast.error(err?.message || 'Error al cargar la farmacia'))
       .finally(() => setLoading(false))
-  }, [canBuy, profile?.id])
+  }, [profile?.id])
 
   const addToCart = (product) => {
     setCart(prev => ({ ...prev, [product.id]: { product, quantity: (prev[product.id]?.quantity ?? 0) + 1 } }))
@@ -135,7 +150,7 @@ export default function Pharmacy({ profile }) {
           presentation: it.product.description ?? null,
           quantity: it.quantity,
           unitPrice: it.product.price,
-          requiresPrescription: it.product.requiresPrescription ?? false,
+          requiresPrescription: it.product.prescriptionType !== 'venta_libre',
         })),
       },
     })
@@ -175,12 +190,7 @@ export default function Pharmacy({ profile }) {
   if (canBuy === false) {
     return (
       <div className="absolute inset-0 flex flex-col bg-bg-primary">
-        <div className="flex items-center gap-3 px-4 patient-column pt-6 pb-4 border-b border-border-default bg-bg-surface sticky top-0 z-30">
-          <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-lg hover:bg-bg-muted">
-            <ArrowLeft size={20} className="text-text-secondary" />
-          </button>
-          <h1 className="font-bold text-text-primary">Farmacia</h1>
-        </div>
+        <PharmacyHeader onBack={() => navigate(-1)} />
         <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-4 patient-column">
           <div className="w-16 h-16 rounded-full bg-brand/10 flex items-center justify-center">
             <Stethoscope className="w-7 h-7 text-brand" />
@@ -202,16 +212,10 @@ export default function Pharmacy({ profile }) {
 
   return (
     <div className="absolute inset-0 flex flex-col bg-bg-primary">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 patient-column pt-6 pb-4 border-b border-border-default bg-bg-surface sticky top-0 z-30">
-        <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-lg hover:bg-bg-muted">
-          <ArrowLeft size={20} className="text-text-secondary" />
-        </button>
-        <div>
-          <h1 className="font-bold text-text-primary">Farmacia</h1>
-          <p className="text-xs text-text-secondary">{filteredProducts.length} producto{filteredProducts.length !== 1 ? 's' : ''}</p>
-        </div>
-      </div>
+      <PharmacyHeader
+        onBack={() => navigate(-1)}
+        subtitle={`${filteredProducts.length} producto${filteredProducts.length !== 1 ? 's' : ''}`}
+      />
 
       <div className={`flex-1 overflow-y-auto ${cartCount > 0 ? 'pb-32 sm:pb-8' : 'pb-8'} patient-column`}>
         {/* Pedido sin terminar */}

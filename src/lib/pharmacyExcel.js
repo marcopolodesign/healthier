@@ -15,7 +15,6 @@ const PRESCRIPTION_TYPE_LABELS = {
   receta: 'Receta',
   receta_archivada: 'Receta archivada',
 }
-const PRESCRIPTION_TYPES = Object.keys(PRESCRIPTION_TYPE_LABELS)
 const LABEL_TO_PRESCRIPTION_TYPE = Object.fromEntries(
   Object.entries(PRESCRIPTION_TYPE_LABELS).map(([type, label]) => [label.toUpperCase(), type])
 )
@@ -32,7 +31,7 @@ function toPrescriptionType(v) {
   return LABEL_TO_PRESCRIPTION_TYPE[s] ?? null
 }
 
-export { PRESCRIPTION_TYPE_LABELS, PRESCRIPTION_TYPES }
+export { PRESCRIPTION_TYPE_LABELS }
 
 /** Reads a File (.xlsx) and returns raw rows mapped to our field names. */
 export async function parseCatalogFile(file) {
@@ -71,7 +70,7 @@ export function validateRows(rows) {
     const stock = Number(row.stock)
     if (row.stock == null || Number.isNaN(stock) || stock < 0 || !Number.isInteger(stock)) rowErrors.push('Stock inválido')
     if (!row.prescriptionType) {
-      rowErrors.push(`Categoría receta inválida — usar: ${PRESCRIPTION_TYPES.map(t => PRESCRIPTION_TYPE_LABELS[t]).join(' / ')}`)
+      rowErrors.push(`Categoría receta inválida — usar: ${Object.values(PRESCRIPTION_TYPE_LABELS).join(' / ')}`)
     }
 
     if (rowErrors.length) {

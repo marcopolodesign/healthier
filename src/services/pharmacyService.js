@@ -6,18 +6,15 @@ const PHARMACY_ID = medicationOrdersService.PHARMACY_ID
 export const pharmacyService = {
   /**
    * La farmacia sólo está habilitada para pacientes que ya se atendieron al
-   * menos una vez con un profesional de Healthier — mismo criterio que la
-   * policy de INSERT en medication_orders (migración 129), acá sólo para
-   * mostrar el mensaje antes de dejarlos armar un carrito.
+   * menos una vez con un profesional de Healthier. Llama a la misma función
+   * que usa la policy de INSERT en medication_orders (migración 130) — acá
+   * sólo para mostrar el mensaje antes de dejarlos armar un carrito; el RLS
+   * es el que realmente bloquea la compra.
    */
-  async hasBeenAttended(patientId) {
-    const { count, error } = await supabase
-      .from('consultations')
-      .select('id', { count: 'exact', head: true })
-      .eq('patient_id', patientId)
-      .eq('status', 'completed')
+  async hasBeenAttended() {
+    const { data, error } = await supabase.rpc('patient_has_completed_consultation')
     if (error) throw error
-    return (count ?? 0) > 0
+    return !!data
   },
 
   async getAll() {
