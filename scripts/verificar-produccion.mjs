@@ -50,15 +50,43 @@ const ENTORNOS = {
   produccion: {
     e2eBaseUrl: 'https://gethealthier.vercel.app',
     supabaseUrl: 'https://aixjejdoofervrkggbkd.supabase.co',
+    ref: 'aixjejdoofervrkggbkd',
     supabaseAnonKey: env.HEALTHIER_SUPABASE_ANON_KEY ?? env.SUPABASE_ANON_KEY ?? '',
     serviceRoleKey: env.HEALTHIER_SUPABASE_SERVICE_ROLE_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY ?? '',
   },
   staging: {
     e2eBaseUrl: 'https://gethealthier-staging.vercel.app',
     supabaseUrl: env.HEALTHIER_STAGING_SUPABASE_URL ?? '',
+    ref: 'itjhrvlzuqvyhqtffumc',
     supabaseAnonKey: env.HEALTHIER_STAGING_SUPABASE_ANON_KEY ?? '',
     serviceRoleKey: env.HEALTHIER_STAGING_SUPABASE_SERVICE_ROLE_KEY ?? '',
   },
+}
+
+// Las claves de producción NO están en `~/Local/.env`, y está bien que no lo
+// estén: una service_role de producción guardada en un dotfile es una llave
+// maestra sin fecha de vencimiento. Se piden a la Management API en el momento
+// —con el `SUPABASE_ACCESS_TOKEN`, que sí está— y viven sólo en memoria durante
+// la corrida.
+async function completarClavesFaltantes(entorno) {
+  if (entorno.supabaseAnonKey && entorno.serviceRoleKey) return entorno
+  if (!env.SUPABASE_ACCESS_TOKEN) {
+    throw new Error(
+      'Faltan las claves de Supabase de este entorno y no hay SUPABASE_ACCESS_TOKEN ' +
+      'en ~/Local/.env para pedirlas a la Management API.'
+    )
+  }
+  const r = await fetch(`https://api.supabase.com/v1/projects/${entorno.ref}/api-keys?reveal=true`, {
+    headers: { Authorization: `Bearer ${env.SUPABASE_ACCESS_TOKEN}` },
+  })
+  if (!r.ok) throw new Error(`No se pudieron pedir las claves de ${entorno.ref}: ${r.status} ${await r.text()}`)
+  const claves = await r.json()
+  const buscar = (nombre) => claves.find((k) => k.name === nombre)?.api_key ?? ''
+  return {
+    ...entorno,
+    supabaseAnonKey: entorno.supabaseAnonKey || buscar('anon'),
+    serviceRoleKey: entorno.serviceRoleKey || buscar('service_role'),
+  }
 }
 
 const args = process.argv.slice(2)
@@ -69,7 +97,9 @@ if (!ENTORNOS[pedido]) {
   console.log(`❌ Entorno "${pedido}" desconocido. Usar "produccion" o "staging".`)
   process.exit(1)
 }
-const entorno = ENTORNOS[pedido]
+// El paso de alta necesita las claves; los otros dos no. Sólo se piden si se
+// las va a usar, para no pedir una service_role de producción de gusto.
+const entorno = sinAlta ? ENTORNOS[pedido] : await completarClavesFaltantes(ENTORNOS[pedido])
 
 console.log(`\n╔══════════════════════════════════════════════════════════════╗`)
 console.log(`║  VERIFICACIÓN POST-DEPLOY — ${pedido.toUpperCase().padEnd(35)}║`)
