@@ -304,3 +304,30 @@ Después de cada tarea completada, antes de reportar al usuario, actualizar:
 2. **Timeline global** — `~/Local/timeline.md` — actualizar la fila del proyecto en la tabla resumen + el bloque Estado/Próximo paso del proyecto.
 
 No preguntar. No saltear aunque la tarea sea pequeña. El timeline global es la fuente de verdad que Alan usa para saber en qué está cada proyecto y qué sigue.
+---
+
+## Contexto global (`hq`) — leer al empezar
+
+Las reglas de trabajo de Mateo (respuestas cortas, autonomía, Task Brief, entregables HTML,
+Planner Sync, cara-al-cliente), el timeline de todos los proyectos y el sistema de marca
+Marco Polo viven en un repo aparte: `github.com/marcopolodesign/hq`.
+
+**En la MacBook** ya están en `~/Local/` — no hay que hacer nada.
+
+**En un cloud agent**, al empezar la sesión:
+
+```bash
+gh repo clone marcopolodesign/hq /tmp/hq 2>/dev/null || git -C /tmp/hq pull -q
+```
+
+Y leer de ahí `CLAUDE.md`, `CLAUDE-global.md`, `timeline.md` y `repos.md`.
+
+Para consultar otro proyecto ("mirá cómo lo hicimos en Ninjo"):
+
+```bash
+/tmp/hq/scripts/ref.sh <alias>     # → /tmp/ref/<alias>, sólo lectura
+```
+
+En cloud **no hay Chrome ni simulador de iOS**: la verificación se hace con Playwright
+headless contra la preview de Vercel, y para móvil con `eas build` + `eas submit`.
+Al terminar, commitear también `catchup.md` / `timeline.md` en `hq`.
