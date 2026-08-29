@@ -7,6 +7,8 @@ This document provides context for Claude Code when working on this React/Supaba
 
 > **🔴 PRIORIDAD MÁXIMA — pagos:** ante CUALQUIER cambio que roce Edge Functions, env vars, dominios o deploys, correr **`node scripts/verificar-pagos.mjs`** antes de cerrar la tarea. Si sale en rojo, no se cierra. **No borrar `supabase/config.toml`** — es lo único que evita que `functions deploy` rompa Mercado Pago en silencio (pasó el 2026-08-07 y estuvo 18 días roto). Runbook completo: **[`../docs/testing.md`](../docs/testing.md)**.
 
+> **🔴 MANDATORY — después de deployar a producción, PREGUNTAR si corremos las pruebas:** Mercado Pago, alta de cuenta y receta electrónica fallan en silencio y tienen prueba propia. Tras mergear a `main`, tocar Edge Functions/secrets/dominios/migraciones, o ante un cambio grande, preguntarle a Mateo si las corremos — una línea, no un informe. `node scripts/verificar-produccion.mjs`. No correrlas por mi cuenta (la de alta crea un usuario real) ni saltearlas en silencio. **Emitir una receta contra producción no se automatiza nunca.** Runbook: **[`../docs/deploy.md`](../docs/deploy.md)** (regla de Mateo, 2026-08-29).
+
 > **📝 MANDATORY:** After completing ANY implementation, add a `[website]`-tagged entry at the top of **`~/Local/Healthier/catchup.md`** (the single unified log). Do NOT write to `website/catchup.md` — it is a stub. Do NOT ask the user — just do it.
 >
 > **Source tagging & pull rule:** Every catchup entry MUST include a `**Source:**` line (e.g. `Claude Code — Macbook Pro`, `Claude App — iPhone`, `Claude.ai — web`). Before writing the entry, read the most recent entry's `**Source:**` field. If it differs from the current session's source, run `git pull origin main` first.
