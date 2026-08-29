@@ -1,39 +1,26 @@
-import { useState, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ChefHat, Clock, CheckCircle, Circle, CircleNotch, Sparkle, Check } from '@phosphor-icons/react';
+import { ArrowLeft, ChefHat, Clock, CheckCircle, Circle, CircleNotch, Sparkle, Check, ForkKnife } from '@phosphor-icons/react';
+import { toast } from '../../components/Toast'
+import {
+  getActivePlanForPatient,
+  getAdherence,
+  setAdherence,
+  buildPatientMealsData,
+  computeConsumedFood,
+  computeTotals,
+  toLocalDateString,
+} from '../../services/nutriplanService'
 
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY ?? ''}`
 
-const SAGE = '#7CB38B'
-const SAGE_BG = 'rgba(124,179,139,0.12)'
-const WARNING_COLOR = '#E4A853'
-
-const MOCK_MEALS = [
-  { id: 'm1', name: 'Desayuno', time: '08:00' },
-  { id: 'm2', name: 'Almuerzo', time: '12:00' },
-  { id: 'm3', name: 'Merienda', time: '16:00' },
-  { id: 'm4', name: 'Cena', time: '20:00' },
-]
-
-const MOCK_FOODS = [
-  { id: 'f1', name: 'Pechuga de pollo sin piel', calories: 120, protein: 23, carbs: 0, fat: 2.5, fiber: 0 },
-  { id: 'f2', name: 'Avena en hojuelas', calories: 389, protein: 17, carbs: 66, fat: 7, fiber: 10.6 },
-  { id: 'f3', name: 'Yogur griego', calories: 59, protein: 10, carbs: 3.6, fat: 0.4, fiber: 0 },
-  { id: 'f4', name: 'Arroz integral cocido', calories: 111, protein: 2.6, carbs: 23, fat: 0.9, fiber: 1.8 },
-  { id: 'f5', name: 'Brócoli cocido', calories: 35, protein: 2.4, carbs: 7.2, fat: 0.4, fiber: 2.6 },
-  { id: 'f6', name: 'Banana', calories: 89, protein: 1.1, carbs: 23, fat: 0.3, fiber: 2.6 },
-]
-
-const MOCK_PLAN = {
-  targetCalories: 2000,
-  macros: { protein: 150, carbs: 220, fat: 67, fiber: 30 },
-}
-
-const MEAL_DIST = {
-  m1: ['f2', 'f3'],
-  m2: ['f1', 'f4', 'f5'],
-  m3: ['f6'],
-  m4: ['f1', 'f5'],
+function formatUpdatedAt(iso) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })
+  } catch {
+    return ''
+  }
 }
 
 function getMealStatus(time) {
@@ -47,16 +34,16 @@ function getMealStatus(time) {
   return 'upcoming'
 }
 
-function MacroBar({ label, value, max, color }) {
-  const pct = Math.min((value / max) * 100, 100)
+function MacroBar({ label, value, max, barClass }) {
+  const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-xs">
         <span className="text-text-secondary">{label}</span>
-        <span className="font-medium text-text-primary">{Math.round(value)}<span className="text-text-secondary">/{max}g</span></span>
+        <span className={`font-medium text-text-primary`}>{Math.round(value)}<span className="text-text-secondary">/{Math.round(max)}g</span></span>
       </div>
-      <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+      <div className="h-1.5 rounded-full bg-bg-surface-hover overflow-hidden">
+        <div className={`h-full w-full rounded-full progress-bar-fill ${barClass}`} style={{ '--bar-value': pct / 100 }} />
       </div>
     </div>
   )
@@ -113,32 +100,32 @@ function RecipeCard({ mealName, foods }) {
           {loading ? 'Generando...' : 'Ver receta'}
         </button>
       </div>
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-danger">{error}</p>}
       {recipe && <p className="text-xs text-text-secondary whitespace-pre-wrap">{recipe}</p>}
     </div>
   )
 }
 
-function MealCard({ meal, foods }) {
-  const [checked, setChecked] = useState({})
+function MealCard({ meal, foods, checked, onToggle }) {
   const status = getMealStatus(meal.time)
   const [showRecipe, setShowRecipe] = useState(false)
 
-  const completedCount = Object.values(checked).filter(Boolean).length
+  const completedCount = foods.filter(f => checked[f.uid]).length
   const allDone = completedCount === foods.length && foods.length > 0
 
   const statusStyle = {
-    past: { border: 'border-gray-200', header: 'bg-gray-50' },
-    now: { border: 'border-brand/30', header: 'bg-brand/5' },
+    past: { border: 'border-border-default', header: 'bg-bg-surface-hover' },
+    now: { border: 'border-brand/30', header: 'bg-brand-muted' },
     upcoming: { border: 'border-border-default', header: 'bg-bg-surface' },
   }[status]
 
-  const macros = foods.reduce((acc, f) => ({
-    calories: acc.calories + f.calories,
-    protein: acc.protein + f.protein,
-    carbs: acc.carbs + f.carbs,
-    fat: acc.fat + f.fat,
-  }), { calories: 0, protein: 0, carbs: 0, fat: 0 })
+  // Cada `food` ya trae `qty` = la porción de ESTA comida (buildPatientMealsData
+  // reparte consumedQuantity entre las comidas que comparten el alimento).
+  // `calories`/`protein`/etc en el alimento son tasas por 100g, así que hay que
+  // recalcular por porción con computeConsumedFood en vez de sumar los campos
+  // consumed* del alimento entero (esos son el total across todas sus comidas).
+  const portions = foods.map(f => computeConsumedFood(f, f.qty))
+  const macros = computeTotals(portions)
 
   return (
     <div className={`rounded-2xl border overflow-hidden ${statusStyle.border}`}>
@@ -146,13 +133,12 @@ function MealCard({ meal, foods }) {
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
             {allDone
-              ? <CheckCircle size={16} style={{ color: SAGE }} />
+              ? <CheckCircle size={16} weight="fill" className="text-brand" />
               : <Circle size={16} className="text-text-secondary" />}
           </div>
           <span className="font-semibold text-sm text-text-primary">{meal.name}</span>
           {status === 'now' && (
-            <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-              style={{ background: SAGE_BG, color: SAGE }}>
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-brand-muted text-brand">
               Ahora
             </span>
           )}
@@ -165,35 +151,37 @@ function MealCard({ meal, foods }) {
       </div>
 
       <div className="p-4 space-y-2">
-        {foods.map(food => (
-          <label key={food.id} className="flex items-center gap-3 cursor-pointer group">
-            <div
-              className="w-5 h-5 rounded flex items-center justify-center border transition-colors"
-              style={{
-                background: checked[food.id] ? SAGE : 'transparent',
-                borderColor: checked[food.id] ? SAGE : '#d1d5db',
-              }}
-              onClick={() => setChecked(c => ({ ...c, [food.id]: !c[food.id] }))}
-            >
-              {checked[food.id] && <Check size={12} color="white" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <span className={`text-sm ${checked[food.id] ? 'line-through text-text-secondary' : 'text-text-primary'}`}>
-                {food.name}
-              </span>
-            </div>
-            <span className="text-xs text-text-secondary shrink-0">{food.calories} kcal</span>
-          </label>
-        ))}
+        {foods.map((food, i) => {
+          const isChecked = !!checked[food.uid]
+          const portion = portions[i]
+          return (
+            <label key={food.uid} className="flex items-center gap-3 cursor-pointer group">
+              <div
+                className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${
+                  isChecked ? 'bg-brand border-brand' : 'bg-transparent border-border-hover'
+                }`}
+                onClick={() => onToggle(meal, food)}
+              >
+                {isChecked && <Check size={12} className="text-white" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className={`text-sm ${isChecked ? 'line-through text-text-secondary' : 'text-text-primary'}`}>
+                  {food.name}
+                </span>
+              </div>
+              <span className="text-xs text-text-secondary shrink-0">{food.qty}g · {Math.round(portion.consumedCalories)} kcal</span>
+            </label>
+          )
+        })}
 
         <div className="pt-2 grid grid-cols-3 gap-2 text-center">
           {[
-            { label: 'Proteínas', value: macros.protein, color: SAGE },
-            { label: 'Hidratos', value: macros.carbs, color: WARNING_COLOR },
-            { label: 'Grasas', value: macros.fat, color: '#4A90D9' },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="rounded-lg py-1.5 px-2" style={{ background: `${color}15` }}>
-              <p className="text-xs font-bold" style={{ color }}>{Math.round(value)}g</p>
+            { label: 'Proteínas', value: macros.protein, bg: 'bg-brand/15', text: 'text-brand' },
+            { label: 'Hidratos', value: macros.carbs, bg: 'bg-warning/15', text: 'text-warning' },
+            { label: 'Grasas', value: macros.fat, bg: 'bg-macro-fat/15', text: 'text-macro-fat' },
+          ].map(({ label, value, bg, text }) => (
+            <div key={label} className={`rounded-lg py-1.5 px-2 ${bg}`}>
+              <p className={`text-xs font-bold ${text}`}>{Math.round(value)}g</p>
               <p className="text-xs text-text-secondary">{label}</p>
             </div>
           ))}
@@ -212,56 +200,180 @@ function MealCard({ meal, foods }) {
   )
 }
 
-export default function PatientNutriPlan() {
-  const navigate = useNavigate()
-  const plan = MOCK_PLAN
+function NutriPlanHeader({ navigate, subtitle }) {
+  return (
+    <div className="flex items-center gap-3 px-4 patient-column pt-6 pb-4 border-b border-border-default bg-bg-surface">
+      <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-lg hover:bg-bg-muted">
+        <ArrowLeft size={20} className="text-text-secondary" />
+      </button>
+      <div>
+        <h1 className="font-bold text-text-primary">NutriPlan</h1>
+        <p className="text-xs text-text-secondary">{subtitle}</p>
+      </div>
+    </div>
+  )
+}
 
-  const totalConsumed = { calories: 0, protein: 50, carbs: 80, fat: 20 }
+export default function PatientNutriPlan({ profile }) {
+  const navigate = useNavigate()
+  const [plan, setPlan] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [checked, setChecked] = useState({})
+  const today = toLocalDateString()
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    getActivePlanForPatient(profile.id)
+      .then(p => { if (!cancelled) setPlan(p) })
+      .catch(err => { if (!cancelled) setError(err) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [profile.id])
+
+  useEffect(() => {
+    if (!plan) return
+    let cancelled = false
+    getAdherence(plan.id, today)
+      .then(rows => {
+        if (cancelled) return
+        const map = {}
+        rows.forEach(r => { map[r.foodUid] = r.consumed })
+        setChecked(map)
+      })
+      .catch(err => toast.error(err.message))
+    return () => { cancelled = true }
+  }, [plan?.id, today])
+
+  const mealsData = useMemo(() => {
+    if (!plan) return {}
+    return buildPatientMealsData(plan.meals, plan.foods, plan.foodDistribution)
+  }, [plan])
+
+  const totalConsumed = useMemo(() => {
+    if (!plan) return { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }
+    const consumedPortions = []
+    plan.meals.forEach(meal => {
+      const foods = mealsData[meal.id] || []
+      foods.forEach(food => {
+        if (checked[food.uid]) {
+          // Mismo prorrateo que en MealCard: `food.qty` es la porción de esta
+          // comida, así que recalculamos sus macros con computeConsumedFood en
+          // vez de sumar los consumed* del alimento entero (que representan el
+          // total repartido entre todas sus comidas, no sólo esta porción
+          // tildada). Así un alimento en N comidas aporta 1/N por cada una que
+          // el paciente marcó como consumida hoy.
+          consumedPortions.push(computeConsumedFood(food, food.qty))
+        }
+      })
+    })
+    return computeTotals(consumedPortions)
+  }, [plan, mealsData, checked])
+
+  async function handleToggle(meal, food) {
+    const uid = food.uid
+    const newValue = !checked[uid]
+    setChecked(c => ({ ...c, [uid]: newValue }))
+    // Se manda la foto de la porción junto con la marca: el nutricionista
+    // puede cambiar el plan mañana, y el historial de lo que el paciente comió
+    // hoy no tiene que depender de eso.
+    const porcion = computeConsumedFood(food, food.qty)
+    try {
+      await setAdherence(plan.id, profile.id, today, meal.id, uid, newValue, {
+        foodName: food.name,
+        mealName: meal.name,
+        qtyG: food.qty,
+        calories: porcion.consumedCalories,
+        protein: porcion.consumedProtein,
+        carbs: porcion.consumedCarbs,
+        fat: porcion.consumedFat,
+        fiber: porcion.consumedFiber,
+      })
+    } catch (err) {
+      setChecked(c => ({ ...c, [uid]: !newValue }))
+      toast.error(err.message)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="absolute inset-0 flex flex-col bg-bg-primary">
+        <NutriPlanHeader navigate={navigate} subtitle="Tu plan nutricional de hoy" />
+        <div className="flex-1 flex items-center justify-center">
+          <CircleNotch size={28} className="animate-spin text-text-secondary" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="absolute inset-0 flex flex-col bg-bg-primary">
+        <NutriPlanHeader navigate={navigate} subtitle="Tu plan nutricional de hoy" />
+        <div className="flex-1 flex items-center justify-center px-8 text-center">
+          <p className="text-sm text-danger">{error.message}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!plan) {
+    return (
+      <div className="absolute inset-0 flex flex-col bg-bg-primary">
+        <NutriPlanHeader navigate={navigate} subtitle="Tu plan nutricional de hoy" />
+        <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-3">
+          <div className="w-14 h-14 rounded-full bg-brand-muted flex items-center justify-center">
+            <ForkKnife size={24} className="text-brand" />
+          </div>
+          <p className="font-semibold text-text-primary">Todavía no tenés un plan nutricional</p>
+          <p className="text-sm text-text-secondary">Tu nutricionista te lo arma durante la consulta.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const subtitle = plan.professional?.fullName
+    ? `Armado por ${plan.professional.fullName} · ${formatUpdatedAt(plan.updatedAt)}`
+    : `Actualizado el ${formatUpdatedAt(plan.updatedAt)}`
 
   return (
     <div className="absolute inset-0 flex flex-col bg-bg-primary">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 patient-column pt-6 pb-4 border-b border-border-default bg-bg-surface">
-        <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-lg hover:bg-bg-muted">
-          <ArrowLeft size={20} className="text-text-secondary" />
-        </button>
-        <div>
-          <h1 className="font-bold text-text-primary">NutriPlan</h1>
-          <p className="text-xs text-text-secondary">Tu plan nutricional de hoy</p>
-        </div>
-      </div>
+      <NutriPlanHeader navigate={navigate} subtitle={subtitle} />
 
       <div className="flex-1 overflow-y-auto pb-32 patient-column">
         {/* Daily summary card */}
         <div className="m-4 p-4 rounded-2xl bg-bg-surface border border-border-default space-y-3">
           <div className="flex justify-between items-center">
             <span className="text-sm font-semibold text-text-primary">Calorías del día</span>
-            <span className="text-xs text-text-secondary">{totalConsumed.calories} / {plan.targetCalories} kcal</span>
+            <span className="text-xs text-text-secondary">{Math.round(totalConsumed.calories)} / {plan.targetCalories} kcal</span>
           </div>
-          <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
+          <div className="h-2.5 rounded-full bg-bg-surface-hover overflow-hidden">
             <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${Math.min((totalConsumed.calories / plan.targetCalories) * 100, 100)}%`,
-                background: SAGE,
-              }}
+              className="h-full w-full rounded-full progress-bar-fill bg-brand"
+              style={{ '--bar-value': plan.targetCalories > 0 ? Math.min(totalConsumed.calories / plan.targetCalories, 1) : 0 }}
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <MacroBar label="Proteínas" value={totalConsumed.protein} max={plan.macros.protein} color={SAGE} />
-            <MacroBar label="Hidratos" value={totalConsumed.carbs} max={plan.macros.carbs} color={WARNING_COLOR} />
-            <MacroBar label="Grasas" value={totalConsumed.fat} max={plan.macros.fat} color="#4A90D9" />
-            <MacroBar label="Fibra" value={0} max={plan.macros.fiber} color="#9B59B6" />
+            <MacroBar label="Proteínas" value={totalConsumed.protein} max={plan.targetProteinG} barClass="bg-brand" />
+            <MacroBar label="Hidratos" value={totalConsumed.carbs} max={plan.targetCarbsG} barClass="bg-warning" />
+            <MacroBar label="Grasas" value={totalConsumed.fat} max={plan.targetFatG} barClass="bg-macro-fat" />
+            <MacroBar label="Fibra" value={totalConsumed.fiber} max={plan.targetFiberG} barClass="bg-macro-fiber" />
           </div>
         </div>
 
         {/* Meals */}
         <div className="px-4 space-y-3">
-          {MOCK_MEALS.map(meal => {
-            const foodIds = MEAL_DIST[meal.id] ?? []
-            const foods = MOCK_FOODS.filter(f => foodIds.includes(f.id))
-            return <MealCard key={meal.id} meal={meal} foods={foods} />
-          })}
+          {plan.meals.map(meal => (
+            <MealCard
+              key={meal.id}
+              meal={meal}
+              foods={mealsData[meal.id] || []}
+              checked={checked}
+              onToggle={handleToggle}
+            />
+          ))}
         </div>
       </div>
     </div>

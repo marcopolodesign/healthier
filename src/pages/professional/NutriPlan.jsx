@@ -4,11 +4,12 @@ import {
   Leaf, User, AppleLogo, SquaresFour, Pulse,
   Plus, Minus, X, MagnifyingGlass,
   Clock, Trash, Globe, Check, Warning,
-  TrendUp, Flame, Wind,
+  TrendUp, Flame, Wind, FloppyDisk,
   Calendar, ChartBar, Info, ProhibitInset
 } from '@phosphor-icons/react'
 import { professionalService } from '../../services/professionalService'
 import { profilesService } from '../../services/profilesService'
+import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
 import localFoodDatabase from '../../data/localFoods'
 import {
@@ -21,6 +22,11 @@ import {
   computeTotals,
   buildPatientMealsData,
   searchFatSecret,
+  toLocalDateString,
+  parseLocalDate,
+  savePlan,
+  getPlanForPatient,
+  getAdherenceRange,
 } from '../../services/nutriplanService'
 
 const SAGE = '#7CB38B'
@@ -28,6 +34,19 @@ const SAGE_BG = '#EDF7F0'
 const SAGE_DARK = '#3D6B4A'
 
 const LOCAL_CATEGORIES = [...new Set(localFoodDatabase.map(f => f.category))].sort()
+
+function fmtDateTime(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+// Ojo: la fecha se arma con los getters LOCALES (toLocalDateString). Con
+// `toISOString()` la noche de Buenos Aires (GMT-3) cae en el día siguiente en
+// UTC, y el día que marcó el paciente aparecía corrido — ver la nota en
+// nutriplanService.js.
+function isoDate(d) {
+  return toLocalDateString(d instanceof Date ? d : new Date(d))
+}
 
 // ─── Small utility components ────────────────────────────────────────────────
 
@@ -272,7 +291,7 @@ function CustomFoodModal({ onAdd, onClose }) {
 // ─── Tab: Paciente ────────────────────────────────────────────────────────────
 
 function TabPaciente({ gender, setGender, age, setAge, weight, setWeight, height, setHeight,
-  activityLevel, setPulseLevel, dietType, setDietType, results }) {
+  activityLevel, setPulseLevel, dietType, setDietType, results, notes, setNotes }) {
 
   const bmiColors = { 'Bajo peso': '#3b82f6', 'Normal': SAGE, 'Sobrepeso': '#f59e0b', 'Obesidad': '#ef4444' }
   const bmiColor = bmiColors[results?.bmiCategory] || '#6b7280'
@@ -401,6 +420,21 @@ function TabPaciente({ gender, setGender, age, setAge, weight, setWeight, height
           <p className="text-sm">Completá los datos del paciente para ver los resultados</p>
         </div>
       ) : null}
+
+      {/* Notes for the patient */}
+      <div className="bg-bg-surface rounded-2xl border border-border-default shadow-sm p-6 space-y-3">
+        <h2 className="font-semibold text-text-primary flex items-center gap-2">
+          <Info className="h-4 w-4 text-brand" />
+          Notas para el paciente
+        </h2>
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          rows={3}
+          placeholder="Indicaciones, recomendaciones o aclaraciones que va a ver el paciente junto al plan..."
+          className="form-textarea w-full text-sm"
+        />
+      </div>
     </div>
   )
 }
@@ -851,14 +885,33 @@ function PatientTemplatePreview({ meals, consumedFoods, foodDist }) {
 
 // ─── Tab: Monitoreo ───────────────────────────────────────────────────────────
 
-function TabMonitoreo({ tracking, trackingHistory, trackingDate, setTrackingDate, results }) {
-  const todayReports = tracking.filter(r => {
-    const d = new Date(r.date)
-    const t = new Date(trackingDate)
-    return d.toDateString() === t.toDateString()
-  })
+function MonitoreoEmptyState({ icon: Icon, title, text }) {
+  return (
+    <div className="py-16 text-center space-y-2">
+      <Icon className="h-10 w-10 mx-auto opacity-20 text-gray-400" />
+      <p className="text-sm text-gray-500 font-medium">{title}</p>
+      {text && <p className="text-xs text-gray-400 max-w-sm mx-auto">{text}</p>}
+    </div>
+  )
+}
 
-  const allDates = [...new Set(trackingHistory.map(r => new Date(r.date).toLocaleDateString('es-AR')))].slice(0, 7)
+function TabMonitoreo({ hasPatient, hasPlan, adherenceLoading, hasAnyRecords, byDate, trackingDate, setTrackingDate, results }) {
+  if (!hasPatient) {
+    return <MonitoreoEmptyState icon={User} title="Elegí un paciente" text="Seleccioná un paciente arriba para ver su seguimiento diario." />
+  }
+  if (!hasPlan) {
+    return <MonitoreoEmptyState icon={SquaresFour} title="Este paciente todavía no tiene un plan guardado" text="Armá el plan en las otras pestañas y guardalo para empezar a monitorear la adherencia." />
+  }
+
+  const dayData = byDate[trackingDate]
+  const dayMeals = dayData ? Object.values(dayData.meals) : []
+
+  const last7Dates = []
+  for (let i = 6; i >= 0; i--) {
+    const d = parseLocalDate(trackingDate)
+    d.setDate(d.getDate() - i)
+    last7Dates.push(isoDate(d))
+  }
 
   return (
     <div className="space-y-6">
@@ -876,7 +929,7 @@ function TabMonitoreo({ tracking, trackingHistory, trackingDate, setTrackingDate
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"
           />
           <span className="text-sm text-gray-500">
-            {new Date(trackingDate).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {parseLocalDate(trackingDate).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
           </span>
         </div>
       </div>
@@ -888,26 +941,26 @@ function TabMonitoreo({ tracking, trackingHistory, trackingDate, setTrackingDate
           Reportes del paciente
         </h3>
 
-        {todayReports.length === 0 ? (
-          <div className="py-10 text-center space-y-2">
-            <ChartBar className="h-10 w-10 mx-auto opacity-20 text-gray-400" />
-            <p className="text-sm text-gray-400 font-medium">Sin reportes para esta fecha</p>
-            <p className="text-xs text-gray-300">El paciente aún no registró consumo para este día</p>
-          </div>
+        {adherenceLoading ? (
+          <div className="py-10 text-center text-sm text-gray-400">Cargando...</div>
+        ) : !hasAnyRecords ? (
+          <MonitoreoEmptyState icon={ChartBar} title="El paciente todavía no registró ninguna comida" text="Cuando marque alimentos como consumidos desde la app, van a aparecer acá." />
+        ) : dayMeals.length === 0 ? (
+          <MonitoreoEmptyState icon={ChartBar} title="Sin reportes para esta fecha" text="El paciente no registró consumo este día." />
         ) : (
           <div className="space-y-3">
-            {todayReports.map((report, i) => (
+            {dayMeals.map((meal, i) => (
               <div key={i} className="border border-gray-100 rounded-xl p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">{report.meal}</span>
-                  <span className="text-xs text-gray-400">{report.time}</span>
+                  <span className="text-sm font-medium text-gray-700">{meal.name}</span>
+                  <span className="text-xs text-gray-400">{meal.time}</span>
                 </div>
                 <div className="grid grid-cols-4 gap-2 text-center">
                   {[
-                    { label: 'Cal', value: report.calories, unit: 'kcal' },
-                    { label: 'Prot', value: report.protein, unit: 'g' },
-                    { label: 'HC', value: report.carbs, unit: 'g' },
-                    { label: 'Grasas', value: report.fat, unit: 'g' },
+                    { label: 'Cal', value: Math.round(meal.calories), unit: 'kcal' },
+                    { label: 'Prot', value: Math.round(meal.protein), unit: 'g' },
+                    { label: 'HC', value: Math.round(meal.carbs), unit: 'g' },
+                    { label: 'Grasas', value: Math.round(meal.fat), unit: 'g' },
                   ].map(m => (
                     <div key={m.label} className="bg-gray-50 rounded-lg py-1.5 px-1">
                       <p className="text-xs text-gray-400">{m.label}</p>
@@ -921,33 +974,29 @@ function TabMonitoreo({ tracking, trackingHistory, trackingDate, setTrackingDate
         )}
       </div>
 
-      {/* ClockCounterClockwise */}
+      {/* Historial reciente */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
         <h3 className="font-medium text-gray-700 flex items-center gap-2">
           <TrendUp className="h-4 w-4" style={{ color: SAGE }} />
-          Historial reciente
+          Historial reciente (7 días)
         </h3>
 
-        {trackingHistory.length === 0 ? (
-          <div className="py-8 text-center space-y-2">
-            <TrendUp className="h-8 w-8 mx-auto opacity-20 text-gray-400" />
-            <p className="text-sm text-gray-400">Sin historial disponible</p>
-            <p className="text-xs text-gray-300">Los registros del paciente aparecerán aquí</p>
-          </div>
+        {adherenceLoading ? (
+          <div className="py-8 text-center text-sm text-gray-400">Cargando...</div>
+        ) : !hasAnyRecords ? (
+          <MonitoreoEmptyState icon={TrendUp} title="Sin historial disponible" text="Los registros del paciente van a aparecer acá apenas empiece a marcar su consumo." />
         ) : (
           <div className="space-y-2">
-            {allDates.map(date => {
-              const dayReports = trackingHistory.filter(r => new Date(r.date).toLocaleDateString('es-AR') === date)
-              const dayTotals = dayReports.reduce((a, r) => ({
-                calories: a.calories + (r.calories || 0),
-                protein: a.protein + (r.protein || 0),
-              }), { calories: 0, protein: 0 })
+            {last7Dates.map(date => {
+              const d = byDate[date]
+              const cal = d ? Math.round(d.calories) : 0
               const adherence = results?.targetCalories > 0
-                ? Math.min(100, Math.round((dayTotals.calories / results.targetCalories) * 100))
+                ? Math.min(100, Math.round((cal / results.targetCalories) * 100))
                 : 0
+              const label = parseLocalDate(date).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
               return (
                 <div key={date} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
-                  <span className="text-xs text-gray-500 w-24 shrink-0">{date}</span>
+                  <span className="text-xs text-gray-500 w-16 shrink-0">{label}</span>
                   <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
                     <div
                       className="h-full rounded-full"
@@ -958,7 +1007,7 @@ function TabMonitoreo({ tracking, trackingHistory, trackingDate, setTrackingDate
                     />
                   </div>
                   <span className="text-xs font-medium text-gray-600 w-16 text-right shrink-0">
-                    {dayTotals.calories} kcal
+                    {cal} kcal
                   </span>
                   <span className="text-xs text-gray-400 w-12 text-right shrink-0">
                     {adherence}%
@@ -968,15 +1017,6 @@ function TabMonitoreo({ tracking, trackingHistory, trackingDate, setTrackingDate
             })}
           </div>
         )}
-      </div>
-
-      {/* Info note */}
-      <div className="rounded-xl border border-dashed border-gray-200 p-4 flex items-start gap-3 text-gray-400">
-        <Info className="h-4 w-4 shrink-0 mt-0.5" />
-        <p className="text-xs leading-relaxed">
-          El monitoreo se activará cuando el paciente comience a registrar su consumo diario desde la app móvil.
-          Esta vista mostrará la adherencia en tiempo real al plan prescripto.
-        </p>
       </div>
     </div>
   )
@@ -988,7 +1028,7 @@ const TABS = [
   { id: 'paciente', label: 'Paciente', icon: User },
   { id: 'dieta', label: 'Dieta', icon: AppleLogo },
   { id: 'template', label: 'Template', icon: SquaresFour },
-  { id: 'monitoreo', label: 'Monitoreo', icon: Pulse, comingSoon: true },
+  { id: 'monitoreo', label: 'Monitoreo', icon: Pulse },
 ]
 
 export default function NutriPlan({ profile }) {
@@ -996,12 +1036,23 @@ export default function NutriPlan({ profile }) {
   const [profProfile, setProfProfile] = useState(null)
   const [gateLoading, setGateLoading] = useState(true)
 
-  // Paciente precargado desde la videollamada (?patientId=) — sólo prefill de
-  // los campos del cálculo, esta pantalla todavía no guarda el plan contra un
-  // paciente en la base (ver nota en `linkPatient` más abajo).
+  // Paciente precargado desde la videollamada (?patientId=) — queda
+  // preseleccionado en el selector de pacientes de abajo.
   const [searchParams] = useSearchParams()
   const linkedPatientId = searchParams.get('patientId')
-  const [linkedPatient, setLinkedPatient] = useState(null)
+
+  // Selector de paciente
+  const [patients, setPatients] = useState([])
+  const [patientsLoading, setPatientsLoading] = useState(true)
+  const [selectedPatientId, setSelectedPatientId] = useState(linkedPatientId || '')
+  const [selectedPatientProfile, setSelectedPatientProfile] = useState(null)
+  const [planLoading, setPlanLoading] = useState(false)
+
+  // Plan guardado
+  // El plan guardado va junto — id y fecha siempre cambian a la vez.
+  const [savedPlan, setSavedPlan] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [savedSnapshot, setSavedSnapshot] = useState(null)
 
   // Active tab
   const [activeTab, setActiveTab] = useState('paciente')
@@ -1014,6 +1065,7 @@ export default function NutriPlan({ profile }) {
   const [activityLevel, setPulseLevel] = useState('1.375')
   const [dietType, setDietType] = useState('normocaloric')
   const [calcConfig] = useState(DEFAULT_CALC_CONFIG)
+  const [notes, setNotes] = useState('')
 
   // Consumed foods
   const [consumedFoods, setConsumedFoods] = useState([])
@@ -1037,10 +1089,10 @@ export default function NutriPlan({ profile }) {
   // Custom food modal
   const [showCustomModal, setShowCustomModal] = useState(false)
 
-  // Tracking (mock — no backend yet)
-  const [tracking] = useState([])
-  const [trackingHistory] = useState([])
-  const [trackingDate, setTrackingDate] = useState(() => new Date().toISOString().split('T')[0])
+  // Tracking (adherencia real, leída con getAdherenceRange)
+  const [adherenceMarks, setAdherenceMarks] = useState([])
+  const [adherenceLoading, setAdherenceLoading] = useState(false)
+  const [trackingDate, setTrackingDate] = useState(() => toLocalDateString())
 
   // Load profProfile on mount
   useEffect(() => {
@@ -1051,28 +1103,133 @@ export default function NutriPlan({ profile }) {
       .finally(() => setGateLoading(false))
   }, [profile?.id])
 
-  // Precarga desde el paciente de la videollamada — sólo pisa lo que el
-  // perfil trae cargado, el resto se queda en el default del calculador para
-  // que el nutricionista lo complete a mano.
+  // Lista de pacientes del profesional — deduplicada por patientId, sacada de
+  // sus consultas (mismo criterio que Pacientes.jsx).
   useEffect(() => {
-    if (!linkedPatientId) return
-    profilesService.getById(linkedPatientId)
-      .then(p => {
-        setLinkedPatient(p)
-        if (p.gender === 'femenino') setGender('female')
-        else if (p.gender === 'masculino') setGender('male')
-        if (p.birthDate) {
-          const b = new Date(p.birthDate), t = new Date()
-          let a = t.getFullYear() - b.getFullYear()
-          const m = t.getMonth() - b.getMonth()
-          if (m < 0 || (m === 0 && t.getDate() < b.getDate())) a--
-          if (a > 0) setAge(a)
+    if (!profile?.id) return
+    setPatientsLoading(true)
+    consultationsService.getByProfessional(profile.id)
+      .then(consultations => {
+        const map = new Map()
+        for (const c of consultations) {
+          const pid = c.patientId
+          if (!pid) continue
+          const existing = map.get(pid)
+          const fullName = c.profiles?.fullName || 'Paciente'
+          if (!existing || new Date(c.scheduledAt) > new Date(existing.lastConsultation)) {
+            map.set(pid, { id: pid, fullName, lastConsultation: c.scheduledAt })
+          }
         }
-        if (p.weightKg) setWeight(p.weightKg)
-        if (p.heightCm) setHeight(p.heightCm)
+        setPatients(Array.from(map.values()).sort((a, b) => new Date(b.lastConsultation) - new Date(a.lastConsultation)))
       })
-      .catch(() => toast.error('No se pudo cargar el paciente de la consulta'))
-  }, [linkedPatientId])
+      .catch(() => toast.error('Error al cargar la lista de pacientes'))
+      .finally(() => setPatientsLoading(false))
+  }, [profile?.id])
+
+  function applyProfilePrefill(p) {
+    if (p.gender === 'femenino') setGender('female')
+    else if (p.gender === 'masculino') setGender('male')
+    if (p.birthDate) {
+      const b = new Date(p.birthDate), t = new Date()
+      let a = t.getFullYear() - b.getFullYear()
+      const m = t.getMonth() - b.getMonth()
+      if (m < 0 || (m === 0 && t.getDate() < b.getDate())) a--
+      if (a > 0) setAge(a)
+    }
+    if (p.weightKg) setWeight(p.weightKg)
+    if (p.heightCm) setHeight(p.heightCm)
+  }
+
+  function resetToDefaults() {
+    setGender('female'); setAge(30); setWeight(65); setHeight(165)
+    setPulseLevel('1.375'); setDietType('normocaloric')
+    setConsumedFoods([]); setMeals(DEFAULT_MEALS); setFoodDist({})
+    setNotes('')
+    setSavedPlan(null)
+    setSavedSnapshot(null)
+  }
+
+  function hydrateFromPlan(plan) {
+    setGender(plan.gender || 'female')
+    setAge(plan.age ?? 30)
+    setWeight(plan.weightKg ?? 65)
+    setHeight(plan.heightCm ?? 165)
+    setPulseLevel(plan.activityLevel ?? '1.375')
+    setDietType(plan.dietType ?? 'normocaloric')
+    setConsumedFoods(plan.foods || [])
+    setMeals(plan.meals?.length ? plan.meals : DEFAULT_MEALS)
+    setFoodDist(plan.foodDistribution || {})
+    setNotes(plan.notes || '')
+    setSavedPlan({ id: plan.id, updatedAt: plan.updatedAt })
+    setSavedSnapshot(snapshotOf({
+      gender: plan.gender, age: plan.age, weight: plan.weightKg, height: plan.heightCm,
+      activityLevel: plan.activityLevel, dietType: plan.dietType,
+      consumedFoods: plan.foods || [], meals: plan.meals?.length ? plan.meals : DEFAULT_MEALS,
+      foodDist: plan.foodDistribution || {}, notes: plan.notes || '',
+    }))
+  }
+
+  function snapshotOf(s) {
+    return JSON.stringify({
+      gender: s.gender, age: Number(s.age) || 0, weight: Number(s.weight) || 0, height: Number(s.height) || 0,
+      activityLevel: s.activityLevel, dietType: s.dietType,
+      consumedFoods: s.consumedFoods, meals: s.meals, foodDist: s.foodDist, notes: s.notes || '',
+    })
+  }
+
+  // Al elegir un paciente distinto: buscar su plan guardado. Si existe, se
+  // hidrata todo el estado con él; si no, se resetea a los defaults y se
+  // precarga la antropometría desde su perfil (igual que antes).
+  useEffect(() => {
+    if (!selectedPatientId) {
+      resetToDefaults()
+      setSelectedPatientProfile(null)
+      return
+    }
+    if (!profile?.id) return
+    let cancelled = false
+    setPlanLoading(true)
+    Promise.all([
+      profilesService.getById(selectedPatientId).catch(() => null),
+      getPlanForPatient(selectedPatientId, profile.id),
+    ]).then(([patientProfile, plan]) => {
+      if (cancelled) return
+      setSelectedPatientProfile(patientProfile)
+      if (plan) {
+        hydrateFromPlan(plan)
+      } else {
+        resetToDefaults()
+        if (patientProfile) applyProfilePrefill(patientProfile)
+      }
+    }).catch(err => {
+      if (!cancelled) toast.error(err.message)
+    }).finally(() => {
+      if (!cancelled) setPlanLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [selectedPatientId, profile?.id])
+
+  // Cambios sin guardar: es una derivación pura del estado del formulario, no
+  // hace falta que sea state — como useMemo no queda un render atrás.
+  const dirty = useMemo(() => {
+    if (!selectedPatientId || savedSnapshot === null) return false
+    return snapshotOf({ gender, age, weight, height, activityLevel, dietType, consumedFoods, meals, foodDist, notes }) !== savedSnapshot
+  }, [selectedPatientId, savedSnapshot, gender, age, weight, height, activityLevel, dietType, consumedFoods, meals, foodDist, notes])
+
+  // Adherencia real: últimos 7 días terminando en trackingDate, sólo si hay plan guardado
+  useEffect(() => {
+    if (!savedPlan) { setAdherenceMarks([]); return }
+    let cancelled = false
+    setAdherenceLoading(true)
+    const to = trackingDate
+    const fromD = parseLocalDate(trackingDate)
+    fromD.setDate(fromD.getDate() - 6)
+    getAdherenceRange(savedPlan.id, isoDate(fromD), to)
+      .then(marks => { if (!cancelled) setAdherenceMarks(marks || []) })
+      .catch(err => { if (!cancelled) { toast.error(err.message); setAdherenceMarks([]) } })
+      .finally(() => { if (!cancelled) setAdherenceLoading(false) })
+    return () => { cancelled = true }
+  }, [savedPlan?.id, trackingDate])
 
   // Computed nutrition results
   const results = useMemo(() =>
@@ -1082,6 +1239,80 @@ export default function NutriPlan({ profile }) {
 
   // Totals
   const totals = useMemo(() => computeTotals(consumedFoods), [consumedFoods])
+
+  // Nombre del paciente elegido para mostrar en la UI
+  const patientOptions = useMemo(() => {
+    if (selectedPatientId && !patients.some(p => p.id === selectedPatientId)) {
+      return [{ id: selectedPatientId, fullName: selectedPatientProfile?.fullName || 'Paciente actual' }, ...patients]
+    }
+    return patients
+  }, [patients, selectedPatientId, selectedPatientProfile])
+
+  const patientDisplayName = selectedPatientId
+    ? (selectedPatientProfile?.fullName || patients.find(p => p.id === selectedPatientId)?.fullName || 'este paciente')
+    : ''
+
+  // Adherencia agrupada por día y por comida. Las macros salen de la foto que
+  // el paciente guardó al marcar (columnas del snapshot en la migración 131),
+  // NO de traducir el food_uid contra el plan actual: el plan se edita en el
+  // lugar, y traducirlo hacía desaparecer en silencio todo lo registrado antes
+  // de un cambio de alimentos.
+  const adherenceByDate = useMemo(() => {
+    const byDate = {}
+    adherenceMarks.forEach(mark => {
+      if (!mark.consumed) return
+      const dateKey = String(mark.date).slice(0, 10)
+      if (!byDate[dateKey]) byDate[dateKey] = { calories: 0, meals: {} }
+      const d = byDate[dateKey]
+      if (!d.meals[mark.mealId]) {
+        const mealDef = meals.find(m => m.id === mark.mealId)
+        d.meals[mark.mealId] = {
+          name: mark.mealName || mealDef?.name || 'Comida',
+          time: mealDef?.time || '',
+          calories: 0, protein: 0, carbs: 0, fat: 0,
+        }
+      }
+      const dm = d.meals[mark.mealId]
+      dm.calories += mark.calories
+      dm.protein += mark.protein
+      dm.carbs += mark.carbs
+      dm.fat += mark.fat
+      d.calories += mark.calories
+    })
+    return byDate
+  }, [adherenceMarks, meals])
+
+  const hasAnyAdherenceRecords = adherenceMarks.some(m => m.consumed)
+
+  const saveDisabledReason = !selectedPatientId
+    ? 'Elegí un paciente para guardar el plan'
+    : planLoading
+      ? 'Cargando datos del paciente...'
+      : consumedFoods.length === 0
+        ? 'Agregá al menos un alimento al plan'
+        : null
+  const canSave = !saveDisabledReason && !saving
+
+  const handleSavePlan = async () => {
+    if (!canSave) return
+    setSaving(true)
+    try {
+      const saved = await savePlan({
+        patientId: selectedPatientId,
+        professionalId: profile.id,
+        gender, age, weightKg: weight, heightCm: height,
+        activityLevel, dietType, results, meals, foods: consumedFoods,
+        foodDistribution: foodDist, notes,
+      })
+      setSavedPlan({ id: saved.id, updatedAt: saved.updatedAt })
+      setSavedSnapshot(snapshotOf({ gender, age, weight, height, activityLevel, dietType, consumedFoods, meals, foodDist, notes }))
+      toast.success(`Plan guardado — ${patientDisplayName}`)
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   // Food actions
   const addFood = useCallback((consumed) => {
@@ -1190,10 +1421,50 @@ export default function NutriPlan({ profile }) {
         )}
       </div>
 
-      {linkedPatient && (
-        <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm" style={{ backgroundColor: SAGE_BG, color: SAGE_DARK }}>
+      {/* Selector de paciente */}
+      <div className="bg-white rounded-2xl border border-border-default shadow-sm p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <label htmlFor="nutriplan-patient" className="text-sm font-medium text-text-secondary shrink-0 flex items-center gap-2">
+          <User className="h-4 w-4 text-brand" />
+          Paciente
+        </label>
+        <select
+          id="nutriplan-patient"
+          value={selectedPatientId}
+          onChange={e => setSelectedPatientId(e.target.value)}
+          className="form-select flex-1 sm:max-w-sm"
+        >
+          <option value="">Elegí un paciente...</option>
+          {patientOptions.map(p => (
+            <option key={p.id} value={p.id}>{p.fullName}</option>
+          ))}
+        </select>
+        {patientsLoading && <span className="text-xs text-text-tertiary">Cargando pacientes...</span>}
+        {!patientsLoading && patients.length === 0 && (
+          <span className="text-xs text-text-tertiary">Todavía no tenés pacientes con consultas registradas</span>
+        )}
+      </div>
+
+      {!selectedPatientId && (
+        <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm bg-bg-surface border border-border-default text-text-secondary">
+          <Info className="h-4 w-4 shrink-0" />
+          Sin paciente seleccionado — elegí uno arriba para armar o revisar su plan.
+        </div>
+      )}
+      {selectedPatientId && planLoading && (
+        <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm bg-bg-surface border border-border-default text-text-secondary">
+          Cargando datos del paciente...
+        </div>
+      )}
+      {selectedPatientId && !planLoading && savedPlan && (
+        <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm bg-brand-muted text-brand">
           <User className="h-4 w-4 shrink-0" />
-          Plan para <strong>{linkedPatient.fullName}</strong> — datos precargados desde la consulta, revisalos antes de calcular.
+          <span>Se cargó el plan existente de <strong>{patientDisplayName}</strong> — última edición {fmtDateTime(savedPlan.updatedAt)}</span>
+        </div>
+      )}
+      {selectedPatientId && !planLoading && !savedPlan && (
+        <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm bg-brand-muted text-brand">
+          <User className="h-4 w-4 shrink-0" />
+          <span>Armando un plan nuevo para <strong>{patientDisplayName}</strong> — datos precargados desde su perfil, revisalos antes de calcular.</span>
         </div>
       )}
 
@@ -1202,8 +1473,8 @@ export default function NutriPlan({ profile }) {
         {TABS.map(tab => (
           <button
             key={tab.id}
-            onClick={() => !tab.comingSoon && setActiveTab(tab.id)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all ${tab.comingSoon ? 'opacity-40 pointer-events-none' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all"
             style={activeTab === tab.id
               ? { backgroundColor: '#fff', color: SAGE_DARK, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }
               : { backgroundColor: 'transparent', color: '#6b7280' }
@@ -1225,6 +1496,7 @@ export default function NutriPlan({ profile }) {
           activityLevel={activityLevel} setPulseLevel={setPulseLevel}
           dietType={dietType} setDietType={setDietType}
           results={results}
+          notes={notes} setNotes={setNotes}
         />
       )}
 
@@ -1260,13 +1532,51 @@ export default function NutriPlan({ profile }) {
 
       {activeTab === 'monitoreo' && (
         <TabMonitoreo
-          tracking={tracking}
-          trackingHistory={trackingHistory}
+          hasPatient={!!selectedPatientId}
+          hasPlan={!!savedPlan}
+          adherenceLoading={adherenceLoading}
+          hasAnyRecords={hasAnyAdherenceRecords}
+          byDate={adherenceByDate}
           trackingDate={trackingDate}
           setTrackingDate={setTrackingDate}
           results={results}
         />
       )}
+
+      {/* Guardar plan — siempre visible */}
+      <div className="sticky bottom-4 z-40 bg-white rounded-2xl border border-border-default shadow-lg p-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-sm text-text-secondary truncate">
+            {selectedPatientId
+              ? <>Plan para <strong className="text-text-primary">{patientDisplayName}</strong></>
+              : 'Sin paciente seleccionado'}
+          </span>
+          {selectedPatientId && dirty && (
+            <span className="text-xs font-medium text-warning flex items-center gap-1 shrink-0">
+              <Warning className="h-3.5 w-3.5" />
+              Sin guardar
+            </span>
+          )}
+          {selectedPatientId && !dirty && savedPlan && (
+            <span className="text-xs text-text-tertiary shrink-0">
+              Guardado {fmtDateTime(savedPlan.updatedAt)}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {saveDisabledReason && (
+            <span className="text-xs text-text-tertiary hidden sm:inline">{saveDisabledReason}</span>
+          )}
+          <button
+            onClick={handleSavePlan}
+            disabled={!canSave}
+            className="px-5 py-2.5 rounded-xl bg-brand hover:bg-brand-hover text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+          >
+            <FloppyDisk className="h-4 w-4" />
+            {saving ? 'Guardando...' : 'Guardar plan'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

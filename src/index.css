@@ -118,6 +118,10 @@
   --color-v-fisico: #6BAFCF;
   --color-v-veterinaria: #E8927C;
 
+  /* Macros — NutriPlan (proteína usa --color-brand, hidratos --color-warning) */
+  --color-macro-fat: #4A90D9;
+  --color-macro-fiber: #9B59B6;
+
   /* Typography — Everett en títulos (font-serif), General Sans en cuerpo (font-sans) */
   --font-serif: 'Everett', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-sans: 'GeneralSans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -367,6 +371,17 @@
   letter-spacing: -0.015em;
   line-height: 1.15;
   color: var(--color-text-primary);
+}
+
+/* ── Progress bar fill — the one place a per-instance dynamic value is
+   unavoidable (percentage of a macro/calorie goal reached). Instead of an
+   inline `style={{ width }}`, callers set only the `--bar-value` custom
+   property (a 0–1 fraction) and this utility turns it into a `scaleX`
+   transform, keeping every other style rule in CSS. ── */
+@utility progress-bar-fill {
+  transform-origin: left;
+  transform: scaleX(var(--bar-value, 0));
+  transition: transform 0.3s ease;
 }
 
 /* ── Pill-shaped nav item — editorial counterpart to nav-item-active/

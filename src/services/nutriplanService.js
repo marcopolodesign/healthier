@@ -1,3 +1,5 @@
+import { supabase } from '../lib/supabase'
+
 // Default config
 export const DEFAULT_CALC_CONFIG = {
   deficitKcal: 500, surplusKcal: 500,
@@ -77,6 +79,14 @@ export function computeTotals(foods) {
   }), { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 })
 }
 
+// El identificador de una porción dentro del plan. Vive en un solo lado a
+// propósito: es la clave con la que se guarda la adherencia, y si el formato
+// cambia en un lugar y no en el otro el matching se rompe sin tirar un error —
+// simplemente la pestaña Monitoreo aparece vacía.
+export function buildFoodUid(foodId, mealId) {
+  return `${foodId}-${mealId}`
+}
+
 export function buildPatientMealsData(meals, foods, dist) {
   const d = {}
   meals.forEach(m => { d[m.id] = [] })
@@ -85,7 +95,7 @@ export function buildPatientMealsData(meals, foods, dist) {
     if (assigned.length > 0) {
       const portionQty = Math.round(food.consumedQuantity / assigned.length)
       assigned.forEach(mId => {
-        if (d[mId]) d[mId].push({ ...food, qty: portionQty, uid: `${food.id}-${mId}` })
+        if (d[mId]) d[mId].push({ ...food, qty: portionQty, uid: buildFoodUid(food.id, mId) })
       })
     }
   })
@@ -141,4 +151,228 @@ export async function searchFatSecret(query) {
       isExternal: true,
     }
   })
+}
+
+// ── Persistencia (migración 131_nutriplan_persistencia.sql) ────────────────
+//
+// Mapeo de columnas a mano en vez de toCamelCase/toSnakeCase: esos helpers
+// son recursivos y bajarían por dentro de meals/foods/food_distribution
+// destruyendo las claves de food_distribution (que son ids de alimento, no
+// snake_case) y las de cada food/meal armado por la UI.
+
+function mapPlan(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    patientId: row.patient_id,
+    professionalId: row.professional_id,
+    status: row.status,
+    gender: row.gender,
+    age: row.age,
+    weightKg: row.weight_kg,
+    heightCm: row.height_cm,
+    activityLevel: row.activity_level,
+    dietType: row.diet_type,
+    targetCalories: row.target_calories,
+    targetProteinG: row.target_protein_g,
+    targetCarbsG: row.target_carbs_g,
+    targetFatG: row.target_fat_g,
+    targetFiberG: row.target_fiber_g,
+    bmr: row.bmr,
+    tdee: row.tdee,
+    bmi: row.bmi,
+    meals: row.meals,
+    foods: row.foods,
+    foodDistribution: row.food_distribution,
+    notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    professional: row.professional
+      ? {
+          id: row.professional.id,
+          fullName: row.professional.full_name,
+          avatarUrl: row.professional.avatar_url,
+        }
+      : null,
+  }
+}
+
+// Crea o actualiza el plan activo del par (paciente, profesional).
+//
+// No se usa upsert con onConflict: el índice único que hay que respetar es
+// PARCIAL (`WHERE status = 'active'`), y Postgres sólo lo toma como target de
+// ON CONFLICT si la cláusula incluye el mismo WHERE — algo que el upsert de
+// supabase-js no permite expresar. Por eso: select del activo existente →
+// UPDATE si hay, INSERT si no.
+export async function savePlan({
+  patientId, professionalId, gender, age, weightKg, heightCm,
+  activityLevel, dietType, results, meals, foods, foodDistribution, notes,
+}) {
+  const row = {
+    patient_id: patientId,
+    professional_id: professionalId,
+    gender,
+    age,
+    weight_kg: weightKg,
+    height_cm: heightCm,
+    activity_level: activityLevel,
+    diet_type: dietType,
+    target_calories: results.targetCalories,
+    target_protein_g: results.macros.protein,
+    target_carbs_g: results.macros.carbs,
+    target_fat_g: results.macros.fat,
+    target_fiber_g: results.macros.fiber,
+    bmr: results.bmr,
+    tdee: results.tdee,
+    bmi: results.bmi,
+    meals,
+    foods,
+    food_distribution: foodDistribution,
+    notes,
+  }
+
+  const { data: existing, error: findError } = await supabase
+    .from('nutrition_plans')
+    .select('id')
+    .eq('patient_id', patientId)
+    .eq('professional_id', professionalId)
+    .eq('status', 'active')
+    .maybeSingle()
+  if (findError) throw findError
+
+  const query = existing
+    ? supabase.from('nutrition_plans').update(row).eq('id', existing.id)
+    : supabase.from('nutrition_plans').insert({ ...row, status: 'active' })
+
+  const { data, error } = await query
+    .select('*, professional:profiles!professional_id(id, full_name, avatar_url)')
+    .single()
+  if (error) throw error
+  return mapPlan(data)
+}
+
+// Plan activo más reciente del paciente, con el profesional que lo armó.
+export async function getActivePlanForPatient(patientId) {
+  const { data, error } = await supabase
+    .from('nutrition_plans')
+    .select('*, professional:profiles!professional_id(id, full_name, avatar_url)')
+    .eq('patient_id', patientId)
+    .eq('status', 'active')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return mapPlan(data)
+}
+
+// Plan activo del par, para que el profesional lo recupere y lo siga editando.
+export async function getPlanForPatient(patientId, professionalId) {
+  const { data, error } = await supabase
+    .from('nutrition_plans')
+    .select('*, professional:profiles!professional_id(id, full_name, avatar_url)')
+    .eq('patient_id', patientId)
+    .eq('professional_id', professionalId)
+    .eq('status', 'active')
+    .maybeSingle()
+  if (error) throw error
+  return mapPlan(data)
+}
+
+// Marcas de adherencia de un día puntual.
+const CAMPOS_ADHERENCIA =
+  'date, meal_id, food_uid, consumed, food_name, meal_name, qty_g, calories, protein_g, carbs_g, fat_g, fiber_g'
+
+function mapMarca(r) {
+  return {
+    date: r.date,
+    mealId: r.meal_id,
+    foodUid: r.food_uid,
+    consumed: r.consumed,
+    foodName: r.food_name,
+    mealName: r.meal_name,
+    qtyG: r.qty_g,
+    calories: Number(r.calories) || 0,
+    protein: Number(r.protein_g) || 0,
+    carbs: Number(r.carbs_g) || 0,
+    fat: Number(r.fat_g) || 0,
+    fiber: Number(r.fiber_g) || 0,
+  }
+}
+
+export async function getAdherence(planId, date) {
+  const { data, error } = await supabase
+    .from('nutrition_plan_adherence')
+    .select(CAMPOS_ADHERENCIA)
+    .eq('plan_id', planId)
+    .eq('date', date)
+  if (error) throw error
+  return (data || []).map(mapMarca)
+}
+
+// Marca/desmarca un alimento consumido. Upsert sobre la unique (plan_id,
+// date, meal_id, food_uid) declarada en la migración.
+// `porcion` es la foto de lo que se marcó: nombre, cantidad y macros de esa
+// porción en ese momento. Se guarda junto con la marca en vez de reconstruirse
+// después contra el plan, que es mutable — ver la nota de la migración 131.
+export async function setAdherence(planId, patientId, date, mealId, foodUid, consumed, porcion = {}) {
+  const { data, error } = await supabase
+    .from('nutrition_plan_adherence')
+    .upsert({
+      plan_id: planId,
+      patient_id: patientId,
+      date,
+      meal_id: mealId,
+      food_uid: foodUid,
+      consumed,
+      food_name: porcion.foodName ?? null,
+      meal_name: porcion.mealName ?? null,
+      qty_g: porcion.qtyG ?? null,
+      calories: porcion.calories ?? null,
+      protein_g: porcion.protein ?? null,
+      carbs_g: porcion.carbs ?? null,
+      fat_g: porcion.fat ?? null,
+      fiber_g: porcion.fiber ?? null,
+    }, { onConflict: 'plan_id,date,meal_id,food_uid' })
+    .select(CAMPOS_ADHERENCIA)
+    .single()
+  if (error) throw error
+  return mapMarca(data)
+}
+
+// Marcas en un rango de fechas, para la pestaña Monitoreo del profesional.
+export async function getAdherenceRange(planId, fromDate, toDate) {
+  const { data, error } = await supabase
+    .from('nutrition_plan_adherence')
+    .select(CAMPOS_ADHERENCIA)
+    .eq('plan_id', planId)
+    .gte('date', fromDate)
+    .lte('date', toDate)
+    .order('date', { ascending: true })
+  if (error) throw error
+  return (data || []).map(mapMarca)
+}
+
+// ── Fechas locales ────────────────────────────────────────────────────────
+//
+// La adherencia se guarda como `date` (un día calendario, sin hora), y el día
+// que vale es el del paciente, no el de UTC. En Buenos Aires (GMT-3) las dos
+// conversiones automáticas de JS corren la fecha un día:
+//   · `toISOString()` pasa a UTC → después de las 21:00 devuelve el día
+//     siguiente.
+//   · `new Date('2026-08-28')` parsea el string como medianoche UTC → en local
+//     es el 27 a las 21:00, y cualquier formateo lo muestra un día antes.
+// Por eso las dos direcciones se arman a mano con los getters locales.
+
+// Date → 'YYYY-MM-DD' en hora local.
+export function toLocalDateString(date = new Date()) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+// 'YYYY-MM-DD' → Date a la medianoche LOCAL de ese día.
+export function parseLocalDate(value) {
+  const [y, m, d] = String(value).slice(0, 10).split('-').map(Number)
+  return new Date(y, m - 1, d)
 }
