@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ShieldCheck, CaretRight, ArrowLeft, Eye, Plus,
   CloudArrowUp, Camera, CircleNotch, Pulse, Check,
-  FileText, FolderOpen, AppleLogo, Barbell, PawPrint, Sparkle, ClipboardText, ShoppingBag,
+  FileText, FolderOpen, AppleLogo, Barbell, PawPrint, Sparkle, ClipboardText,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
@@ -140,16 +140,6 @@ export default function PatientDocuments({ profile }) {
           <AppleLogo className="w-6 h-6 mb-2 opacity-90" />
           <p className="font-semibold text-[15px] leading-tight">NutriPlan</p>
           <p className="text-[11px] opacity-80 mt-0.5">Mi plan nutricional</p>
-        </button>
-        <button
-          onClick={() => navigate('/paciente/farmacia')}
-          className="col-span-2 bg-gradient-to-br from-brand-secondary to-brand-secondary-hover rounded-2xl p-4 text-left text-white shadow-md hover:shadow-lg active:scale-95 transition-all flex items-center gap-3"
-        >
-          <ShoppingBag className="w-6 h-6 opacity-90 flex-shrink-0" />
-          <div>
-            <p className="font-semibold text-[15px] leading-tight">Farmacia</p>
-            <p className="text-[11px] opacity-80 mt-0.5">Pedí tus medicamentos</p>
-          </div>
         </button>
       </div>
 

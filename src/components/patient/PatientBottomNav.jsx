@@ -1,12 +1,14 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { House, Calendar, FolderOpen, User, ShoppingBag } from '@phosphor-icons/react'
+import { House, Calendar, FolderOpen, User } from '@phosphor-icons/react'
 
 // 'ia' tab removed for now (2026-07-27, Mateo's request) — /paciente/ia route
 // stays intact, just no bottom-nav shortcut to it.
+// 'farmacia' tab removed for now (2026-08-29, Mateo's request) — same criterio:
+// /paciente/farmacia sigue viva y funcionando, sólo se saca el acceso desde la
+// barra de abajo.
 const TABS = [
   { id: 'home',     path: '/paciente/dashboard',  icon: House,        label: 'Inicio'    },
   { id: 'agenda',   path: '/paciente/consultas',   icon: Calendar,     label: 'Agenda'    },
-  { id: 'farmacia', path: '/paciente/farmacia',    icon: ShoppingBag,  label: 'Farmacia'  },
   { id: 'boveda',   path: '/paciente/documentos',  icon: FolderOpen,   label: 'Bóveda'    },
   { id: 'perfil',   path: '/paciente/perfil',      icon: User,         label: 'Perfil'    },
 ]
