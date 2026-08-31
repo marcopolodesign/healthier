@@ -778,6 +778,10 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
           {visibleTabs.map(tab => (
             <button
               key={tab.id}
+              // Anclaje del tour de la simulación (`GuiaSimulacion`). Es un
+              // contrato explícito: si se renombra, el paso queda sin foco y el
+              // popover se va al centro de la pantalla.
+              data-tour={`tab-${tab.id}`}
               onClick={() => irA(tab)}
               className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 text-xs lg:text-sm py-4 border-b-2 transition-colors ${
                 (tab.kind === 'view' ? activeView === tab.id : activeView === 'chart' && activeSection === tab.id)
@@ -832,7 +836,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
                   un panel que comparte pantalla con el video. El atajo de la
                   fila del paciente cubre el caso de necesitarlos scrolleado. */}
               {!showForm && (
-                <div ref={botonesRef} className="grid grid-cols-2 gap-2.5 mb-4">
+                <div ref={botonesRef} data-tour="botones-nota" className="grid grid-cols-2 gap-2.5 mb-4">
                   {Object.entries(NOTE_TYPE_LABELS).map(([value, label]) => (
                     <button
                       key={value}
@@ -895,7 +899,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
             {/* 2 · Lo que declaró el paciente antes de entrar. Vivía en la
                 pestaña "Historia" — es de esta consulta, no historia previa. */}
             {hasPreconsulta(consultation?.preconsultaData) && (
-              <div className="mb-4">
+              <div className="mb-4" data-tour="preconsulta">
                 <PreconsultaSummary preconsulta={consultation.preconsultaData} />
               </div>
             )}
@@ -1461,7 +1465,7 @@ export default function ProfessionalVideoCall({ profile }) {
           contenido, no flotando: la primera versión era una tarjeta en una
           esquina y tapaba el botón "Ingresar paciente", que es justo el que la
           guía te pide tocar. */}
-      {simulando && <GuiaSimulacion onSalir={() => navigate('/profesional/dashboard')} />}
+      {simulando && <GuiaSimulacion />}
 
       {/* Header — dark, Healthier-owned controls only */}
       <div className="vc-header flex items-center justify-between px-6 py-3 border-b border-white/10 bg-zinc-900 shrink-0">
@@ -1639,6 +1643,7 @@ export default function ProfessionalVideoCall({ profile }) {
                     <button
                       onClick={admitPatient}
                       disabled={admitting}
+                      data-tour="ingresar-paciente"
                       className="btn-primary px-6 py-2.5 text-sm disabled:opacity-60"
                     >
                       {admitting ? 'Habilitando…' : 'Ingresar paciente'}

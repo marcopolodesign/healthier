@@ -963,3 +963,92 @@
     margin-bottom: 1rem;
   }
 }
+
+/* ── Tour de la simulación de videollamada (driver.js) ──────────────────────
+   El globo de driver.js viene blanco con botones grises. Acá se lo lleva al
+   verde de marca y a la tipografía de Healthier.
+
+   Va como CSS plano y no como `@utility`: las clases las pone la librería en
+   nodos que no pasan por nuestro JSX, así que no hay dónde colgar una utility.
+   Se acota a `.guia-healthier` (el `popoverClass` del tour) para no pisarle el
+   estilo a ningún otro uso futuro de driver.js.
+
+   El overlay lo pinta la librería con `overlayColor`/`overlayOpacity` desde JS
+   — negro al 70% —, no hace falta tocarlo acá. */
+.driver-popover.guia-healthier {
+  background: var(--color-brand);
+  color: white;
+  border-radius: 1rem;
+  max-width: 22rem;
+  padding: 1rem 1.125rem 0.875rem;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.35);
+  font-family: var(--font-sans);
+}
+
+.driver-popover.guia-healthier .driver-popover-title {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 1.0625rem;
+  color: white;
+}
+
+.driver-popover.guia-healthier .driver-popover-description {
+  color: rgb(255 255 255 / 0.88);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin-top: 0.25rem;
+}
+
+/* La flecha hereda el color por cada lado: driver.js la dibuja con `border`, así
+   que hay que pintar la cara que corresponde en las cuatro variantes. */
+.driver-popover.guia-healthier .driver-popover-arrow-side-top    { border-top-color:    var(--color-brand); }
+.driver-popover.guia-healthier .driver-popover-arrow-side-bottom { border-bottom-color: var(--color-brand); }
+.driver-popover.guia-healthier .driver-popover-arrow-side-left   { border-left-color:   var(--color-brand); }
+.driver-popover.guia-healthier .driver-popover-arrow-side-right  { border-right-color:  var(--color-brand); }
+
+.driver-popover.guia-healthier .driver-popover-progress-text {
+  color: rgb(255 255 255 / 0.6);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.driver-popover.guia-healthier .driver-popover-footer button {
+  background: white;
+  color: var(--color-brand);
+  border: none;
+  border-radius: 999px;
+  padding: 0.375rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-shadow: none;
+  transition: background-color 0.15s;
+}
+
+.driver-popover.guia-healthier .driver-popover-footer button:hover {
+  background: rgb(255 255 255 / 0.88);
+}
+
+/* "Anterior" es secundario: en el primer paso driver.js lo deshabilita, y un
+   botón blanco lleno gritando al lado del que sí se puede tocar confunde. */
+.driver-popover.guia-healthier .driver-popover-prev-btn {
+  background: transparent;
+  color: white;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.35);
+}
+
+.driver-popover.guia-healthier .driver-popover-prev-btn:hover {
+  background: rgb(255 255 255 / 0.15);
+}
+
+.driver-popover.guia-healthier .driver-popover-prev-btn:disabled {
+  opacity: 0.35;
+}
+
+.driver-popover.guia-healthier .driver-popover-close-btn {
+  color: rgb(255 255 255 / 0.7);
+}
+
+.driver-popover.guia-healthier .driver-popover-close-btn:hover {
+  color: white;
+}

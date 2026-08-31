@@ -19,6 +19,7 @@
     "@phosphor-icons/react": "^2.1.10",
     "@sentry/react": "^10.72.0",
     "@supabase/supabase-js": "^2.89.0",
+    "driver.js": "^1.8.0",
     "lucide-react": "^1.8.0",
     "mapbox-gl": "^3.26.0",
     "react": "^19.2.0",

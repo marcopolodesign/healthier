@@ -54,24 +54,61 @@ function SupportWhatsAppLink({ message, className = '' }) {
   )
 }
 
+/**
+ * La invitación a practicar, en el inicio del profesional.
+ *
+ * Es cerrable y, una vez cerrada, **no vuelve** (decisión de Mateo): si la
+ * cerró es porque no le interesa, y reaparecer en la pantalla que más usa es
+ * ruido. Se recuerda en `localStorage` y no en la base — es una preferencia de
+ * cortesía, no un dato del profesional, y no justifica una migración. Costo
+ * conocido y aceptado: si entra desde otra computadora o desde el teléfono, la
+ * ve una vez más.
+ */
+const CLAVE_PRACTICA_CERRADA = 'healthier:practica-invitacion-cerrada'
+
 function TarjetaPractica() {
+  const [cerrada, setCerrada] = useState(() => {
+    try { return !!localStorage.getItem(CLAVE_PRACTICA_CERRADA) } catch { return false }
+  })
+  if (cerrada) return null
+
+  const cerrar = e => {
+    // El botón vive adentro de un <Link>: sin esto, cerrarla te lleva a la
+    // simulación, que es exactamente lo contrario de lo que pediste.
+    e.preventDefault()
+    e.stopPropagation()
+    try { localStorage.setItem(CLAVE_PRACTICA_CERRADA, '1') } catch { /* se cierra sólo por esta vez */ }
+    setCerrada(true)
+  }
+
   return (
     <Link
       to={`/profesional/videollamada/${ID_SIMULACION}`}
-      className="card flex items-center gap-4 border-brand/25 bg-brand-muted/25 hover:border-brand/50 transition-colors group"
+      className="card relative flex items-center gap-4 border-brand/25 bg-brand-muted/25 hover:border-brand/50 transition-colors group"
     >
       <div className="w-12 h-12 rounded-2xl bg-white border border-brand/20 flex items-center justify-center shrink-0">
         <GraduationCap weight="fill" className="h-6 w-6 text-brand" />
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-base font-semibold text-text-primary">Practicá una videoconsulta</p>
+      <div className="flex-1 min-w-0 pr-6">
+        <p className="text-base font-semibold text-text-primary">
+          Explorá la sala de videollamada antes de tu primera videoconsulta
+        </p>
         <p className="text-xs text-text-secondary mt-0.5">
-          Abrí el panel real con una paciente de mentira y una guía paso a paso. No se guarda nada.
+          Es el panel real con una paciente de mentira y una guía paso a paso. No se guarda nada.
         </p>
       </div>
-      <div className="flex items-center gap-1 text-brand text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">
+      {/* `mt-4` para que no quede pegado a la cruz de cerrar: separados por 4px
+          se toca la equivocada, y las dos hacen cosas opuestas. */}
+      <div className="hidden sm:flex items-center gap-1 mt-4 text-brand text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">
         Empezar <ArrowRight className="h-4 w-4" />
       </div>
+      <button
+        onClick={cerrar}
+        aria-label="No mostrar más esta invitación"
+        className="absolute top-2.5 right-2.5 p-1 text-text-tertiary hover:text-text-primary transition-colors"
+      >
+        <X className="h-4 w-4" />
+      </button>
     </Link>
   )
 }
@@ -481,10 +518,11 @@ export default function ProfessionalDashboard({ profile }) {
         </div>
       )}
 
-      {/* Sin consultas todavía: el link a la práctica reemplaza al vacío. Al que
-          ya atiende no se le muestra — ya no le enseña nada y le ocupa el lugar
-          donde busca su agenda. */}
-      {!loading && consultations.length === 0 && <TarjetaPractica />}
+      {/* Antes se mostraba sólo al que no había atendido a nadie. Ahora se
+          muestra siempre y se cierra a mano: quien quiere repasar antes de una
+          consulta difícil también la necesita, y el que no la quiere la cierra
+          una vez y no la ve más. */}
+      {!loading && <TarjetaPractica />}
 
       {/* El switch de disponibilidad, arriba de todo: estaba enterrado en Agenda y
           detrás de un "Guardar configuración", así que existir en el pool on-demand
