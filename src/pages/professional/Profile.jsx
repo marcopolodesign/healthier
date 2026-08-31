@@ -9,7 +9,7 @@ import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { geocodeAddress } from '../../lib/geo'
 import { toast } from '../../components/Toast'
 import { isLikelyTooSmallForFace } from '../../lib/imageCompression'
-import { camposSensiblesQueCambian, requiereReverificacion } from '../../lib/reverificacion'
+import { camposSensiblesQueCambian, enumerarCampos, requiereReverificacion } from '../../lib/reverificacion'
 
 export default function ProfessionalProfile({ profile }) {
   const { especialidades, activas, porSlug, subEspecialidadesDe } = useEspecialidades()
@@ -211,8 +211,8 @@ export default function ProfessionalProfile({ profile }) {
           <div className="card border-warning/30 bg-yellow-50 flex items-start gap-3">
             <Warning className="h-5 w-5 text-warning shrink-0 mt-0.5" />
             <p className="text-sm text-text-secondary">
-              Estás cambiando {cambiosSensibles.join(' y ').toLowerCase()}. Al guardar, tu perfil
-              vuelve a revisión.
+              Estás cambiando {enumerarCampos(cambiosSensibles)}. Al guardar, tu perfil vuelve a
+              revisión.
             </p>
           </div>
         )}
@@ -230,8 +230,8 @@ export default function ProfessionalProfile({ profile }) {
       >
         <div className="space-y-4">
           <p className="text-sm text-text-secondary">
-            Estás por cambiar {cambiosSensibles.join(' y ').toLowerCase()}. Es parte de lo que el
-            equipo de Healthier revisó para verificarte, así que lo tenemos que volver a mirar.
+            Estás por cambiar {enumerarCampos(cambiosSensibles)}. Es parte de lo que el equipo de
+            Healthier revisó para verificarte, así que lo tenemos que volver a mirar.
           </p>
           <ul className="text-sm text-text-secondary space-y-2 bg-white rounded-xl p-4 border border-border-default">
             <li>· Tu perfil pasa a <strong className="text-text-primary">pendiente de verificación</strong>.</li>

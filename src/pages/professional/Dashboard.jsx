@@ -13,7 +13,7 @@ import { supportWhatsAppLink } from '../../lib/support'
 import StatusBadge from '../../components/StatusBadge'
 import ProfileCompletenessCard from '../../components/professional/ProfileCompletenessCard'
 import { atiendePresencial } from '../../lib/profileCompleteness'
-import { CAMPOS_SENSIBLES } from '../../lib/reverificacion'
+import { CAMPOS_SENSIBLES, enumerarCampos } from '../../lib/reverificacion'
 import ReferralLinkCard from '../../components/professional/ReferralLinkCard'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
 import OnDemandSwitch from '../../components/professional/OnDemandSwitch'
@@ -438,12 +438,11 @@ export default function ProfessionalDashboard({ profile }) {
             <div className="flex-1">
               <p className="font-semibold text-text-primary">Tu perfil está en revisión</p>
               <p className="text-sm text-text-secondary mt-1">
-                Cambiaste {(profProfile.reverificationChanges ?? [])
-                  .map(c => (CAMPOS_SENSIBLES[c.campo] ?? c.campo).toLowerCase())
-                  .filter((v, i, a) => a.indexOf(v) === i)
-                  .join(', ') || 'un dato de tu legajo'}, así que lo tenemos que volver a
-                verificar (24-48 hs). Mientras tanto no vas a recibir consultas nuevas, pero
-                los turnos que ya tenés agendados los seguís atendiendo normalmente.
+                Cambiaste {enumerarCampos((profProfile.reverificationChanges ?? [])
+                  .map(c => CAMPOS_SENSIBLES[c.campo] ?? c.campo)) || 'un dato de tu legajo'}, así
+                que lo tenemos que volver a verificar (24-48 hs). Mientras tanto no vas a recibir
+                consultas nuevas, pero los turnos que ya tenés agendados los seguís atendiendo
+                normalmente.
               </p>
               <SupportWhatsAppLink
                 message="Hola, tengo una consulta sobre la revisión de un cambio en mi perfil profesional en Healthier:"

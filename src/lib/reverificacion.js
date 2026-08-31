@@ -55,6 +55,17 @@ export function camposSensiblesQueCambian(antes = {}, ahora = {}) {
     .map(campo => EN_CAMEL[campo])
 }
 
+/**
+ * "tu especialidad", "tu especialidad y tu matrícula", "tu especialidad, tu
+ * matrícula y tu DNI" — para meter la lista de campos dentro de una frase sin
+ * que quede un `join(', ')` en medio de una oración.
+ */
+export function enumerarCampos(etiquetas) {
+  const conArticulo = [...new Set(etiquetas)].map(e => `tu ${e.toLowerCase()}`)
+  if (conArticulo.length <= 1) return conArticulo[0] ?? ''
+  return `${conArticulo.slice(0, -1).join(', ')} y ${conArticulo.at(-1)}`
+}
+
 /** ¿Este perfil está sujeto a la regla? Sólo lo está el que ya fue revisado. */
 export function requiereReverificacion(profProfile) {
   return !!(profProfile?.isVerified || profProfile?.reverificationPending)
