@@ -293,12 +293,7 @@ export default function VitalsPanel({ patientId, encounterId, preconsulta }) {
 
   async function loadObservations() {
     if (!encounterId) { setLoading(false); return }
-    const { data } = await supabase
-      .from('clinical_observations')
-      .select('*')
-      .eq('encounter_id', encounterId)
-      .order('observed_at', { ascending: true })
-    setObservations(data ?? [])
+    setObservations(await clinicalService.getObservationsByEncounter(encounterId).catch(() => []))
     setLoading(false)
   }
 

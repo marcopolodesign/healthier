@@ -13,6 +13,10 @@ const agendadasPorElProfesional = new Set()
 export const fueAgendadaPorElProfesional = id => agendadasPorElProfesional.has(id)
 import { mpService } from './mpService'
 import { cioService } from './cioService'
+// La simulación de videollamada corta acá, antes de tocar Supabase — ver
+// `src/lib/simulacion.js`. `grep esSimulado src/` muestra la valla completa.
+import * as simulacion from '../lib/simulacion'
+import { esSimulado, CODIGO_DE_CIERRE as CODIGO_DE_CIERRE_SIMULADO } from '../lib/simulacion'
 
 /**
  * Waiting-room presence window. The patient's client heartbeats every
@@ -54,6 +58,7 @@ export const consultationsService = {
    * returns true exactly once per stay, so the 30s heartbeat stays silent.
    */
   async pingPatientWaiting(consultationId) {
+    if (esSimulado(consultationId)) return
     const { error } = await supabase
       .rpc('patient_waiting_ping', { p_consultation_id: consultationId })
     if (error) throw error
@@ -72,6 +77,7 @@ export const consultationsService = {
    * momento, así que tocar el botón dos veces no corre el reloj.
    */
   async admitPatient(consultationId) {
+    if (esSimulado(consultationId)) return new Date().toISOString()
     const { data, error } = await supabase
       .from('consultations')
       .update({ patient_admitted_at: new Date().toISOString() })
@@ -86,6 +92,7 @@ export const consultationsService = {
 
   /** Patient left the waiting room explicitly, or the call started. */
   async clearPatientWaiting(consultationId) {
+    if (esSimulado(consultationId)) return
     const { error } = await supabase
       .from('consultations')
       .update({ patient_waiting_since: null, patient_last_seen_at: null })
@@ -94,6 +101,7 @@ export const consultationsService = {
   },
 
   async getValidationCode(consultationId) {
+    if (esSimulado(consultationId)) return CODIGO_DE_CIERRE_SIMULADO
     const { data, error } = await supabase
       .from('consultation_validation_codes')
       .select('code')
@@ -148,6 +156,13 @@ export const consultationsService = {
    * tratarlo como un error de red.
    */
   async verifyClosingCode(consultationId, code) {
+    // En la práctica el código es fijo y está escrito en la guía: el punto es
+    // que vea dónde se pide y qué pasa al errarle, no adivinarlo.
+    if (esSimulado(consultationId)) {
+      return code === CODIGO_DE_CIERRE_SIMULADO
+        ? { ok: true }
+        : { ok: false, intentosRestantes: 5 }
+    }
     const { data, error } = await supabase.rpc('verificar_codigo_de_cierre', {
       p_consultation_id: consultationId,
       p_code: code,
@@ -167,6 +182,7 @@ export const consultationsService = {
    * no pueden perderse porque el cierre vino por este camino nuevo.
    */
   async completeClosing(consultationId, { closingNotes = null, skipCodeReason = null } = {}) {
+    if (esSimulado(consultationId)) return { status: 'completed', isOnDemand: false }
     const { data, error } = await supabase.rpc('completar_cierre_de_consulta', {
       p_consultation_id: consultationId,
       p_closing_notes: closingNotes || null,
@@ -186,6 +202,10 @@ export const consultationsService = {
   },
 
   async getDailyAccess(consultationId) {
+    // La simulación nunca abre una sala real (no hay nadie del otro lado y
+    // Daily se cobra por minuto): `VideoCall.jsx` usa el mock del SDK, así que
+    // estos valores no se conectan a ningún lado.
+    if (esSimulado(consultationId)) return { roomUrl: 'https://simulacion.invalid/sala', token: null }
     const { data: { session } } = await supabase.auth.getSession()
     const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/daily-token`, {
       method: 'POST',
@@ -338,6 +358,7 @@ export const consultationsService = {
   },
 
   async getById(id) {
+    if (esSimulado(id)) return simulacion.consulta()
     const { data, error } = await supabase
       .from('consultations')
       // El patient join trae también su cobertura ESTABLE (coverage_type,
@@ -386,6 +407,7 @@ export const consultationsService = {
   },
 
   async update(id, fields) {
+    if (esSimulado(id)) return { ...simulacion.consulta(), ...fields }
     const { data, error } = await supabase
       .from('consultations')
       .update(toSnakeCase(fields))
@@ -449,6 +471,7 @@ export const consultationsService = {
   // correcto para pedidos de estudios es `POST /prescribirPractica` de RCTA.
 
   async updateStatus(id, status, extra = {}) {
+    if (esSimulado(id)) return { ...simulacion.consulta(), status, ...extra }
     const { data, error } = await supabase
       .from('consultations')
       .update({ status, ...toSnakeCase(extra) })

@@ -194,12 +194,8 @@ export default function AllergyPanel({ patientId, encounterId, bloqueada = false
 
   useEffect(() => {
     if (!patientId) { setLoading(false); return }
-    supabase
-      .from('clinical_allergies')
-      .select('*')
-      .eq('patient_id', patientId)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => setAllergies(data ?? []))
+    clinicalService.getAllergiesByPatient(patientId)
+      .then(setAllergies)
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [patientId])

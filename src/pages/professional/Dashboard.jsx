@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle, X, CircleNotch, WhatsappLogo, FileText, Lightning, ArrowsClockwise, MapPin } from '@phosphor-icons/react';
+import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle, X, CircleNotch, WhatsappLogo, FileText, Lightning, ArrowsClockwise, MapPin, GraduationCap } from '@phosphor-icons/react';
 import { consultationsService } from '../../services/consultationsService'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 import { professionalService } from '../../services/professionalService'
@@ -14,6 +14,7 @@ import StatusBadge from '../../components/StatusBadge'
 import ProfileCompletenessCard from '../../components/professional/ProfileCompletenessCard'
 import { atiendePresencial } from '../../lib/profileCompleteness'
 import { CAMPOS_SENSIBLES, enumerarCampos } from '../../lib/reverificacion'
+import { ID_CONSULTA as ID_SIMULACION } from '../../lib/simulacion'
 import ReferralLinkCard from '../../components/professional/ReferralLinkCard'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
 import OnDemandSwitch from '../../components/professional/OnDemandSwitch'
@@ -50,6 +51,28 @@ function SupportWhatsAppLink({ message, className = '' }) {
     >
       <WhatsappLogo weight="fill" className="h-4 w-4" /> ¿Alguna duda? Escribinos por WhatsApp
     </a>
+  )
+}
+
+function TarjetaPractica() {
+  return (
+    <Link
+      to={`/profesional/videollamada/${ID_SIMULACION}`}
+      className="card flex items-center gap-4 border-brand/25 bg-brand-muted/25 hover:border-brand/50 transition-colors group"
+    >
+      <div className="w-12 h-12 rounded-2xl bg-white border border-brand/20 flex items-center justify-center shrink-0">
+        <GraduationCap weight="fill" className="h-6 w-6 text-brand" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-base font-semibold text-text-primary">Practicá una videoconsulta</p>
+        <p className="text-xs text-text-secondary mt-0.5">
+          Abrí el panel real con una paciente de mentira y una guía paso a paso. No se guarda nada.
+        </p>
+      </div>
+      <div className="flex items-center gap-1 text-brand text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">
+        Empezar <ArrowRight className="h-4 w-4" />
+      </div>
+    </Link>
   )
 }
 
@@ -413,6 +436,11 @@ export default function ProfessionalDashboard({ profile }) {
             this is exactly where "te falta subir un documento" is actionable, and the
             banner above only explains the overall status, not which document is missing.
             Hidden entirely when permanently rejected: nothing here is actionable then. */}
+        {/* El que está esperando la verificación es justo el que más necesita
+            conocer el panel: cuando lo aprueben va a entrar a una consulta real
+            sin haber visto nunca la pantalla. */}
+        {!isPermanentlyRejected && <TarjetaPractica />}
+
         {!!profProfile && !isPermanentlyRejected && (
           <ProfileCompletenessCard
             profProfile={profProfile}
@@ -452,6 +480,11 @@ export default function ProfessionalDashboard({ profile }) {
           </div>
         </div>
       )}
+
+      {/* Sin consultas todavía: el link a la práctica reemplaza al vacío. Al que
+          ya atiende no se le muestra — ya no le enseña nada y le ocupa el lugar
+          donde busca su agenda. */}
+      {!loading && consultations.length === 0 && <TarjetaPractica />}
 
       {/* El switch de disponibilidad, arriba de todo: estaba enterrado en Agenda y
           detrás de un "Guardar configuración", así que existir en el pool on-demand

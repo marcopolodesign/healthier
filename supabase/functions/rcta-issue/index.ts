@@ -9,6 +9,25 @@
 //   medicationId   – UUID de una fila de clinical_medications
 //   medicationIds  – array de UUIDs: TODOS van en la MISMA receta
 //   purpose        – 'produccion' (default) | 'certificacion'
+//   simulacion     – true: emision de PRACTICA. Ver el bloque de abajo.
+//
+// ── Modo practica (`simulacion: true`) ───────────────────────────────────────
+// La simulacion de videollamada (`src/lib/simulacion.js`) deja al profesional
+// recorrer el recetario entero y recibir un PDF de verdad. Se emite SIEMPRE
+// contra homologacion, aun corriendo en produccion: en homologacion la receta
+// no es un acto medico valido —es el ambiente donde se certifico, con
+// matriculas inventadas— y en produccion si lo seria.
+//
+// Que cambia respecto de una emision real, y nada mas que eso:
+//   · los medicamentos vienen EN EL BODY (`medicamentos`), no de
+//     `clinical_medications`: la practica no escribe ninguna fila;
+//   · el paciente es el fijo de la practica, definido aca abajo;
+//   · las credenciales salen de RCTA_HML_*, y si no estan cargadas se CORTA
+//     con 503 en vez de caer en las de produccion;
+//   · no se escribe `clinical_medications` ni `rcta_issue_log`.
+// Todo lo demas —validaciones, armado del payload, llamada, reintento sin
+// logo— es el MISMO codigo, que es justamente lo que hace que la practica
+// sirva: si difiriera, ensenaria un flujo que no existe.
 //
 // Una receta puede llevar varios medicamentos: `medicamentos` es un array en el
 // contrato de Innovamed. Todas las filas tienen que ser del mismo encuentro (y
@@ -29,6 +48,18 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { RCTA_LOGO_BASE64 } from './logo.ts'
 
+// El paciente de la practica. Espejo de `PACIENTE` en `src/lib/simulacion.js`
+// (el front lo muestra, esta funcion lo imprime en el PDF). El DNI arranca con
+// 99 —rango que no se asigna— para que nadie lo confunda con una persona.
+const PACIENTE_DE_PRACTICA = {
+  id: 'simulacion-paciente',
+  full_name: 'Paciente de practica',
+  dni: '99000001',
+  gender: 'femenino',
+  birth_date: '1985-03-14',
+  phone: '+5491100000000',
+}
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -39,12 +70,16 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json()
+    const esPractica = body.simulacion === true
     // `medicationIds` es la forma nueva (varios medicamentos en una receta);
     // `medicationId` se mantiene porque hay clientes desplegados que la usan.
     const ids: string[] = Array.isArray(body.medicationIds) && body.medicationIds.length
       ? body.medicationIds
       : (body.medicationId ? [body.medicationId] : [])
-    if (!ids.length) return json({ error: 'medicationId o medicationIds requerido' }, 400)
+    if (!esPractica && !ids.length) return json({ error: 'medicationId o medicationIds requerido' }, 400)
+    if (esPractica && !Array.isArray(body.medicamentos)) {
+      return json({ error: 'medicamentos requerido en modo practica' }, 400)
+    }
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -60,7 +95,11 @@ Deno.serve(async (req: Request) => {
     // miraba. Ver `persistirEmision`.
     // deno-lint-ignore no-explicit-any
     const setStatus = (status: string, extra: Record<string, any> = {}) =>
-      supabase.from('clinical_medications').update({ rcta_status: status, ...extra }).in('id', ids)
+      esPractica
+        // La practica no tiene fila que marcar. Devuelve la misma forma
+        // (`{ error }`) que el update real porque el camino de exito la lee.
+        ? Promise.resolve({ error: null })
+        : supabase.from('clinical_medications').update({ rcta_status: status, ...extra }).in('id', ids)
 
     // ── Log de la emision (migracion 092) ─────────────────────────────────────
     // `ctx` se va completando a medida que la funcion avanza; se declara aca
@@ -77,6 +116,11 @@ Deno.serve(async (req: Request) => {
     // lo deja en consola.
     // deno-lint-ignore no-explicit-any
     const registrar = async (outcome: string, extra: Record<string, any> = {}) => {
+      // La practica no deja rastro en la auditoria: `rcta_issue_log` es el
+      // registro de los actos medicos reales y mezclarlo con ensayos volveria
+      // inutil justamente el uso que motivo la tabla (rearmar las pruebas de
+      // certificacion). El profesional ve el error en pantalla igual.
+      if (esPractica) return
       try {
         const { error } = await supabase
           .from('rcta_issue_log')
@@ -97,7 +141,79 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Load medications + patient + professional ─────────────────────────────
-    const { data: meds, error: medErr } = await supabase
+    // En practica los medicamentos vienen en el body y el paciente es fijo; lo
+    // unico que se lee de la base es el legajo REAL de quien practica, porque su
+    // matricula y su especialidad son lo que sale impreso en el PDF y verlas ahi
+    // es medio punto del ejercicio.
+    const armarPractica = async () => {
+      const jwt = req.headers.get('Authorization')?.replace('Bearer ', '') ?? ''
+      const { data: { user } } = await supabase.auth.getUser(jwt)
+      if (!user) return { data: null, error: { message: 'Sesion invalida' } }
+
+      const { data: quien, error: errQuien } = await supabase
+        .from('profiles')
+        .select(`id, full_name, dni, gender, birth_date, phone,
+                 professional_profiles!professional_profiles_user_id_fkey(specialty, license_type, license_number, address)`)
+        .eq('id', user.id)
+        .single()
+      if (errQuien || !quien) return { data: null, error: errQuien ?? { message: 'Profesional no encontrado' } }
+
+      const legajo = Array.isArray(quien.professional_profiles)
+        ? quien.professional_profiles[0]
+        : quien.professional_profiles
+
+      // Los tres datos propios sin los cuales Innovamed rechaza. Se chequean
+      // ACA y con nombre para que la practica no muera en un `QBI156 DEBE
+      // INGRESAR EL NUMERO DE DOCUMENTO`, que no le dice a nadie que le falta
+      // cargar su DNI. Es ademas el momento util para enterarse: mejor
+      // descubrirlo practicando que con un paciente esperando.
+      const faltan = [
+        !quien.dni && 'tu DNI',
+        !legajo?.license_number && 'tu número de matrícula',
+        !legajo?.address && 'la dirección de tu consultorio',
+      ].filter(Boolean)
+      if (faltan.length) {
+        return { data: null, error: {
+          message: `Para emitir una receta te falta cargar ${faltan.join(', ')}. Completalo en tu perfil y volvé a probar.`,
+          code: 'RCTA_PRACTICA_FALTAN_DATOS',
+        } }
+      }
+
+      // Mismas claves que una fila de `clinical_medications` con sus joins: de
+      // ahi para abajo el codigo es el mismo que el de una receta real.
+      // deno-lint-ignore no-explicit-any
+      const filas = body.medicamentos.map((m: any, i: number) => ({
+        id: `practica-${i}`,
+        rcta_status: 'draft',
+        encounter_id: 'practica',
+        patient_id: PACIENTE_DE_PRACTICA.id,
+        professional_id: quien.id,
+        reg_no: m.reg_no ?? m.regNo ?? null,
+        medication_name: m.medication_name ?? m.nombreProducto ?? null,
+        nombre_droga: m.nombre_droga ?? null,
+        presentacion: m.presentacion ?? null,
+        presentation: m.presentation ?? null,
+        concentration: m.concentration ?? null,
+        quantity: m.quantity ?? 1,
+        is_chronic: !!m.is_chronic,
+        dosage_text: m.dosage_text ?? null,
+        frequency: m.frequency ?? null,
+        notes: m.notes ?? null,
+        cie10_code: m.cie10_code ?? null,
+        cie10_display: m.cie10_display ?? null,
+        professional_license_type: legajo?.license_type ?? null,
+        professional_license_number: legajo?.license_number ?? null,
+        patient: PACIENTE_DE_PRACTICA,
+        professional: { ...quien, professional_profiles: legajo },
+        // Particular: sin cobertura el payload omite `cobertura`, que es el
+        // caso mas simple y el que ademas cubre la cuarta prueba de
+        // certificacion de Innovamed.
+        encounter: { consultation: { id: 'practica', coverage_type: 'particular', financiador_id: null, obra_social_name: null, affiliate_number: null } },
+      }))
+      return { data: filas, error: null }
+    }
+
+    const { data: meds, error: medErr } = esPractica ? await armarPractica() : await supabase
       .from('clinical_medications')
       .select(`
         *,
@@ -113,8 +229,12 @@ Deno.serve(async (req: Request) => {
       .in('id', ids)
       .order('created_at', { ascending: true })
 
+    if (esPractica && medErr) {
+      return await fallar('validation_error',
+        { error: medErr.message, code: (medErr as { code?: string }).code ?? 'RCTA_PRACTICA_ERROR' }, 422)
+    }
     if (medErr || !meds?.length) return await fallar('validation_error', { error: 'Medication not found' }, 404)
-    if (meds.length !== ids.length) return await fallar('validation_error', { error: 'Alguna de las medicaciones no existe' }, 404)
+    if (!esPractica && meds.length !== ids.length) return await fallar('validation_error', { error: 'Alguna de las medicaciones no existe' }, 404)
 
     ctx.patient_id      = meds[0].patient_id ?? null
     ctx.professional_id = meds[0].professional_id ?? null
@@ -198,9 +318,28 @@ Deno.serve(async (req: Request) => {
     await setStatus('pending')
 
     // ── Check credentials ─────────────────────────────────────────────────────
-    const RCTA_API_URL = Deno.env.get('RCTA_API_URL')
-    const RCTA_API_KEY = Deno.env.get('RCTA_API_KEY')
-    const RCTA_CLIENT_APP_ID = Deno.env.get('RCTA_CLIENT_APP_ID')
+    // En practica se emite SIEMPRE contra homologacion. Si este deployment ya
+    // ES homologacion (staging), las de siempre sirven; si no —produccion— hacen
+    // falta las RCTA_HML_*, y si no estan se corta. Nunca se cae a las de
+    // produccion: seria emitir una receta legalmente valida en un ensayo.
+    const esHomologacion = (Deno.env.get('RCTA_API_URL') ?? '').includes('hml.')
+    const RCTA_API_URL = esPractica && !esHomologacion
+      ? Deno.env.get('RCTA_HML_API_URL')
+      : Deno.env.get('RCTA_API_URL')
+    const RCTA_API_KEY = esPractica && !esHomologacion
+      ? Deno.env.get('RCTA_HML_API_KEY')
+      : Deno.env.get('RCTA_API_KEY')
+    const RCTA_CLIENT_APP_ID = esPractica && !esHomologacion
+      ? Deno.env.get('RCTA_HML_CLIENT_APP_ID')
+      : Deno.env.get('RCTA_CLIENT_APP_ID')
+
+    if (esPractica && !esHomologacion && !(RCTA_API_URL && RCTA_API_KEY && RCTA_CLIENT_APP_ID)) {
+      return await fallar('validation_error', {
+        error: 'La receta de práctica todavía no está habilitada. Contactá al equipo de Healthier.',
+        code: 'RCTA_PRACTICA_NO_CONFIGURADA',
+        instructions: 'Cargar RCTA_HML_API_URL + RCTA_HML_API_KEY + RCTA_HML_CLIENT_APP_ID en los secrets de este proyecto (las de homologación, nunca las de producción).',
+      }, 503)
+    }
 
     if (!RCTA_API_URL || !RCTA_API_KEY || !RCTA_CLIENT_APP_ID) {
       // Credentials not yet configured — return structured error so UI can show correct message
@@ -480,9 +619,13 @@ Deno.serve(async (req: Request) => {
 
     // ── Pharmacy stock match + patient notification (best-effort — a failure here
     // must never fail the RCTA response, the prescription was already issued) ──
-    // deno-lint-ignore no-explicit-any
-    for (const m of meds as any[]) {
-      await notifyPharmacyMatch(supabase, m).catch(err => console.error('pharmacy match failed:', err))
+    // En practica no: le avisaria a una farmacia que hay un pedido posible para
+    // un paciente que no existe.
+    if (!esPractica) {
+      // deno-lint-ignore no-explicit-any
+      for (const m of meds as any[]) {
+        await notifyPharmacyMatch(supabase, m).catch(err => console.error('pharmacy match failed:', err))
+      }
     }
 
     await registrar('issued')

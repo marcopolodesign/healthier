@@ -8,7 +8,8 @@ import { capitalizarNombreCatalogo } from '../../lib/format'
 import MedicationSearch from './MedicationSearch'
 import InfoTooltip from '../common/InfoTooltip'
 import DatosRecetaFaltantes from './DatosRecetaFaltantes'
-import { logClinicalAccess } from '../../services/clinicalService'
+import { clinicalService, logClinicalAccess } from '../../services/clinicalService'
+import { esSimulado, marcarRecetaEmitida } from '../../lib/simulacion'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../Toast'
 
@@ -254,44 +255,39 @@ function AddPrescriptionForm({ patientId, encounterId, ensureEncounter, professi
       // no podía leer la cobertura (la busca a través del encuentro).
       const eid = encounterId ?? (ensureEncounter ? await ensureEncounter() : null)
 
-      const { data, error } = await supabase
-        .from('clinical_medications')
-        .insert({
-          patient_id:                  patientId,
-          encounter_id:                eid,
-          professional_id:             professionalId,
+      const data = await clinicalService.createPrescriptionMedication({
+          patientId,
+          encounterId:                 eid,
+          professionalId,
           // La matrícula real, no un placeholder. Va desnormalizada en cada fila
           // clínica por Ley 26.529 Art. 12, y además es la que `rcta-issue`
           // manda como `medico.matricula` — el 'MN'/'0' que estaba hardcodeado
           // acá terminaba impreso en la receta electrónica.
-          professional_license_type:   profProfile?.licenseType ?? 'MN',
-          professional_license_number: profProfile?.licenseNumber ?? '0',
-          medication_name:  form.medicationName.trim(),
-          snomed_code:      null,
+          professionalLicenseType:     profProfile?.licenseType ?? 'MN',
+          professionalLicenseNumber:   profProfile?.licenseNumber ?? '0',
+          medicationName:   form.medicationName.trim(),
+          snomedCode:       null,
           // Siempre presente: `handleSave` no deja guardar sin elegir del catálogo.
-          reg_no:           form.catalogo.regNo,
+          regNo:            form.catalogo.regNo,
           presentacion:     form.catalogo?.presentacion ?? null,
-          nombre_droga:     form.catalogo?.nombreDroga ?? null,
+          nombreDroga:      form.catalogo?.nombreDroga ?? null,
           concentration:    form.concentration.trim() || null,
           presentation:     form.presentation || null,
           route:            form.route || null,
-          dosage_text:      form.dosage.trim(),
+          dosageText:       form.dosage.trim(),
           frequency:        effectiveFrequency || null,
-          duration_days:    form.durationDays ? parseInt(form.durationDays) : null,
+          durationDays:     form.durationDays ? parseInt(form.durationDays) : null,
           quantity:         form.quantity.trim() || null,
-          cie10_code:       form.cie10Code.trim() || null,
-          cie10_display:    form.cie10Display.trim() || null,
+          cie10Code:        form.cie10Code.trim() || null,
+          cie10Display:     form.cie10Display.trim() || null,
           notes:            form.notes.trim() || null,
-          is_chronic:       form.isChronic,
+          isChronic:        form.isChronic,
           priority:         form.priority,
           status:           'active',
-        })
-        .select()
-        .single()
+      })
 
-      if (error) throw error
-      // Asiento de auditoría — este insert no pasa por clinicalService, así que
-      // el log se hace explícito acá (Ley 26.529 Art. 14 / Ley 25.326 Art. 9).
+      // Asiento de auditoría explícito: `createPrescriptionMedication` es un
+      // insert plano y no lo asienta solo (Ley 26.529 Art. 14 / Ley 25.326 Art. 9).
       logClinicalAccess({ resourceType: 'medication', resourceId: data.id, patientId, action: 'create' })
       toast.success('Medicación registrada — todavía falta emitir la receta')
       onSaved(data)
@@ -511,12 +507,9 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
 
   useEffect(() => {
     if (!encounterId) { setLoading(false); return }
-    supabase
-      .from('clinical_medications')
-      .select('*')
-      .eq('encounter_id', encounterId)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => setPrescriptions(data ?? []))
+    clinicalService.getMedicationsByEncounter(encounterId)
+      .then(setPrescriptions)
+      .catch(() => {})
       .finally(() => setLoading(false))
   }, [encounterId])
 
@@ -550,19 +543,23 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
   /** Relee las recetas del encuentro y devuelve las filas, para poder mirarlas. */
   async function recargarRecetas() {
     if (!encounterId) return []
-    const { data } = await supabase
-      .from('clinical_medications')
-      .select('*')
-      .eq('encounter_id', encounterId)
-      .order('created_at', { ascending: false })
-    setPrescriptions(data ?? [])
-    return data ?? []
+    const data = await clinicalService.getMedicationsByEncounter(encounterId).catch(() => [])
+    setPrescriptions(data)
+    return data
   }
 
   async function handleIssueRcta(medicationIds) {
     if (!medicationIds.length) return
     setIssuing(true)
     try {
+      // En la práctica los medicamentos no existen en la base, así que viajan
+      // en el body: `rcta-issue` los arma en memoria, emite contra homologación
+      // y no escribe nada. Ver el bloque "Modo practica" de esa función.
+      const enPractica = esSimulado(encounterId)
+      const cuerpo = enPractica
+        ? { simulacion: true, medicamentos: prescriptions.filter(rx => medicationIds.includes(rx.id)) }
+        : { medicationIds }
+
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rcta-issue`,
@@ -572,11 +569,15 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session?.access_token}`,
           },
-          body: JSON.stringify({ medicationIds }),
+          body: JSON.stringify(cuerpo),
         }
       )
       const result = await res.json()
 
+      if (result.code === 'RCTA_PRACTICA_NO_CONFIGURADA') {
+        toast.warning('La receta de práctica todavía no está habilitada en este entorno.')
+        return
+      }
       if (result.code === 'RCTA_NOT_CONFIGURED') {
         toast.warning('La emisión de recetas todavía no está habilitada para tu cuenta — contactá al equipo de Healthier para activarla')
         return
@@ -595,6 +596,9 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
       // `pending` con todo en NULL, y el profesional se fue creyendo que había
       // recetado. Un "éxito" que el profesional no puede contrastar es peor que
       // un error, porque no vuelve a intentar.
+      // La práctica no tiene fila que releer: se marca en memoria con lo que
+      // devolvió homologación y de ahí en más el chequeo de abajo es el mismo.
+      if (enPractica) marcarRecetaEmitida(medicationIds, result)
       const filas = await recargarRecetas()
       const confirmadas = filas.filter(
         rx => medicationIds.includes(rx.id) && rx.rcta_status === 'issued'

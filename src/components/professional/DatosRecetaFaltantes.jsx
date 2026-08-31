@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Warning, CircleNotch, Check, PencilSimple } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
 import { profilesService } from '../../services/profilesService'
 import {
   faltanDatosProfesional, faltanDatosPaciente, listar, OPCIONES_SEXO,
@@ -99,14 +98,13 @@ export default function DatosRecetaFaltantes({
 
     setGuardando(true)
     try {
-      const { error } = await supabase.rpc('complete_patient_rcta_data', {
-        p_patient_id:      patientId ?? paciente?.id,
-        p_consultation_id: consultationId ?? null,
-        p_dni:             llenos.includes('dni') ? String(form.dni).trim() : null,
-        p_gender:          llenos.includes('gender') ? form.gender : null,
-        p_birth_date:      llenos.includes('birthDate') ? form.birthDate : null,
+      await profilesService.completeRctaData({
+        patientId:      patientId ?? paciente?.id,
+        consultationId: consultationId ?? null,
+        dni:            llenos.includes('dni') ? String(form.dni).trim() : null,
+        gender:         llenos.includes('gender') ? form.gender : null,
+        birthDate:      llenos.includes('birthDate') ? form.birthDate : null,
       })
-      if (error) throw error
       setGuardado(g => ({
         ...g,
         paciente: { ...g.paciente, ...Object.fromEntries(llenos.map(k => [k, form[k]])) },

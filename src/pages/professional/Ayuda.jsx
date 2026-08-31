@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { CaretDown, WhatsappLogo, Wrench } from '@phosphor-icons/react'
+import { CaretDown, WhatsappLogo, Wrench, GraduationCap, ArrowRight } from '@phosphor-icons/react'
+import { Link } from 'react-router-dom'
 import { supportWhatsAppLink } from '../../lib/support'
+import { ID_CONSULTA as ID_SIMULACION } from '../../lib/simulacion'
 
 const FAQ_ITEMS = [
   {
@@ -78,6 +80,25 @@ export default function Ayuda() {
           <WhatsappLogo weight="fill" className="h-4 w-4" /> Escribir por WhatsApp
         </a>
       </div>
+
+      {/* La práctica vive acá y no sólo en el inicio: en el inicio se muestra
+          únicamente al que todavía no atendió a nadie, y el que quiere repasar
+          antes de una consulta difícil la busca en el centro de ayuda. */}
+      <Link
+        to={`/profesional/videollamada/${ID_SIMULACION}`}
+        className="card flex items-center gap-4 hover:border-brand/40 transition-colors group"
+      >
+        <div className="h-10 w-10 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
+          <GraduationCap weight="fill" className="h-5 w-5 text-brand" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-text-primary">Practicá una videoconsulta</p>
+          <p className="text-sm text-text-secondary">
+            Recorré el panel real con una paciente de mentira y una guía paso a paso. No se guarda nada.
+          </p>
+        </div>
+        <ArrowRight className="h-4 w-4 text-brand shrink-0 group-hover:translate-x-0.5 transition-transform" />
+      </Link>
 
       <div className="space-y-2">
         {FAQ_ITEMS.map(item => <FaqItem key={item.q} {...item} />)}

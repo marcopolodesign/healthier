@@ -25,6 +25,8 @@ import Recetario from '../../components/professional/Recetario'
 import FinanciadorPicker from '../../components/FinanciadorPicker'
 import { toast } from '../../components/Toast'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
+import * as simulacion from '../../lib/simulacion'
+import GuiaSimulacion from '../../components/professional/GuiaSimulacion'
 
 const NO_SHOW_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
@@ -1130,6 +1132,35 @@ export default function ProfessionalVideoCall({ profile }) {
   // Remote participant
   const [remote, setRemote] = useState(null)
 
+  // ── Modo simulación ────────────────────────────────────────────────────────
+  // No es una pantalla aparte: es ESTA, con los servicios cortados antes de
+  // Supabase (ver `src/lib/simulacion.js`). Si fuera una maqueta propia, se
+  // desactualizaría con el primer cambio del panel y enseñaría algo que ya no
+  // existe.
+  const simulando = simulacion.esSimulado(id)
+  // El legajo se lee acá aparte del que ya carga `ClinicalPanel`: la consulta
+  // simulada se arma con la especialidad y la matrícula de quien practica —salen
+  // en el panel y en la receta— y hay que tenerlas antes de armarla, o sea antes
+  // de que exista el panel.
+  const [legajoSim, setLegajoSim] = useState(null)
+  const [cargandoLegajoSim, setCargandoLegajoSim] = useState(true)
+  useEffect(() => {
+    if (!simulando) { setCargandoLegajoSim(false); return }
+    if (!profile?.id) return
+    let vivo = true
+    professionalService.getByUserId(profile.id)
+      .then(p => { if (vivo) setLegajoSim(p) })
+      .catch(() => {})
+      .finally(() => { if (vivo) setCargandoLegajoSim(false) })
+    return () => { vivo = false }
+  }, [simulando, profile?.id])
+
+  useEffect(() => {
+    if (!simulando) return
+    simulacion.iniciar({ profile, profProfile: legajoSim })
+    return () => simulacion.terminar()
+  }, [simulando, profile, legajoSim])
+
   // La bitácora existe justamente para diagnosticar una videollamada que salió
   // mal, pero `call_page_opened`, `call_left` y `call_error` estaban definidos y
   // nunca se escribían: al revisar la prueba del 2026-07-30 el log podía decir que
@@ -1141,19 +1172,28 @@ export default function ProfessionalVideoCall({ profile }) {
 
   // ── Step 1: Load consultation ───────────────────────────────────────────────
   useEffect(() => {
+    // La consulta simulada se arma con la especialidad y la matrícula de quien
+    // practica (salen en el panel y en la receta), así que hay que esperar a
+    // tenerlas — si no, practica viendo la firma de relleno 'otra'/'MN'/'0'.
+    if (simulando && cargandoLegajoSim) return
     consultationsService.getById(id)
       .then(cons => setConsultation(cons))
       .catch(() => {
         toast.error('No se pudo cargar la consulta')
         navigate('/profesional/dashboard')
       })
-  }, [id])
+  }, [id, simulando, cargandoLegajoSim])
 
   const admitPatient = async () => {
     if (admitting) return
     setAdmitting(true)
     try {
       await consultationsService.admitPatient(id)
+      // En la simulación no hay canal de presencia que abra la compuerta: la
+      // abre este botón, que es el paso que de verdad hay que aprender —el que
+      // más consultas de soporte genera— y el único momento en que el
+      // profesional decide algo antes de entrar.
+      if (simulando) setJoinGate(true)
       consultationEventsService.log(id, CONSULTATION_EVENTS.PRO_ADMITTED_PATIENT, null,
         { id: profile?.id, role: 'professional' })
       setConsultation(prev => prev ? { ...prev, patientAdmittedAt: new Date().toISOString() } : prev)
@@ -1168,6 +1208,9 @@ export default function ProfessionalVideoCall({ profile }) {
   // ── Step 2: Presence waiting room ──────────────────────────────────────────
   useEffect(() => {
     if (!id) return
+    // Nadie del otro lado a quien esperar, y suscribirse igual dejaría un canal
+    // de Realtime abierto contra una consulta que no existe.
+    if (simulando) return
     let destroyed = false
 
     const ch = supabase.channel(`consultation-waiting-${id}`)
@@ -1214,7 +1257,7 @@ export default function ProfessionalVideoCall({ profile }) {
       supabase.removeChannel(ch)
       channelRef.current = null
     }
-  }, [id])
+  }, [id, simulando])
 
   // ── Step 3: Join Daily.co when both are ready ───────────────────────────────
   useEffect(() => {
@@ -1227,7 +1270,7 @@ export default function ProfessionalVideoCall({ profile }) {
         const { roomUrl, token } = await consultationsService.getDailyAccess(id)
         if (destroyed) return
 
-        const DailyLib = window.__DailyIframeMock ?? DailyIframe
+        const DailyLib = window.__DailyIframeMock ?? (simulando ? simulacion.dailyDeMentira() : DailyIframe)
         const call = DailyLib.createCallObject()
         callRef.current = call
 
@@ -1304,7 +1347,7 @@ export default function ProfessionalVideoCall({ profile }) {
       callRef.current?.leave()
       callRef.current?.destroy()
     }
-  }, [joinGate])
+  }, [joinGate, simulando])
 
   async function toggleCam() {
     const next = !camOn
@@ -1414,6 +1457,12 @@ export default function ProfessionalVideoCall({ profile }) {
 
   return (
     <div className="flex flex-col h-screen bg-zinc-900">
+      {/* Franja de práctica + guía paso a paso. Arriba de todo y empujando el
+          contenido, no flotando: la primera versión era una tarjeta en una
+          esquina y tapaba el botón "Ingresar paciente", que es justo el que la
+          guía te pide tocar. */}
+      {simulando && <GuiaSimulacion onSalir={() => navigate('/profesional/dashboard')} />}
+
       {/* Header — dark, Healthier-owned controls only */}
       <div className="vc-header flex items-center justify-between px-6 py-3 border-b border-white/10 bg-zinc-900 shrink-0">
         <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-white/50 hover:text-white transition-colors">

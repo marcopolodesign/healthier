@@ -1,4 +1,7 @@
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
+// Ver la nota de la valla en `consultationsService.js`.
+import * as simulacion from '../lib/simulacion'
+import { esSimulado } from '../lib/simulacion'
 
 /**
  * Rastro de auditoría de la historia clínica.
@@ -44,6 +47,7 @@ export const clinicalService = {
   logAccess: logClinicalAccess,
 
   async createEncounter({ patientId, professionalId, consultationId, specialty, chiefComplaint, modality, licenseType, licenseNumber }) {
+    if (esSimulado(consultationId)) return simulacion.encuentro()
     const payload = toSnakeCase({
       patientId,
       professionalId,
@@ -71,6 +75,7 @@ export const clinicalService = {
 
   // Returns existing encounter for a consultation, or null if none
   async getEncounterByConsultationIdSafe(consultationId) {
+    if (esSimulado(consultationId)) return simulacion.encuentro()
     const { data, error } = await supabase
       .from('clinical_encounters')
       .select('*')
@@ -82,6 +87,7 @@ export const clinicalService = {
   },
 
   async finishEncounter(encounterId) {
+    if (esSimulado(encounterId)) return simulacion.encuentro()
     const { data, error } = await supabase
       .from('clinical_encounters')
       .update({ status: 'finished', finished_at: new Date().toISOString() })
@@ -95,6 +101,7 @@ export const clinicalService = {
   },
 
   async addEntry(encounterId, { patientId, professionalId, entryType, content, data: entryData, correctsEntryId, icdCode, licenseType, licenseNumber }) {
+    if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, entryType, content, data: entryData, icdCode })
     const payload = toSnakeCase({
       encounterId,
       patientId,
@@ -120,6 +127,7 @@ export const clinicalService = {
   },
 
   async addCondition(encounterId, { patientId, professionalId, icdCode, display, clinicalStatus, onsetDate }) {
+    if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, icdCode, display, clinicalStatus, onsetDate })
     const payload = toSnakeCase({
       encounterId,
       patientId,
@@ -142,6 +150,7 @@ export const clinicalService = {
   },
 
   async addAllergy(encounterId, { patientId, professionalId, allergen, allergyType, clinicalStatus, severity, reaction }) {
+    if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, allergen, allergyType, clinicalStatus, severity, reaction })
     const payload = toSnakeCase({
       encounterId,
       patientId,
@@ -165,6 +174,7 @@ export const clinicalService = {
   },
 
   async addObservation(encounterId, { patientId, professionalId, code, display, value, unit, effectiveDate }) {
+    if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, code, display, value, unit, effectiveDate })
     const payload = toSnakeCase({
       encounterId,
       patientId,
@@ -190,6 +200,7 @@ export const clinicalService = {
   },
 
   async addMedication(encounterId, { patientId, professionalId, medicationName, dosage, frequency, route, instructions, status, startDate, endDate }) {
+    if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, medicationName, dosage, frequency, route, instructions, status, startDate, endDate })
     const dosageText = [dosage, frequency, route].filter(Boolean).join(' — ') || null
     const payload = toSnakeCase({
       encounterId,
@@ -214,7 +225,73 @@ export const clinicalService = {
     return toCamelCase(data)
   },
 
+// ── Lecturas y escrituras que antes hacían los componentes contra Supabase ──
+  // Estaban sueltas en `PrescriptionCreator`, `VitalsPanel` y `AllergyPanel`,
+  // contra la regla del proyecto ("todas las llamadas a la base pasan por
+  // `src/services/`"). Se movieron acá al construir la simulación de
+  // videollamada: la valla de `esSimulado` vive en los servicios, así que una
+  // consulta directa desde un componente se la salteaba — y una de ellas era el
+  // INSERT de la receta, o sea que la práctica habría escrito medicación real
+  // en la historia clínica de una paciente que no existe.
+
+  /** Recetas cargadas en un encuentro, más nueva primero. */
+  async getMedicationsByEncounter(encounterId) {
+    if (esSimulado(encounterId)) return simulacion.recetasDePractica()
+    if (!encounterId) return []
+    const { data, error } = await supabase
+      .from('clinical_medications')
+      .select('*')
+      .eq('encounter_id', encounterId)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return data ?? []
+  },
+
+  /** Signos vitales de un encuentro, en orden cronológico. */
+  async getObservationsByEncounter(encounterId) {
+    if (esSimulado(encounterId)) return simulacion.observacionesDePractica()
+    if (!encounterId) return []
+    const { data, error } = await supabase
+      .from('clinical_observations')
+      .select('*')
+      .eq('encounter_id', encounterId)
+      .order('observed_at', { ascending: true })
+    if (error) throw error
+    return data ?? []
+  },
+
+  /** Alergias del paciente (a nivel paciente, no de un encuentro). */
+  async getAllergiesByPatient(patientId) {
+    if (esSimulado(patientId)) return simulacion.historia().allergies
+    if (!patientId) return []
+    const { data, error } = await supabase
+      .from('clinical_allergies')
+      .select('*')
+      .eq('patient_id', patientId)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return data ?? []
+  },
+
+  /**
+   * La medicación de una receta electrónica. Es más ancha que `addMedication`
+   * —lleva los campos del vademécum de Innovamed (`reg_no`, `presentacion`,
+   * `nombre_droga`) que `rcta-issue` necesita— así que va aparte en vez de
+   * ensanchar aquella firma para todos sus llamadores.
+   */
+  async createPrescriptionMedication(fila) {
+    if (esSimulado(fila.encounterId)) return simulacion.guardarRecetaDePractica(fila)
+    const { data, error } = await supabase
+      .from('clinical_medications')
+      .insert(toSnakeCase(fila))
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  },
+
   async getEncounterWithDetail(encounterId) {
+    if (esSimulado(encounterId)) return simulacion.encuentro()
     const { data: encounter, error: encounterError } = await supabase
       .from('clinical_encounters')
       .select('*, patient:profiles!patient_id(id, full_name, avatar_url)')
@@ -281,6 +358,7 @@ export const clinicalService = {
    * o si nada se emitió.
    */
   async getIssuedRecetasByConsultation(consultationId) {
+    if (esSimulado(consultationId)) return []
     if (!consultationId) return []
 
     const { data: enc, error: encError } = await supabase
@@ -315,6 +393,7 @@ export const clinicalService = {
   },
 
   async getEncounterByConsultationId(consultationId) {
+    if (esSimulado(consultationId)) return simulacion.encuentro()
     const { data, error } = await supabase
       .from('clinical_encounters')
       .select('*')

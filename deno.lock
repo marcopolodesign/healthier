@@ -22,9 +22,12 @@
       "dependencies": [
         "npm:@daily-co/daily-js@0.87",
         "npm:@eslint/js@^9.39.1",
+        "npm:@mercadopago/sdk-js@^0.0.3",
         "npm:@mercadopago/sdk-react@^1.0.7",
         "npm:@phosphor-icons/react@^2.1.10",
         "npm:@playwright/test@^1.61.0",
+        "npm:@sentry/react@^10.72.0",
+        "npm:@sentry/vite-plugin@^5.4.0",
         "npm:@supabase/supabase-js@^2.89.0",
         "npm:@tailwindcss/vite@^4.1.18",
         "npm:@types/react-dom@^19.2.3",

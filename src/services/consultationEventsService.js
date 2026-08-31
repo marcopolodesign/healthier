@@ -1,4 +1,6 @@
 import { supabase, toCamelCase } from '../lib/supabase'
+// Ver la nota de la valla en `consultationsService.js`.
+import { esSimulado } from '../lib/simulacion'
 
 /**
  * Bitácora de eventos por consulta (migración 070).
@@ -48,6 +50,7 @@ export const consultationEventsService = {
    */
   async log(consultationId, event, detail = null, actor = null) {
     if (!consultationId || !event) return
+    if (esSimulado(consultationId)) return
     try {
       await supabase.from('consultation_events').insert({
         consultation_id: consultationId,
