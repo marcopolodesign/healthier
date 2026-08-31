@@ -4,7 +4,7 @@ import {
   MagnifyingGlass, ShieldCheck, X, ArrowSquareOut, Warning,
   CircleNotch, Check, IdentificationCard, FileText, ShieldWarning,
   ShieldSlash, User, Pencil, UploadSimple, ClockCounterClockwise, XCircle,
-  Clock, Trash, Camera,
+  Clock, Trash, Camera, ArrowsClockwise,
 } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
@@ -16,6 +16,7 @@ import { profilesService } from '../../services/profilesService'
 import { paymentsService } from '../../services/paymentsService'
 import { adminService } from '../../services/adminService'
 import { formatSettlementPlazo } from '../../lib/format'
+import { CAMPOS_SENSIBLES } from '../../lib/reverificacion'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
@@ -137,6 +138,16 @@ function fmt(dateStr) {
   return new Date(dateStr).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+// El diff de `reverification_changes` guarda el valor crudo de la columna. Para
+// especialidad y sub-especialidad eso es un slug (`medicina_general`), que no
+// es lo que el super admin lee en el resto de la pantalla.
+function valorLegible(campo, valor, porSlug) {
+  if (valor === null || valor === undefined || valor === '') return 'vacío'
+  if (campo === 'specialty' || campo === 'sub_specialty') return porSlug[valor] ?? valor
+  if (campo.endsWith('_document_url')) return 'documento nuevo'
+  return String(valor)
+}
+
 // ── Status badges ─────────────────────────────────────────────────────────────
 
 // Antes esto era binario (Verificado / Pendiente): un profesional rechazado
@@ -150,6 +161,19 @@ function VerifiedBadge({ pro }) {
       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
         <ShieldCheck className="h-3 w-3" />
         Verificado{pro.verification_source === 'sisa' ? ' · SISA' : pro.verification_source === 'manual' ? ' · Manual' : ''}
+      </span>
+    )
+  }
+  // Va antes que los rechazos: un profesional en re-verificación no fue
+  // rechazado (`rejected_at` sigue en null), pero tampoco es un alta nueva —
+  // ya estuvo aprobado y sigue atendiendo su agenda. Sin este caso caería en
+  // "Pendiente" y sería indistinguible de alguien que nunca fue revisado, que
+  // es exactamente el problema que el CEO señaló con los rechazos.
+  if (pro.reverification_pending) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-50 text-violet-700">
+        <ArrowsClockwise className="h-3 w-3" />
+        Re-verificación
       </span>
     )
   }
@@ -635,6 +659,31 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
                   </div>
                 </div>
               </div>
+
+              {/* Cambios sin revisar (migración 132). Sin esto, un verificado
+                  que vuelve a la cola llega sin ninguna pista de qué mirar —
+                  el legajo entero se ve idéntico salvo el campo que tocó. */}
+              {d?.reverification_pending && (
+                <div className="rounded-xl border border-violet-200 bg-violet-50 p-3">
+                  <p className="text-xs font-semibold text-violet-700 mb-2 flex items-center gap-1.5">
+                    <ArrowsClockwise className="h-3.5 w-3.5" />
+                    Cambió datos ya verificados — {fmt(d.reverification_requested_at)}
+                  </p>
+                  <ul className="space-y-1.5">
+                    {(d.reverification_changes ?? []).map((c, i) => (
+                      <li key={i} className="text-sm text-violet-900">
+                        <span className="font-medium">{CAMPOS_SENSIBLES[c.campo] ?? c.campo}:</span>{' '}
+                        <span className="line-through opacity-60">{valorLegible(c.campo, c.antes, porSlug)}</span>
+                        {' → '}
+                        <span className="font-medium">{valorLegible(c.campo, c.ahora, porSlug)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-violet-600 mt-2">
+                    Sigue atendiendo los turnos que ya tenía agendados, pero no recibe consultas nuevas hasta que lo apruebes.
+                  </p>
+                </div>
+              )}
 
               {/* Estado de rechazo actual — A4: el motivo siempre visible, y
                   distingue si el profesional puede reenviar o no (el

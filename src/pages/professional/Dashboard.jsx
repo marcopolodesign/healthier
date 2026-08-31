@@ -13,6 +13,7 @@ import { supportWhatsAppLink } from '../../lib/support'
 import StatusBadge from '../../components/StatusBadge'
 import ProfileCompletenessCard from '../../components/professional/ProfileCompletenessCard'
 import { atiendePresencial } from '../../lib/profileCompleteness'
+import { CAMPOS_SENSIBLES } from '../../lib/reverificacion'
 import ReferralLinkCard from '../../components/professional/ReferralLinkCard'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
 import OnDemandSwitch from '../../components/professional/OnDemandSwitch'
@@ -261,7 +262,12 @@ export default function ProfessionalDashboard({ profile }) {
     { label: 'Reseñas',         value: profProfile?.totalReviews || 0,                icon: Users,        color: 'text-purple-500 bg-purple-50' },
   ]
 
-  if (!profProfile?.isVerified && !loading) {
+  // `reverificationPending` (migración 132) también tiene `isVerified` en false,
+  // pero NO es un alta a medio hacer: es alguien ya aprobado que cambió un dato
+  // del legajo y sigue con su agenda en pie. Mandarlo a la pantalla de abajo
+  // ("Completá tu perfil" / "Perfil en revisión, 24-48 hs") le escondería los
+  // turnos que tiene que atender hoy. Ve el panel completo con un aviso arriba.
+  if (!profProfile?.isVerified && !profProfile?.reverificationPending && !loading) {
     const isRejected = !!profProfile?.rejectedAt
     // "revision" (o rechazos viejos, de antes de la 097, que no tienen
     // rejection_type) = puede corregir y reenviar. "permanente" = no puede
@@ -420,6 +426,33 @@ export default function ProfessionalDashboard({ profile }) {
 
   return (
     <div className="space-y-6 animate-fade-in">
+
+      {/* Cambió un dato del legajo y volvió a la cola (migración 132). Va arriba
+          de todo porque explica por qué dejaron de entrarle consultas nuevas —
+          sin este aviso el síntoma es "se me murió la agenda" y no hay ninguna
+          pantalla que lo cuente. */}
+      {profProfile?.reverificationPending && (
+        <div className="card border-warning/30 bg-yellow-50">
+          <div className="flex items-start gap-3">
+            <Warning className="h-6 w-6 text-warning shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-text-primary">Tu perfil está en revisión</p>
+              <p className="text-sm text-text-secondary mt-1">
+                Cambiaste {(profProfile.reverificationChanges ?? [])
+                  .map(c => (CAMPOS_SENSIBLES[c.campo] ?? c.campo).toLowerCase())
+                  .filter((v, i, a) => a.indexOf(v) === i)
+                  .join(', ') || 'un dato de tu legajo'}, así que lo tenemos que volver a
+                verificar (24-48 hs). Mientras tanto no vas a recibir consultas nuevas, pero
+                los turnos que ya tenés agendados los seguís atendiendo normalmente.
+              </p>
+              <SupportWhatsAppLink
+                message="Hola, tengo una consulta sobre la revisión de un cambio en mi perfil profesional en Healthier:"
+                className="mt-3"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* El switch de disponibilidad, arriba de todo: estaba enterrado en Agenda y
           detrás de un "Guardar configuración", así que existir en el pool on-demand

@@ -210,7 +210,11 @@ export const professionalService = {
 
   /** Aprobar manualmente. Limpia cualquier rechazo previo (incluido uno
    *  permanente) — si no, `rejection_type='permanente'` seguiría bloqueando
-   *  al profesional en el trigger de la 097 aun después de aprobado. */
+   *  al profesional en el trigger de la 097 aun después de aprobado — y
+   *  también la marca de re-verificación de la 132, para que el drawer deje de
+   *  mostrar "cambió datos ya verificados" sobre algo que acaba de aprobarse.
+   *  El trigger `limpiar_reverificacion_al_verificar` lo garantiza igual; acá
+   *  se escribe explícito para que leyendo este método se sepa qué queda. */
   async approve(professionalProfileId, reviewedBy) {
     const { error } = await supabase
       .from('professional_profiles')
@@ -223,6 +227,9 @@ export const professionalService = {
         rejection_reason: null,
         rejected_at: null,
         rejection_type: null,
+        reverification_pending: false,
+        reverification_requested_at: null,
+        reverification_changes: null,
       })
       .eq('id', professionalProfileId)
     if (error) throw error

@@ -1,12 +1,15 @@
 import { useState, useEffect, useMemo } from 'react'
+import { Warning } from '@phosphor-icons/react'
 import { professionalService } from '../../services/professionalService'
 import { profilesService } from '../../services/profilesService'
 import FileUpload from '../../components/FileUpload'
+import Modal from '../../components/Modal'
 import AddressAutocomplete from '../../components/common/AddressAutocomplete'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { geocodeAddress } from '../../lib/geo'
 import { toast } from '../../components/Toast'
 import { isLikelyTooSmallForFace } from '../../lib/imageCompression'
+import { camposSensiblesQueCambian, requiereReverificacion } from '../../lib/reverificacion'
 
 export default function ProfessionalProfile({ profile }) {
   const { especialidades, activas, porSlug, subEspecialidadesDe } = useEspecialidades()
@@ -62,8 +65,16 @@ export default function ProfessionalProfile({ profile }) {
     }
   }
 
-  const save = async (e) => {
-    e.preventDefault()
+  // Cambiar la especialidad de un profesional ya verificado lo devuelve a la
+  // cola de revisión (migración 132). El guardado no cambia — lo que cambia es
+  // que primero se le dice, en vez de que se entere cuando su perfil ya dejó de
+  // recibir consultas.
+  const cambiosSensibles = requiereReverificacion(profData)
+    ? camposSensiblesQueCambian(profData, form)
+    : []
+  const [confirmandoReverificacion, setConfirmandoReverificacion] = useState(false)
+
+  const guardar = async () => {
     setSaving(true)
     try {
       if (avatarFile) {
@@ -76,13 +87,31 @@ export default function ProfessionalProfile({ profile }) {
         if (geo) { payload.latitude = geo.lat; payload.longitude = geo.lng }
       }
       if (payload.latitude == null) { delete payload.latitude; delete payload.longitude }
-      await professionalService.upsert(profile.id, payload)
-      toast.success('Perfil actualizado')
+      const guardado = await professionalService.upsert(profile.id, payload)
+      // Quedarse con lo que devolvió el servidor y no con el payload:
+      // `is_verified` y `reverification_pending` los decide el trigger, así que
+      // lo que se mandó no es lo que quedó. Sin esto el aviso volvería a
+      // aparecer en el siguiente guardado, comparando contra datos viejos.
+      // `profiles` es un join de sólo lectura que el upsert no devuelve — se
+      // conserva el que ya estaba o el avatar del encabezado desaparece.
+      setProfData(prev => ({ ...guardado, profiles: prev?.profiles }))
+      if (guardado?.reverificationPending) {
+        toast.info('Guardamos el cambio. Tu perfil quedó pendiente de verificación.')
+      } else {
+        toast.success('Perfil actualizado')
+      }
     } catch {
       toast.error('Error al guardar')
     } finally {
       setSaving(false)
+      setConfirmandoReverificacion(false)
     }
+  }
+
+  const save = (e) => {
+    e.preventDefault()
+    if (cambiosSensibles.length > 0) return setConfirmandoReverificacion(true)
+    guardar()
   }
 
   if (loading) return <div className="h-64 bg-bg-surface rounded-xl animate-pulse" />
@@ -178,10 +207,51 @@ export default function ProfessionalProfile({ profile }) {
 
         </div>
 
+        {cambiosSensibles.length > 0 && (
+          <div className="card border-warning/30 bg-yellow-50 flex items-start gap-3">
+            <Warning className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+            <p className="text-sm text-text-secondary">
+              Estás cambiando {cambiosSensibles.join(' y ').toLowerCase()}. Al guardar, tu perfil
+              vuelve a revisión.
+            </p>
+          </div>
+        )}
+
         <button type="submit" disabled={saving} className="btn-primary w-full">
           {saving ? 'Guardando...' : 'Guardar cambios'}
         </button>
       </form>
+
+      <Modal
+        open={confirmandoReverificacion}
+        onClose={() => setConfirmandoReverificacion(false)}
+        title="Tu perfil vuelve a revisión"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary">
+            Estás por cambiar {cambiosSensibles.join(' y ').toLowerCase()}. Es parte de lo que el
+            equipo de Healthier revisó para verificarte, así que lo tenemos que volver a mirar.
+          </p>
+          <ul className="text-sm text-text-secondary space-y-2 bg-white rounded-xl p-4 border border-border-default">
+            <li>· Tu perfil pasa a <strong className="text-text-primary">pendiente de verificación</strong>.</li>
+            <li>· Mientras tanto <strong className="text-text-primary">no vas a recibir consultas nuevas</strong>: no aparecés en la búsqueda ni en las consultas inmediatas.</li>
+            <li>· Los turnos que ya tenés agendados <strong className="text-text-primary">los seguís atendiendo normalmente</strong>.</li>
+          </ul>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setConfirmandoReverificacion(false)}
+              className="btn-secondary flex-1"
+            >
+              Cancelar
+            </button>
+            <button type="button" onClick={guardar} disabled={saving} className="btn-primary flex-1">
+              {saving ? 'Guardando...' : 'Guardar igual'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
