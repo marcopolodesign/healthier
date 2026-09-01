@@ -62,6 +62,46 @@ export const professionalService = {
     return data.publicUrl
   },
 
+  /**
+   * Los documentos que el profesional YA tiene subidos, por nombre lógico
+   * (`titulo`, `matricula`, `dni`, …) — lo que `uploadDocument()` usa como
+   * `fileName`.
+   *
+   * Existe para que el paso "Documentación" del onboarding no aparezca en
+   * blanco cuando alguien vuelve a entrar: sus archivos están en el bucket
+   * desde el primer intento, pero el `<input type=file>` no puede recordarlos,
+   * así que sin esto el reenvío guardaba el legajo con las columnas de
+   * documentos vacías (los archivos quedaban huérfanos en Storage, sin fila
+   * que los apunte).
+   *
+   * Un mismo documento puede tener más de un archivo — subir `dni.jpeg`
+   * encima de `dni.pdf` escribe un path nuevo, no pisa el anterior — así que
+   * se queda con el más reciente, que es el que el último envío guardó.
+   */
+  async listDocuments(userId) {
+    const { data, error } = await supabase.storage.from('professional-docs').list(userId)
+    // Un error acá no puede tumbar el wizard: se pierde la precarga, no el
+    // camino de subir los archivos de nuevo.
+    if (error || !data) return {}
+
+    return data.reduce((acc, obj) => {
+      const dot = obj.name.lastIndexOf('.')
+      if (dot <= 0) return acc
+      const key = obj.name.slice(0, dot)
+      const when = obj.updated_at || obj.created_at || ''
+      if (acc[key] && (acc[key].updatedAt || '') >= when) return acc
+      const path = `${userId}/${obj.name}`
+      acc[key] = {
+        name: obj.name,
+        path,
+        size: obj.metadata?.size ?? null,
+        updatedAt: when,
+        url: supabase.storage.from('professional-docs').getPublicUrl(path).data.publicUrl,
+      }
+      return acc
+    }, {})
+  },
+
   async getDashboardPool() {
     const { data, error } = await supabase
       .from('professional_profiles')

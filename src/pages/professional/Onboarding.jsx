@@ -60,6 +60,9 @@ export default function Onboarding({ profile }) {
   const [malpracticeFile, setMalpracticeFile]         = useState(null)
   const [specialistCertFile, setSpecialistCertFile]   = useState(null)
   const [cuitFile, setCuitFile]                       = useState(null)
+  // Lo que ya está en `professional-docs/<uid>/` de un intento anterior. Ver
+  // `professionalService.listDocuments`.
+  const [existingDocs, setExistingDocs] = useState({})
   const [categoryId, setCategoryId]     = useState(null)
   const [specialtySearch, setSpecialtySearch] = useState('')
   const [privacyAccepted, setPrivacyAccepted] = useState(false)
@@ -113,6 +116,12 @@ export default function Onboarding({ profile }) {
     }
   }
 
+  // Qué documento se va a guardar en el envío: el nuevo si lo eligió ahora, y
+  // si no el que ya tenía subido. Mostrar '—' teniéndolo subido haría creer
+  // que se pierde.
+  const docResumen = (file, key) =>
+    file?.name || (existingDocs[key] ? `${existingDocs[key].name} (ya subido)` : '—')
+
   // Per-step validation
   const canAdvance = () => {
     if (step === 0) return !!categoryId && !!form.specialty && form.licenseNumber.length > 0
@@ -159,13 +168,29 @@ export default function Onboarding({ profile }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id])
 
+  // Los `<input type=file>` arrancan siempre vacíos —el browser no deja
+  // prellenarlos— así que quien vuelve al wizard ve el paso de Documentación
+  // como si nunca hubiera subido nada. Sin esto, reenviar guardaba el legajo
+  // con las columnas de documentos vacías y sus archivos quedaban huérfanos en
+  // el bucket.
+  useEffect(() => {
+    if (!profile?.id) return
+    professionalService.listDocuments(profile.id).then(setExistingDocs).catch(() => {})
+  }, [profile?.id])
+
   const submit = async () => {
     setLoading(true)
     try {
       // Independent uploads to different storage paths — no data dependency
       // between them, so run concurrently instead of serializing round-trips.
+      // Sin archivo nuevo se reusa el que ya estaba subido, en vez de mandar
+      // '' —que con el `|| undefined` de abajo deja la columna sin tocar y el
+      // archivo huérfano en el bucket—. Es el caso normal de un reenvío: el
+      // profesional ya subió todo y sólo viene a corregir la especialidad.
       const uploadDoc = (file, fileName) =>
-        file ? professionalService.uploadDocument(profile.id, file, 'professional-docs', fileName) : Promise.resolve('')
+        file
+          ? professionalService.uploadDocument(profile.id, file, 'professional-docs', fileName)
+          : Promise.resolve(existingDocs[fileName]?.url || '')
 
       const [, titleUrl, licenseUrl, dniUrl, malpracticeUrl, specialistCertUrl, cuitUrl] = await Promise.all([
         avatarFile ? profilesService.uploadAvatar(profile.id, avatarFile) : Promise.resolve(null),
@@ -463,6 +488,7 @@ export default function Onboarding({ profile }) {
                 <label className="form-label">Título profesional</label>
                 <FileUpload
                   onFile={setTitleFile}
+                  existing={existingDocs.titulo}
                   accept=".pdf,.jpg,.jpeg,.png"
                   label={titleFile ? titleFile.name : 'Subir título (PDF o imagen)'}
                 />
@@ -471,6 +497,7 @@ export default function Onboarding({ profile }) {
                 <label className="form-label">Matrícula profesional</label>
                 <FileUpload
                   onFile={setLicenseFile}
+                  existing={existingDocs.matricula}
                   accept=".pdf,.jpg,.jpeg,.png"
                   label={licenseFile ? licenseFile.name : 'Subir matrícula (PDF o imagen)'}
                 />
@@ -479,6 +506,7 @@ export default function Onboarding({ profile }) {
                 <label className="form-label">DNI <span className="text-text-tertiary text-xs">(frente y dorso en un archivo)</span></label>
                 <FileUpload
                   onFile={setDniFile}
+                  existing={existingDocs.dni}
                   accept=".pdf,.jpg,.jpeg,.png"
                   label={dniFile ? dniFile.name : 'Subir DNI (PDF o imagen)'}
                 />
@@ -487,6 +515,7 @@ export default function Onboarding({ profile }) {
                 <label className="form-label">Seguro de mala praxis <span className="text-text-tertiary text-xs">(recomendado)</span></label>
                 <FileUpload
                   onFile={setMalpracticeFile}
+                  existing={existingDocs.seguro_mala_praxis}
                   accept=".pdf,.jpg,.jpeg,.png"
                   label={malpracticeFile ? malpracticeFile.name : 'Subir póliza de responsabilidad civil profesional'}
                 />
@@ -496,6 +525,7 @@ export default function Onboarding({ profile }) {
                   <label className="form-label">Certificado de especialista <span className="text-text-tertiary text-xs">(requerido si declarás sub-especialidad)</span></label>
                   <FileUpload
                     onFile={setSpecialistCertFile}
+                    existing={existingDocs.certificado_especialista}
                     accept=".pdf,.jpg,.jpeg,.png"
                     label={specialistCertFile ? specialistCertFile.name : `Subir certificado de especialista en ${form.subSpecialty}`}
                   />
@@ -513,6 +543,7 @@ export default function Onboarding({ profile }) {
                 />
                 <FileUpload
                   onFile={setCuitFile}
+                  existing={existingDocs.cuit}
                   accept=".pdf,.jpg,.jpeg,.png"
                   label={cuitFile ? cuitFile.name : 'Subir constancia de CUIT/Monotributo (AFIP)'}
                 />
@@ -575,12 +606,12 @@ export default function Onboarding({ profile }) {
                   ['Sexo',              OPCIONES_SEXO.find(o => o.value === form.gender)?.label || '—'],
                   ['Foto de perfil',    avatarFile ? avatarFile.name : (profile?.avatarUrl ? 'La de tu cuenta de Google' : '—')],
                   ['Bio',               form.bio ? `${form.bio.slice(0, 80)}${form.bio.length > 80 ? '…' : ''}` : '—'],
-                  ['Título',           titleFile   ? titleFile.name   : '—'],
-                  ['Doc. matrícula',   licenseFile ? licenseFile.name : '—'],
-                  ['Doc. DNI',         dniFile     ? dniFile.name     : '—'],
-                  ['Seguro mala praxis', malpracticeFile ? malpracticeFile.name : '—'],
-                  ...(form.subSpecialty ? [['Cert. especialista', specialistCertFile ? specialistCertFile.name : '—']] : []),
-                  ['CUIT/Monotributo', form.cuitNumber || cuitFile ? [form.cuitNumber, cuitFile?.name].filter(Boolean).join(' — ') : '—'],
+                  ['Título',           docResumen(titleFile,          'titulo')],
+                  ['Doc. matrícula',   docResumen(licenseFile,        'matricula')],
+                  ['Doc. DNI',         docResumen(dniFile,            'dni')],
+                  ['Seguro mala praxis', docResumen(malpracticeFile,  'seguro_mala_praxis')],
+                  ...(form.subSpecialty ? [['Cert. especialista', docResumen(specialistCertFile, 'certificado_especialista')]] : []),
+                  ['CUIT/Monotributo', [form.cuitNumber, cuitFile?.name || existingDocs.cuit?.name].filter(Boolean).join(' — ') || '—'],
                 ].map(([label, value]) => (
                   <div key={label} className="flex items-start gap-3 px-4 py-2.5">
                     <span className="font-medium text-text-primary w-36 shrink-0">{label}</span>

@@ -2,7 +2,15 @@ import { useRef, useState } from 'react'
 import { Upload, File, X, CircleNotch } from '@phosphor-icons/react';
 import { compressImage } from '../lib/imageCompression'
 
-export default function FileUpload({ onFile, accept = '.pdf,.jpg,.jpeg,.png', label = 'Subir archivo', hint = '' }) {
+/**
+ * `existing` — un archivo que el usuario YA subió en una sesión anterior
+ * (`{ name, updatedAt }`). No es un `File`: no se puede rellenar un
+ * `<input type=file>` por seguridad del browser, así que se muestra aparte y
+ * quien consume el componente decide qué hacer si no llega uno nuevo (en
+ * onboarding: reusar el que ya estaba en vez de guardar el legajo sin
+ * documento).
+ */
+export default function FileUpload({ onFile, accept = '.pdf,.jpg,.jpeg,.png', label = 'Subir archivo', hint = '', existing = null }) {
   const inputRef = useRef(null)
   const [dragging, setDragging] = useState(false)
   const [file, setFile] = useState(null)
@@ -23,9 +31,32 @@ export default function FileUpload({ onFile, accept = '.pdf,.jpg,.jpeg,.png', la
     if (inputRef.current) inputRef.current.value = ''
   }
 
+  // `processing` lo excluye para que al elegir el reemplazo caiga en la rama
+  // de abajo y se vea "Procesando imagen…" — si no, la tarjeta seguiría
+  // diciendo "Ya subido" mientras comprime, sin ninguna señal de que pasó algo.
+  const shownExisting = !file && existing && !processing
+
   return (
     <div>
-      {!file ? (
+      {shownExisting ? (
+        <div className="flex items-center gap-3 p-3 bg-bg-surface border border-border-default rounded-lg">
+          <File className="h-8 w-8 text-text-tertiary shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-text-primary truncate">{existing.name}</p>
+            <p className="text-xs text-text-secondary">
+              Ya subido{existing.updatedAt ? ` el ${new Date(existing.updatedAt).toLocaleDateString('es-AR')}` : ''}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="text-xs font-medium text-brand hover:underline shrink-0 whitespace-nowrap"
+          >
+            Reemplazar
+          </button>
+          <input ref={inputRef} type="file" accept={accept} className="hidden" onChange={e => handle(e.target.files[0])} />
+        </div>
+      ) : !file ? (
         <div
           onClick={() => !processing && inputRef.current?.click()}
           onDragOver={e => { e.preventDefault(); setDragging(true) }}
