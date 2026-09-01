@@ -30,13 +30,24 @@ import { CODIGO_DE_CIERRE } from '../../lib/simulacion'
  * `resize` y `scroll`, pero arrastrar el divisor no dispara ninguno de los dos
  * — por eso el `ResizeObserver` de abajo.
  *
- * ── Un paso sin elemento no es un error ─────────────────────────────────────
+ * ── Los pasos dependen de la vertical ───────────────────────────────────────
  *
- * "Recetá" apunta a una pestaña que **no existe** para un psicólogo (sólo
- * recetan las especialidades habilitadas), y "Dejala entrar" apunta a un botón
- * que desaparece una vez que entró. driver.js centra el globo cuando el
- * selector no matchea, que es la degradación correcta: el paso se sigue
- * leyendo, sin foco. Nada que detectar ni que saltear.
+ * **Sólo recetan las especialidades habilitadas** (`puede_recetar`, migración
+ * 116: hoy clínica y pediatría). Al psicólogo no hay que **explicarle** cómo
+ * recetar: la pestaña no existe para él, y dejar el paso hacía que driver.js
+ * centrara el globo y le enseñara algo que no puede hacer nunca. El paso se
+ * saca, no se muestra sin foco. Lo mismo al revés con NutriPlan, que es de
+ * nutrición y de nadie más.
+ *
+ * Cada paso declara un `aplica(ctx)`; el numerador de driver.js cuenta los que
+ * quedan, así que "Paso 3 de 7" sale solo.
+ *
+ * ── Un paso sin elemento sí es válido ───────────────────────────────────────
+ *
+ * Distinto del caso de arriba: "Dejala entrar" apunta a un botón que desaparece
+ * una vez que la habilitó, y la bienvenida no señala nada. driver.js centra el
+ * globo cuando el selector no matchea, que es la degradación correcta — el paso
+ * se sigue leyendo, sin foco.
  */
 
 const CLAVE_VISTA = 'healthier:guia-simulacion-vista'
@@ -51,7 +62,10 @@ const PASOS = [
     selector: '[data-tour="preconsulta"]',
     lado: 'left',
     titulo: 'Mirá con qué llega',
-    cuerpo: 'Antes de entrar, la paciente completa un cuestionario. Acá tenés su motivo, sus síntomas y desde cuándo: dolor de garganta y fiebre hace 3 días.',
+    // El motivo de la paciente simulada cambia según la vertical (ver
+    // `PRECONSULTAS` en `lib/simulacion.js`), así que el texto no puede
+    // nombrarlo: diría "dolor de garganta" en una consulta de psicología.
+    cuerpo: 'Antes de entrar, la paciente completa un cuestionario. Acá tenés su motivo, sus síntomas y desde cuándo, para no arrancar preguntándole lo que ya contestó.',
   },
   {
     selector: '[data-tour="ingresar-paciente"]',
@@ -63,7 +77,9 @@ const PASOS = [
     selector: '[data-tour="tab-historia"]',
     lado: 'bottom',
     titulo: 'Revisá los antecedentes',
-    cuerpo: 'Acá está lo que le pasó antes. Miralo ahora, no después de recetar: hay una alergia cargada que choca con lo primero que uno recetaría para una angina.',
+    cuerpo: ({ receta }) => receta
+      ? 'Acá está lo que le pasó antes. Miralo ahora, no después de recetar: hay una alergia cargada que choca con lo primero que uno recetaría para una angina.'
+      : 'Acá está lo que le pasó antes: consultas previas, diagnósticos y alergias. Conviene mirarlo antes de decidir nada.',
   },
   {
     selector: '[data-tour="botones-nota"]',
@@ -72,10 +88,19 @@ const PASOS = [
     cuerpo: 'Escribí lo que encontrás: síntomas, signos vitales y el diagnóstico, que se busca por nombre y queda con su código. En una consulta real esto queda firmado con tu matrícula y no se puede borrar.',
   },
   {
+    // Sólo para quien puede recetar de verdad. Ver la nota de arriba.
+    aplica: ({ receta }) => receta,
     selector: '[data-tour="tab-receta"]',
     lado: 'bottom',
     titulo: 'Recetá',
     cuerpo: 'Buscá el medicamento en el vademécum y emitila: vas a recibir el PDF de verdad. En la práctica sale contra el ambiente de pruebas, así que no tiene validez legal y no le llega a nadie.',
+  },
+  {
+    aplica: ({ especialidad }) => especialidad === 'nutricion',
+    selector: '[data-tour="nutriplan"]',
+    lado: 'left',
+    titulo: 'Armale el plan',
+    cuerpo: 'Desde acá abrís NutriPlan Pro con esta paciente ya cargada, para armarle o editarle el plan de alimentación. Es tuyo, de nutrición: el resto de las verticales no lo tiene.',
   },
   {
     selector: '[data-tour="tab-cerrar"]',
@@ -89,12 +114,14 @@ const PASOS = [
   },
 ]
 
-export default function GuiaSimulacion() {
+export default function GuiaSimulacion({ especialidad, puedeRecetar = false, listo = true }) {
   const tourRef = useRef(null)
   const [corriendo, setCorriendo] = useState(false)
 
   const arrancar = useCallback(() => {
     tourRef.current?.destroy()
+    const ctx = { especialidad, receta: puedeRecetar }
+    const pasos = PASOS.filter(p => !p.aplica || p.aplica(ctx))
     const tour = driver({
       showProgress: true,
       progressText: 'Paso {{current}} de {{total}}',
@@ -107,9 +134,14 @@ export default function GuiaSimulacion() {
       nextBtnText: 'Siguiente',
       prevBtnText: 'Anterior',
       doneBtnText: 'Terminar',
-      steps: PASOS.map(p => ({
+      steps: pasos.map(p => ({
         element: p.selector,
-        popover: { title: p.titulo, description: p.cuerpo, side: p.lado ?? 'bottom', align: 'start' },
+        popover: {
+          title: p.titulo,
+          description: typeof p.cuerpo === 'function' ? p.cuerpo(ctx) : p.cuerpo,
+          side: p.lado ?? 'bottom',
+          align: 'start',
+        },
       })),
       onDestroyed: () => {
         setCorriendo(false)
@@ -119,11 +151,16 @@ export default function GuiaSimulacion() {
     tourRef.current = tour
     setCorriendo(true)
     tour.drive()
-  }, [])
+  }, [especialidad, puedeRecetar])
 
   // Arranca solo la primera vez. Después queda el botón de la franja: el que ya
   // la hizo viene a practicar, no a leerla otra vez.
   useEffect(() => {
+    // `listo` = ya sabemos si esta especialidad receta. Sin esperarlo, el tour
+    // arrancaría mientras el catálogo de especialidades todavía viene en
+    // camino: `puedeRecetar` devuelve `false` mientras carga, y un clínico se
+    // quedaría sin el paso del recetario.
+    if (!listo) return
     let vista = false
     try { vista = !!localStorage.getItem(CLAVE_VISTA) } catch { /* se trata como no vista */ }
     if (!vista) {
@@ -132,7 +169,7 @@ export default function GuiaSimulacion() {
       const t = setTimeout(arrancar, 600)
       return () => clearTimeout(t)
     }
-  }, [arrancar])
+  }, [arrancar, listo])
 
   useEffect(() => () => tourRef.current?.destroy(), [])
 

@@ -115,19 +115,60 @@ export const PACIENTE = {
   emergencyRel: 'Hermano',
 }
 
-// Lo que el paciente declaró antes de entrar. Se eligió un motivo que atraviesa
-// todo el panel: da para cargar signos vitales, un diagnóstico con código y una
-// receta — o sea, deja practicar el recorrido completo y no un pedacito.
-const PRECONSULTA = {
-  version: 2,
-  motivo: 'Dolor de garganta y fiebre',
-  sintomas: [
-    'Dolor al tragar desde hace 3 días',
-    'Fiebre de 38,2 °C anoche',
-    'Ganglios del cuello hinchados',
-  ],
-  desde: 'hace 3 días',
-  medicacion_actual: 'Ibuprofeno 400 mg cada 8 h por su cuenta',
+// Lo que el paciente declaró antes de entrar. **Depende de la vertical**: una
+// psicóloga practicando sobre un dolor de garganta no está practicando su
+// trabajo, y el motivo es lo que decide si el resto del panel tiene sentido
+// (qué signos vitales cargar, qué diagnóstico buscar, si hay algo que recetar).
+//
+// 🔴 La forma es la **v2 real** que espera `PreconsultaSummary`: `symptom` +
+// `answers` + `medication`. La primera versión de este fixture usaba
+// `{motivo, sintomas, desde, medicacion_actual}` —copiado de `seed-staging.mjs`—
+// y `hasPreconsulta()` devolvía false, así que el bloque no se renderizaba nunca
+// y el paso "Mirá con qué llega" del tour se quedaba sin elemento al que
+// apuntar. Lo mismo le pasa hoy a las consultas sembradas de staging: ver
+// nextsteps.md.
+const PRECONSULTAS = {
+  // Clínica y pediatría: da para vitales, diagnóstico con código y receta — o
+  // sea, el recorrido completo, incluido el recetario.
+  clinica: {
+    version: 2,
+    symptom: { label: 'Dolor de garganta y fiebre', icd10Code: 'J02.9', freeText: 'Me duele mucho al tragar y anoche tuve fiebre.' },
+    answers: [
+      { questionId: 'desde', questionLabel: '¿Desde cuándo?', labels: ['Hace 3 días'] },
+      { questionId: 'fiebre', questionLabel: 'Fiebre', labels: ['38,2 °C anoche'], redFlag: true },
+      { questionId: 'otros', questionLabel: 'Otros síntomas', labels: ['Ganglios del cuello hinchados'] },
+    ],
+    medication: { taking: true, detail: 'Ibuprofeno 400 mg cada 8 h, por su cuenta' },
+  },
+  nutricion: {
+    version: 2,
+    symptom: { label: 'Quiere ordenar su alimentación', freeText: 'Como cualquier cosa a cualquier hora y me cuesta sostener un plan.' },
+    answers: [
+      { questionId: 'desde', questionLabel: '¿Desde cuándo?', labels: ['Hace varios meses'] },
+      { questionId: 'habitos', questionLabel: 'Hábitos', labels: ['Come fuera de casa casi todos los días', 'Cansancio a media tarde'] },
+      { questionId: 'peso', questionLabel: 'Peso', labels: ['Subió 6 kg en el último año'] },
+    ],
+    medication: { taking: false },
+  },
+  mente: {
+    version: 2,
+    symptom: { label: 'Ansiedad y problemas para dormir', icd10Code: 'F41.1', freeText: 'Hace un tiempo que no puedo desconectar del trabajo.' },
+    answers: [
+      { questionId: 'desde', questionLabel: '¿Desde cuándo?', labels: ['Hace 2 meses'] },
+      { questionId: 'sueno', questionLabel: 'Sueño', labels: ['Le cuesta dormirse casi todas las noches'] },
+      { questionId: 'social', questionLabel: 'Situaciones sociales', labels: ['Se agita en reuniones'] },
+    ],
+    medication: { taking: false },
+  },
+}
+
+// De la especialidad a la preconsulta que corresponde. `clinica` es el default
+// —es la vertical más completa— para que una especialidad nueva caiga en un
+// caso usable y no en uno vacío.
+function preconsultaDe(especialidad) {
+  if (especialidad === 'nutricion') return PRECONSULTAS.nutricion
+  if (especialidad === 'psicologia') return PRECONSULTAS.mente
+  return PRECONSULTAS.clinica
 }
 
 /**
@@ -158,7 +199,7 @@ export function consulta() {
     financiadorId: null,
     obraSocialName: null,
     affiliateNumber: null,
-    preconsultaData: PRECONSULTA,
+    preconsultaData: preconsultaDe(profProfile?.specialty),
     // El paciente ya está esperando y todavía sin habilitar: así el primer paso
     // de la guía ("ingresá al paciente") tiene algo real que hacer, que es el
     // botón que más consultas de soporte genera.

@@ -970,7 +970,11 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
               ) : (
                 <DatosPacienteTab loading={loadingPatientData} patient={patientData} />
               )}
-              {specialty === 'nutricion' && <NutriplanEnConsulta patientId={patientId} />}
+              {specialty === 'nutricion' && (
+                <div data-tour="nutriplan">
+                  <NutriplanEnConsulta patientId={patientId} />
+                </div>
+              )}
             </section>
 
             <section ref={el => { sectionRefs.current.historia = el }} className="scroll-mt-6 mt-8 pb-4">
@@ -1164,6 +1168,13 @@ export default function ProfessionalVideoCall({ profile }) {
     simulacion.iniciar({ profile, profProfile: legajoSim })
     return () => simulacion.terminar()
   }, [simulando, profile, legajoSim])
+
+  // La guía muestra u oculta pasos según la vertical — el del recetario sólo
+  // para las especialidades habilitadas (migración 116), el de NutriPlan sólo
+  // para nutrición. `ClinicalPanel` calcula lo mismo para sus pestañas; el hook
+  // cachea a nivel módulo, así que pedirlo dos veces no hace un fetch más.
+  const { puedeRecetar: puedeRecetarEsp, cargando: cargandoEsp } = useEspecialidades()
+  const especialidadSim = legajoSim?.specialty ?? null
 
   // La bitácora existe justamente para diagnosticar una videollamada que salió
   // mal, pero `call_page_opened`, `call_left` y `call_error` estaban definidos y
@@ -1465,7 +1476,13 @@ export default function ProfessionalVideoCall({ profile }) {
           contenido, no flotando: la primera versión era una tarjeta en una
           esquina y tapaba el botón "Ingresar paciente", que es justo el que la
           guía te pide tocar. */}
-      {simulando && <GuiaSimulacion />}
+      {simulando && (
+        <GuiaSimulacion
+          especialidad={especialidadSim}
+          puedeRecetar={puedeRecetarEsp(especialidadSim)}
+          listo={!cargandoEsp && !cargandoLegajoSim}
+        />
+      )}
 
       {/* Header — dark, Healthier-owned controls only */}
       <div className="vc-header flex items-center justify-between px-6 py-3 border-b border-white/10 bg-zinc-900 shrink-0">
