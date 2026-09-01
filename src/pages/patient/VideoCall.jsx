@@ -124,7 +124,7 @@ export default function PatientVideoCall() {
          * "MP lo está revisando", que todavía no es un sí.
          */
         const sinCargo = cons?.priceAtBooking == null || Number(cons.priceAtBooking) === 0
-        const pagoOk = sinCargo || ['paid', 'in_process'].includes(cons?.paymentStatus)
+        const pagoOk = sinCargo || ['paid', 'in_process', 'exempt'].includes(cons?.paymentStatus)
         if (cons && !pagoOk) {
           toast.error('Esta consulta todavía no tiene el pago confirmado.')
           navigate('/paciente/consultas')

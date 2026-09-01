@@ -232,7 +232,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   useEffect(() => {
     if (!profile?.id) return
     consultationsService.getReceiptsForPatient(profile.id)
-      .then(rows => setComprobantes(rows.filter(r => r.paymentStatus === 'paid')))
+      .then(rows => setComprobantes(rows.filter(r => ['paid', 'exempt'].includes(r.paymentStatus))))
       .catch(() => {})
       .finally(() => setComprobantesLoading(false))
   }, [profile?.id])

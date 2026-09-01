@@ -96,6 +96,10 @@ export default function OnDemand({ profile }) {
   const [showExitConfirm, setShowExitConfirm] = useState(false)
 
   const isDemoMode = !configLoading && !publicKey
+  // El paciente tiene la videollamada bonificada (profiles.payment_exempt,
+  // migración 135) — se salta el paygate de MP entero, la consulta nace
+  // marcada `payment_status: 'exempt'` en vez de pasar por mp-payment.
+  const paymentExempt = Boolean(profile?.paymentExempt)
 
   const IconComp = vertical?.icon
   // El precio lo fija la vertical y pisa el del profesional (Mateo, 2026-07-31).
@@ -141,6 +145,9 @@ export default function OnDemand({ profile }) {
       isOnDemand:     true,
       priceAtBooking: price,
       scheduledAt:    new Date().toISOString(),
+      // Bonificada: nace ya marcada `exempt`, sin el viaje de ida y vuelta
+      // extra de crear y después actualizar.
+      ...(paymentExempt ? { paymentStatus: 'exempt' } : {}),
     })
     setConsultationId(created.id)
     return created.id
@@ -287,6 +294,20 @@ export default function OnDemand({ profile }) {
     if (!profile?.id) { toast.error('Faltan datos para continuar'); return }
 
     track('begin_checkout', { value: price, currency: 'ARS', items: consultaItem(), flow: 'paciente' })
+
+    if (paymentExempt) {
+      setPaying(true)
+      try {
+        const id = await ensureConsultation()
+        toast.success('Consulta bonificada — sin cargo para tu cuenta')
+        await handleAuthorized(id)
+      } catch (err) {
+        toast.error(err?.message || 'Error al iniciar la consulta')
+      } finally {
+        setPaying(false)
+      }
+      return
+    }
 
     if (isDemoMode) {
       setPaying(true)
@@ -705,7 +726,7 @@ export default function OnDemand({ profile }) {
               </p>
             </div>
             <p className="font-black text-[22px] text-gray-900 shrink-0">
-              {price != null ? `$${price.toLocaleString('es-AR')}` : '—'}
+              {paymentExempt ? 'Bonificado' : price != null ? `$${price.toLocaleString('es-AR')}` : '—'}
             </p>
           </div>
 
@@ -716,6 +737,9 @@ export default function OnDemand({ profile }) {
               {isDemoMode && (
                 <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wide">DEMO</span>
               )}
+              {paymentExempt && (
+                <span className="px-2 py-0.5 rounded-full bg-brand-muted text-brand text-[10px] font-bold uppercase tracking-wide">Bonificado</span>
+              )}
             </div>
             {isDemoMode ? (
               <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-amber-200 bg-amber-50">
@@ -725,6 +749,16 @@ export default function OnDemand({ profile }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold text-gray-900">Pago de demostración</p>
                   <p className="text-[11px] text-gray-400">Sin cargo real — VITE_MP_PUBLIC_KEY no está configurada</p>
+                </div>
+              </div>
+            ) : paymentExempt ? (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-brand/30 bg-brand-muted">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-white">
+                  <ShieldCheck size={18} weight="fill" className="text-brand" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-gray-900">Consulta bonificada</p>
+                  <p className="text-[11px] text-gray-400">Sin cargo para tu cuenta</p>
                 </div>
               </div>
             ) : (
@@ -778,15 +812,17 @@ export default function OnDemand({ profile }) {
 
           {/* Pre-auth explanation — no charge until the consultation ends (moved below
               Método de Pago per Mateo, 2026-07-27) */}
-          <div className="flex items-start gap-3 mb-3 p-4 bg-brand-muted/30 rounded-[20px] border border-brand/20">
-            <ShieldCheck className="w-5 h-5 text-brand shrink-0 mt-0.5" weight="fill" />
-            <p className="text-[13px] text-gray-600 leading-snug">
-              El pago se hará efectivo una vez que finalices tu consulta. Healthier no guarda tus datos, utilizamos Mercado Pago para mayor seguridad.
-            </p>
-          </div>
+          {!paymentExempt && (
+            <div className="flex items-start gap-3 mb-3 p-4 bg-brand-muted/30 rounded-[20px] border border-brand/20">
+              <ShieldCheck className="w-5 h-5 text-brand shrink-0 mt-0.5" weight="fill" />
+              <p className="text-[13px] text-gray-600 leading-snug">
+                El pago se hará efectivo una vez que finalices tu consulta. Healthier no guarda tus datos, utilizamos Mercado Pago para mayor seguridad.
+              </p>
+            </div>
+          )}
 
           {/* Credit-card-only notice (spec: v1 solo tarjeta de crédito) — MP-branded copy */}
-          {!isDemoMode && (
+          {!isDemoMode && !paymentExempt && (
             <div className="flex items-start gap-3 mb-6 p-4 bg-amber-50 rounded-[20px] border border-amber-200">
               <MercadoPagoMark className="w-5 h-5 shrink-0 mt-0.5" />
               <p className="text-[13px] text-amber-700 leading-snug">
@@ -799,10 +835,10 @@ export default function OnDemand({ profile }) {
           {!addCardMode && (
             <button
               onClick={handlePay}
-              disabled={paying || (!isDemoMode && !selectedCardId)}
+              disabled={paying || missingCard}
               className={`w-full py-5 rounded-[20px] font-bold text-[17px] shadow-sm transition-all flex justify-center items-center gap-2
                 ${paying ? 'bg-gray-100 text-gray-400' :
-                  (!isDemoMode && !selectedCardId) ? 'bg-gray-100 text-gray-400' :
+                  missingCard ? 'bg-gray-100 text-gray-400' :
                   'bg-brand text-white hover:bg-brand-hover active:scale-95'}`}
             >
               {/* Después de un rechazo el botón decía "Pagar $1.000 e iniciar"

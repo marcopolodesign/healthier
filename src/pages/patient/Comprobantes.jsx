@@ -25,6 +25,7 @@ const PAYMENT_BADGE = {
   paid:            { label: 'Cobrado',    cls: 'bg-emerald-100 text-emerald-700' },
   pending_payment: { label: 'Pendiente',  cls: 'bg-amber-100 text-amber-700' },
   refunded:        { label: 'Reembolsado',cls: 'bg-red-100 text-red-600' },
+  exempt:          { label: 'Bonificado', cls: 'bg-violet-100 text-violet-700' },
 }
 
 const STATUS_BADGE = {

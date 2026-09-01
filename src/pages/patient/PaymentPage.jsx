@@ -47,6 +47,10 @@ export default function PaymentPage({ profile }) {
   const [useCredits, setUseCredits]       = useState(true)
 
   const isDemoMode = !configLoading && !publicKey
+  // El paciente tiene el turno bonificado (profiles.payment_exempt, migración
+  // 135) — se salta el paygate de MP, la consulta nace marcada
+  // `payment_status: 'exempt'` en vez de pasar por mp-payment.
+  const paymentExempt = Boolean(profile?.paymentExempt)
 
   useEffect(() => {
     mpService.getPaymentPlatformConfig().then(({ data }) => {
@@ -89,8 +93,10 @@ export default function PaymentPage({ profile }) {
       professionalId,
       vertical:       verticalId,
       modality:       modality === 'virtual' ? 'video' : 'presencial',
-      status:         'pending',
-      paymentStatus:  'pending_payment',
+      // Bonificado: nace ya confirmado y marcado `exempt`, sin el viaje de
+      // ida y vuelta extra de crear y después actualizar.
+      status:         paymentExempt ? 'confirmed' : 'pending',
+      paymentStatus:  paymentExempt ? 'exempt' : 'pending_payment',
       priceAtBooking: price ?? null,
       scheduledAt:    scheduledAt ?? new Date().toISOString(),
       petName:        petName ?? null,
@@ -157,6 +163,20 @@ export default function PaymentPage({ profile }) {
     if (paying || paid || addCardMode) return
     if (!profile?.id || !professionalId) {
       toast.error('Faltan datos para procesar el pago')
+      return
+    }
+
+    if (paymentExempt) {
+      setPaying(true)
+      try {
+        const id = await ensureConsultation()
+        setPaid(true)
+        setTimeout(() => navigate(`/paciente/turno-confirmado/${id}`), 600)
+      } catch (err) {
+        toast.error(err?.message || 'Error al confirmar el turno')
+      } finally {
+        setPaying(false)
+      }
       return
     }
 
@@ -275,7 +295,7 @@ export default function PaymentPage({ profile }) {
         </div>
 
         {/* Healthy Credits */}
-        {!isDemoMode && creditBalance > 0 && (
+        {!isDemoMode && !paymentExempt && creditBalance > 0 && (
           <div className="bg-white rounded-2xl border border-brand/25 p-4 flex items-start gap-3">
             <div className="w-9 h-9 rounded-xl bg-brand-muted flex items-center justify-center shrink-0">
               <Sparkle className="w-4 h-4 text-brand" weight="fill" />
@@ -304,6 +324,9 @@ export default function PaymentPage({ profile }) {
             {isDemoMode && (
               <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wide">DEMO</span>
             )}
+            {paymentExempt && (
+              <span className="px-2 py-0.5 rounded-full bg-brand-muted text-brand text-[10px] font-bold uppercase tracking-wide">Bonificado</span>
+            )}
           </div>
           {isDemoMode ? (
             <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-amber-200 bg-amber-50">
@@ -313,6 +336,17 @@ export default function PaymentPage({ profile }) {
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-semibold text-text-primary">Pago de demostración</p>
                 <p className="text-[11px] text-text-tertiary">Sin cargo real</p>
+              </div>
+              <CheckCircle size={20} weight="fill" className="text-brand shrink-0" />
+            </div>
+          ) : paymentExempt ? (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-brand/30 bg-brand-muted">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-white">
+                <Sparkle size={18} weight="fill" className="text-brand" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-semibold text-text-primary">Turno bonificado</p>
+                <p className="text-[11px] text-text-tertiary">Sin cargo para tu cuenta</p>
               </div>
               <CheckCircle size={20} weight="fill" className="text-brand shrink-0" />
             </div>
@@ -352,7 +386,9 @@ export default function PaymentPage({ profile }) {
               )}
               <div className="flex items-center justify-between">
                 <span className="text-[13px] font-semibold text-text-secondary">A pagar hoy</span>
-                <span className="text-[24px] font-black text-text-primary">${chargeAmount.toLocaleString('es-AR')}</span>
+                <span className="text-[24px] font-black text-text-primary">
+                  {paymentExempt ? 'Bonificado' : `$${chargeAmount.toLocaleString('es-AR')}`}
+                </span>
               </div>
             </div>
           )}
@@ -362,7 +398,7 @@ export default function PaymentPage({ profile }) {
         {!addCardMode && (
           <button
             onClick={handlePay}
-            disabled={paying || paid || (!isDemoMode && chargeAmount > 0 && !selectedCardId)}
+            disabled={paying || paid || (!isDemoMode && !paymentExempt && chargeAmount > 0 && !selectedCardId)}
             className={[
               'w-full py-5 rounded-full font-bold text-[16px] flex items-center justify-center gap-3 transition-all',
               paid

@@ -20,13 +20,15 @@ const STATUS_OPTIONS = ['pending', 'confirmed', 'in_progress', 'closing', 'pendi
   .map(value => ({ value, label: STATUS_CONFIG[value]?.label ?? value }))
 
 // Vocabulario exacto de `consultations.payment_status` — constraint vigente
-// desde la migración 056 (`consultations_payment_status_check`).
+// desde la migración 135 (`consultations_payment_status_check`, que sumó
+// 'exempt' a lo que trajo la 056).
 const PAYMENT_STATUS_OPTIONS = [
   { value: 'pending_payment', label: 'Pendiente de pago' },
   { value: 'in_process',      label: 'En proceso' },
   { value: 'paid',            label: 'Pagado' },
   { value: 'rejected',        label: 'Rechazado' },
   { value: 'refunded',        label: 'Reembolsado' },
+  { value: 'exempt',          label: 'Bonificado' },
 ]
 
 const PAYMENT_STATUS_BADGE = {
@@ -35,6 +37,7 @@ const PAYMENT_STATUS_BADGE = {
   paid:            'bg-emerald-50 text-emerald-600',
   rejected:        'bg-gray-100 text-gray-500',
   refunded:        'bg-red-50 text-red-600',
+  exempt:          'bg-violet-50 text-violet-600',
 }
 const PAYMENT_STATUS_LABEL = Object.fromEntries(PAYMENT_STATUS_OPTIONS.map(o => [o.value, o.label]))
 

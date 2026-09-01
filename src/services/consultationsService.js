@@ -386,7 +386,8 @@ export const consultationsService = {
    * `payment_status: 'in_process'` es exactamente "autorizada, sin capturar"
    * (ver `mapMpStatus` en `mp-payment`): un pago cobrado queda `paid` y uno
    * que MP todavía está revisando queda `pending_payment`, así que ninguno de
-   * los dos entra acá.
+   * los dos entra acá. `exempt` es el equivalente para un paciente bonificado
+   * (migración 135) — nunca pasa por MP, pero la espera igual se rehidrata.
    */
   async getLiveOnDemand(patientId) {
     if (!patientId) return null
@@ -395,7 +396,7 @@ export const consultationsService = {
       .select('*')
       .eq('patient_id', patientId)
       .eq('is_on_demand', true)
-      .eq('payment_status', 'in_process')
+      .in('payment_status', ['in_process', 'exempt'])
       .in('status', ['pending', 'confirmed'])
       .order('created_at', { ascending: false })
       .limit(1)

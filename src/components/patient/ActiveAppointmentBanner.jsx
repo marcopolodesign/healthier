@@ -29,7 +29,7 @@ const TICK_MS = 30 * 1000
  * videollamada. `pending_payment` incluye también "MP lo está revisando", que
  * todavía no es un sí.
  */
-const PAGOS_HABILITANTES = ['paid', 'in_process']
+const PAGOS_HABILITANTES = ['paid', 'in_process', 'exempt']
 
 /** Sin precio no hay nada que cobrar — no se puede exigir un pago que no existe. */
 const sinCargo = c => c?.priceAtBooking == null || Number(c.priceAtBooking) === 0
