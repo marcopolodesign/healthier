@@ -180,6 +180,10 @@ export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onCl
               key={item.to}
               to={item.to}
               onClick={onClose}
+              // Anclaje de los tours guiados (`useTourGuiado`). Es un contrato
+              // explícito: si se borra, el paso que señala esta entrada del menú
+              // se queda sin foco y el globo se va al centro de la pantalla.
+              data-tour={`nav-${item.to.split('/').pop()}`}
               className={({ isActive }) => isActive ? 'nav-pill-active' : 'nav-pill-inactive'}
             >
               <item.icon className="h-[22px] w-[22px] shrink-0" />

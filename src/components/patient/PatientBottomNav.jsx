@@ -27,6 +27,10 @@ export default function PatientBottomNav({ className = '' }) {
           <button
             key={tab.id}
             onClick={() => navigate(tab.path)}
+            // Anclaje de los tours guiados (`useTourGuiado`). Contrato
+            // explícito: sin él, el paso que señala esta pestaña se queda sin
+            // foco y el globo se va al centro.
+            data-tour={`pac-nav-${tab.id}`}
             className={`flex flex-col items-center gap-1 transition-all duration-200 px-3 ${active ? 'text-brand' : 'text-gray-400 hover:text-gray-500'}`}
           >
             <tab.icon

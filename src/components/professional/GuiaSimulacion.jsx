@@ -1,53 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { driver } from 'driver.js'
-import 'driver.js/dist/driver.css'
 import { GraduationCap, Play } from '@phosphor-icons/react'
+import { useTourGuiado } from '../../hooks/useTourGuiado'
 import { CODIGO_DE_CIERRE } from '../../lib/simulacion'
 
 /**
- * La franja de práctica y el tour guiado de la simulación de videollamada.
+ * La franja "modo práctica" y el tour guiado de la simulación de videollamada.
  *
- * ── El tour ─────────────────────────────────────────────────────────────────
- *
- * Overlay negro al 70% con el elemento del paso recortado, y el texto en un
- * globo verde pegado a ese elemento con anterior/siguiente adentro. Va con
- * **driver.js** (~5 kB, sin dependencias): hace exactamente esto y se pinta por
- * CSS, así que entra con los tokens de Healthier — ver `.guia-healthier` en
- * `src/index.css`. Se descartó intro.js por licencia (AGPL/comercial) y
- * Shepherd/Joyride por peso y por su API de estilos.
- *
- * **Lo resaltado se puede tocar, pero el paso no avanza solo**
- * (`disableActiveInteraction: false`, decisión de Mateo): se puede ir haciendo
- * mientras se lee, y el paso cambia recién con el botón. Avanzar solo al tocar
- * ataría cada paso a un detector propio, y un detector roto deja el tour
- * trabado sin salida.
- *
- * ── El problema que este tour tiene y otros no ──────────────────────────────
- *
- * El recorte se ancla a coordenadas, y acá la geometría se mueve debajo: el
- * profesional **arrastra el divisor** entre el video y el panel clínico, y en
- * mobile la Historia Clínica sube como una hoja. driver.js reposiciona solo en
- * `resize` y `scroll`, pero arrastrar el divisor no dispara ninguno de los dos
- * — por eso el `ResizeObserver` de abajo.
+ * El motor del tour —driver.js, el overlay, el filtrado por `aplica()`, el
+ * arranque-la-primera-vez— vive en `useTourGuiado`, compartido con los tours
+ * del dashboard del paciente y del profesional. Acá quedan sólo los pasos y la
+ * franja, que es propia de esta pantalla.
  *
  * ── Los pasos dependen de la vertical ───────────────────────────────────────
  *
  * **Sólo recetan las especialidades habilitadas** (`puede_recetar`, migración
- * 116: hoy clínica y pediatría). Al psicólogo no hay que **explicarle** cómo
- * recetar: la pestaña no existe para él, y dejar el paso hacía que driver.js
- * centrara el globo y le enseñara algo que no puede hacer nunca. El paso se
- * saca, no se muestra sin foco. Lo mismo al revés con NutriPlan, que es de
- * nutrición y de nadie más.
- *
- * Cada paso declara un `aplica(ctx)`; el numerador de driver.js cuenta los que
- * quedan, así que "Paso 3 de 7" sale solo.
- *
- * ── Un paso sin elemento sí es válido ───────────────────────────────────────
- *
- * Distinto del caso de arriba: "Dejala entrar" apunta a un botón que desaparece
- * una vez que la habilitó, y la bienvenida no señala nada. driver.js centra el
- * globo cuando el selector no matchea, que es la degradación correcta — el paso
- * se sigue leyendo, sin foco.
+ * 116: hoy clínica y pediatría). Al psicólogo no hay que explicarle cómo
+ * recetar: la pestaña no existe para él, y dejar el paso hacía que el globo se
+ * centrara y le enseñara algo que no puede hacer nunca. Lo mismo al revés con
+ * NutriPlan, que es de nutrición y de nadie más.
  */
 
 const CLAVE_VISTA = 'healthier:guia-simulacion-vista'
@@ -115,74 +84,12 @@ const PASOS = [
 ]
 
 export default function GuiaSimulacion({ especialidad, puedeRecetar = false, listo = true }) {
-  const tourRef = useRef(null)
-  const [corriendo, setCorriendo] = useState(false)
-
-  const arrancar = useCallback(() => {
-    tourRef.current?.destroy()
-    const ctx = { especialidad, receta: puedeRecetar }
-    const pasos = PASOS.filter(p => !p.aplica || p.aplica(ctx))
-    const tour = driver({
-      showProgress: true,
-      progressText: 'Paso {{current}} de {{total}}',
-      overlayColor: '#000000',
-      overlayOpacity: 0.7,
-      // Se puede tocar lo resaltado; el paso avanza con los botones.
-      disableActiveInteraction: false,
-      allowClose: true,
-      popoverClass: 'guia-healthier',
-      nextBtnText: 'Siguiente',
-      prevBtnText: 'Anterior',
-      doneBtnText: 'Terminar',
-      steps: pasos.map(p => ({
-        element: p.selector,
-        popover: {
-          title: p.titulo,
-          description: typeof p.cuerpo === 'function' ? p.cuerpo(ctx) : p.cuerpo,
-          side: p.lado ?? 'bottom',
-          align: 'start',
-        },
-      })),
-      onDestroyed: () => {
-        setCorriendo(false)
-        try { localStorage.setItem(CLAVE_VISTA, '1') } catch { /* modo privado: se vuelve a ofrecer */ }
-      },
-    })
-    tourRef.current = tour
-    setCorriendo(true)
-    tour.drive()
-  }, [especialidad, puedeRecetar])
-
-  // Arranca solo la primera vez. Después queda el botón de la franja: el que ya
-  // la hizo viene a practicar, no a leerla otra vez.
-  useEffect(() => {
-    // `listo` = ya sabemos si esta especialidad receta. Sin esperarlo, el tour
-    // arrancaría mientras el catálogo de especialidades todavía viene en
-    // camino: `puedeRecetar` devuelve `false` mientras carga, y un clínico se
-    // quedaría sin el paso del recetario.
-    if (!listo) return
-    let vista = false
-    try { vista = !!localStorage.getItem(CLAVE_VISTA) } catch { /* se trata como no vista */ }
-    if (!vista) {
-      // Un tick para que el panel clínico ya esté montado: driver.js mide el
-      // elemento al resaltarlo, y sobre un DOM a medio pintar mide mal.
-      const t = setTimeout(arrancar, 600)
-      return () => clearTimeout(t)
-    }
-  }, [arrancar, listo])
-
-  useEffect(() => () => tourRef.current?.destroy(), [])
-
-  // El recorte está anclado a coordenadas y acá la geometría se mueve sin que
-  // haya `resize` de ventana: el divisor entre el video y el panel es
-  // arrastrable, y en mobile la Historia Clínica sube como hoja. Sin esto, el
-  // agujero del overlay queda apuntando al lugar donde el elemento estaba.
-  useEffect(() => {
-    if (!corriendo) return
-    const observador = new ResizeObserver(() => tourRef.current?.refresh())
-    observador.observe(document.body)
-    return () => observador.disconnect()
-  }, [corriendo])
+  const { arrancar } = useTourGuiado({
+    clave: CLAVE_VISTA,
+    pasos: PASOS,
+    ctx: { especialidad, receta: puedeRecetar },
+    listo,
+  })
 
   return (
     <div className="shrink-0 flex items-center gap-3 bg-brand px-4 py-1.5 text-white">

@@ -14,6 +14,7 @@ import InteractiveMap from '../../components/patient/InteractiveMap'
 import ActiveAppointmentBanner from '../../components/patient/ActiveAppointmentBanner'
 import MedicoCabeceraCard from '../../components/patient/MedicoCabeceraCard'
 import MedicoCabeceraModal from '../../components/patient/MedicoCabeceraModal'
+import TourPaciente from '../../components/patient/TourPaciente'
 import { professionalService } from '../../services/professionalService'
 import { emergencyService, getSosSettings } from '../../services/emergencyService'
 import { pickProForVertical } from '../../lib/verticals'
@@ -241,7 +242,16 @@ export default function PatientDashboard({ profile }) {
   // el fondo y el redondeo inferior los pone el contenedor del render, que se
   // extiende de borde a borde y arranca pegado al tope de la pantalla.
   const onDemandHero = (
-    <>
+    /* Anclajes de los tours guiados (`useTourGuiado`): contrato explícito con
+       `TourPaciente`. Si se renombran o se borran, el paso que los señala se
+       queda sin foco y el globo se va al centro de la pantalla.
+
+       El anclaje envuelve el título Y el carrusel, no sólo el título: resaltar
+       el encabezado dejaba las tarjetas debajo del globo, o sea tapadas
+       justamente mientras el paso habla de ellas y de su precio. El wrapper
+       repite el `gap-5` del padre para que juntar los dos hijos en uno no
+       cambie el espaciado. */
+    <div data-tour="pac-ondemand" className="flex flex-col gap-5">
       <div>
         <span className="text-[11px] font-semibold tracking-widest uppercase text-white/70">Atención inmediata</span>
         <h2 className="text-[28px] tracking-tight font-light leading-none mt-1.5">Hablá con un médico ahora</h2>
@@ -294,11 +304,11 @@ export default function PatientDashboard({ profile }) {
           ))}
         </div>
       </div>
-    </>
+    </div>
   )
 
   const specialtyGrid = (
-    <div className="flex flex-col gap-3">
+    <div data-tour="pac-especialidades" className="flex flex-col gap-3">
       <div className="flex flex-col gap-0.5">
         <h2 className="text-[17px] font-semibold text-text-primary leading-tight">Buscar por especialidad</h2>
         <p className="text-[13px] text-text-secondary leading-snug">Agendá turno con un profesional</p>
@@ -348,6 +358,7 @@ export default function PatientDashboard({ profile }) {
 
   const mapCta = (
     <button
+      data-tour="pac-mapa"
       onClick={() => { track('view_map_click', { flow: 'paciente' }); setShowMap(true) }}
       className="w-full bg-bg-secondary rounded-3xl shadow-[0_1px_4px_rgba(45,42,38,0.06)] overflow-hidden text-left active:scale-[0.98] transition-all"
     >
@@ -372,6 +383,7 @@ export default function PatientDashboard({ profile }) {
   // que es la otra mitad y no tenía entrada desde el inicio (Mateo, 2026-07-31).
   const buscarPorNombreCta = (
     <button
+      data-tour="pac-buscar"
       onClick={() => { track('search_by_name_click', { flow: 'paciente' }); navigate('/paciente/buscar') }}
       className="card-hover w-full flex items-center gap-4 active:scale-[0.98] transition-all text-left"
     >
@@ -426,6 +438,7 @@ export default function PatientDashboard({ profile }) {
   // de volver a la pantalla de tracking.
   const sosButton = sosEnabled && (
     <button
+      data-tour="pac-sos"
       onClick={() => { track('sos_click', { flow: 'paciente' }); navigate('/paciente/sos') }}
       className="w-full py-5 px-5 rounded-2xl bg-danger flex items-center gap-4 text-left active:scale-[0.98] transition-all"
     >
@@ -464,6 +477,16 @@ export default function PatientDashboard({ profile }) {
 
   return (
     <div className="absolute inset-0">
+      {/* `listo` espera a que hayan llegado las verticales y el estado del
+          S.O.S.: los `aplica()` de los pasos se evalúan una sola vez al
+          arrancar, y con `VERTICALS` todavía vacío el paso de consulta
+          inmediata se perdería en silencio. */}
+      <TourPaciente
+        hayOnDemand={onDemandVerticals.length > 0}
+        sosActivo={sosEnabled}
+        listo={VERTICALS.length > 0}
+      />
+
       <div className="absolute inset-0 overflow-y-auto scrollbar-hide bg-bg-primary">
 
         {/* Bloque verde de borde a borde: arranca pegado al tope (sin redondeo

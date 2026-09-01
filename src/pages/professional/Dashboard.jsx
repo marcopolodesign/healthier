@@ -12,6 +12,7 @@ import { supabase } from '../../lib/supabase'
 import { supportWhatsAppLink } from '../../lib/support'
 import StatusBadge from '../../components/StatusBadge'
 import ProfileCompletenessCard from '../../components/professional/ProfileCompletenessCard'
+import TourProfesional from '../../components/professional/TourProfesional'
 import { atiendePresencial } from '../../lib/profileCompleteness'
 import { CAMPOS_SENSIBLES, enumerarCampos } from '../../lib/reverificacion'
 import { ID_CONSULTA as ID_SIMULACION } from '../../lib/simulacion'
@@ -66,10 +67,15 @@ function SupportWhatsAppLink({ message, className = '' }) {
  */
 const CLAVE_PRACTICA_CERRADA = 'healthier:practica-invitacion-cerrada'
 
+// La lee la tarjeta para esconderse y el tour guiado para decidir si su paso
+// sobre la práctica aplica. Un paso que señala una tarjeta cerrada mandaría el
+// globo al centro explicando algo que no está en pantalla.
+function practicaEstaVisible() {
+  try { return !localStorage.getItem(CLAVE_PRACTICA_CERRADA) } catch { return true }
+}
+
 function TarjetaPractica() {
-  const [cerrada, setCerrada] = useState(() => {
-    try { return !!localStorage.getItem(CLAVE_PRACTICA_CERRADA) } catch { return false }
-  })
+  const [cerrada, setCerrada] = useState(() => !practicaEstaVisible())
   if (cerrada) return null
 
   const cerrar = e => {
@@ -327,6 +333,19 @@ export default function ProfessionalDashboard({ profile }) {
   // del legajo y sigue con su agenda en pie. Mandarlo a la pantalla de abajo
   // ("Completá tu perfil" / "Perfil en revisión, 24-48 hs") le escondería los
   // turnos que tiene que atender hoy. Ve el panel completo con un aviso arriba.
+  // Contexto del tour guiado. `listo` espera a que hayan llegado el legajo y el
+  // estado de Mercado Pago: los `aplica()` de los pasos se evalúan una sola vez
+  // al arrancar, y con datos a medias se pierden pasos en silencio.
+  const tourProfesional = (
+    <TourProfesional
+      verificado={!!profProfile?.isVerified || !!profProfile?.reverificationPending}
+      especialidad={profProfile?.specialty ?? null}
+      mpConectado={!!mpStatus?.connected}
+      practicaVisible={practicaEstaVisible()}
+      listo={!loading && mpStatus !== null}
+    />
+  )
+
   if (!profProfile?.isVerified && !profProfile?.reverificationPending && !loading) {
     const isRejected = !!profProfile?.rejectedAt
     // "revision" (o rechazos viejos, de antes de la 097, que no tienen
@@ -342,6 +361,7 @@ export default function ProfessionalDashboard({ profile }) {
 
     return (
       <div className="space-y-6 animate-fade-in">
+        {tourProfesional}
         <div>
           <h1 className="page-title">Hola, {profile?.fullName?.split(' ')[0]}</h1>
         </div>
@@ -476,21 +496,24 @@ export default function ProfessionalDashboard({ profile }) {
         {/* El que está esperando la verificación es justo el que más necesita
             conocer el panel: cuando lo aprueben va a entrar a una consulta real
             sin haber visto nunca la pantalla. */}
-        {!isPermanentlyRejected && <TarjetaPractica />}
+        <div data-tour="pro-practica">{!isPermanentlyRejected && <TarjetaPractica />}</div>
 
-        {!!profProfile && !isPermanentlyRejected && (
-          <ProfileCompletenessCard
-            profProfile={profProfile}
-            schedules={schedules}
-            title="Adelantá tu perfil mientras esperás"
-          />
-        )}
+        <div data-tour="pro-checklist">
+          {!!profProfile && !isPermanentlyRejected && (
+            <ProfileCompletenessCard
+              profProfile={profProfile}
+              schedules={schedules}
+              title="Adelantá tu perfil mientras esperás"
+            />
+          )}
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {tourProfesional}
 
       {/* Cambió un dato del legajo y volvió a la cola (migración 132). Va arriba
           de todo porque explica por qué dejaron de entrarle consultas nuevas —
@@ -522,12 +545,17 @@ export default function ProfessionalDashboard({ profile }) {
           muestra siempre y se cierra a mano: quien quiere repasar antes de una
           consulta difícil también la necesita, y el que no la quiere la cierra
           una vez y no la ve más. */}
-      {!loading && <TarjetaPractica />}
+      {/* Anclajes de los tours guiados (`useTourGuiado`): son un contrato
+          explícito con `TourProfesional`. Si se renombran o se borran, el paso
+          que los señala se queda sin foco y el globo se va al centro. */}
+      <div data-tour="pro-practica">{!loading && <TarjetaPractica />}</div>
 
       {/* El switch de disponibilidad, arriba de todo: estaba enterrado en Agenda y
           detrás de un "Guardar configuración", así que existir en el pool on-demand
           dependía de acordarse de entrar a otra pantalla (Mateo, 2026-07-31). */}
-      <OnDemandSwitch profileId={profile?.id} onChange={v => setOnDemandOn(v)} />
+      <div data-tour="pro-ondemand">
+        <OnDemandSwitch profileId={profile?.id} onChange={v => setOnDemandOn(v)} />
+      </div>
 
       {/* Al entrar, si está apagado, se pregunta una vez por sesión. Es la decisión
           que define si la plataforma tiene o no oferta ese día. */}
@@ -593,7 +621,7 @@ export default function ProfessionalDashboard({ profile }) {
         </Link>
       )}
 
-      <div>
+      <div data-tour="pro-saludo">
         <h1 className="page-title">Hola, {profile?.fullName?.split(' ')[0]} 👋</h1>
         <p className="text-text-secondary mt-1">Tu agenda de hoy</p>
       </div>
@@ -610,10 +638,12 @@ export default function ProfessionalDashboard({ profile }) {
           cerrar — y una X exigiría una columna nueva para recordar el
           descarte. */}
 
-      {!loading && <ReferralLinkCard codigo={profProfile?.referralCode} nombre={profile?.fullName} />}
+      <div data-tour="pro-referido">
+        {!loading && <ReferralLinkCard codigo={profProfile?.referralCode} nombre={profile?.fullName} />}
+      </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div data-tour="pro-stats" className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map(s => (
           <div key={s.label} className="card bg-gradient-to-br from-bg-primary to-brand/10">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${s.color}`}>
@@ -626,7 +656,7 @@ export default function ProfessionalDashboard({ profile }) {
       </div>
 
       {/* Earnings banner */}
-      <Link to="/profesional/ganancias" className="card flex items-center gap-4 hover:border-brand/40 transition-colors group">
+      <Link to="/profesional/ganancias" data-tour="pro-ganancias" className="card flex items-center gap-4 hover:border-brand/40 transition-colors group">
         <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center shrink-0">
           <TrendUp className="h-6 w-6 text-emerald-600" />
         </div>
@@ -692,6 +722,7 @@ export default function ProfessionalDashboard({ profile }) {
       {!loading && mpStatus && !mpStatus.connected && (
         <a
           href={mpService.getMpConnectUrl(profile.id)}
+          data-tour="pro-mp"
           className="card flex items-center gap-4 border-red-300 bg-red-50 hover:border-red-400 transition-colors group"
         >
           <div className="w-12 h-12 rounded-2xl bg-white border border-red-200 flex items-center justify-center shrink-0">
@@ -708,7 +739,7 @@ export default function ProfessionalDashboard({ profile }) {
         </a>
       )}
       {!loading && mpStatus?.connected && (
-        <div className="card flex items-center gap-4 border-emerald-200 bg-emerald-50">
+        <div data-tour="pro-mp" className="card flex items-center gap-4 border-emerald-200 bg-emerald-50">
           <div className="w-12 h-12 rounded-2xl bg-white border border-emerald-200 flex items-center justify-center shrink-0">
             <MercadoPagoMark className="w-8 h-8" />
           </div>

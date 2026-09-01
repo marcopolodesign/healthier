@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { CaretDown, WhatsappLogo, Wrench, GraduationCap, ArrowRight } from '@phosphor-icons/react'
+import { CaretDown, WhatsappLogo, Wrench, GraduationCap, ArrowRight, Compass } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
 import { supportWhatsAppLink } from '../../lib/support'
 import { ID_CONSULTA as ID_SIMULACION } from '../../lib/simulacion'
+import { CLAVE_TOUR_PROFESIONAL } from '../../components/professional/TourProfesional'
+import { useNavigate } from 'react-router-dom'
 
 const FAQ_ITEMS = [
   {
@@ -54,6 +56,16 @@ function FaqItem({ q, a }) {
 }
 
 export default function Ayuda() {
+  const navigate = useNavigate()
+
+  // Volver a ver el recorrido del inicio. Se borra la marca de "ya visto" y se
+  // navega al dashboard, que es donde vive el tour: arranca solo al llegar sin
+  // la marca, así que no hace falta ningún canal extra entre las dos pantallas.
+  const verRecorrido = () => {
+    try { localStorage.removeItem(CLAVE_TOUR_PROFESIONAL) } catch { /* modo privado: igual se navega */ }
+    navigate('/profesional/dashboard')
+  }
+
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl">
       <div>
@@ -80,6 +92,25 @@ export default function Ayuda() {
           <WhatsappLogo weight="fill" className="h-4 w-4" /> Escribir por WhatsApp
         </a>
       </div>
+
+      {/* El Centro de ayuda es donde el profesional ya viene cuando algo no se
+          entiende, así que es el lugar natural para volver a ver el recorrido —
+          en vez de inventarle una pantalla nueva. */}
+      <button
+        onClick={verRecorrido}
+        className="card w-full flex items-center gap-4 text-left hover:border-brand/40 transition-colors group"
+      >
+        <div className="h-10 w-10 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
+          <Compass weight="fill" className="h-5 w-5 text-brand" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-text-primary">Volver a ver el recorrido</p>
+          <p className="text-sm text-text-secondary">
+            La guía paso a paso de tu inicio: la agenda, las consultas inmediatas, cómo cobrás y tu link para pacientes.
+          </p>
+        </div>
+        <ArrowRight className="h-4 w-4 text-brand shrink-0 group-hover:translate-x-0.5 transition-transform" />
+      </button>
 
       {/* La práctica vive acá y no sólo en el inicio: en el inicio se muestra
           únicamente al que todavía no atendió a nadie, y el que quiere repasar

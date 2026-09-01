@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   User, PencilSimple, Check, Camera, ShieldCheck, Heartbeat,
   Phone, Users, CreditCard, Receipt, SignOut, ArrowLeft,
-  FileText, Trash, Bell, CaretRight, UserCircle,
+  FileText, Trash, Bell, CaretRight, UserCircle, Compass,
 } from '@phosphor-icons/react'
 import { profilesService } from '../../services/profilesService'
 import { authService } from '../../services/authService'
@@ -19,6 +19,7 @@ import { brandLabel } from '../../components/payment/cardBrand'
 import { notificationService } from '../../services/notificationService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { track } from '../../utils/analytics'
+import { CLAVE_TOUR_PACIENTE } from '../../components/patient/TourPaciente'
 
 // Mismas etiquetas y formato que /paciente/comprobantes, para que el resumen del
 // perfil y la página completa no digan cosas distintas de la misma consulta.
@@ -508,6 +509,30 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
             <p className="text-xs text-text-tertiary mt-2">Para activar notificaciones, permitilas en la configuración de tu navegador.</p>
           )}
         </div>
+      )}
+
+      {/* Volver a ver el recorrido del inicio. Perfil es el único lugar del
+          paciente que junta ajustes y ayuda —no hay centro de ayuda de su
+          lado—, así que es acá o en una pantalla nueva. Se borra la marca de
+          "ya visto" y se navega al inicio, que es donde vive el tour: arranca
+          solo al llegar sin la marca. */}
+      {!editing && (
+        <button
+          onClick={() => {
+            try { localStorage.removeItem(CLAVE_TOUR_PACIENTE) } catch { /* modo privado: igual se navega */ }
+            navigate('/paciente/dashboard')
+          }}
+          className="w-full bg-white rounded-2xl p-5 border border-border-default shadow-sm flex items-center gap-4 text-left hover:border-brand/40 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0">
+            <Compass weight="fill" className="w-5 h-5 text-brand" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-text-primary text-[15px]">Cómo funciona Healthier</p>
+            <p className="text-xs text-text-secondary mt-0.5">Volvé a ver el recorrido paso a paso</p>
+          </div>
+          <CaretRight className="w-5 h-5 text-text-tertiary flex-shrink-0" />
+        </button>
       )}
 
       {!editing && (
