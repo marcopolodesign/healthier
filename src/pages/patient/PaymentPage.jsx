@@ -403,7 +403,7 @@ export default function PaymentPage({ profile }) {
               'w-full py-5 rounded-full font-bold text-[16px] flex items-center justify-center gap-3 transition-all',
               paid
                 ? 'bg-emerald-500 text-white scale-[1.02]'
-                : (paying || (chargeAmount > 0 && !selectedCardId))
+                : (paying || (!paymentExempt && chargeAmount > 0 && !selectedCardId))
                   ? 'bg-bg-secondary text-text-tertiary cursor-not-allowed'
                   : 'bg-brand text-white hover:bg-brand-hover active:scale-[0.99]',
             ].join(' ')}
