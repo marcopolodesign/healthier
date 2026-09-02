@@ -29,6 +29,8 @@
 // pasar: el super admin puede verificar sin haber cargado los seis
 // documentos) se muestra igual, pero como dato informativo sin acción —
 // ese documento lo tiene que subir el super admin (ver A6).
+import { cumplePrecioMinimo, PRECIO_MINIMO_TEXTO } from './tarifas'
+
 /**
  * Atiende en un consultorio físico. `modality_preference` (migración 049) es
  * 'virtual' | 'presencial' | 'ambas'; su comentario en la base la define como
@@ -72,10 +74,14 @@ export function getProfileCompleteness(profProfile, schedules, { includeVerifica
       done: !!profProfile?.mpConnected,
       href: '/profesional/configuracion?tab=cuenta',
     },
+    // El precio no se da por cargado con cualquier número: tiene que llegar al
+    // piso de la plataforma (Mateo, 2026-09-02). Un profesional con $1.000
+    // cargado no está listo para recibir turnos, así que el paso sigue
+    // pendiente y el checklist se lo dice con el mínimo adentro del label.
     {
       key: 'precio',
-      label: 'Precio de consulta',
-      done: !!(profProfile?.pricePresencial || profProfile?.priceVideo || profProfile?.sessionPrice),
+      label: `Precio de consulta (mínimo ${PRECIO_MINIMO_TEXTO})`,
+      done: [profProfile?.pricePresencial, profProfile?.priceVideo, profProfile?.sessionPrice].some(cumplePrecioMinimo),
       href: '/profesional/configuracion?tab=tarifas',
     },
     {

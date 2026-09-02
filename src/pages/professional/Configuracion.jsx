@@ -9,6 +9,12 @@ import { zonesService } from '../../services/zonesService'
 import { mpService } from '../../services/mpService'
 import { paymentsService } from '../../services/paymentsService'
 import { formatSettlementPlazo } from '../../lib/format'
+import {
+  PRECIO_MINIMO,
+  PRECIO_MINIMO_TEXTO,
+  SUGGESTED_PRICE_RANGE,
+  estaPorDebajoDelMinimo,
+} from '../../lib/tarifas'
 import { toast } from '../../components/Toast'
 
 const MODALITIES = [
@@ -17,8 +23,8 @@ const MODALITIES = [
   { id: 'ambas',      label: 'Virtual y presencial', icon: MapPin      },
 ]
 
-// Rango sugerido por zona — mismo valor que Onboarding.jsx (pedido de Nacho Arteaga, 2026-07-08)
-const SUGGESTED_PRICE_RANGE = { min: 20000, max: 35000, recommended: 25000 }
+// El rango sugerido y el piso obligatorio viven en `lib/tarifas.js` — el mismo
+// piso lo aplican el checklist del dashboard y la base (migración 142).
 
 const DAYS = [
   { key: 1, label: 'Lunes' },
@@ -225,6 +231,23 @@ export default function Configuracion({ profile }) {
 
   const saveTarifas = async (e) => {
     e.preventDefault()
+
+    // El piso se chequea acá antes de mandar nada, para poder decir cuál de los
+    // campos está mal. La base lo vuelve a chequear igual (migración 142): esto
+    // es para explicarlo, no para hacerlo cumplir.
+    const fueraDeRango = [
+      ['Presencial', tarifas.pricePresencial],
+      ['Videollamada', tarifas.priceVideo],
+      ...consultationTypes.map(t => [t.name?.trim() || 'Tipo de consulta sin nombre', t.price]),
+    ].filter(([, valor]) => estaPorDebajoDelMinimo(valor))
+
+    if (fueraDeRango.length) {
+      toast.error(
+        `El mínimo por consulta es ${PRECIO_MINIMO_TEXTO}. Revisá: ${fueraDeRango.map(([n]) => n).join(', ')}.`
+      )
+      return
+    }
+
     setSavingTarifas(true)
     try {
       const pres = tarifas.pricePresencial ? Number(tarifas.pricePresencial) : null
@@ -438,6 +461,11 @@ export default function Configuracion({ profile }) {
               <p className="text-xs text-text-secondary mt-0.5">
                 Usado cuando no se selecciona un tipo de consulta específico.
               </p>
+              <p className="text-xs text-text-primary mt-2 rounded-lg bg-brand/10 px-3 py-2">
+                <span className="font-semibold">Mínimo {PRECIO_MINIMO_TEXTO} por consulta</span> — presencial o por
+                videollamada, y también para cada tipo de consulta. Es el piso de la plataforma para todos los
+                profesionales: por debajo de ese valor el precio no se guarda y tu perfil queda incompleto.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -447,16 +475,23 @@ export default function Configuracion({ profile }) {
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
                   <input
                     type="number"
-                    min="0"
-                    placeholder="0"
+                    min={PRECIO_MINIMO}
+                    step="500"
+                    placeholder={String(PRECIO_MINIMO)}
                     value={tarifas.pricePresencial}
                     onChange={e => setTarifas(p => ({ ...p, pricePresencial: e.target.value }))}
                     className="form-input pl-7"
                   />
                 </div>
-                <p className="text-[11px] text-blue-700 mt-1.5">
-                  Sugerido: ${SUGGESTED_PRICE_RANGE.min.toLocaleString('es-AR')}–${SUGGESTED_PRICE_RANGE.max.toLocaleString('es-AR')} · <span className="font-semibold">recomendado ${SUGGESTED_PRICE_RANGE.recommended.toLocaleString('es-AR')}</span>
-                </p>
+                {estaPorDebajoDelMinimo(tarifas.pricePresencial) ? (
+                  <p className="text-[11px] text-danger mt-1.5 font-medium">
+                    El mínimo es {PRECIO_MINIMO_TEXTO}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-blue-700 mt-1.5">
+                    Mínimo {PRECIO_MINIMO_TEXTO} · sugerido ${SUGGESTED_PRICE_RANGE.min.toLocaleString('es-AR')}–${SUGGESTED_PRICE_RANGE.max.toLocaleString('es-AR')} · <span className="font-semibold">recomendado ${SUGGESTED_PRICE_RANGE.recommended.toLocaleString('es-AR')}</span>
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-xs text-text-secondary mb-1 block">Videollamada (ARS)</label>
@@ -464,13 +499,23 @@ export default function Configuracion({ profile }) {
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
                   <input
                     type="number"
-                    min="0"
-                    placeholder="0"
+                    min={PRECIO_MINIMO}
+                    step="500"
+                    placeholder={String(PRECIO_MINIMO)}
                     value={tarifas.priceVideo}
                     onChange={e => setTarifas(p => ({ ...p, priceVideo: e.target.value }))}
                     className="form-input pl-7"
                   />
                 </div>
+                {estaPorDebajoDelMinimo(tarifas.priceVideo) ? (
+                  <p className="text-[11px] text-danger mt-1.5 font-medium">
+                    El mínimo es {PRECIO_MINIMO_TEXTO}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-blue-700 mt-1.5">
+                    Mínimo {PRECIO_MINIMO_TEXTO}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -481,6 +526,7 @@ export default function Configuracion({ profile }) {
                   <label className="form-label mb-0">Tipos de consulta</label>
                   <p className="text-xs text-text-secondary mt-0.5">
                     Nombrados y con precio propio. El paciente los elige al agendar.
+                    Mismo mínimo de {PRECIO_MINIMO_TEXTO}.
                   </p>
                 </div>
                 <button
@@ -525,11 +571,12 @@ export default function Configuracion({ profile }) {
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">$</span>
                           <input
                             type="number"
-                            min="0"
+                            min={PRECIO_MINIMO}
+                            step="500"
                             value={t.price || ''}
                             onChange={e => updateType(i, 'price', e.target.value)}
-                            placeholder="0"
-                            className="form-input pl-7"
+                            placeholder={String(PRECIO_MINIMO)}
+                            className={`form-input pl-7 ${estaPorDebajoDelMinimo(t.price) ? 'border-danger' : ''}`}
                           />
                         </div>
                         <select
