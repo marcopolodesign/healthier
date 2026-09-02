@@ -4,6 +4,8 @@ import PatientBottomNav from '../components/patient/PatientBottomNav'
 import { Bell, X } from '@phosphor-icons/react'
 import { notificationService } from '../services/notificationService'
 import { track } from '../utils/analytics'
+import { PharmacyCartProvider } from '../context/PharmacyCartContext'
+import PharmacyCartSheet from '../components/patient/PharmacyCartSheet'
 
 const HIDE_NAV_PREFIXES = ['/paciente/sos', '/paciente/ondemand', '/paciente/videollamada', '/paciente/reservar', '/paciente/sala-espera', '/paciente/consulta/review', '/paciente/fastpass']
 
@@ -49,6 +51,7 @@ export default function PatientMobileLayout({ profile }) {
   const hideNav = HIDE_NAV_PREFIXES.some(p => pathname.startsWith(p))
 
   return (
+    <PharmacyCartProvider profile={profile}>
     <div className="h-dvh bg-bg-primary relative overflow-hidden overscroll-none">
       {/* Push notification opt-in banner */}
       {showPushBanner && (
@@ -84,6 +87,11 @@ export default function PatientMobileLayout({ profile }) {
           <PatientBottomNav className="lg:gap-4 lg:px-4 lg:pt-3 lg:pb-3" />
         </div>
       )}
+
+      {/* El carrito de farmacia sigue al paciente por toda la app: si agregó
+          algo y se fue a mirar sus turnos, la píldora sigue ahí. */}
+      <PharmacyCartSheet navVisible={!hideNav} />
     </div>
+    </PharmacyCartProvider>
   )
 }

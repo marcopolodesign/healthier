@@ -12,6 +12,7 @@ import WhatsAppMark from '../../components/icons/WhatsAppMark'
 const LAST_VERTICAL_KEY = 'healthier_last_vertical'
 import InteractiveMap from '../../components/patient/InteractiveMap'
 import ActiveAppointmentBanner from '../../components/patient/ActiveAppointmentBanner'
+import ActivePharmacyOrderCard from '../../components/patient/ActivePharmacyOrderCard'
 import MedicoCabeceraCard from '../../components/patient/MedicoCabeceraCard'
 import MedicoCabeceraModal from '../../components/patient/MedicoCabeceraModal'
 import TourPaciente from '../../components/patient/TourPaciente'
@@ -500,6 +501,12 @@ export default function PatientDashboard({ profile }) {
           <ActiveAppointmentBanner profile={profile} />
 
           {onDemandHero}
+        </div>
+
+        {/* El pedido de farmacia en curso. Sale solo cuando no hay ninguno,
+            así que no ocupa lugar para el que nunca compró. */}
+        <div className="px-6 patient-column pt-5 w-full empty:hidden">
+          <ActivePharmacyOrderCard profile={profile} />
         </div>
 
         {/* "Tu médico de cabecera" — sólo si vino referido y no la cerró.

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, MapPin, Pill } from '@phosphor-icons/react'
+import { ArrowLeft, MapPin, Pill, XCircle } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
 import { formatARS, formatDate } from '../../lib/format'
@@ -13,6 +13,8 @@ export default function PharmacyOrderDetail({ profile }) {
   const [payment, setPayment] = useState(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  const [cancelando, setCancelando] = useState(false)
+  const [motivo, setMotivo] = useState('')
 
   const canEdit = profile?.role === 'pharmacy_admin' || profile?.role === 'pharmacy_operator'
 
@@ -37,6 +39,26 @@ export default function PharmacyOrderDetail({ profile }) {
       toast.success('Estado actualizado')
     } catch {
       toast.error('Error al actualizar el estado')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  /**
+   * Cancelar pide motivo porque el paciente lo ve en su seguimiento: un pedido
+   * que aparece cancelado y no dice por qué genera un llamado a la farmacia.
+   */
+  const cancelar = async () => {
+    if (!motivo.trim()) { toast.error('Escribí el motivo de la cancelación'); return }
+    setUpdating(true)
+    try {
+      const updated = await medicationOrdersService.cancelOrder(order.id, motivo)
+      setOrder(o => ({ ...o, status: updated.status, cancellationReason: updated.cancellationReason }))
+      setCancelando(false)
+      setMotivo('')
+      toast.success('Pedido cancelado')
+    } catch (err) {
+      toast.error(err?.message || 'Error al cancelar el pedido')
     } finally {
       setUpdating(false)
     }
@@ -104,10 +126,48 @@ export default function PharmacyOrderDetail({ profile }) {
         </div>
       )}
 
-      {canEdit && NEXT_STATUS[order.status] && (
-        <button className="btn-primary" disabled={updating} onClick={advance}>
-          {updating ? 'Actualizando...' : `Marcar ${STATUS_LABEL[NEXT_STATUS[order.status]].toLowerCase()}`}
-        </button>
+      {order.status === 'cancelado' && order.cancellationReason && (
+        <div className="card space-y-1">
+          <p className="text-xs uppercase text-text-muted font-semibold">Motivo de la cancelación</p>
+          <p className="text-sm text-text-primary">{order.cancellationReason}</p>
+        </div>
+      )}
+
+      {canEdit && order.status !== 'entregado' && order.status !== 'cancelado' && (
+        <div className="flex flex-wrap items-center gap-3">
+          {NEXT_STATUS[order.status] && (
+            <button className="btn-primary" disabled={updating} onClick={advance}>
+              {updating ? 'Actualizando...' : `Marcar ${STATUS_LABEL[NEXT_STATUS[order.status]].toLowerCase()}`}
+            </button>
+          )}
+          {!cancelando && (
+            <button className="btn-secondary flex items-center gap-1.5" disabled={updating} onClick={() => setCancelando(true)}>
+              <XCircle className="h-4 w-4" /> Cancelar pedido
+            </button>
+          )}
+        </div>
+      )}
+
+      {cancelando && (
+        <div className="card space-y-3">
+          <p className="text-xs uppercase text-text-muted font-semibold">Motivo de la cancelación</p>
+          <textarea
+            className="form-textarea"
+            rows={2}
+            value={motivo}
+            onChange={e => setMotivo(e.target.value)}
+            placeholder="Sin stock, la dirección está fuera del área de entrega..."
+          />
+          <p className="text-xs text-text-secondary">El paciente lo va a ver en el seguimiento de su pedido.</p>
+          <div className="flex gap-3">
+            <button className="btn-danger" disabled={updating || !motivo.trim()} onClick={cancelar}>
+              {updating ? 'Cancelando...' : 'Confirmar cancelación'}
+            </button>
+            <button className="btn-secondary" disabled={updating} onClick={() => { setCancelando(false); setMotivo('') }}>
+              Volver
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

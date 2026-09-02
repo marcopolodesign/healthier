@@ -1,64 +1,39 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, MapPin, CircleNotch, Pill, Trash, Plus, Minus } from '@phosphor-icons/react'
+import { useNavigate } from 'react-router-dom'
+import { ArrowLeft, MapPin, CircleNotch, Pill, Plus, Minus, Trash } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
+import { usePharmacyCart } from '../../context/PharmacyCartContext'
 import { toast } from '../../components/Toast'
 import { formatARS as fmtPrice } from '../../lib/format'
 
+/**
+ * Checkout de farmacia.
+ *
+ * Ya no recibe el pedido por `location.state`: el carrito **es** el borrador
+ * en la base (`PharmacyCartContext` + migración 138), así que entrar acá es
+ * simplemente mirar lo que ya existe. Eso saca de un plumazo el caso de
+ * "entré al checkout y no había nada" cuando se recargaba la página, y el
+ * aviso de "tenés un pedido sin completar" que había que ir a rescatar.
+ *
+ * El listado va compacto a propósito (pedido de Mateo, 2026-09-02): acá el
+ * paciente ya eligió, sólo está confirmando. La versión con foto y tarjeta
+ * grande es la del catálogo.
+ */
 export default function PharmacyCheckout({ profile }) {
   const navigate = useNavigate()
-  const location = useLocation()
-  const state = location.state ?? {}
+  const { order, items, total, add, subtract, remove, loading, syncing } = usePharmacyCart()
 
-  const [order, setOrder] = useState(null)
-  const [address, setAddress] = useState(profile?.address ?? '')
-  const [creating, setCreating] = useState(false)
+  const [address, setAddress] = useState('')
   const [saving, setSaving] = useState(false)
-  const [updatingItem, setUpdatingItem] = useState(null) // id del item en vuelo
+  const [addressTouched, setAddressTouched] = useState(false)
 
-  // Draft is created as soon as checkout starts (state-resilience — before
-  // the payment step) unless we're resuming an already-drafted order.
+  // La dirección del pedido gana sobre la del perfil, pero sólo hasta que el
+  // paciente empieza a escribir: si no, cada respuesta del carrito le pisaría
+  // lo que está tipeando.
   useEffect(() => {
-    if (state.orderId) {
-      medicationOrdersService.getById(state.orderId).then(o => {
-        setOrder(o)
-        setAddress(o.deliveryAddress || profile?.address || '')
-      }).catch(err => toast.error(err?.message || 'Error al cargar el pedido'))
-      return
-    }
-    if (!state.items?.length) return
-    setCreating(true)
-    medicationOrdersService.createDraft({
-      patientId: profile.id,
-      deliveryAddress: profile?.address ?? null,
-      items: state.items,
-    })
-      .then(setOrder)
-      .catch(err => toast.error(err?.message || 'Error al crear el pedido'))
-      .finally(() => setCreating(false))
-  }, [state.orderId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  /**
-   * quantity 0 saca el medicamento. Si era el último, el borrador entero
-   * desaparece (migración 137) y no hay pedido al que volver: se vuelve al
-   * catálogo en vez de dejar una pantalla vacía.
-   */
-  const changeItemQuantity = async (item, quantity) => {
-    setUpdatingItem(item.id)
-    try {
-      const updated = await medicationOrdersService.setItemQuantity(item.id, quantity)
-      if (!updated) {
-        toast.info('Tu pedido quedó vacío')
-        navigate('/paciente/farmacia', { replace: true })
-        return
-      }
-      setOrder(updated)
-    } catch (err) {
-      toast.error(err?.message || 'No se pudo actualizar el pedido')
-    } finally {
-      setUpdatingItem(null)
-    }
-  }
+    if (addressTouched) return
+    setAddress(order?.deliveryAddress || profile?.address || '')
+  }, [order?.deliveryAddress, profile?.address, addressTouched])
 
   const confirmAddress = async () => {
     if (!address.trim()) { toast.error('Ingresá una dirección de entrega'); return }
@@ -73,10 +48,13 @@ export default function PharmacyCheckout({ profile }) {
     }
   }
 
-  if (!state.items?.length && !state.orderId) {
+  if (!loading && !items.length) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-bg-primary">
-        <p className="text-text-tertiary text-[14px]">No hay un pedido en curso. <button onClick={() => navigate('/paciente/farmacia')} className="text-brand underline">Volver a Farmacia</button></p>
+      <div className="absolute inset-0 flex items-center justify-center bg-bg-primary px-8 text-center">
+        <p className="text-text-tertiary text-[14px]">
+          Tu carrito está vacío.{' '}
+          <button onClick={() => navigate('/paciente/farmacia')} className="text-brand underline">Volver a Farmacia</button>
+        </p>
       </div>
     )
   }
@@ -94,51 +72,64 @@ export default function PharmacyCheckout({ profile }) {
       </div>
 
       <div className="px-4 py-6 pb-32 max-w-lg mx-auto space-y-4">
-        {(creating || !order) ? (
+        {loading ? (
           <div className="h-40 rounded-2xl bg-bg-secondary animate-pulse" />
         ) : (
           <>
-            <div className="bg-bg-secondary rounded-2xl border border-border-default p-4">
-              <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-3">Medicamentos</p>
-              <div className="space-y-2">
-                {(order.items ?? []).map(it => (
-                  <div key={it.id} className={`bg-white rounded-xl px-3 py-2.5 flex items-center gap-3 border border-border-default ${updatingItem === it.id ? 'opacity-50 pointer-events-none' : ''}`}>
-                    <Pill className="w-4 h-4 text-brand shrink-0" />
+            <div className={`bg-bg-secondary rounded-2xl border border-border-default p-4 ${syncing ? 'opacity-70' : ''}`}>
+              <div className="flex items-baseline justify-between mb-2">
+                <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Medicamentos</p>
+                <button onClick={() => navigate('/paciente/farmacia')} className="text-[11px] font-semibold text-brand">
+                  Agregar más
+                </button>
+              </div>
+
+              {/* Listado compacto: una línea por medicamento. */}
+              <ul className="divide-y divide-border-default">
+                {items.map(it => (
+                  <li key={it.productId ?? it.itemId} className="flex items-center gap-2 py-2">
+                    <Pill className="w-3.5 h-3.5 text-brand shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-text-primary truncate">{it.medicationName}</p>
-                      <p className="text-[11px] text-text-secondary">{fmtPrice(it.unitPrice * it.quantity)}</p>
+                      <p className="text-[13px] font-medium text-text-primary truncate leading-tight">{it.name}</p>
+                      <p className="text-[10px] text-text-tertiary leading-tight">
+                        {it.quantity} × {fmtPrice(it.unitPrice)}
+                        {it.requiresPrescription ? ' · con receta' : ''}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-1 bg-brand/10 rounded-full px-1.5 py-1 shrink-0">
+                    <div className="flex items-center gap-0.5 shrink-0">
                       <button
-                        onClick={() => changeItemQuantity(it, it.quantity - 1)}
+                        onClick={() => subtract({ id: it.productId })}
                         disabled={it.quantity <= 1}
-                        aria-label={`Quitar una unidad de ${it.medicationName}`}
-                        className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-brand disabled:opacity-40"
+                        aria-label={`Quitar una unidad de ${it.name}`}
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-brand disabled:opacity-30"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
-                      <span className="text-[12px] font-semibold text-brand w-5 text-center">{it.quantity}</span>
                       <button
-                        onClick={() => changeItemQuantity(it, it.quantity + 1)}
-                        aria-label={`Agregar una unidad de ${it.medicationName}`}
-                        className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-brand"
+                        onClick={() => add({ id: it.productId })}
+                        aria-label={`Agregar una unidad de ${it.name}`}
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-brand"
                       >
                         <Plus className="w-3 h-3" />
                       </button>
+                      <button
+                        onClick={() => remove({ id: it.productId }, it.quantity)}
+                        aria-label={`Eliminar ${it.name} del pedido`}
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-text-tertiary hover:text-danger"
+                      >
+                        <Trash className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => changeItemQuantity(it, 0)}
-                      aria-label={`Eliminar ${it.medicationName} del pedido`}
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-text-tertiary hover:text-danger hover:bg-danger/10 shrink-0"
-                    >
-                      <Trash className="w-4 h-4" />
-                    </button>
-                  </div>
+                    <span className="text-[12px] font-semibold text-text-primary w-16 text-right shrink-0">
+                      {fmtPrice(it.unitPrice * it.quantity)}
+                    </span>
+                  </li>
                 ))}
-              </div>
-              <div className="flex items-center justify-between pt-3 mt-3 border-t border-border-default">
+              </ul>
+
+              <div className="flex items-center justify-between pt-3 mt-1 border-t border-border-default">
                 <span className="text-[13px] font-semibold text-text-secondary">Total</span>
-                <span className="text-[20px] font-black text-text-primary">{fmtPrice(order.total)}</span>
+                <span className="text-[20px] font-black text-text-primary">{fmtPrice(total)}</span>
               </div>
             </div>
 
@@ -150,14 +141,14 @@ export default function PharmacyCheckout({ profile }) {
                 className="form-input"
                 rows={2}
                 value={address}
-                onChange={e => setAddress(e.target.value)}
+                onChange={e => { setAddressTouched(true); setAddress(e.target.value) }}
                 placeholder="Calle, número, piso, ciudad..."
               />
             </div>
 
             <button
               onClick={confirmAddress}
-              disabled={saving || !address.trim()}
+              disabled={saving || syncing || !address.trim() || !order?.id}
               className="w-full py-5 rounded-full font-bold text-[16px] flex items-center justify-center gap-3 bg-brand text-white hover:bg-brand-hover active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {saving && <CircleNotch className="w-5 h-5 animate-spin" />}

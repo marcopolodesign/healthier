@@ -102,6 +102,24 @@ export const medicationOrdersService = {
     return this.setItemQuantity(itemId, 0)
   },
 
+  /**
+   * Suma (o resta, con delta negativo) un producto del catálogo en el carrito
+   * del paciente. El carrito ES el borrador: esta llamada lo crea si todavía
+   * no existe — ver migración 138. El nombre, la presentación y el precio se
+   * leen del catálogo del lado del servidor, no se mandan desde acá.
+   *
+   * @returns {Promise<Object|null>} el pedido, o `null` si quedó vacío.
+   */
+  async addToCart(productId, delta = 1) {
+    const { data: orderId, error } = await supabase.rpc('agregar_item_pedido_medicamentos', {
+      p_product_id: productId,
+      p_delta: delta,
+    })
+    if (error) throw error
+    if (!orderId) return null
+    return this.getById(orderId)
+  },
+
   async getById(orderId) {
     const { data, error } = await supabase
       .from('medication_orders')
@@ -122,6 +140,37 @@ export const medicationOrdersService = {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
+  /**
+   * Pedidos ya pagados del paciente, del más nuevo al más viejo. El borrador
+   * sin pagar queda afuera a propósito: ése es el carrito, no un pedido.
+   */
+  async getMyOrders(patientId) {
+    const { data, error } = await supabase
+      .from('medication_orders')
+      .select(ORDER_ITEMS_SELECT)
+      .eq('patient_id', patientId)
+      .eq('payment_status', 'pagado')
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
+  /**
+   * Los que todavía están en curso — lo que alimenta el módulo de seguimiento
+   * del Inicio. Entregado y cancelado son finales y salen de la lista.
+   */
+  async getActiveOrders(patientId) {
+    const { data, error } = await supabase
+      .from('medication_orders')
+      .select(ORDER_ITEMS_SELECT)
+      .eq('patient_id', patientId)
+      .eq('payment_status', 'pagado')
+      .in('status', ['pendiente', 'en_preparacion', 'enviado'])
+      .order('created_at', { ascending: false })
     if (error) throw error
     return toCamelCase(data)
   },
@@ -160,6 +209,22 @@ export const medicationOrdersService = {
       .select('*')
       .eq('order_id', orderId)
       .maybeSingle()
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
+  /**
+   * Cancela el pedido con un motivo. El motivo se muestra en el seguimiento
+   * del paciente: un pedido que aparece cancelado y no dice por qué es peor
+   * que no mostrarlo. pharmacy_admin / pharmacy_operator, por RLS.
+   */
+  async cancelOrder(orderId, reason) {
+    const { data, error } = await supabase
+      .from('medication_orders')
+      .update({ status: 'cancelado', cancellation_reason: reason?.trim() || null })
+      .eq('id', orderId)
+      .select()
+      .single()
     if (error) throw error
     return toCamelCase(data)
   },

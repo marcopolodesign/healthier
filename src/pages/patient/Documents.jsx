@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import {
   ShieldCheck, CaretRight, ArrowLeft, Eye, Plus,
   CloudArrowUp, Camera, CircleNotch, Pulse, Check,
-  FileText, FolderOpen, AppleLogo, Barbell, PawPrint, Sparkle, ClipboardText,
+  FileText, FolderOpen, AppleLogo, Barbell, PawPrint, Sparkle, ClipboardText, Pill,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
 import PatientPageOverlay from '../../components/patient/PatientPageOverlay'
+import { farmaciaVisible } from '../../lib/featureFlags'
 import { track } from '../../utils/analytics'
 import AnalisisVault from '../../components/patient/AnalisisVault'
 
@@ -141,6 +142,23 @@ export default function PatientDocuments({ profile }) {
           <p className="font-semibold text-[15px] leading-tight">NutriPlan</p>
           <p className="text-[11px] opacity-80 mt-0.5">Mi plan nutricional</p>
         </button>
+        {/* Farmacia todavía no sale: el acceso se sacó el 2026-08-29 y sigue
+            afuera en producción. Se muestra en staging y a las cuentas de
+            prueba, para poder probar el circuito completo sin publicarlo
+            (decisión de Mateo, 2026-09-02 — ver lib/featureFlags.js). */}
+        {farmaciaVisible(profile) && (
+          <button
+            onClick={() => navigate('/paciente/farmacia')}
+            className="col-span-2 bg-gradient-to-br from-brand to-brand-hover rounded-2xl p-4 text-left text-white shadow-md hover:shadow-lg active:scale-95 transition-all flex items-center justify-between"
+          >
+            <div>
+              <Pill className="w-6 h-6 mb-2 opacity-90" />
+              <p className="font-semibold text-[15px] leading-tight">Farmacia</p>
+              <p className="text-[11px] opacity-80 mt-0.5">Comprá tus medicamentos</p>
+            </div>
+            <CaretRight className="w-5 h-5 opacity-70 flex-shrink-0" />
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">

@@ -7,14 +7,10 @@
  * route table, and the library is large but only ever needed by a
  * pharmacy_admin opening Catálogo, not by every visitor's initial bundle.
  */
+import { PRESCRIPTION_TYPE_LABELS } from './pharmacyProducts'
 
 const HEADERS = ['SKU', 'Nombre', 'Presentación', 'Precio', 'Stock', 'Categoría receta', 'Disponible']
 
-const PRESCRIPTION_TYPE_LABELS = {
-  venta_libre: 'Venta libre',
-  receta: 'Receta',
-  receta_archivada: 'Receta archivada',
-}
 const LABEL_TO_PRESCRIPTION_TYPE = Object.fromEntries(
   Object.entries(PRESCRIPTION_TYPE_LABELS).map(([type, label]) => [label.toUpperCase(), type])
 )

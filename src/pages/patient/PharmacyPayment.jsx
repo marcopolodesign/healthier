@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, CircleNotch, Check, CheckCircle, ArrowClockwise } from '@phosphor-icons/react'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
+import { usePharmacyCart } from '../../context/PharmacyCartContext'
 import { mpService } from '../../services/mpService'
 import { toast } from '../../components/Toast'
 import { formatARS as fmtPrice } from '../../lib/format'
@@ -12,6 +13,7 @@ export default function PharmacyPayment({ profile }) {
   const location = useLocation()
   const orderId = location.state?.orderId
   const cardSelectorRef = useRef(null)
+  const { clear: vaciarCarrito } = usePharmacyCart()
 
   const [order, setOrder] = useState(null)
   const [selectedCardId, setSelectedCardId] = useState(null)
@@ -44,10 +46,15 @@ export default function PharmacyPayment({ profile }) {
     const status = data?.status
     if (data?.approved || status === 'paid' || status === 'approved') {
       setPaid(true)
-      setTimeout(() => navigate('/paciente/farmacia', { state: { orderConfirmed: true } }), 800)
+      // El borrador dejó de ser carrito en el momento en que se pagó: si no se
+      // vacía acá, la píldora sigue mostrando un pedido que ya se compró hasta
+      // que el paciente recargue.
+      vaciarCarrito()
+      setTimeout(() => navigate(`/paciente/farmacia/pedido/${orderId}`, { replace: true }), 800)
     } else if (status === 'in_process' || status === 'pending') {
       toast.info('Tu pago está siendo procesado. Te avisaremos cuando se confirme.')
-      navigate('/paciente/farmacia')
+      vaciarCarrito()
+      navigate(`/paciente/farmacia/pedido/${orderId}`, { replace: true })
     } else {
       setIntentoFallido(true)
       toast.error('El pago no pudo procesarse. Intentá con otra tarjeta.')

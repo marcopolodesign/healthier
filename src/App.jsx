@@ -64,6 +64,8 @@ import PatientNutriPlan from './pages/patient/NutriPlan'
 import PatientPharmacy from './pages/patient/Pharmacy'
 import PatientPharmacyCheckout from './pages/patient/PharmacyCheckout'
 import PatientPharmacyPayment from './pages/patient/PharmacyPayment'
+import PatientPharmacyOrder from './pages/patient/PharmacyOrder'
+import PatientPharmacyOrders from './pages/patient/PharmacyOrders'
 import PatientComprobantes from './pages/patient/Comprobantes'
 import PatientVideoCall from './pages/patient/VideoCall'
 import HistoriaClinicaPaciente from './pages/paciente/HistoriaClinicaPaciente'
@@ -376,6 +378,8 @@ export default function App() {
           <Route path="/paciente/farmacia"          element={<PatientPharmacy         profile={profile} />} />
           <Route path="/paciente/farmacia/checkout" element={<PatientPharmacyCheckout profile={profile} />} />
           <Route path="/paciente/farmacia/pago"     element={<PatientPharmacyPayment  profile={profile} />} />
+          <Route path="/paciente/farmacia/pedidos"     element={<PatientPharmacyOrders profile={profile} />} />
+          <Route path="/paciente/farmacia/pedido/:id"  element={<PatientPharmacyOrder />} />
           <Route path="/paciente/comprobantes"     element={<PatientComprobantes profile={profile} />} />
           <Route path="/paciente/videollamada/:id" element={<PatientVideoCall    profile={profile} />} />
           <Route path="/paciente/reservar"            element={<ReservarConsulta   profile={profile} />} />

@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, MagnifyingGlass, Star, ShoppingBag, Pill, Plus, Minus, FunnelSimple, Stethoscope } from '@phosphor-icons/react'
+import { ArrowLeft, MagnifyingGlass, Star, ShoppingBag, Pill, Plus, Minus, FunnelSimple, Stethoscope, Package } from '@phosphor-icons/react'
 import { pharmacyService } from '../../services/pharmacyService'
-import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
 import { formatARS as fmtPrice } from '../../lib/format'
+import { PRESCRIPTION_TYPES, PRESCRIPTION_TYPE_PATIENT_LABELS } from '../../lib/pharmacyProducts'
+import { usePharmacyCart } from '../../context/PharmacyCartContext'
 
 const CATEGORY_LABELS = {
   clinica:   'Clínica',
@@ -40,7 +41,14 @@ function ProductCard({ product, quantity, onAdd, onRemove }) {
         )}
       </div>
       <div className="flex-1 flex flex-col">
-        <p className="text-xs font-medium text-brand uppercase tracking-wide">{CATEGORY_LABELS[product.category] || product.category}</p>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="text-xs font-medium text-brand uppercase tracking-wide">{CATEGORY_LABELS[product.category] || product.category}</p>
+          {product.prescriptionType && product.prescriptionType !== 'venta_libre' && (
+            <span className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-brand-tertiary/10 text-brand-tertiary">
+              {PRESCRIPTION_TYPE_PATIENT_LABELS[product.prescriptionType]}
+            </span>
+          )}
+        </div>
         <p className="font-semibold text-[14px] text-text-primary leading-tight mt-1">{product.name}</p>
         {(product.description) && (
           <p className="text-[11px] text-text-secondary mt-0.5 leading-snug line-clamp-2">{product.description}</p>
@@ -67,16 +75,21 @@ function ProductCard({ product, quantity, onAdd, onRemove }) {
   )
 }
 
-function PharmacyHeader({ onBack, subtitle }) {
+function PharmacyHeader({ onBack, subtitle, onVerPedidos }) {
   return (
     <div className="flex items-center gap-3 px-4 patient-column pt-6 pb-4 border-b border-border-default bg-bg-surface sticky top-0 z-30">
       <button onClick={onBack} className="p-2 -ml-2 rounded-lg hover:bg-bg-muted">
         <ArrowLeft size={20} className="text-text-secondary" />
       </button>
-      <div>
+      <div className="flex-1">
         <h1 className="font-bold text-text-primary">Farmacia</h1>
         {subtitle && <p className="text-xs text-text-secondary">{subtitle}</p>}
       </div>
+      {onVerPedidos && (
+        <button onClick={onVerPedidos} className="shrink-0 flex items-center gap-1 text-[12px] font-semibold text-brand px-2 py-1.5 rounded-lg hover:bg-brand/10">
+          <Package className="w-4 h-4" /> Mis pedidos
+        </button>
+      )}
     </div>
   )
 }
@@ -87,16 +100,16 @@ export default function Pharmacy({ profile }) {
   const [featured, setFeatured] = useState([])
   const [suggested, setSuggested] = useState([])
   const [prescribed, setPrescribed] = useState([])
-  const [pendingDraft, setPendingDraft] = useState(null)
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
-  const [cart, setCart] = useState({})
+  const cart = usePharmacyCart()
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [showStockOnly, setShowStockOnly] = useState(true)
   // Casi la mitad del catálogo no tiene foto cargada y la grilla queda pobre,
   // así que arranca en true — pero como filtro visible, no como regla oculta:
   // antes se filtraba a mano y no había forma de ver el resto del catálogo.
   const [showWithPhotoOnly, setShowWithPhotoOnly] = useState(true)
+  const [prescriptionType, setPrescriptionType] = useState(null) // null = todas
   const [showFilters, setShowFilters] = useState(false)
   const [canBuy, setCanBuy] = useState(null) // null = todavía no se sabe
 
@@ -115,53 +128,23 @@ export default function Pharmacy({ profile }) {
       pharmacyService.getFeatured(),
       pharmacyService.getSuggested(profile.id),
       pharmacyService.getPrescribedMatches(profile.id),
-      medicationOrdersService.getPendingDraft(profile.id),
     ])
-      .then(([all, feat, sugg, presc, draft]) => {
+      .then(([all, feat, sugg, presc]) => {
         setAllProducts(all)
         setFeatured(feat)
         setSuggested(sugg)
         setPrescribed(presc)
-        setPendingDraft(draft)
       })
       .catch(err => toast.error(err?.message || 'Error al cargar la farmacia'))
       .finally(() => setLoading(false))
   }, [profile?.id])
 
-  const addToCart = (product) => {
-    setCart(prev => ({ ...prev, [product.id]: { product, quantity: (prev[product.id]?.quantity ?? 0) + 1 } }))
-  }
-  const removeFromCart = (product) => {
-    setCart(prev => {
-      const current = prev[product.id]
-      if (!current) return prev
-      if (current.quantity <= 1) { const { [product.id]: _, ...rest } = prev; return rest }
-      return { ...prev, [product.id]: { ...current, quantity: current.quantity - 1 } }
-    })
-  }
-  const addPrescribedToCart = (match) => {
-    addToCart(match.product)
-  }
-
-  const cartItems = Object.values(cart)
-  const cartCount = cartItems.reduce((s, it) => s + it.quantity, 0)
-  const cartTotal = cartItems.reduce((s, it) => s + Number(it.product.price) * it.quantity, 0)
-
-  const goToCheckout = () => {
-    if (!cartItems.length) return
-    navigate('/paciente/farmacia/checkout', {
-      state: {
-        items: cartItems.map(it => ({
-          pharmacyProductId: it.product.id,
-          medicationName: it.product.name,
-          presentation: it.product.description ?? null,
-          quantity: it.quantity,
-          unitPrice: it.product.price,
-          requiresPrescription: it.product.prescriptionType !== 'venta_libre',
-        })),
-      },
-    })
-  }
+  // Agregar y sacar van al carrito compartido (`PharmacyCartContext`): la
+  // pantalla no guarda carrito propio, así que lo que se agrega acá sigue
+  // estando al volver de otra sección o desde otro dispositivo.
+  const addToCart = (product) => cart.add(product)
+  const removeFromCart = (product) => cart.subtract(product)
+  const addPrescribedToCart = (match) => cart.add(match.product)
 
   // Filter products
   const filteredProducts = useMemo(() => {
@@ -186,6 +169,13 @@ export default function Pharmacy({ profile }) {
       result = result.filter(p => p.inStock)
     }
 
+    // Categoría de venta (migración 129). Los productos viejos pueden no
+    // tenerla cargada: cuentan como venta libre, que es el default de la
+    // columna — si no, filtrar por "Sin receta" los escondería.
+    if (prescriptionType) {
+      result = result.filter(p => (p.prescriptionType ?? 'venta_libre') === prescriptionType)
+    }
+
     // Con foto: no se aplica cuando el paciente está buscando algo puntual —
     // ahí quiere encontrarlo aunque no tenga imagen.
     if (showWithPhotoOnly && !query) {
@@ -193,7 +183,7 @@ export default function Pharmacy({ profile }) {
     }
 
     return result
-  }, [allProducts, query, selectedCategory, showStockOnly, showWithPhotoOnly])
+  }, [allProducts, query, selectedCategory, showStockOnly, showWithPhotoOnly, prescriptionType])
 
   if (canBuy === false) {
     return (
@@ -223,24 +213,13 @@ export default function Pharmacy({ profile }) {
       <PharmacyHeader
         onBack={() => navigate(-1)}
         subtitle={`${filteredProducts.length} producto${filteredProducts.length !== 1 ? 's' : ''}`}
+        onVerPedidos={() => navigate('/paciente/farmacia/pedidos')}
       />
 
-      <div className={`flex-1 overflow-y-auto ${cartCount > 0 ? 'pb-32 sm:pb-8' : 'pb-8'} patient-column`}>
-        {/* Pedido sin terminar */}
-        {pendingDraft && (
-          <div className="mx-4 mt-4 rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[13px] font-semibold text-amber-800">Tenés un pedido sin completar</p>
-              <p className="text-[11px] text-amber-700">Continuá para confirmar la dirección y pagar</p>
-            </div>
-            <button
-              onClick={() => navigate('/paciente/farmacia/checkout', { state: { orderId: pendingDraft.id, items: pendingDraft.items, resumed: true } })}
-              className="shrink-0 px-3 py-2 rounded-full bg-amber-600 text-white text-[12px] font-semibold"
-            >
-              Continuar
-            </button>
-          </div>
-        )}
+      <div className={`flex-1 overflow-y-auto ${cart.count > 0 ? 'pb-32 sm:pb-8' : 'pb-8'} patient-column`}>
+        {/* El aviso de "pedido sin completar" se fue: el borrador ES el
+            carrito ahora, así que lo que antes había que ir a rescatar ya
+            aparece cargado en la barra de abajo. */}
 
         {/* Search & Filters */}
         <div className="px-4 pt-4 space-y-3">
@@ -285,6 +264,30 @@ export default function Pharmacy({ profile }) {
                       }`}
                     >
                       {cat.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-text-primary mb-2">Receta</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setPrescriptionType(null)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                      prescriptionType === null ? 'bg-brand text-white' : 'bg-bg-primary border border-border-default text-text-secondary'
+                    }`}
+                  >
+                    Todas
+                  </button>
+                  {PRESCRIPTION_TYPES.map(type => (
+                    <button
+                      key={type}
+                      onClick={() => setPrescriptionType(prescriptionType === type ? null : type)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        prescriptionType === type ? 'bg-brand text-white' : 'bg-bg-primary border border-border-default text-text-secondary'
+                      }`}
+                    >
+                      {PRESCRIPTION_TYPE_PATIENT_LABELS[type]}
                     </button>
                   ))}
                 </div>
@@ -353,7 +356,7 @@ export default function Pharmacy({ profile }) {
                 </div>
                 <div className="px-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {featured.slice(0, 6).map(p => (
-                    <ProductCard key={p.id} product={p} quantity={cart[p.id]?.quantity ?? 0} onAdd={addToCart} onRemove={removeFromCart} />
+                    <ProductCard key={p.id} product={p} quantity={cart.quantityOf(p.id)} onAdd={addToCart} onRemove={removeFromCart} />
                   ))}
                 </div>
               </div>
@@ -366,7 +369,7 @@ export default function Pharmacy({ profile }) {
                 </span>
                 <div className="px-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {suggested.slice(0, 6).map(p => (
-                    <ProductCard key={p.id} product={p} quantity={cart[p.id]?.quantity ?? 0} onAdd={addToCart} onRemove={removeFromCart} />
+                    <ProductCard key={p.id} product={p} quantity={cart.quantityOf(p.id)} onAdd={addToCart} onRemove={removeFromCart} />
                   ))}
                 </div>
               </div>
@@ -383,7 +386,7 @@ export default function Pharmacy({ profile }) {
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {filteredProducts.map(p => (
-                    <ProductCard key={p.id} product={p} quantity={cart[p.id]?.quantity ?? 0} onAdd={addToCart} onRemove={removeFromCart} />
+                    <ProductCard key={p.id} product={p} quantity={cart.quantityOf(p.id)} onAdd={addToCart} onRemove={removeFromCart} />
                   ))}
                 </div>
               )}
@@ -392,16 +395,20 @@ export default function Pharmacy({ profile }) {
         )}
       </div>
 
-      {/* Checkout button — fixed above nav on mobile */}
-      {cartCount > 0 && (
+      {/* Barra del carrito — abre la hoja con los productos, no salta al
+          checkout: el paciente quiere revisar qué lleva antes de pagar. */}
+      {cart.count > 0 && (
         <div className="fixed bottom-24 left-0 right-0 p-4 bg-bg-primary border-t border-border-default z-40 sm:static sm:border-t-0 sm:bg-transparent sm:p-0">
           <div className="patient-column">
             <button
-              onClick={goToCheckout}
+              onClick={cart.openSheet}
               className="w-full py-4 rounded-full bg-brand text-white font-bold text-[15px] flex items-center justify-between px-6 shadow-lg"
             >
-              <span>{cartCount} producto{cartCount !== 1 ? 's' : ''}</span>
-              <span>Continuar — {fmtPrice(cartTotal)}</span>
+              <span className="flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4" weight="fill" />
+                {cart.count} producto{cart.count !== 1 ? 's' : ''}
+              </span>
+              <span>Ver carrito — {fmtPrice(cart.total)}</span>
             </button>
           </div>
         </div>
