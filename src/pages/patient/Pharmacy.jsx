@@ -21,19 +21,19 @@ const CATEGORIES = [
 ]
 
 function ProductCard({ product, quantity, onAdd, onRemove }) {
-  const hasImage = product.image_url || product.imageUrl
+  const hasImage = product.imageUrl
   return (
     <div className="rounded-2xl border border-border-default bg-bg-secondary p-3 flex flex-col gap-2 h-full">
       <div className="w-full aspect-square rounded-xl bg-bg-primary flex items-center justify-center overflow-hidden relative">
         {hasImage ? (
-          <img src={product.image_url || product.imageUrl} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
+          <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <ShoppingBag className="w-8 h-8 text-text-tertiary" />
         )}
-        {product.featured && product.in_stock && (
+        {product.featured && product.inStock && (
           <div className="absolute top-2 right-2 bg-brand text-white text-xs font-semibold px-2 py-1 rounded-full">Destacado</div>
         )}
-        {!product.in_stock && (
+        {!product.inStock && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
             <span className="text-white text-sm font-semibold">Agotado</span>
           </div>
@@ -47,7 +47,10 @@ function ProductCard({ product, quantity, onAdd, onRemove }) {
         )}
         <p className="font-bold text-[15px] text-brand mt-auto pt-2">{fmtPrice(product.price)}</p>
       </div>
-      {product.in_stock && (
+      {/* Si ya está en el carrito se muestra el stepper aunque el producto se
+          haya quedado sin stock — si no, queda adentro del pedido sin ninguna
+          forma de sacarlo desde el catálogo. */}
+      {(product.inStock || quantity > 0) && (
         quantity > 0 ? (
           <div className="flex items-center justify-between bg-brand/10 rounded-full px-2 py-1">
             <button onClick={() => onRemove(product)} className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-brand"><Minus className="w-3 h-3" /></button>
@@ -180,13 +183,13 @@ export default function Pharmacy({ profile }) {
 
     // Stock filter
     if (showStockOnly) {
-      result = result.filter(p => p.in_stock)
+      result = result.filter(p => p.inStock)
     }
 
     // Con foto: no se aplica cuando el paciente está buscando algo puntual —
     // ahí quiere encontrarlo aunque no tenga imagen.
     if (showWithPhotoOnly && !query) {
-      result = result.filter(p => p.image_url)
+      result = result.filter(p => p.imageUrl)
     }
 
     return result
