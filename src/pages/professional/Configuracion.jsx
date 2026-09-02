@@ -413,7 +413,12 @@ export default function Configuracion({ profile }) {
 
       {/* ── TARIFAS TAB ── */}
       {tab === 'tarifas' && (
-        <form onSubmit={saveTarifas} className="space-y-6">
+        {/* `noValidate`: los inputs llevan `min` para el stepper y la semántica,
+            pero si la validación nativa del browser corta el submit el
+            profesional ve la burbuja del browser —en el idioma del browser— en
+            vez del mensaje que nombra el campo a corregir. La validación real
+            la hace `saveTarifas`, y por debajo el trigger de la migración 142. */}
+        <form onSubmit={saveTarifas} noValidate className="space-y-6">
           <div className="card space-y-5">
             <div>
               <h2 className="font-semibold text-text-primary">Modalidad y zona</h2>
