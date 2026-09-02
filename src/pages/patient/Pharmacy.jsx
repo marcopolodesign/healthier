@@ -30,7 +30,7 @@ function ProductCard({ product, quantity, onAdd, onRemove }) {
         ) : (
           <ShoppingBag className="w-8 h-8 text-text-tertiary" />
         )}
-        {product.featured && !product.in_stock === false && (
+        {product.featured && product.in_stock && (
           <div className="absolute top-2 right-2 bg-brand text-white text-xs font-semibold px-2 py-1 rounded-full">Destacado</div>
         )}
         {!product.in_stock && (
@@ -90,6 +90,10 @@ export default function Pharmacy({ profile }) {
   const [cart, setCart] = useState({})
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [showStockOnly, setShowStockOnly] = useState(true)
+  // Casi la mitad del catálogo no tiene foto cargada y la grilla queda pobre,
+  // así que arranca en true — pero como filtro visible, no como regla oculta:
+  // antes se filtraba a mano y no había forma de ver el resto del catálogo.
+  const [showWithPhotoOnly, setShowWithPhotoOnly] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
   const [canBuy, setCanBuy] = useState(null) // null = todavía no se sabe
 
@@ -179,13 +183,14 @@ export default function Pharmacy({ profile }) {
       result = result.filter(p => p.in_stock)
     }
 
-    // Image visibility: only show if has image, or if searching
-    if (!query) {
+    // Con foto: no se aplica cuando el paciente está buscando algo puntual —
+    // ahí quiere encontrarlo aunque no tenga imagen.
+    if (showWithPhotoOnly && !query) {
       result = result.filter(p => p.image_url)
     }
 
     return result
-  }, [allProducts, query, selectedCategory, showStockOnly])
+  }, [allProducts, query, selectedCategory, showStockOnly, showWithPhotoOnly])
 
   if (canBuy === false) {
     return (
@@ -281,7 +286,7 @@ export default function Pharmacy({ profile }) {
                   ))}
                 </div>
               </div>
-              <div>
+              <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm font-medium text-text-primary cursor-pointer">
                   <input
                     type="checkbox"
@@ -290,6 +295,15 @@ export default function Pharmacy({ profile }) {
                     className="w-4 h-4 rounded border-border-default"
                   />
                   Solo en stock
+                </label>
+                <label className="flex items-center gap-2 text-sm font-medium text-text-primary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showWithPhotoOnly}
+                    onChange={(e) => setShowWithPhotoOnly(e.target.checked)}
+                    className="w-4 h-4 rounded border-border-default"
+                  />
+                  Solo con foto
                 </label>
               </div>
             </div>
@@ -361,7 +375,7 @@ export default function Pharmacy({ profile }) {
                 <div className="text-center py-12">
                   <ShoppingBag className="h-10 w-10 text-text-muted mx-auto mb-3" />
                   <p className="text-text-secondary">{query ? 'No encontramos productos' : 'Sin productos disponibles'}</p>
-                  {!query && <p className="text-xs text-text-tertiary mt-1">Los productos aparecen cuando tienen imágenes</p>}
+                  {!query && showWithPhotoOnly && <p className="text-xs text-text-tertiary mt-1">Probá desactivar "Solo con foto" en Filtros</p>}
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, MapPin, CircleNotch, Pill } from '@phosphor-icons/react'
+import { ArrowLeft, MapPin, CircleNotch, Pill, Trash, Plus, Minus } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
 import { formatARS as fmtPrice } from '../../lib/format'
@@ -14,6 +14,7 @@ export default function PharmacyCheckout({ profile }) {
   const [address, setAddress] = useState(profile?.address ?? '')
   const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [updatingItem, setUpdatingItem] = useState(null) // id del item en vuelo
 
   // Draft is created as soon as checkout starts (state-resilience — before
   // the payment step) unless we're resuming an already-drafted order.
@@ -36,6 +37,28 @@ export default function PharmacyCheckout({ profile }) {
       .catch(err => toast.error(err?.message || 'Error al crear el pedido'))
       .finally(() => setCreating(false))
   }, [state.orderId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * quantity 0 saca el medicamento. Si era el último, el borrador entero
+   * desaparece (migración 137) y no hay pedido al que volver: se vuelve al
+   * catálogo en vez de dejar una pantalla vacía.
+   */
+  const changeItemQuantity = async (item, quantity) => {
+    setUpdatingItem(item.id)
+    try {
+      const updated = await medicationOrdersService.setItemQuantity(item.id, quantity)
+      if (!updated) {
+        toast.info('Tu pedido quedó vacío')
+        navigate('/paciente/farmacia', { replace: true })
+        return
+      }
+      setOrder(updated)
+    } catch (err) {
+      toast.error(err?.message || 'No se pudo actualizar el pedido')
+    } finally {
+      setUpdatingItem(null)
+    }
+  }
 
   const confirmAddress = async () => {
     if (!address.trim()) { toast.error('Ingresá una dirección de entrega'); return }
@@ -79,12 +102,37 @@ export default function PharmacyCheckout({ profile }) {
               <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-3">Medicamentos</p>
               <div className="space-y-2">
                 {(order.items ?? []).map(it => (
-                  <div key={it.id} className="bg-white rounded-xl px-3 py-2.5 flex items-center justify-between border border-border-default">
-                    <div className="flex items-center gap-2">
-                      <Pill className="w-4 h-4 text-brand shrink-0" />
-                      <span className="text-[13px] font-semibold text-text-primary">{it.medicationName} x{it.quantity}</span>
+                  <div key={it.id} className={`bg-white rounded-xl px-3 py-2.5 flex items-center gap-3 border border-border-default ${updatingItem === it.id ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <Pill className="w-4 h-4 text-brand shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-semibold text-text-primary truncate">{it.medicationName}</p>
+                      <p className="text-[11px] text-text-secondary">{fmtPrice(it.unitPrice * it.quantity)}</p>
                     </div>
-                    <span className="text-[13px] text-text-secondary">{fmtPrice(it.unitPrice * it.quantity)}</span>
+                    <div className="flex items-center gap-1 bg-brand/10 rounded-full px-1.5 py-1 shrink-0">
+                      <button
+                        onClick={() => changeItemQuantity(it, it.quantity - 1)}
+                        disabled={it.quantity <= 1}
+                        aria-label={`Quitar una unidad de ${it.medicationName}`}
+                        className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-brand disabled:opacity-40"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="text-[12px] font-semibold text-brand w-5 text-center">{it.quantity}</span>
+                      <button
+                        onClick={() => changeItemQuantity(it, it.quantity + 1)}
+                        aria-label={`Agregar una unidad de ${it.medicationName}`}
+                        className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-brand"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => changeItemQuantity(it, 0)}
+                      aria-label={`Eliminar ${it.medicationName} del pedido`}
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-text-tertiary hover:text-danger hover:bg-danger/10 shrink-0"
+                    >
+                      <Trash className="w-4 h-4" />
+                    </button>
                   </div>
                 ))}
               </div>

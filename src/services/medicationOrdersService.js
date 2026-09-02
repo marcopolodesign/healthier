@@ -56,7 +56,13 @@ export const medicationOrdersService = {
       })))
     if (itemsErr) throw itemsErr
 
-    return toCamelCase(order)
+    // Releer con el join: la fila que devuelve el insert de arriba es de ANTES
+    // de que existieran los items, así que nunca los traía. El checkout hace
+    // `(order.items ?? []).map(...)` y por eso mostraba el total sin un solo
+    // medicamento debajo — el paciente confirmaba un pedido sin ver qué estaba
+    // comprando. (Mobile ya lo tenía arreglado desde el 2026-08-27; el website
+    // se quedó con el bug hasta el 2026-09-02.)
+    return (await this.getById(order.id)) ?? toCamelCase(order)
   },
 
   async updateDeliveryAddress(orderId, deliveryAddress) {
@@ -64,10 +70,36 @@ export const medicationOrdersService = {
       .from('medication_orders')
       .update({ delivery_address: deliveryAddress })
       .eq('id', orderId)
-      .select()
+      // Con el join, igual que getById: devolver el pedido sin sus items es
+      // justo lo que rompía el listado del checkout.
+      .select(ORDER_ITEMS_SELECT)
       .single()
     if (error) throw error
     return toCamelCase(data)
+  },
+
+  /**
+   * Cambia la cantidad de un medicamento del carrito, o lo saca (quantity 0).
+   * Va por RPC porque hay que recalcular subtotal/total en la misma
+   * transacción — ver migración 137. `medication_order_items` no tiene (ni
+   * debe tener) policies sueltas de UPDATE/DELETE para el paciente.
+   *
+   * @returns {Promise<Object|null>} el pedido actualizado, o `null` si se sacó
+   *   el último medicamento y el borrador se eliminó.
+   */
+  async setItemQuantity(itemId, quantity) {
+    const { data: orderId, error } = await supabase.rpc('actualizar_item_pedido_medicamentos', {
+      p_item_id: itemId,
+      p_quantity: quantity,
+    })
+    if (error) throw error
+    if (!orderId) return null
+    return this.getById(orderId)
+  },
+
+  /** Saca un medicamento del carrito. Ver setItemQuantity. */
+  removeItem(itemId) {
+    return this.setItemQuantity(itemId, 0)
   },
 
   async getById(orderId) {
