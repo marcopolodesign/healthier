@@ -103,7 +103,23 @@ check(Number(conPrecio.items[0].unit_price) === Number(A.price), 'el precio unit
 // limpiar
 await supabase.rpc('agregar_item_pedido_medicamentos', { p_product_id: A.id, p_delta: -99 })
 
-// 9. cancellation_reason existe y el paciente NO puede escribirla
+// 9. Dos "dispositivos" agregando a la vez no parten la compra en dos carritos
+//    (migración 139: índice único parcial + reintento adentro de la función).
+const [pA, pB] = await Promise.all([
+  supabase.rpc('agregar_item_pedido_medicamentos', { p_product_id: A.id, p_delta: 1 }),
+  supabase.rpc('agregar_item_pedido_medicamentos', { p_product_id: B.id, p_delta: 1 }),
+])
+check(!pA.error && !pB.error, `las dos llamadas concurrentes pasan${pA.error ? ` — ${pA.error.message}` : ''}${pB.error ? ` — ${pB.error.message}` : ''}`)
+const { data: carritos } = await supabase.from('medication_orders').select('id, items:medication_order_items(id)')
+  .eq('patient_id', auth.user.id).eq('payment_status', 'no_pagado')
+check((carritos ?? []).length === 1, `quedó UN solo carrito, no dos (${(carritos ?? []).length})`)
+check((carritos?.[0]?.items ?? []).length === 2, `los dos productos entraron en el mismo carrito (${(carritos?.[0]?.items ?? []).length})`)
+// limpiar
+for (const it of carritos?.[0]?.items ?? []) {
+  await supabase.rpc('actualizar_item_pedido_medicamentos', { p_item_id: it.id, p_quantity: 0 })
+}
+
+// 10. cancellation_reason existe y el paciente NO puede escribirla
 const { error: eCancel } = await supabase.from('medication_orders').select('cancellation_reason').limit(1)
 check(!eCancel, `la columna cancellation_reason existe${eCancel ? ` — ${eCancel.message}` : ''}`)
 

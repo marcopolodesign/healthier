@@ -1,13 +1,15 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Package, CaretRight } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { farmaciaVisible } from '../../lib/featureFlags'
 import { STATUS_FLOW, STATUS_PATIENT_LABEL, STATUS_PATIENT_HINT } from '../../lib/pharmacyOrders'
+import { usePolling } from '../../hooks/usePolling'
 
 // El estado lo cambia la farmacia desde su panel, así que la única forma de
 // que el paciente lo vea moverse es volver a preguntar. Un minuto alcanza: no
-// es una videollamada, es un pedido que tarda horas.
+// es una videollamada, es un pedido que tarda horas. `usePolling` lo frena
+// mientras la pestaña esté en segundo plano.
 const REFRESCO_MS = 60_000
 
 /**
@@ -28,11 +30,7 @@ export default function ActivePharmacyOrderCard({ profile }) {
       .catch(() => {}) // aditivo: nunca rompe el inicio
   }, [profile])
 
-  useEffect(() => {
-    cargar()
-    const t = setInterval(cargar, REFRESCO_MS)
-    return () => clearInterval(t)
-  }, [cargar])
+  usePolling(cargar, REFRESCO_MS)
 
   if (!order) return null
 

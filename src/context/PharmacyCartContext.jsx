@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { medicationOrdersService } from '../services/medicationOrdersService'
 import { toast } from '../components/Toast'
+import { farmaciaVisible } from '../lib/featureFlags'
 
 /**
  * El carrito de farmacia, compartido por toda la app del paciente.
@@ -36,12 +37,15 @@ export function PharmacyCartProvider({ profile, children }) {
   const [deltas, setDeltas] = useState({})          // productId -> cantidad todavía sin confirmar
   const [productsById, setProductsById] = useState({}) // para pintar filas que el servidor aún no devolvió
   const [loading, setLoading] = useState(true)
-  const [syncing, setSyncing] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)   // la hoja es una sola, la abren el pill y la barra de Farmacia
 
   const colaRef = useRef(Promise.resolve())
-  const enVueloRef = useRef(0)
   const montadoRef = useRef(true)
+
+  // No hace falta un contador de llamadas en vuelo: cada respuesta descuenta
+  // su delta antes de resolver, así que "hay deltas" y "hay algo en vuelo" son
+  // el mismo hecho.
+  const syncing = Object.keys(deltas).length > 0
 
   useEffect(() => {
     montadoRef.current = true
@@ -49,7 +53,10 @@ export function PharmacyCartProvider({ profile, children }) {
   }, [])
 
   const refresh = useCallback(async () => {
-    if (!profile?.id) { setOrder(null); setLoading(false); return null }
+    // El provider envuelve TODA la app del paciente, así que sin este corte
+    // cada paciente pagaría el SELECT del carrito al entrar — incluidos los
+    // que en producción ni siquiera pueden ver Farmacia.
+    if (!profile?.id || !farmaciaVisible(profile)) { setOrder(null); setLoading(false); return null }
     try {
       const draft = await medicationOrdersService.getPendingDraft(profile.id)
       if (montadoRef.current) setOrder(draft)
@@ -82,11 +89,12 @@ export function PharmacyCartProvider({ profile, children }) {
   /** delta positivo suma, negativo resta. Ver el bloque de arriba. */
   const changeQuantity = useCallback((product, delta) => {
     if (!product?.id || !delta) return
-    setProductsById(prev => ({ ...prev, [product.id]: product }))
+    // Merge, no reemplazo: la hoja y el checkout llaman con `{ id }` pelado
+    // (es lo único que tienen a mano), y pisar la entrada borraría el nombre,
+    // el precio y la foto que se habían guardado al agregarlo desde el catálogo.
+    setProductsById(prev => ({ ...prev, [product.id]: { ...prev[product.id], ...product } }))
     setDeltas(prev => ({ ...prev, [product.id]: (prev[product.id] ?? 0) + delta }))
 
-    enVueloRef.current += 1
-    setSyncing(true)
     colaRef.current = colaRef.current
       .then(() => medicationOrdersService.addToCart(product.id, delta))
       .then(actualizado => {
@@ -96,10 +104,6 @@ export function PharmacyCartProvider({ profile, children }) {
       .catch(err => {
         olvidarDelta(product.id, delta)
         toast.error(err?.message || 'No se pudo actualizar el carrito')
-      })
-      .finally(() => {
-        enVueloRef.current -= 1
-        if (montadoRef.current && enVueloRef.current === 0) setSyncing(false)
       })
   }, [olvidarDelta])
 
@@ -124,6 +128,7 @@ export function PharmacyCartProvider({ profile, children }) {
       const pid = it.pharmacyProductId ?? `item:${it.id}`
       porProducto.set(pid, {
         itemId: it.id,
+        createdAt: it.createdAt,
         productId: it.pharmacyProductId,
         name: it.medicationName,
         presentation: it.presentation,
@@ -142,6 +147,7 @@ export function PharmacyCartProvider({ profile, children }) {
         ? { ...actual, quantity: cantidad }
         : {
             itemId: null,
+            createdAt: null,
             productId: pid,
             name: producto?.name ?? 'Medicamento',
             presentation: producto?.presentation ?? null,
@@ -151,7 +157,13 @@ export function PharmacyCartProvider({ profile, children }) {
             imageUrl: producto?.imageUrl ?? null,
           })
     }
-    return [...porProducto.values()]
+    // Por orden de agregado. Sin esto la lista se reordena sola cada vez que
+    // el servidor responde (el join no garantiza orden) y las filas bailan
+    // debajo del dedo mientras el paciente toca +/-. Lo que todavía no
+    // confirmó el servidor va al final, que es donde el paciente lo acaba de
+    // poner.
+    return [...porProducto.values()].sort((a, b) =>
+      String(a.createdAt ?? '\uffff').localeCompare(String(b.createdAt ?? '\uffff')))
   }, [order, deltas, productsById])
 
   const quantities = useMemo(

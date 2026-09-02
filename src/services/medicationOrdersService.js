@@ -7,11 +7,19 @@
  * medication_orders, migration 106): the doctor only ever issues a receta,
  * never a purchase, on the patient's behalf.
  *
- * `createDraft` writes to the DB before payment is shown/confirmed — same
- * state-resilience principle as consultations booking — so an abandoned
- * checkout is resumable instead of silently lost.
+ * El carrito **es** el borrador: `addToCart` lo crea en la primera llamada,
+ * antes de que el paciente vea nada de pago — mismo principio de resiliencia
+ * de estado que el booking de consultas, pero ahora desde el primer "Agregar"
+ * en vez de desde el checkout, así que un carrito abandonado se puede retomar
+ * en lugar de perderse en silencio.
+ *
+ * `createDraft` (armaba el pedido entero desde el cliente) y `setItemQuantity`
+ * (cambiaba un item por su id) se retiraron el 2026-09-02 al pasar el carrito
+ * a la base: los dos caminos escribían precios que venían del front. La RPC
+ * por item (`actualizar_item_pedido_medicamentos`, migración 137) sigue viva en
+ * la base y la usan los scripts de verificación.
  */
-import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
+import { supabase, toCamelCase } from '../lib/supabase'
 
 const PHARMACY_ID = '10000000-0000-0000-0000-000000000001' // single MVP tenant
 
@@ -21,50 +29,6 @@ const ORDER_ITEMS_SELECT = `
 `
 
 export const medicationOrdersService = {
-  /**
-   * items: [{ pharmacyProductId, medicationName, presentation, quantity, unitPrice, requiresPrescription }]
-   */
-  async createDraft({ patientId, deliveryAddress = null, items, rctaPrescriptionId = null }) {
-    if (!items?.length) throw new Error('El pedido necesita al menos un medicamento')
-
-    const subtotal = items.reduce((s, it) => s + Number(it.unitPrice) * Number(it.quantity), 0)
-
-    const { data: order, error: orderErr } = await supabase
-      .from('medication_orders')
-      .insert(toSnakeCase({
-        patientId,
-        pharmacyId: PHARMACY_ID,
-        rctaPrescriptionId,
-        deliveryAddress,
-        subtotal,
-        total: subtotal,
-      }))
-      .select()
-      .single()
-    if (orderErr) throw orderErr
-
-    const { error: itemsErr } = await supabase
-      .from('medication_order_items')
-      .insert(items.map(it => toSnakeCase({
-        orderId: order.id,
-        pharmacyProductId: it.pharmacyProductId ?? null,
-        medicationName: it.medicationName,
-        presentation: it.presentation ?? null,
-        quantity: it.quantity,
-        unitPrice: it.unitPrice,
-        requiresPrescription: it.requiresPrescription ?? false,
-      })))
-    if (itemsErr) throw itemsErr
-
-    // Releer con el join: la fila que devuelve el insert de arriba es de ANTES
-    // de que existieran los items, así que nunca los traía. El checkout hace
-    // `(order.items ?? []).map(...)` y por eso mostraba el total sin un solo
-    // medicamento debajo — el paciente confirmaba un pedido sin ver qué estaba
-    // comprando. (Mobile ya lo tenía arreglado desde el 2026-08-27; el website
-    // se quedó con el bug hasta el 2026-09-02.)
-    return (await this.getById(order.id)) ?? toCamelCase(order)
-  },
-
   async updateDeliveryAddress(orderId, deliveryAddress) {
     const { data, error } = await supabase
       .from('medication_orders')
@@ -76,30 +40,6 @@ export const medicationOrdersService = {
       .single()
     if (error) throw error
     return toCamelCase(data)
-  },
-
-  /**
-   * Cambia la cantidad de un medicamento del carrito, o lo saca (quantity 0).
-   * Va por RPC porque hay que recalcular subtotal/total en la misma
-   * transacción — ver migración 137. `medication_order_items` no tiene (ni
-   * debe tener) policies sueltas de UPDATE/DELETE para el paciente.
-   *
-   * @returns {Promise<Object|null>} el pedido actualizado, o `null` si se sacó
-   *   el último medicamento y el borrador se eliminó.
-   */
-  async setItemQuantity(itemId, quantity) {
-    const { data: orderId, error } = await supabase.rpc('actualizar_item_pedido_medicamentos', {
-      p_item_id: itemId,
-      p_quantity: quantity,
-    })
-    if (error) throw error
-    if (!orderId) return null
-    return this.getById(orderId)
-  },
-
-  /** Saca un medicamento del carrito. Ver setItemQuantity. */
-  removeItem(itemId) {
-    return this.setItemQuantity(itemId, 0)
   },
 
   /**

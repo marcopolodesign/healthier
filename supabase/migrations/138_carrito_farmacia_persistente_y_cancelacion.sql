@@ -115,10 +115,10 @@ begin
       quantity, unit_price, requires_prescription
     ) values (
       v_order_id, p_product_id, v_product.name, v_product.presentation,
-      -- `pharmacy_products.requires_prescription` NO existe (ni en staging ni
-      -- en producción): la 104 la declaraba y la 129 la daba por sentada, pero
-      -- en las dos bases reales la columna nunca quedó. La fuente de verdad es
-      -- `prescription_type`, y de ahí se deriva.
+      -- `pharmacy_products.requires_prescription` ya no existe: la 130 la
+      -- borró a propósito cuando `prescription_type` la reemplazó (la 104 la
+      -- había declarado y la 129 todavía la daba por sentada). La fuente de
+      -- verdad es `prescription_type`, y de ahí se deriva.
       v_qty, v_product.price, v_product.prescription_type is distinct from 'venta_libre'
     );
   else

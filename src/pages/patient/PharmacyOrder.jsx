@@ -1,15 +1,17 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, MapPin, Pill, Check, Package, Truck, House, XCircle } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
 import { formatARS as fmtPrice, formatDate } from '../../lib/format'
 import { STATUS_FLOW, STATUS_PATIENT_LABEL, STATUS_PATIENT_HINT } from '../../lib/pharmacyOrders'
+import { usePolling } from '../../hooks/usePolling'
 
 const STEP_ICON = { pendiente: Check, en_preparacion: Package, enviado: Truck, entregado: House }
 
 // Quien está esperando un pedido vuelve a esta pantalla justamente para ver si
-// cambió algo. Se refresca sola cada 20s en vez de pedirle que recargue.
+// cambió algo. Se refresca sola cada 20s en vez de pedirle que recargue —
+// `usePolling` la frena mientras la pestaña esté en segundo plano.
 const REFRESCO_MS = 20_000
 
 export default function PharmacyOrder() {
@@ -18,22 +20,22 @@ export default function PharmacyOrder() {
   const [order, setOrder] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const cargar = useCallback(async ({ silencioso } = {}) => {
+  const primeraRef = useRef(true)
+  const cargar = useCallback(async () => {
     try {
       const data = await medicationOrdersService.getById(id)
       setOrder(data)
     } catch (err) {
-      if (!silencioso) toast.error(err?.message || 'Error al cargar el pedido')
+      // Sólo la primera carga avisa: un refresco de fondo que falla no tiene
+      // por qué tirarle un cartel encima a quien está mirando el pedido.
+      if (primeraRef.current) toast.error(err?.message || 'Error al cargar el pedido')
     } finally {
+      primeraRef.current = false
       setLoading(false)
     }
   }, [id])
 
-  useEffect(() => {
-    cargar()
-    const t = setInterval(() => cargar({ silencioso: true }), REFRESCO_MS)
-    return () => clearInterval(t)
-  }, [cargar])
+  usePolling(cargar, REFRESCO_MS)
 
   if (loading) {
     return (
