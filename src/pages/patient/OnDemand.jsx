@@ -100,6 +100,14 @@ export default function OnDemand({ profile }) {
   // migración 135) — se salta el paygate de MP entero, la consulta nace
   // marcada `payment_status: 'exempt'` en vez de pasar por mp-payment.
   const paymentExempt = Boolean(profile?.paymentExempt)
+  // Falta elegir tarjeta y hace falta una. Ni el modo demo ni el paciente
+  // bonificado tocan Mercado Pago, así que a ellos no se les puede pedir.
+  //
+  // 🔴 Estaba usada en el CTA pero nunca declarada: la pantalla entera de
+  // consulta inmediata tiraba `missingCard is not defined` al llegar al checkout
+  // y el paciente veía "Algo salió mal" en vez del profesional que ya tenía
+  // asignado. Se coló al reemplazar la expresión inline por esta variable.
+  const missingCard = !isDemoMode && !paymentExempt && !selectedCardId
 
   const IconComp = vertical?.icon
   // El precio lo fija la vertical y pisa el del profesional (Mateo, 2026-07-31).
