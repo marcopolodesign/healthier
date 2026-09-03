@@ -19,14 +19,20 @@ export default function AppLayout({ profile, profSpecialty }) {
   // Disponibilidad on-demand: late mientras el profesional tiene la app abierta
   // y el switch encendido. Va en el layout y no en una pantalla suelta para que
   // siga vivo mientras navega por su panel, no solo en el dashboard.
-  const [onDemandEnabled, setOnDemandEnabled] = useState(false)
+  // `null` = todavía no se leyó el perfil. Arrancar en `false` hacía que el hook
+  // llamara a `goOffline()` en cada montaje y le borrara la vigencia a quien
+  // tenía on-demand prendido — ver `useOnDemandPresence`.
+  const [onDemandEnabled, setOnDemandEnabled] = useState(null)
   useOnDemandPresence(onDemandEnabled)
 
   useEffect(() => {
-    if (profile?.role !== 'professional' || !profile?.id) { setOnDemandEnabled(false); return }
+    if (profile?.role !== 'professional' || !profile?.id) { setOnDemandEnabled(null); return }
+    let cancelled = false
     professionalService.getByUserId(profile.id)
-      .then(p => setOnDemandEnabled(Boolean(p?.isOnDemand)))
-      .catch(() => setOnDemandEnabled(false))
+      .then(p => { if (!cancelled) setOnDemandEnabled(Boolean(p?.isOnDemand)) })
+      // No se sabe: mejor no tocar la presencia que apagarla por un error de red.
+      .catch(() => { if (!cancelled) setOnDemandEnabled(null) })
+    return () => { cancelled = true }
   }, [profile?.id, profile?.role])
   const [mobileOpen, setMobileOpen] = useState(false)
   const [companionOpen, setCompanionOpen] = useState(false)
@@ -183,7 +189,9 @@ export default function AppLayout({ profile, profSpecialty }) {
 
           <main className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden ${showBottomNav ? 'pb-28 lg:pb-0' : ''}`}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-              <Outlet />
+              {/* `setOnDemandEnabled` baja para que el switch del dashboard
+                  arranque el latido periódico en el acto, sin recargar. */}
+              <Outlet context={{ setOnDemandEnabled }} />
             </div>
           </main>
         </div>

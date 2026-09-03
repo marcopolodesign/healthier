@@ -17,10 +17,20 @@ import { professionalService, ON_DEMAND_HEARTBEAT_MS } from '../services/profess
  * la hora de vigencia mientras la app está abierta; lo único que apaga la
  * disponibilidad es apagar el switch.
  *
- * @param {boolean} enabled — el profesional tiene on-demand encendido.
+ * **`null` significa "todavía no sé"** y no hace nada. Sin esa distinción, montar
+ * el layout llamaba a `goOffline()` con el `false` inicial del estado —antes de
+ * que llegara el valor real del perfil— y le borraba `on_demand_last_seen_at` a
+ * un profesional que tenía el switch prendido. Si la pestaña se cerraba en ese
+ * hueco, quedaba en `is_on_demand = true` y `on_demand_last_seen_at = NULL`:
+ * "Estás disponible" en su panel y afuera del pool para siempre, porque nada
+ * vuelve a latir solo. Es exactamente lo que ya se había arreglado en mobile
+ * (`OnDemandStatusBar`, guard `estadoCargado`) y acá faltaba.
+ *
+ * @param {boolean|null} enabled — on-demand encendido, o `null` si aún no se sabe.
  */
 export function useOnDemandPresence(enabled) {
   useEffect(() => {
+    if (enabled === null || enabled === undefined) return
     if (!enabled) {
       // Apagó el switch: bajarlo ya, sin esperar el TTL.
       professionalService.goOffline().catch(() => {})

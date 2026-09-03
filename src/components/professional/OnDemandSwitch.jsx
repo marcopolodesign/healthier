@@ -42,6 +42,14 @@ export default function OnDemandSwitch({ profileId, onChange }) {
     setEnabled(next)
     try {
       await professionalService.upsert(profileId, { isOnDemand: next })
+      // La presencia se escribe acá y no sólo en el layout: `is_on_demand` es la
+      // intención, `on_demand_last_seen_at` es lo que el pool del paciente mira
+      // de verdad. El layout lee su estado una vez al montar y no se entera de
+      // este toggle, así que prender el switch dejaba al profesional en
+      // `is_on_demand = true` con vigencia nula —"Estás disponible" para él,
+      // invisible para el paciente— hasta que recargara la página.
+      if (next) await professionalService.pingOnline()
+      else await professionalService.goOffline()
       onChange?.(next)
       toast.success(next
         ? 'Estás disponible para consultas inmediatas'

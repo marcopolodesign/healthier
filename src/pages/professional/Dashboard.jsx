@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useOutletContext } from 'react-router-dom'
 import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle, X, CircleNotch, WhatsappLogo, FileText, Lightning, ArrowsClockwise, MapPin, GraduationCap } from '@phosphor-icons/react';
 import { consultationsService } from '../../services/consultationsService'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
@@ -141,6 +141,10 @@ export default function ProfessionalDashboard({ profile }) {
   // Se pregunta una vez por sesión, no en cada visita al dashboard.
   const [askOnDemand, setAskOnDemand] = useState(false)
   const [onDemandOn, setOnDemandOn] = useState(null)
+  // AppLayout lee la disponibilidad una sola vez al montar y es quien corre el
+  // latido periódico; sin avisarle, prender el switch acá no lo arrancaba hasta
+  // la próxima recarga.
+  const { setOnDemandEnabled: setPresenciaEnLayout } = useOutletContext() ?? {}
 
   useEffect(() => {
     if (!profile?.id || onDemandOn !== false) return
@@ -554,7 +558,10 @@ export default function ProfessionalDashboard({ profile }) {
           detrás de un "Guardar configuración", así que existir en el pool on-demand
           dependía de acordarse de entrar a otra pantalla (Mateo, 2026-07-31). */}
       <div data-tour="pro-ondemand">
-        <OnDemandSwitch profileId={profile?.id} onChange={v => setOnDemandOn(v)} />
+        <OnDemandSwitch
+          profileId={profile?.id}
+          onChange={v => { setOnDemandOn(v); setPresenciaEnLayout?.(v) }}
+        />
       </div>
 
       {/* Al entrar, si está apagado, se pregunta una vez por sesión. Es la decisión
