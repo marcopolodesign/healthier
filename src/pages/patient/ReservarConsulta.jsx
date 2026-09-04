@@ -36,20 +36,41 @@ function addMinutes(hhmmss, minutes) {
 // `slotMinutes`, skipping any that already have an active consultation
 // booked. Este es el ÚNICO lugar del código que genera la grilla horaria
 // contra `professional_schedules` — ver comentario en ProfessionalProfile.jsx.
-function buildTimeSlots(franjasForDay, bookedTimes, slotMinutes) {
+function buildTimeSlots(franjasForDay, bookedTimes, slotMinutes, minStartTime = null) {
   const slots = []
   franjasForDay.forEach(fr => {
     let cursor = fr.startTime
     while (cursor < fr.endTime) {
       const end = addMinutes(cursor, slotMinutes)
       if (end > fr.endTime) break
-      if (!bookedTimes.has(cursor.slice(0, 5))) {
+      const yaPaso = minStartTime != null && cursor < minStartTime
+      if (!yaPaso && !bookedTimes.has(cursor.slice(0, 5))) {
         slots.push({ id: `${fr.id}-${cursor}`, startTime: cursor, endTime: end })
       }
       cursor = end
     }
   })
   return slots
+}
+
+/**
+ * La hora a partir de la cual se puede reservar HOY.
+ *
+ * Sin esto, un profesional con franja de 9 a 18 ofrecía las 9:00 a las seis de
+ * la tarde: la grilla salía de `professional_schedules` sin mirar el reloj. Se
+ * pide además un margen de una hora — nadie reserva un turno que empieza en
+ * cinco minutos, y el profesional necesita verlo llegar.
+ */
+const MARGEN_MINIMO_HOY_MIN = 60
+
+function horaMinimaParaHoy(fechaISO) {
+  const hoy = new Date()
+  const yyyy = hoy.getFullYear()
+  const mm = String(hoy.getMonth() + 1).padStart(2, '0')
+  const dd = String(hoy.getDate()).padStart(2, '0')
+  if (fechaISO !== `${yyyy}-${mm}-${dd}`) return null
+  const desde = new Date(hoy.getTime() + MARGEN_MINIMO_HOY_MIN * 60 * 1000)
+  return `${String(desde.getHours()).padStart(2, '0')}:${String(desde.getMinutes()).padStart(2, '0')}:00`
 }
 
 // ── Date helpers ─────────────────────────────────────────────
@@ -75,6 +96,32 @@ const ALL_DATES = buildDateOptions(14)
 
 function fmtTime(t) {
   return t ? t.slice(0, 5) : ''
+}
+
+/**
+ * Barra de acción fija al pie del paso.
+ *
+ * Va `sticky bottom-0` DENTRO del contenedor que scrollea (el mismo truco que
+ * ya usa el header arriba): el botón se ve desde que entrás al paso, sin tener
+ * que scrollear hasta el final de la lista de profesionales o de horarios. Se
+ * renderiza siempre, deshabilitado hasta que haya algo elegido — así el
+ * paciente ve qué le falta hacer en vez de preguntarse dónde está el botón.
+ */
+function BarraContinuar({ label, onClick, disabled, hint }) {
+  return (
+    <div className="sticky bottom-0 -mx-4 px-4 pt-3 pb-4 bg-bg-primary/95 backdrop-blur-sm border-t border-border-default">
+      {hint && disabled && (
+        <p className="text-[12px] text-text-tertiary text-center mb-2">{hint}</p>
+      )}
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className="w-full py-4 rounded-full font-semibold text-[15px] text-white bg-brand hover:bg-brand-hover disabled:bg-border-default disabled:text-text-tertiary transition-colors"
+      >
+        {label}
+      </button>
+    </div>
+  )
 }
 
 // ── Step sequence logic ───────────────────────────────────────
@@ -186,7 +233,9 @@ export default function ReservarConsulta({ profile }) {
       })
       .map(d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
   )
-  const timeSlots = selectedDate ? buildTimeSlots(franjas, bookedTimesForDate, slotDurationMinutes) : []
+  const timeSlots = selectedDate
+    ? buildTimeSlots(franjas, bookedTimesForDate, slotDurationMinutes, horaMinimaParaHoy(selectedDate))
+    : []
 
   // ── Booking wizard start — fire once a vertical is known ──
   useEffect(() => {
@@ -638,15 +687,12 @@ export default function ReservarConsulta({ profile }) {
                 ))}
               </div>
             )}
-            {selectedPro && (
-              <button
-                onClick={() => setStep('datetime')}
-                className="w-full py-4 rounded-full font-semibold text-[15px] text-white mt-2"
-                style={{ backgroundColor: '#7CB38B' }}
-              >
-                Continuar
-              </button>
-            )}
+            <BarraContinuar
+              label="Continuar"
+              onClick={() => setStep('datetime')}
+              disabled={!selectedPro}
+              hint="Elegí un profesional para seguir"
+            />
           </>
         )}
 
@@ -730,15 +776,12 @@ export default function ReservarConsulta({ profile }) {
                 )}
               </>
             )}
-            {selectedDate && selectedFranja && (
-              <button
-                onClick={() => setStep('confirm')}
-                className="w-full py-4 rounded-full font-semibold text-[15px] text-white mt-2"
-                style={{ backgroundColor: '#7CB38B' }}
-              >
-                Ver resumen
-              </button>
-            )}
+            <BarraContinuar
+              label="Ver resumen"
+              onClick={() => setStep('confirm')}
+              disabled={!selectedDate || !selectedFranja}
+              hint={selectedDate ? 'Elegí un horario para seguir' : 'Elegí un día y un horario para seguir'}
+            />
           </>
         )}
 

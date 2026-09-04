@@ -78,6 +78,36 @@ export function isClosing(consultation) {
 // esto, "Mi Agenda" (pestaña Historial) sigue teniendo el mismo "Ver receta".
 const RECENTLY_COMPLETED_WINDOW_MS = 24 * 60 * 60 * 1000
 
+/**
+ * Un turno confirmado se anuncia en el inicio desde 24 h antes (Mateo,
+ * 2026-09-04). Hasta ahora sólo aparecía 15 min antes (`WINDOW_BEFORE_MS`),
+ * que es la ventana de "entrá ya" — quien tenía turno mañana no veía nada en
+ * el inicio y tenía que ir a buscarlo a Mi Agenda.
+ *
+ * Son dos cosas distintas y por eso son dos ventanas: `isActive` habilita
+ * ENTRAR a la consulta (y lo importa `BookingConfirmed`, así que no se toca);
+ * esto sólo AVISA que se viene.
+ */
+const UPCOMING_WINDOW_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Turno confirmado dentro de las próximas 24 h y todavía no "activo".
+ *
+ * A propósito NO exige el pago habilitante, a diferencia de `isActive`: esto
+ * avisa que se viene un turno, no habilita entrar a la consulta. Recordarle a
+ * alguien que mañana tiene turno no le da acceso a nada, y filtrar por pago acá
+ * dejaría sin aviso justamente al que reservó desde la app un turno presencial
+ * —que hoy queda `pending_payment`—. El estado real se ve al abrirlo.
+ */
+export function isUpcomingSoon(consultation, now) {
+  if (consultation?.status !== 'confirmed') return false
+  if (!consultation.scheduledAt) return false
+  const scheduled = new Date(consultation.scheduledAt).getTime()
+  if (Number.isNaN(scheduled)) return false
+  if (isActive(consultation, now)) return false   // ése ya lo cubre el estado "entrá ya"
+  return scheduled > now && scheduled - now <= UPCOMING_WINDOW_MS
+}
+
 export function isRecentlyCompleted(consultation, now) {
   if (consultation?.status !== 'completed') return false
   if (!consultation.completedAt) return false
@@ -110,12 +140,38 @@ export function pickBannerConsultation(consultations, now) {
     )[0]
   }
 
+  // Un turno que se viene es más accionable que el resumen de uno que ya pasó
+  // —que además sigue estando en Mi Agenda—, así que va primero.
+  const proximos = list.filter(c => isUpcomingSoon(c, now))
+  if (proximos.length) {
+    return proximos.sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt))[0]
+  }
+
   const completed = list.filter(c => isRecentlyCompleted(c, now))
   if (completed.length) {
     return completed.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))[0]
   }
 
   return null
+}
+
+/**
+ * "Hoy a las 15:00" / "Mañana a las 09:30". Con menos de 24 h de distancia no
+ * hace falta la fecha completa, y decirle el día al paciente es justamente lo
+ * que hace que el aviso sirva.
+ */
+function cuandoEs(scheduledAt, now) {
+  const d = new Date(scheduledAt)
+  const hora = d.toLocaleTimeString('es-AR', {
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'America/Argentina/Buenos_Aires',
+  })
+  const dia = f => f.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })
+  const hoy = new Date(now)
+  const manana = new Date(now + 24 * 60 * 60 * 1000)
+  if (dia(d) === dia(hoy)) return `Hoy a las ${hora}`
+  if (dia(d) === dia(manana)) return `Mañana a las ${hora}`
+  return `${d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Argentina/Buenos_Aires' })} a las ${hora}`
 }
 
 /**
@@ -171,6 +227,7 @@ export default function ActiveAppointmentBanner({ profile }) {
   const inProgress = active.status === 'in_progress'
   const closing = active.status === 'closing'
   const recentlyCompleted = active.status === 'completed'
+  const proximo = isUpcomingSoon(active, now)
   const proName = active.professional?.fullName ?? 'tu profesional'
   const timeStr = active.scheduledAt
     ? new Date(active.scheduledAt).toLocaleTimeString('es-AR', {
@@ -193,6 +250,11 @@ export default function ActiveAppointmentBanner({ profile }) {
       navigate(`/paciente/videollamada/${active.id}`)
     } else if (recentlyCompleted) {
       navigate(`/paciente/consulta/resumen/${active.id}`)
+    } else if (proximo) {
+      // El detalle del turno, que además trae el mapa del consultorio cuando
+      // es presencial. La sala todavía no está abierta, así que mandarlo a la
+      // videollamada sería mandarlo a una puerta cerrada.
+      navigate(`/paciente/turno-confirmado/${active.id}`)
     } else {
       navigate(isVideo ? `/paciente/videollamada/${active.id}` : `/paciente/turno-confirmado/${active.id}`)
     }
@@ -207,6 +269,7 @@ export default function ActiveAppointmentBanner({ profile }) {
 
   const title = closing ? 'Tu profesional está cerrando la consulta'
     : recentlyCompleted ? 'Mirá el resumen y tu receta'
+    : proximo ? `${cuandoEs(active.scheduledAt, now)} · ${isVideo ? 'Videoconsulta' : 'Presencial'}`
     : `Continuar con tu turno ${isVideo ? 'virtual' : 'presencial'}`
 
   return (
@@ -229,7 +292,7 @@ export default function ActiveAppointmentBanner({ profile }) {
           {title}
         </p>
         <p className="text-[12px] text-text-secondary mt-0.5 truncate">
-          {proName}{!closing && !recentlyCompleted && timeStr ? ` · ${timeStr} hs` : ''}
+          {proName}{!closing && !recentlyCompleted && !proximo && timeStr ? ` · ${timeStr} hs` : ''}
         </p>
       </div>
 
