@@ -279,7 +279,12 @@ export const consultationsService = {
     // on-demand el único aviso sale de pingPatientWaiting, cuando el paciente
     // toca "Iniciar consulta" después de la pre-consulta.
     if (!row.is_on_demand) {
-      supabase.functions.invoke('send-booking-email', { body: { consultationId: row.id } }).catch(() => {})
+      // El mail de confirmación NO sale de acá: lo dispara un trigger al
+      // insertar la consulta (migración 143), por las mismas dos razones por
+      // las que la push del profesional se mudó a la base en la 091 — desde el
+      // browser se perdía si el paciente cerraba la pestaña, y una reserva
+      // hecha desde la app mobile no mandaba mail a nadie. Si se reactiva acá,
+      // llegan dos mails por reserva.
 
       const cuando = row.scheduled_at
         ? new Date(row.scheduled_at).toLocaleString('es-AR', {

@@ -15,7 +15,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
-const FROM_EMAIL = Deno.env.get('EMAIL_FROM') ?? 'Healthier <consultas@healthier.app>'
+// `healthier.app` NO es un dominio de Healthier: el default mandaba desde un
+// dominio ajeno y Resend lo habría rechazado siempre. El dominio propio es
+// `healthier.com.ar`; igual se setea EMAIL_FROM como secreto en los dos
+// entornos, así que este default es sólo la red de contención.
+const FROM_EMAIL = Deno.env.get('EMAIL_FROM') ?? 'Healthier <consultas@healthier.com.ar>'
 const APP_URL = Deno.env.get('APP_URL') ?? 'https://gethealthier.vercel.app'
 
 const corsHeaders = {
@@ -39,16 +43,30 @@ function formatDate(iso: string) {
   })
 }
 
+// Devuelve true/false, pero ANTES loguea el motivo real del rechazo. Sin esto,
+// un `from` con el dominio sin verificar (el 403 más común de Resend) es
+// indistinguible de "no hay clave configurada": los dos terminan en un mail que
+// no llega y en cero rastro de por qué.
 async function sendEmail(to: string, subject: string, html: string) {
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ from: FROM_EMAIL, to: [to], subject, html }),
-  })
-  return res.ok
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from: FROM_EMAIL, to: [to], subject, html }),
+    })
+
+    if (!res.ok) {
+      console.error(`resend ${res.status} → ${to} (from: ${FROM_EMAIL}): ${await res.text()}`)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error(`resend network error → ${to}: ${err instanceof Error ? err.message : err}`)
+    return false
+  }
 }
 
 Deno.serve(async (req) => {
