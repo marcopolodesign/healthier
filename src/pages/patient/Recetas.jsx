@@ -57,12 +57,10 @@ export default function Recetas({ profile }) {
         ) : (
           <div className="space-y-3">
             {recetas.map(r => (
-              <a
+              <button
                 key={r.id}
-                href={r.pdfUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-4 bg-bg-secondary border border-border-default rounded-2xl p-4 hover:border-brand transition-colors"
+                onClick={() => navigate(`/paciente/receta/${r.id}`)}
+                className="w-full text-left flex items-center gap-4 bg-bg-secondary border border-border-default rounded-2xl p-4 hover:border-brand transition-colors"
               >
                 <div className="w-10 h-10 rounded-xl bg-brand-muted flex items-center justify-center shrink-0">
                   <FileText className="w-5 h-5 text-brand" />
@@ -80,8 +78,8 @@ export default function Recetas({ profile }) {
                     ].filter(Boolean).join(' · ')}
                   </p>
                 </div>
-                <span className="text-[13px] font-semibold text-brand shrink-0">Ver PDF</span>
-              </a>
+                <span className="text-[13px] font-semibold text-brand shrink-0">Ver</span>
+              </button>
             ))}
           </div>
         )}

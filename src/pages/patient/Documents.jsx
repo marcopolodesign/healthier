@@ -13,7 +13,10 @@ import { track } from '../../utils/analytics'
 import AnalisisVault from '../../components/patient/AnalisisVault'
 
 const CATEGORIES = [
-  { id: 'recetas',       name: 'Recetas Digitales', icon: FileText,   bgClass: 'bg-amber-50',   textClass: 'text-amber-700',   uploadable: false, comingSoon: true },
+  // Recetas ya NO es `comingSoon` ni una categoría de documentos subidos a mano:
+  // lleva a `/paciente/recetas`, la lista real de recetas electrónicas emitidas
+  // (Mateo, 2026-09-04). Antes era una tarjeta apagada con la lista fija en [].
+  { id: 'recetas',       name: 'Recetas Digitales', icon: FileText,   bgClass: 'bg-amber-50',   textClass: 'text-amber-700',   uploadable: false, ruta: '/paciente/recetas' },
   // Análisis es la única categoría con datos reales: escribe en
   // `diagnostic_reports`, la misma tabla que lee el BioVisor y que el
   // profesional ve en la historia clínica. El resto sigue siendo maqueta.
@@ -171,6 +174,9 @@ export default function PatientDocuments({ profile }) {
               onClick={() => {
                 if (cat.comingSoon) return
                 track('vault_category_view', { category: cat.id, flow: 'paciente' })
+                // Categorías con pantalla propia (recetas) — el resto abre el
+                // visor de documentos subidos.
+                if (cat.ruta) { navigate(cat.ruta); return }
                 setViewingCat(cat)
               }}
               className={`card-hover relative overflow-hidden group flex ${cat.comingSoon ? 'opacity-40 pointer-events-none' : 'cursor-pointer'} ${isPeludo ? 'col-span-2 lg:col-span-3 flex-row items-center gap-4' : 'flex-col items-center justify-center text-center'}`}
