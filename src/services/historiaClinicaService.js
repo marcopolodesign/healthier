@@ -72,6 +72,57 @@ export const historiaClinicaService = {
     }
   },
 
+  /**
+   * Lo que el profesional dejó asentado en UNA consulta: diagnósticos,
+   * indicaciones y las notas de la evolución.
+   *
+   * Existe aparte de `getPatientTimeline` porque el resumen de una consulta no
+   * necesita —ni debe— traerse la historia clínica entera del paciente para
+   * mostrar un encuentro. Menos datos en el browser y menos asientos de
+   * auditoría: acá se registra el acceso a UN encuentro, no a todos.
+   *
+   * Devuelve `null` cuando la consulta no tiene encuentro clínico (se cerró sin
+   * que el profesional cargara nada). Quien llama decide qué decirle al
+   * paciente; nunca inventar contenido.
+   */
+  async getEncounterByConsultation(consultationId, patientId) {
+    if (!consultationId) return null
+    if (esSimulado(patientId)) return null
+
+    const { data: encounter, error } = await supabase
+      .from('clinical_encounters')
+      .select('*, professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty))')
+      .eq('consultation_id', consultationId)
+      .maybeSingle()
+    if (error) throw error
+    if (!encounter) return null
+
+    const [entriesRes, conditionsRes, medicationsRes] = await Promise.all([
+      supabase.from('clinical_entries').select('*')
+        .eq('encounter_id', encounter.id).order('sequence_number', { ascending: true }),
+      supabase.from('clinical_conditions').select('*')
+        .eq('encounter_id', encounter.id).order('created_at', { ascending: false }),
+      supabase.from('clinical_medications').select('*')
+        .eq('encounter_id', encounter.id).order('created_at', { ascending: false }),
+    ])
+
+    // Mismo asiento que la HC completa (Ley 26.529 Art. 14). No se espera:
+    // el resumen se muestra igual aunque el asiento falle.
+    logClinicalAccess({
+      resourceType: 'encounter',
+      resourceId:   encounter.id,
+      patientId:    patientId ?? encounter.patient_id,
+      action:       'read',
+    })
+
+    return {
+      ...toCamelCase(encounter),
+      entries:     toCamelCase(entriesRes.data || []),
+      conditions:  toCamelCase(conditionsRes.data || []),
+      medications: toCamelCase(medicationsRes.data || []),
+    }
+  },
+
   async getPatientNotes(patientId) {
     if (esSimulado(patientId)) return []
     const { data, error } = await supabase

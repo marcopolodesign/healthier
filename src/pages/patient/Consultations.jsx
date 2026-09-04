@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import {
   Calendar, Clock, VideoCamera, MapPin, Star, CaretRight, ArrowLeft, CircleNotch, Check,
-  X, FileText, Ambulance, Sparkle, Warning, FirstAidKit,
+  X, FileText, Ambulance, Sparkle, Warning, FirstAidKit, ClipboardText,
 } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
@@ -713,6 +713,20 @@ export default function PatientConsultations({ profile }) {
                   {view === 'upcoming' && ['confirmed', 'pending'].includes(t.status) && (
                     <button onClick={() => { setCancelTarget(t); setCancelReason('') }} className={`py-3 text-[13px] font-semibold text-error flex items-center justify-center gap-1.5 hover:bg-red-50 transition-colors ${t.status === 'confirmed' && t.modality === 'video' ? 'w-24 border-l border-border-default' : 'flex-1'}`}>
                       Cancelar
+                    </button>
+                  )}
+                  {/* Ver el detalle de una consulta pasada — notas de cierre,
+                      diagnósticos, indicaciones, evolución y recetas. La
+                      pantalla existía (`/paciente/consulta/resumen/:id`) pero
+                      sólo se llegaba desde el banner del inicio, que dura lo
+                      que dura el banner: pasado ese momento el paciente no
+                      tenía ningún camino a lo que le dejó su profesional. */}
+                  {view === 'past' && t.status === 'completed' && (
+                    <button
+                      onClick={() => navigate(`/paciente/consulta/resumen/${t.id}`)}
+                      className="flex-1 py-3 text-[13px] font-semibold text-text-secondary flex items-center justify-center gap-1.5 hover:bg-bg-secondary transition-colors"
+                    >
+                      <ClipboardText className="w-4 h-4" /> Ver detalle
                     </button>
                   )}
                   {view === 'past' && t.status === 'completed' && recetas.map(r => (
