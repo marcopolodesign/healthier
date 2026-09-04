@@ -7,8 +7,9 @@
  *   node scripts/verificar-produccion.mjs produccion --sin-alta  # sin crear cuenta
  *
  * Corre, en orden, y da UN veredicto único al final:
- *   1. `scripts/verificar-pagos.mjs`   — circuito de Mercado Pago (solo lectura)
- *   2. `scripts/verificar-recetas.mjs` — circuito de receta electrónica (solo lectura)
+ *   1. `scripts/verificar-pagos.mjs`     — circuito de Mercado Pago (solo lectura)
+ *   2. `scripts/verificar-recetas.mjs`   — circuito de receta electrónica (solo lectura)
+ *   3. `scripts/verificar-ondemand.mjs`  — consulta inmediata (solo lectura)
  *   3. `npm run test:e2e:deploy`       — alta de cuenta real de punta a punta
  *
  * **Qué NO corre, y por qué:** nunca invoca `scripts/rcta-certificacion.mjs` ni
@@ -117,7 +118,7 @@ function correrPaso(titulo, fn) {
 }
 
 // ── 1) Pagos ──────────────────────────────────────────────────────────────
-correrPaso('1/3 · Circuito de pagos (verificar-pagos.mjs)', () => {
+correrPaso('1/4 · Circuito de pagos (verificar-pagos.mjs)', () => {
   const r = spawnSync('node', ['scripts/verificar-pagos.mjs', pedido], {
     cwd: RAIZ_WEBSITE, stdio: 'inherit',
   })
@@ -126,7 +127,7 @@ correrPaso('1/3 · Circuito de pagos (verificar-pagos.mjs)', () => {
 })
 
 // ── 2) Recetas ────────────────────────────────────────────────────────────
-correrPaso('2/3 · Circuito de receta electrónica (verificar-recetas.mjs, solo lectura)', () => {
+correrPaso('2/4 · Circuito de receta electrónica (verificar-recetas.mjs, solo lectura)', () => {
   const r = spawnSync('node', ['scripts/verificar-recetas.mjs', pedido], {
     cwd: RAIZ_WEBSITE, stdio: 'inherit',
   })
@@ -134,14 +135,25 @@ correrPaso('2/3 · Circuito de receta electrónica (verificar-recetas.mjs, solo 
   return { ok: r.status === 0, detalle: r.status === 0 ? 'ok' : `exit ${r.status}` }
 })
 
-// ── 3) Alta de cuenta E2E ────────────────────────────────────────────────
+// ── 3) Consulta inmediata ─────────────────────────────────────────────────
+// Cuarto circuito que falla en silencio: el pool puede quedar vacío sin que se
+// rompa ni un build ni un log. Sólo lee.
+correrPaso('3/4 · Consulta inmediata (verificar-ondemand.mjs, solo lectura)', () => {
+  const r = spawnSync('node', ['scripts/verificar-ondemand.mjs', pedido], {
+    cwd: RAIZ_WEBSITE, stdio: 'inherit',
+  })
+  if (r.error) return { ok: false, detalle: `no se pudo ejecutar: ${r.error.message}` }
+  return { ok: r.status === 0, detalle: r.status === 0 ? 'ok' : `exit ${r.status}` }
+})
+
+// ── 4) Alta de cuenta E2E ────────────────────────────────────────────────
 if (sinAlta) {
-  correrPaso('3/3 · Alta de cuenta E2E — SALTEADO (--sin-alta)', () => {
+  correrPaso('4/4 · Alta de cuenta E2E — SALTEADO (--sin-alta)', () => {
     console.log('   ·  Salteado a pedido (--sin-alta). No se creó ninguna cuenta.')
     return { ok: true, detalle: 'salteado' }
   })
 } else {
-  correrPaso('3/3 · Alta de cuenta E2E (npm run test:e2e:deploy)', () => {
+  correrPaso('4/4 · Alta de cuenta E2E (npm run test:e2e:deploy)', () => {
     if (pedido === 'produccion') {
       console.log('   ⚠️  Esto crea y borra una cuenta descartable en la base de PRODUCCIÓN.')
     }
