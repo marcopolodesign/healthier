@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
-import { CalendarCheck, MagnifyingGlass, VideoCamera, MapPin, Lightning, CircleNotch, Trash } from '@phosphor-icons/react'
+import { CalendarCheck, MagnifyingGlass, VideoCamera, MapPin, Lightning, CircleNotch, Trash, NavigationArrow } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
+import { arrivalsService, esReciente } from '../../services/arrivalsService'
 import { toast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import StatusBadge, { STATUS_CONFIG } from '../../components/StatusBadge'
@@ -78,6 +79,7 @@ function toDatetimeLocalValue(iso) {
 
 export default function SuperAdminConsultas() {
   const [consultations, setConsultations] = useState([])
+  const [llegadas, setLlegadas] = useState({})
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({ search: '', status: '', paymentStatus: '' })
   const [selected, setSelected] = useState(null) // fila abierta en el panel de detalle
@@ -93,6 +95,21 @@ export default function SuperAdminConsultas() {
   }
 
   useEffect(() => { load() }, [])
+
+  /*
+   * Quién está yendo al consultorio ahora mismo. Es operación de la
+   * plataforma, así que el super admin la tiene que poder ver — pero se lee
+   * cada 30 s en vez de por Realtime: acá no se atiende a nadie, alcanza con
+   * saber que el circuito está funcionando.
+   */
+  useEffect(() => {
+    const traer = () => arrivalsService.getEnCurso()
+      .then(l => setLlegadas(Object.fromEntries(l.map(a => [a.consultationId, a]))))
+      .catch(() => {})
+    traer()
+    const id = setInterval(traer, 30_000)
+    return () => clearInterval(id)
+  }, [])
 
   const filtered = useMemo(() => {
     const q = filters.search.trim().toLowerCase()
@@ -288,6 +305,16 @@ export default function SuperAdminConsultas() {
                         {c.isOnDemand && (
                           <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase text-amber-700 bg-amber-50 rounded-full px-1.5 py-0.5">
                             <Lightning className="h-3 w-3" weight="fill" /> On demand
+                          </span>
+                        )}
+                        {llegadas[c.id] && (
+                          <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase text-brand bg-brand-muted rounded-full px-1.5 py-0.5">
+                            <NavigationArrow className="h-3 w-3" weight="fill" />
+                            {llegadas[c.id].status === 'llegado'
+                              ? 'Llegó'
+                              : esReciente(llegadas[c.id])
+                                ? `En camino · ${llegadas[c.id].etaMinutes ?? '—'} min`
+                                : 'En camino · sin señal'}
                           </span>
                         )}
                       </td>

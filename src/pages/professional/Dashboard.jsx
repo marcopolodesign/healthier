@@ -18,6 +18,7 @@ import { CAMPOS_SENSIBLES, enumerarCampos } from '../../lib/reverificacion'
 import { ID_CONSULTA as ID_SIMULACION } from '../../lib/simulacion'
 import ReferralLinkCard from '../../components/professional/ReferralLinkCard'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
+import LlegadaBadge, { useLlegadas } from '../../components/professional/LlegadaPaciente'
 import OnDemandSwitch from '../../components/professional/OnDemandSwitch'
 import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import Modal from '../../components/Modal'
@@ -178,6 +179,9 @@ export default function ProfessionalDashboard({ profile }) {
   const [availableWalkIn, setAvailableWalkIn] = useState(false)
   const [togglingAvail, setTogglingAvail] = useState(false)
   const [schedules, setSchedules] = useState([])
+
+  // Pacientes que están yendo al consultorio ahora mismo (Realtime).
+  const llegadas = useLlegadas(profile?.id)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -977,7 +981,11 @@ export default function ProfessionalDashboard({ profile }) {
                       </p>
                     </div>
                   </Link>
-                  {waiting ? <PatientWaitingBadge since={since} /> : <StatusBadge status={c.status} />}
+                  {/* El presencial que ya está viniendo pisa al estado: "llega
+                      en 8 min" es más útil que "confirmado". */}
+                  {waiting ? <PatientWaitingBadge since={since} />
+                    : llegadas[c.id] ? <LlegadaBadge arrival={llegadas[c.id]} />
+                    : <StatusBadge status={c.status} />}
                   {/* Con el paciente esperando, la acción es habilitarlo — no
                       entrar y que él se entere de rebote. Antes la habilitación
                       era un efecto secundario de abrir la videollamada, así que

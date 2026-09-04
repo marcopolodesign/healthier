@@ -80,6 +80,7 @@ import PatientAIChat from './pages/patient/PatientAIChat'
 import WalkInQueue from './pages/patient/WalkInQueue'
 import HealthSnapshot from './pages/patient/HealthSnapshot'
 import BookingConfirmed from './pages/patient/BookingConfirmed'
+import CaminoAlConsultorio from './pages/patient/CaminoAlConsultorio'
 
 import AdminProfessionals from './pages/admin/Professionals'
 import AdminUsers from './pages/admin/Users'
@@ -406,6 +407,7 @@ export default function App() {
           <Route path="/paciente/fastpass"        element={<WalkInQueue             profile={profile} />} />
           <Route path="/paciente/salud"           element={<HealthSnapshot          profile={profile} />} />
           <Route path="/paciente/turno-confirmado/:consultationId" element={<BookingConfirmed profile={profile} />} />
+          <Route path="/paciente/camino/:consultationId" element={<CaminoAlConsultorio profile={profile} />} />
         </Route>
 
         {/* Patient onboarding — full-screen, no mobile nav */}

@@ -8,6 +8,7 @@ import { toast } from '../../components/Toast'
 import StatusBadge from '../../components/StatusBadge'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
 import { useWaitingPresence } from '../../hooks/useWaitingPresence'
+import LlegadaBadge, { useLlegadas } from '../../components/professional/LlegadaPaciente'
 
 const DAYS = [
   { value: 1, label: 'Lunes',     short: 'Lun' },
@@ -36,6 +37,8 @@ export default function Agenda({ profile }) {
 
   const [todayConsultations, setTodayConsultations] = useState([])
   const waitingInfo = useWaitingPresence(todayConsultations, profile?.id)
+  // Pacientes camino al consultorio ahora mismo (Realtime).
+  const llegadas = useLlegadas(profile?.id)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -175,7 +178,9 @@ export default function Agenda({ profile }) {
                 <p className="font-semibold text-text-primary text-sm truncate">{patientName}</p>
                 <p className="text-xs text-text-secondary">{isVideo ? 'Videoconsulta' : 'Presencial'} · {time}</p>
               </div>
-              {waiting ? <PatientWaitingBadge since={since} /> : <StatusBadge status={c.status} />}
+              {waiting ? <PatientWaitingBadge since={since} />
+                : llegadas[c.id] ? <LlegadaBadge arrival={llegadas[c.id]} />
+                : <StatusBadge status={c.status} />}
               {canJoin && (
                 <span className="btn-primary flex items-center gap-1.5 text-sm px-4 py-2 shrink-0">
                   <VideoCamera className="h-4 w-4" />

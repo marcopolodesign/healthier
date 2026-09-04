@@ -7,7 +7,7 @@ import { track } from '../utils/analytics'
 import { PharmacyCartProvider } from '../context/PharmacyCartContext'
 import PharmacyCartSheet from '../components/patient/PharmacyCartSheet'
 
-const HIDE_NAV_PREFIXES = ['/paciente/sos', '/paciente/ondemand', '/paciente/videollamada', '/paciente/reservar', '/paciente/sala-espera', '/paciente/consulta/review', '/paciente/fastpass']
+const HIDE_NAV_PREFIXES = ['/paciente/sos', '/paciente/ondemand', '/paciente/videollamada', '/paciente/reservar', '/paciente/sala-espera', '/paciente/consulta/review', '/paciente/fastpass', '/paciente/camino']
 
 // SPA client-side navigation doesn't trigger GTM page views on its own —
 // fire section_view manually for the 5 sections in Henry's (Hyppo) tracking

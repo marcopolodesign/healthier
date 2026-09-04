@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { CheckCircle, Calendar, VideoCamera, MapPin, CaretRight, Plus } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
 import { isActive as puedeEntrarYa } from '../../components/patient/ActiveAppointmentBanner'
+import ComoLlegarCard from '../../components/patient/ComoLlegarCard'
 
 function buildGoogleCalendarUrl(consultation) {
   if (!consultation?.scheduledAt) return null
@@ -37,7 +38,8 @@ export default function BookingConfirmed({ profile }) {
   }, [consultationId])
 
   const proName   = consultation?.professional?.fullName ?? '—'
-  const specialty = consultation?.professional?.professionalProfiles?.[0]?.specialty ?? null
+  const proProfile = consultation?.professional?.professionalProfiles?.[0] ?? null
+  const specialty = proProfile?.specialty ?? null
   const proAvatar = consultation?.professional?.avatarUrl ?? null
   const initial   = proName.charAt(0).toUpperCase()
 
@@ -166,6 +168,16 @@ export default function BookingConfirmed({ profile }) {
             </div>
           )}
         </div>
+
+        {/* Dónde es y cómo llegar — sólo tiene sentido en un turno presencial */}
+        {!loading && !isVideo && (
+          <ComoLlegarCard
+            consultationId={consultationId}
+            address={proProfile?.address ?? null}
+            latitude={proProfile?.latitude}
+            longitude={proProfile?.longitude}
+          />
+        )}
 
         {/* Add to calendar */}
         {calUrl && !loading && (

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import {
   Calendar, Clock, VideoCamera, MapPin, Star, CaretRight, ArrowLeft, CircleNotch, Check,
-  X, FileText, Ambulance, Sparkle, Warning, FirstAidKit, ClipboardText,
+  X, FileText, Ambulance, Sparkle, Warning, FirstAidKit, ClipboardText, NavigationArrow,
 } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
@@ -647,7 +647,15 @@ export default function PatientConsultations({ profile }) {
           const isRefundedCredit = view === 'past' && t.paymentStatus === 'refunded' && paymentRow?.refundType === 'credit'
           const isRefundPending  = view === 'past' && paymentRow?.refundRequestStatus === 'pending'
           const isRefundRejected = view === 'past' && paymentRow?.refundRequestStatus === 'rejected'
-          const hasActions = isUpcomingActive || isInProgressVideo || isClosing || (view === 'past' && t.status === 'completed') || isRefundedCredit || isRefundPending || isRefundRejected
+          // Un turno presencial que viene tiene su propia acción: el camino al
+          // consultorio. Hasta ahora la fila de acciones sólo servía a la
+          // videollamada y el presencial se quedaba sin ninguna.
+          const proPerfil = t.professional?.professionalProfiles?.[0] ?? null
+          const puedeIrAlConsultorio = view === 'upcoming'
+            && ['confirmed', 'pending'].includes(t.status)
+            && t.modality !== 'video'
+            && proPerfil?.latitude != null && proPerfil?.longitude != null
+          const hasActions = isUpcomingActive || isInProgressVideo || isClosing || puedeIrAlConsultorio || (view === 'past' && t.status === 'completed') || isRefundedCredit || isRefundPending || isRefundRejected
           return (
             <div key={t.id} className="bg-bg-secondary rounded-2xl border border-border-default overflow-hidden">
               <div className="flex">
@@ -705,13 +713,18 @@ export default function PatientConsultations({ profile }) {
                       <VideoCamera className="w-4 h-4" /> Entrar a Sala
                     </button>
                   )}
+                  {puedeIrAlConsultorio && (
+                    <button onClick={() => navigate(`/paciente/camino/${t.id}`)} className="flex-1 py-3 text-[13px] font-semibold text-brand flex items-center justify-center gap-1.5 hover:bg-brand-muted transition-colors">
+                      <NavigationArrow className="w-4 h-4" /> Cómo llegar
+                    </button>
+                  )}
                   {isClosing && (
                     <div className="flex-1 py-3 flex items-center justify-center gap-1.5 text-[13px] text-amber-700 font-semibold">
                       <Clock className="w-4 h-4" /> Preparando tu receta
                     </div>
                   )}
                   {view === 'upcoming' && ['confirmed', 'pending'].includes(t.status) && (
-                    <button onClick={() => { setCancelTarget(t); setCancelReason('') }} className={`py-3 text-[13px] font-semibold text-error flex items-center justify-center gap-1.5 hover:bg-red-50 transition-colors ${t.status === 'confirmed' && t.modality === 'video' ? 'w-24 border-l border-border-default' : 'flex-1'}`}>
+                    <button onClick={() => { setCancelTarget(t); setCancelReason('') }} className={`py-3 text-[13px] font-semibold text-error flex items-center justify-center gap-1.5 hover:bg-red-50 transition-colors ${(t.status === 'confirmed' && t.modality === 'video') || puedeIrAlConsultorio ? 'w-24 border-l border-border-default' : 'flex-1'}`}>
                       Cancelar
                     </button>
                   )}
