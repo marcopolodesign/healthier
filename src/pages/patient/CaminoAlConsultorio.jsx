@@ -63,7 +63,7 @@ export default function CaminoAlConsultorio({ profile }) {
 
   const mapRef = useRef(null)
   const ultimoCalculo = useRef({ pos: null, at: 0 })
-  const ultimaPublicacion = useRef(0)
+  const ultimaPublicacion = useRef({ at: 0, eta: undefined })
   const encuadrado = useRef(false)
 
   useEffect(() => {
@@ -153,9 +153,17 @@ export default function CaminoAlConsultorio({ profile }) {
   const compartiendo = enVentanaDeLlegada(scheduledAt) && !llegado
   useEffect(() => {
     if (!compartiendo || !posicion || !consultation || !profile?.id) return
+    /*
+     * El freno es por tiempo, PERO un ETA nuevo pasa igual. La ruta llega
+     * después que la primera posición, así que con el freno a secas el
+     * profesional veía "en camino" sin ningún minuto hasta la publicación
+     * siguiente — y si el paciente se quedaba quieto, para siempre.
+     */
     const ahora = Date.now()
-    if (ahora - ultimaPublicacion.current < PUBLICACION_MS) return
-    ultimaPublicacion.current = ahora
+    const previa = ultimaPublicacion.current
+    const etaNuevo = ruta?.durationMin ?? null
+    if (ahora - previa.at < PUBLICACION_MS && etaNuevo === previa.eta) return
+    ultimaPublicacion.current = { at: ahora, eta: etaNuevo }
     arrivalsService.publicar({
       consultationId: consultation.id,
       patientId: profile.id,

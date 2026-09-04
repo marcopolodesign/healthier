@@ -53,8 +53,12 @@ export default function PatientMobileLayout({ profile }) {
   return (
     <PharmacyCartProvider profile={profile}>
     <div className="h-dvh bg-bg-primary relative overflow-hidden overscroll-none">
-      {/* Push notification opt-in banner */}
-      {showPushBanner && (
+      {/* Push notification opt-in banner.
+          No se muestra en las pantallas a pantalla completa (las mismas que
+          esconden el nav): se monta `absolute top-0 z-[70]` y les tapa el
+          botón de volver — el del mapa del camino al consultorio quedaba
+          literalmente abajo del banner. */}
+      {showPushBanner && !hideNav && (
         <div className="absolute top-0 left-0 right-0 z-[70] bg-brand text-white flex items-center gap-3 px-4 py-3 shadow-lg">
           <Bell size={18} className="shrink-0" />
           <p className="flex-1 text-sm font-medium">Activá notificaciones para recibir confirmaciones de turnos</p>
