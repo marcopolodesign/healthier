@@ -73,6 +73,7 @@ import WaitingRoom from './pages/patient/WaitingRoom'
 import ConsultationReview from './pages/patient/ConsultationReview'
 import ConsultationSummary from './pages/patient/ConsultationSummary'
 import ReservarConsulta from './pages/patient/ReservarConsulta'
+import PatientRecetas from './pages/patient/Recetas'
 import PaymentPage from './pages/patient/PaymentPage'
 import PatientAIChat from './pages/patient/PatientAIChat'
 import WalkInQueue from './pages/patient/WalkInQueue'
@@ -397,6 +398,7 @@ export default function App() {
           <Route path="/paciente/pago" element={<PaymentPage profile={profile} />} />
           <Route path="/paciente/consulta/review/:consultationId" element={<ConsultationReview profile={profile} />} />
           <Route path="/paciente/consulta/resumen/:id" element={<ConsultationSummary profile={profile} />} />
+          <Route path="/paciente/recetas"             element={<PatientRecetas     profile={profile} />} />
           <Route path="/paciente/historia-clinica" element={<HistoriaClinicaPaciente profile={profile} />} />
           <Route path="/paciente/ia"              element={<PatientAIChat           profile={profile} />} />
           <Route path="/paciente/fastpass"        element={<WalkInQueue             profile={profile} />} />

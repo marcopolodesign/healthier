@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
 import {
   MapPin, CaretRight, Star, VideoCamera,
-  Heartbeat, X, Sparkle, CalendarBlank, MagnifyingGlass, Siren,
+  Heartbeat, X, Sparkle, CalendarBlank, MagnifyingGlass, Siren, FileText,
 } from '@phosphor-icons/react'
 import { track } from '../../utils/analytics'
 import { supportWhatsAppLink } from '../../lib/support'
@@ -17,6 +17,7 @@ import MedicoCabeceraCard from '../../components/patient/MedicoCabeceraCard'
 import MedicoCabeceraModal from '../../components/patient/MedicoCabeceraModal'
 import TourPaciente from '../../components/patient/TourPaciente'
 import { professionalService } from '../../services/professionalService'
+import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { emergencyService, getSosSettings } from '../../services/emergencyService'
 import { pickProForVertical } from '../../lib/verticals'
 import { useVerticales } from '../../hooks/useVerticales'
@@ -54,6 +55,17 @@ export default function PatientDashboard({ profile }) {
   // App.jsx después de un `PATCH`, así que sin esto la tarjeta reaparecería en
   // cuanto el componente re-renderizara por cualquier otra razón.
   const [medicoCabeceraDismissed, setMedicoCabeceraDismissed] = useState(!!profile?.medicoCabeceraDismissed)
+  // Cuántas recetas emitidas tiene. En 0 el acceso no se muestra — ver `recetasCta`.
+  const [recetasCount, setRecetasCount] = useState(0)
+  useEffect(() => {
+    if (!profile?.id) return
+    let cancelled = false
+    historiaClinicaService.getIssuedPrescriptions(profile.id)
+      // Aditivo: si falla, el dashboard se muestra igual sin el acceso.
+      .then(r => { if (!cancelled) setRecetasCount(r.length) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [profile?.id])
   useEffect(() => {
     if (!profile?.referredByProfessionalId) return
     let cancelled = false
@@ -357,6 +369,31 @@ export default function PatientDashboard({ profile }) {
     return `https://api.mapbox.com/styles/v1/mapbox/light-v11/static/${lng},${lat},${zoom},0/640x260@2x?access_token=${MAPBOX_TOKEN}&attribution=false&logo=false`
   })()
 
+  /*
+   * "Mis recetas" — arriba de "Ver mapa", y **sólo si el paciente tiene alguna**
+   * (Mateo, 2026-09-04). Un acceso a una lista vacía es ruido, y en este
+   * producto la mayoría de los pacientes todavía no tiene ninguna receta.
+   */
+  const recetasCta = recetasCount > 0 ? (
+    <button
+      onClick={() => navigate('/paciente/recetas')}
+      className="w-full bg-bg-secondary border border-border-default rounded-[24px] p-4 flex items-center gap-3 hover:border-brand transition-colors text-left"
+    >
+      <div className="w-10 h-10 rounded-xl bg-brand-muted flex items-center justify-center flex-shrink-0">
+        <FileText className="w-5 h-5 text-brand" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-semibold text-[15px] text-text-primary leading-none">Mis recetas</span>
+          <CaretRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+        </div>
+        <p className="text-[12px] text-text-secondary mt-1.5">
+          {recetasCount === 1 ? '1 receta emitida' : `${recetasCount} recetas emitidas`}
+        </p>
+      </div>
+    </button>
+  ) : null
+
   const mapCta = (
     <button
       data-tour="pac-mapa"
@@ -526,6 +563,7 @@ export default function PatientDashboard({ profile }) {
 
         <div className="px-6 patient-column pt-6 pb-32 flex flex-col gap-5 w-full">
           {specialtyGrid}
+          {recetasCta}
           {mapCta}
           {buscarPorNombreCta}
           {supportCta}

@@ -123,6 +123,45 @@ export const historiaClinicaService = {
     }
   },
 
+  /**
+   * Las recetas electrónicas emitidas al paciente, más nuevas primero.
+   *
+   * Una receta agrupa uno o más medicamentos bajo el mismo
+   * `rcta_prescription_id`: la fila de la base es el medicamento, no la receta.
+   * Se agrupa acá —y no en cada pantalla— para que "qué es una receta emitida"
+   * tenga una sola definición en el código del paciente.
+   *
+   * Emitida = `rcta_status === 'issued'` **y** con PDF. Sin PDF no hay nada que
+   * mostrarle: un "Ver receta" que no abre nada es peor que no ofrecerlo.
+   */
+  async getIssuedPrescriptions(patientId) {
+    if (!patientId || esSimulado(patientId)) return []
+    const { data, error } = await supabase
+      .from('clinical_medications')
+      .select('id, medication_name, rcta_prescription_id, rcta_pdf_url, rcta_issued_at, created_at, encounter_id, professional:profiles!professional_id(full_name)')
+      .eq('patient_id', patientId)
+      .eq('rcta_status', 'issued')
+      .not('rcta_pdf_url', 'is', null)
+      .order('rcta_issued_at', { ascending: false, nullsFirst: false })
+    if (error) throw error
+
+    const porReceta = new Map()
+    for (const raw of toCamelCase(data ?? [])) {
+      const key = raw.rctaPrescriptionId ?? raw.id
+      const existente = porReceta.get(key)
+      if (existente) { existente.medicamentos.push(raw.medicationName); continue }
+      porReceta.set(key, {
+        id: key,
+        pdfUrl: raw.rctaPdfUrl,
+        emitidaEn: raw.rctaIssuedAt ?? raw.createdAt,
+        profesional: raw.professional?.fullName ?? null,
+        encounterId: raw.encounterId ?? null,
+        medicamentos: [raw.medicationName],
+      })
+    }
+    return Array.from(porReceta.values())
+  },
+
   async getPatientNotes(patientId) {
     if (esSimulado(patientId)) return []
     const { data, error } = await supabase
