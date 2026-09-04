@@ -61,14 +61,22 @@ export default function RecetaDetalle({ profile }) {
     } catch { /* aditivo */ }
   }
 
+  /*
+   * Agrega sólo lo que todavía NO está en el carrito. Sumar a ciegas hacía que
+   * tocar "Comprar todos" dos veces —o volver a la receta con el carrito ya
+   * empezado— dejara cantidad 2 de cada medicamento sin que el paciente lo
+   * pidiera.
+   */
   const comprarTodos = () => {
-    if (!disponibles.length) return
-    disponibles.forEach(m => cart.add(m.product))
-    toast.success(disponibles.length === 1
-      ? 'Agregamos el medicamento a tu pedido'
-      : `Agregamos ${disponibles.length} medicamentos a tu pedido`)
+    const faltanAgregar = disponibles.filter(m => cart.quantityOf(m.product.id) === 0)
+    faltanAgregar.forEach(m => cart.add(m.product))
+    if (faltanAgregar.length) {
+      toast.success(faltanAgregar.length === 1
+        ? 'Agregamos el medicamento a tu pedido'
+        : `Agregamos ${faltanAgregar.length} medicamentos a tu pedido`)
+    }
     cart.openSheet()
-    sellarReceta()
+    if (faltanAgregar.length) sellarReceta()
   }
 
   const agregarUno = (m) => {
