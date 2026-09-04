@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Map, Marker, Source, Layer } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { ArrowLeft, NavigationArrow, MapPin, Car, PersonSimpleWalk, CheckCircle, WarningCircle } from '@phosphor-icons/react'
-import { consultationsService } from '../../services/consultationsService'
+import { consultationsService, perfilDelProfesional } from '../../services/consultationsService'
 import { arrivalsService, enVentanaDeLlegada } from '../../services/arrivalsService'
 import { getRoute, formatMeters, formatMinutes, externalMapsUrl, TRAVEL_MODES } from '../../lib/directions'
 import { haversineKm } from '../../lib/geo'
@@ -74,7 +74,7 @@ export default function CaminoAlConsultorio({ profile }) {
       .finally(() => setCargando(false))
   }, [consultationId])
 
-  const perfilPro = consultation?.professional?.professionalProfiles?.[0] ?? null
+  const perfilPro = perfilDelProfesional(consultation)
   const destino = useMemo(() => (
     perfilPro?.latitude != null && perfilPro?.longitude != null
       ? { lat: Number(perfilPro.latitude), lng: Number(perfilPro.longitude) }

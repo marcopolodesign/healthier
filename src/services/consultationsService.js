@@ -45,6 +45,20 @@ export function isPatientWaiting(c) {
   return Date.now() - new Date(lastSeen).getTime() < WAITING_PRESENCE_TTL_MS
 }
 
+/**
+ * El perfil profesional que viene anidado en una consulta.
+ *
+ * PostgREST devuelve este join **como objeto** cuando la relación es 1:1 y
+ * como array en otros contextos, y la diferencia no se nota: leer `[0]` sobre
+ * un objeto no explota, simplemente da `undefined` y el dato desaparece de la
+ * pantalla sin ningún error. Fue exactamente lo que pasó con la especialidad
+ * en `BookingConfirmed`. Se resuelve en un solo lugar para no repetir el bug.
+ */
+export function perfilDelProfesional(consultation) {
+  const pp = consultation?.professional?.professionalProfiles
+  return (Array.isArray(pp) ? pp[0] : pp) ?? null
+}
+
 export const consultationsService = {
   /**
    * Announces/renews the patient's presence in the waiting room. Arrival and

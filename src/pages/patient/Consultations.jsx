@@ -4,7 +4,7 @@ import {
   Calendar, Clock, VideoCamera, MapPin, Star, CaretRight, ArrowLeft, CircleNotch, Check,
   X, FileText, Ambulance, Sparkle, Warning, FirstAidKit, ClipboardText, NavigationArrow,
 } from '@phosphor-icons/react'
-import { consultationsService } from '../../services/consultationsService'
+import { consultationsService, perfilDelProfesional } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
 import { availabilityService } from '../../services/availabilityService'
 import { reviewsService } from '../../services/reviewsService'
@@ -650,7 +650,7 @@ export default function PatientConsultations({ profile }) {
           // Un turno presencial que viene tiene su propia acción: el camino al
           // consultorio. Hasta ahora la fila de acciones sólo servía a la
           // videollamada y el presencial se quedaba sin ninguna.
-          const proPerfil = t.professional?.professionalProfiles?.[0] ?? null
+          const proPerfil = perfilDelProfesional(t)
           const puedeIrAlConsultorio = view === 'upcoming'
             && ['confirmed', 'pending'].includes(t.status)
             && t.modality !== 'video'

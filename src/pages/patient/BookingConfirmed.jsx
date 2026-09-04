@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { CheckCircle, Calendar, VideoCamera, MapPin, CaretRight, Plus } from '@phosphor-icons/react'
-import { consultationsService } from '../../services/consultationsService'
+import { consultationsService, perfilDelProfesional } from '../../services/consultationsService'
 import { isActive as puedeEntrarYa } from '../../components/patient/ActiveAppointmentBanner'
 import ComoLlegarCard from '../../components/patient/ComoLlegarCard'
 
@@ -38,7 +38,7 @@ export default function BookingConfirmed({ profile }) {
   }, [consultationId])
 
   const proName   = consultation?.professional?.fullName ?? '—'
-  const proProfile = consultation?.professional?.professionalProfiles?.[0] ?? null
+  const proProfile = perfilDelProfesional(consultation)
   const specialty = proProfile?.specialty ?? null
   const proAvatar = consultation?.professional?.avatarUrl ?? null
   const initial   = proName.charAt(0).toUpperCase()
