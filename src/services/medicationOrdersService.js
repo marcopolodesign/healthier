@@ -60,6 +60,32 @@ export const medicationOrdersService = {
     return this.getById(orderId)
   },
 
+  /**
+   * Deja anotado en el carrito de qué receta salió.
+   *
+   * `agregar_item_pedido_medicamentos` no recibe la receta —el carrito se creó
+   * pensando en el catálogo suelto—, así que se sella después. Sin esto,
+   * `rcta_prescription_id` queda null y el "Ya la pediste" de la pantalla de la
+   * receta **no se activaría nunca**; tampoco funcionaría el descarte de
+   * `getPrescribedMatches`, que mira esa misma columna.
+   *
+   * Un carrito puede mezclar lo de una receta con navegación suelta: se guarda
+   * la primera receta que lo originó y no se pisa, que es lo que hace falta
+   * para no ofrecerle dos veces la misma receta al paciente.
+   */
+  async linkPrescription(orderId, prescriptionId) {
+    if (!orderId || !prescriptionId) return null
+    const { data, error } = await supabase
+      .from('medication_orders')
+      .update({ rcta_prescription_id: prescriptionId })
+      .eq('id', orderId)
+      .is('rcta_prescription_id', null)
+      .select('id, rcta_prescription_id')
+      .maybeSingle()
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
   async getById(orderId) {
     const { data, error } = await supabase
       .from('medication_orders')

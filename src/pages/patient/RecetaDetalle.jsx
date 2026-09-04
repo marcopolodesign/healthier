@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { FileText, CaretLeft, Pill, Warning, CheckCircle, Plus } from '@phosphor-icons/react'
 import { pharmacyService } from '../../services/pharmacyService'
+import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { usePharmacyCart } from '../../context/PharmacyCartContext'
 import { toast } from '../../components/Toast'
 
@@ -47,6 +48,19 @@ export default function RecetaDetalle({ profile }) {
   const disponibles = medicamentos.filter(m => m.product)
   const faltantes = medicamentos.filter(m => !m.product)
 
+  /*
+   * Deja anotado en el carrito de qué receta salió. Sin esto el pedido nace sin
+   * `rcta_prescription_id` y el "Ya la pediste" no se activaría nunca. Va
+   * después del `add` porque el carrito recién existe cuando entra el primer
+   * item, y no bloquea: que falle el sello no puede impedirle comprar.
+   */
+  const sellarReceta = async () => {
+    try {
+      const draft = await medicationOrdersService.getPendingDraft(profile.id)
+      if (draft?.id) await medicationOrdersService.linkPrescription(draft.id, prescriptionId)
+    } catch { /* aditivo */ }
+  }
+
   const comprarTodos = () => {
     if (!disponibles.length) return
     disponibles.forEach(m => cart.add(m.product))
@@ -54,11 +68,13 @@ export default function RecetaDetalle({ profile }) {
       ? 'Agregamos el medicamento a tu pedido'
       : `Agregamos ${disponibles.length} medicamentos a tu pedido`)
     cart.openSheet()
+    sellarReceta()
   }
 
   const agregarUno = (m) => {
     cart.add(m.product)
     cart.openSheet()
+    sellarReceta()
   }
 
   if (loading) {
