@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, VideoCamera, MapPin, Star, CaretRight, Check,
-  CircleNotch, CheckCircle, MagnifyingGlass,
+  CircleNotch,
 } from '@phosphor-icons/react'
 import { professionalService } from '../../services/professionalService'
 import { availabilityService } from '../../services/availabilityService'
@@ -14,8 +14,6 @@ import { toast } from '../../components/Toast'
 import { track } from '../../utils/analytics'
 
 // Verticals that trigger the clinica auto-match flow
-const AUTO_MATCH_VERTICALS = ['clinica']
-
 const SPECIES = ['Perro', 'Gato', 'Conejo', 'Ave', 'Otro']
 
 // Duración por defecto del slot, en minutos — 4 patients/hour with margin for
@@ -157,7 +155,6 @@ export default function ReservarConsulta({ profile }) {
   const [existingConsultations, setExistingConsultations] = useState([])
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedFranja, setSelectedFranja] = useState(null)
-  const [matchedPro, setMatchedPro]     = useState(null)
   const [slotDurationMinutes, setSlotDurationMinutes] = useState(DEFAULT_SLOT_DURATION_MINUTES)
 
   const bookingStartFired = useRef(false)
@@ -224,38 +221,18 @@ export default function ReservarConsulta({ profile }) {
     if (!slugs.length) { setProfessionals([]); return }
     setLoadingPros(true)
     professionalService.search({})
-      .then(data => setProfessionals(data.filter(p => slugs.includes(p.specialty)).map(p => normalizeProCard(p, modality))))
+      // Se filtra por Mercado Pago conectado: sin eso el turno no se puede
+      // pagar en ninguna de las dos modalidades, así que ofrecerlo es mandar al
+      // paciente a un callejón sin salida — `handleConfirm` lo frena recién al
+      // final, después de que eligió profesional, día y hora. Es el mismo
+      // criterio que ya aplicaba el auto-match de videoconsulta.
+      .then(data => setProfessionals(
+        data
+          .filter(p => slugs.includes(p.specialty) && p.mpConnected !== false)
+          .map(p => normalizeProCard(p, modality)),
+      ))
       .catch(() => setProfessionals([]))
       .finally(() => setLoadingPros(false))
-  }, [step, selectedVertical, porVertical])
-
-  // ── Searching step: fetch best pro + auto-advance after 2.5s ────────────
-  useEffect(() => {
-    if (step !== 'searching' || !selectedVertical) return
-    track('booking_searching_professional', { vertical: selectedVertical.id, flow: 'paciente' })
-    const slugs = porVertical[selectedVertical.id] || []
-    if (slugs.length) {
-      professionalService.search({})
-        .then(data => {
-          // Only auto-match professionals who can actually receive paid bookings (spec D4)
-          const pros = data.filter(p => slugs.includes(p.specialty) && p.mpConnected !== false)
-          if (pros.length) {
-            const proCard = normalizeProCard(pros[0], 'virtual')
-            setMatchedPro(proCard)
-            track('booking_professional_found', {
-              professional_id: proCard.id,
-              specialty: proCard.specialty,
-              rating: proCard.rating,
-              price: proCard.price,
-              currency: 'ARS',
-              flow: 'paciente',
-            })
-          }
-        })
-        .catch(() => {})
-    }
-    const t = setTimeout(() => setStep('matched'), 2500)
-    return () => clearTimeout(t)
   }, [step, selectedVertical, porVertical])
 
   // ── Pre-fetch schedule + existing bookings whenever a pro is selected ────
@@ -276,7 +253,6 @@ export default function ReservarConsulta({ profile }) {
   }, [selectedPro?.id])
 
   const goBack = () => {
-    if (step === 'searching' || step === 'matched') { setStep('modality'); setMatchedPro(null); return }
     const i = steps.indexOf(step)
     if (i <= 0) { navigate(-1); return }
     setStep(steps[i - 1])
@@ -294,20 +270,25 @@ export default function ReservarConsulta({ profile }) {
       flow: 'paciente',
     })
     // Con un profesional ya elegido (marcador del mapa, perfil del profesional)
-    // se va derecho a la fecha, en las DOS modalidades. Esto va ANTES de la rama
-    // virtual a propósito: el auto-match está para cuando al paciente le da
-    // igual quién lo atiende, y acá ya eligió. Antes videoconsulta caía en
-    // `searching` y lo reemplazaba por otro profesional sin decir nada.
+    // se saltea la lista y se va derecho a la fecha, en las DOS modalidades.
     if (paramProId) {
       setStep(vertical.id === 'veterinaria' ? 'pet' : 'datetime')
       return
     }
-    // All virtual consultations go through searching → matched → payment
-    if (modality === 'virtual') {
-      setStep('searching')
-      return
-    }
-    // Presencial standard: professional list (or pet first for vet)
+    /*
+     * Las dos modalidades pasan por la lista de profesionales.
+     *
+     * La videoconsulta agendada caía en un auto-match (`searching` → `matched`)
+     * que le sacaba al paciente las DOS decisiones del turno: elegía por él
+     * —siempre `pros[0]`, el mismo todas las veces— y después iba derecho al
+     * pago **sin `scheduledAt`**, o sea sin fecha ni hora. Un "agendar turno"
+     * que no deja elegir ni con quién ni cuándo no es agendar un turno.
+     *
+     * El caso que el auto-match quería cubrir —"me da igual quién me atienda,
+     * quiero ahora"— hoy tiene su propio flujo de verdad en
+     * `/paciente/ondemand/:vertical`, con pool rotado y pre-autorización. Acá
+     * sobraba y competía con él.
+     */
     setStep(vertical.id === 'veterinaria' ? 'pet' : 'professional')
   }
 
@@ -370,21 +351,6 @@ export default function ReservarConsulta({ profile }) {
     })
   }
 
-  const handleConfirmMatched = () => {
-    if (!selectedVertical || !matchedPro) return
-    navigate('/paciente/pago', {
-      state: {
-        professionalId: matchedPro.id,
-        professionalName: matchedPro.name,
-        professionalAvatar: matchedPro.avatarUrl,
-        specialty: matchedPro.specialty,
-        verticalId: selectedVertical.id,
-        modality: 'virtual',
-        price: matchedPro.price,
-      }
-    })
-  }
-
   const modalityCTA = () => {
     if (!modality) return 'Continuar'
     if (selectedPro) {
@@ -392,12 +358,10 @@ export default function ReservarConsulta({ profile }) {
         ? `Videoconsulta con ${selectedPro.name}`
         : `Buscar turnos con ${selectedPro.name}`
     }
-    if (AUTO_MATCH_VERTICALS.includes(selectedVertical?.id ?? '')) return 'Buscar profesional'
     return 'Continuar'
   }
 
-  // Progress dots (skip for clinica auto-match)
-  const showProgress = !AUTO_MATCH_VERTICALS.includes(selectedVertical?.id ?? '')
+  const showProgress = true
   const currentStepIndex = steps.indexOf(step)
 
   // ── Render ─────────────────────────────────────────────────
@@ -535,123 +499,6 @@ export default function ReservarConsulta({ profile }) {
               {modalityCTA()}
             </button>
           </>
-        )}
-
-        {/* ── STEP: Searching ── */}
-        {step === 'searching' && (
-          <div className="flex flex-col items-center justify-center py-20 gap-6 text-center">
-            <div className="w-24 h-24 rounded-full bg-brand/10 flex items-center justify-center">
-              <CircleNotch className="w-10 h-10 text-brand animate-spin" />
-            </div>
-            <div>
-              <h1 className="font-bold text-2xl text-text-primary">Buscando profesional…</h1>
-              <p className="text-text-secondary text-[14px] mt-2">
-                Conectándote con el especialista más cercano
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* ── STEP: Matched — sin match real (ningún profesional habilitado) ── */}
-        {step === 'matched' && !matchedPro && (
-          <div className="flex flex-col items-center gap-5 py-10 text-center">
-            <div className="w-24 h-24 rounded-full bg-bg-secondary flex items-center justify-center">
-              <MagnifyingGlass className="w-10 h-10 text-text-tertiary" />
-            </div>
-            <div>
-              <h1 className="font-bold text-2xl text-text-primary">
-                No hay profesionales disponibles
-              </h1>
-              <p className="text-text-secondary text-[14px] mt-2 max-w-sm">
-                Por el momento no hay profesionales de {selectedVertical?.nombre ?? 'esta especialidad'} habilitados para recibir reservas online. Probá de nuevo más tarde.
-              </p>
-            </div>
-            <div className="w-full space-y-3 mt-4">
-              <button
-                onClick={() => { setStep('modality'); setMatchedPro(null) }}
-                className="w-full py-4 rounded-full font-semibold text-[15px] text-text-secondary border border-border-default hover:bg-bg-secondary transition-colors"
-              >
-                Volver
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── STEP: Matched ── */}
-        {step === 'matched' && matchedPro && (
-          <div className="flex flex-col items-center gap-5 py-10 text-center">
-            {/* Avatar with check badge */}
-            <div className="relative">
-              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-md">
-                {matchedPro?.avatarUrl ? (
-                  <img src={matchedPro.avatarUrl} alt={matchedPro.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-brand/10 flex items-center justify-center text-[36px] font-bold text-brand">
-                    {(matchedPro?.name ?? 'P').charAt(0)}
-                  </div>
-                )}
-              </div>
-              <div className="absolute -bottom-1 -right-1 bg-white rounded-full shadow">
-                <CheckCircle className="w-7 h-7 text-success" weight="fill" />
-              </div>
-            </div>
-
-            {/* Pro info */}
-            <div>
-              <p className="text-[13px] font-semibold text-success uppercase tracking-wide mb-1">
-                ¡Profesional encontrado!
-              </p>
-              <h1 className="font-bold text-2xl text-text-primary">
-                {matchedPro?.name ?? 'Profesional disponible'}
-              </h1>
-              {(matchedPro?.specialty || selectedVertical?.nombre) && (
-                <p className="text-text-secondary text-[14px] mt-0.5">
-                  {porSlug[matchedPro?.specialty] || matchedPro?.specialty || selectedVertical.nombre}
-                </p>
-              )}
-            </div>
-
-            {/* Rating + price */}
-            <div className="flex items-center gap-4">
-              {matchedPro?.rating > 0 && (
-                <div className="flex items-center gap-1">
-                  <Star className="w-4 h-4 text-amber-400" weight="fill" />
-                  <span className="text-[13px] font-semibold text-amber-600">
-                    {matchedPro.rating.toFixed(1)}
-                  </span>
-                  {matchedPro.reviews > 0 && (
-                    <span className="text-[12px] text-text-tertiary">
-                      ({matchedPro.reviews} reseñas)
-                    </span>
-                  )}
-                </div>
-              )}
-              {matchedPro?.price != null && (
-                <span className="text-[15px] font-bold text-brand">
-                  ${matchedPro.price}/consulta
-                </span>
-              )}
-            </div>
-
-            {/* CTAs */}
-            <div className="w-full space-y-3 mt-4">
-              <button
-                onClick={handleConfirmMatched}
-                className="w-full py-4 rounded-full font-semibold text-[15px] text-white bg-brand hover:bg-brand-hover transition-colors"
-              >
-                Elegir y pagar
-              </button>
-              <button
-                onClick={() => {
-                  track('booking_cancel', { vertical: selectedVertical?.id, professional_id: matchedPro?.id, flow: 'paciente' })
-                  setStep('modality'); setMatchedPro(null)
-                }}
-                className="w-full py-4 rounded-full font-semibold text-[15px] text-text-secondary border border-border-default hover:bg-bg-secondary transition-colors"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
         )}
 
         {/* ── STEP: Pet (veterinaria only) ── */}
