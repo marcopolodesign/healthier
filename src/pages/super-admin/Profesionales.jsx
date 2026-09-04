@@ -11,7 +11,7 @@ import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../../components/Toast'
 import RefepsCheckLink from '../../components/admin/RefepsCheckLink'
 import SignedDocLink from '../../components/SignedDocLink'
-import { professionalService } from '../../services/professionalService'
+import { professionalService, ON_DEMAND_PRESENCE_TTL_MS } from '../../services/professionalService'
 import { profilesService } from '../../services/profilesService'
 import { paymentsService } from '../../services/paymentsService'
 import { adminService } from '../../services/adminService'
@@ -196,6 +196,51 @@ function VerifiedBadge({ pro }) {
   return (
     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
       Pendiente
+    </span>
+  )
+}
+
+/**
+ * Estado del profesional en el pool de consulta inmediata.
+ *
+ * Son TRES estados, no dos, y confundirlos es lo que rompió el on-demand el
+ * 2026-09-03: el switch (`is_on_demand`) es sólo la intención declarada; lo que
+ * decide si el paciente lo ve es la vigencia (`on_demand_last_seen_at`, que dura
+ * una hora desde el último latido).
+ *
+ *  - **Disponible** — entra al pool ahora mismo.
+ *  - **Inactivo** — declaró disponibilidad y la vigencia venció. Normal: cerró
+ *    la app hace rato. Vuelve solo cuando la abre.
+ *  - **Sin vigencia** 🔴 — declaró disponibilidad y nunca se le escribió el
+ *    latido. NO se arregla esperando: el profesional ve "Estás disponible" en su
+ *    panel y el paciente no lo va a ver nunca. Es el síntoma del bug; si aparece
+ *    en esta columna, hay algo roto en el latido.
+ */
+function DisponibilidadInmediata({ activo, ultimoLatido }) {
+  if (!activo) return <span className="text-xs text-gray-300">—</span>
+
+  if (!ultimoLatido) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600"
+            title="Tiene el switch prendido pero nunca se le escribió la vigencia — el paciente no lo ve, y esperando no se arregla">
+        Sin vigencia
+      </span>
+    )
+  }
+
+  const desde = Date.now() - new Date(ultimoLatido).getTime()
+  if (desde < ON_DEMAND_PRESENCE_TTL_MS) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+        Disponible
+      </span>
+    )
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500"
+          title={`Último latido: ${fmtDateTime(ultimoLatido)}`}>
+      Inactivo
     </span>
   )
 }
@@ -837,7 +882,7 @@ export default function SuperAdminProfesionales() {
       const [profResult, consultResult] = await Promise.all([
         supabase
           .from('professional_profiles')
-          .select('id, specialty, is_verified, verification_source, sisa_status, mp_connected, mp_account_label, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, profiles!user_id(id, full_name, email, phone, created_at, utm_source, avatar_url)')
+          .select('id, specialty, is_verified, verification_source, sisa_status, mp_connected, mp_account_label, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, profiles!user_id(id, full_name, email, phone, created_at, utm_source, avatar_url)')
           .order('created_at', { ascending: false }),
         supabase.from('consultations').select('professional_id'),
       ])
@@ -951,6 +996,7 @@ export default function SuperAdminProfesionales() {
                 <th className="table-header">Estado</th>
                 <th className="table-header">SISA</th>
                 <th className="table-header">MP</th>
+                <th className="table-header">Inmediata</th>
                 <th className="table-header">Rating</th>
                 <th className="table-header">Consultas</th>
                 <th className="table-header">Registro</th>
@@ -970,7 +1016,7 @@ export default function SuperAdminProfesionales() {
                         </div>
                       </div>
                     </td>
-                    {Array.from({ length: 7 }).map((_, j) => (
+                    {Array.from({ length: 8 }).map((_, j) => (
                       <td key={j} className="table-cell">
                         <div className="h-3 w-16 bg-gray-200 rounded animate-pulse" />
                       </td>
@@ -1040,6 +1086,19 @@ export default function SuperAdminProfesionales() {
                             </div>
                           )
                           : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600">Sin conectar</span>}
+                      </td>
+                      {/* Disponibilidad para consulta inmediata.
+                          Los tres estados son distintos y hay que poder
+                          distinguirlos de un vistazo: lo que rompió el on-demand
+                          el 2026-09-03 fue justamente que "prendido" y
+                          "visible para el paciente" no eran lo mismo y nada lo
+                          mostraba. `is_on_demand` es la intención;
+                          `on_demand_last_seen_at` (1 h) es lo que decide. */}
+                      <td className="table-cell">
+                        <DisponibilidadInmediata
+                          activo={pro.is_on_demand}
+                          ultimoLatido={pro.on_demand_last_seen_at}
+                        />
                       </td>
                       <td className="table-cell">
                         {pro.average_rating > 0
