@@ -87,70 +87,76 @@ export function buildFoodUid(foodId, mealId) {
   return `${foodId}-${mealId}`
 }
 
+/**
+ * En qué comidas está un alimento y con cuántos gramos en cada una.
+ *
+ * `food_distribution` tiene DOS formas, y las dos se leen:
+ *
+ *   · `{ [foodId]: [mealId, ...] }` — la vieja. No decía gramos: se repartía el
+ *     total en partes iguales entre las comidas marcadas. Sigue funcionando así
+ *     para los planes guardados antes de que existiera la de abajo.
+ *   · `{ [foodId]: { [mealId]: gramos } }` — la actual. El nutricionista dice
+ *     exactamente cuánto va en cada comida (pedido de Nacho: "selecciono 500 g
+ *     de carne y en la distribución quiero poder poner todo, o X gramos").
+ *
+ * Devuelve `[{ mealId, qty }]` — la lista de porciones de ese alimento.
+ */
+export function porcionesDe(food, dist) {
+  const asignado = dist?.[food.id]
+  if (!asignado) return []
+
+  // Forma vieja: array de comidas, reparto en partes iguales.
+  if (Array.isArray(asignado)) {
+    if (asignado.length === 0) return []
+    const qty = Math.round(food.consumedQuantity / asignado.length)
+    return asignado.map(mealId => ({ mealId, qty }))
+  }
+
+  // Forma actual: gramos explícitos. Un 0 (o algo que no sea un número > 0) es
+  // "no va en esta comida" — así apagar una comida no obliga a borrar la clave.
+  return Object.entries(asignado)
+    .map(([mealId, gramos]) => ({ mealId, qty: Number(gramos) || 0 }))
+    .filter(p => p.qty > 0)
+}
+
+/** Cuántos gramos del alimento están repartidos. Para el contador de la UI. */
+export function gramosRepartidos(food, dist) {
+  return porcionesDe(food, dist).reduce((a, p) => a + p.qty, 0)
+}
+
 export function buildPatientMealsData(meals, foods, dist) {
   const d = {}
   meals.forEach(m => { d[m.id] = [] })
   foods.forEach(food => {
-    const assigned = dist[food.id] || []
-    if (assigned.length > 0) {
-      const portionQty = Math.round(food.consumedQuantity / assigned.length)
-      assigned.forEach(mId => {
-        if (d[mId]) d[mId].push({ ...food, qty: portionQty, uid: buildFoodUid(food.id, mId) })
-      })
-    }
+    porcionesDe(food, dist).forEach(({ mealId, qty }) => {
+      if (d[mealId]) d[mealId].push({ ...food, qty, uid: buildFoodUid(food.id, mealId) })
+    })
   })
   return d
 }
 
-// FatSecret food search via CORS proxy
-const FS_CLIENT_ID = '19f1e6a8c3524f6abb85e6bc77786b49'
-const FS_CLIENT_SECRET = 'dc24e43c85c840e789ba8bcd4239ebd7'
-const FS_TOKEN_URL = 'https://oauth.fatsecret.com/connect/token'
-const FS_API_URL = 'https://platform.fatsecret.com/rest/server.api'
-const FS_PROXY = 'https://corsproxy.io/?'
+// ── Búsqueda de alimentos ───────────────────────────────────────────────────
+//
+// Pasa por la Edge Function `fatsecret-search`, NO por el browser. Antes se
+// llamaba a FatSecret desde acá a través de un proxy público (`corsproxy.io`),
+// con el client id y el secret escritos como constantes en este archivo — o sea
+// compilados dentro del bundle, a la vista de cualquiera. Ese proxy además dejó
+// de aceptar llamadas anónimas, así que la búsqueda estaba rota.
+//
+// La función devuelve `{ results, motivo? }` y nunca tira: si la fuente externa
+// no está disponible, devuelve una lista vacía con el motivo, y el buscador cae
+// al vademécum local. El profesional tiene que poder seguir armando el plan.
 
-let _fsToken = null
-let _fsTokenExpiry = 0
-
-async function getFsToken() {
-  if (_fsToken && Date.now() < _fsTokenExpiry) return _fsToken
-  const credentials = btoa(`${FS_CLIENT_ID}:${FS_CLIENT_SECRET}`)
-  const res = await fetch(FS_PROXY + encodeURIComponent(FS_TOKEN_URL), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Authorization': `Basic ${credentials}` },
-    body: 'grant_type=client_credentials&scope=basic',
-  })
-  if (!res.ok) throw new Error(`FatSecret token error ${res.status}`)
-  const data = await res.json()
-  _fsToken = data.access_token
-  _fsTokenExpiry = Date.now() + (data.expires_in * 1000) - 60000
-  return _fsToken
-}
-
+/**
+ * Busca alimentos en la fuente externa.
+ * @returns {Promise<{results: Array, motivo?: 'ip_no_habilitada'|'no_configurado'|'error_proveedor'}>}
+ */
 export async function searchFatSecret(query) {
-  const token = await getFsToken()
-  const params = new URLSearchParams({ method: 'foods.search', search_expression: query, format: 'json', page_number: '0', max_results: '20', language: 'es', region: 'AR' })
-  const res = await fetch(FS_PROXY + encodeURIComponent(`${FS_API_URL}?${params}`), { headers: { 'Authorization': `Bearer ${token}` } })
-  if (!res.ok) throw new Error(`FatSecret search error ${res.status}`)
-  const data = await res.json()
-  if (!data.foods?.food) return []
-  const foods = Array.isArray(data.foods.food) ? data.foods.food : [data.foods.food]
-  return foods.map(f => {
-    const desc = f.food_description || ''
-    const extract = (regex) => { const m = desc.match(regex); return m ? parseFloat(m[1]) : 0 }
-    return {
-      id: `fs_${f.food_id}`,
-      name: f.food_name || 'Sin nombre',
-      brand: f.brand_name || null,
-      category: f.food_type === 'Brand' ? 'Marca' : 'Genérico',
-      calories: Math.round(extract(/Calories:\s*([\d.]+)/i) || extract(/Calorías:\s*([\d.]+)/i)),
-      protein: Math.round((extract(/Protein:\s*([\d.]+)/i) || extract(/Prot(?:eínas?)?:\s*([\d.]+)/i)) * 10) / 10,
-      carbs: Math.round((extract(/Carbs:\s*([\d.]+)/i) || extract(/Carboh?:\s*([\d.]+)/i) || extract(/Hidratos:\s*([\d.]+)/i)) * 10) / 10,
-      fat: Math.round((extract(/Fat:\s*([\d.]+)/i) || extract(/Grasas?:\s*([\d.]+)/i)) * 10) / 10,
-      fiber: 0,
-      isExternal: true,
-    }
+  const { data, error } = await supabase.functions.invoke('fatsecret-search', {
+    body: { query },
   })
+  if (error) return { results: [], motivo: 'error_proveedor' }
+  return { results: data?.results ?? [], motivo: data?.motivo }
 }
 
 // ── Persistencia (migración 131_nutriplan_persistencia.sql) ────────────────

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Leaf, User, AppleLogo, SquaresFour, Pulse,
@@ -26,6 +26,8 @@ import {
   parseLocalDate,
   savePlan,
   getPlanForPatient,
+  porcionesDe,
+  gramosRepartidos,
   getAdherenceRange,
 } from '../../services/nutriplanService'
 
@@ -690,7 +692,7 @@ function TabDieta({ consumedFoods, addFood, removeFood, totals, results,
 
 // ─── Tab: Template ────────────────────────────────────────────────────────────
 
-function TabTemplate({ meals, setMeals, consumedFoods, foodDist, toggleDist }) {
+function TabTemplate({ meals, setMeals, consumedFoods, foodDist, toggleDist, setGramosDist }) {
   const [newMealName, setNewMealName] = useState('')
   const [newMealTime, setNewMealTime] = useState('12:00')
 
@@ -786,36 +788,77 @@ function TabTemplate({ meals, setMeals, consumedFoods, foodDist, toggleDist }) {
             <AppleLogo className="h-4 w-4" style={{ color: SAGE }} />
             Distribución de alimentos
           </h2>
-          <p className="text-xs text-gray-400">Marcá en qué comidas aparece cada alimento</p>
+          <p className="text-xs text-gray-400">
+            Tocá una comida para mandarle lo que queda del alimento, y ajustá los gramos si va repartido.
+          </p>
 
           <div className="space-y-3">
-            {consumedFoods.map(food => (
-              <div key={food.id} className="border border-gray-100 rounded-xl p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-medium text-gray-800">{food.name}</p>
-                  <p className="text-xs text-gray-400">{food.consumedQuantity}g · {food.consumedCalories} kcal</p>
+            {consumedFoods.map(food => {
+              const porciones = porcionesDe(food, foodDist)
+              const repartido = gramosRepartidos(food, foodDist)
+              const restante = food.consumedQuantity - repartido
+              return (
+                <div key={food.id} className="border border-gray-100 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-2 gap-3">
+                    <p className="text-sm font-medium text-gray-800">{food.name}</p>
+                    <p className="text-xs text-gray-400 shrink-0">{food.consumedQuantity}g · {food.consumedCalories} kcal</p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {meals.map(meal => {
+                      const porcion = porciones.find(p => p.mealId === meal.id)
+                      const asignada = Boolean(porcion)
+                      return (
+                        <div
+                          key={meal.id}
+                          className="rounded-full text-xs font-medium border transition-all flex items-center gap-1 overflow-hidden"
+                          style={asignada
+                            ? { backgroundColor: SAGE, borderColor: SAGE, color: '#fff' }
+                            : { backgroundColor: '#fff', borderColor: '#e5e7eb', color: '#6b7280' }
+                          }
+                        >
+                          <button
+                            onClick={() => toggleDist(food.id, meal.id)}
+                            className="pl-2.5 py-1 flex items-center gap-1"
+                            title={asignada ? 'Sacar de esta comida' : 'Mandar lo que queda a esta comida'}
+                          >
+                            {asignada && <Check className="h-3 w-3" />}
+                            {meal.name}
+                          </button>
+                          {asignada ? (
+                            <span className="flex items-center pr-2.5">
+                              <input
+                                type="number"
+                                min="0"
+                                max={food.consumedQuantity}
+                                value={porcion.qty}
+                                onChange={e => setGramosDist(food.id, meal.id, e.target.value)}
+                                className="w-12 bg-transparent text-right text-white text-xs font-semibold outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                aria-label={`Gramos de ${food.name} en ${meal.name}`}
+                              />
+                              <span className="opacity-80">g</span>
+                            </span>
+                          ) : (
+                            <span className="pr-2.5" />
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* El contador es lo que evita el error silencioso: sin esto,
+                      repartir 300 de 500 g se ve igual de bien que repartir los
+                      500, y el paciente recibe un plan al que le faltan calorías. */}
+                  <p className="text-xs mt-2" style={{ color: restante === 0 ? SAGE : restante > 0 ? '#9ca3af' : '#dc2626' }}>
+                    {restante === 0
+                      ? `Repartido entero (${food.consumedQuantity}g)`
+                      : restante > 0
+                        ? `Quedan ${restante}g sin repartir de ${food.consumedQuantity}g`
+                        : `Te pasaste ${Math.abs(restante)}g — repartiste ${repartido}g de ${food.consumedQuantity}g`}
+                  </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {meals.map(meal => {
-                    const assigned = (foodDist[food.id] || []).includes(meal.id)
-                    return (
-                      <button
-                        key={meal.id}
-                        onClick={() => toggleDist(food.id, meal.id)}
-                        className="px-2.5 py-1 rounded-full text-xs font-medium border transition-all flex items-center gap-1"
-                        style={assigned
-                          ? { backgroundColor: SAGE, borderColor: SAGE, color: '#fff' }
-                          : { backgroundColor: '#fff', borderColor: '#e5e7eb', color: '#6b7280' }
-                        }
-                      >
-                        {assigned && <Check className="h-3 w-3" />}
-                        {meal.name}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -1075,6 +1118,10 @@ export default function NutriPlan({ profile }) {
 
   // Food distribution: { foodId: [mealId, ...] }
   const [foodDist, setFoodDist] = useState({})
+  // Los handlers de distribución necesitan el alimento (para saber su total en
+  // gramos) pero no tienen que recrearse cada vez que cambia la lista.
+  const consumedFoodsRef = useRef([])
+  useEffect(() => { consumedFoodsRef.current = consumedFoods }, [consumedFoods])
 
   // MagnifyingGlass
   const [search, setSearch] = useState('')
@@ -1341,15 +1388,58 @@ export default function NutriPlan({ profile }) {
     setConsumedFoods(prev => [...prev, consumed])
   }, [])
 
+  /**
+   * Pasa la distribución de un alimento a la forma con gramos, sea cual sea la
+   * que tenía guardada. Los planes viejos guardaban un array de comidas y el
+   * reparto era en partes iguales: al tocarlos por primera vez se congela ese
+   * mismo reparto en gramos, así el plan no cambia solo por abrirlo.
+   */
+  const conGramos = useCallback((foodId, prev) => {
+    const actual = prev[foodId]
+    if (actual && !Array.isArray(actual)) return { ...actual }
+    const food = consumedFoodsRef.current.find(f => f.id === foodId)
+    if (!actual || !food) return {}
+    const qty = Math.round(food.consumedQuantity / actual.length)
+    return Object.fromEntries(actual.map(mealId => [mealId, qty]))
+  }, [])
+
+  /** Toca una comida: si estaba, la saca; si no, le manda lo que quede sin repartir. */
   const toggleDist = useCallback((foodId, mealId) => {
     setFoodDist(prev => {
-      const current = prev[foodId] || []
-      if (current.includes(mealId)) {
-        return { ...prev, [foodId]: current.filter(id => id !== mealId) }
+      const mapa = conGramos(foodId, prev)
+      if (mapa[mealId] > 0) {
+        const { [mealId]: _fuera, ...resto } = mapa
+        return { ...prev, [foodId]: resto }
       }
-      return { ...prev, [foodId]: [...current, mealId] }
+      const food = consumedFoodsRef.current.find(f => f.id === foodId)
+      const repartido = Object.values(mapa).reduce((a, g) => a + (Number(g) || 0), 0)
+      // Lo que queda, y si ya está todo repartido, el total: tocar una comida
+      // siempre tiene que dejar algo adentro, nunca un 0 invisible.
+      const restante = food ? food.consumedQuantity - repartido : 0
+      const gramos = restante > 0 ? restante : (food?.consumedQuantity ?? 0)
+      return { ...prev, [foodId]: { ...mapa, [mealId]: gramos } }
     })
-  }, [])
+  }, [conGramos])
+
+  /** Edita a mano los gramos de una comida. */
+  const setGramosDist = useCallback((foodId, mealId, valor) => {
+    setFoodDist(prev => {
+      const mapa = conGramos(foodId, prev)
+      // Vaciar el input no saca la comida: deja 0 y el contador avisa que falta
+      // repartir. Sacarla es tocar el nombre.
+      const gramos = valor === '' ? 0 : Math.max(0, Math.round(Number(valor) || 0))
+      return { ...prev, [foodId]: { ...mapa, [mealId]: gramos } }
+    })
+  }, [conGramos])
+
+  // Los motivos por los que la fuente externa puede no traer nada. Se le dice al
+  // profesional qué pasó y qué le queda, en vez de un "falló la búsqueda" que no
+  // le sirve para decidir si esperar o cargar el alimento a mano.
+  const MOTIVO_BUSQUEDA = {
+    ip_no_habilitada: 'La búsqueda externa de alimentos está pendiente de habilitación. Mientras tanto, buscá en el vademécum local o cargá el alimento a mano.',
+    no_configurado:   'La búsqueda externa de alimentos todavía no está configurada. Usá el vademécum local o cargá el alimento a mano.',
+    error_proveedor:  'La búsqueda externa no respondió. Probá de nuevo, o buscá en el vademécum local.',
+  }
 
   const handleFsSearch = async (query) => {
     if (!query.trim()) return
@@ -1357,12 +1447,13 @@ export default function NutriPlan({ profile }) {
     setFsError(false)
     setFsSearched(false)
     try {
-      const res = await searchFatSecret(query)
-      setFsResults(res)
+      const { results, motivo } = await searchFatSecret(query)
+      setFsResults(results)
       setFsSearched(true)
-    } catch {
-      setFsError(true)
-      toast.error('No se pudo conectar a FatSecret')
+      if (motivo) {
+        setFsError(true)
+        toast.warning(MOTIVO_BUSQUEDA[motivo] ?? MOTIVO_BUSQUEDA.error_proveedor)
+      }
     } finally {
       setFsLoading(false)
     }
@@ -1527,6 +1618,7 @@ export default function NutriPlan({ profile }) {
           consumedFoods={consumedFoods}
           foodDist={foodDist}
           toggleDist={toggleDist}
+          setGramosDist={setGramosDist}
         />
       )}
 
