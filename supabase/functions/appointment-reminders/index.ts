@@ -4,14 +4,28 @@ import webpush from 'npm:web-push@3.6.7'
 type Reminder = {
   window: [number, number]
   column: 'reminder_sent' | 'reminder_24h_sent'
-  label: string
   /** Cuál de las dos variantes del mail de recordatorio corresponde. */
   cuando: 'pronto' | 'manana'
+  /** El texto de la push. Vive acá para que la diferencia entre los dos
+   *  recordatorios esté declarada en un solo lugar y no también en un `if`. */
+  push: (professionalName: string, timeStr: string) => { title: string; body: string }
 }
 
 const REMINDERS: Reminder[] = [
-  { window: [23, 37],           column: 'reminder_sent',     label: 'en 30 minutos', cuando: 'pronto' },
-  { window: [23 * 60 + 45, 24 * 60 + 15], column: 'reminder_24h_sent', label: 'mañana', cuando: 'manana' },
+  {
+    window: [23, 37], column: 'reminder_sent', cuando: 'pronto',
+    push: (pro, hora) => ({
+      title: 'Tu consulta comienza pronto',
+      body: `Tu consulta con ${pro} es a las ${hora}. ¡Preparate!`,
+    }),
+  },
+  {
+    window: [23 * 60 + 45, 24 * 60 + 15], column: 'reminder_24h_sent', cuando: 'manana',
+    push: (pro, hora) => ({
+      title: 'Recordatorio de turno',
+      body: `Mañana tenés una consulta con ${pro} a las ${hora}.`,
+    }),
+  },
 ]
 
 async function sendPush(
@@ -113,6 +127,10 @@ Deno.serve(async (req: Request) => {
 
     totalChecked += upcoming.length
     const remindedIds: string[] = []
+    // Los mails no se esperan uno por uno: son N llamadas HTTP independientes y
+    // serializarlas hace que el cron tarde N veces más de lo necesario. Se
+    // juntan y se esperan todas juntas al final del bloque.
+    const mails: Array<Promise<void>> = []
 
     for (const c of upcoming) {
       const professionalName = (c.professional as { full_name?: string } | null)?.full_name ?? 'tu profesional'
@@ -122,14 +140,7 @@ Deno.serve(async (req: Request) => {
         timeZone: 'America/Argentina/Buenos_Aires',
       })
 
-      let title: string, body: string
-      if (reminder.column === 'reminder_sent') {
-        title = 'Tu consulta comienza pronto'
-        body  = `Tu consulta con ${professionalName} es a las ${timeStr}. ¡Preparate!`
-      } else {
-        title = 'Recordatorio de turno'
-        body  = `Mañana tenés una consulta con ${professionalName} a las ${timeStr}.`
-      }
+      const { title, body } = reminder.push(professionalName, timeStr)
 
       const sent = await sendPush(supabase, c.patient_id, title, body, '/paciente/consultas')
       if (sent) totalSent++
@@ -140,10 +151,14 @@ Deno.serve(async (req: Request) => {
       // viva; el mail llega igual. Mandar el mail sólo cuando la push falla
       // dejaría sin recordatorio justo al que sí las tiene activadas pero no
       // mira el teléfono.
-      await enviarMailDeRecordatorio(c.id as string, reminder.cuando)
+      mails.push(enviarMailDeRecordatorio(c.id as string, reminder.cuando))
 
       remindedIds.push(c.id)
     }
+
+    // Se esperan igual antes de seguir: si el isolate termina con fetch en
+    // vuelo, Deno los corta y el mail no sale.
+    await Promise.allSettled(mails)
 
     if (remindedIds.length > 0) {
       await supabase

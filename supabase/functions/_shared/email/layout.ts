@@ -70,6 +70,11 @@ export function personCard(opts: { name: string; subtitle?: string | null; avata
   </table>`
 }
 
+/** Encabezado de sección — el renglón chico en mayúsculas sobre cada bloque. */
+export function sectionLabel(text: string) {
+  return `<p style="margin:0 0 10px;font-size:13px;line-height:1.4;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:${C.mute};font-family:${FONT}">${esc(text)}</p>`
+}
+
 /** Lista de ítems con título y detalle: indicaciones, recetas, medicamentos. */
 export function itemList(title: string, items: Array<{ title: string; detail?: string | null; note?: string | null; href?: string | null; hrefLabel?: string }>, accent: Accent = 'sage') {
   if (!items.length) return ''
@@ -87,7 +92,7 @@ export function itemList(title: string, items: Array<{ title: string; detail?: s
     </td></tr>`).join('')
 
   return `
-  <p style="margin:0 0 10px;font-size:13px;line-height:1.4;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:${C.mute};font-family:${FONT}">${esc(title)}</p>
+  ${sectionLabel(title)}
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px">${rows}</table>`
 }
 

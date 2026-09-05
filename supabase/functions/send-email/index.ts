@@ -50,21 +50,21 @@ async function leerConsulta(sb: SupabaseClient, id: string) {
       price_at_booking, closing_notes, status, cancel_reason, cancelled_by,
       patient_id, professional_id,
       patient:profiles!patient_id(full_name, email, avatar_url),
-      professional:profiles!professional_id(full_name, email, avatar_url)
+      professional:profiles!professional_id(
+        full_name, email, avatar_url,
+        professional_profiles!professional_profiles_user_id_fkey(specialty, address)
+      )
     `)
     .eq('id', id)
     .single()
   if (error || !data) return null
 
   const patient = data.patient as unknown as Perfil | null
-  const professional = data.professional as unknown as Perfil | null
-
+  const professional = data.professional as unknown as (Perfil & {
+    professional_profiles: { specialty: string | null; address: string | null } | null
+  }) | null
   // Especialidad y dirección del consultorio viven en professional_profiles.
-  const { data: pp } = await sb
-    .from('professional_profiles')
-    .select('specialty, address')
-    .eq('user_id', data.professional_id)
-    .maybeSingle()
+  const pp = professional?.professional_profiles ?? null
 
   const base: T.ConsultaBase = {
     id: data.id,
@@ -221,6 +221,13 @@ Deno.serve(async (req) => {
   const tipo = body.tipo ?? (body.consultationId ? 'reserva' : null)
   if (!tipo) return json({ error: 'Falta `tipo`' }, 400)
 
+  const porUsuario = async (construir: (u: { full_name: string | null; email: string | null }) => T.Sent) => {
+    if (!body.userId) return json({ error: 'Falta userId' }, 400)
+    const u = await leerPerfil(sb, body.userId)
+    if (!u) return json({ error: 'Usuario no encontrado' }, 404)
+    return await salida({ usuarioId: body.userId }, [{ to: u.email, ...construir(u) }])
+  }
+
   try {
     switch (tipo) {
       // ── Consultas ──────────────────────────────────────────────────────────
@@ -245,10 +252,11 @@ Deno.serve(async (req) => {
       case 'post-consulta': {
         const c = await requiereConsulta(sb, body.consultationId)
         if (!c) return json({ error: 'Consulta no encontrada' }, 404)
-        const clinico = await leerClinico(sb, c.base.id)
-        const { count } = await sb
-          .from('reviews').select('id', { count: 'exact', head: true })
-          .eq('consultation_id', c.base.id)
+        const [clinico, { count }] = await Promise.all([
+          leerClinico(sb, c.base.id),
+          sb.from('reviews').select('id', { count: 'exact', head: true })
+            .eq('consultation_id', c.base.id),
+        ])
         const mail = T.postConsultaPaciente({
           ...c.base,
           completedAt: c.row.completed_at,
@@ -320,29 +328,16 @@ Deno.serve(async (req) => {
       }
 
       // ── Cuentas ────────────────────────────────────────────────────────────
-      case 'bienvenida': {
-        if (!body.userId) return json({ error: 'Falta userId' }, 400)
-        const u = await leerPerfil(sb, body.userId)
-        if (!u) return json({ error: 'Usuario no encontrado' }, 404)
-        const mail = T.bienvenidaPaciente({ name: primerNombre(u.full_name) ?? 'qué tal' })
-        return await salida({ usuarioId: body.userId }, [{ to: u.email, ...mail }])
-      }
+      // Los tres que sólo necesitan el perfil de una persona comparten la
+      // misma forma; lo único que cambia es qué plantilla se arma.
+      case 'bienvenida':
+        return await porUsuario(u => T.bienvenidaPaciente({ name: primerNombre(u.full_name) ?? 'qué tal' }))
 
-      case 'pro-verificado': {
-        if (!body.userId) return json({ error: 'Falta userId' }, 400)
-        const u = await leerPerfil(sb, body.userId)
-        if (!u) return json({ error: 'Usuario no encontrado' }, 404)
-        const mail = T.profesionalVerificado({ name: u.full_name ?? 'profesional' })
-        return await salida({ usuarioId: body.userId }, [{ to: u.email, ...mail }])
-      }
+      case 'pro-verificado':
+        return await porUsuario(u => T.profesionalVerificado({ name: u.full_name ?? 'profesional' }))
 
-      case 'pro-observado': {
-        if (!body.userId) return json({ error: 'Falta userId' }, 400)
-        const u = await leerPerfil(sb, body.userId)
-        if (!u) return json({ error: 'Usuario no encontrado' }, 404)
-        const mail = T.profesionalObservado({ name: u.full_name ?? 'profesional', motivo: body.motivo ?? null })
-        return await salida({ usuarioId: body.userId }, [{ to: u.email, ...mail }])
-      }
+      case 'pro-observado':
+        return await porUsuario(u => T.profesionalObservado({ name: u.full_name ?? 'profesional', motivo: body.motivo ?? null }))
 
       default:
         return json({ error: `Tipo desconocido: ${tipo}` }, 400)

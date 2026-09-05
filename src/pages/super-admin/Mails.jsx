@@ -4,6 +4,8 @@ import {
 } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
 import { toast } from '../../components/Toast'
+import { formatDate } from '../../lib/format'
+import MetricCard from '../../components/super-admin/MetricCard'
 
 /**
  * Mails — /super-admin/mails
@@ -37,12 +39,6 @@ const TIPOS = {
 }
 
 const PAGE_SIZE = 200
-
-const fecha = (iso) => new Date(iso).toLocaleString('es-AR', {
-  day: '2-digit', month: '2-digit', year: '2-digit',
-  hour: '2-digit', minute: '2-digit', hour12: false,
-  timeZone: 'America/Argentina/Buenos_Aires',
-})
 
 export default function SuperAdminMails() {
   const [rows, setRows] = useState([])
@@ -83,13 +79,13 @@ export default function SuperAdminMails() {
     }
   }, [rows])
 
-  const filtered = rows.filter(r => {
+  const filtered = useMemo(() => rows.filter(r => {
     if (tipoFilter !== 'todos' && r.tipo !== tipoFilter) return false
     if (estadoFilter !== 'todos' && r.estado !== estadoFilter) return false
     if (!query.trim()) return true
     const needle = query.trim().toLowerCase()
     return [r.destinatario, r.asunto, r.error].filter(Boolean).some(v => v.toLowerCase().includes(needle))
-  })
+  }), [rows, tipoFilter, estadoFilter, query])
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -108,10 +104,10 @@ export default function SuperAdminMails() {
 
       {/* Últimas 24 h */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Metric label="Últimas 24 h" value={resumen.total} />
-        <Metric label="Entregados a Resend" value={resumen.enviados} tone="ok" />
-        <Metric label="Con error" value={resumen.errores} tone={resumen.errores > 0 ? 'bad' : 'neutral'} />
-        <Metric label="Último mail" value={resumen.ultimo ? fecha(resumen.ultimo) : '—'} small />
+        <MetricCard label="Últimas 24 h" value={resumen.total} />
+        <MetricCard label="Entregados a Resend" value={resumen.enviados} tone="ok" />
+        <MetricCard label="Con error" value={resumen.errores} tone={resumen.errores > 0 ? 'bad' : 'neutral'} />
+        <MetricCard label="Último mail" value={formatDate(resumen.ultimo)} small />
       </div>
 
       {resumen.errores > 0 && (
@@ -173,7 +169,7 @@ export default function SuperAdminMails() {
             <tbody>
               {filtered.map(r => (
                 <tr key={r.id} className="border-b border-border-default last:border-0 align-top">
-                  <td className="px-4 py-3 text-text-secondary whitespace-nowrap tabular-nums">{fecha(r.created_at)}</td>
+                  <td className="px-4 py-3 text-text-secondary whitespace-nowrap tabular-nums">{formatDate(r.created_at)}</td>
                   <td className="px-4 py-3 text-text-primary whitespace-nowrap">{TIPOS[r.tipo] ?? r.tipo}</td>
                   <td className="px-4 py-3 text-text-secondary break-all">{r.destinatario}</td>
                   <td className="px-4 py-3 text-text-primary">{r.asunto}</td>
@@ -197,16 +193,6 @@ export default function SuperAdminMails() {
           </table>
         </div>
       )}
-    </div>
-  )
-}
-
-function Metric({ label, value, tone = 'neutral', small = false }) {
-  const color = tone === 'ok' ? 'text-green-700' : tone === 'bad' ? 'text-danger' : 'text-text-primary'
-  return (
-    <div className="card">
-      <p className="text-xs uppercase tracking-wide text-text-tertiary">{label}</p>
-      <p className={`${small ? 'text-base' : 'text-2xl'} font-bold mt-1 ${color}`}>{value}</p>
     </div>
   )
 }

@@ -3,16 +3,7 @@ import { ShareNetwork, Copy, Check, CaretRight, X } from '@phosphor-icons/react'
 import { referralService } from '../../services/referralService'
 import { toast } from '../../components/Toast'
 import { formatDate } from '../../lib/format'
-
-function Metric({ label, value, hint }) {
-  return (
-    <div className="card">
-      <p className="text-xs text-text-secondary font-medium uppercase tracking-wide">{label}</p>
-      <p className="text-2xl font-semibold text-text-primary mt-1">{value}</p>
-      {hint && <p className="text-xs text-text-tertiary mt-0.5">{hint}</p>}
-    </div>
-  )
-}
+import MetricCard from '../../components/super-admin/MetricCard'
 
 export default function SuperAdminReferidos() {
   const [filas, setFilas] = useState([])
@@ -73,18 +64,18 @@ export default function SuperAdminReferidos() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Metric
+        <MetricCard
           label="Profesionales que lo usaron"
           value={loading ? '—' : conActividad}
           hint={loading ? '' : `de ${filas.length} con link`}
         />
-        <Metric label="Visitas al link" value={loading ? '—' : totalVisitas} />
-        <Metric
+        <MetricCard label="Visitas al link" value={loading ? '—' : totalVisitas} />
+        <MetricCard
           label="Se registraron"
           value={loading ? '—' : totalRegistros}
           hint={!loading && totalVisitas > 0 ? `${Math.round((totalRegistros / totalVisitas) * 100)}% de las visitas` : ''}
         />
-        <Metric
+        <MetricCard
           label="Ya sacaron turno"
           value={loading ? '—' : totalConConsulta}
           hint={!loading && totalRegistros > 0 ? `${Math.round((totalConConsulta / totalRegistros) * 100)}% de los registrados` : ''}

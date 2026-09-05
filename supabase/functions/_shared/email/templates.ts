@@ -3,16 +3,15 @@
  * recibe datos ya masticados. Así el mismo archivo sirve para mandar de verdad
  * y para el script de previsualización (`scripts/preview-emails.ts`).
  */
-import { APP_URL, type Accent } from './theme.ts'
+import { APP_URL, C, type Accent } from './theme.ts'
 import {
   button, divider, esc, itemList, link, note, p, panel, personCard, quote,
-  renderEmail, type EmailDoc,
+  renderEmail, sectionLabel, type EmailDoc,
 } from './layout.ts'
 
 export type Sent = { subject: string; html: string }
 
 const TZ = 'America/Argentina/Buenos_Aires'
-const LABEL = "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif"
 
 export function fechaLarga(iso: string) {
   return new Date(iso).toLocaleDateString('es-AR', {
@@ -54,6 +53,17 @@ export function modalidad(modality: string | null, onDemand = false) {
   return modality === 'presencial' ? 'consulta presencial' : 'videoconsulta'
 }
 
+/** Las filas que describen un turno. Las comparten la confirmación y el recordatorio. */
+function filasDeConsulta(c: ConsultaBase) {
+  const presencial = c.modality === 'presencial'
+  return [
+    { label: 'Cuándo', value: esc(c.scheduledAt ? fechaYHora(c.scheduledAt) : 'A confirmar') },
+    { label: 'Con quién', value: esc(c.professionalName) },
+    { label: 'Modalidad', value: presencial ? 'Consulta presencial' : 'Videoconsulta' },
+    ...(presencial && c.address ? [{ label: 'Dónde', value: esc(c.address) }] : []),
+  ]
+}
+
 /** El color de la familia de mails según de qué se trate. */
 export const ACCENT_POR_VERTICAL: Record<string, Accent> = {
   clinica: 'sage', nutricion: 'amber', mente: 'lavender', fisico: 'sage', veterinaria: 'coral',
@@ -85,16 +95,11 @@ export function turnoConfirmadoPaciente(c: ConsultaBase): Sent {
   const presencial = c.modality === 'presencial'
   const cuando = c.scheduledAt ? fechaYHora(c.scheduledAt) : 'A confirmar'
 
-  const rows = [
-    { label: 'Cuándo', value: esc(cuando) },
-    { label: 'Con quién', value: esc(c.professionalName) },
-    { label: 'Modalidad', value: presencial ? 'Consulta presencial' : 'Videoconsulta' },
-  ]
-  if (presencial && c.address) rows.push({ label: 'Dónde', value: esc(c.address) })
+  const rows = filasDeConsulta(c)
   if (c.priceAtBooking) rows.push({ label: 'Valor', value: esc(money(c.priceAtBooking)) })
 
   const body = [
-    p(`Hola <strong style="color:#2D2A26">${esc(c.patientName)}</strong>, tu turno quedó reservado.`),
+    p(`Hola <strong style="color:${C.ink}">${esc(c.patientName)}</strong>, tu turno quedó reservado.`),
     panel(rows, accent),
     presencial
       ? note('Llegá <strong>10 minutos antes</strong>. Si no vas a poder ir, cancelá desde la app para liberarle el horario a otra persona.', accent)
@@ -128,7 +133,7 @@ export function turnoConfirmadoProfesional(c: ConsultaBase): Sent {
   if (c.priceAtBooking) rows.push({ label: 'Valor', value: esc(money(c.priceAtBooking)) })
 
   const body = [
-    p(`Hola <strong style="color:#2D2A26">${esc(c.professionalName)}</strong>, tenés una consulta nueva en tu agenda.`),
+    p(`Hola <strong style="color:${C.ink}">${esc(c.professionalName)}</strong>, tenés una consulta nueva en tu agenda.`),
     panel(rows, 'sage'),
     button(`${APP_URL}/profesional/agenda`, 'Ver mi agenda', 'sage'),
   ].join('')
@@ -153,7 +158,7 @@ export function ondemandConfirmadaPaciente(c: ConsultaBase & { waitMinutes?: num
   const espera = c.waitMinutes && c.waitMinutes > 0 ? `${c.waitMinutes} minutos` : 'unos minutos'
 
   const body = [
-    p(`Hola <strong style="color:#2D2A26">${esc(c.patientName)}</strong>, ya tenés profesional asignado. Te está esperando en la sala.`),
+    p(`Hola <strong style="color:${C.ink}">${esc(c.patientName)}</strong>, ya tenés profesional asignado. Te está esperando en la sala.`),
     // El nombre y la especialidad viven en la tarjeta de la persona; el panel
     // sólo lleva lo que ella no dice, para no repetir el mismo dato dos veces.
     personCard({
@@ -205,13 +210,13 @@ export function postConsultaPaciente(c: PostConsulta): Sent {
   // resumen, diagnóstico, indicaciones, recetas — es igual en las tres, porque
   // lo que el paciente se lleva no depende de por dónde lo atendieron.
   const intro = c.isOnDemand
-    ? `terminó tu consulta inmediata con <strong style="color:#2D2A26">${esc(c.professionalName)}</strong>. Acá quedó todo lo que necesitás.`
+    ? `terminó tu consulta inmediata con <strong style="color:${C.ink}">${esc(c.professionalName)}</strong>. Acá quedó todo lo que necesitás.`
     : c.modality === 'presencial'
-      ? `gracias por venir. Acá está el resumen de tu consulta con <strong style="color:#2D2A26">${esc(c.professionalName)}</strong>.`
-      : `terminó tu videoconsulta con <strong style="color:#2D2A26">${esc(c.professionalName)}</strong>. Acá está todo lo que hablaron.`
+      ? `gracias por venir. Acá está el resumen de tu consulta con <strong style="color:${C.ink}">${esc(c.professionalName)}</strong>.`
+      : `terminó tu videoconsulta con <strong style="color:${C.ink}">${esc(c.professionalName)}</strong>. Acá está todo lo que hablaron.`
 
   const partes: string[] = [
-    p(`Hola <strong style="color:#2D2A26">${esc(c.patientName)}</strong>, ${intro}`),
+    p(`Hola <strong style="color:${C.ink}">${esc(c.patientName)}</strong>, ${intro}`),
     personCard({
       name: c.professionalName,
       subtitle: c.professionalSpecialty,
@@ -222,7 +227,7 @@ export function postConsultaPaciente(c: PostConsulta): Sent {
   ]
 
   if (c.closingNotes?.trim()) {
-    partes.push(`<p style="margin:0 0 10px;font-size:13px;line-height:1.4;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#A8A29E;${LABEL}">Resumen de tu consulta</p>`)
+    partes.push(sectionLabel('Resumen de tu consulta'))
     partes.push(quote(c.closingNotes.trim()))
   }
 
@@ -291,7 +296,7 @@ export function pedidoFarmaciaConfirmado(o: PedidoFarmacia): Sent {
   ]
 
   const body = [
-    p(`Hola <strong style="color:#2D2A26">${esc(o.patientName)}</strong>, tu pedido está confirmado y la farmacia ya lo está preparando.`),
+    p(`Hola <strong style="color:${C.ink}">${esc(o.patientName)}</strong>, tu pedido está confirmado y la farmacia ya lo está preparando.`),
     panel(rows, 'lavender'),
     itemList('Lo que pediste', o.items.map(i => ({
       title: i.nombre,
@@ -326,7 +331,7 @@ export function pedidoFarmaciaEstado(o: PedidoFarmacia & { estado: 'en_preparaci
   }[o.estado]
 
   const body = [
-    p(`Hola <strong style="color:#2D2A26">${esc(o.patientName)}</strong>, ${M.line}`),
+    p(`Hola <strong style="color:${C.ink}">${esc(o.patientName)}</strong>, ${M.line}`),
     panel([
       { label: 'Farmacia', value: esc(o.pharmacyName) },
       { label: 'Número de pedido', value: esc(`#${o.id.slice(0, 8).toUpperCase()}`) },
@@ -351,17 +356,12 @@ export function recordatorioTurno(c: ConsultaBase & { cuando: 'manana' | 'pronto
   const accent = ACCENT_POR_VERTICAL[c.vertical ?? ''] ?? 'sage'
   const presencial = c.modality === 'presencial'
   const esManana = c.cuando === 'manana'
-  const rows = [
-    { label: 'Cuándo', value: esc(c.scheduledAt ? fechaYHora(c.scheduledAt) : 'A confirmar') },
-    { label: 'Con quién', value: esc(c.professionalName) },
-    { label: 'Modalidad', value: presencial ? 'Consulta presencial' : 'Videoconsulta' },
-    ...(presencial && c.address ? [{ label: 'Dónde', value: esc(c.address) }] : []),
-  ]
+  const rows = filasDeConsulta(c)
 
   const body = [
     p(esManana
-      ? `Hola <strong style="color:#2D2A26">${esc(c.patientName)}</strong>, te recordamos que mañana tenés turno.`
-      : `Hola <strong style="color:#2D2A26">${esc(c.patientName)}</strong>, tu turno empieza en media hora.`),
+      ? `Hola <strong style="color:${C.ink}">${esc(c.patientName)}</strong>, te recordamos que mañana tenés turno.`
+      : `Hola <strong style="color:${C.ink}">${esc(c.patientName)}</strong>, tu turno empieza en media hora.`),
     panel(rows, accent),
     presencial
       ? note('Salí con tiempo y llevá tu DNI. Si no vas a poder ir, cancelá ahora desde la app.', accent)
@@ -396,8 +396,8 @@ export function consultaCancelada(c: ConsultaBase & { paraQuien: 'paciente' | 'p
 
   const body = [
     p(c.canceladaPorMi
-      ? `Hola <strong style="color:#2D2A26">${esc(quien)}</strong>, cancelamos el turno como pediste.`
-      : `Hola <strong style="color:#2D2A26">${esc(quien)}</strong>, se canceló el turno que tenías con <strong style="color:#2D2A26">${esc(otro)}</strong>.`),
+      ? `Hola <strong style="color:${C.ink}">${esc(quien)}</strong>, cancelamos el turno como pediste.`
+      : `Hola <strong style="color:${C.ink}">${esc(quien)}</strong>, se canceló el turno que tenías con <strong style="color:${C.ink}">${esc(otro)}</strong>.`),
     panel([
       { label: 'Turno cancelado', value: esc(c.scheduledAt ? fechaYHora(c.scheduledAt) : 'Sin fecha') },
       { label: esPaciente ? 'Con quién era' : 'Paciente', value: esc(otro) },
@@ -426,7 +426,7 @@ export function consultaCancelada(c: ConsultaBase & { paraQuien: 'paciente' | 'p
 // ═══════════════════════════════════════════════════════════════════════════
 export function bienvenidaPaciente(u: { name: string }): Sent {
   const body = [
-    p(`Hola <strong style="color:#2D2A26">${esc(u.name)}</strong>, tu cuenta ya está lista. Healthier junta en un solo lugar a los profesionales, tus consultas, tus recetas y tu historia clínica.`),
+    p(`Hola <strong style="color:${C.ink}">${esc(u.name)}</strong>, tu cuenta ya está lista. Healthier junta en un solo lugar a los profesionales, tus consultas, tus recetas y tu historia clínica.`),
     itemList('Con qué podés empezar', [
       { title: 'Atenderte ahora', detail: 'Consulta inmediata por video con un profesional disponible, sin sacar turno.' },
       { title: 'Sacar un turno', detail: 'Elegís especialidad, profesional y horario. Presencial o por video.' },
@@ -452,7 +452,7 @@ export function bienvenidaPaciente(u: { name: string }): Sent {
 // ═══════════════════════════════════════════════════════════════════════════
 export function profesionalVerificado(pr: { name: string }): Sent {
   const body = [
-    p(`Hola <strong style="color:#2D2A26">${esc(pr.name)}</strong>, revisamos tu documentación y tu perfil ya está <strong style="color:#2D2A26">verificado</strong>. Desde ahora aparecés en las búsquedas y podés recibir consultas.`),
+    p(`Hola <strong style="color:${C.ink}">${esc(pr.name)}</strong>, revisamos tu documentación y tu perfil ya está <strong style="color:${C.ink}">verificado</strong>. Desde ahora aparecés en las búsquedas y podés recibir consultas.`),
     itemList('Lo que conviene dejar listo hoy', [
       { title: 'Tu disponibilidad', detail: 'Sin horarios cargados no te pueden reservar.' },
       { title: 'Mercado Pago', detail: 'Vinculá tu cuenta para cobrar las consultas.' },
@@ -474,7 +474,7 @@ export function profesionalVerificado(pr: { name: string }): Sent {
 
 export function profesionalObservado(pr: { name: string; motivo: string | null }): Sent {
   const body = [
-    p(`Hola <strong style="color:#2D2A26">${esc(pr.name)}</strong>, revisamos tu documentación y necesitamos que corrijas algo antes de activarte.`),
+    p(`Hola <strong style="color:${C.ink}">${esc(pr.name)}</strong>, revisamos tu documentación y necesitamos que corrijas algo antes de activarte.`),
     ...(pr.motivo ? [quote(pr.motivo)] : []),
     p('Cargá de nuevo lo que falta desde tu panel y lo revisamos en el día.'),
     button(`${APP_URL}/profesional/onboarding`, 'Corregir mi documentación', 'amber'),
@@ -495,7 +495,7 @@ export function profesionalObservado(pr: { name: string; motivo: string | null }
 // ═══════════════════════════════════════════════════════════════════════════
 export function recetaEmitida(r: { patientName: string; professionalName: string; medicamentos: string[]; pdfUrl: string | null; prescriptionId: string }): Sent {
   const body = [
-    p(`Hola <strong style="color:#2D2A26">${esc(r.patientName)}</strong>, <strong style="color:#2D2A26">${esc(r.professionalName)}</strong> te emitió una receta electrónica. Ya está en tu cuenta.`),
+    p(`Hola <strong style="color:${C.ink}">${esc(r.patientName)}</strong>, <strong style="color:${C.ink}">${esc(r.professionalName)}</strong> te emitió una receta electrónica. Ya está en tu cuenta.`),
     itemList('Medicamentos recetados', r.medicamentos.map(m => ({ title: m })), 'sage'),
     note('La receta se presenta <strong>desde el celular</strong> en cualquier farmacia. También podés pedir los medicamentos por la app y que te los lleven.', 'sage'),
     button(r.pdfUrl ?? `${APP_URL}/paciente/recetas`, r.pdfUrl ? 'Ver mi receta' : 'Ver mis recetas', 'sage'),
@@ -572,7 +572,7 @@ export function authCambioDeMail(): string {
     eyebrow: 'Cambio de correo', accent: 'amber',
     title: 'Confirmá tu correo nuevo',
     body: [
-      p('Pediste cambiar el correo de tu cuenta de <strong style="color:#2D2A26">{{ .Email }}</strong> a <strong style="color:#2D2A26">{{ .NewEmail }}</strong>.'),
+      p('Pediste cambiar el correo de tu cuenta de <strong style="color:${C.ink}">{{ .Email }}</strong> a <strong style="color:${C.ink}">{{ .NewEmail }}</strong>.'),
       button('{{ .ConfirmationURL }}', 'Confirmar el cambio', 'amber'),
       p(fallbackLink),
     ].join(''),
