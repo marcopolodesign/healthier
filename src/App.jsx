@@ -95,6 +95,7 @@ import SuperAdminSettings from './pages/super-admin/Settings'
 import SuperAdminZones from './pages/super-admin/Zones'
 import SuperAdminVerticales from './pages/super-admin/Verticales'
 import SuperAdminAuditoria from './pages/super-admin/Auditoria'
+import SuperAdminMails from './pages/super-admin/Mails'
 import SuperAdminUsuarios from './pages/super-admin/Usuarios'
 import SuperAdminUsuariosProspects from './pages/super-admin/UsuariosProspects'
 import SuperAdminProfesionalesProspects from './pages/super-admin/ProfesionalesProspects'
@@ -496,6 +497,7 @@ export default function App() {
           <Route path="/super-admin/profesionales/recorrido" element={<SuperAdminProfesionalesRecorrido />} />
           <Route path="/super-admin/profesionales/referidos" element={<SuperAdminReferidos />} />
           <Route path="/super-admin/emergencias" element={<SuperAdminEmergencias />} />
+          <Route path="/super-admin/mails" element={<SuperAdminMails />} />
           <Route path="/super-admin/farmacia" element={<SuperAdminFarmacia />} />
         </Route>
 

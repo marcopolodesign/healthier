@@ -1,0 +1,153 @@
+<!doctype html><html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mails de Healthier</title>
+<style>
+  :root{--ink:#2D2A26;--body:#6B6560;--mute:#A8A29E;--line:#E7E3DC;--page:#F6F5F0;--sage:#7CB38B}
+  *{box-sizing:border-box}
+  body{margin:0;display:flex;height:100dvh;font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--ink);background:var(--page)}
+  aside{width:310px;flex:none;overflow:auto;background:#fff;border-right:1px solid var(--line);padding:20px 16px 40px}
+  aside h1{font-size:17px;margin:0 0 4px}
+  aside p.sub{margin:0 0 20px;font-size:12px;color:var(--mute)}
+  aside h2{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute);margin:22px 0 8px}
+  button{display:block;width:100%;text-align:left;background:none;border:0;border-radius:11px;padding:9px 11px;cursor:pointer;font:inherit;color:inherit}
+  button:hover{background:#FAF9F5}
+  button[aria-current=true]{background:#EDF4EF}
+  button span{display:block;font-weight:600;font-size:13.5px}
+  button small{display:block;color:var(--mute);font-size:11.5px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  main{flex:1;display:flex;flex-direction:column;min-width:0}
+  header{padding:14px 20px;border-bottom:1px solid var(--line);background:#fff;display:flex;align-items:center;gap:14px}
+  header b{font-size:13px}
+  header .w{margin-left:auto;display:flex;gap:6px}
+  header .w button{width:auto;padding:6px 13px;border:1px solid var(--line);border-radius:999px;font-size:12px;font-weight:600}
+  header .w button[aria-current=true]{background:var(--sage);color:#fff;border-color:var(--sage)}
+  .stage{flex:1;overflow:auto;display:flex;justify-content:center;padding:26px 0}
+  iframe{border:0;background:#F6F5F0;width:680px;height:100%;transition:width .18s}
+  iframe.mobile{width:390px}
+</style></head><body>
+<aside>
+  <h1>Mails de Healthier</h1>
+  <p class="sub">27 plantillas · datos de ejemplo</p>
+  
+  <section>
+    <h2>Cuenta y acceso</h2>
+    
+      <button type="button" data-src="auth-confirmacion.html" data-subject="Confirmá tu correo · Healthier">
+        <span>Verificación de cuenta</span><small>Confirmá tu correo · Healthier</small>
+      </button>
+      <button type="button" data-src="auth-magic-link.html" data-subject="Entrá a tu cuenta de Healthier">
+        <span>Iniciar sesión (enlace mágico)</span><small>Entrá a tu cuenta de Healthier</small>
+      </button>
+      <button type="button" data-src="auth-recuperacion.html" data-subject="Cambiá tu contraseña de Healthier">
+        <span>Recuperar contraseña</span><small>Cambiá tu contraseña de Healthier</small>
+      </button>
+      <button type="button" data-src="auth-codigo.html" data-subject="Tu código de Healthier">
+        <span>Código de verificación</span><small>Tu código de Healthier</small>
+      </button>
+      <button type="button" data-src="auth-cambio-mail.html" data-subject="Confirmá tu correo nuevo">
+        <span>Cambio de correo</span><small>Confirmá tu correo nuevo</small>
+      </button>
+      <button type="button" data-src="auth-invitacion.html" data-subject="Te invitaron a Healthier">
+        <span>Invitación</span><small>Te invitaron a Healthier</small>
+      </button>
+      <button type="button" data-src="bienvenida.html" data-subject="Bienvenido a Healthier">
+        <span>Bienvenida al paciente</span><small>Bienvenido a Healthier</small>
+      </button>
+  </section>
+  <section>
+    <h2>Turnos</h2>
+    
+      <button type="button" data-src="turno-video.html" data-subject="Turno confirmado · Dra. Valentina Ortiz — dom, 6 de septiembre, 24:00">
+        <span>Turno confirmado · video</span><small>Turno confirmado · Dra. Valentina Ortiz — dom, 6 de septiembre, 24:00</small>
+      </button>
+      <button type="button" data-src="turno-presencial.html" data-subject="Turno confirmado · Dra. Valentina Ortiz — dom, 6 de septiembre, 24:00">
+        <span>Turno confirmado · presencial</span><small>Turno confirmado · Dra. Valentina Ortiz — dom, 6 de septiembre, 24:00</small>
+      </button>
+      <button type="button" data-src="turno-profesional.html" data-subject="Nueva reserva · Sofía Ramírez — dom, 6 de septiembre, 24:00">
+        <span>Nueva reserva (al profesional)</span><small>Nueva reserva · Sofía Ramírez — dom, 6 de septiembre, 24:00</small>
+      </button>
+      <button type="button" data-src="ondemand.html" data-subject="Tu consulta inmediata con Dra. Valentina Ortiz está lista">
+        <span>Consulta inmediata confirmada</span><small>Tu consulta inmediata con Dra. Valentina Ortiz está lista</small>
+      </button>
+      <button type="button" data-src="recordatorio-manana.html" data-subject="Mañana tenés turno con Dra. Valentina Ortiz">
+        <span>Recordatorio · mañana</span><small>Mañana tenés turno con Dra. Valentina Ortiz</small>
+      </button>
+      <button type="button" data-src="recordatorio-pronto.html" data-subject="Tu turno con Dra. Valentina Ortiz empieza en 30 minutos">
+        <span>Recordatorio · en 30 minutos</span><small>Tu turno con Dra. Valentina Ortiz empieza en 30 minutos</small>
+      </button>
+      <button type="button" data-src="cancelada-paciente.html" data-subject="Turno cancelado · Dra. Valentina Ortiz">
+        <span>Turno cancelado (al paciente)</span><small>Turno cancelado · Dra. Valentina Ortiz</small>
+      </button>
+      <button type="button" data-src="cancelada-profesional.html" data-subject="Turno cancelado · Sofía Ramírez">
+        <span>Turno cancelado (al profesional)</span><small>Turno cancelado · Sofía Ramírez</small>
+      </button>
+  </section>
+  <section>
+    <h2>Post consulta</h2>
+    
+      <button type="button" data-src="post-video.html" data-subject="Resumen de tu consulta con Dra. Valentina Ortiz">
+        <span>Post consulta · videoconsulta</span><small>Resumen de tu consulta con Dra. Valentina Ortiz</small>
+      </button>
+      <button type="button" data-src="post-presencial.html" data-subject="Resumen de tu consulta con Dra. Valentina Ortiz">
+        <span>Post consulta · presencial</span><small>Resumen de tu consulta con Dra. Valentina Ortiz</small>
+      </button>
+      <button type="button" data-src="post-ondemand.html" data-subject="Resumen de tu consulta con Dra. Valentina Ortiz">
+        <span>Post consulta · inmediata</span><small>Resumen de tu consulta con Dra. Valentina Ortiz</small>
+      </button>
+      <button type="button" data-src="post-sin-receta.html" data-subject="Resumen de tu consulta con Dra. Valentina Ortiz">
+        <span>Post consulta · sin receta ni diagnóstico</span><small>Resumen de tu consulta con Dra. Valentina Ortiz</small>
+      </button>
+      <button type="button" data-src="receta-emitida.html" data-subject="Tu receta de Dra. Valentina Ortiz ya está disponible">
+        <span>Receta electrónica emitida</span><small>Tu receta de Dra. Valentina Ortiz ya está disponible</small>
+      </button>
+  </section>
+  <section>
+    <h2>Farmacia</h2>
+    
+      <button type="button" data-src="farmacia-confirmado.html" data-subject="Pedido confirmado · Farmacia del Águila">
+        <span>Pedido de farmacia confirmado</span><small>Pedido confirmado · Farmacia del Águila</small>
+      </button>
+      <button type="button" data-src="farmacia-preparacion.html" data-subject="En preparación · pedido #9B2E77C1">
+        <span>Pedido en preparación</span><small>En preparación · pedido #9B2E77C1</small>
+      </button>
+      <button type="button" data-src="farmacia-enviado.html" data-subject="En camino · pedido #9B2E77C1">
+        <span>Pedido en camino</span><small>En camino · pedido #9B2E77C1</small>
+      </button>
+      <button type="button" data-src="farmacia-entregado.html" data-subject="Entregado · pedido #9B2E77C1">
+        <span>Pedido entregado</span><small>Entregado · pedido #9B2E77C1</small>
+      </button>
+      <button type="button" data-src="farmacia-cancelado.html" data-subject="Pedido cancelado · pedido #9B2E77C1">
+        <span>Pedido cancelado</span><small>Pedido cancelado · pedido #9B2E77C1</small>
+      </button>
+  </section>
+  <section>
+    <h2>Profesionales</h2>
+    
+      <button type="button" data-src="pro-verificado.html" data-subject="Tu perfil de Healthier está verificado">
+        <span>Profesional verificado</span><small>Tu perfil de Healthier está verificado</small>
+      </button>
+      <button type="button" data-src="pro-observado.html" data-subject="Falta un dato para activar tu perfil">
+        <span>Documentación con observaciones</span><small>Falta un dato para activar tu perfil</small>
+      </button>
+  </section>
+</aside>
+<main>
+  <header><b id="subject">—</b>
+    <span class="w">
+      <button type="button" id="w-desktop" aria-current="true">Escritorio</button>
+      <button type="button" id="w-mobile">Teléfono</button>
+    </span>
+  </header>
+  <div class="stage"><iframe id="v" title="Vista previa"></iframe></div>
+</main>
+<script>
+  const v = document.getElementById('v'), subject = document.getElementById('subject')
+  const items = [...document.querySelectorAll('aside button')]
+  function show(b){ items.forEach(x => x.setAttribute('aria-current', String(x === b)))
+    v.src = b.dataset.src; subject.textContent = b.dataset.subject }
+  items.forEach(b => b.addEventListener('click', () => show(b)))
+  show(items[0])
+  const d = document.getElementById('w-desktop'), m = document.getElementById('w-mobile')
+  d.onclick = () => { v.classList.remove('mobile'); d.setAttribute('aria-current','true'); m.setAttribute('aria-current','false') }
+  m.onclick = () => { v.classList.add('mobile'); m.setAttribute('aria-current','true'); d.setAttribute('aria-current','false') }
+</script>
+</body></html>

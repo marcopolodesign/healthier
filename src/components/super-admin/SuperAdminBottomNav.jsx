@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ChartBar, CurrencyDollar, ShieldCheck, Users, DotsThree, X,
-  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning, Path,
+  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning, Path, EnvelopeSimple,
 } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
@@ -45,6 +45,7 @@ const MORE_GROUPS = [
     title: 'Otros',
     links: [
       { path: '/super-admin/auditoria', icon: Eye, label: 'Auditoría HC', sub: 'Accesos a historias clínicas' },
+      { path: '/super-admin/mails', icon: EnvelopeSimple, label: 'Mails', sub: 'Qué salió y qué falló' },
     ],
   },
   {

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Confirmá tu correo nuevo</title>
+</head>
+<body style="margin:0;padding:0;background:#F6F5F0;-webkit-font-smoothing:antialiased">
+  <div style="display:none;font-size:1px;color:#F6F5F0;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden">Confirmá tu dirección de correo nueva.</div>
+  <div style="display:none;max-height:0;overflow:hidden">&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;</div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F6F5F0">
+    <tr><td align="center" style="padding:32px 16px 44px">
+
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px">
+
+        <!-- Logo -->
+        <tr><td align="center" style="padding:4px 0 22px">
+          <a href="https://gethealthier.vercel.app" style="text-decoration:none">
+            <img src="healthier-logo.png" width="118" alt="Healthier" style="display:block;width:118px;height:auto;border:0">
+          </a>
+        </td></tr>
+
+        <!-- Tarjeta -->
+        <tr><td style="background:#FFFFFF;border:1px solid #E7E3DC;border-radius:26px">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr><td style="height:4px;background:#E4A853;border-radius:26px 26px 0 0;font-size:0;line-height:0">&nbsp;</td></tr>
+            <tr><td style="padding:34px 34px 30px">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px"><tr>
+                  <td style="background:#FBF2E3;border-radius:999px;padding:6px 13px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#8A5E13">Cambio de correo</td>
+                </tr></table>
+              <h1 style="margin:0 0 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif;font-size:27px;line-height:1.22;font-weight:600;letter-spacing:-.4px;color:#2D2A26">Confirmá tu correo nuevo</h1>
+              <p style="margin:0 0 16px;font-size:15px;line-height:1.65;color:#6B6560;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif">Pediste cambiar el correo de tu cuenta de <strong style="color:#2D2A26">{{ .Email }}</strong> a <strong style="color:#2D2A26">{{ .NewEmail }}</strong>.</p>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:2px 0 8px">
+    <tr><td align="center" bgcolor="#E4A853" style="border-radius:999px">
+      <a href="{{ .ConfirmationURL }}"
+         style="display:inline-block;padding:14px 30px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif;font-size:15px;font-weight:600;line-height:1;color:#ffffff;text-decoration:none;border-radius:999px">
+        Confirmar el cambio
+      </a>
+    </td></tr>
+  </table><p style="margin:0 0 16px;font-size:15px;line-height:1.65;color:#6B6560;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif"><span style="font-size:13px;color:#A8A29E">Si el botón no funciona, copiá y pegá esta dirección en tu navegador:<br><span style="word-break:break-all">{{ .ConfirmationURL }}</span></span></p>
+              <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#A8A29E;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif">Si no pediste este cambio, ignorá el mail y avisanos: tu correo actual no se modifica.</p>
+            </td></tr>
+          </table>
+        </td></tr>
+
+        <!-- Pie -->
+        <tr><td align="center" style="padding:24px 16px 0">
+          <p style="margin:0 0 8px;font-size:12px;line-height:1.6;color:#A8A29E;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif">
+            <a href="https://gethealthier.vercel.app/paciente/dashboard" style="color:#A8A29E;text-decoration:underline">Mi cuenta</a>
+            &nbsp;·&nbsp;
+            <a href="https://gethealthier.vercel.app/paciente/consultas" style="color:#A8A29E;text-decoration:underline">Mis consultas</a>
+            &nbsp;·&nbsp;
+            <a href="https://gethealthier.vercel.app/terminos" style="color:#A8A29E;text-decoration:underline">Términos</a>
+          </p>
+          <p style="margin:0;font-size:12px;line-height:1.6;color:#A8A29E;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif">
+            Healthier · Buenos Aires, Argentina<br>
+            Recibís este mail porque tenés una cuenta en Healthier.
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body></html>

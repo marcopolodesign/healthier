@@ -1,11 +1,17 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
 
-type Reminder = { window: [number, number]; column: 'reminder_sent' | 'reminder_24h_sent'; label: string }
+type Reminder = {
+  window: [number, number]
+  column: 'reminder_sent' | 'reminder_24h_sent'
+  label: string
+  /** Cuál de las dos variantes del mail de recordatorio corresponde. */
+  cuando: 'pronto' | 'manana'
+}
 
 const REMINDERS: Reminder[] = [
-  { window: [23, 37],           column: 'reminder_sent',     label: 'en 30 minutos' },
-  { window: [23 * 60 + 45, 24 * 60 + 15], column: 'reminder_24h_sent', label: 'mañana' },
+  { window: [23, 37],           column: 'reminder_sent',     label: 'en 30 minutos', cuando: 'pronto' },
+  { window: [23 * 60 + 45, 24 * 60 + 15], column: 'reminder_24h_sent', label: 'mañana', cuando: 'manana' },
 ]
 
 async function sendPush(
@@ -40,6 +46,28 @@ async function sendPush(
     })
   )
   return results.some(r => r.status === 'fulfilled')
+}
+
+/**
+ * El recordatorio por mail lo arma `send-email`, no esta función: así el copy y
+ * el diseño viven en un solo lugar y este cron sigue siendo sólo el reloj.
+ * Fire-and-forget — que Resend esté caído no puede frenar los recordatorios del
+ * resto de los pacientes ni dejar sin marcar los que ya se avisaron.
+ */
+async function enviarMailDeRecordatorio(consultationId: string, cuando: 'pronto' | 'manana') {
+  try {
+    const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({ tipo: 'recordatorio', consultationId, cuando }),
+    })
+    if (!res.ok) console.error(`recordatorio mail ${res.status} → ${consultationId}: ${await res.text()}`)
+  } catch (err) {
+    console.error(`recordatorio mail error → ${consultationId}: ${err instanceof Error ? err.message : err}`)
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -105,6 +133,15 @@ Deno.serve(async (req: Request) => {
 
       const sent = await sendPush(supabase, c.patient_id, title, body, '/paciente/consultas')
       if (sent) totalSent++
+
+      // El mail va SIEMPRE, haya salido la push o no. Son dos canales con
+      // alcances distintos: la push depende de que el paciente haya aceptado
+      // notificaciones (la mayoría no lo hizo) y de que la suscripción siga
+      // viva; el mail llega igual. Mandar el mail sólo cuando la push falla
+      // dejaría sin recordatorio justo al que sí las tiene activadas pero no
+      // mira el teléfono.
+      await enviarMailDeRecordatorio(c.id as string, reminder.cuando)
+
       remindedIds.push(c.id)
     }
 
