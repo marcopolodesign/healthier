@@ -92,9 +92,10 @@ export default function PatientMobileLayout({ profile }) {
         </div>
       )}
 
-      {/* El carrito de farmacia sigue al paciente por toda la app: si agregó
-          algo y se fue a mirar sus turnos, la píldora sigue ahí. */}
-      <PharmacyCartSheet navVisible={!hideNav} />
+      {/* El carrito de farmacia acompaña al paciente por las páginas del nav
+          (Inicio, Agenda, Bóveda, Perfil). El propio componente decide dónde
+          se pinta — ver `RUTAS_CON_PILL` en PharmacyCartSheet. */}
+      <PharmacyCartSheet />
     </div>
     </PharmacyCartProvider>
   )

@@ -7,24 +7,43 @@ import { formatARS as fmtPrice } from '../../lib/format'
 /**
  * El carrito de farmacia, siempre a mano.
  *
- * Vive en `PatientMobileLayout`, así que la píldora aparece en cualquier
- * pantalla del paciente mientras haya algo adentro — no sólo en Farmacia
- * (pedido de Mateo, 2026-09-02). Al tocarla se abre la hoja con los productos
+ * Vive en `PatientMobileLayout`. La píldora aparece mientras haya algo en el
+ * carrito, pero SÓLO en las 4 páginas del nav (ver `RUTAS_CON_PILL`): un
+ * nivel más abajo — videollamada, pago, sala de espera, una receta — no se
+ * pinta. Al tocarla se abre la hoja con los productos
  * y el botón de ir al checkout, que es el mismo `PatientSheet` que ya usan el
  * resto de las hojas del paciente: en teléfono sube desde abajo con su
  * manija, en escritorio es un modal centrado.
  */
-export default function PharmacyCartSheet({ navVisible = true }) {
+// Las 4 pestañas del nav de paciente (`PatientBottomNav`). Si se agrega o
+// renombra una pestaña, esta lista va con ella.
+const RUTAS_CON_PILL = new Set([
+  '/paciente/dashboard',
+  '/paciente/consultas',
+  '/paciente/documentos',
+  '/paciente/perfil',
+])
+
+export default function PharmacyCartSheet() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const { items, count, total, add, subtract, remove, syncing, sheetOpen, openSheet, closeSheet } = usePharmacyCart()
 
   if (!count) return null
 
-  // La píldora no va donde el carrito ya está en pantalla: el catálogo tiene
-  // su propia barra ancha, y el checkout y el pago SON el carrito. Dos
-  // carritos a la vez se leen como un error.
-  const mostrarPill = !pathname.startsWith('/paciente/farmacia')
+  // La píldora sólo va en las páginas principales del nav (pedido de Mateo,
+  // 2026-09-04). Antes se pintaba en TODA pantalla de paciente que no fuera
+  // Farmacia — o sea también encima de la videollamada, del pago de la
+  // consulta y de la sala de espera. Ahí molesta y confunde: en medio de
+  // pagar una consulta, un botón con otro total al lado del importe se lee
+  // como parte de ese pago.
+  //
+  // Es una lista blanca y con coincidencia EXACTA, no `startsWith`: apenas se
+  // baja un nivel (una receta, un documento, el detalle de una consulta) la
+  // píldora desaparece. Y así una pantalla nueva nace sin carrito encima,
+  // que es lo que hay que garantizar — con una lista negra habría que
+  // acordarse de sumarla.
+  const mostrarPill = RUTAS_CON_PILL.has(pathname.replace(/\/$/, ''))
 
   const irAlCheckout = () => {
     closeSheet()
@@ -38,7 +57,7 @@ export default function PharmacyCartSheet({ navVisible = true }) {
         onClick={openSheet}
         aria-label={`Ver el carrito — ${count} producto${count !== 1 ? 's' : ''}`}
         className={`fixed right-4 z-[60] flex items-center gap-2 rounded-full bg-brand px-4 py-3 text-white shadow-[0_8px_30px_rgba(0,0,0,0.18)]
-                    active:scale-[0.98] transition-transform ${navVisible ? 'bottom-24 lg:bottom-28' : 'bottom-6'}`}
+                    active:scale-[0.98] transition-transform bottom-24 lg:bottom-28`}
       >
         <div className="relative">
           <ShoppingBag className="w-5 h-5" weight="fill" />
