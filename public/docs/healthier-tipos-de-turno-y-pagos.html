@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Healthier — Cada tipo de turno, y cuándo se cobra</title>
+<style>
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Light.woff2') format('woff2');font-weight:300;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Regular.woff2') format('woff2');font-weight:400 600;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-RegularItalic.woff2') format('woff2');font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+:root{
+  --sage:#7CB38B;--sage-hover:#5f9470;--sage-muted:rgba(124,179,139,.1);--sage-muted2:rgba(124,179,139,.18);
+  --coral:#E8927C;--lavender:#9B8EC4;--danger:#D9534F;--gold:#E4A853;--sky:#6BAFCF;--green:#6BBF7B;
+  --bg-primary:#F6F5F0;--bg-secondary:#FDFCF9;--surface:#fff;
+  --text-primary:#2D2A26;--text-secondary:#6B6560;--text-tertiary:#A8A29E;
+  --border:#D8D4CE;--border-hover:#C4BFB8;
+  --radius-pill:999px;--radius-card:1.5rem;--radius-card-sm:1rem;
+  --shadow-card:0 1px 4px rgba(45,42,38,.06);--shadow-hover:0 8px 28px rgba(124,179,139,.14);
+  --t:all .36s cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-primary)}
+body{font-family:'Everett',-apple-system,BlinkMacSystemFont,sans-serif;color:var(--text-primary);-webkit-font-smoothing:antialiased}
+button{all:unset;cursor:pointer}
+
+/* DECK */
+#deck{position:fixed;inset:0;overflow:hidden}
+.slide{
+  position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;
+  padding:5rem 2rem 4rem;opacity:0;pointer-events:none;
+  transition:opacity .42s cubic-bezier(.4,0,.2,1),transform .42s cubic-bezier(.4,0,.2,1);
+  transform:translateY(20px);overflow:hidden;
+}
+.slide.active{opacity:1;pointer-events:auto;transform:translateY(0)}
+@media(prefers-reduced-motion:reduce){.slide{transition:opacity .15s}}
+.slide-ivory{background:var(--bg-primary)}
+.slide-cream{background:var(--bg-secondary)}
+.slide-white{background:var(--surface)}
+.slide-sage{background:var(--sage);color:#fff}
+.slide-dark{background:#1d1e1a;color:#f9f8f5}
+
+/* NAV */
+#nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;
+  padding:.75rem 1.5rem;height:52px;background:rgba(246,245,240,.82);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);transition:background .3s,border-color .3s}
+#brand{font-size:.8rem;font-weight:700;color:var(--sage);letter-spacing:-.01em;min-width:4rem}
+#dots{display:flex;align-items:center;gap:.35rem;flex:1;justify-content:center}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--border);transition:var(--t);cursor:pointer}
+.dot.active{background:var(--sage);width:18px;border-radius:3px}
+#counter{font-size:.75rem;font-weight:600;color:var(--text-tertiary);letter-spacing:.04em;min-width:4rem;text-align:right}
+.arrow-btn{position:fixed;top:50%;z-index:99;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.7);backdrop-filter:blur(8px);
+  border:1px solid var(--border);color:var(--text-secondary);transition:var(--t);opacity:.55}
+.arrow-btn:hover{opacity:1;background:#fff;color:var(--text-primary)}
+#btn-prev{left:.75rem}#btn-next{right:.75rem}
+.arrow-btn.hidden{opacity:0;pointer-events:none}
+.progress-bar{position:fixed;bottom:0;left:0;height:2px;background:var(--sage);transition:width .4s cubic-bezier(.4,0,.2,1);z-index:100}
+
+/* LAYOUT */
+.content{width:100%;max-width:880px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:1.5rem;text-align:center}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:2.5rem;align-items:center;width:100%;max-width:980px}
+.two-col.r{direction:rtl}.two-col.r>*{direction:ltr}
+@media(max-width:840px){.two-col{grid-template-columns:1fr;gap:1.5rem}}
+
+/* TYPOGRAPHY */
+.eyebrow{display:inline-flex;align-items:center;gap:.4rem;font-size:.75rem;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;background:var(--sage-muted);color:var(--sage);padding:.3rem .85rem;border-radius:var(--radius-pill)}
+.eyebrow.coral{background:rgba(232,146,124,.1);color:#c2614a}
+.eyebrow.lavender{background:rgba(155,142,196,.1);color:#6d5fa3}
+.eyebrow.gold{background:rgba(228,168,83,.1);color:#9a6c1a}
+.eyebrow.onsage{background:rgba(255,255,255,.18);color:#fff}
+.eyebrow.ondark{background:rgba(255,255,255,.1);color:#cfe6d6}
+/* En las columnas de .two-col el pill no debe estirarse al ancho de la columna. */
+.two-col .eyebrow{align-self:flex-start}
+h1.hero{font-size:clamp(2.4rem,5.5vw,4.2rem);font-weight:700;line-height:1.1;letter-spacing:-.02em;max-width:18ch}
+h1.hero .a{color:var(--sage)}
+h2.st{font-size:clamp(1.9rem,4vw,2.9rem);font-weight:700;line-height:1.15;letter-spacing:-.02em;max-width:22ch}
+h2.st .a{color:var(--sage)}
+h2.st .ac{color:var(--coral)}
+h2.st .al{color:var(--lavender)}
+h2.st .ag{color:var(--gold)}
+.lead{font-size:clamp(.95rem,1.8vw,1.15rem);color:var(--text-secondary);line-height:1.65;max-width:52ch}
+.lead strong{color:var(--text-primary);font-weight:600}
+.slide-sage .lead,.slide-dark .lead{color:rgba(255,255,255,.82)}
+.slide-sage .lead strong,.slide-dark .lead strong{color:#fff}
+
+/* LISTAS */
+.bl{display:flex;flex-direction:column;gap:.55rem;list-style:none}
+.bl li{display:flex;align-items:flex-start;gap:.6rem;font-size:.88rem;color:var(--text-secondary);line-height:1.55}
+.bl .bi{width:22px;height:22px;border-radius:50%;background:var(--sage-muted);display:flex;align-items:center;
+  justify-content:center;color:var(--sage);flex-shrink:0;margin-top:.05rem}
+.slide-sage .bl li,.slide-dark .bl li{color:rgba(255,255,255,.8)}
+.slide-sage .bl .bi{background:rgba(255,255,255,.2);color:#fff}
+.slide-dark .bl .bi{background:rgba(124,179,139,.22);color:var(--sage)}
+
+/* FEATURE GRID */
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.85rem;width:100%;max-width:900px}
+.fc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:1.1rem 1.3rem;
+  text-align:left;box-shadow:var(--shadow-card);transition:var(--t)}
+.fc:hover{box-shadow:var(--shadow-hover);border-color:rgba(124,179,139,.3);transform:translateY(-2px)}
+.ic{width:38px;height:38px;border-radius:.7rem;display:flex;align-items:center;justify-content:center;margin-bottom:.65rem}
+.ic.s{background:var(--sage-muted);color:var(--sage)}
+.ic.c{background:rgba(232,146,124,.1);color:var(--coral)}
+.ic.l{background:rgba(155,142,196,.1);color:var(--lavender)}
+.ic.g{background:rgba(228,168,83,.1);color:var(--gold)}
+.ic.k{background:rgba(107,175,207,.1);color:var(--sky)}
+.ic.d{background:rgba(217,83,79,.1);color:var(--danger)}
+.fc h3{font-size:.9rem;font-weight:700;margin-bottom:.25rem}
+.fc p{font-size:.8rem;color:var(--text-secondary);line-height:1.5}
+.slide-dark .fc{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12)}
+.slide-dark .fc p{color:rgba(255,255,255,.68)}
+
+/* ── MOCK DEL PANEL DE LA VIDEOLLAMADA ───────────────────── */
+.call-mock{display:flex;width:100%;max-width:520px;border-radius:var(--radius-card);overflow:hidden;
+  border:1px solid var(--border);box-shadow:var(--shadow-card);background:var(--surface)}
+.cm-video{width:38%;background:#1d1e1a;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.45rem;padding:1.2rem .6rem;flex-shrink:0}
+.cm-av{width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.1);display:flex;align-items:center;
+  justify-content:center;color:rgba(255,255,255,.45)}
+.cm-vt{font-size:.62rem;color:rgba(255,255,255,.4)}
+.cm-panel{flex:1;display:flex;flex-direction:column;min-width:0}
+
+.pm-tabs{display:flex;gap:.7rem;padding:.5rem .7rem 0;border-bottom:1px solid var(--border);overflow:hidden}
+.pm-tab{font-size:.56rem;font-weight:600;color:var(--text-tertiary);padding-bottom:.45rem;
+  border-bottom:2px solid transparent;white-space:nowrap}
+.pm-tab.on{color:var(--sage);border-bottom-color:var(--sage);font-weight:700}
+
+.pm-body{padding:.6rem;display:flex;flex-direction:column;gap:.45rem;background:var(--surface)}
+.pm-pat{display:flex;align-items:center;gap:.4rem;border:1px solid var(--border);border-radius:.6rem;padding:.4rem .5rem;background:#fff}
+.pm-pat .av{width:16px;height:16px;border-radius:50%;background:var(--sage-muted);flex-shrink:0}
+.pm-pat .nm{font-size:.6rem;font-weight:700;flex:1}
+.pm-pat .sh{font-size:.52rem;font-weight:700;color:var(--sage);white-space:nowrap}
+.pm-pat.fixed{box-shadow:0 2px 6px rgba(45,42,38,.07)}
+
+.pm-btns{display:grid;grid-template-columns:1fr 1fr;gap:.35rem}
+.pm-btn{border:1px solid var(--border);background:#fff;border-radius:.65rem;padding:.42rem .3rem;
+  font-size:.55rem;font-weight:600;text-align:center;color:var(--text-primary)}
+.pm-btn.hl{border-color:var(--sage);color:var(--sage-hover);background:var(--sage-muted)}
+
+.pm-block{border:1px solid var(--border);border-radius:.55rem;padding:.35rem .45rem;background:var(--bg-secondary)}
+.pm-lbl{font-size:.46rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:.15rem}
+.pm-txt{font-size:.56rem;font-weight:600}
+.pm-line{height:5px;border-radius:3px;background:var(--border);opacity:.55}
+.pm-red{border-color:rgba(217,83,79,.3);background:rgba(217,83,79,.05)}
+.pm-red .pm-lbl{color:var(--danger)}
+
+/* ── MOCK DE LA CONSULTA ESTRUCTURADA (70/30, form + copiloto) ── */
+.cx-mock{display:flex;width:100%;max-width:720px;border-radius:var(--radius-card);overflow:hidden;
+  border:1px solid rgba(255,255,255,.25);box-shadow:0 8px 28px rgba(0,0,0,.12);margin-top:.3rem}
+.cx-form{flex:0 0 68%;display:flex;flex-direction:column;gap:.32rem;padding:.85rem .8rem;background:rgba(255,255,255,.06)}
+.cx-sec{display:flex;align-items:center;gap:.5rem;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);
+  border-radius:.55rem;padding:.4rem .55rem;text-align:left}
+.cx-sec.on{border-color:rgba(255,255,255,.5);background:rgba(255,255,255,.16)}
+.cx-sec .n{font-size:.56rem;font-weight:700;color:rgba(255,255,255,.55);width:14px;flex-shrink:0}
+.cx-sec .t{font-size:.62rem;font-weight:600;color:#fff;flex:1}
+.cx-sec .ck{width:12px;height:12px;border-radius:3px;border:1.4px solid rgba(255,255,255,.45);flex-shrink:0}
+.cx-copilot{flex:0 0 32%;background:rgba(0,0,0,.18);border-left:1px solid rgba(255,255,255,.18);
+  padding:.85rem .65rem;display:flex;flex-direction:column;gap:.5rem}
+.cx-pin{font-size:.48rem;font-weight:700;letter-spacing:.05em;color:rgba(255,255,255,.5)}
+.cx-cp-block{background:rgba(255,255,255,.1);border-radius:.55rem;padding:.5rem .55rem;text-align:left}
+.cx-cp-lbl{font-size:.5rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-bottom:.3rem}
+.cx-item{font-size:.56rem;color:rgba(255,255,255,.85);padding:.12rem 0;display:flex;align-items:center;gap:.35rem}
+.cx-item .d{width:5px;height:5px;border-radius:50%;background:var(--danger);flex-shrink:0}
+.cx-item .d.q{background:#fff}
+.cx-chip{display:inline-flex;font-size:.54rem;font-weight:600;padding:.16rem .5rem;border-radius:999px;
+  background:rgba(255,255,255,.9);color:var(--sage-hover);margin:.15rem .2rem 0 0}
+
+/* MINI-BARRA de índice para la slide del índice */
+.idx{display:flex;flex-direction:column;gap:.5rem;width:100%;max-width:400px}
+.idx-row{display:flex;align-items:center;gap:.6rem;border:1px solid var(--border);border-radius:.8rem;
+  padding:.55rem .75rem;background:var(--surface);box-shadow:var(--shadow-card)}
+.idx-row .k{width:26px;height:26px;border-radius:.55rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.idx-row .t{font-size:.78rem;font-weight:700;flex:1}
+.idx-row .m{font-size:.62rem;color:var(--text-tertiary);white-space:nowrap}
+.k.scroll{background:var(--sage-muted);color:var(--sage)}
+.k.view{background:rgba(155,142,196,.12);color:var(--lavender)}
+
+.pill-row{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center}
+.pill{font-size:.8rem;font-weight:500;padding:.35rem .9rem;border-radius:var(--radius-pill);
+  border:1px solid var(--border);background:var(--surface);color:var(--text-secondary)}
+
+.hint{font-size:.82rem;color:var(--text-tertiary);margin-top:1rem}
+
+/* ── PIEZAS PROPIAS DE ESTE DECK ──────────────────────────── */
+
+/* Línea de tiempo del cobro */
+.flow{display:flex;align-items:stretch;gap:0;width:100%;max-width:900px;flex-wrap:wrap;justify-content:center}
+.fs{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);
+  padding:.85rem 1rem;text-align:left;position:relative;box-shadow:var(--shadow-card)}
+.fs+.fs{margin-left:.6rem}
+.fs .n{font-size:.62rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--sage);display:block;margin-bottom:.3rem}
+.fs .h{font-size:.86rem;font-weight:700;line-height:1.25;display:block;margin-bottom:.22rem}
+.fs .d{font-size:.74rem;color:var(--text-secondary);line-height:1.45}
+.fs.hot{border-color:rgba(124,179,139,.55);background:var(--sage-muted)}
+.fs.wait{border-style:dashed}
+.fs.off{opacity:.55}
+.fs .n.c{color:var(--coral)}.fs .n.l{color:var(--lavender)}.fs .n.g{color:#9a6c1a}
+.slide-dark .fs{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.13)}
+.slide-dark .fs .d{color:rgba(255,255,255,.66)}
+@media(max-width:760px){.fs+.fs{margin-left:0;margin-top:.5rem}.flow{flex-direction:column}}
+
+/* Tabla resumen */
+.tbl{width:100%;max-width:940px;border:1px solid var(--border);border-radius:var(--radius-card-sm);
+  overflow:hidden;background:var(--surface);box-shadow:var(--shadow-card)}
+.tbl .tr{display:grid;grid-template-columns:1.25fr 1.1fr 1fr 1.25fr;gap:.75rem;padding:.62rem .95rem;text-align:left;align-items:center}
+.tbl .tr+.tr{border-top:1px solid var(--border)}
+.tbl .th{background:var(--sage-muted);font-size:.63rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--sage)}
+.tbl .tr span{font-size:.76rem;color:var(--text-secondary);line-height:1.4}
+.tbl .tr span:first-child{font-weight:700;color:var(--text-primary)}
+.tbl .tr.dim span{color:var(--text-tertiary)}
+@media(max-width:760px){.tbl .tr{grid-template-columns:1fr 1fr}.tbl .th{display:none}}
+
+/* Números grandes */
+.stats{display:flex;flex-wrap:wrap;gap:.85rem;justify-content:center;width:100%;max-width:900px}
+.stat{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-card-sm);padding:1rem 1.1rem;text-align:left;box-shadow:var(--shadow-card)}
+.stat .v{font-size:1.75rem;font-weight:700;line-height:1;letter-spacing:-.02em;color:var(--sage);display:block}
+.stat .v.c{color:var(--coral)}.stat .v.l{color:var(--lavender)}.stat .v.n{color:var(--text-primary)}
+.stat .k{font-size:.72rem;color:var(--text-secondary);line-height:1.4;display:block;margin-top:.35rem}
+.slide-sage .stat{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.2)}
+.slide-sage .stat .v,.slide-sage .stat .k{color:#fff}
+.slide-dark .stat{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.13)}
+.slide-dark .stat .k{color:rgba(255,255,255,.66)}
+
+/* Barra del reparto */
+.split{width:100%;max-width:620px;height:52px;border-radius:var(--radius-card-sm);overflow:hidden;display:flex;
+  border:1px solid var(--border);box-shadow:var(--shadow-card)}
+.split .p{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.1rem}
+.split .p b{font-size:1rem;font-weight:700;line-height:1}
+.split .p small{font-size:.63rem;opacity:.85}
+.split .pro{width:80%;background:var(--sage);color:#fff}
+.split .plat{width:20%;background:var(--lavender);color:#fff}
+
+/* Aviso */
+.note{display:flex;gap:.7rem;align-items:flex-start;max-width:640px;text-align:left;
+  background:rgba(228,168,83,.09);border:1px solid rgba(228,168,83,.3);border-radius:var(--radius-card-sm);padding:.85rem 1rem}
+.note svg{flex-shrink:0;color:#9a6c1a;margin-top:.1rem}
+.note p{font-size:.8rem;color:var(--text-secondary);line-height:1.55}
+.note p strong{color:var(--text-primary)}
+.slide-dark .note{background:rgba(228,168,83,.1);border-color:rgba(228,168,83,.28)}
+.slide-dark .note p{color:rgba(255,255,255,.72)}
+.slide-dark .note p strong{color:#fff}
+
+
+/* Sobre la slide sage, el bloque del profesional era sage sobre sage: se leía
+   como un hueco en vez de como el 80%. Se invierte. */
+.slide-sage .split{border-color:rgba(255,255,255,.35)}
+.slide-sage .split .pro{background:#fff;color:var(--sage)}
+.slide-sage .split .plat{background:rgba(255,255,255,.22);color:#fff}
+</style>
+</head>
+<body>
+
+<div id="nav">
+  <span id="brand">Healthier</span>
+  <div id="dots"></div>
+  <span id="counter">01 / 16</span>
+</div>
+
+<button class="arrow-btn hidden" id="btn-prev" aria-label="Anterior">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+</button>
+<button class="arrow-btn" id="btn-next" aria-label="Siguiente">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+</button>
+<div class="progress-bar" style="width:6.25%"></div>
+
+<div id="deck">
+
+<!-- 1 ─────────────────────────────────────────────── -->
+<!-- 1 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory active" data-slide="1">
+  <div class="content">
+    <span class="eyebrow">Cómo funciona la plata · Documento interno</span>
+    <h1 class="hero">Cada tipo de turno,<br>y cuándo se <span class="a">cobra.</span></h1>
+    <p class="lead">Healthier tiene cinco formas de llegar a una consulta y no todas cobran igual. Algunas cobran al reservar, una reserva la plata en la tarjeta y la cobra al final, y una todavía no cobra. Acá está cada una, con su momento de cobro, quién recibe el dinero y qué pasa si algo se cae.</p>
+    <div class="pill-row">
+      <span class="pill">Turno agendado</span>
+      <span class="pill">Consulta inmediata</span>
+      <span class="pill">S.O.S.</span>
+      <span class="pill">Bonificado</span>
+      <span class="pill">Farmacia</span>
+    </div>
+    <p class="hint">→ Navegá con las flechas o la barra espaciadora</p>
+  </div>
+</section>
+
+<!-- 2 ─────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="2">
+  <div class="content">
+    <span class="eyebrow">El mapa</span>
+    <h2 class="st">Cinco puertas<br>de <span class="a">entrada.</span></h2>
+    <p class="lead">Todas terminan en una consulta, pero el dinero se mueve distinto en cada una.</p>
+    <div class="fg">
+      <div class="fc">
+        <div class="ic s"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg></div>
+        <h3>Turno agendado · videoconsulta</h3>
+        <p>El paciente elige profesional, día y hora. <strong>Se cobra al reservar.</strong></p>
+      </div>
+      <div class="fc">
+        <div class="ic s"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div>
+        <h3>Turno agendado · presencial</h3>
+        <p>Mismo recorrido, en el consultorio. <strong>También se cobra al reservar.</strong></p>
+      </div>
+      <div class="fc">
+        <div class="ic c"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-3 8h6l-3 12"/></svg></div>
+        <h3>Consulta inmediata</h3>
+        <p>Sin turno previo, ahora. <strong>Se reserva la plata y se cobra al terminar.</strong></p>
+      </div>
+      <div class="fc">
+        <div class="ic d"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 2 2 20h20L12 2Z"/><path d="M12 9v5M12 17h.01"/></svg></div>
+        <h3>S.O.S. · emergencias</h3>
+        <p>Un médico va al domicilio. <strong>Hoy apagado: guarda la tarjeta y no cobra.</strong></p>
+      </div>
+      <div class="fc">
+        <div class="ic l"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h3>Paciente bonificado</h3>
+        <p>Marcado a mano desde el panel. <strong>No pasa por Mercado Pago.</strong></p>
+      </div>
+      <div class="fc">
+        <div class="ic k"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.5 3h2l2.7 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L21 7H6"/></svg></div>
+        <h3>Farmacia</h3>
+        <p>Pedido de medicamentos. <strong>Circuito propio: cobra la farmacia.</strong></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="3">
+  <div class="content">
+    <span class="eyebrow lavender">La distinción que ordena todo</span>
+    <h2 class="st">Cobrar no es<br><span class="al">reservar la plata.</span></h2>
+    <p class="lead">Mercado Pago permite las dos cosas y Healthier usa las dos, para casos distintos. Entender la diferencia explica por qué un turno se devuelve y otro simplemente se libera.</p>
+    <div class="two-col" style="max-width:900px;margin-top:.4rem">
+      <div class="fc" style="border-color:rgba(124,179,139,.4)">
+        <div class="ic s"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
+        <h3>Cobro directo</h3>
+        <p>La plata sale de la tarjeta en ese momento y va a la cuenta del profesional. Si después hay que devolverla, hay que <strong>hacer una devolución</strong>. Es lo que usa el turno agendado.</p>
+      </div>
+      <div class="fc" style="border-color:rgba(155,142,196,.4)">
+        <div class="ic l"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg></div>
+        <h3>Reserva en la tarjeta</h3>
+        <p>El monto queda <strong>retenido, sin cobrarse</strong>. Después se cobra —si la consulta pasó— o se libera solo, y el paciente nunca vio el cargo. Es lo que usa la consulta inmediata.</p>
+      </div>
+    </div>
+    <div class="note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <p>La reserva sólo funciona con <strong>tarjeta de crédito</strong> y no admite Healthy Credits: por eso la consulta inmediata pide sí o sí una tarjeta guardada.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 4 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="4">
+  <div class="content">
+    <span class="eyebrow">Turno agendado · videoconsulta y presencial</span>
+    <h2 class="st">Se paga al<br><span class="a">reservarlo.</span></h2>
+    <p class="lead">Las dos modalidades hacen exactamente lo mismo. El turno no existe hasta que el pago sale: <strong>no hay forma de tener un turno confirmado sin haber pagado.</strong></p>
+    <div class="flow">
+      <div class="fs"><span class="n">01</span><span class="h">Elige y confirma</span><span class="d">Especialidad, modalidad, profesional, día y hora.</span></div>
+      <div class="fs hot"><span class="n">02</span><span class="h">Paga</span><span class="d">Tarjeta guardada o nueva. Puede usar Healthy Credits.</span></div>
+      <div class="fs"><span class="n">03</span><span class="h">Queda confirmado</span><span class="d">La consulta nace pendiente y la confirma Mercado Pago cuando aprueba de verdad.</span></div>
+      <div class="fs"><span class="n">04</span><span class="h">Se atiende</span><span class="d">Sala de espera y videollamada, o el consultorio con el mapa hasta la puerta.</span></div>
+    </div>
+    <div class="note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <p>El estado lo escribe <strong>Mercado Pago, no la app</strong>: la consulta se marca pagada cuando llega la confirmación real, no cuando el paciente aprieta el botón.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 5 ─────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="5">
+  <div class="content">
+    <span class="eyebrow coral">Consulta inmediata</span>
+    <h2 class="st">Se reserva ahora,<br>se cobra <span class="ac">al final.</span></h2>
+    <p class="lead">El paciente elige de los profesionales conectados en ese momento, se le retiene el monto en la tarjeta y recién se cobra cuando la consulta termina. Si nadie lo atiende, <strong>no se le cobró nada.</strong></p>
+    <div class="flow">
+      <div class="fs"><span class="n c">01</span><span class="h">Elige profesional</span><span class="d">De los que están disponibles ahora, rotados al azar.</span></div>
+      <div class="fs hot"><span class="n c">02</span><span class="h">Se retiene</span><span class="d">El monto queda reservado en la tarjeta. Todavía no se cobró.</span></div>
+      <div class="fs wait"><span class="n c">03</span><span class="h">Espera 4 minutos</span><span class="d">Al profesional le suena el aviso. Puede extenderse hasta 20 minutos en total.</span></div>
+      <div class="fs"><span class="n c">04</span><span class="h">Se cobra al cerrar</span><span class="d">Terminada la consulta, la reserva se convierte en cobro.</span></div>
+    </div>
+    <div class="stats" style="margin-top:.3rem">
+      <div class="stat"><span class="v c">4 min</span><span class="k">La primera espera, con cuenta regresiva a la vista</span></div>
+      <div class="stat"><span class="v c">20 min</span><span class="k">El techo total antes de soltar la reserva</span></div>
+      <div class="stat"><span class="v n">$0</span><span class="k">Lo que se le cobra si nadie lo atendió</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 ─────────────────────────────────────────────── -->
+<section class="slide slide-dark" data-slide="6">
+  <div class="content">
+    <span class="eyebrow ondark">La red de seguridad</span>
+    <h2 class="st">Cada 5 minutos,<br>el sistema <span class="a">revisa la caja.</span></h2>
+    <p class="lead">Una reserva en la tarjeta que nadie resuelve es plata del paciente trabada. Un barrido automático la resuelve sin que intervenga nadie, mire quien mire.</p>
+    <div class="two-col" style="max-width:880px">
+      <div class="fc">
+        <div class="ic s"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h3>Cobra las que quedaron sin cobrar</h3>
+        <p>La consulta terminó pero el cobro nunca se disparó (se cortó internet, se cerró la pestaña). El barrido lo hace por su cuenta.</p>
+      </div>
+      <div class="fc">
+        <div class="ic c"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+        <h3>Libera las que quedaron trabadas</h3>
+        <p>Pasaron más de 10 minutos, el profesional nunca se conectó y la consulta jamás arrancó. Se suelta la retención: al paciente no se le cobra.</p>
+      </div>
+    </div>
+    <p class="lead" style="max-width:56ch">Es lo que hace que el modelo de reserva sea seguro para las dos partes: <strong>ninguna consulta atendida se queda sin cobrar, y ninguna consulta que no pasó le queda retenida al paciente.</strong></p>
+  </div>
+</section>
+
+<!-- 7 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="7">
+  <div class="content">
+    <span class="eyebrow gold">S.O.S. · emergencias</span>
+    <h2 class="st">Lo único que<br>todavía <span class="ag">no cobra.</span></h2>
+    <p class="lead">El recorrido está construido de punta a punta —triage por síntomas, ubicación en el mapa, despacho, seguimiento y cierre— y hoy está apagado a propósito desde el panel de administración.</p>
+    <div class="flow">
+      <div class="fs"><span class="n g">01</span><span class="h">Triage</span><span class="d">Se clasifica el caso por síntomas.</span></div>
+      <div class="fs"><span class="n g">02</span><span class="h">Toma la tarjeta</span><span class="d">Se guarda el medio de pago y el precio acordado.</span></div>
+      <div class="fs"><span class="n g">03</span><span class="h">Despacho</span><span class="d">Sale a los clínicos de guardia disponibles.</span></div>
+      <div class="fs off"><span class="n g">04</span><span class="h">Cobro al cerrar</span><span class="d">No existe todavía. Es lo que falta definir y construir.</span></div>
+    </div>
+    <div class="note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2 2 20h20L12 2Z"/><path d="M12 9v5M12 17h.01"/></svg>
+      <p>Mientras esté apagado, el paciente ve un mensaje claro y el teléfono del SAME. <strong>Antes de encenderlo hay que definir el precio, quién atiende y cómo se cobra.</strong></p>
+    </div>
+  </div>
+</section>
+
+<!-- 8 ─────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="8">
+  <div class="content">
+    <span class="eyebrow lavender">Dos casos aparte</span>
+    <h2 class="st">Cuando no interviene<br><span class="al">Mercado Pago.</span></h2>
+    <div class="two-col" style="max-width:900px">
+      <div class="fc">
+        <div class="ic l"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div>
+        <h3>Paciente bonificado</h3>
+        <p>Se marca a mano desde el panel de administración. Ese paciente se saltea el pago entero: la consulta nace confirmada y marcada como bonificada, y queda registrada así — <strong>no aparece como una consulta impaga</strong>.</p>
+      </div>
+      <div class="fc">
+        <div class="ic k"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.5 3h2l2.7 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L21 7H6"/></svg></div>
+        <h3>Pedido de farmacia</h3>
+        <p>Circuito propio y separado. Cobra <strong>la farmacia a su propia cuenta</strong>, no el profesional. Siempre cobro directo, sin reservas y sin Healthy Credits.</p>
+      </div>
+    </div>
+    <p class="lead">Los dos existen para que ningún caso quede "colgado" en el medio: o pasa por el cobro completo, o está explícitamente marcado como algo que no se cobra.</p>
+  </div>
+</section>
+
+<!-- 9 ─────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="9">
+  <div class="content">
+    <span class="eyebrow onsage">El reparto</span>
+    <h2 class="st">80 para quien atiende.<br>20 para la plataforma.</h2>
+    <div class="split">
+      <div class="p pro"><b>80 %</b><small>Profesional</small></div>
+      <div class="p plat"><b>20 %</b><small>Healthier</small></div>
+    </div>
+    <p class="lead">El reparto lo hace Mercado Pago en el mismo cobro: la plata entra directo a la cuenta del profesional y la comisión de Healthier se descuenta ahí, en el momento. <strong>No hay una transferencia posterior que alguien tenga que acordarse de hacer.</strong></p>
+    <p class="lead">La comisión es un <strong>20% plano sobre el precio de la consulta</strong>. El costo de Mercado Pago corre por cuenta del profesional, porque en un marketplace el que cobra es el vendedor y es a él a quien MP le descuenta.</p>
+  </div>
+</section>
+
+<!-- 10 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="10">
+  <div class="content">
+    <span class="eyebrow">Lo que ve el profesional</span>
+    <h2 class="st">El neto real,<br>no una <span class="a">estimación.</span></h2>
+    <p class="lead">El costo de Mercado Pago depende del plazo de acreditación que cada profesional tenga configurado en su propia cuenta, así que hasta que el cobro no se concreta nadie sabe el número exacto.</p>
+    <div class="stats">
+      <div class="stat"><span class="v n">Bruto</span><span class="k">El precio de la consulta, lo que pagó el paciente</span></div>
+      <div class="stat"><span class="v l">− 20 %</span><span class="k">Comisión de Healthier, descontada en el mismo cobro</span></div>
+      <div class="stat"><span class="v c">− fee MP</span><span class="k">Lo que cobra Mercado Pago, según la cuenta del profesional</span></div>
+      <div class="stat"><span class="v">= Neto</span><span class="k">Lo que efectivamente se le acredita</span></div>
+    </div>
+    <p class="lead">En "Ganancias" el profesional ve <strong>el neto que MP informó de verdad</strong> una vez cerrado el cobro, junto con la fecha de acreditación — no una cuenta aproximada hecha por la plataforma.</p>
+  </div>
+</section>
+
+<!-- 11 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="11">
+  <div class="content">
+    <span class="eyebrow lavender">Healthy Credits</span>
+    <h2 class="st">Saldo a favor,<br>dentro de <span class="al">Healthier.</span></h2>
+    <p class="lead">Cuando se aprueba la devolución de una consulta, el paciente recibe crédito para usar en su próxima consulta. Es la forma por defecto de resolver una cancelación.</p>
+    <ul class="bl" style="max-width:56ch;text-align:left">
+      <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Se descuentan al pagar un turno agendado; si no alcanzan, el resto va a la tarjeta.</li>
+      <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>Si cubren la consulta entera, no interviene Mercado Pago.</li>
+      <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span><strong>No se usan</strong> en la consulta inmediata ni en farmacia.</li>
+      <li><span class="bi"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></span>El paciente puede pedir convertirlos en plata de verdad, si todavía no los gastó.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 12 ────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="12">
+  <div class="content">
+    <span class="eyebrow coral">Devoluciones</span>
+    <h2 class="st">Nunca<br><span class="ac">automáticas.</span></h2>
+    <p class="lead">Cancelar un turno no devuelve plata sola. Crea un <strong>pedido</strong> que un administrador aprueba o rechaza, y hasta que eso pasa no se mueve nada.</p>
+    <div class="flow">
+      <div class="fs"><span class="n c">01</span><span class="h">Cancela</span><span class="d">El paciente cancela su turno desde Mi Agenda.</span></div>
+      <div class="fs"><span class="n c">02</span><span class="h">¿Está a tiempo?</span><span class="d">Tiene que faltar al menos <strong>48 horas hábiles</strong> para el turno.</span></div>
+      <div class="fs wait"><span class="n c">03</span><span class="h">Queda pendiente</span><span class="d">El pedido aparece en el panel de administración.</span></div>
+      <div class="fs"><span class="n c">04</span><span class="h">Se resuelve</span><span class="d">Aprobado, se acreditan Healthy Credits. Rechazado, no pasa nada.</span></div>
+    </div>
+    <p class="lead">La ventana de 48 horas hábiles se configura desde el panel, igual que la comisión. Un administrador también puede devolver por afuera de este recorrido —en crédito o en plata— dejando el motivo asentado.</p>
+  </div>
+</section>
+
+<!-- 13 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="13">
+  <div class="content">
+    <span class="eyebrow">Los precios</span>
+    <h2 class="st">Quién pone<br><span class="a">cada número.</span></h2>
+    <div class="stats">
+      <div class="stat"><span class="v">$15.000</span><span class="k">Piso de toda consulta. Lo hace cumplir la base de datos, no el formulario.</span></div>
+      <div class="stat"><span class="v n">Por modalidad</span><span class="k">El profesional puede cobrar distinto la videoconsulta y el presencial.</span></div>
+      <div class="stat"><span class="v l">$25.000</span><span class="k">Consulta inmediata de Clínica y Pediatría — lo fija la administración.</span></div>
+      <div class="stat"><span class="v c">$10.000</span><span class="k">Consulta inmediata de Salud Mental.</span></div>
+    </div>
+    <p class="lead">El turno agendado lo cobra <strong>el profesional a su precio</strong>. La consulta inmediata tiene un <strong>precio único por especialidad</strong> que pone la administración: el paciente no elige por precio cuando lo que quiere es que lo atiendan ya.</p>
+    <div class="note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <p>Queda una decisión abierta: <strong>si el piso de $15.000 también aplica a la consulta inmediata</strong> — hoy Salud Mental está por debajo.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 14 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="14">
+  <div class="content">
+    <span class="eyebrow">De un vistazo</span>
+    <h2 class="st">Todo junto.</h2>
+    <div class="tbl">
+      <div class="tr th"><span>Tipo</span><span>Cuándo se cobra</span><span>Quién cobra</span><span>Si no pasa</span></div>
+      <div class="tr"><span>Agendado · video</span><span>Al reservar</span><span>El profesional</span><span>Devolución con aprobación</span></div>
+      <div class="tr"><span>Agendado · presencial</span><span>Al reservar</span><span>El profesional</span><span>Devolución con aprobación</span></div>
+      <div class="tr"><span>Consulta inmediata</span><span>Al terminar la consulta</span><span>El profesional</span><span>Se libera sola, no se cobró nada</span></div>
+      <div class="tr dim"><span>S.O.S.</span><span>Todavía no cobra</span><span>A definir</span><span>—</span></div>
+      <div class="tr"><span>Bonificado</span><span>No se cobra</span><span>—</span><span>Queda registrado como bonificado</span></div>
+      <div class="tr"><span>Farmacia</span><span>Al confirmar el pedido</span><span>La farmacia</span><span>Se cancela con motivo</span></div>
+    </div>
+    <p class="lead">Todo lo de arriba se ve, consulta por consulta, en el panel de administración: el pago, la comisión, el neto, la fecha de acreditación y los pedidos de devolución pendientes.</p>
+  </div>
+</section>
+
+<!-- 15 ────────────────────────────────────────────── -->
+<section class="slide slide-dark" data-slide="15">
+  <div class="content">
+    <span class="eyebrow ondark">Lo que falta cerrar</span>
+    <h2 class="st">Tres decisiones,<br>no tres <span class="a">desarrollos.</span></h2>
+    <div class="fg" style="max-width:860px">
+      <div class="fc">
+        <div class="ic d"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 2 2 20h20L12 2Z"/><path d="M12 9v5M12 17h.01"/></svg></div>
+        <h3>El cobro del S.O.S.</h3>
+        <p>Cuánto vale, si es único o depende de la gravedad, y en qué momento se cobra.</p>
+      </div>
+      <div class="fc">
+        <div class="ic g"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <h3>El piso de la consulta inmediata</h3>
+        <p>Si los $15.000 también aplican al precio que fija la administración por especialidad.</p>
+      </div>
+      <div class="fc">
+        <div class="ic l"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/></svg></div>
+        <h3>La reposición al profesional</h3>
+        <p>Cuando una consulta se devuelve como crédito, hoy la reposición se hace a mano. Definir si se automatiza.</p>
+      </div>
+    </div>
+    <p class="lead">Todo lo demás está construido, en producción y con chequeos automáticos que se corren después de cada publicación.</p>
+  </div>
+</section>
+
+<!-- 16 ────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="16">
+  <div class="content">
+    <span class="eyebrow onsage">En una línea</span>
+    <h1 class="hero" style="max-width:20ch">Si la consulta pasó,<br>alguien cobró.</h1>
+    <p class="lead">Y si no pasó, al paciente no se le cobró nada. Todo lo demás —el reparto, la comisión, el neto, las devoluciones— se deriva de esa regla.</p>
+  </div>
+</section>
+
+</div>
+
+<script>
+const slides=[...document.querySelectorAll('.slide')];
+const TOTAL=slides.length;
+const dotsEl=document.getElementById('dots');
+const counter=document.getElementById('counter');
+const progress=document.querySelector('.progress-bar');
+const btnPrev=document.getElementById('btn-prev');
+const btnNext=document.getElementById('btn-next');
+let current=1;
+
+slides.forEach((_,i)=>{
+  const d=document.createElement('span');
+  d.className='dot'+(i===0?' active':'');
+  d.addEventListener('click',()=>goTo(i+1));
+  dotsEl.appendChild(d);
+});
+
+function pad(n){return String(n).padStart(2,'0')}
+
+function goTo(n){
+  if(n<1||n>TOTAL||n===current) return;
+  slides[current-1].classList.remove('active');
+  current=n;
+  slides[current-1].classList.add('active');
+  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===current-1));
+  counter.textContent=`${pad(current)} / ${pad(TOTAL)}`;
+  progress.style.width=`${(current/TOTAL)*100}%`;
+  btnPrev.classList.toggle('hidden',current===1);
+  btnNext.classList.toggle('hidden',current===TOTAL);
+  history.replaceState(null,'',`#${current}`);
+
+  // La barra de arriba se adapta a las slides de fondo oscuro/sage.
+  const s=slides[current-1];
+  const dark=s.classList.contains('slide-dark')||s.classList.contains('slide-sage');
+  const nav=document.getElementById('nav');
+  nav.style.background=dark?'rgba(0,0,0,.25)':'rgba(246,245,240,.82)';
+  nav.style.borderBottomColor=dark?'rgba(255,255,255,.12)':'var(--border)';
+  counter.style.color=dark?'rgba(255,255,255,.45)':'var(--text-tertiary)';
+  document.getElementById('brand').style.color=dark?'#fff':'var(--sage)';
+  document.querySelectorAll('.dot').forEach(d=>{
+    d.style.background=dark
+      ?(d.classList.contains('active')?'#fff':'rgba(255,255,255,.28)')
+      :(d.classList.contains('active')?'var(--sage)':'var(--border)');
+  });
+}
+
+btnNext.addEventListener('click',()=>goTo(current+1));
+btnPrev.addEventListener('click',()=>goTo(current-1));
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='Enter'){e.preventDefault();goTo(current+1)}
+  else if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();goTo(current-1)}
+  else if(e.key==='Home'){e.preventDefault();goTo(1)}
+  else if(e.key==='End'){e.preventDefault();goTo(TOTAL)}
+  else if(e.key==='f'||e.key==='F'){
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  }
+});
+
+document.getElementById('deck').addEventListener('click',e=>{
+  if(e.target.closest('button')||e.target.closest('a')) return;
+  const x=e.clientX/window.innerWidth;
+  if(x<0.25) goTo(current-1); else if(x>0.75) goTo(current+1);
+});
+
+let tx=0;
+document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX},{passive:true});
+document.addEventListener('touchend',e=>{
+  const dx=tx-e.changedTouches[0].clientX;
+  if(Math.abs(dx)>50) dx>0?goTo(current+1):goTo(current-1);
+},{passive:true});
+
+counter.textContent=`01 / ${pad(TOTAL)}`;
+// Entrar directo por #N: se pasa por goTo para que la barra de arriba también se adapte.
+const hash=parseInt(location.hash.replace('#',''));
+if(hash>=1&&hash<=TOTAL&&hash!==1) goTo(hash);
+</script>
+</body>
+</html>
