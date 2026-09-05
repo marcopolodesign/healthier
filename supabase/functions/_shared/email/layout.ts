@@ -184,7 +184,6 @@ export function renderEmail(doc: EmailDoc): string {
         <!-- Tarjeta -->
         <tr><td style="background:${C.card};border:1px solid ${C.line};border-radius:26px">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr><td style="height:4px;background:${a.base};border-radius:26px 26px 0 0;font-size:0;line-height:0">&nbsp;</td></tr>
             <tr><td style="padding:34px 34px 30px">
               ${doc.eyebrow ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px"><tr>
                   <td style="background:${a.soft};border-radius:999px;padding:6px 13px;font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:${a.ink}">${esc(doc.eyebrow)}</td>
