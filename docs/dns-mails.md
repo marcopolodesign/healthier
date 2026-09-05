@@ -1,19 +1,35 @@
 # Los mails de Healthier — qué falta
 
-Todo el circuito está armado, probado y con registro propio. **Lo único que
-falta son tres registros de DNS en `healthier.com.ar`**, que se cargan en el
-panel de DonWeb (los nameservers del dominio son `ns1/ns2.donweb.com`). No hay
-API: es a mano.
+Todo el circuito está armado, probado y con registro propio. Lo que falta es
+**el DNS de `healthier.com.ar`**, y es más que pegar tres registros.
 
-Apenas los tres estén cargados y Resend verifique el dominio, los mails empiezan
-a salir solos — no hay que deployar nada.
+## 🔴 El dominio no tiene zona de DNS (verificado el 2026-09-05)
+
+`healthier.com.ar` **está registrado y delegado** a `ns1/ns2.donweb.com` (NIC.ar
+lo confirma: alta el 2026-03-06, vence el 2027-03-06, registrante Dattatec).
+Pero los nameservers de DonWeb **no sirven la zona**: contestan `REFUSED`, y por
+eso el dominio entero está a oscuras — sin `A`, sin `MX`, sin nada.
+
+```
+$ dig @1.1.1.1 healthier.com.ar SOA
+;; status: SERVFAIL
+; "200.58.112.193:53 returned REFUSED for healthier.com.ar SOA"
+```
+
+O sea que **primero hay que crear la zona** en el panel de DonWeb (normalmente
+sale de activarle el DNS/hosting al dominio) y recién después cargar los tres
+registros. Es también la razón por la que el sitio no tiene dominio propio
+conectado: es el mismo agujero, no dos tareas distintas.
+
+Una vez que la zona exista y Resend verifique, los mails empiezan a salir solos
+— no hay que deployar nada.
 
 > ⚠️ **Estos registros son de la cuenta de Resend propia de Healthier**
 > (`healthier@marcopolo.agency`, alta el 2026-09-04). Reemplazan a los de la
 > cuenta compartida de Marco Polo: la clave DKIM es distinta, así que si quedó
 > una copia vieja dando vueltas, **no sirve**.
 
-## Los tres registros
+## Los tres registros (van una vez que la zona exista)
 
 | Tipo | Nombre / Host | Prioridad | Valor |
 |---|---|---|---|
@@ -63,6 +79,28 @@ curl -s https://api.resend.com/domains/c0b735de-b446-400e-b8a9-f2c2f991349c \
    el SMTP es peor que no hacer nada: hoy los mails de contraseña salen feos
    pero salen, y con Resend rechazando el remitente no saldría ninguno.
 
+## Probado en staging el 2026-09-05
+
+Staging quedó con el **SMTP de Resend prendido**, así que ahí los mails de
+cuenta ya salen por Resend y no por el mailer de Supabase. Se probó de punta a
+punta con un alta real:
+
+| Qué | Resultado |
+|---|---|
+| Alta de cuenta → trigger → `send-email` → Resend | ✅ aceptado, con id de Resend, visible en `/super-admin/mails` |
+| "Recuperar contraseña" → Supabase Auth → SMTP de Resend | ✅ aceptado por Resend, con la plantilla de Healthier |
+| Entrega en la casilla | ❌ **rebotado**: `550 5.7.3 Mensaje calificado como spam` |
+
+El rebote es un artefacto de staging, no del código: como el dominio no está
+verificado, staging manda desde `onboarding@resend.dev`, que además **sólo
+entrega al dueño de la cuenta** (`healthier@marcopolo.agency`). Ese remitente es
+un dominio ajeno sin SPF ni DKIM alineados, y el servidor de `marcopolo.agency`
+lo rechaza por spam. Con `healthier.com.ar` verificado, el mail sale firmado
+desde el dominio propio y ese rechazo desaparece.
+
+Cuenta de prueba creada en staging para esto: `healthier@marcopolo.agency`
+(password `pruebamails2026`, rol paciente).
+
 ## Lo que ya está hecho
 
 - **Cuenta propia de Resend** para Healthier (`healthier@marcopolo.agency`), en
@@ -79,6 +117,8 @@ curl -s https://api.resend.com/domains/c0b735de-b446-400e-b8a9-f2c2f991349c \
     remitente de prueba de Resend, que **sólo entrega al dueño de la cuenta**
     (`healthier@marcopolo.agency`). Así se puede probar el circuito sin depender
     del DNS y sin riesgo de mandarle un mail a un paciente de prueba.
+  - **Staging tiene además el SMTP de Resend prendido** desde el 2026-09-05, así
+    que también los mails de cuenta salen por ahí. Producción no: ver abajo.
 - **27 plantillas** con el diseño de las landings, en
   [`supabase/functions/_shared/email/`](../supabase/functions/_shared/email/).
   Se miran con `npm run emails` o publicadas en `/docs/emails/`.

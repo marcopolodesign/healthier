@@ -82,7 +82,9 @@ const payload: Record<string, unknown> = {
 if (conSmtp) {
   Object.assign(payload, {
     smtp_host: 'smtp.resend.com',
-    smtp_port: 465,
+    // La API lo quiere como string; con un número devuelve
+    // `smtp_port: Invalid input: expected string, received number`.
+    smtp_port: '465',
     smtp_user: 'resend',
     smtp_pass: resendKey,
     smtp_admin_email: entorno.from,
