@@ -41,6 +41,7 @@ import ProfessionalProfile from './pages/patient/ProfessionalProfile'
 import PatientConsultations from './pages/patient/Consultations'
 import PatientDocuments from './pages/patient/Documents'
 import PatientProfile from './pages/patient/Profile'
+import PatientAgregarTarjeta from './pages/patient/AgregarTarjeta'
 import OnDemand from './pages/patient/OnDemand'
 import Emergency from './pages/patient/Emergency'
 
@@ -409,6 +410,15 @@ export default function App() {
           <Route path="/paciente/turno-confirmado/:consultationId" element={<BookingConfirmed profile={profile} />} />
           <Route path="/paciente/camino/:consultationId" element={<CaminoAlConsultorio profile={profile} />} />
         </Route>
+
+        {/* Añadir tarjeta — full-screen, sin nav: se embebe en el WebView de la
+            app mobile (`mobile/app/tarjetas/agregar.tsx`), donde una barra de
+            navegación del sitio adentro del contenedor nativo sobra. */}
+        <Route path="/paciente/agregar-tarjeta" element={
+          <RequireRole profile={profile} allowed={['patient']}>
+            <PatientAgregarTarjeta profile={profile} />
+          </RequireRole>
+        } />
 
         {/* Patient onboarding — full-screen, no mobile nav */}
         <Route path="/paciente/onboarding" element={
