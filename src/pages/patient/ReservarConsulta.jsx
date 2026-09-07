@@ -115,9 +115,13 @@ function buildDateOptions(n = 14) {
     const d = new Date(hoyBA)
     d.setUTCDate(hoyBA.getUTCDate() + i)
     return {
-      label:     i === 0 ? 'Hoy' : `${days[d.getUTCDay()]} ${d.getUTCDate()} ${months[d.getUTCMonth()]}`,
-      value:     fechaISOBuenosAires(d),
-      dayOfWeek: d.getUTCDay(),
+      // Las partes van sueltas: la tarjeta de fecha las apila (día grande, mes
+      // abajo), igual que la columna de fecha de un turno en Agenda.
+      encabezado: i === 0 ? 'Hoy' : days[d.getUTCDay()],
+      diaDelMes:  String(d.getUTCDate()).padStart(2, '0'),
+      mesCorto:   months[d.getUTCMonth()],
+      value:      fechaISOBuenosAires(d),
+      dayOfWeek:  d.getUTCDay(),
     }
   })
 }
@@ -773,28 +777,40 @@ export default function ReservarConsulta({ profile }) {
               </p>
             ) : (
               <>
-                {/* Date pills (horizontal scroll) */}
-                <div className="-mx-4 px-4">
-                  <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                    {availableDates.length === 0 ? (
-                      <p className="text-text-tertiary text-[14px] py-2">
-                        No hay fechas disponibles en los próximos 14 días.
-                      </p>
-                    ) : availableDates.map(d => (
+                {/* Fechas — tarjetas que envuelven, sin scroll horizontal.
+                    Mismo lenguaje que la columna de fecha de un turno en
+                    Agenda (día grande arriba, mes abreviado abajo): un carrusel
+                    esconde días a la derecha sin avisar, y acá son 14 como
+                    máximo, así que entran todos a la vista. */}
+                <div className="flex flex-wrap gap-2">
+                  {availableDates.length === 0 ? (
+                    <p className="text-text-tertiary text-[14px] py-2">
+                      No hay fechas disponibles en los próximos 14 días.
+                    </p>
+                  ) : availableDates.map(d => {
+                    const elegida = selectedDate === d.value
+                    return (
                       <button
                         key={d.value}
                         onClick={() => { setSelectedDate(d.value); setSelectedFranja(null) }}
-                        className={`flex-shrink-0 px-4 py-2.5 rounded-full border text-[13px] font-medium transition-all whitespace-nowrap ${
-                          selectedDate === d.value
-                            ? 'text-white border-transparent'
-                            : 'text-text-secondary border-border-default bg-bg-secondary hover:border-brand/40'
+                        className={`w-[72px] py-2.5 rounded-2xl border flex flex-col items-center gap-0.5 transition-all ${
+                          elegida
+                            ? 'border-brand bg-brand-muted'
+                            : 'border-border-default bg-bg-secondary hover:border-brand/40'
                         }`}
-                        style={selectedDate === d.value ? { backgroundColor: '#7CB38B', borderColor: '#7CB38B' } : {}}
                       >
-                        {d.label}
+                        <span className={`text-[11px] font-semibold uppercase tracking-wide ${elegida ? 'text-brand' : 'text-text-tertiary'}`}>
+                          {d.encabezado}
+                        </span>
+                        <span className={`text-[24px] font-semibold leading-none ${elegida ? 'text-brand' : 'text-text-primary'}`}>
+                          {d.diaDelMes}
+                        </span>
+                        <span className={`text-[11px] font-semibold uppercase tracking-wide ${elegida ? 'text-brand' : 'text-text-tertiary'}`}>
+                          {d.mesCorto}
+                        </span>
                       </button>
-                    ))}
-                  </div>
+                    )
+                  })}
                 </div>
 
                 {/* Time slots */}
