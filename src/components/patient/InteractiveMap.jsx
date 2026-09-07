@@ -69,6 +69,16 @@ export default function InteractiveMap({
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const centeredOnce = useRef(false)
+  /*
+   * `mapRef.current` NO está listo cuando el componente monta: el bundle de
+   * mapbox-gl son ~1,8 MB y `<Map>` sólo publica su ref cuando terminó de
+   * cargar. Todo lo que mueva la cámara tiene que esperar a esta bandera; si
+   * no, el efecto corre una vez contra un ref nulo, se sale, y no vuelve a
+   * correr nunca porque sus dependencias ya no cambian. Es exactamente lo que
+   * pasaba con el encuadre de la emergencia: los datos llegaban mucho antes que
+   * el mapa.
+   */
+  const [mapaListo, setMapaListo] = useState(false)
 
   const effectiveAvailableNow = availableNow || localAvailableNow
   const referencePoint = userLocation || DEFAULT_CENTER
@@ -86,12 +96,12 @@ export default function InteractiveMap({
   // Center on the user's real location the first time it resolves, without
   // fighting subsequent manual panning.
   useEffect(() => {
-    if (userLocation && !centeredOnce.current && mapRef.current) {
+    if (userLocation && !centeredOnce.current && mapaListo && mapRef.current) {
       // Sin animación, por lo mismo que el encuadre de la emergencia (ver abajo).
       mapRef.current.flyTo({ center: [userLocation.lng, userLocation.lat], zoom: ZOOM, duration: 0 })
       centeredOnce.current = true
     }
-  }, [userLocation])
+  }, [userLocation, mapaListo])
 
   const baseY = appState === 'emergency_matched' ? -220 : sheetState === 'half' ? -150 : -50
 
@@ -111,7 +121,7 @@ export default function InteractiveMap({
    * lo que hace falta.
    */
   useEffect(() => {
-    if (!emergencyPro || !userLocation || !mapRef.current) return
+    if (!emergencyPro || !userLocation || !mapaListo || !mapRef.current) return
     // `containerRef`, no `mapRef.current.getContainer()`: el ref de
     // react-map-gl no proxea ese método, devolvía `undefined` y el efecto se
     // salía por el guard de abajo sin encuadrar nada — el síntoma era
@@ -157,7 +167,7 @@ export default function InteractiveMap({
       // se ve nunca.
       { padding: { top, bottom, left, right }, duration: 0, maxZoom: 16 },
     )
-  }, [emergencyPro?.lat, emergencyPro?.lng, userLocation?.lat, userLocation?.lng, baseY])
+  }, [emergencyPro?.lat, emergencyPro?.lng, userLocation?.lat, userLocation?.lng, baseY, mapaListo])
 
   // Only offer vertical filters for specialties that actually have a marker on screen right now
   const filterableVerticales = useMemo(() => {
@@ -187,6 +197,7 @@ export default function InteractiveMap({
           mapStyle="mapbox://styles/mapbox/light-v11"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
           attributionControl={{ compact: true }}
+          onLoad={() => setMapaListo(true)}
         >
           {/* Ruta real del profesional hacia el paciente */}
           {emergencyRoute?.length > 1 && (
