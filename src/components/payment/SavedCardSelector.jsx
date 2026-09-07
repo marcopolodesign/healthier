@@ -127,12 +127,21 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
   const [cvv, setCvv] = useState('')
   const [cvvError, setCvvError] = useState(null)
   // ── E1: guardar la tarjeta nueva desde el primer pago ──────────────────────
-  // Elección explícita del paciente — arranca SIEMPRE apagada. Prendida, la
-  // tarjeta nueva se guarda primero (mp-save-card, sin tocar) y el cobro se
-  // hace después con la MISMA mecánica de re-tokenización por CVV que ya
-  // existe para una tarjeta guardada — ver `getSavedCardCharge` más abajo.
+  // Prendida, la tarjeta nueva se guarda primero (mp-save-card, sin tocar) y el
+  // cobro se hace después con la MISMA mecánica de re-tokenización por CVV que
+  // ya existe para una tarjeta guardada — ver `getSavedCardCharge` más abajo.
   // Apagada, el camino es exactamente el de siempre (mode="charge").
-  const [guardarNueva, setGuardarNueva] = useState(false)
+  //
+  // Arranca PRENDIDA (Mateo, 2026-09-07). El default anterior era apagada y casi
+  // nadie la marcaba, así que el segundo pago volvía a pedir la tarjeta entera.
+  // El costo de este default es un paso más en el primer pago —el CVV se tipea
+  // dos veces, una en el Brick para guardar y otra para cobrar—; el paciente
+  // que no lo quiera la destilda, y si guardar falla está el escape de abajo.
+  const [guardarNueva, setGuardarNueva] = useState(true)
+  // Con el guardado prendido por default, el paciente termina de cargar la
+  // tarjeta y aterriza en un campo de CVV vacío sin saber por qué. Esta marca
+  // le explica qué pasó y qué le falta para pagar.
+  const [idRecienGuardada, setIdRecienGuardada] = useState(null)
 
   // ── Load saved cards ───────────────────────────────────────────────────────
   const loadCards = useCallback(async () => {
@@ -201,9 +210,11 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
   // (`getSavedCardCharge`) — no hay ningún cobro nuevo que escribir acá.
   const handleNewCardSaved = async (savedCardData) => {
     setAddCardMode(false)
-    setGuardarNueva(false)
     await loadCards()
-    if (savedCardData?.id) onCardSelected?.(savedCardData.id)
+    if (savedCardData?.id) {
+      onCardSelected?.(savedCardData.id)
+      setIdRecienGuardada(savedCardData.id)
+    }
   }
 
   // ── Imperative API for the parent's "Confirmar y Pagar" button ────────────
@@ -340,6 +351,11 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
           <LockKey size={18} className="text-[#6B6560] shrink-0" />
           <div className="flex-1 min-w-0">
             <label className="text-xs font-semibold text-[#2D2A26] block mb-1">Código de seguridad (CVV)</label>
+            {idRecienGuardada && selectedCardId === idRecienGuardada && (
+              <p className="text-xs text-[#6B6560] mb-2">
+                Guardamos tu tarjeta. Ingresá el código de seguridad para confirmar el pago.
+              </p>
+            )}
             <input
               type="password"
               inputMode="numeric"
@@ -394,8 +410,8 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
 
           {publicKey ? (
             <>
-              {/* E1 — elección explícita, apagada por default. No se guarda
-                  nada sin que el paciente lo pida. */}
+              {/* E1 — tildada por default; sigue siendo elección del paciente,
+                  que la puede destildar antes de cargar la tarjeta. */}
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
