@@ -227,8 +227,12 @@ export default function Emergency({ profile }) {
     ultimaRutaRef.current = clave
     const ctrl = new AbortController()
     getRoute(desde, hasta, tracking.travelMode ?? 'driving', ctrl.signal)
-      .then(r => { if (r) setTrackingRoute(r) })
-      .catch(() => {/* sin ruta se muestran igual los dos marcadores */})
+      .then(r => { if (r) setTrackingRoute(r); else ultimaRutaRef.current = '' })
+      .catch(e => {
+        // Se libera el freno para que la próxima posición vuelva a intentar:
+        // un solo pedido fallido dejaba la pantalla sin ruta para siempre.
+        if (e?.name !== 'AbortError') ultimaRutaRef.current = ''
+      })
     return () => ctrl.abort()
   }, [tracking, emergency?.patientLatitude, emergency?.patientLongitude])
 
