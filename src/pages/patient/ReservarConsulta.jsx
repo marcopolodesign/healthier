@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, VideoCamera, MapPin, Star, CaretRight, Check,
@@ -54,6 +54,41 @@ function buildTimeSlots(franjasForDay, bookedTimes, slotMinutes, minStartTime = 
 }
 
 /**
+ * 🔴 Toda esta pantalla razona en hora de **Buenos Aires**, nunca en la del
+ * equipo del paciente.
+ *
+ * `professional_schedules` guarda "09:00–13:00" sin zona: son las horas del
+ * consultorio, o sea hora argentina. Si el reloj de referencia es el del
+ * dispositivo, un paciente con el huso corrido ve la grilla de otro día y con
+ * otro corte — le podemos ofrecer las 9:00 de una mañana que ya pasó, o
+ * esconderle horas que todavía están libres. Es el mismo error que ya nos pasó
+ * al crear el turno (arreglado el 2026-09-07: el `scheduledAt` sale con
+ * `-03:00` explícito) y que se veía en el emulador de Android, que corre en GMT.
+ *
+ * Argentina no tiene horario de verano desde 2009, así que el offset es fijo:
+ * se corre el instante 3 horas y se leen los campos en UTC, que es la forma más
+ * corta de tener el reloj de pared de Buenos Aires sin depender del ICU del
+ * dispositivo.
+ */
+const OFFSET_BUENOS_AIRES_MS = 3 * 60 * 60 * 1000
+
+function relojBuenosAires(instanteMs = Date.now()) {
+  return new Date(instanteMs - OFFSET_BUENOS_AIRES_MS)
+}
+
+const dosDigitos = (n) => String(n).padStart(2, '0')
+
+/** `YYYY-MM-DD` del reloj de Buenos Aires. */
+function fechaISOBuenosAires(d) {
+  return `${d.getUTCFullYear()}-${dosDigitos(d.getUTCMonth() + 1)}-${dosDigitos(d.getUTCDate())}`
+}
+
+/** `HH:MM` del reloj de Buenos Aires. */
+function horaHHMMBuenosAires(d) {
+  return `${dosDigitos(d.getUTCHours())}:${dosDigitos(d.getUTCMinutes())}`
+}
+
+/**
  * La hora a partir de la cual se puede reservar HOY.
  *
  * Sin esto, un profesional con franja de 9 a 18 ofrecía las 9:00 a las seis de
@@ -64,35 +99,28 @@ function buildTimeSlots(franjasForDay, bookedTimes, slotMinutes, minStartTime = 
 const MARGEN_MINIMO_HOY_MIN = 60
 
 function horaMinimaParaHoy(fechaISO) {
-  const hoy = new Date()
-  const yyyy = hoy.getFullYear()
-  const mm = String(hoy.getMonth() + 1).padStart(2, '0')
-  const dd = String(hoy.getDate()).padStart(2, '0')
-  if (fechaISO !== `${yyyy}-${mm}-${dd}`) return null
-  const desde = new Date(hoy.getTime() + MARGEN_MINIMO_HOY_MIN * 60 * 1000)
-  return `${String(desde.getHours()).padStart(2, '0')}:${String(desde.getMinutes()).padStart(2, '0')}:00`
+  if (fechaISO !== fechaISOBuenosAires(relojBuenosAires())) return null
+  const desde = relojBuenosAires(Date.now() + MARGEN_MINIMO_HOY_MIN * 60 * 1000)
+  return `${horaHHMMBuenosAires(desde)}:00`
 }
 
 // ── Date helpers ─────────────────────────────────────────────
 function buildDateOptions(n = 14) {
   const days   = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
   const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
-  const today  = new Date()
+  // El "hoy" del calendario es el de Buenos Aires: cerca de medianoche, el
+  // equipo del paciente puede estar en otro día que el del consultorio.
+  const hoyBA = relojBuenosAires()
   return Array.from({ length: n }, (_, i) => {
-    const d = new Date(today)
-    d.setDate(today.getDate() + i)
-    const yyyy = d.getFullYear()
-    const mm   = String(d.getMonth() + 1).padStart(2, '0')
-    const dd   = String(d.getDate()).padStart(2, '0')
+    const d = new Date(hoyBA)
+    d.setUTCDate(hoyBA.getUTCDate() + i)
     return {
-      label:     i === 0 ? 'Hoy' : `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`,
-      value:     `${yyyy}-${mm}-${dd}`,
-      dayOfWeek: d.getDay(),
+      label:     i === 0 ? 'Hoy' : `${days[d.getUTCDay()]} ${d.getUTCDate()} ${months[d.getUTCMonth()]}`,
+      value:     fechaISOBuenosAires(d),
+      dayOfWeek: d.getUTCDay(),
     }
   })
 }
-
-const ALL_DATES = buildDateOptions(14)
 
 function fmtTime(t) {
   return t ? t.slice(0, 5) : ''
@@ -206,6 +234,10 @@ export default function ReservarConsulta({ profile }) {
 
   const bookingStartFired = useRef(false)
 
+  // Se calcula al montar, no al importar el módulo: una pestaña abierta desde
+  // ayer seguía llamando "Hoy" a ayer.
+  const fechasDelWizard = useMemo(() => buildDateOptions(14), [])
+
   // Duración del slot configurable desde /super-admin/settings. Se pide una
   // sola vez al montar — no cambia mientras el paciente arma la reserva, y
   // así no hay que revalidar `selectedFranja` a mitad de wizard si alguien
@@ -220,18 +252,20 @@ export default function ReservarConsulta({ profile }) {
 
   // Derived — datetime step
   const scheduledDays  = new Set(schedule.map(e => e.dayOfWeek))
-  const availableDates = ALL_DATES.filter(d => scheduledDays.has(d.dayOfWeek))
-  const selectedDow    = selectedDate ? new Date(selectedDate + 'T12:00:00').getDay() : -1
+  const availableDates = fechasDelWizard.filter(d => scheduledDays.has(d.dayOfWeek))
+  // `selectedDate` ya es una fecha de Buenos Aires; se lee al mediodía UTC para
+  // que ningún huso la corra de día al calcular el día de la semana.
+  const selectedDow    = selectedDate ? new Date(selectedDate + 'T12:00:00Z').getUTCDay() : -1
   const franjas        = schedule.filter(e => e.dayOfWeek === selectedDow)
   const bookedTimesForDate = new Set(
     existingConsultations
       .filter(c => ACTIVE_CONSULTATION_STATUSES.includes(c.status) && c.scheduledAt)
-      .map(c => new Date(c.scheduledAt))
-      .filter(d => {
-        const yyyy = d.getFullYear(), mm = String(d.getMonth() + 1).padStart(2, '0'), dd = String(d.getDate()).padStart(2, '0')
-        return `${yyyy}-${mm}-${dd}` === selectedDate
-      })
-      .map(d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
+      // Los turnos ya tomados también se leen en hora de Buenos Aires: con el
+      // huso del dispositivo, un turno de las 10:00 se comparaba contra la
+      // grilla como otra hora y el slot ocupado volvía a ofrecerse.
+      .map(c => relojBuenosAires(new Date(c.scheduledAt).getTime()))
+      .filter(d => fechaISOBuenosAires(d) === selectedDate)
+      .map(d => horaHHMMBuenosAires(d))
   )
   const timeSlots = selectedDate
     ? buildTimeSlots(franjas, bookedTimesForDate, slotDurationMinutes, horaMinimaParaHoy(selectedDate))
