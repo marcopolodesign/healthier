@@ -421,7 +421,7 @@ export default function Emergency({ profile }) {
               <div className="rounded-[20px] bg-gray-50 border border-gray-100 px-4 py-3 mb-4">
                 <span className="text-[13px] text-gray-500 leading-snug">
                   {tracking
-                    ? `Perdimos la señal hace más de ${FRESCURA_MINUTOS} min. ${proName} sigue asignado a tu emergencia.`
+                    ? `Perdimos la señal hace más de ${FRESCURA_MINUTOS} min. ${proName} sigue a cargo de tu emergencia.`
                     : `${proName} ya tiene tu emergencia. En cuanto salga vas a ver dónde está.`}
                 </span>
               </div>

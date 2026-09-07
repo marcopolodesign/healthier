@@ -92,23 +92,45 @@ export default function InteractiveMap({
     }
   }, [userLocation])
 
+  const baseY = appState === 'emergency_matched' ? -220 : sheetState === 'half' ? -150 : -50
+
   /*
    * Con el profesional en pantalla el encuadre útil son LOS DOS puntos, no el
-   * paciente solo. Se hace una vez por posición nueva del profesional, con el
-   * padding inferior que deja libre el panel de seguimiento.
+   * paciente solo.
+   *
+   * El ajuste fino no es capricho: el contenedor del mapa está desplazado
+   * `baseY` px hacia arriba y encima el panel de seguimiento le tapa un pedazo,
+   * así que el centro del mapa NO es el centro de lo que el usuario ve. Con un
+   * `fitBounds` a secas los dos marcadores quedaban arriba del borde visible —
+   * o sea, el encuadre "correcto" mostraba una emergencia sin nadie adentro.
+   * `offset` corre el centro del encuadre hasta el centro de lo que queda a la
+   * vista; en escritorio también hacia la derecha, para que no caiga debajo del
+   * panel.
    */
   useEffect(() => {
     if (!emergencyPro || !userLocation || !mapRef.current) return
+    const cont = mapRef.current.getContainer?.()
+    const ancho = cont?.clientWidth ?? 0
+    const alto = cont?.clientHeight ?? 0
+    const esAncho = ancho >= 640
+    const desplazado = Math.abs(baseY)
+    // En escritorio el panel es una columna a la izquierda; en teléfono es una
+    // hoja que se come el tramo de abajo.
+    const bordeInferior = esAncho ? alto : desplazado + (alto - desplazado) * 0.45
+    const centroVisible = (desplazado + bordeInferior) / 2
     mapRef.current.fitBounds(
       [
         [Math.min(emergencyPro.lng, userLocation.lng), Math.min(emergencyPro.lat, userLocation.lat)],
         [Math.max(emergencyPro.lng, userLocation.lng), Math.max(emergencyPro.lat, userLocation.lat)],
       ],
-      { padding: { top: 100, bottom: 340, left: 60, right: 60 }, duration: 800, maxZoom: 16 },
+      {
+        padding: 70,
+        offset: [esAncho ? 200 : 0, alto ? centroVisible - alto / 2 : 0],
+        duration: 800,
+        maxZoom: 16,
+      },
     )
-  }, [emergencyPro?.lat, emergencyPro?.lng, userLocation?.lat, userLocation?.lng])
-
-  const baseY = appState === 'emergency_matched' ? -220 : sheetState === 'half' ? -150 : -50
+  }, [emergencyPro?.lat, emergencyPro?.lng, userLocation?.lat, userLocation?.lng, baseY])
 
   // Only offer vertical filters for specialties that actually have a marker on screen right now
   const filterableVerticales = useMemo(() => {
