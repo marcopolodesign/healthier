@@ -285,6 +285,7 @@ export function generarPaginaDeTextos(CASOS: CasoTexto[], OUT: string) {
     <p>Éstos son todos los mails que Healthier le manda a un paciente o a un profesional. Están en texto plano y en el mismo orden en que aparecen en el mail.</p>
     <p>Si algo suena raro, escribilo en <strong>Observaciones</strong>, debajo de cada uno. Se guardan en tu navegador mientras revisás; cuando termines, el botón de abajo te las copia todas juntas para pegarlas donde quieras.</p>
     <p>Dos cosas que conviene mirar y que se suelen pasar por alto: el <strong>asunto</strong>, que es lo único que se ve en la bandeja, y la <strong>vista previa</strong>, el renglón gris que Gmail muestra al lado.</p>
+    <p>Los avisos que llegan al teléfono están <a href="../push/textos.html">acá al lado</a>.</p>
     <p>Cada mail se muestra con la misma jerarquía que tiene en la bandeja: la <span class="ej-chip">etiqueta</span> de arriba, el título, el cuerpo, <span class="ej-boton">los botones</span> y <span class="ej-enlace">los enlaces secundarios</span>. Los <em>[corchetes]</em> son datos que completa el sistema.</p>
   </div>
   ${secciones}

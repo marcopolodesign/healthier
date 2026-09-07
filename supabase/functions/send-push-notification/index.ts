@@ -1,22 +1,119 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
+import { construir, type Datos, type Tipo } from '../_shared/push/textos.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+/**
+ * Busca en la base lo que el texto necesita. Cada aviso pide poco y nada, así
+ * que se leen sólo las columnas que se usan.
+ */
+async function datosDelAviso(
+  supabase: ReturnType<typeof createClient>,
+  p: Record<string, unknown>,
+): Promise<Datos> {
+  const datos: Datos = {
+    motivo: (p.motivo as string) ?? null,
+    permanente: Boolean(p.permanente),
+  }
+
+  if (p.consultationId) {
+    datos.consultationId = p.consultationId as string
+    const { data } = await supabase
+      .from('consultations')
+      .select('scheduled_at, is_on_demand, daily_room_url, professional:profiles!professional_id(full_name)')
+      .eq('id', p.consultationId)
+      .maybeSingle()
+    if (data) {
+      datos.scheduledAt = data.scheduled_at
+      datos.isOnDemand = Boolean(data.is_on_demand)
+      datos.hasRoom = Boolean(data.daily_room_url)
+      datos.professionalName = (data.professional as { full_name?: string } | null)?.full_name ?? null
+      // Para el post-consulta: decir "y tu receta" sólo si de verdad hay una.
+      const { data: enc } = await supabase
+        .from('clinical_encounters').select('id').eq('consultation_id', p.consultationId)
+      const ids = (enc ?? []).map((e: { id: string }) => e.id)
+      if (ids.length) {
+        const { count } = await supabase
+          .from('clinical_medications').select('id', { count: 'exact', head: true })
+          .in('encounter_id', ids).eq('rcta_status', 'issued')
+        datos.tieneReceta = (count ?? 0) > 0
+      }
+    }
+  }
+
+  if (p.orderId) {
+    datos.orderId = p.orderId as string
+    const { data } = await supabase
+      .from('medication_orders')
+      .select('cancellation_reason, pharmacy:pharmacies!pharmacy_id(name)')
+      .eq('id', p.orderId)
+      .maybeSingle()
+    if (data) {
+      datos.pharmacyName = (data.pharmacy as { name?: string } | null)?.name ?? null
+      datos.motivo = datos.motivo ?? data.cancellation_reason ?? null
+    }
+  }
+
+  if (p.prescriptionId) {
+    const { data } = await supabase
+      .from('clinical_medications')
+      .select('medication_name, nombre_droga')
+      .eq('rcta_prescription_id', p.prescriptionId)
+    datos.medicamentos = (data ?? []).map(
+      (m: Record<string, string | null>) => m.medication_name || m.nombre_droga || 'Medicamento',
+    )
+  }
+
+  return datos
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { userId, title, body, url } = await req.json()
-    if (!userId || !title) throw new Error('userId and title required')
+    const payloadIn = await req.json()
+    const { userId, tipo } = payloadIn as { userId?: string; tipo?: Tipo }
+    if (!userId) throw new Error('userId required')
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
+
+    /*
+     * Dos formas de llamarla, a propósito:
+     *
+     *  · `{ userId, tipo, ...ids }` — la buena. El que dispara dice QUÉ pasó y
+     *    el texto sale del catálogo (`_shared/push/textos.ts`), que es también
+     *    el que alimenta la página donde el equipo revisa el copy. Cambiar una
+     *    palabra deja de necesitar una migración.
+     *  · `{ userId, title, body, url }` — la vieja. Se mantiene porque hay
+     *    llamadas en vuelo de pg_net y código del front que todavía la usan;
+     *    sacarla sería romperlas sin ganar nada.
+     */
+    let { title, body, url } = payloadIn as { title?: string; body?: string; url?: string }
+
+    if (tipo) {
+      const datos = await datosDelAviso(supabase, payloadIn)
+      const aviso = construir(tipo, datos)
+      if (!aviso) throw new Error(`tipo desconocido: ${tipo}`)
+      title = aviso.title; body = aviso.body; url = aviso.url
+    }
+
+    if (!title) throw new Error('title required (o un `tipo` válido)')
+
+    // Igual que `send-email`: arma el aviso con los datos reales y lo devuelve
+    // sin mandarlo. Es la forma de comprobar el texto contra una consulta o un
+    // pedido de verdad sin hacerle sonar el teléfono a nadie.
+    if ((payloadIn as { preview?: boolean }).preview) {
+      return new Response(JSON.stringify({ preview: { title, body, url } }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     // ── Web push (VAPID) — suscripciones del website ──
     const { data: subs, error: subsErr } = await supabase

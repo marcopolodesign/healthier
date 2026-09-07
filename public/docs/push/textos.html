@@ -1,0 +1,581 @@
+<!doctype html><html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Los avisos de Healthier</title>
+<meta name="description" content="Las 23 notificaciones que manda Healthier, como se ven en el teléfono.">
+<style>
+  @font-face{font-family:'Everett';src:url('/fonts/Everett-Light.woff2') format('woff2');
+    font-weight:300;font-style:normal;font-display:swap}
+  @font-face{font-family:'Everett';src:url('/fonts/Everett-Regular.woff2') format('woff2');
+    font-weight:400 600;font-style:normal;font-display:swap}
+  @font-face{font-family:'GeneralSans';src:url('/fonts/GeneralSans-Regular.woff2') format('woff2');
+    font-weight:400;font-style:normal;font-display:swap}
+  @font-face{font-family:'GeneralSans';src:url('/fonts/GeneralSans-Medium.woff2') format('woff2');
+    font-weight:500 700;font-style:normal;font-display:swap}
+
+  :root{
+    --ink:#2D2A26; --body:#6B6560; --mute:#A8A29E; --line:#E7E3DC;
+    --page:#F6F5F0; --card:#fff; --soft:#FAF9F5;
+    --sage:#7CB38B; --sage-ink:#3F6B4C; --sage-soft:#EDF4EF;
+    --serif:'Everett',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --sans:'GeneralSans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--ink);
+    font:15px/1.65 var(--sans);-webkit-font-smoothing:antialiased}
+  h1,h2{font-family:var(--serif);font-weight:400}
+
+  .marca{text-align:center;padding:44px 20px 8px}
+  .marca img{width:118px;height:auto}
+  .marca h1{margin:22px 0 6px;font-size:30px;font-weight:300;letter-spacing:-.5px;line-height:1.2}
+  .marca p{margin:0;font-size:14px;color:var(--body)}
+
+  header.top{position:sticky;top:0;z-index:10;background:rgba(246,245,240,.92);
+    backdrop-filter:blur(12px);border-bottom:1px solid var(--line);margin-top:26px}
+  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
+  header.top .wrap{padding-top:12px;padding-bottom:11px}
+  nav{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+  nav a{font-size:12px;font-weight:600;color:var(--sage-ink);background:var(--sage-soft);
+    padding:5px 12px;border-radius:999px;text-decoration:none}
+  nav a:hover{background:#e2eee7}
+
+  main{padding:30px 0 96px}
+  .intro{background:var(--card);border:1px solid var(--line);border-radius:26px;padding:28px 30px;margin-bottom:34px}
+  .intro p{margin:0 0 10px;color:var(--body)} .intro p:last-child{margin:0}
+
+  .grupo h2{margin:40px 0 16px;font-family:var(--sans);font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--mute);font-weight:600}
+  .aviso{background:var(--card);border:1px solid var(--line);border-radius:26px;
+    padding:24px;margin-bottom:14px;display:grid;grid-template-columns:320px 1fr;gap:26px;align-items:start}
+
+  /* La notificación, como en la pantalla bloqueada */
+  .tel{background:linear-gradient(160deg,#4a5d52,#2f3b34);border-radius:22px;padding:26px 14px}
+  .notif{background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-radius:16px;padding:11px 13px;
+    box-shadow:0 6px 18px rgba(0,0,0,.18)}
+  .app{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+  .icono{width:17px;height:17px;border-radius:5px;background:var(--sage);color:#fff;font-size:11px;
+    font-weight:700;display:flex;align-items:center;justify-content:center;font-family:var(--serif)}
+  .nombre{font-size:11px;font-weight:600;color:#3c3a37;text-transform:uppercase;letter-spacing:.04em}
+  .hace{margin-left:auto;font-size:11px;color:#8a8783}
+  .notif .titulo{margin:0;font-size:14px;font-weight:600;color:#111;line-height:1.3}
+  .notif .texto{margin:2px 0 0;font-size:13.5px;color:#3c3a37;line-height:1.35}
+
+  .detalle p{margin:0 0 12px;font-size:14px;color:var(--body)}
+  .detalle p span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--mute);margin-bottom:3px;font-weight:600}
+  code{font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:12.5px;
+    background:var(--soft);padding:2px 7px;border-radius:6px;color:var(--ink)}
+
+  label.obs{display:block;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+  label.obs span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--mute);margin-bottom:7px;font-weight:600}
+  textarea{width:100%;font:inherit;font-size:14px;padding:11px 13px;border:1px solid var(--line);
+    border-radius:14px;background:var(--soft);color:var(--ink);resize:vertical}
+  textarea:focus{outline:2px solid var(--sage);outline-offset:1px;background:#fff}
+
+  .barra{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.94);
+    backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:13px 20px}
+  .barra .wrap{display:flex;align-items:center;gap:12px;padding:0}
+  .barra p{margin:0;font-size:13px;color:var(--body);flex:1}
+  button{font:inherit;font-size:14px;font-weight:600;padding:10px 22px;border-radius:999px;
+    border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+  button.primario{background:var(--sage);border-color:var(--sage);color:#fff}
+  button:disabled{opacity:.45;cursor:default}
+
+  @media (max-width:720px){
+    .aviso{grid-template-columns:1fr;gap:18px;padding:20px;border-radius:22px}
+    .barra .wrap{flex-wrap:wrap} .barra p{flex-basis:100%}
+  }
+</style></head><body>
+
+<div class="marca">
+  <img src="/email/healthier-logo.png" alt="Healthier" width="118">
+  <h1>Los avisos del teléfono</h1>
+  <p>23 notificaciones · para revisar qué dicen</p>
+</div>
+
+<header class="top"><div class="wrap"><nav><a href="#g-al-paciente-turnos-y-consultas">Al paciente · turnos y consultas</a><a href="#g-al-paciente-recetas-y-farmacia">Al paciente · recetas y farmacia</a><a href="#g-al-paciente-emergencias">Al paciente · emergencias</a><a href="#g-al-profesional">Al profesional</a></nav></div></header>
+
+<main class="wrap">
+  <div class="intro">
+    <p>Éstas son todas las notificaciones que Healthier le manda al teléfono de un paciente o de un profesional. Están como se ven de verdad: en la pantalla bloqueada.</p>
+    <p>Un push se juzga distinto que un mail. Se lee <strong>de reojo y en dos segundos</strong>, muchas veces sin abrirlo, y el teléfono corta el título si es largo. Si hay que leerlo dos veces, no sirve.</p>
+    <p>Si algo suena raro, escribilo en <strong>Observaciones</strong>. Se guardan en tu navegador; el botón de abajo te las copia todas juntas.</p>
+    <p>Los textos de los mails están <a href="../emails/textos.html">acá al lado</a>.</p>
+  </div>
+  
+  <section class="grupo">
+    <h2 id="g-al-paciente-turnos-y-consultas">Al paciente · turnos y consultas</h2>
+    
+    <article class="aviso" id="turno-agendado">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Te agendaron un turno</p>
+          <p class="texto">Tu profesional agendó una consulta para el 8/9 a las 15:49.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El profesional le agenda un turno desde su agenda (si lo reservó el paciente, no se manda: ya lo sabe).</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/consultas</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="turno-agendado" data-titulo="Te agendaron un turno" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="turno-confirmado">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Turno confirmado</p>
+          <p class="texto">Tu consulta fue confirmada por el profesional.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El profesional confirma el turno.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/consultas</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="turno-confirmado" data-titulo="Turno confirmado" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="profesional-listo">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">¡El profesional está listo!</p>
+          <p class="texto">Tu consulta comenzó. Entrá a la sala ahora.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El profesional entra a la sala. Es el aviso que hace que una videoconsulta empiece.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/sala-espera/3f8c1a92-5d44-4e21-9c77-0a1b2c3d4e5f</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="profesional-listo" data-titulo="¡El profesional está listo!" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="recordatorio-manana">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Recordatorio de turno</p>
+          <p class="texto">Mañana tenés una consulta con Dra. Valentina Ortiz a las 15:49.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>La noche anterior al turno (lo manda el cron, no un trigger).</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/consultas</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="recordatorio-manana" data-titulo="Recordatorio de turno" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="recordatorio-pronto">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Tu consulta comienza pronto</p>
+          <p class="texto">Tu consulta con Dra. Valentina Ortiz es a las 15:49. ¡Preparate!</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>Media hora antes del turno (cron).</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/consultas</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="recordatorio-pronto" data-titulo="Tu consulta comienza pronto" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="consulta-cancelada">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Consulta cancelada</p>
+          <p class="texto">Tu consulta fue cancelada. Podés reservar un nuevo turno.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>Se cancela el turno, y no lo canceló el paciente.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/consultas</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="consulta-cancelada" data-titulo="Consulta cancelada" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="post-consulta">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Tu resumen ya está listo</p>
+          <p class="texto">Dra. Valentina Ortiz dejó el resumen de la consulta y tu receta.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El profesional cierra la consulta. Recién ahí existen el resumen, el diagnóstico y las recetas.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/consulta/resumen/3f8c1a92-5d44-4e21-9c77-0a1b2c3d4e5f</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="post-consulta" data-titulo="Tu resumen ya está listo" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+  </section>
+  <section class="grupo">
+    <h2 id="g-al-paciente-recetas-y-farmacia">Al paciente · recetas y farmacia</h2>
+    
+    <article class="aviso" id="receta-emitida">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Tu receta ya está disponible</p>
+          <p class="texto">Amoxicilina 500 mg · Ibuprofeno 400 mg. Presentala desde el celular en cualquier farmacia.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El profesional emite una receta electrónica.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/recetas</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="receta-emitida" data-titulo="Tu receta ya está disponible" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="pedido-confirmado">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Pedido confirmado</p>
+          <p class="texto">Farmacia del Águila ya está preparando tu pedido #9B2E77C1.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>Se acredita el pago del pedido de farmacia.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/farmacia/pedido/9b2e77c1-4a3f-4c8d-b1e6-77d0f9a1c2b3</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="pedido-confirmado" data-titulo="Pedido confirmado" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="pedido-enviado">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Tu pedido salió</p>
+          <p class="texto">Está en viaje a tu domicilio. Tené a mano tu DNI para recibirlo.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>La farmacia marca el pedido como enviado.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/farmacia/pedido/9b2e77c1-4a3f-4c8d-b1e6-77d0f9a1c2b3</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="pedido-enviado" data-titulo="Tu pedido salió" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="pedido-entregado">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Pedido entregado</p>
+          <p class="texto">Listo. Cualquier cosa, escribinos desde la app.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>La farmacia marca el pedido como entregado.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/farmacia/pedido/9b2e77c1-4a3f-4c8d-b1e6-77d0f9a1c2b3</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="pedido-entregado" data-titulo="Pedido entregado" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="pedido-cancelado">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Tu pedido se canceló</p>
+          <p class="texto">La farmacia no tenía stock del antibiótico. Si ya lo pagaste, la devolución sale automáticamente.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>La farmacia cancela el pedido.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/farmacia/pedido/9b2e77c1-4a3f-4c8d-b1e6-77d0f9a1c2b3</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="pedido-cancelado" data-titulo="Tu pedido se canceló" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+  </section>
+  <section class="grupo">
+    <h2 id="g-al-paciente-emergencias">Al paciente · emergencias</h2>
+    
+    <article class="aviso" id="emergencia-en-camino">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">El médico está en camino</p>
+          <p class="texto">Ya salió hacia tu domicilio. Podés seguirlo desde la app.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El profesional sale hacia el domicilio.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/sos</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="emergencia-en-camino" data-titulo="El médico está en camino" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="emergencia-llego">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">El médico llegó</p>
+          <p class="texto">Está en la puerta de tu domicilio.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El profesional llega al domicilio.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/sos</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="emergencia-llego" data-titulo="El médico llegó" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="emergencia-cancelada">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Emergencia cancelada</p>
+          <p class="texto">La emergencia fue cancelada.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>Se cancela la emergencia; se avisa siempre al otro lado, nunca a quien la canceló.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/sos</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="emergencia-cancelada" data-titulo="Emergencia cancelada" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+  </section>
+  <section class="grupo">
+    <h2 id="g-al-profesional">Al profesional</h2>
+    
+    <article class="aviso" id="pro-consulta-nueva">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Nueva consulta reservada</p>
+          <p class="texto">Un paciente reservó un turno con vos.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>Un paciente le reserva un turno o le pide una consulta inmediata.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/profesional/dashboard</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="pro-consulta-nueva" data-titulo="Nueva consulta reservada" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="pro-pago-recibido">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Te pagaron la consulta</p>
+          <p class="texto">El paciente ya abonó. El turno queda confirmado.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El paciente paga la consulta.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/profesional/dashboard</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="pro-pago-recibido" data-titulo="Te pagaron la consulta" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="pro-paciente-esperando">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Tenés un paciente esperando</p>
+          <p class="texto">Entrá a la sala para atenderlo.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El paciente entra a la sala de espera.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/profesional/videollamada/3f8c1a92-5d44-4e21-9c77-0a1b2c3d4e5f</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="pro-paciente-esperando" data-titulo="Tenés un paciente esperando" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="pro-consulta-cancelada">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Un paciente canceló</p>
+          <p class="texto">Se liberó el turno en tu agenda.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El paciente cancela el turno.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/profesional/agenda</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="pro-consulta-cancelada" data-titulo="Un paciente canceló" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="pro-recordatorio-1h">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Tenés una consulta en una hora</p>
+          <p class="texto">Tu próxima consulta es a las 15:49.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>Una hora antes del turno (cron).</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/profesional/agenda</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="pro-recordatorio-1h" data-titulo="Tenés una consulta en una hora" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="pro-verificado">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">¡Tu perfil fue verificado!</p>
+          <p class="texto">Ya podés recibir consultas en Healthier.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El equipo aprueba su documentación.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/profesional/dashboard</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="pro-verificado" data-titulo="¡Tu perfil fue verificado!" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="pro-observado">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Tu perfil necesita revisión</p>
+          <p class="texto">La farmacia no tenía stock del antibiótico</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El equipo le devuelve la documentación con observaciones.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/profesional/dashboard</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="pro-observado" data-titulo="Tu perfil necesita revisión" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="pro-emergencia-asignada">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Emergencia asignada</p>
+          <p class="texto">Te asignaron una emergencia. Entrá para ver la dirección.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>Se le asigna una emergencia.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/profesional/emergencias</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="pro-emergencia-asignada" data-titulo="Emergencia asignada" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+  </section>
+</main>
+
+<div class="barra"><div class="wrap">
+  <p id="contador">Sin observaciones todavía.</p>
+  <button type="button" id="limpiar">Borrar</button>
+  <button type="button" id="copiar" class="primario">Copiar mis observaciones</button>
+</div></div>
+
+<script>
+  const CLAVE = 'healthier-push-observaciones'
+  const areas = [...document.querySelectorAll('textarea')]
+  const contador = document.getElementById('contador')
+  const leer = () => { try { return JSON.parse(localStorage.getItem(CLAVE) || '{}') } catch { return {} } }
+  const guardar = o => { try { localStorage.setItem(CLAVE, JSON.stringify(o)) } catch {} }
+  const conTexto = () => areas.filter(a => a.value.trim())
+
+  function refrescar() {
+    const n = conTexto().length
+    contador.textContent = n === 0 ? 'Sin observaciones todavía.'
+      : n + (n === 1 ? ' aviso con observaciones.' : ' avisos con observaciones.')
+    document.getElementById('copiar').disabled = n === 0
+    document.getElementById('limpiar').disabled = n === 0
+  }
+  const previas = leer()
+  areas.forEach(a => {
+    if (previas[a.dataset.slug]) a.value = previas[a.dataset.slug]
+    a.addEventListener('input', () => {
+      const o = leer()
+      if (a.value.trim()) o[a.dataset.slug] = a.value; else delete o[a.dataset.slug]
+      guardar(o); refrescar()
+    })
+  })
+  refrescar()
+
+  document.getElementById('copiar').addEventListener('click', async () => {
+    const texto = 'Observaciones sobre los avisos push de Healthier\n\n' +
+      conTexto().map(a => '— ' + a.dataset.titulo + '\n' + a.value.trim()).join('\n\n')
+    try { await navigator.clipboard.writeText(texto); contador.textContent = 'Copiado. Pegalo donde quieras.' }
+    catch { window.prompt('Copiá esto:', texto) }
+  })
+  document.getElementById('limpiar').addEventListener('click', () => {
+    if (!window.confirm('¿Borrar todas tus observaciones?')) return
+    areas.forEach(a => { a.value = '' }); guardar({}); refrescar()
+  })
+</script>
+</body></html>
