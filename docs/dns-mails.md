@@ -1,40 +1,59 @@
 # Los mails de Healthier — qué falta
 
-Todo el circuito está armado, probado y con registro propio. Lo que falta es
-**el DNS de `healthier.com.ar`**, y es más que pegar tres registros.
+Todo el circuito está armado, probado y con registro propio. El DNS de
+`healthier.com.ar` **ya está cargado** (2026-09-07) — falta sólo que Resend
+termine de verificar el dominio, que depende de la propagación.
 
-## 🔴 El dominio no tiene zona de DNS (verificado el 2026-09-05)
+## El DNS de `healthier.com.ar` vive en Vercel (desde el 2026-09-07)
 
-`healthier.com.ar` **está registrado y delegado** a `ns1/ns2.donweb.com` (NIC.ar
-lo confirma: alta el 2026-03-06, vence el 2027-03-06, registrante Dattatec).
-Pero los nameservers de DonWeb **no sirven la zona**: contestan `REFUSED`, y por
-eso el dominio entero está a oscuras — sin `A`, sin `MX`, sin nada.
+Los nameservers del dominio son **`ns1/ns2.vercel-dns.com`**. DonWeb sigue
+siendo el registrador (el dominio está en NIC.ar desde el 2026-03-06, vence el
+2027-03-06), pero **ya no maneja el DNS**: los registros se cargan en
 
+> https://vercel.com/healthier-app/~/domains/healthier.com.ar
+
+🔴 **Cargarlos en DonWeb no sirve para nada.** Sus nameservers dejaron de estar
+delegados y de hecho nunca llegaron a servir la zona: mientras el dominio les
+apuntaba, contestaban `REFUSED` y `healthier.com.ar` estaba entero a oscuras —
+sin `A`, sin `MX`, sin nada. Ese es también el motivo por el que el sitio nunca
+había tenido dominio propio conectado: era el mismo agujero, no dos tareas.
+
+El equipo de Vercel es **`healthier-app`** (el de producción). El token de la
+API que hay en `~/Local/.env` es del equipo de Marco Polo y **no llega ahí**:
+para tocar este DNS por API hace falta un token con alcance `healthier-app`; si
+no, es por el dashboard.
+
+### Ojo con la propagación
+
+Cambiar los nameservers en NIC.ar no es instantáneo: la delegación vieja viaja
+con **TTL de 7200 s (2 h)**, así que durante ese rato hay resolvers que siguen
+preguntándole a DonWeb —que contesta `REFUSED`— y devuelven `SERVFAIL`. Se ve
+como si los registros estuvieran mal cuando en realidad están perfectos. Para
+distinguir una cosa de la otra, preguntarle al nameserver autoritativo, que no
+tiene caché:
+
+```bash
+dig @ns1.vercel-dns.com resend._domainkey.healthier.com.ar TXT +short
+dig @ns1.vercel-dns.com send.healthier.com.ar MX +short
 ```
-$ dig @1.1.1.1 healthier.com.ar SOA
-;; status: SERVFAIL
-; "200.58.112.193:53 returned REFUSED for healthier.com.ar SOA"
+
+Y para ver si ya propagó, comparar varios resolvers — no alcanza con uno:
+
+```bash
+for r in 1.1.1.1 8.8.8.8 9.9.9.9; do dig @$r healthier.com.ar NS +short; done
 ```
-
-O sea que **primero hay que crear la zona** en el panel de DonWeb (normalmente
-sale de activarle el DNS/hosting al dominio) y recién después cargar los tres
-registros. Es también la razón por la que el sitio no tiene dominio propio
-conectado: es el mismo agujero, no dos tareas distintas.
-
-Una vez que la zona exista y Resend verifique, los mails empiezan a salir solos
-— no hay que deployar nada.
 
 > ⚠️ **Estos registros son de la cuenta de Resend propia de Healthier**
 > (`healthier@marcopolo.agency`, alta el 2026-09-04). Reemplazan a los de la
 > cuenta compartida de Marco Polo: la clave DKIM es distinta, así que si quedó
 > una copia vieja dando vueltas, **no sirve**.
 
-## La zona entera, para cargar de una
+## La zona entera (cargada el 2026-09-07 en el DNS de Vercel)
 
 Estos son **todos** los registros que `healthier.com.ar` necesita hoy: los tres
 del correo (obligatorios), el DMARC (recomendado) y los dos del sitio.
 
-### Correo — obligatorios
+### Correo — obligatorios · ✅ cargados
 
 | Tipo | Nombre | Prioridad | Valor |
 |---|---|---|---|
@@ -42,7 +61,7 @@ del correo (obligatorios), el DMARC (recomendado) y los dos del sitio.
 | `MX` | `send` | `10` | `feedback-smtp.sa-east-1.amazonses.com` |
 | `TXT` | `send` | — | `v=spf1 include:amazonses.com ~all` |
 
-### Correo — recomendado
+### Correo — recomendado · ✅ cargado
 
 | Tipo | Nombre | Valor |
 |---|---|---|
@@ -52,7 +71,7 @@ DMARC no hace falta para que Resend verifique, pero con SPF y DKIM ya puestos
 mejora bastante la entrega en Gmail y Outlook. `p=none` es el modo que sólo
 observa: no puede rebotar nada. Más adelante se sube a `quarantine`.
 
-### El sitio
+### El sitio · ✅ cargados (los puso Vercel al conectar el dominio)
 
 | Tipo | Nombre | Valor |
 |---|---|---|
@@ -74,23 +93,29 @@ sirve para que Amazon SES procese los rebotes, no para recibir correo. Para
 recibir en `@healthier.com.ar` hace falta contratar casillas (Google Workspace,
 Zoho, las de DonWeb) y ese proveedor da su propio `MX` para la raíz.
 
-## Los tres registros (van una vez que la zona exista)
-
-| Tipo | Nombre / Host | Prioridad | Valor |
-|---|---|---|---|
-| `TXT` | `resend._domainkey` | — | `p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCv5FeGImJUhGNSQSyszbn9DRk9aLwXMZnKvipYjB7vNbJ8T0rFlUQn35nv/8qR120Xdc8DZfIZWAIwVK+ktza2pJXj8t9dSO1Uo8mFQlo5+vLuM+RzNlzD5mfMPhrri0i+ZnJ1hlswzrREGQYDOaDctuzfJOuFqUnVtiMld3RMGQIDAQAB` |
-| `MX` | `send` | `10` | `feedback-smtp.sa-east-1.amazonses.com` |
-| `TXT` | `send` | — | `v=spf1 include:amazonses.com ~all` |
-
-> Si el panel pide el nombre completo en vez del relativo, son
-> `resend._domainkey.healthier.com.ar` y `send.healthier.com.ar`.
-
 ## Cómo verificar que quedó
 
+Contra el nameserver autoritativo, que no tiene caché — es la única lectura que
+dice la verdad mientras la delegación vieja sigue viva:
+
 ```bash
-dig +short TXT resend._domainkey.healthier.com.ar
-dig +short MX  send.healthier.com.ar
-dig +short TXT send.healthier.com.ar
+dig @ns1.vercel-dns.com resend._domainkey.healthier.com.ar TXT +short
+dig @ns1.vercel-dns.com send.healthier.com.ar MX  +short
+dig @ns1.vercel-dns.com send.healthier.com.ar TXT +short
+dig @ns1.vercel-dns.com _dmarc.healthier.com.ar  TXT +short
+```
+
+Y que lo publicado sea **idéntico** a lo que espera Resend (el DKIM tiene que
+volver como **una sola** cadena de 218 caracteres; si vuelve partido en dos, el
+panel lo cortó y no valida):
+
+```bash
+source ~/Local/.env
+ESPERADO=$(curl -s https://api.resend.com/domains/c0b735de-b446-400e-b8a9-f2c2f991349c \
+  -H "Authorization: Bearer $HEALTHIER_RESEND_API_KEY" \
+  | python3 -c "import sys,json;print([r for r in json.load(sys.stdin)['records'] if r['type']=='TXT' and 'domainkey' in r['name']][0]['value'])")
+PUBLICADO=$(dig @8.8.8.8 resend._domainkey.healthier.com.ar TXT +short | tr -d '\"\n')
+[ "$ESPERADO" = "$PUBLICADO" ] && echo "✅ idénticos" || echo "❌ distintos"
 ```
 
 Y después, del lado de Resend:
