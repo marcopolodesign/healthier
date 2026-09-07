@@ -122,13 +122,40 @@ export default function Onboarding({ profile }) {
   const docResumen = (file, key) =>
     file?.name || (existingDocs[key] ? `${existingDocs[key].name} (ya subido)` : '—')
 
-  // Per-step validation
-  const canAdvance = () => {
-    if (step === 0) return !!categoryId && !!form.specialty && form.licenseNumber.length > 0
-    if (step === 1) return (form.dni ?? '').trim().length >= 7 && !!(form.gender ?? '').trim()
-    if (step === 3) return privacyAccepted
-    return true
+  // Categorías con una sola especialidad (Nutrición, Psicología, Veterinaria,
+  // Entrenamiento, Otra) mostraban abajo un segundo chip con el MISMO texto que
+  // la profesión recién elegida. Parecía decoración —o el eco de lo que ya
+  // habías tocado—, así que nadie lo apretaba, y "Siguiente" se quedaba gris
+  // sin decir por qué. Si no hay nada que elegir, se elige solo.
+  useEffect(() => {
+    if (!categoryId || form.specialty) return
+    const opciones = specialtiesForCategory(categoryId, porSlug)
+    if (opciones.length === 1) setForm(p => ({ ...p, specialty: opciones[0].value }))
+  }, [categoryId, form.specialty, porSlug])
+
+  // Qué falta para poder avanzar, en palabras. Es la validación del paso Y el
+  // texto que se le muestra: un botón gris sin explicación deja al profesional
+  // adivinando cuál de los campos es el que le falta (pasó en producción con
+  // la especialidad del paso 1 y con DNI/sexo del paso 2).
+  const faltaParaAvanzar = () => {
+    if (step === 0) {
+      const falta = []
+      if (!categoryId) falta.push('elegir tu profesión')
+      if (!form.specialty) falta.push('elegir tu especialidad')
+      if (!(form.licenseNumber ?? '').trim()) falta.push('el número de matrícula')
+      return falta
+    }
+    if (step === 1) {
+      const falta = []
+      if ((form.dni ?? '').trim().length < 7) falta.push('tu DNI')
+      if (!(form.gender ?? '').trim()) falta.push('tu sexo')
+      return falta
+    }
+    if (step === 3) return privacyAccepted ? [] : ['aceptar los términos']
+    return []
   }
+  const falta = faltaParaAvanzar()
+  const canAdvance = () => falta.length === 0
 
   // Fire-and-forget: le sirve al funnel de super-admin (Prospectos
   // Profesionales) para ver en qué paso se frenan los que no terminan, y
@@ -321,6 +348,10 @@ export default function Onboarding({ profile }) {
                   const catSpecialties = specialtiesForCategory(categoryId, porSlug)
                   return (
                     <>
+                      {/* Sin esta etiqueta la segunda fila de chips se leía como
+                          continuación de la de profesión, y nadie entendía que
+                          era otra pregunta —obligatoria— que había que contestar. */}
+                      <label className="form-label">¿Cuál es tu especialidad? <span className="text-danger">*</span></label>
                       {catSpecialties.length > 4 && (
                         <div className="relative mb-3">
                           <MagnifyingGlass className="h-4 w-4 text-text-tertiary absolute left-3 top-1/2 -translate-y-1/2" />
@@ -427,7 +458,7 @@ export default function Onboarding({ profile }) {
               </div>
 
               <div>
-                <label className="form-label">DNI</label>
+                <label className="form-label">DNI <span className="text-danger">*</span></label>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -445,7 +476,7 @@ export default function Onboarding({ profile }) {
               </div>
 
               <div>
-                <label className="form-label">Sexo</label>
+                <label className="form-label">Sexo <span className="text-danger">*</span></label>
                 <select
                   value={form.gender}
                   onChange={e => setForm(p => ({ ...p, gender: e.target.value }))}
@@ -630,6 +661,16 @@ export default function Onboarding({ profile }) {
                 Al enviar aceptás los Términos de Servicio de Healthier. La revisión demora 24–48 hs hábiles.
               </p>
             </div>
+          )}
+
+          {/* Qué falta para poder seguir. Va arriba del botón, y sólo mientras
+              falte algo: es la única pista de por qué "Siguiente" está gris. */}
+          {step < STEPS.length - 1 && falta.length > 0 && (
+            <p className="text-sm text-text-tertiary -mb-1">
+              Para seguir falta {falta.length > 1
+                ? `${falta.slice(0, -1).join(', ')} y ${falta[falta.length - 1]}`
+                : falta[0]}.
+            </p>
           )}
 
           {/* Navigation */}
