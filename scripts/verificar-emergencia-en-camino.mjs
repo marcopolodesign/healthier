@@ -35,10 +35,22 @@ import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-const env = Object.fromEntries(
-  readFileSync(join(homedir(), 'Local', '.env'), 'utf8')
-    .split('\n').map(l => l.match(/^([A-Z0-9_]+)=(.*)$/)).filter(Boolean).map(m => [m[1], m[2]])
-)
+const leer = (ruta) => {
+  try {
+    return Object.fromEntries(
+      readFileSync(ruta, 'utf8')
+        .split('\n').map(l => l.match(/^([A-Z0-9_]+)=(.*)$/)).filter(Boolean).map(m => [m[1], m[2]])
+    )
+  } catch { return {} }
+}
+// La clave anónima de producción vive en el `.env` del propio website (es la
+// que se compila en el bundle, o sea pública por diseño); la de staging, en el
+// `.env` global. Sin ellas no se puede correr el chequeo que más importa: que
+// un anónimo NO lea la posición de nadie.
+const env = {
+  ...leer(join(homedir(), 'Local', '.env')),
+  HEALTHIER_SUPABASE_ANON_KEY: leer(new URL('../.env', import.meta.url).pathname).VITE_SUPABASE_ANON_KEY,
+}
 
 const ENTORNOS = {
   produccion: { ref: 'aixjejdoofervrkggbkd' },
