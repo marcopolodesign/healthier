@@ -40,10 +40,19 @@ const PLACEHOLDERS: Array<[RegExp, string]> = [
   [/\{\{\s*\.SiteURL\s*\}\}/g, '[la dirección del sitio]'],
 ]
 
-/** El texto que va DENTRO de un botón o de un enlace: se marca aparte. */
-function acciones(html: string): Set<string> {
+/**
+ * El texto de los botones y el de los enlaces secundarios, por separado: en el
+ * mail no pesan igual y mostrarlos iguales miente sobre la jerarquía.
+ */
+function botones(html: string): Set<string> {
   const out = new Set<string>()
   for (const m of html.matchAll(/<a[^>]*display:inline-block[^>]*>([\s\S]*?)<\/a>/g)) out.add(limpiar(m[1]))
+  out.delete('')
+  return out
+}
+
+function enlaces(html: string): Set<string> {
+  const out = new Set<string>()
   for (const m of html.matchAll(/<a[^>]*text-decoration:underline[^>]*>([\s\S]*?)<\/a>/g)) out.add(limpiar(m[1]))
   out.delete('')
   return out
@@ -120,12 +129,14 @@ export function generarPaginaDeTextos(CASOS: CasoTexto[], OUT: string) {
       // cuerpo: si van todos como párrafos, un botón parece una frase suelta.
       const chip = eyebrowDe(c.html)
       const titulo = tituloDe(c.html)
-      const acc = acciones(c.html)
+      const btn = botones(c.html)
+      const lnk = enlaces(c.html)
       const etq = etiquetas(c.html)
       const clase = (l: string) =>
         l === chip ? 'chip'
         : l === titulo ? 'titulo'
-        : acc.has(l) ? 'accion'
+        : btn.has(l) ? 'boton'
+        : lnk.has(l) ? 'enlace'
         : etq.has(l) ? 'etiqueta' : ''
       return `
     <article class="mail" id="${esc(c.slug)}">
@@ -159,74 +170,113 @@ export function generarPaginaDeTextos(CASOS: CasoTexto[], OUT: string) {
 <title>Los textos de los mails de Healthier</title>
 <meta name="description" content="Los ${CASOS.length} mails que manda Healthier, en texto, para revisar el copy.">
 <style>
+  /* Las mismas fuentes y los mismos tokens que los mails y las landings. Se
+     sirven desde la raíz del sitio, así que sólo funcionan publicadas. */
+  @font-face{font-family:'Everett';src:url('/fonts/Everett-Light.woff2') format('woff2');
+    font-weight:300;font-style:normal;font-display:swap}
+  @font-face{font-family:'Everett';src:url('/fonts/Everett-Regular.woff2') format('woff2');
+    font-weight:400 600;font-style:normal;font-display:swap}
+  @font-face{font-family:'GeneralSans';src:url('/fonts/GeneralSans-Regular.woff2') format('woff2');
+    font-weight:400;font-style:normal;font-display:swap}
+  @font-face{font-family:'GeneralSans';src:url('/fonts/GeneralSans-Medium.woff2') format('woff2');
+    font-weight:500 700;font-style:normal;font-display:swap}
+
   :root{
     --ink:#2D2A26; --body:#6B6560; --mute:#A8A29E; --line:#E7E3DC;
-    --page:#F6F5F0; --card:#fff; --soft:#FAF9F5; --sage:#7CB38B; --sage-ink:#3F6B4C; --sage-soft:#EDF4EF;
+    --page:#F6F5F0; --card:#fff; --soft:#FAF9F5;
+    --sage:#7CB38B; --sage-ink:#3F6B4C; --sage-soft:#EDF4EF;
+    --serif:'Everett',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --sans:'GeneralSans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--page);color:var(--ink);
-    font:16px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif}
+    font:15px/1.65 var(--sans);-webkit-font-smoothing:antialiased}
+  h1,h2,h3{font-family:var(--serif);font-weight:400}
+
+  /* Encabezado: el logotipo centrado, como en el mail */
+  .marca{text-align:center;padding:44px 20px 8px}
+  .marca img{width:118px;height:auto;display:inline-block}
+  .marca h1{margin:22px 0 6px;font-size:30px;font-weight:300;letter-spacing:-.5px;line-height:1.2}
+  .marca p{margin:0;font-size:14px;color:var(--body)}
+
   header.top{position:sticky;top:0;z-index:10;background:rgba(246,245,240,.92);
-    backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
-  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
-  header.top .wrap{padding-top:16px;padding-bottom:14px}
-  h1{margin:0;font-size:19px;letter-spacing:-.2px}
-  .sub{margin:4px 0 0;font-size:14px;color:var(--body)}
-  nav{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
-  nav a{font-size:12.5px;font-weight:600;color:var(--sage-ink);background:var(--sage-soft);
-    padding:5px 11px;border-radius:999px;text-decoration:none}
+    backdrop-filter:blur(12px);border-bottom:1px solid var(--line);margin-top:26px}
+  .wrap{max-width:720px;margin:0 auto;padding:0 20px}
+  header.top .wrap{padding-top:12px;padding-bottom:11px}
+  nav{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+  nav a{font-size:12px;font-weight:600;color:var(--sage-ink);background:var(--sage-soft);
+    padding:5px 12px;border-radius:999px;text-decoration:none;font-family:var(--sans)}
   nav a:hover{background:#e2eee7}
-  main{padding:28px 0 80px}
-  .intro{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px 20px;margin-bottom:32px}
-  .intro p{margin:0 0 8px;font-size:14.5px;color:var(--body)}
+
+  main{padding:30px 0 96px}
+  .intro{background:var(--card);border:1px solid var(--line);border-radius:26px;padding:28px 30px;margin-bottom:34px}
+  .intro p{margin:0 0 10px;color:var(--body)}
   .intro p:last-child{margin:0}
   .ej-chip{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
-    color:var(--sage-ink);background:var(--sage-soft);padding:3px 8px;border-radius:999px}
-  .ej-accion{font-size:12.5px;font-weight:600;color:var(--sage-ink);border:1px dashed #c9ddd0;
-    border-radius:999px;padding:2px 9px}
-  .grupo h2{margin:34px 0 14px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
-  .mail{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px 22px;margin-bottom:14px}
-  .mail header{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
-  .mail h3{margin:0;font-size:17px;letter-spacing:-.2px;flex:1}
+    color:var(--sage-ink);background:var(--sage-soft);padding:3px 9px;border-radius:999px}
+  .ej-boton{font-size:12.5px;font-weight:600;color:#fff;background:var(--sage);
+    border-radius:999px;padding:3px 12px}
+  .ej-enlace{color:var(--body);text-decoration:underline}
+
+  .grupo h2{margin:38px 0 14px;font-family:var(--sans);font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--mute);font-weight:600}
+  .mail{background:var(--card);border:1px solid var(--line);border-radius:26px;padding:30px 34px;margin-bottom:16px}
+  .mail header{display:flex;align-items:baseline;gap:12px;margin-bottom:18px}
+  .mail h3{margin:0;font-size:22px;font-weight:400;letter-spacing:-.3px;flex:1;line-height:1.25}
   .ver{font-size:12.5px;color:var(--mute);text-decoration:none;white-space:nowrap}
   .ver:hover{color:var(--sage-ink);text-decoration:underline}
-  dl.meta{margin:0 0 16px;padding:14px 16px;background:var(--soft);border-radius:12px;
-    display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px}
-  dl.meta dt{color:var(--mute);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;padding-top:3px}
+
+  dl.meta{margin:0 0 22px;padding:20px 22px;background:var(--sage-soft);border-radius:18px;
+    display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:14px}
+  dl.meta dt{color:var(--mute);font-size:11px;text-transform:uppercase;letter-spacing:.08em;padding-top:4px}
   dl.meta dd{margin:0;color:var(--body)}
-  dl.meta dd.destacado{color:var(--ink);font-weight:600}
+  dl.meta dd.destacado{color:var(--ink);font-weight:600;font-size:15px}
   dl.meta span{cursor:help}
-  .cuerpo p{margin:0 0 9px;font-size:15px;color:var(--ink)}
+
+  .cuerpo p{margin:0 0 14px;font-size:15px;line-height:1.65;color:var(--body)}
   .cuerpo p:last-child{margin:0}
-  .cuerpo p.chip{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.09em;
-    text-transform:uppercase;color:var(--sage-ink);background:var(--sage-soft);
-    padding:4px 10px;border-radius:999px;margin-bottom:10px}
-  .cuerpo p.titulo{font-size:20px;font-weight:600;letter-spacing:-.3px;margin-bottom:12px}
-  .cuerpo p.accion{display:inline-block;font-size:13.5px;font-weight:600;color:var(--sage-ink);
-    border:1px dashed #c9ddd0;border-radius:999px;padding:4px 13px;margin:2px 6px 8px 0}
-  .cuerpo p.accion::before{content:'botón · ';color:var(--mute);font-weight:400}
-  .cuerpo p.etiqueta{font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
-    color:var(--mute);margin:14px 0 5px}
-  label.obs{display:block;margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}
-  label.obs span{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin-bottom:6px}
-  textarea{width:100%;font:inherit;font-size:14px;padding:9px 11px;border:1px solid var(--line);
-    border-radius:10px;background:var(--soft);color:var(--ink);resize:vertical}
+  .cuerpo p.chip{display:inline-block;font-family:var(--sans);font-size:11px;font-weight:700;
+    letter-spacing:.09em;text-transform:uppercase;color:var(--sage-ink);background:var(--sage-soft);
+    padding:6px 13px;border-radius:999px;margin-bottom:12px}
+  .cuerpo p.titulo{font-family:var(--serif);font-size:27px;font-weight:400;letter-spacing:-.4px;
+    line-height:1.22;color:var(--ink);margin-bottom:14px}
+  .cuerpo p.boton{display:inline-block;font-size:14px;font-weight:600;color:#fff;background:var(--sage);
+    border-radius:999px;padding:10px 24px;margin:4px 0 12px}
+  .cuerpo p.enlace{font-size:13.5px;color:var(--body);text-decoration:underline;margin:0 0 6px}
+  .cuerpo p.etiqueta{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--mute);margin:18px 0 5px}
+
+  label.obs{display:block;margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+  label.obs span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--mute);margin-bottom:7px;font-weight:600}
+  textarea{width:100%;font:inherit;font-size:14px;padding:11px 13px;border:1px solid var(--line);
+    border-radius:14px;background:var(--soft);color:var(--ink);resize:vertical}
   textarea:focus{outline:2px solid var(--sage);outline-offset:1px;background:#fff}
+
   .barra{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.94);
-    backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:12px 20px}
+    backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:13px 20px}
   .barra .wrap{display:flex;align-items:center;gap:12px;padding:0}
   .barra p{margin:0;font-size:13px;color:var(--body);flex:1}
-  button{font:inherit;font-size:14px;font-weight:600;padding:9px 18px;border-radius:999px;
+  button{font:inherit;font-size:14px;font-weight:600;padding:10px 22px;border-radius:999px;
     border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
   button.primario{background:var(--sage);border-color:var(--sage);color:#fff}
   button:disabled{opacity:.45;cursor:default}
-  footer{color:var(--mute);font-size:13px;padding:0 0 40px}
-  @media (max-width:640px){ .barra .wrap{flex-wrap:wrap} .barra p{flex-basis:100%} }
+
+  footer{color:var(--mute);font-size:12.5px;line-height:1.6;text-align:center;padding:34px 0 40px}
+  @media (max-width:640px){
+    .barra .wrap{flex-wrap:wrap} .barra p{flex-basis:100%}
+    .mail{padding:24px 20px;border-radius:22px} .intro{padding:22px 20px}
+    .marca{padding-top:32px}
+  }
 </style></head><body>
 
+<div class="marca">
+  <img src="/email/healthier-logo.png" alt="Healthier" width="118">
+  <h1>Los textos de los mails</h1>
+  <p>${CASOS.length} mails · para revisar qué dicen, no cómo se ven</p>
+</div>
+
 <header class="top"><div class="wrap">
-  <h1>Los textos de los mails de Healthier</h1>
-  <p class="sub">${CASOS.length} mails · para revisar qué dicen, no cómo se ven</p>
   <nav>${nav}</nav>
 </div></header>
 
@@ -235,12 +285,15 @@ export function generarPaginaDeTextos(CASOS: CasoTexto[], OUT: string) {
     <p>Éstos son todos los mails que Healthier le manda a un paciente o a un profesional. Están en texto plano y en el mismo orden en que aparecen en el mail.</p>
     <p>Si algo suena raro, escribilo en <strong>Observaciones</strong>, debajo de cada uno. Se guardan en tu navegador mientras revisás; cuando termines, el botón de abajo te las copia todas juntas para pegarlas donde quieras.</p>
     <p>Dos cosas que conviene mirar y que se suelen pasar por alto: el <strong>asunto</strong>, que es lo único que se ve en la bandeja, y la <strong>vista previa</strong>, el renglón gris que Gmail muestra al lado.</p>
-    <p>Lo que aparece <span class="ej-chip">así</span> es la etiqueta de arriba, y lo que aparece <span class="ej-accion">botón · así</span> es el texto de un botón o de un enlace. Los <em>[corchetes]</em> son datos que completa el sistema.</p>
+    <p>Cada mail se muestra con la misma jerarquía que tiene en la bandeja: la <span class="ej-chip">etiqueta</span> de arriba, el título, el cuerpo, <span class="ej-boton">los botones</span> y <span class="ej-enlace">los enlaces secundarios</span>. Los <em>[corchetes]</em> son datos que completa el sistema.</p>
   </div>
   ${secciones}
 
   <footer>
-    <p>Todos los mails terminan con el mismo pie: <em>Mi cuenta · Mis consultas · Términos — Healthier · Buenos Aires, Argentina. Recibís este mail porque tenés una cuenta en Healthier.</em></p>
+    <p>Todos los mails terminan con el mismo pie:<br>
+    <em>Mi cuenta · Mis consultas · Términos</em><br>
+    <em>Healthier · Buenos Aires, Argentina</em><br>
+    <em>Recibís este mail porque tenés una cuenta en Healthier.</em></p>
   </footer>
 </main>
 
