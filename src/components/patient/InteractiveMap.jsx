@@ -103,32 +103,49 @@ export default function InteractiveMap({
    * así que el centro del mapa NO es el centro de lo que el usuario ve. Con un
    * `fitBounds` a secas los dos marcadores quedaban arriba del borde visible —
    * o sea, el encuadre "correcto" mostraba una emergencia sin nadie adentro.
-   * `offset` corre el centro del encuadre hasta el centro de lo que queda a la
-   * vista; en escritorio también hacia la derecha, para que no caiga debajo del
-   * panel.
+   *
+   * Se corrige con padding asimétrico y NO con `offset`: `offset` mueve el
+   * centro DESPUÉS de calcular el zoom, así que lo único que hace es empujar la
+   * mitad de abajo fuera de la pantalla. El padding entra en el cálculo, que es
+   * lo que hace falta.
    */
   useEffect(() => {
     if (!emergencyPro || !userLocation || !mapRef.current) return
     const cont = mapRef.current.getContainer?.()
     const ancho = cont?.clientWidth ?? 0
     const alto = cont?.clientHeight ?? 0
+    if (!ancho || !alto) return
+
     const esAncho = ancho >= 640
     const desplazado = Math.abs(baseY)
-    // En escritorio el panel es una columna a la izquierda; en teléfono es una
-    // hoja que se come el tramo de abajo.
-    const bordeInferior = esAncho ? alto : desplazado + (alto - desplazado) * 0.45
-    const centroVisible = (desplazado + bordeInferior) / 2
+    // Rectángulo del mapa que el usuario ve de verdad, en coordenadas del mapa:
+    // arriba lo corta el desplazamiento; abajo (en teléfono) la hoja del panel;
+    // a la izquierda (en escritorio) la columna del panel.
+    const visibleAbajo = esAncho ? alto : desplazado + Math.max(160, (alto - desplazado) * 0.42)
+    const visibleIzq = esAncho ? 410 : 0
+
+    const M = 60
+    let top = desplazado + M
+    let bottom = alto - visibleAbajo + M
+    const left = visibleIzq + M
+    const right = M
+
+    // Si la franja visible es muy angosta, se afloja el padding vertical en vez
+    // de pedirle a Mapbox algo imposible (padding mayor que el alto).
+    const minLibre = 120
+    if (alto - top - bottom < minLibre) {
+      const exceso = minLibre - (alto - top - bottom)
+      const total = top + bottom
+      top -= Math.round(exceso * (top / total))
+      bottom -= Math.round(exceso * (bottom / total))
+    }
+
     mapRef.current.fitBounds(
       [
         [Math.min(emergencyPro.lng, userLocation.lng), Math.min(emergencyPro.lat, userLocation.lat)],
         [Math.max(emergencyPro.lng, userLocation.lng), Math.max(emergencyPro.lat, userLocation.lat)],
       ],
-      {
-        padding: 70,
-        offset: [esAncho ? 200 : 0, alto ? centroVisible - alto / 2 : 0],
-        duration: 800,
-        maxZoom: 16,
-      },
+      { padding: { top, bottom, left, right }, duration: 800, maxZoom: 16 },
     )
   }, [emergencyPro?.lat, emergencyPro?.lng, userLocation?.lat, userLocation?.lng, baseY])
 
