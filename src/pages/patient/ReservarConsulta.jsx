@@ -389,8 +389,28 @@ export default function ReservarConsulta({ profile }) {
         verticalId:         selectedVertical.id,
         modality,
         price,
+        /*
+         * 🔴 El turno se arma en la hora de **Buenos Aires**, no en la del
+         * equipo del paciente.
+         *
+         * Los horarios de `professional_schedules` (09:00–19:00) son los del
+         * consultorio del profesional, o sea hora argentina. Un
+         * `new Date('2026-09-08T10:00')` sin offset la interpreta en la zona
+         * del navegador: con el equipo en otro huso, el paciente elige las
+         * 10:00 y la consulta se crea en otro horario, mientras las pantallas
+         * que muestran (`BookingConfirmed`, `WaitingRoom`) fuerzan
+         * `America/Argentina/Buenos_Aires` — así que ni siquiera coinciden
+         * entre ellas.
+         *
+         * El offset va literal porque Argentina no tiene horario de verano
+         * desde 2009: es UTC-3 todo el año.
+         *
+         * Encontrado el 2026-09-07 en el emulador de Android (que está en GMT):
+         * elegir 10:00 llegaba al pago como 07:00. Arreglado primero en mobile
+         * (`0058cfa`, misma línea).
+         */
         scheduledAt: selectedDate && selectedFranja
-          ? new Date(`${selectedDate}T${selectedFranja.startTime}`).toISOString()
+          ? new Date(`${selectedDate}T${selectedFranja.startTime.slice(0, 5)}:00-03:00`).toISOString()
           : null,
         // La mascota se cargó en un paso propio del wizard; si no viaja hasta
         // acá, se pierde al crear la consulta del otro lado.
