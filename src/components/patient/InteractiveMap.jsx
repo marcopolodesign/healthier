@@ -87,7 +87,8 @@ export default function InteractiveMap({
   // fighting subsequent manual panning.
   useEffect(() => {
     if (userLocation && !centeredOnce.current && mapRef.current) {
-      mapRef.current.flyTo({ center: [userLocation.lng, userLocation.lat], zoom: ZOOM, duration: 800 })
+      // Sin animación, por lo mismo que el encuadre de la emergencia (ver abajo).
+      mapRef.current.flyTo({ center: [userLocation.lng, userLocation.lat], zoom: ZOOM, duration: 0 })
       centeredOnce.current = true
     }
   }, [userLocation])
@@ -148,7 +149,13 @@ export default function InteractiveMap({
         [Math.min(emergencyPro.lng, userLocation.lng), Math.min(emergencyPro.lat, userLocation.lat)],
         [Math.max(emergencyPro.lng, userLocation.lng), Math.max(emergencyPro.lat, userLocation.lat)],
       ],
-      { padding: { top, bottom, left, right }, duration: 800, maxZoom: 16 },
+      // `duration: 0` NO es una preferencia de estilo. `react-map-gl` reaplica
+      // su viewState en cada render, y esta pantalla re-renderiza una vez por
+      // segundo (el cronómetro de "tiempo transcurrido"): eso cancela cualquier
+      // movimiento animado a mitad de camino y devuelve la cámara al encuadre
+      // anterior. Un `flyTo`/`fitBounds` con duración acá no se ve lento — no
+      // se ve nunca.
+      { padding: { top, bottom, left, right }, duration: 0, maxZoom: 16 },
     )
   }, [emergencyPro?.lat, emergencyPro?.lng, userLocation?.lat, userLocation?.lng, baseY])
 
@@ -245,7 +252,7 @@ export default function InteractiveMap({
       {(appState === 'home' || appState === 'emergency_matched') && (
         <div className="absolute top-[120px] right-6 z-20">
           <button
-            onClick={e => { e.stopPropagation(); if (userLocation) mapRef.current?.flyTo({ center: [userLocation.lng, userLocation.lat], zoom: ZOOM, duration: 500 }) }}
+            onClick={e => { e.stopPropagation(); if (userLocation) mapRef.current?.flyTo({ center: [userLocation.lng, userLocation.lat], zoom: ZOOM, duration: 0 }) }}
             className="w-12 h-12 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-[0_8px_20px_rgba(0,0,0,0.15)] border border-gray-100 hover:bg-white transition-all active:scale-95"
           >
             <Crosshair className="w-6 h-6 text-brand" />
