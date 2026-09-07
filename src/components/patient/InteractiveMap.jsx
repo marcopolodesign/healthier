@@ -111,9 +111,12 @@ export default function InteractiveMap({
    */
   useEffect(() => {
     if (!emergencyPro || !userLocation || !mapRef.current) return
-    const cont = mapRef.current.getContainer?.()
-    const ancho = cont?.clientWidth ?? 0
-    const alto = cont?.clientHeight ?? 0
+    // `containerRef`, no `mapRef.current.getContainer()`: el ref de
+    // react-map-gl no proxea ese método, devolvía `undefined` y el efecto se
+    // salía por el guard de abajo sin encuadrar nada — el síntoma era
+    // exactamente el que se quería arreglar, así que no se notaba.
+    const ancho = containerRef.current?.clientWidth ?? 0
+    const alto = containerRef.current?.clientHeight ?? 0
     if (!ancho || !alto) return
 
     const esAncho = ancho >= 640
