@@ -58,6 +58,7 @@ Deno.serve(async (req: Request) => {
 
     let expoSent = 0
     const expoErrors: string[] = []
+    const entregas: Array<{ id: string; token: string }> = []
     if (tokens?.length) {
       const messages = tokens.map((t: { token: string }) => ({
         to: t.token,
@@ -72,7 +73,7 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify(messages),
       })
       const json = await res.json().catch(() => null)
-      const tickets: Array<{ status?: string; message?: string; details?: { error?: string } }> = json?.data ?? []
+      const tickets: Array<{ status?: string; id?: string; message?: string; details?: { error?: string } }> = json?.data ?? []
       for (let i = 0; i < tickets.length; i++) {
         const ticket = tickets[i]
         if (ticket?.status === 'ok') {
@@ -91,7 +92,51 @@ Deno.serve(async (req: Request) => {
           expoErrors.push(ticket?.details?.error ?? ticket?.message ?? 'error desconocido')
           console.error(`[push] expo rechazó ${tokens[i].token.slice(0, 24)}…: ${ticket?.details?.error ?? ''} ${ticket?.message ?? ''}`)
         }
+        if (ticket?.status === 'ok' && ticket.id) {
+          entregas.push({ id: ticket.id, token: tokens[i].token })
+        }
       }
+    }
+
+    /*
+     * El ticket en `ok` NO quiere decir entregado: quiere decir que Expo lo
+     * aceptó. Si el token es de una instalación que ya no existe —pasa con cada
+     * reinstalación, y el token cambia sin que nadie borre el viejo— APNs lo
+     * acepta y lo tira, y el recibo dice `DeviceNotRegistered` un rato después.
+     *
+     * Sin mirar los recibos, esos tokens muertos se quedan para siempre y cada
+     * envío reporta `sent: 1` sin que a nadie le llegue nada. Fue exactamente lo
+     * que pasó el 2026-09-07 con la cuenta demo del profesional: un token del
+     * 4 de agosto que sobrevivió a varios TestFlight.
+     *
+     * Va en `waitUntil` para no demorar la respuesta: al que manda la push no le
+     * interesa esperar 10 s por una tarea de limpieza.
+     */
+    if (entregas.length) {
+      const limpiar = async () => {
+        await new Promise((r) => setTimeout(r, 10_000))
+        try {
+          const res = await fetch('https://exp.host/--/api/v2/push/getReceipts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: entregas.map((e) => e.id) }),
+          })
+          const json = await res.json().catch(() => null)
+          const recibos: Record<string, { status?: string; details?: { error?: string } }> = json?.data ?? {}
+          for (const { id, token } of entregas) {
+            const r = recibos[id]
+            if (!r || r.status === 'ok') continue
+            console.error(`[push] recibo ${r.details?.error ?? r.status} para ${token.slice(0, 24)}…`)
+            if (r.details?.error === 'DeviceNotRegistered') {
+              await supabase.from('expo_push_tokens').delete().eq('token', token)
+            }
+          }
+        } catch (err) {
+          console.error(`[push] no se pudieron leer los recibos: ${err}`)
+        }
+      }
+      // @ts-expect-error — EdgeRuntime existe en Deno Deploy, no en los tipos.
+      if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(limpiar())
     }
 
     const total = (subs?.length ?? 0) + (tokens?.length ?? 0)
