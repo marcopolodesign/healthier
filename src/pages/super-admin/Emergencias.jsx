@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Siren, MapPin, Trash } from '@phosphor-icons/react'
+import { Siren, MapPin, Trash, Broadcast } from '@phosphor-icons/react'
 import { emergencyService } from '../../services/emergencyService'
+import { emergencyTrackingService, esReciente, FRESCURA_MINUTOS } from '../../services/emergencyTrackingService'
 import { toast } from '../../components/Toast'
 import { formatARS, formatDate } from '../../lib/format'
+import { formatMinutes } from '../../lib/directions'
 import { EMERGENCY_SYMPTOMS } from '../../data/emergencySymptoms'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
@@ -26,6 +28,13 @@ const STATUS_LABEL = {
 export default function SuperAdminEmergencias() {
   const [emergencies, setEmergencies] = useState([])
   const [loading, setLoading] = useState(true)
+  /*
+   * Traslados en curso, indexados por emergencia. Regla de visibilidad del
+   * panel: si la plataforma sabe dónde está un profesional despachado, el
+   * super admin lo tiene que poder ver. Se refresca solo — la frescura del
+   * dato se vuelve falsa por el paso del tiempo, no por un evento.
+   */
+  const [tracking, setTracking] = useState({})
 
   useEffect(() => {
     setLoading(true)
@@ -33,6 +42,15 @@ export default function SuperAdminEmergencias() {
       .then(setEmergencies)
       .catch(() => toast.error('Error al cargar emergencias'))
       .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    const cargar = () => emergencyTrackingService.getEnCurso()
+      .then(filas => setTracking(Object.fromEntries(filas.map(f => [f.emergencyId, f]))))
+      .catch(() => {/* el listado principal no depende de esto */})
+    cargar()
+    const iv = setInterval(cargar, 30_000)
+    return () => clearInterval(iv)
   }, [])
 
   const selection = useBulkSelection(emergencies.map(e => e.id))
@@ -89,6 +107,7 @@ export default function SuperAdminEmergencias() {
                   <th className="table-header">Paciente</th>
                   <th className="table-header">Profesional</th>
                   <th className="table-header">Ubicación</th>
+                  <th className="table-header">En vivo</th>
                   <th className="table-header text-right">Precio</th>
                   <th className="table-header w-8" />
                 </tr>
@@ -135,6 +154,30 @@ export default function SuperAdminEmergencias() {
                         ) : (
                           <span className="text-text-tertiary">—</span>
                         )}
+                      </td>
+                      <td className="table-cell">
+                        {(() => {
+                          const t = tracking[e.id]
+                          if (!t) return <span className="text-text-tertiary">—</span>
+                          if (!esReciente(t)) {
+                            return (
+                              <span className="text-xs text-text-tertiary" title={`Última posición: ${formatDate(t.updatedAt)}`}>
+                                Sin señal +{FRESCURA_MINUTOS} min
+                              </span>
+                            )
+                          }
+                          return (
+                            <a
+                              href={`https://maps.google.com/?q=${t.latitude},${t.longitude}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-emerald-600 hover:underline"
+                            >
+                              <Broadcast className="h-3.5 w-3.5" weight="fill" />
+                              {t.etaMinutes != null ? formatMinutes(t.etaMinutes) : 'En vivo'}
+                            </a>
+                          )
+                        })()}
                       </td>
                       <td className="table-cell text-right font-semibold">{formatARS(e.priceAtRequest)}</td>
                       <td className="table-cell">

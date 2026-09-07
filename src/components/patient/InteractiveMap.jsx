@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Map, Marker } from 'react-map-gl/mapbox'
+import { Map, Marker, Source, Layer } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { Crosshair } from '@phosphor-icons/react';
+import { Crosshair, Ambulance } from '@phosphor-icons/react';
 import MapFilters from './MapFilters'
 import { pixelToLatLng } from '../../lib/geo'
 
@@ -17,6 +17,25 @@ function UserMarker() {
     <div className="relative flex items-center justify-center w-20 h-20 pointer-events-none">
       <div className="absolute w-20 h-20 bg-brand/20 rounded-full animate-[ping_3s_cubic-bezier(0,0,0.2,1)_infinite]" />
       <div className="w-6 h-6 bg-brand rounded-full shadow-[0_4px_15px_rgba(176,90,54,0.6)] border-[3.5px] border-white relative z-10" />
+    </div>
+  )
+}
+
+/**
+ * El profesional que viene a una emergencia. Se dibuja SÓLO cuando hay una
+ * posición real y fresca publicada en `emergency_tracking` — el que decide eso
+ * es quien pasa la prop, no este componente.
+ */
+function EmergencyProMarker({ color = '#F43F5E' }) {
+  return (
+    <div className="relative flex items-center justify-center">
+      <div className="absolute w-14 h-14 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]" style={{ backgroundColor: `${color}33` }} />
+      <div
+        className="w-11 h-11 rounded-full flex items-center justify-center border-[3px] border-white shadow-[0_8px_20px_rgba(0,0,0,0.25)] relative"
+        style={{ backgroundColor: color }}
+      >
+        <Ambulance className="w-[22px] h-[22px] text-white" />
+      </div>
     </div>
   )
 }
@@ -37,7 +56,13 @@ function ProMarker({ vertical, marker, dimmed }) {
   )
 }
 
-export default function InteractiveMap({ appState, sheetState, verticales, markers, onMarkerClick, userLocation, availableNow = false }) {
+export default function InteractiveMap({
+  appState, sheetState, verticales, markers, onMarkerClick, userLocation, availableNow = false,
+  // Emergencia en curso: posición en vivo del profesional y la ruta que la API
+  // devolvió para llegar. Las dos son opcionales — sin ellas el mapa es el de
+  // siempre, y nunca se dibuja una recta inventada en lugar de la ruta.
+  emergencyPro = null, emergencyRoute = null, emergencyColor = '#F43F5E',
+}) {
   const activeMarkers = markers ?? []
   const [selectedVertical, setSelectedVertical] = useState(null)
   const [localAvailableNow, setLocalAvailableNow] = useState(false)
@@ -66,6 +91,22 @@ export default function InteractiveMap({ appState, sheetState, verticales, marke
       centeredOnce.current = true
     }
   }, [userLocation])
+
+  /*
+   * Con el profesional en pantalla el encuadre útil son LOS DOS puntos, no el
+   * paciente solo. Se hace una vez por posición nueva del profesional, con el
+   * padding inferior que deja libre el panel de seguimiento.
+   */
+  useEffect(() => {
+    if (!emergencyPro || !userLocation || !mapRef.current) return
+    mapRef.current.fitBounds(
+      [
+        [Math.min(emergencyPro.lng, userLocation.lng), Math.min(emergencyPro.lat, userLocation.lat)],
+        [Math.max(emergencyPro.lng, userLocation.lng), Math.max(emergencyPro.lat, userLocation.lat)],
+      ],
+      { padding: { top: 100, bottom: 340, left: 60, right: 60 }, duration: 800, maxZoom: 16 },
+    )
+  }, [emergencyPro?.lat, emergencyPro?.lng, userLocation?.lat, userLocation?.lng])
 
   const baseY = appState === 'emergency_matched' ? -220 : sheetState === 'half' ? -150 : -50
 
@@ -98,6 +139,29 @@ export default function InteractiveMap({ appState, sheetState, verticales, marke
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
           attributionControl={{ compact: true }}
         >
+          {/* Ruta real del profesional hacia el paciente */}
+          {emergencyRoute?.length > 1 && (
+            <Source
+              id="emergency-route"
+              type="geojson"
+              data={{ type: 'Feature', geometry: { type: 'LineString', coordinates: emergencyRoute } }}
+            >
+              <Layer
+                id="emergency-route-line"
+                type="line"
+                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                paint={{ 'line-color': emergencyColor, 'line-width': 4 }}
+              />
+            </Source>
+          )}
+
+          {/* Profesional en camino */}
+          {emergencyPro && (
+            <Marker longitude={emergencyPro.lng} latitude={emergencyPro.lat} anchor="center">
+              <EmergencyProMarker color={emergencyColor} />
+            </Marker>
+          )}
+
           {/* User dot */}
           {userLocation && (
             <Marker longitude={userLocation.lng} latitude={userLocation.lat} anchor="center">

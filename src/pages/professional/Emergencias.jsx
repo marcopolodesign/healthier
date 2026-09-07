@@ -8,9 +8,12 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Ambulance, MapPin, NavigationArrow, Phone,
-  CheckCircle, ArrowLeft, Warning, Pulse, UserCircle,
+  CheckCircle, ArrowLeft, Warning, Pulse, UserCircle, Broadcast, WifiSlash,
 } from '@phosphor-icons/react'
 import { emergencyService, EMERGENCY_TERMINAL_STATUSES } from '../../services/emergencyService'
+import { emergencyTrackingService } from '../../services/emergencyTrackingService'
+import { useCompartirUbicacionEmergencia } from '../../hooks/useCompartirUbicacionEmergencia'
+import { formatMeters, formatMinutes } from '../../lib/directions'
 import { toast } from '../../components/Toast'
 
 // ── Design tokens per triage code ─────────────────────────────
@@ -104,6 +107,24 @@ export default function ProfessionalEmergencias({ profile }) {
     return () => unsubRef.current?.()
   }, [profile?.id, emergenciaId, demoPhase])
 
+  /*
+   * Mientras está en camino, el paciente tiene que poder ver dónde está — es
+   * lo único que convierte "un médico va para allá" en algo verificable. Sólo
+   * se comparte en `in_transit`: antes de aceptar no hay motivo para tener el
+   * GPS abierto, y después de llegar tampoco.
+   */
+  const destinoPaciente = emergency?.patientLatitude != null && emergency?.patientLongitude != null
+    ? { lat: Number(emergency.patientLatitude), lng: Number(emergency.patientLongitude) }
+    : null
+
+  const seguimiento = useCompartirUbicacionEmergencia({
+    activo: demoPhase === null && emergency?.status === 'in_transit',
+    emergencyId: emergency?.id,
+    professionalId: profile?.id,
+    patientId: emergency?.patientId,
+    destino: destinoPaciente,
+  })
+
   // ── Mutations ──────────────────────────────────────────────
   const mutate = async (newStatus, afterFn) => {
     if (!emergency) return
@@ -121,8 +142,27 @@ export default function ProfessionalEmergencias({ profile }) {
   }
 
   const accept       = () => mutate('in_transit')
-  const markArrived  = () => mutate('arrived')
+
+  const markArrived = () => mutate('arrived', () => {
+    // Cierra el traslado con un último dato explícito: llegó. Sin esto el
+    // paciente se quedaba con el ETA de la penúltima publicación.
+    if (demoPhase !== null || !emergency || !profile?.id || !seguimiento.posicion) return
+    emergencyTrackingService.publicar({
+      emergencyId: emergency.id,
+      professionalId: profile.id,
+      patientId: emergency.patientId,
+      lat: seguimiento.posicion.lat,
+      lng: seguimiento.posicion.lng,
+      etaMinutes: 0,
+      distanceMeters: 0,
+      status: 'llegado',
+    }).catch(() => {})
+  })
+
   const closeEmergency = async () => {
+    if (demoPhase === null && emergency?.id) {
+      await emergencyTrackingService.dejarDeCompartir(emergency.id).catch(() => {})
+    }
     await mutate('completed')
     if (demoPhase === null) navigate('/profesional/dashboard')
   }
@@ -216,6 +256,32 @@ export default function ProfessionalEmergencias({ profile }) {
         </div>
 
         <div className="flex-1 flex flex-col gap-4 px-5 py-6">
+          {/* Estado del envío de ubicación — honesto: si no se está mandando,
+              se dice. El paciente ve exactamente lo mismo del otro lado. */}
+          {seguimiento.error ? (
+            <div className="flex items-center gap-2.5 rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3">
+              <WifiSlash className="w-5 h-5 text-amber-600 shrink-0" />
+              <span className="text-sm font-medium text-amber-700">{seguimiento.error}</span>
+            </div>
+          ) : seguimiento.compartiendo ? (
+            <div className="flex items-center gap-2.5 rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3">
+              <Broadcast className="w-5 h-5 text-emerald-600 shrink-0" weight="fill" />
+              <span className="text-sm font-medium text-emerald-700 flex-1">
+                El paciente está viendo dónde estás
+              </span>
+              {seguimiento.ruta && (
+                <span className="text-sm font-bold text-emerald-700 shrink-0">
+                  {formatMinutes(seguimiento.ruta.durationMin)} · {formatMeters(seguimiento.ruta.distanceMeters)}
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2.5 rounded-2xl bg-bg-secondary border border-border-default px-4 py-3">
+              <Broadcast className="w-5 h-5 text-text-tertiary shrink-0" />
+              <span className="text-sm text-text-secondary">Buscando tu ubicación…</span>
+            </div>
+          )}
+
           {/* Primary CTA — navigate */}
           {mapsUrl ? (
             <a href={mapsUrl} target="_blank" rel="noopener noreferrer"

@@ -5,6 +5,8 @@ import {
   User, CheckCircle, PhoneCall, MapPinLine,
 } from '@phosphor-icons/react'
 import { emergencyService, getSosSettings, SOS_FALLBACK } from '../../services/emergencyService'
+import { emergencyTrackingService, esReciente, FRESCURA_MINUTOS } from '../../services/emergencyTrackingService'
+import { getRoute, formatMeters, formatMinutes } from '../../lib/directions'
 import { mpService } from '../../services/mpService'
 import { brandLabel } from '../../components/payment/cardBrand'
 import InteractiveMap from '../../components/patient/InteractiveMap'
@@ -116,6 +118,15 @@ export default function Emergency({ profile }) {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [cancelling, setCancelling] = useState(false)
 
+  // ── Dónde está el profesional, en vivo ──────────────────────────────────
+  // Se dibuja SÓLO si el dato es real y reciente. Antes de esto la app mobile
+  // interpolaba un punto inventado; acá nunca hubo nada. Si no hay posición
+  // fresca, se dice — no se muestra un marcador quieto que parece en vivo.
+  const [tracking, setTracking] = useState(null)
+  const [trackingRoute, setTrackingRoute] = useState(null)
+  const [, redibujar] = useState(0)
+  const ultimaRutaRef = useRef('')
+
   // ── Resume check on mount — a dispatched/in_transit/arrived row must send
   // the patient straight back into tracking, per the State Resilience rule.
   // Se pide junto con la config de S.O.S.: una emergencia activa manda por
@@ -185,6 +196,41 @@ export default function Emergency({ profile }) {
     })
     return cleanup
   }, [phase, emergency?.id, navigate])
+
+  // Posición del profesional — carga inicial + realtime sobre `emergency_tracking`.
+  useEffect(() => {
+    if (phase !== 'tracking' || !emergency?.id) return
+    emergencyTrackingService.getByEmergency(emergency.id).then(setTracking).catch(() => {})
+    return emergencyTrackingService.suscribir(emergency.id, ({ evento, tracking: t }) => {
+      setTracking(evento === 'DELETE' ? null : t)
+    })
+  }, [phase, emergency?.id])
+
+  // La frescura se vuelve falsa por el paso del tiempo, no por un evento: si el
+  // profesional pierde señal no llega nada, así que hay que revisarlo solo.
+  useEffect(() => {
+    if (phase !== 'tracking') return
+    const iv = setInterval(() => redibujar(n => n + 1), 20_000)
+    return () => clearInterval(iv)
+  }, [phase])
+
+  // Ruta real entre el profesional y el paciente. Sin ruta no se dibuja línea.
+  useEffect(() => {
+    if (!tracking || !esReciente(tracking)) return
+    const desde = { lat: Number(tracking.latitude), lng: Number(tracking.longitude) }
+    const hasta = (emergency?.patientLatitude != null && emergency?.patientLongitude != null)
+      ? { lat: Number(emergency.patientLatitude), lng: Number(emergency.patientLongitude) }
+      : null
+    if (!hasta) return
+    const clave = `${desde.lat.toFixed(4)},${desde.lng.toFixed(4)}`
+    if (clave === ultimaRutaRef.current) return
+    ultimaRutaRef.current = clave
+    const ctrl = new AbortController()
+    getRoute(desde, hasta, tracking.travelMode ?? 'driving', ctrl.signal)
+      .then(r => { if (r) setTrackingRoute(r) })
+      .catch(() => {/* sin ruta se muestran igual los dos marcadores */})
+    return () => ctrl.abort()
+  }, [tracking, emergency?.patientLatitude, emergency?.patientLongitude])
 
   // Elapsed time since dispatch — honest, ticks every second, never a fake ETA countdown.
   useEffect(() => {
@@ -304,9 +350,25 @@ export default function Emergency({ profile }) {
       : null
     const proName = emergency.professional?.fullName || 'Profesional asignado'
 
+    const proEnVivo = esReciente(tracking)
+    const proCoords = proEnVivo
+      ? { lat: Number(tracking.latitude), lng: Number(tracking.longitude) }
+      : null
+    const etaMin = tracking?.etaMinutes ?? trackingRoute?.durationMin ?? null
+    const distanciaM = tracking?.distanceMeters ?? trackingRoute?.distanceMeters ?? null
+
     return (
       <div className="absolute inset-0 flex flex-col">
-        <InteractiveMap appState="emergency_matched" sheetState="collapsed" verticales={[]} onMarkerClick={() => {}} userLocation={patientCoords} />
+        <InteractiveMap
+          appState="emergency_matched"
+          sheetState="collapsed"
+          verticales={[]}
+          onMarkerClick={() => {}}
+          userLocation={patientCoords}
+          emergencyPro={proCoords}
+          emergencyRoute={proEnVivo ? trackingRoute?.coordinates ?? null : null}
+          emergencyColor={triage?.color ?? '#dc2626'}
+        />
 
         {/* Below PatientSheet's z-[80] on purpose — the "Cancelar S.O.S" confirm
             modal it opens must render above this panel, not behind it. */}
@@ -343,6 +405,27 @@ export default function Emergency({ profile }) {
               </div>
               <p className="font-light text-[34px] text-gray-900 leading-none tabular-nums">{formatElapsed(elapsedSec)}</p>
             </div>
+
+            {/* Dónde está — o por qué no lo sabemos. Las dos cosas se dicen. */}
+            {proEnVivo ? (
+              <div className="flex items-center gap-3 rounded-[20px] bg-emerald-50 border border-emerald-100 px-4 py-3 mb-4">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="text-[13px] font-medium text-emerald-700 flex-1">Ubicación en vivo</span>
+                {(etaMin != null || distanciaM != null) && (
+                  <span className="text-[13px] font-semibold text-emerald-800 tabular-nums">
+                    {formatMinutes(etaMin)} · {formatMeters(distanciaM)}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-[20px] bg-gray-50 border border-gray-100 px-4 py-3 mb-4">
+                <span className="text-[13px] text-gray-500 leading-snug">
+                  {tracking
+                    ? `Perdimos la señal hace más de ${FRESCURA_MINUTOS} min. ${proName} sigue asignado a tu emergencia.`
+                    : `${proName} ya tiene tu emergencia. En cuanto salga vas a ver dónde está.`}
+                </span>
+              </div>
+            )}
 
             <div className="bg-bg-primary rounded-[24px] p-5 mb-5 border border-gray-100 shadow-sm">
               <div className="flex items-center gap-4">
