@@ -57,6 +57,7 @@ Deno.serve(async (req: Request) => {
     if (tokErr) throw tokErr
 
     let expoSent = 0
+    const expoErrors: string[] = []
     if (tokens?.length) {
       const messages = tokens.map((t: { token: string }) => ({
         to: t.token,
@@ -71,13 +72,24 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify(messages),
       })
       const json = await res.json().catch(() => null)
-      const tickets: Array<{ status?: string; details?: { error?: string } }> = json?.data ?? []
+      const tickets: Array<{ status?: string; message?: string; details?: { error?: string } }> = json?.data ?? []
       for (let i = 0; i < tickets.length; i++) {
         const ticket = tickets[i]
         if (ticket?.status === 'ok') {
           expoSent++
         } else if (ticket?.details?.error === 'DeviceNotRegistered') {
           await supabase.from('expo_push_tokens').delete().eq('token', tokens[i].token)
+        } else {
+          /*
+           * Todo lo que no era `DeviceNotRegistered` se tiraba a la basura sin
+           * decir nada. Así estuvo tapado meses un `InvalidCredentials` — "el
+           * proyecto no tiene clave de APNs cargada", o sea que la app **no
+           * podía mandar UNA sola push a iOS**— con la función devolviendo 200
+           * y `sent: 0`. Un token viejo y "esto no funciona para nadie" no
+           * pueden verse igual.
+           */
+          expoErrors.push(ticket?.details?.error ?? ticket?.message ?? 'error desconocido')
+          console.error(`[push] expo rechazó ${tokens[i].token.slice(0, 24)}…: ${ticket?.details?.error ?? ''} ${ticket?.message ?? ''}`)
         }
       }
     }
@@ -88,7 +100,12 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
-    return new Response(JSON.stringify({ sent: webSent + expoSent, web: webSent, expo: expoSent, total }), {
+    // `errors` va en la respuesta a propósito: quien manda una push de prueba
+    // tiene que ver POR QUÉ no salió, sin ir a buscar los logs de la función.
+    return new Response(JSON.stringify({
+      sent: webSent + expoSent, web: webSent, expo: expoSent, total,
+      ...(expoErrors.length ? { errors: [...new Set(expoErrors)] } : {}),
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (err) {
