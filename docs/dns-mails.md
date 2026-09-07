@@ -29,6 +29,51 @@ Una vez que la zona exista y Resend verifique, los mails empiezan a salir solos
 > cuenta compartida de Marco Polo: la clave DKIM es distinta, así que si quedó
 > una copia vieja dando vueltas, **no sirve**.
 
+## La zona entera, para cargar de una
+
+Estos son **todos** los registros que `healthier.com.ar` necesita hoy: los tres
+del correo (obligatorios), el DMARC (recomendado) y los dos del sitio.
+
+### Correo — obligatorios
+
+| Tipo | Nombre | Prioridad | Valor |
+|---|---|---|---|
+| `TXT` | `resend._domainkey` | — | `p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCv5FeGImJUhGNSQSyszbn9DRk9aLwXMZnKvipYjB7vNbJ8T0rFlUQn35nv/8qR120Xdc8DZfIZWAIwVK+ktza2pJXj8t9dSO1Uo8mFQlo5+vLuM+RzNlzD5mfMPhrri0i+ZnJ1hlswzrREGQYDOaDctuzfJOuFqUnVtiMld3RMGQIDAQAB` |
+| `MX` | `send` | `10` | `feedback-smtp.sa-east-1.amazonses.com` |
+| `TXT` | `send` | — | `v=spf1 include:amazonses.com ~all` |
+
+### Correo — recomendado
+
+| Tipo | Nombre | Valor |
+|---|---|---|
+| `TXT` | `_dmarc` | `v=DMARC1; p=none; rua=mailto:healthier@marcopolo.agency` |
+
+DMARC no hace falta para que Resend verifique, pero con SPF y DKIM ya puestos
+mejora bastante la entrega en Gmail y Outlook. `p=none` es el modo que sólo
+observa: no puede rebotar nada. Más adelante se sube a `quarantine`.
+
+### El sitio
+
+| Tipo | Nombre | Valor |
+|---|---|---|
+| `A` | `@` (la raíz) | `216.198.79.1` |
+| `CNAME` | `www` | `cname.vercel-dns.com` |
+
+`216.198.79.1` es la IP anycast que Vercel usa hoy para dominios raíz —
+verificada contra dos dominios nuestros ya apuntados. 🔴 **Antes de cargar
+estos dos, agregá `healthier.com.ar` al proyecto `gethealthier` en el dashboard
+de Vercel**: ahí te muestra el `CNAME` exacto de este proyecto (algo como
+`xxxxxxxx.vercel-dns-017.com`) y ése es el que conviene usar en vez del
+genérico. El token de la API no tiene alcance sobre el equipo `healthier-app`,
+así que ese paso no lo puedo hacer yo.
+
+### Lo que NO va
+
+**Ningún `MX` en la raíz.** El `MX` de arriba es de `send.healthier.com.ar` y
+sirve para que Amazon SES procese los rebotes, no para recibir correo. Para
+recibir en `@healthier.com.ar` hace falta contratar casillas (Google Workspace,
+Zoho, las de DonWeb) y ese proveedor da su propio `MX` para la raíz.
+
 ## Los tres registros (van una vez que la zona exista)
 
 | Tipo | Nombre / Host | Prioridad | Valor |
