@@ -7,7 +7,10 @@
   body{margin:0;display:flex;height:100dvh;font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--ink);background:var(--page)}
   aside{width:310px;flex:none;overflow:auto;background:#fff;border-right:1px solid var(--line);padding:20px 16px 40px}
   aside h1{font-size:17px;margin:0 0 4px}
-  aside p.sub{margin:0 0 20px;font-size:12px;color:var(--mute)}
+  aside p.sub{margin:0 0 6px;font-size:12px;color:var(--mute)}
+  aside p.sub:last-of-type{margin-bottom:20px}
+  aside p.sub a{color:var(--sage);font-weight:600;text-decoration:none}
+  aside p.sub a:hover{text-decoration:underline}
   aside h2{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute);margin:22px 0 8px}
   button{display:block;width:100%;text-align:left;background:none;border:0;border-radius:11px;padding:9px 11px;cursor:pointer;font:inherit;color:inherit}
   button:hover{background:#FAF9F5}
@@ -27,6 +30,7 @@
 <aside>
   <h1>Mails de Healthier</h1>
   <p class="sub">27 plantillas · datos de ejemplo</p>
+  <p class="sub"><a href="textos.html">Ver sólo los textos, para revisar el copy →</a></p>
   
   <section>
     <h2>Cuenta y acceso</h2>
@@ -56,14 +60,14 @@
   <section>
     <h2>Turnos</h2>
     
-      <button type="button" data-src="turno-video.html" data-subject="Turno confirmado · Dra. Valentina Ortiz — dom, 6 de septiembre, 09:37">
-        <span>Turno confirmado · video</span><small>Turno confirmado · Dra. Valentina Ortiz — dom, 6 de septiembre, 09:37</small>
+      <button type="button" data-src="turno-video.html" data-subject="Turno confirmado · Dra. Valentina Ortiz — mar, 8 de septiembre, 14:02">
+        <span>Turno confirmado · video</span><small>Turno confirmado · Dra. Valentina Ortiz — mar, 8 de septiembre, 14:02</small>
       </button>
-      <button type="button" data-src="turno-presencial.html" data-subject="Turno confirmado · Dra. Valentina Ortiz — dom, 6 de septiembre, 09:37">
-        <span>Turno confirmado · presencial</span><small>Turno confirmado · Dra. Valentina Ortiz — dom, 6 de septiembre, 09:37</small>
+      <button type="button" data-src="turno-presencial.html" data-subject="Turno confirmado · Dra. Valentina Ortiz — mar, 8 de septiembre, 14:02">
+        <span>Turno confirmado · presencial</span><small>Turno confirmado · Dra. Valentina Ortiz — mar, 8 de septiembre, 14:02</small>
       </button>
-      <button type="button" data-src="turno-profesional.html" data-subject="Nueva reserva · Sofía Ramírez — dom, 6 de septiembre, 09:37">
-        <span>Nueva reserva (al profesional)</span><small>Nueva reserva · Sofía Ramírez — dom, 6 de septiembre, 09:37</small>
+      <button type="button" data-src="turno-profesional.html" data-subject="Nueva reserva · Sofía Ramírez — mar, 8 de septiembre, 14:02">
+        <span>Nueva reserva (al profesional)</span><small>Nueva reserva · Sofía Ramírez — mar, 8 de septiembre, 14:02</small>
       </button>
       <button type="button" data-src="ondemand.html" data-subject="Tu consulta inmediata con Dra. Valentina Ortiz está lista">
         <span>Consulta inmediata confirmada</span><small>Tu consulta inmediata con Dra. Valentina Ortiz está lista</small>

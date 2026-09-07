@@ -12,6 +12,7 @@
  */
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { generarPaginaDeTextos } from './wording-emails.ts'
 import * as T from '../supabase/functions/_shared/email/templates.ts'
 
 const OUT = join(import.meta.dirname, '..', 'public', 'docs', 'emails')
@@ -143,7 +144,10 @@ writeFileSync(join(OUT, 'index.html'), `<!doctype html><html lang="es"><head>
   body{margin:0;display:flex;height:100dvh;font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--ink);background:var(--page)}
   aside{width:310px;flex:none;overflow:auto;background:#fff;border-right:1px solid var(--line);padding:20px 16px 40px}
   aside h1{font-size:17px;margin:0 0 4px}
-  aside p.sub{margin:0 0 20px;font-size:12px;color:var(--mute)}
+  aside p.sub{margin:0 0 6px;font-size:12px;color:var(--mute)}
+  aside p.sub:last-of-type{margin-bottom:20px}
+  aside p.sub a{color:var(--sage);font-weight:600;text-decoration:none}
+  aside p.sub a:hover{text-decoration:underline}
   aside h2{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--mute);margin:22px 0 8px}
   button{display:block;width:100%;text-align:left;background:none;border:0;border-radius:11px;padding:9px 11px;cursor:pointer;font:inherit;color:inherit}
   button:hover{background:#FAF9F5}
@@ -163,6 +167,7 @@ writeFileSync(join(OUT, 'index.html'), `<!doctype html><html lang="es"><head>
 <aside>
   <h1>Mails de Healthier</h1>
   <p class="sub">${CASOS.length} plantillas · datos de ejemplo</p>
+  <p class="sub"><a href="textos.html">Ver sólo los textos, para revisar el copy →</a></p>
   ${nav}
 </aside>
 <main>
@@ -187,4 +192,10 @@ writeFileSync(join(OUT, 'index.html'), `<!doctype html><html lang="es"><head>
 </script>
 </body></html>`)
 
-console.log(`${CASOS.length} plantillas → ${join(OUT, 'index.html')}`)
+// La misma lista alimenta la página de revisión de textos, para que el copy
+// que revisa el equipo sea exactamente el que se manda.
+generarPaginaDeTextos(CASOS, OUT)
+
+console.log(`${CASOS.length} plantillas`)
+console.log(`  diseño → ${join(OUT, 'index.html')}`)
+console.log(`  textos → ${join(OUT, 'textos.html')}`)

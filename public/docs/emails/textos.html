@@ -1,0 +1,616 @@
+<!doctype html><html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Los textos de los mails de Healthier</title>
+<meta name="description" content="Los 27 mails que manda Healthier, en texto, para revisar el copy.">
+<style>
+  :root{
+    --ink:#2D2A26; --body:#6B6560; --mute:#A8A29E; --line:#E7E3DC;
+    --page:#F6F5F0; --card:#fff; --soft:#FAF9F5; --sage:#7CB38B; --sage-ink:#3F6B4C; --sage-soft:#EDF4EF;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif}
+  header.top{position:sticky;top:0;z-index:10;background:rgba(246,245,240,.92);
+    backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
+  header.top .wrap{padding-top:16px;padding-bottom:14px}
+  h1{margin:0;font-size:19px;letter-spacing:-.2px}
+  .sub{margin:4px 0 0;font-size:14px;color:var(--body)}
+  nav{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  nav a{font-size:12.5px;font-weight:600;color:var(--sage-ink);background:var(--sage-soft);
+    padding:5px 11px;border-radius:999px;text-decoration:none}
+  nav a:hover{background:#e2eee7}
+  main{padding:28px 0 80px}
+  .intro{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px 20px;margin-bottom:32px}
+  .intro p{margin:0 0 8px;font-size:14.5px;color:var(--body)}
+  .intro p:last-child{margin:0}
+  .ej-chip{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--sage-ink);background:var(--sage-soft);padding:3px 8px;border-radius:999px}
+  .ej-accion{font-size:12.5px;font-weight:600;color:var(--sage-ink);border:1px dashed #c9ddd0;
+    border-radius:999px;padding:2px 9px}
+  .grupo h2{margin:34px 0 14px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+  .mail{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px 22px;margin-bottom:14px}
+  .mail header{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+  .mail h3{margin:0;font-size:17px;letter-spacing:-.2px;flex:1}
+  .ver{font-size:12.5px;color:var(--mute);text-decoration:none;white-space:nowrap}
+  .ver:hover{color:var(--sage-ink);text-decoration:underline}
+  dl.meta{margin:0 0 16px;padding:14px 16px;background:var(--soft);border-radius:12px;
+    display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px}
+  dl.meta dt{color:var(--mute);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;padding-top:3px}
+  dl.meta dd{margin:0;color:var(--body)}
+  dl.meta dd.destacado{color:var(--ink);font-weight:600}
+  dl.meta span{cursor:help}
+  .cuerpo p{margin:0 0 9px;font-size:15px;color:var(--ink)}
+  .cuerpo p:last-child{margin:0}
+  .cuerpo p.chip{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.09em;
+    text-transform:uppercase;color:var(--sage-ink);background:var(--sage-soft);
+    padding:4px 10px;border-radius:999px;margin-bottom:10px}
+  .cuerpo p.titulo{font-size:20px;font-weight:600;letter-spacing:-.3px;margin-bottom:12px}
+  .cuerpo p.accion{display:inline-block;font-size:13.5px;font-weight:600;color:var(--sage-ink);
+    border:1px dashed #c9ddd0;border-radius:999px;padding:4px 13px;margin:2px 6px 8px 0}
+  .cuerpo p.accion::before{content:'botón · ';color:var(--mute);font-weight:400}
+  .cuerpo p.etiqueta{font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--mute);margin:14px 0 5px}
+  label.obs{display:block;margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}
+  label.obs span{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin-bottom:6px}
+  textarea{width:100%;font:inherit;font-size:14px;padding:9px 11px;border:1px solid var(--line);
+    border-radius:10px;background:var(--soft);color:var(--ink);resize:vertical}
+  textarea:focus{outline:2px solid var(--sage);outline-offset:1px;background:#fff}
+  .barra{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.94);
+    backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:12px 20px}
+  .barra .wrap{display:flex;align-items:center;gap:12px;padding:0}
+  .barra p{margin:0;font-size:13px;color:var(--body);flex:1}
+  button{font:inherit;font-size:14px;font-weight:600;padding:9px 18px;border-radius:999px;
+    border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+  button.primario{background:var(--sage);border-color:var(--sage);color:#fff}
+  button:disabled{opacity:.45;cursor:default}
+  footer{color:var(--mute);font-size:13px;padding:0 0 40px}
+  @media (max-width:640px){ .barra .wrap{flex-wrap:wrap} .barra p{flex-basis:100%} }
+</style></head><body>
+
+<header class="top"><div class="wrap">
+  <h1>Los textos de los mails de Healthier</h1>
+  <p class="sub">27 mails · para revisar qué dicen, no cómo se ven</p>
+  <nav><a href="#g-cuenta-y-acceso">Cuenta y acceso</a><a href="#g-turnos">Turnos</a><a href="#g-post-consulta">Post consulta</a><a href="#g-farmacia">Farmacia</a><a href="#g-profesionales">Profesionales</a></nav>
+</div></header>
+
+<main class="wrap">
+  <div class="intro">
+    <p>Éstos son todos los mails que Healthier le manda a un paciente o a un profesional. Están en texto plano y en el mismo orden en que aparecen en el mail.</p>
+    <p>Si algo suena raro, escribilo en <strong>Observaciones</strong>, debajo de cada uno. Se guardan en tu navegador mientras revisás; cuando termines, el botón de abajo te las copia todas juntas para pegarlas donde quieras.</p>
+    <p>Dos cosas que conviene mirar y que se suelen pasar por alto: el <strong>asunto</strong>, que es lo único que se ve en la bandeja, y la <strong>vista previa</strong>, el renglón gris que Gmail muestra al lado.</p>
+    <p>Lo que aparece <span class="ej-chip">así</span> es la etiqueta de arriba, y lo que aparece <span class="ej-accion">botón · así</span> es el texto de un botón o de un enlace. Los <em>[corchetes]</em> son datos que completa el sistema.</p>
+  </div>
+  
+  <section class="grupo">
+    <h2 id="g-cuenta-y-acceso">Cuenta y acceso</h2>
+    
+    <article class="mail" id="auth-confirmacion">
+      <header>
+        <h3>Verificación de cuenta</h3>
+        <a class="ver" href="index.html#auth-confirmacion" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Confirmá tu correo · Healthier</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Confirmá tu correo para activar tu cuenta de Healthier.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Verificá tu cuenta</p><p class="titulo">Confirmá tu correo</p><p>Ya casi está. Tocá el botón para confirmar que este correo es tuyo y terminar de activar tu cuenta de Healthier.</p><p class="accion">Confirmar mi correo</p><p>Si el botón no funciona, copiá y pegá esta dirección en tu navegador:</p><p>[acá va el enlace]</p><p>El enlace vence en una hora. Si no creaste una cuenta en Healthier, ignorá este mail: no se activa nada.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="auth-confirmacion" data-titulo="Verificación de cuenta"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="auth-magic-link">
+      <header>
+        <h3>Iniciar sesión (enlace mágico)</h3>
+        <a class="ver" href="index.html#auth-magic-link" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Entrá a tu cuenta de Healthier</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Tu enlace para entrar a Healthier, sin contraseña.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Iniciar sesión</p><p class="titulo">Entrá a tu cuenta</p><p>Tocá el botón y entrás directo a Healthier. No hace falta contraseña.</p><p class="accion">Entrar a Healthier</p><p>Si el botón no funciona, copiá y pegá esta dirección en tu navegador:</p><p>[acá va el enlace]</p><p>El enlace vence en una hora y sirve una sola vez. Si no lo pediste vos, ignorá este mail — tu cuenta sigue segura.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="auth-magic-link" data-titulo="Iniciar sesión (enlace mágico)"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="auth-recuperacion">
+      <header>
+        <h3>Recuperar contraseña</h3>
+        <a class="ver" href="index.html#auth-recuperacion" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Cambiá tu contraseña de Healthier</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Elegí una contraseña nueva para tu cuenta de Healthier.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Contraseña</p><p class="titulo">Cambiá tu contraseña</p><p>Pediste recuperar el acceso a tu cuenta. Tocá el botón para elegir una contraseña nueva.</p><p class="accion">Elegir contraseña nueva</p><p>Si el botón no funciona, copiá y pegá esta dirección en tu navegador:</p><p>[acá va el enlace]</p><p>El enlace vence en una hora. Si no pediste el cambio, ignorá este mail: tu contraseña actual sigue funcionando.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="auth-recuperacion" data-titulo="Recuperar contraseña"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="auth-codigo">
+      <header>
+        <h3>Código de verificación</h3>
+        <a class="ver" href="index.html#auth-codigo" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Tu código de Healthier</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Tu código de verificación de Healthier.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Código de verificación</p><p class="titulo">Tu código</p><p>Ingresá este código en Healthier para confirmar que sos vos:</p><p>[acá va el código]</p><p>El código vence en una hora. Nunca te lo vamos a pedir por teléfono ni por WhatsApp.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="auth-codigo" data-titulo="Código de verificación"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="auth-cambio-mail">
+      <header>
+        <h3>Cambio de correo</h3>
+        <a class="ver" href="index.html#auth-cambio-mail" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Confirmá tu correo nuevo</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Confirmá tu dirección de correo nueva.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Cambio de correo</p><p class="titulo">Confirmá tu correo nuevo</p><p>Pediste cambiar el correo de tu cuenta de [el correo actual] a [el correo nuevo].</p><p class="accion">Confirmar el cambio</p><p>Si el botón no funciona, copiá y pegá esta dirección en tu navegador:</p><p>[acá va el enlace]</p><p>Si no pediste este cambio, ignorá el mail y avisanos: tu correo actual no se modifica.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="auth-cambio-mail" data-titulo="Cambio de correo"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="auth-invitacion">
+      <header>
+        <h3>Invitación</h3>
+        <a class="ver" href="index.html#auth-invitacion" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Te invitaron a Healthier</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Te invitaron a crear tu cuenta en Healthier.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Invitación</p><p class="titulo">Te invitaron a Healthier</p><p>Creá tu cuenta para empezar a usar Healthier: consultas, recetas e historia clínica en un solo lugar.</p><p class="accion">Crear mi cuenta</p><p>Si el botón no funciona, copiá y pegá esta dirección en tu navegador:</p><p>[acá va el enlace]</p><p>Si no esperabas esta invitación, podés ignorar el mail.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="auth-invitacion" data-titulo="Invitación"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="bienvenida">
+      <header>
+        <h3>Bienvenida al paciente</h3>
+        <a class="ver" href="index.html#bienvenida" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Bienvenido a Healthier</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Tu cuenta ya está lista. Así podés empezar a usarla.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Bienvenido</p><p class="titulo">Tu salud, en un solo lugar</p><p>Hola Sofía Ramírez, tu cuenta ya está lista. Healthier junta en un solo lugar a los profesionales, tus consultas, tus recetas y tu historia clínica.</p><p class="etiqueta">Con qué podés empezar</p><p>Atenderte ahora</p><p>Consulta inmediata por video con un profesional disponible, sin sacar turno.</p><p>Sacar un turno</p><p>Elegís especialidad, profesional y horario. Presencial o por video.</p><p>Tus recetas, en el celular</p><p>La receta electrónica se emite en la consulta y la presentás desde la app.</p><p>Tu historia clínica</p><p>Diagnósticos, indicaciones y estudios guardados para siempre, tuyos.</p><p class="accion">Buscar un profesional</p><p class="accion">Ir a mi inicio</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="bienvenida" data-titulo="Bienvenida al paciente"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+  </section>
+  <section class="grupo">
+    <h2 id="g-turnos">Turnos</h2>
+    
+    <article class="mail" id="turno-video">
+      <header>
+        <h3>Turno confirmado · video</h3>
+        <a class="ver" href="index.html#turno-video" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Turno confirmado · Dra. Valentina Ortiz — mar, 8 de septiembre, 14:02</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Martes, 8 de septiembre · 14:02 h · videoconsulta con Dra. Valentina Ortiz</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Turno confirmado</p><p class="titulo">Tu turno está reservado</p><p>Hola Sofía, tu turno quedó reservado.</p><p class="etiqueta">Cuándo</p><p>Martes, 8 de septiembre · 14:02 h</p><p class="etiqueta">Con quién</p><p>Dra. Valentina Ortiz</p><p class="etiqueta">Modalidad</p><p>Videoconsulta</p><p class="etiqueta">Valor</p><p>$ 28.000</p><p>Entrá a la sala 5 minutos antes desde la app. Vas a necesitar cámara y micrófono.</p><p class="accion">Ver mi turno</p><p class="accion">Ver todos mis turnos</p><p>Podés reprogramarlo o cancelarlo desde la app hasta el horario del turno.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="turno-video" data-titulo="Turno confirmado · video"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="turno-presencial">
+      <header>
+        <h3>Turno confirmado · presencial</h3>
+        <a class="ver" href="index.html#turno-presencial" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Turno confirmado · Dra. Valentina Ortiz — mar, 8 de septiembre, 14:02</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Martes, 8 de septiembre · 14:02 h · consulta presencial con Dra. Valentina Ortiz</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Turno confirmado</p><p class="titulo">Tu turno está reservado</p><p>Hola Sofía, tu turno quedó reservado.</p><p class="etiqueta">Cuándo</p><p>Martes, 8 de septiembre · 14:02 h</p><p class="etiqueta">Con quién</p><p>Dra. Valentina Ortiz</p><p class="etiqueta">Modalidad</p><p>Consulta presencial</p><p class="etiqueta">Dónde</p><p>Av. Santa Fe 2450, piso 4 “B” — Recoleta, CABA</p><p class="etiqueta">Valor</p><p>$ 28.000</p><p>Llegá 10 minutos antes. Si no vas a poder ir, cancelá desde la app para liberarle el horario a otra persona.</p><p class="accion">Ver mi turno</p><p class="accion">Ver todos mis turnos</p><p>Podés reprogramarlo o cancelarlo desde la app hasta el horario del turno.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="turno-presencial" data-titulo="Turno confirmado · presencial"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="turno-profesional">
+      <header>
+        <h3>Nueva reserva (al profesional)</h3>
+        <a class="ver" href="index.html#turno-profesional" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Nueva reserva · Sofía Ramírez — mar, 8 de septiembre, 14:02</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Sofía Ramírez · Martes, 8 de septiembre · 14:02 h</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Nueva reserva</p><p class="titulo">Te reservaron un turno</p><p>Hola Dra. Valentina Ortiz, tenés una consulta nueva en tu agenda.</p><p class="etiqueta">Paciente</p><p>Sofía Ramírez</p><p class="etiqueta">Cuándo</p><p>Martes, 8 de septiembre · 14:02 h</p><p class="etiqueta">Modalidad</p><p>Videoconsulta</p><p class="etiqueta">Valor</p><p>$ 28.000</p><p class="accion">Ver mi agenda</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="turno-profesional" data-titulo="Nueva reserva (al profesional)"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="ondemand">
+      <header>
+        <h3>Consulta inmediata confirmada</h3>
+        <a class="ver" href="index.html#ondemand" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Tu consulta inmediata con Dra. Valentina Ortiz está lista</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Dra. Valentina Ortiz te está esperando en la sala.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Consulta inmediata</p><p class="titulo">Tu profesional te está esperando</p><p>Hola Sofía, ya tenés profesional asignado. Te está esperando en la sala.</p><p>Dra. Valentina Ortiz</p><p>Medicina General</p><p>Disponible ahora</p><p class="etiqueta">Modalidad</p><p>Videoconsulta · empieza ahora</p><p class="etiqueta">Valor</p><p>$ 28.000</p><p>Entrá ahora: la consulta arranca apenas los dos estén en la sala. Suele tardar 4 minutos.</p><p class="accion">Entrar a la sala</p><p class="accion">Ver mis consultas</p><p>Si no podés entrar ahora, cancelá desde la app: no se te cobra la consulta que no se hizo.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="ondemand" data-titulo="Consulta inmediata confirmada"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="recordatorio-manana">
+      <header>
+        <h3>Recordatorio · mañana</h3>
+        <a class="ver" href="index.html#recordatorio-manana" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Mañana tenés turno con Dra. Valentina Ortiz</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Martes, 8 de septiembre · 14:02 h</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Recordatorio</p><p class="titulo">Mañana tenés turno</p><p>Hola Sofía, te recordamos que mañana tenés turno.</p><p class="etiqueta">Cuándo</p><p>Martes, 8 de septiembre · 14:02 h</p><p class="etiqueta">Con quién</p><p>Dra. Valentina Ortiz</p><p class="etiqueta">Modalidad</p><p>Videoconsulta</p><p>Probá cámara y micrófono antes de entrar. La sala se abre 5 minutos antes.</p><p class="accion">Entrar a la sala</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="recordatorio-manana" data-titulo="Recordatorio · mañana"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="recordatorio-pronto">
+      <header>
+        <h3>Recordatorio · en 30 minutos</h3>
+        <a class="ver" href="index.html#recordatorio-pronto" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Tu turno con Dra. Valentina Ortiz empieza en 30 minutos</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Lunes, 7 de septiembre · 12:32 h</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Empieza pronto</p><p class="titulo">Tu turno empieza en 30 minutos</p><p>Hola Sofía, tu turno empieza en media hora.</p><p class="etiqueta">Cuándo</p><p>Lunes, 7 de septiembre · 12:32 h</p><p class="etiqueta">Con quién</p><p>Dra. Valentina Ortiz</p><p class="etiqueta">Modalidad</p><p>Videoconsulta</p><p>Probá cámara y micrófono antes de entrar. La sala se abre 5 minutos antes.</p><p class="accion">Entrar a la sala</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="recordatorio-pronto" data-titulo="Recordatorio · en 30 minutos"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="cancelada-paciente">
+      <header>
+        <h3>Turno cancelado (al paciente)</h3>
+        <a class="ver" href="index.html#cancelada-paciente" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Turno cancelado · Dra. Valentina Ortiz</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Martes, 8 de septiembre · 14:02 h con Dra. Valentina Ortiz se canceló.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Turno cancelado</p><p class="titulo">Se canceló el turno</p><p>Hola Sofía, se canceló el turno que tenías con Dra. Valentina Ortiz.</p><p class="chip">Turno cancelado</p><p>Martes, 8 de septiembre · 14:02 h</p><p class="etiqueta">Con quién era</p><p>Dra. Valentina Ortiz</p><p class="etiqueta">Motivo</p><p>El profesional tuvo una urgencia</p><p>Si ya habías pagado, la devolución sale automáticamente por Mercado Pago y se acredita en tu medio de pago en unos días hábiles.</p><p class="accion">Reservar otro turno</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="cancelada-paciente" data-titulo="Turno cancelado (al paciente)"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="cancelada-profesional">
+      <header>
+        <h3>Turno cancelado (al profesional)</h3>
+        <a class="ver" href="index.html#cancelada-profesional" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Turno cancelado · Sofía Ramírez</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Martes, 8 de septiembre · 14:02 h con Sofía Ramírez se canceló.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Turno cancelado</p><p class="titulo">Se canceló el turno</p><p>Hola Dra. Valentina Ortiz, se canceló el turno que tenías con Sofía Ramírez.</p><p class="chip">Turno cancelado</p><p>Martes, 8 de septiembre · 14:02 h</p><p class="etiqueta">Paciente</p><p>Sofía Ramírez</p><p class="accion">Ver mi agenda</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="cancelada-profesional" data-titulo="Turno cancelado (al profesional)"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+  </section>
+  <section class="grupo">
+    <h2 id="g-post-consulta">Post consulta</h2>
+    
+    <article class="mail" id="post-video">
+      <header>
+        <h3>Post consulta · videoconsulta</h3>
+        <a class="ver" href="index.html#post-video" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Resumen de tu consulta con Dra. Valentina Ortiz</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Tu resumen, las indicaciones y tu receta ya están en la app.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Consulta finalizada</p><p class="titulo">Cómo seguís desde acá</p><p>Hola Sofía, terminó tu videoconsulta con Dra. Valentina Ortiz. Acá está todo lo que hablaron.</p><p>Dra. Valentina Ortiz</p><p>Medicina General</p><p>Videoconsulta · 7 de septiembre de 2026</p><p class="etiqueta">Resumen de tu consulta</p><p>Cuadro compatible con faringitis bacteriana. Arrancá el antibiótico hoy mismo y completá los 7 días aunque te sientas mejor a los dos.</p><p>Si a las 72 h seguís con fiebre por encima de 38 °C, escribime por la app antes de volver a consultar.</p><p class="etiqueta">Diagnóstico</p><p>Faringitis aguda estreptocócica (J02.0)</p><p>Confirmada por examen clínico.</p><p class="etiqueta">Indicaciones</p><p>Reposo relativo 48 h</p><p>Evitá esfuerzo físico hasta que baje la fiebre.</p><p>Hidratación abundante</p><p>2 a 2,5 litros de agua por día.</p><p>Paracetamol 500 mg</p><p>Cada 8 h si hay dolor o fiebre · venta libre</p><p>No pasar de 3 comprimidos por día.</p><p class="etiqueta">Recetas electrónicas</p><p>Amoxicilina 500 mg · Ibuprofeno 400 mg</p><p>Presentala en la farmacia desde el celular o descargala en PDF.</p><p class="accion">Descargar receta →</p><p>Con la receta electrónica podés pedir los medicamentos por la app y que te lleguen a tu casa.</p><p class="accion">Ver el resumen completo</p><p class="accion">Ver todas mis recetas</p><p class="accion">Calificar la atención de Dra. Valentina Ortiz</p><p>Todo esto queda guardado para siempre en tu historia clínica de Healthier.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="post-video" data-titulo="Post consulta · videoconsulta"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="post-presencial">
+      <header>
+        <h3>Post consulta · presencial</h3>
+        <a class="ver" href="index.html#post-presencial" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Resumen de tu consulta con Dra. Valentina Ortiz</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Tu resumen, las indicaciones y tu receta ya están en la app.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Consulta finalizada</p><p class="titulo">Cómo seguís desde acá</p><p>Hola Sofía, gracias por venir. Acá está el resumen de tu consulta con Dra. Valentina Ortiz.</p><p>Dra. Valentina Ortiz</p><p>Medicina General</p><p>Consulta presencial · 7 de septiembre de 2026</p><p class="etiqueta">Resumen de tu consulta</p><p>Cuadro compatible con faringitis bacteriana. Arrancá el antibiótico hoy mismo y completá los 7 días aunque te sientas mejor a los dos.</p><p>Si a las 72 h seguís con fiebre por encima de 38 °C, escribime por la app antes de volver a consultar.</p><p class="etiqueta">Diagnóstico</p><p>Faringitis aguda estreptocócica (J02.0)</p><p>Confirmada por examen clínico.</p><p class="etiqueta">Indicaciones</p><p>Reposo relativo 48 h</p><p>Evitá esfuerzo físico hasta que baje la fiebre.</p><p>Hidratación abundante</p><p>2 a 2,5 litros de agua por día.</p><p>Paracetamol 500 mg</p><p>Cada 8 h si hay dolor o fiebre · venta libre</p><p>No pasar de 3 comprimidos por día.</p><p class="etiqueta">Recetas electrónicas</p><p>Amoxicilina 500 mg · Ibuprofeno 400 mg</p><p>Presentala en la farmacia desde el celular o descargala en PDF.</p><p class="accion">Descargar receta →</p><p>Con la receta electrónica podés pedir los medicamentos por la app y que te lleguen a tu casa.</p><p class="accion">Ver el resumen completo</p><p class="accion">Ver todas mis recetas</p><p class="accion">Calificar la atención de Dra. Valentina Ortiz</p><p>Todo esto queda guardado para siempre en tu historia clínica de Healthier.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="post-presencial" data-titulo="Post consulta · presencial"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="post-ondemand">
+      <header>
+        <h3>Post consulta · inmediata</h3>
+        <a class="ver" href="index.html#post-ondemand" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Resumen de tu consulta con Dra. Valentina Ortiz</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Tu resumen, las indicaciones y tu receta ya están en la app.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Consulta finalizada</p><p class="titulo">Cómo seguís desde acá</p><p>Hola Sofía, terminó tu consulta inmediata con Dra. Valentina Ortiz. Acá quedó todo lo que necesitás.</p><p>Dra. Valentina Ortiz</p><p>Medicina General</p><p>Consulta inmediata · 7 de septiembre de 2026</p><p class="etiqueta">Resumen de tu consulta</p><p>Cuadro compatible con faringitis bacteriana. Arrancá el antibiótico hoy mismo y completá los 7 días aunque te sientas mejor a los dos.</p><p>Si a las 72 h seguís con fiebre por encima de 38 °C, escribime por la app antes de volver a consultar.</p><p class="etiqueta">Diagnóstico</p><p>Faringitis aguda estreptocócica (J02.0)</p><p>Confirmada por examen clínico.</p><p class="etiqueta">Indicaciones</p><p>Reposo relativo 48 h</p><p>Evitá esfuerzo físico hasta que baje la fiebre.</p><p>Hidratación abundante</p><p>2 a 2,5 litros de agua por día.</p><p>Paracetamol 500 mg</p><p>Cada 8 h si hay dolor o fiebre · venta libre</p><p>No pasar de 3 comprimidos por día.</p><p class="etiqueta">Recetas electrónicas</p><p>Amoxicilina 500 mg · Ibuprofeno 400 mg</p><p>Presentala en la farmacia desde el celular o descargala en PDF.</p><p class="accion">Descargar receta →</p><p>Con la receta electrónica podés pedir los medicamentos por la app y que te lleguen a tu casa.</p><p class="accion">Ver el resumen completo</p><p class="accion">Ver todas mis recetas</p><p class="accion">Calificar la atención de Dra. Valentina Ortiz</p><p>Todo esto queda guardado para siempre en tu historia clínica de Healthier.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="post-ondemand" data-titulo="Post consulta · inmediata"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="post-sin-receta">
+      <header>
+        <h3>Post consulta · sin receta ni diagnóstico</h3>
+        <a class="ver" href="index.html#post-sin-receta" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Resumen de tu consulta con Dra. Valentina Ortiz</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Tu resumen y las indicaciones ya están en la app.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Consulta finalizada</p><p class="titulo">Cómo seguís desde acá</p><p>Hola Sofía, terminó tu videoconsulta con Dra. Valentina Ortiz. Acá está todo lo que hablaron.</p><p>Dra. Valentina Ortiz</p><p>Medicina General</p><p>Videoconsulta · 7 de septiembre de 2026</p><p class="accion">Ver el resumen completo</p><p class="accion">Calificar la atención de Dra. Valentina Ortiz</p><p>Todo esto queda guardado para siempre en tu historia clínica de Healthier.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="post-sin-receta" data-titulo="Post consulta · sin receta ni diagnóstico"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="receta-emitida">
+      <header>
+        <h3>Receta electrónica emitida</h3>
+        <a class="ver" href="index.html#receta-emitida" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Tu receta de Dra. Valentina Ortiz ya está disponible</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Amoxicilina 500 mg — 21 comprimidos · Ibuprofeno 400 mg — 20 comprimidos</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Receta electrónica</p><p class="titulo">Tu receta está lista</p><p>Hola Sofía, Dra. Valentina Ortiz te emitió una receta electrónica. Ya está en tu cuenta.</p><p class="etiqueta">Medicamentos recetados</p><p>Amoxicilina 500 mg — 21 comprimidos</p><p>Ibuprofeno 400 mg — 20 comprimidos</p><p>La receta se presenta desde el celular en cualquier farmacia. También podés pedir los medicamentos por la app y que te los lleven.</p><p class="accion">Ver mi receta</p><p class="accion">Pedir los medicamentos a una farmacia</p><p>La receta electrónica tiene la misma validez legal que la de papel.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="receta-emitida" data-titulo="Receta electrónica emitida"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+  </section>
+  <section class="grupo">
+    <h2 id="g-farmacia">Farmacia</h2>
+    
+    <article class="mail" id="farmacia-confirmado">
+      <header>
+        <h3>Pedido de farmacia confirmado</h3>
+        <a class="ver" href="index.html#farmacia-confirmado" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Pedido confirmado · Farmacia del Águila</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Tu pedido #9B2E77C1 está en preparación en Farmacia del Águila.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Pedido confirmado</p><p class="titulo">Tu pedido está en camino</p><p>Hola Sofía, tu pedido está confirmado y la farmacia ya lo está preparando.</p><p class="etiqueta">Farmacia</p><p>Farmacia del Águila</p><p class="etiqueta">Se entrega en</p><p>Gorriti 4821, 2º A — Palermo, CABA</p><p class="etiqueta">Total pagado</p><p>$ 31.450</p><p class="etiqueta">Número de pedido</p><p>#9B2E77C1</p><p class="etiqueta">Lo que pediste</p><p>Amoxicilina 500 mg — 21 comprimidos</p><p>1 unidad · $ 18.900</p><p>Ibuprofeno 400 mg — 20 comprimidos</p><p>2 unidades · $ 6.275</p><p>Te avisamos por acá y por la app cuando el pedido salga para tu domicilio.</p><p class="accion">Seguir mi pedido</p><p class="accion">Ver todos mis pedidos</p><p>Los medicamentos con receta se entregan contra la receta electrónica que ya está asociada a tu pedido.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="farmacia-confirmado" data-titulo="Pedido de farmacia confirmado"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="farmacia-preparacion">
+      <header>
+        <h3>Pedido en preparación</h3>
+        <a class="ver" href="index.html#farmacia-preparacion" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">En preparación · pedido #9B2E77C1</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>La farmacia está preparando tu pedido</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">En preparación</p><p class="titulo">La farmacia está preparando tu pedido</p><p>Hola Sofía, ya lo tienen y lo están armando.</p><p class="etiqueta">Farmacia</p><p>Farmacia del Águila</p><p class="etiqueta">Número de pedido</p><p>#9B2E77C1</p><p class="etiqueta">Se entrega en</p><p>Gorriti 4821, 2º A — Palermo, CABA</p><p class="accion">Ver el pedido</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="farmacia-preparacion" data-titulo="Pedido en preparación"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="farmacia-enviado">
+      <header>
+        <h3>Pedido en camino</h3>
+        <a class="ver" href="index.html#farmacia-enviado" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">En camino · pedido #9B2E77C1</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Tu pedido salió para tu domicilio</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">En camino</p><p class="titulo">Tu pedido salió para tu domicilio</p><p>Hola Sofía, está en viaje. Tené a mano tu DNI para recibirlo.</p><p class="etiqueta">Farmacia</p><p>Farmacia del Águila</p><p class="etiqueta">Número de pedido</p><p>#9B2E77C1</p><p class="etiqueta">Se entrega en</p><p>Gorriti 4821, 2º A — Palermo, CABA</p><p class="accion">Ver el pedido</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="farmacia-enviado" data-titulo="Pedido en camino"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="farmacia-entregado">
+      <header>
+        <h3>Pedido entregado</h3>
+        <a class="ver" href="index.html#farmacia-entregado" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Entregado · pedido #9B2E77C1</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Tu pedido fue entregado</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Entregado</p><p class="titulo">Tu pedido fue entregado</p><p>Hola Sofía, listo. Cualquier cosa, escribinos desde la app.</p><p class="etiqueta">Farmacia</p><p>Farmacia del Águila</p><p class="etiqueta">Número de pedido</p><p>#9B2E77C1</p><p class="etiqueta">Se entrega en</p><p>Gorriti 4821, 2º A — Palermo, CABA</p><p class="accion">Ver el pedido</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="farmacia-entregado" data-titulo="Pedido entregado"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="farmacia-cancelado">
+      <header>
+        <h3>Pedido cancelado</h3>
+        <a class="ver" href="index.html#farmacia-cancelado" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Pedido cancelado · pedido #9B2E77C1</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Tu pedido se canceló</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Pedido cancelado</p><p class="titulo">Tu pedido se canceló</p><p>Hola Sofía, si ya lo habías pagado, la devolución sale automáticamente por Mercado Pago.</p><p class="etiqueta">Farmacia</p><p>Farmacia del Águila</p><p class="etiqueta">Número de pedido</p><p>#9B2E77C1</p><p class="etiqueta">Se entrega en</p><p>Gorriti 4821, 2º A — Palermo, CABA</p><p>Motivo: La farmacia no tenía stock del antibiótico</p><p class="accion">Ver el pedido</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="farmacia-cancelado" data-titulo="Pedido cancelado"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+  </section>
+  <section class="grupo">
+    <h2 id="g-profesionales">Profesionales</h2>
+    
+    <article class="mail" id="pro-verificado">
+      <header>
+        <h3>Profesional verificado</h3>
+        <a class="ver" href="index.html#pro-verificado" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Tu perfil de Healthier está verificado</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Ya aparecés en las búsquedas y podés recibir consultas.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Perfil verificado</p><p class="titulo">Listo: ya podés atender</p><p>Hola Dra. Valentina Ortiz, revisamos tu documentación y tu perfil ya está verificado. Desde ahora aparecés en las búsquedas y podés recibir consultas.</p><p class="etiqueta">Lo que conviene dejar listo hoy</p><p>Tu disponibilidad</p><p>Sin horarios cargados no te pueden reservar.</p><p>Mercado Pago</p><p>Vinculá tu cuenta para cobrar las consultas.</p><p>Tus tarifas y modalidad</p><p>Presencial, por video, o las dos.</p><p class="accion">Ir a mi panel</p><p class="accion">Configurar disponibilidad y cobros</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="pro-verificado" data-titulo="Profesional verificado"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="pro-observado">
+      <header>
+        <h3>Documentación con observaciones</h3>
+        <a class="ver" href="index.html#pro-observado" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Falta un dato para activar tu perfil</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Revisamos tu documentación y hay algo para corregir.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Documentación</p><p class="titulo">Nos falta un dato tuyo</p><p>Hola Dra. Valentina Ortiz, revisamos tu documentación y necesitamos que corrijas algo antes de activarte.</p><p>La foto del título se ve cortada: falta el número de matrícula del margen inferior.</p><p>Cargá de nuevo lo que falta desde tu panel y lo revisamos en el día.</p><p class="accion">Corregir mi documentación</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="pro-observado" data-titulo="Documentación con observaciones"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+  </section>
+
+  <footer>
+    <p>Todos los mails terminan con el mismo pie: <em>Mi cuenta · Mis consultas · Términos — Healthier · Buenos Aires, Argentina. Recibís este mail porque tenés una cuenta en Healthier.</em></p>
+  </footer>
+</main>
+
+<div class="barra"><div class="wrap">
+  <p id="contador">Sin observaciones todavía.</p>
+  <button type="button" id="limpiar">Borrar</button>
+  <button type="button" id="copiar" class="primario">Copiar mis observaciones</button>
+</div></div>
+
+<script>
+  const CLAVE = 'healthier-textos-observaciones'
+  const areas = [...document.querySelectorAll('textarea')]
+  const contador = document.getElementById('contador')
+
+  const leer = () => { try { return JSON.parse(localStorage.getItem(CLAVE) || '{}') } catch { return {} } }
+  const guardar = o => { try { localStorage.setItem(CLAVE, JSON.stringify(o)) } catch {} }
+
+  const conTexto = () => areas.filter(a => a.value.trim())
+  function refrescar() {
+    const n = conTexto().length
+    contador.textContent = n === 0 ? 'Sin observaciones todavía.'
+      : n + (n === 1 ? ' mail con observaciones.' : ' mails con observaciones.')
+    document.getElementById('copiar').disabled = n === 0
+    document.getElementById('limpiar').disabled = n === 0
+  }
+
+  const previas = leer()
+  areas.forEach(a => {
+    if (previas[a.dataset.slug]) a.value = previas[a.dataset.slug]
+    a.addEventListener('input', () => {
+      const o = leer()
+      if (a.value.trim()) o[a.dataset.slug] = a.value; else delete o[a.dataset.slug]
+      guardar(o); refrescar()
+    })
+  })
+  refrescar()
+
+  document.getElementById('copiar').addEventListener('click', async () => {
+    const texto = 'Observaciones sobre los textos de los mails de Healthier\n\n' +
+      conTexto().map(a => '— ' + a.dataset.titulo + '\n' + a.value.trim()).join('\n\n')
+    try { await navigator.clipboard.writeText(texto); contador.textContent = 'Copiado. Pegalo donde quieras.' }
+    catch { window.prompt('Copiá esto:', texto) }
+  })
+
+  document.getElementById('limpiar').addEventListener('click', () => {
+    if (!window.confirm('¿Borrar todas tus observaciones?')) return
+    areas.forEach(a => { a.value = '' }); guardar({}); refrescar()
+  })
+</script>
+</body></html>
