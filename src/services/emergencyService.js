@@ -206,16 +206,9 @@ export const emergencyService = {
 
     const result = toCamelCase(data)
 
-    // Fire-and-forget — never let a push failure break the SOS dispatch.
-    supabase.functions.invoke('send-push-notification', {
-      body: {
-        userId: chosen.user_id,
-        title: '🚨 EMERGENCIA SOS',
-        body:  `Nueva emergencia asignada — Código ${triageCode} (${dispatchCode}). Abrí la app para aceptar.`,
-        url:   '/profesional/emergencias',
-      },
-    }).catch(() => {})
-
+    // El aviso al profesional lo manda un trigger de la base (migración 150).
+    // Salía de acá, así que una emergencia pedida desde la app no le avisaba a
+    // nadie — y es el caso donde más caro sale que no llegue.
     return result
   },
 

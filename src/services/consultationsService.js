@@ -310,20 +310,11 @@ export const consultationsService = {
       // un trigger al insertar la consulta (migración 091): desde el browser
       // se perdía si el paciente cerraba la pestaña, y una reserva hecha desde
       // la app mobile no avisaba a nadie. Si se reactiva acá, llegan dos.
-      const aviso = bookedBy === 'professional'
-        ? row.patient_id && {
-            userId: row.patient_id,
-            title:  'Te agendaron un turno',
-            body:   cuando
-              ? `Tu profesional agendó una consulta para el ${cuando}.`
-              : 'Tu profesional agendó una consulta de seguimiento.',
-            url:    '/paciente/consultas',
-          }
-        : null
-
-      if (aviso) {
-        supabase.functions.invoke('send-push-notification', { body: aviso }).catch(() => {})
-      }
+      // El aviso al paciente ("te agendaron un turno") lo manda ahora un
+      // trigger de la base (migración 150), por el mismo motivo por el que se
+      // movió el del profesional en la 091: desde el navegador se perdía si se
+      // cerraba la pestaña, y una consulta agendada desde la app no avisaba a
+      // nadie. Si se reactiva acá, llegan dos.
     }
     return toCamelCase(row)
   },
@@ -502,42 +493,14 @@ export const consultationsService = {
       .single()
     if (error) throw error
     const result = toCamelCase(data)
-    // Notify patient when professional confirms their booking
-    if (status === 'confirmed' && result.patientId) {
-      supabase.functions.invoke('send-push-notification', {
-        body: {
-          userId: result.patientId,
-          title:  'Turno confirmado',
-          body:   'Tu consulta fue confirmada por el profesional.',
-          url:    '/paciente/consultas',
-        },
-      }).catch(() => {})
-    }
-    // Notify patient when professional joins the call (status → in_progress)
-    if (status === 'in_progress' && result.patientId) {
-      const consultationUrl = result.dailyRoomUrl
-        ? `/paciente/videollamada/${id}`
-        : `/paciente/sala-espera/${id}`
-      supabase.functions.invoke('send-push-notification', {
-        body: {
-          userId: result.patientId,
-          title:  '¡El profesional está listo!',
-          body:   'Tu consulta comenzó. ¡Entrá a la sala ahora!',
-          url:    consultationUrl,
-        },
-      }).catch(() => {})
-    }
-    // Notify patient when their booking is cancelled by someone else (professional or admin)
-    if (status === 'cancelled' && result.patientId && extra.cancelledBy !== result.patientId) {
-      supabase.functions.invoke('send-push-notification', {
-        body: {
-          userId: result.patientId,
-          title:  'Consulta cancelada',
-          body:   'Tu consulta fue cancelada. Podés reservar un nuevo turno.',
-          url:    '/paciente/consultas',
-        },
-      }).catch(() => {})
-    }
+    /*
+     * Los tres avisos al paciente que vivían acá — "turno confirmado", "el
+     * profesional está listo" y "consulta cancelada" — los manda ahora la base
+     * (migración 150). El del medio es el aviso más importante de la
+     * plataforma, el que hace que una videoconsulta empiece, y salía del
+     * navegador del profesional: si cerraba la pestaña o entraba desde la app,
+     * el paciente no se enteraba de nada.
+     */
     return result
   },
 

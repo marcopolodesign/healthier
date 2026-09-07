@@ -1,5 +1,4 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-import webpush from 'npm:web-push@3.6.7'
 
 type Reminder = {
   window: [number, number]
@@ -28,38 +27,36 @@ const REMINDERS: Reminder[] = [
   },
 ]
 
+/**
+ * Manda por `send-push-notification`, NO con `web-push` directo.
+ *
+ * Esta función tenía su propia implementación que leía sólo
+ * `push_subscriptions` — las suscripciones del navegador. Los tokens de la app
+ * viven en `expo_push_tokens`, así que **ningún recordatorio llegó nunca a un
+ * teléfono**: salían, no fallaban, y no le llegaban a nadie que usara la app.
+ * `send-push-notification` es el único lugar que sabe mandar a los dos canales.
+ */
 async function sendPush(
-  supabase: ReturnType<typeof createClient>,
-  patientId: string,
+  _supabase: unknown,
+  userId: string,
   title: string,
   body: string,
   url: string,
 ): Promise<boolean> {
-  const { data: subs } = await supabase
-    .from('push_subscriptions')
-    .select('endpoint, p256dh, auth')
-    .eq('user_id', patientId)
-
-  if (!subs?.length) return false
-
-  const payload = JSON.stringify({ title, body, url })
-  const results = await Promise.allSettled(
-    subs.map(async (sub: { endpoint: string; p256dh: string; auth: string }) => {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          payload
-        )
-      } catch (err: unknown) {
-        const status = (err as { statusCode?: number })?.statusCode
-        if (status === 410 || status === 404) {
-          await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
-        }
-        throw err
-      }
+  try {
+    const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-push-notification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({ userId, title, body, url }),
     })
-  )
-  return results.some(r => r.status === 'fulfilled')
+    return res.ok
+  } catch (err) {
+    console.error(`push error → ${userId}: ${err instanceof Error ? err.message : err}`)
+    return false
+  }
 }
 
 /**
@@ -95,12 +92,6 @@ Deno.serve(async (req: Request) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   )
 
-  webpush.setVapidDetails(
-    Deno.env.get('VAPID_SUBJECT')!,
-    Deno.env.get('VAPID_PUBLIC_KEY')!,
-    Deno.env.get('VAPID_PRIVATE_KEY')!
-  )
-
   const now = new Date()
   let totalSent = 0
   let totalChecked = 0
@@ -115,7 +106,10 @@ Deno.serve(async (req: Request) => {
       .select(`
         id,
         patient_id,
+        professional_id,
         scheduled_at,
+        pro_reminder_1h_sent,
+        patient:profiles!patient_id ( full_name ),
         professional:profiles!professional_id ( full_name )
       `)
       .eq('status', 'confirmed')
@@ -127,6 +121,7 @@ Deno.serve(async (req: Request) => {
 
     totalChecked += upcoming.length
     const remindedIds: string[] = []
+    const proRemindedIds: string[] = []
     // Los mails no se esperan uno por uno: son N llamadas HTTP independientes y
     // serializarlas hace que el cron tarde N veces más de lo necesario. Se
     // juntan y se esperan todas juntas al final del bloque.
@@ -153,6 +148,25 @@ Deno.serve(async (req: Request) => {
       // mira el teléfono.
       mails.push(enviarMailDeRecordatorio(c.id as string, reminder.cuando))
 
+      /*
+       * El profesional recibe UN solo recordatorio, el de 1 h (decisión de
+       * Mateo, 2026-09-06): el de 24 h le sirve menos porque su agenda del día
+       * ya la ve en la app. Marca propia — `reminder.column` ya quedó puesta
+       * para el paciente y compartirla lo dejaría sin aviso.
+       */
+      if (reminder.column === 'reminder_sent' && c.professional_id && !c.pro_reminder_1h_sent) {
+        const patientName = (c.patient as { full_name?: string } | null)?.full_name ?? 'tu paciente'
+        const enviado = await sendPush(
+          supabase,
+          c.professional_id as string,
+          'Tu consulta comienza pronto',
+          `Tenés una consulta con ${patientName} a las ${timeStr}.`,
+          '/profesional/agenda',
+        )
+        if (enviado) totalSent++
+        proRemindedIds.push(c.id)
+      }
+
       remindedIds.push(c.id)
     }
 
@@ -165,6 +179,13 @@ Deno.serve(async (req: Request) => {
         .from('consultations')
         .update({ [reminder.column]: true })
         .in('id', remindedIds)
+    }
+
+    if (proRemindedIds.length > 0) {
+      await supabase
+        .from('consultations')
+        .update({ pro_reminder_1h_sent: true })
+        .in('id', proRemindedIds)
     }
   }
 
