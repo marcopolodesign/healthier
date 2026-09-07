@@ -593,6 +593,18 @@ export default function ProfessionalDashboard({ profile }) {
                 setAskOnDemand(false)
                 try {
                   await professionalService.upsert(profile.id, { isOnDemand: true })
+                  // 🔴 `is_on_demand` es la INTENCIÓN; lo que el pool del
+                  // paciente mira es `on_demand_last_seen_at`. Sin este ping el
+                  // profesional apretaba "Activar", leía "Estás disponible" y
+                  // quedaba invisible para todo el mundo hasta recargar la
+                  // página.
+                  //
+                  // Es el mismo bug que se arregló el 2026-09-03 en
+                  // `OnDemandSwitch.jsx` (`e79784d`): esa vez se parchó el
+                  // switch y **este modal quedó afuera**, así que el bug siguió
+                  // vivo por la otra puerta. Si aparece un tercer lugar que
+                  // prenda `isOnDemand`, tiene que pinguear también.
+                  await professionalService.pingOnline()
                   setOnDemandOn(true)
                   toast.success('Estás disponible para consultas inmediatas')
                 } catch {

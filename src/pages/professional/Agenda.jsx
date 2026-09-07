@@ -73,6 +73,17 @@ export default function Agenda({ profile }) {
     setSaving(true)
     try {
       await professionalService.upsert(profile.id, form)
+      // 🔴 `is_on_demand` es la INTENCIÓN; lo que el pool del paciente mira es
+      // `on_demand_last_seen_at`. Guardar el form sin escribir la vigencia
+      // dejaba al profesional con "disponible" prendido e invisible para todos
+      // hasta que recargara el panel.
+      //
+      // Tercera puerta del mismo bug: se arregló en `OnDemandSwitch.jsx` el
+      // 2026-09-03 (`e79784d`) y quedaron afuera el modal del Dashboard y este
+      // formulario. Cualquier lugar nuevo que escriba `isOnDemand` tiene que
+      // escribir también la presencia.
+      if (form.isOnDemand) await professionalService.pingOnline()
+      else await professionalService.goOffline()
       toast.success('Agenda actualizada')
     } catch {
       toast.error('Error al guardar')
