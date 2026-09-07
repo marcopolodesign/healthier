@@ -666,7 +666,7 @@ export default function Onboarding({ profile }) {
           {/* Qué falta para poder seguir. Va arriba del botón, y sólo mientras
               falte algo: es la única pista de por qué "Siguiente" está gris. */}
           {step < STEPS.length - 1 && falta.length > 0 && (
-            <p className="text-sm text-text-tertiary -mb-1">
+            <p className="text-sm text-text-tertiary">
               Para seguir falta {falta.length > 1
                 ? `${falta.slice(0, -1).join(', ')} y ${falta[falta.length - 1]}`
                 : falta[0]}.
