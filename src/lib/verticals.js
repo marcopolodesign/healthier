@@ -56,7 +56,10 @@ export const isComingSoon = id => !!VERTICALS_BY_ID[id]?.comingSoon
 // blame). Pendiente: mover esto a DB si el ritmo de altas de especialidades lo
 // justifica.
 export const PROFESSION_CATEGORIES = [
-  { id: 'medico',        label: 'Médico',              icon: Stethoscope, specialtyValues: ['medicina_general', 'pediatria', 'cardiologia', 'dermatologia'] },
+  // Las nueve que van después de Dermatología entraron con la migración 151: sin
+  // ellas, un ginecólogo o un traumatólogo no encontraba la suya y el único
+  // camino era la profesión "Otra" con la especialidad escrita a mano.
+  { id: 'medico',        label: 'Médico',              icon: Stethoscope, specialtyValues: ['medicina_general', 'pediatria', 'cardiologia', 'dermatologia', 'ginecologia', 'traumatologia', 'neurologia', 'oftalmologia', 'psiquiatria', 'endocrinologia', 'gastroenterologia', 'otorrinolaringologia', 'urologia'] },
   { id: 'nutricion',     label: 'Nutrición',            icon: AppleLogo,   specialtyValues: ['nutricion'] },
   { id: 'psicologia',    label: 'Psicología',           icon: Brain,       specialtyValues: ['psicologia'] },
   { id: 'entrenamiento', label: 'Entrenamiento Físico', icon: Barbell,     specialtyValues: ['entrenamiento'] },
