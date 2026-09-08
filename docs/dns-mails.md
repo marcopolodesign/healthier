@@ -1,8 +1,19 @@
-# Los mails de Healthier — qué falta
+# Los mails de Healthier
 
-Todo el circuito está armado, probado y con registro propio. El DNS de
-`healthier.com.ar` **ya está cargado** (2026-09-07) — falta sólo que Resend
-termine de verificar el dominio, que depende de la propagación.
+## ✅ Verificado y activo (2026-09-08)
+
+El dominio `healthier.com.ar` está **`verified`** en Resend (los 3 registros —
+DKIM, MX y SPF de `send`— en estado `verified`) y el secret `RESEND_API_KEY` en
+el proyecto de Supabase de producción (`aixjejdoofervrkggbkd`) es el de la
+cuenta propia de Healthier (confirmado por hash, no por lectura de valor). Se
+mandó un email de prueba real por la API de Resend desde
+`consultas@healthier.com.ar` a `mateoaldao@gmail.com` y devolvió `200` con id
+`bc7c48b9-4da4-495c-99c7-00e68e0bdd09`. **Los mails transaccionales están
+saliendo.** No falta nada de configuración.
+
+---
+
+Todo el circuito está armado, probado y con registro propio.
 
 ## El DNS de `healthier.com.ar` vive en Vercel (desde el 2026-09-07)
 
