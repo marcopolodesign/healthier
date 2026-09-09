@@ -128,7 +128,28 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           privacy: 'private',
-          properties: { exp, enable_chat: true, enable_screenshare: false, max_participants: 2 },
+          properties: {
+            exp,
+            enable_chat: true,
+            enable_screenshare: false,
+            max_participants: 2,
+            // 🔴 Sin esto la app quedaba trabada (2026-09-09).
+            //
+            // `enable_prejoin_ui` es una propiedad de Daily **Prebuilt**, y los
+            // dos clientes no lo usan igual:
+            //   · el website carga el SDK y llama `join()` él mismo, así que
+            //     esta propiedad no lo toca — entra derecho;
+            //   · la app abre la URL de la sala en un WebView, o sea Prebuilt,
+            //     y con el default de Daily caía en un "Are you ready to join?"
+            //     en inglés, con el botón de colgar de la app encima. El
+            //     paciente no encontraba el "Join" y nunca entraba: el
+            //     profesional veía la sala vacía y el log del servidor decía
+            //     200, porque la sala SÍ se había entregado.
+            //
+            // En `false` los dos entran igual. No hay pantalla intermedia que
+            // mostrarle a alguien que ya tocó "Entrar a la consulta".
+            enable_prejoin_ui: false,
+          },
         }),
       })
 
