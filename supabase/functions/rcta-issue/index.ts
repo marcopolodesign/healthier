@@ -217,7 +217,10 @@ Deno.serve(async (req: Request) => {
       .from('clinical_medications')
       .select(`
         *,
-        patient:profiles!patient_id(id, full_name, dni, gender, birth_date, phone),
+        patient:profiles!patient_id(
+          id, full_name, dni, gender, birth_date, phone,
+          coverage_type, financiador_id, insurance_name, insurance_num
+        ),
         professional:profiles!professional_id(
           id, full_name, dni, gender, birth_date, phone,
           professional_profiles!professional_profiles_user_id_fkey(specialty, license_type, license_number, address)
@@ -278,14 +281,39 @@ Deno.serve(async (req: Request) => {
     // Innovamed no acepta nombres.
     const consulta = med.encounter?.consultation ?? null
     ctx.consultation_id = consulta?.id ?? null
-    const cobertura = consulta?.coverage_type === 'financiador' && consulta?.financiador_id
+
+    // La cobertura de la CONSULTA es la decisión del profesional para este acto:
+    // si está cargada, manda. Cuando está en blanco no quiere decir "particular"
+    // sino "nadie la tocó", y ahí vale la del paciente — que es justo lo que la
+    // pantalla de recetario le viene mostrando al profesional ("OSDE · afiliado
+    // …", precargado del perfil). Sin este respaldo esa precarga vivía sólo en
+    // el estado del componente y se perdía salvo que el profesional abriera
+    // "Cambiar" y guardara: la receta salía "Particulares / PLAN: No posee" para
+    // un afiliado, contradiciendo lo que la pantalla decía. Pasó en vivo el
+    // 2026-09-10 con un paciente de OSDE.
+    //
+    // El respaldo se toma sólo si está COMPLETO (id de catálogo + afiliado): un
+    // perfil a medias tiene que seguir emitiendo como hasta ahora en vez de
+    // frenar la receta con los guards de acá abajo.
+    const perfilCompleto = med.patient?.coverage_type === 'financiador'
+      && med.patient?.financiador_id
+      && String(med.patient?.insurance_num ?? '').trim()
+    const cob = consulta?.coverage_type == null && perfilCompleto
       ? {
-          idFinanciador: String(consulta.financiador_id),
-          numero: String(consulta.affiliate_number ?? '').trim(),
+          coverage_type: 'financiador',
+          financiador_id: med.patient.financiador_id,
+          affiliate_number: med.patient.insurance_num,
+        }
+      : consulta
+
+    const cobertura = cob?.coverage_type === 'financiador' && cob?.financiador_id
+      ? {
+          idFinanciador: String(cob.financiador_id),
+          numero: String(cob.affiliate_number ?? '').trim(),
         }
       : null
 
-    if (consulta?.coverage_type === 'financiador' && !consulta?.financiador_id) {
+    if (cob?.coverage_type === 'financiador' && !cob?.financiador_id) {
       return await fallar('validation_error', {
         error: 'La consulta tiene una obra social cargada a mano. Seleccionala del catálogo de Innovamed en "Cobertura médica" para poder emitir la receta.',
         code: 'RCTA_FINANCIADOR_SIN_CODIGO',
