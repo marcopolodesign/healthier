@@ -1670,6 +1670,21 @@ export default function ProfessionalVideoCall({ profile }) {
                     </p>
                   </div>
                 )}
+
+                {/* Salida manual. La compuerta la abre la presencia del paciente
+                    en el canal de Realtime, y no todos los clientes la publican
+                    —la app la publica recién desde el 2026-09-10, y una versión
+                    vieja instalada nunca lo va a hacer—, así que sin esto el
+                    profesional se queda mirando "Esperando al paciente…" para
+                    siempre y sin nada que tocar. Entrar de más cuesta una sala
+                    vacía; no poder entrar deja la consulta sin hacer. */}
+                <button
+                  type="button"
+                  onClick={() => setJoinGate(true)}
+                  className="text-white/40 hover:text-white/70 text-xs underline underline-offset-4"
+                >
+                  Entrar igual a la sala
+                </button>
               </div>
             </div>
           )}
