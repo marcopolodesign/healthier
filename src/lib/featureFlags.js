@@ -23,3 +23,22 @@ export function farmaciaVisible(profile) {
   if (!esProduccion) return true
   return FARMACIA_ALLOWLIST.includes(String(profile?.email ?? '').trim().toLowerCase())
 }
+
+/**
+ * Profesionales que existen sólo para probar
+ * (`professional_profiles.solo_pruebas`, migración 153).
+ *
+ * Están verificados, activos y cobrables a propósito —es justamente lo que se
+ * quiere probar— así que no se los puede esconder desverificándolos. Se los
+ * esconde con esta marca: no aparecen en la búsqueda, el mapa ni el pool de
+ * consulta inmediata salvo para estas cuentas.
+ *
+ * Sólo aplica en producción: en staging se ven todos, que para eso está.
+ * La lista está espejada en `mobile/src/lib/featureFlags.ts`.
+ */
+const PRUEBAS_ALLOWLIST = ['mateoaldao@gmail.com']
+
+export function veProfesionalesDePrueba(email) {
+  if (!esProduccion) return true
+  return PRUEBAS_ALLOWLIST.includes(String(email ?? '').trim().toLowerCase())
+}

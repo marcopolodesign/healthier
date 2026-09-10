@@ -1054,7 +1054,18 @@ export default function SuperAdminProfesionales() {
                         <div className="flex items-center gap-3">
                           <Avatar name={name} url={pro.profiles?.avatar_url} size={32} />
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
+                              {/* Profesional de prueba (migración 153): existe verificado y
+                                  cobrable, pero no le aparece a ningún paciente fuera de la
+                                  allowlist. Sin esta chapa el panel lo muestra igual que a
+                                  uno real y no hay forma de saber por qué nadie lo ve. */}
+                              {pro.solo_pruebas && (
+                                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                                  Prueba
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-gray-400 truncate">{email}</p>
                           </div>
                           <div onClick={e => e.stopPropagation()}>
