@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { CompanyLogo } from '../common/CompanyLogo'
+import { SUPPORT_PHONE_DISPLAY, supportWhatsAppLink } from '../../lib/support'
 
 // Shared footer for all landing pages — forhers-style: dark olive, links row,
 // giant wordmark bleeding off the bottom edge.
@@ -12,6 +13,14 @@ export function LandingFooter() {
             <Link to="/terminos" className="hover:text-white transition-colors">Términos y condiciones</Link>
             <Link to="/login" className="hover:text-white transition-colors">Iniciar sesión</Link>
             <Link to="/landing/profesionales" className="hover:text-white transition-colors">Profesionales</Link>
+            <a
+              href={supportWhatsAppLink('Hola, quiero hacer una consulta sobre Healthier:')}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-white transition-colors"
+            >
+              WhatsApp {SUPPORT_PHONE_DISPLAY}
+            </a>
           </div>
           <div className="text-xs text-white/30 sm:text-right leading-relaxed">
             <p>© {new Date().getFullYear()} Healthier · Buenos Aires, Argentina</p>

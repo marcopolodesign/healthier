@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   User, PencilSimple, Check, Camera, ShieldCheck, Heartbeat,
   Phone, Users, CreditCard, Receipt, SignOut, ArrowLeft,
-  FileText, Trash, Bell, CaretRight, UserCircle, Compass,
+  FileText, Trash, Bell, CaretRight, UserCircle, Compass, WhatsappLogo,
 } from '@phosphor-icons/react'
 import { profilesService } from '../../services/profilesService'
 import { authService } from '../../services/authService'
@@ -20,6 +20,7 @@ import { notificationService } from '../../services/notificationService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { track } from '../../utils/analytics'
 import { CLAVE_TOUR_PACIENTE } from '../../components/patient/TourPaciente'
+import { SUPPORT_PHONE_DISPLAY, supportWhatsAppLink } from '../../lib/support'
 
 // Mismas etiquetas y formato que /paciente/comprobantes, para que el resumen del
 // perfil y la página completa no digan cosas distintas de la misma consulta.
@@ -533,6 +534,29 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           </div>
           <CaretRight className="w-5 h-5 text-text-tertiary flex-shrink-0" />
         </button>
+      )}
+
+      {/* Contacto de soporte. Mismo número que el resto de la plataforma
+          (lib/support.js) — Perfil es la única superficie del paciente donde
+          vive la ayuda, así que el número tiene que estar acá y a la vista, no
+          sólo detrás de un link. */}
+      {!editing && (
+        <a
+          href={supportWhatsAppLink('Hola, soy paciente en Healthier y necesito ayuda con:')}
+          target="_blank"
+          rel="noreferrer"
+          onClick={() => track('support_whatsapp_click', { flow: 'paciente' })}
+          className="w-full bg-white rounded-2xl p-5 border border-border-default shadow-sm flex items-center gap-4 text-left hover:border-brand/40 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0">
+            <WhatsappLogo weight="fill" className="w-5 h-5 text-brand" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-text-primary text-[15px]">Contactá a soporte</p>
+            <p className="text-xs text-text-secondary mt-0.5">WhatsApp {SUPPORT_PHONE_DISPLAY}</p>
+          </div>
+          <CaretRight className="w-5 h-5 text-text-tertiary flex-shrink-0" />
+        </a>
       )}
 
       {!editing && (

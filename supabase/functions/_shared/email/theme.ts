@@ -55,3 +55,9 @@ const env = (k: string): string | undefined =>
 
 export const APP_URL = env('APP_URL') ?? 'https://gethealthier.vercel.app'
 export const LOGO_URL = `${APP_URL}/email/healthier-logo.png`
+
+// Contacto de soporte — espejo de `website/src/lib/support.js` y
+// `mobile/src/lib/support.ts`. Las Edge Functions no pueden importar del front,
+// así que el número vive acá también: si cambia, cambia en los tres.
+export const SUPPORT_WHATSAPP_NUMBER = '5491172713599'
+export const SUPPORT_PHONE_DISPLAY = '+54 9 11 7271-3599'

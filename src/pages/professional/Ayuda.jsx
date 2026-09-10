@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CaretDown, WhatsappLogo, Wrench, GraduationCap, ArrowRight, Compass } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
-import { supportWhatsAppLink } from '../../lib/support'
+import { SUPPORT_PHONE_DISPLAY, supportWhatsAppLink } from '../../lib/support'
 import { ID_CONSULTA as ID_SIMULACION } from '../../lib/simulacion'
 import { CLAVE_TOUR_PROFESIONAL } from '../../components/professional/TourProfesional'
 import { useNavigate } from 'react-router-dom'
@@ -80,7 +80,7 @@ export default function Ayuda() {
           </div>
           <div>
             <p className="font-semibold text-text-primary">¿No encontrás lo que buscás?</p>
-            <p className="text-sm text-text-secondary">Escribinos por WhatsApp, te respondemos directamente.</p>
+            <p className="text-sm text-text-secondary">Escribinos por WhatsApp al {SUPPORT_PHONE_DISPLAY}, te respondemos directamente.</p>
           </div>
         </div>
         <a
@@ -145,7 +145,7 @@ export default function Ayuda() {
             Para problemas técnicos con la plataforma, contactanos por el mismo{' '}
             <a href={supportWhatsAppLink('Hola, tengo un problema técnico con la plataforma Healthier:')} target="_blank" rel="noreferrer" className="text-brand font-medium underline">
               WhatsApp de soporte
-            </a>.
+            </a>{' '}({SUPPORT_PHONE_DISPLAY}).
           </p>
         </div>
       </div>

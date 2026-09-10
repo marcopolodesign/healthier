@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from '@phosphor-icons/react'
+import { SUPPORT_PHONE_DISPLAY, supportWhatsAppLink } from '../lib/support'
 
 const LAST_UPDATED = '22 de junio de 2026'
 
@@ -159,6 +160,13 @@ export default function TerminosYCondiciones() {
             <a href="mailto:legal@gethealthier.app" className="text-brand hover:underline">
               legal@gethealthier.app
             </a>
+          </p>
+          <p>
+            También podés escribirnos por WhatsApp al{' '}
+            <a href={supportWhatsAppLink()} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+              {SUPPORT_PHONE_DISPLAY}
+            </a>
+            .
           </p>
         </Section>
 

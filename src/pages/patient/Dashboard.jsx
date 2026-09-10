@@ -6,7 +6,7 @@ import {
   Heartbeat, X, Sparkle, CalendarBlank, MagnifyingGlass, Siren, FileText,
 } from '@phosphor-icons/react'
 import { track } from '../../utils/analytics'
-import { supportWhatsAppLink } from '../../lib/support'
+import { SUPPORT_PHONE_DISPLAY, supportWhatsAppLink } from '../../lib/support'
 import WhatsAppMark from '../../components/icons/WhatsAppMark'
 
 const LAST_VERTICAL_KEY = 'healthier_last_vertical'
@@ -449,7 +449,7 @@ export default function PatientDashboard({ profile }) {
       <WhatsAppMark className="w-8 h-8 flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <span className="font-semibold text-[14px] text-text-primary leading-none">Contactá a soporte</span>
-        <p className="text-[11px] text-text-secondary mt-0.5">Te respondemos por WhatsApp</p>
+        <p className="text-[11px] text-text-secondary mt-0.5">Por WhatsApp al {SUPPORT_PHONE_DISPLAY}</p>
       </div>
       <CaretRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
     </a>

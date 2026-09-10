@@ -11,7 +11,7 @@
  *  · **Preheader oculto**: el renglón gris que Gmail muestra al lado del asunto.
  *    Si no se escribe, muestra el principio del HTML — casi siempre basura.
  */
-import { ACCENTS, APP_URL, C, FONT, LOGO_URL, type Accent } from './theme.ts'
+import { ACCENTS, APP_URL, C, FONT, LOGO_URL, SUPPORT_PHONE_DISPLAY, SUPPORT_WHATSAPP_NUMBER, type Accent } from './theme.ts'
 
 export function esc(s: unknown): string {
   return String(s ?? '')
@@ -208,6 +208,8 @@ export function renderEmail(doc: EmailDoc): string {
             <a href="${APP_URL}/paciente/consultas" style="color:${C.mute};text-decoration:underline">Mis consultas</a>
             &nbsp;·&nbsp;
             <a href="${APP_URL}/terminos" style="color:${C.mute};text-decoration:underline">Términos</a>
+            &nbsp;·&nbsp;
+            <a href="https://wa.me/${SUPPORT_WHATSAPP_NUMBER}" style="color:${C.mute};text-decoration:underline">WhatsApp ${SUPPORT_PHONE_DISPLAY}</a>
           </p>
           <p style="margin:0;font-size:12px;line-height:1.6;color:${C.mute};font-family:${FONT}">
             Healthier · Buenos Aires, Argentina<br>
