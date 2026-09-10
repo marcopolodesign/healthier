@@ -202,6 +202,34 @@ export const professionalService = {
     return toCamelCase(await filtrarDePrueba(data ?? []))
   },
 
+  /**
+   * 🔴 **La ÚNICA puerta para prender o apagar la consulta inmediata.**
+   *
+   * `is_on_demand` es la INTENCIÓN; lo que el pool del paciente mira de verdad
+   * es `on_demand_last_seen_at`. Escribir una sin la otra deja al profesional
+   * leyendo "Estás disponible" en su panel y **invisible para todo el mundo**.
+   *
+   * Ese bug ya se arregló tres veces por separado —el switch del panel
+   * (`e79784d`, 2026-09-03), el modal de "¿estás disponible?" y los dos
+   * toggles de la app— porque cada lugar repetía las dos llamadas a mano y
+   * alguno siempre se olvidaba de la segunda. Ahora las dos viven acá: si
+   * aparece una puerta nueva, que llame a esto y no a `upsert` + `pingOnline`.
+   */
+  async setOnDemand(userId, activo) {
+    await this.upsert(userId, { isOnDemand: activo })
+    await this.sincronizarPresencia(activo)
+  },
+
+  /**
+   * La otra mitad de `setOnDemand`, para quien ya escribió `is_on_demand` por
+   * su cuenta — hoy sólo el formulario de Agenda, que guarda `isOnDemand` junto
+   * con el resto de la configuración en un `upsert` del form entero.
+   */
+  async sincronizarPresencia(activo) {
+    if (activo) await this.pingOnline()
+    else await this.goOffline()
+  },
+
   /** Marca/renueva la disponibilidad on-demand del profesional autenticado. */
   async pingOnline() {
     const { data, error } = await supabase.rpc('professional_online_ping')

@@ -78,12 +78,9 @@ export default function Agenda({ profile }) {
       // dejaba al profesional con "disponible" prendido e invisible para todos
       // hasta que recargara el panel.
       //
-      // Tercera puerta del mismo bug: se arregló en `OnDemandSwitch.jsx` el
-      // 2026-09-03 (`e79784d`) y quedaron afuera el modal del Dashboard y este
-      // formulario. Cualquier lugar nuevo que escriba `isOnDemand` tiene que
-      // escribir también la presencia.
-      if (form.isOnDemand) await professionalService.pingOnline()
-      else await professionalService.goOffline()
+      // Acá el `upsert` es del form entero, así que no se puede usar
+      // `setOnDemand` (re-escribiría el flag). Va la otra mitad sola.
+      await professionalService.sincronizarPresencia(form.isOnDemand)
       toast.success('Agenda actualizada')
     } catch {
       toast.error('Error al guardar')

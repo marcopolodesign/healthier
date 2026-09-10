@@ -564,6 +564,7 @@ export default function ProfessionalDashboard({ profile }) {
       <div data-tour="pro-ondemand">
         <OnDemandSwitch
           profileId={profile?.id}
+          value={onDemandOn}
           onChange={v => { setOnDemandOn(v); setPresenciaEnLayout?.(v) }}
         />
       </div>
@@ -592,20 +593,19 @@ export default function ProfessionalDashboard({ profile }) {
                 sessionStorage.setItem(ASK_ONDEMAND_KEY, '1')
                 setAskOnDemand(false)
                 try {
-                  await professionalService.upsert(profile.id, { isOnDemand: true })
-                  // 🔴 `is_on_demand` es la INTENCIÓN; lo que el pool del
-                  // paciente mira es `on_demand_last_seen_at`. Sin este ping el
+                  // Una sola puerta para prender la disponibilidad — escribe la
+                  // intención Y la vigencia. Antes acá se repetían las dos
+                  // llamadas a mano y el ping se había olvidado, así que el
                   // profesional apretaba "Activar", leía "Estás disponible" y
-                  // quedaba invisible para todo el mundo hasta recargar la
-                  // página.
-                  //
-                  // Es el mismo bug que se arregló el 2026-09-03 en
-                  // `OnDemandSwitch.jsx` (`e79784d`): esa vez se parchó el
-                  // switch y **este modal quedó afuera**, así que el bug siguió
-                  // vivo por la otra puerta. Si aparece un tercer lugar que
-                  // prenda `isOnDemand`, tiene que pinguear también.
-                  await professionalService.pingOnline()
+                  // quedaba invisible para todo el mundo.
+                  await professionalService.setOnDemand(profile.id, true)
+                  // Los tres consumidores del mismo dato, juntos: el estado del
+                  // dashboard, el switch de arriba (que lee de `onDemandOn`) y
+                  // el latido del layout. Faltaba avisarle a los dos últimos,
+                  // así que el switch seguía apagado después de aceptar y el
+                  // latido no arrancaba hasta recargar (Mateo, 2026-09-10).
                   setOnDemandOn(true)
+                  setPresenciaEnLayout?.(true)
                   toast.success('Estás disponible para consultas inmediatas')
                 } catch {
                   toast.error('No pudimos activarlo')

@@ -13,49 +13,49 @@ import { toast } from '../Toast'
  *
  * La disponibilidad dura una hora desde la última vez que se declaró y **no**
  * depende de tener la app abierta — ver `useOnDemandPresence`.
+ *
+ * 🔴 **Es controlado: el estado lo tiene el padre (`value`), no este componente.**
+ * Antes tenía el suyo propio, cargado una sola vez al montar — y como el modal
+ * de "¿estás disponible?" del Dashboard prende la disponibilidad por otro lado,
+ * el switch seguía mostrándose apagado después de aceptar (Mateo, 2026-09-10).
+ * Dos widgets del mismo dato con dos estados separados siempre se van a
+ * desincronizar; la solución no es sincronizarlos, es que haya uno solo.
  */
-export default function OnDemandSwitch({ profileId, onChange }) {
-  const [enabled, setEnabled] = useState(null) // null = cargando
+export default function OnDemandSwitch({ profileId, value, onChange }) {
+  const [cargado, setCargado] = useState(false)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!profileId) return
     professionalService.getByUserId(profileId)
       .then(p => {
-        const v = Boolean(p?.isOnDemand)
-        setEnabled(v)
-        // También al cargar, no sólo al togglear: el dashboard necesita saber que
-        // está apagado para poder preguntar al entrar.
-        onChange?.(v)
+        // El valor inicial se reporta hacia arriba, no se guarda acá: el padre
+        // es el dueño. También al cargar y no sólo al togglear, porque el
+        // dashboard necesita saber que está apagado para poder preguntar.
+        onChange?.(Boolean(p?.isOnDemand))
+        setCargado(true)
       })
-      .catch(() => setEnabled(false))
+      .catch(() => { onChange?.(false); setCargado(true) })
     // `onChange` a propósito fuera de las deps: es un callback inline del padre y
     // re-dispararía el fetch en cada render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileId])
+
+  const enabled = cargado ? Boolean(value) : null
 
   const toggle = async () => {
     if (saving || enabled === null) return
     const next = !enabled
     setSaving(true)
     // Optimista: el switch tiene que responder al toque, no después del round-trip.
-    setEnabled(next)
+    onChange?.(next)
     try {
-      await professionalService.upsert(profileId, { isOnDemand: next })
-      // La presencia se escribe acá y no sólo en el layout: `is_on_demand` es la
-      // intención, `on_demand_last_seen_at` es lo que el pool del paciente mira
-      // de verdad. El layout lee su estado una vez al montar y no se entera de
-      // este toggle, así que prender el switch dejaba al profesional en
-      // `is_on_demand = true` con vigencia nula —"Estás disponible" para él,
-      // invisible para el paciente— hasta que recargara la página.
-      if (next) await professionalService.pingOnline()
-      else await professionalService.goOffline()
-      onChange?.(next)
+      await professionalService.setOnDemand(profileId, next)
       toast.success(next
         ? 'Estás disponible para consultas inmediatas'
         : 'Ya no aparecés para consultas inmediatas')
     } catch {
-      setEnabled(!next)
+      onChange?.(!next)
       toast.error('No pudimos guardar el cambio')
     } finally {
       setSaving(false)
