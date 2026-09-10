@@ -1294,6 +1294,13 @@ export default function ProfessionalVideoCall({ profile }) {
           if (destroyed) return
           setJoining(false)
           consultationsService.updateStatus(id, 'in_progress').catch(() => {})
+          // El estado local TIENE que seguir a la base. `handleLeave` sólo
+          // escribe `closing` si la consulta está `in_progress`, y leía este
+          // objeto, cargado al montar — cuando todavía decía `confirmed`. O sea
+          // que "Finalizar" no marcaba el cierre nunca: el paciente no se
+          // enteraba de que la llamada había terminado y podía volver a entrar
+          // a la sala. Encontrado en vivo el 2026-09-10.
+          setConsultation(prev => (prev ? { ...prev, status: 'in_progress' } : prev))
           const local = call.participants().local
           setLocalVideoTrack(local?.tracks?.video?.persistentTrack ?? null)
           setLocalAudioTrack(local?.tracks?.audio?.persistentTrack ?? null)
