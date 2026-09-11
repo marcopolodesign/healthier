@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Healthier — De la sala de espera al cierre</title>
+<style>
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Light.woff2') format('woff2');font-weight:300;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Regular.woff2') format('woff2');font-weight:400 600;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-RegularItalic.woff2') format('woff2');font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+:root{
+  --sage:#7CB38B;--sage-hover:#5f9470;--sage-muted:rgba(124,179,139,.1);--sage-muted2:rgba(124,179,139,.18);
+  --coral:#E8927C;--lavender:#9B8EC4;--danger:#D9534F;--gold:#E4A853;--sky:#6BAFCF;--green:#6BBF7B;
+  --bg-primary:#F6F5F0;--bg-secondary:#FDFCF9;--surface:#fff;
+  --text-primary:#2D2A26;--text-secondary:#6B6560;--text-tertiary:#A8A29E;
+  --border:#D8D4CE;--border-hover:#C4BFB8;
+  --radius-pill:999px;--radius-card:1.5rem;--radius-card-sm:1rem;
+  --shadow-card:0 1px 4px rgba(45,42,38,.06);--shadow-hover:0 8px 28px rgba(124,179,139,.14);
+  --t:all .36s cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-primary)}
+body{font-family:'Everett',-apple-system,BlinkMacSystemFont,sans-serif;color:var(--text-primary);-webkit-font-smoothing:antialiased}
+button{all:unset;cursor:pointer}
+
+/* DECK */
+#deck{position:fixed;inset:0;overflow:hidden}
+.slide{
+  position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;
+  padding:5rem 2rem 4rem;opacity:0;pointer-events:none;
+  transition:opacity .42s cubic-bezier(.4,0,.2,1),transform .42s cubic-bezier(.4,0,.2,1);
+  transform:translateY(20px);overflow:hidden;
+}
+.slide.active{opacity:1;pointer-events:auto;transform:translateY(0)}
+@media(prefers-reduced-motion:reduce){.slide{transition:opacity .15s}}
+.slide-ivory{background:var(--bg-primary)}
+.slide-cream{background:var(--bg-secondary)}
+.slide-white{background:var(--surface)}
+.slide-sage{background:var(--sage);color:#fff}
+.slide-dark{background:#1d1e1a;color:#f9f8f5}
+
+/* NAV */
+#nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;
+  padding:.75rem 1.5rem;height:52px;background:rgba(246,245,240,.82);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);transition:background .3s,border-color .3s}
+#brand{font-size:.8rem;font-weight:700;color:var(--sage);letter-spacing:-.01em;min-width:4rem}
+#dots{display:flex;align-items:center;gap:.35rem;flex:1;justify-content:center}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--border);transition:var(--t);cursor:pointer}
+.dot.active{background:var(--sage);width:18px;border-radius:3px}
+#counter{font-size:.75rem;font-weight:600;color:var(--text-tertiary);letter-spacing:.04em;min-width:4rem;text-align:right}
+.arrow-btn{position:fixed;top:50%;z-index:99;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.7);backdrop-filter:blur(8px);
+  border:1px solid var(--border);color:var(--text-secondary);transition:var(--t);opacity:.55}
+.arrow-btn:hover{opacity:1;background:#fff;color:var(--text-primary)}
+#btn-prev{left:.75rem}#btn-next{right:.75rem}
+.arrow-btn.hidden{opacity:0;pointer-events:none}
+.progress-bar{position:fixed;bottom:0;left:0;height:2px;background:var(--sage);transition:width .4s cubic-bezier(.4,0,.2,1);z-index:100}
+
+/* LAYOUT */
+.content{width:100%;max-width:880px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:1.5rem;text-align:center}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:2.5rem;align-items:center;width:100%;max-width:980px}
+.two-col.r{direction:rtl}.two-col.r>*{direction:ltr}
+@media(max-width:840px){.two-col{grid-template-columns:1fr;gap:1.5rem}}
+
+/* TYPOGRAPHY */
+.eyebrow{display:inline-flex;align-items:center;gap:.4rem;font-size:.75rem;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;background:var(--sage-muted);color:var(--sage);padding:.3rem .85rem;border-radius:var(--radius-pill)}
+.eyebrow.coral{background:rgba(232,146,124,.1);color:#c2614a}
+.eyebrow.lavender{background:rgba(155,142,196,.1);color:#6d5fa3}
+.eyebrow.gold{background:rgba(228,168,83,.1);color:#9a6c1a}
+.eyebrow.onsage{background:rgba(255,255,255,.18);color:#fff}
+.eyebrow.ondark{background:rgba(255,255,255,.1);color:#cfe6d6}
+.two-col .eyebrow{align-self:flex-start}
+h1.hero{font-size:clamp(2.4rem,5.5vw,4.2rem);font-weight:700;line-height:1.1;letter-spacing:-.02em;max-width:18ch}
+h1.hero .a{color:var(--sage)}
+h2.st{font-size:clamp(1.9rem,4vw,2.9rem);font-weight:700;line-height:1.15;letter-spacing:-.02em;max-width:22ch}
+h2.st .a{color:var(--sage)}
+h2.st .ac{color:var(--coral)}
+h2.st .al{color:var(--lavender)}
+h2.st .ag{color:var(--gold)}
+.lead{font-size:clamp(.95rem,1.8vw,1.15rem);color:var(--text-secondary);line-height:1.65;max-width:52ch}
+.lead strong{color:var(--text-primary);font-weight:600}
+.slide-sage .lead,.slide-dark .lead{color:rgba(255,255,255,.82)}
+.slide-sage .lead strong,.slide-dark .lead strong{color:#fff}
+
+/* LISTAS */
+.bl{display:flex;flex-direction:column;gap:.55rem;list-style:none}
+.bl li{display:flex;align-items:flex-start;gap:.6rem;font-size:.88rem;color:var(--text-secondary);line-height:1.55}
+.bl .bi{width:22px;height:22px;border-radius:50%;background:var(--sage-muted);display:flex;align-items:center;
+  justify-content:center;color:var(--sage);flex-shrink:0;margin-top:.05rem}
+.slide-sage .bl li,.slide-dark .bl li{color:rgba(255,255,255,.8)}
+.slide-sage .bl .bi{background:rgba(255,255,255,.2);color:#fff}
+.slide-dark .bl .bi{background:rgba(124,179,139,.22);color:var(--sage)}
+
+/* FEATURE GRID */
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.85rem;width:100%;max-width:900px}
+.fg.four{grid-template-columns:repeat(4,1fr)}
+@media(max-width:860px){.fg.four{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.fg.four{grid-template-columns:1fr}}
+.fc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:1.1rem 1.3rem;
+  text-align:left;box-shadow:var(--shadow-card);transition:var(--t)}
+.fc:hover{box-shadow:var(--shadow-hover);border-color:rgba(124,179,139,.3);transform:translateY(-2px)}
+.ic{width:38px;height:38px;border-radius:.7rem;display:flex;align-items:center;justify-content:center;margin-bottom:.65rem}
+.ic.s{background:var(--sage-muted);color:var(--sage)}
+.ic.c{background:rgba(232,146,124,.1);color:var(--coral)}
+.ic.l{background:rgba(155,142,196,.1);color:var(--lavender)}
+.ic.g{background:rgba(228,168,83,.1);color:var(--gold)}
+.ic.k{background:rgba(107,175,207,.1);color:var(--sky)}
+.ic.d{background:rgba(217,83,79,.1);color:var(--danger)}
+.fc h3{font-size:.9rem;font-weight:700;margin-bottom:.25rem}
+.fc p{font-size:.8rem;color:var(--text-secondary);line-height:1.5}
+.slide-dark .fc{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12)}
+.slide-dark .fc p{color:rgba(255,255,255,.68)}
+.slide-sage .fc{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.22)}
+.slide-sage .fc h3{color:#fff}
+.slide-sage .fc p{color:rgba(255,255,255,.8)}
+.slide-sage .ic.s,.slide-sage .ic.c,.slide-sage .ic.l,.slide-sage .ic.g,.slide-sage .ic.k,.slide-sage .ic.d{
+  background:rgba(255,255,255,.2);color:#fff}
+
+.pill-row{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center}
+.pill{font-size:.8rem;font-weight:500;padding:.35rem .9rem;border-radius:var(--radius-pill);
+  border:1px solid var(--border);background:var(--surface);color:var(--text-secondary)}
+
+.hint{font-size:.82rem;color:var(--text-tertiary);margin-top:1rem}
+
+/* Línea de tiempo */
+.flow{display:flex;align-items:stretch;gap:0;width:100%;max-width:900px;flex-wrap:wrap;justify-content:center}
+.fs{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);
+  padding:.85rem 1rem;text-align:left;position:relative;box-shadow:var(--shadow-card)}
+.fs+.fs{margin-left:.6rem}
+.fs .n{font-size:.62rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--sage);display:block;margin-bottom:.3rem}
+.fs .h{font-size:.86rem;font-weight:700;line-height:1.25;display:block;margin-bottom:.22rem}
+.fs .d{font-size:.74rem;color:var(--text-secondary);line-height:1.45}
+.fs.hot{border-color:rgba(124,179,139,.55);background:var(--sage-muted)}
+.fs.wait{border-style:dashed}
+.fs.off{opacity:.55}
+.fs .n.c{color:var(--coral)}.fs .n.l{color:var(--lavender)}.fs .n.g{color:#9a6c1a}
+.slide-dark .fs{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.13)}
+.slide-dark .fs .d{color:rgba(255,255,255,.66)}
+@media(max-width:760px){.fs+.fs{margin-left:0;margin-top:.5rem}.flow{flex-direction:column}}
+
+/* Tabla resumen */
+.tbl{width:100%;max-width:940px;border:1px solid var(--border);border-radius:var(--radius-card-sm);
+  overflow:hidden;background:var(--surface);box-shadow:var(--shadow-card)}
+.tbl .tr{display:grid;grid-template-columns:1fr 1.5fr 1.05fr 1.35fr;gap:.75rem;padding:.58rem .95rem;text-align:left;align-items:center}
+.tbl .tr+.tr{border-top:1px solid var(--border)}
+.tbl .th{background:var(--sage-muted);font-size:.63rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--sage)}
+.tbl .tr span{font-size:.74rem;color:var(--text-secondary);line-height:1.4}
+.tbl .tr span:first-child{font-weight:700;color:var(--text-primary)}
+.tbl .tr.dim span{color:var(--text-tertiary)}
+@media(max-width:760px){.tbl .tr{grid-template-columns:1fr 1fr}.tbl .th{display:none}}
+
+/* Números grandes */
+.stats{display:flex;flex-wrap:wrap;gap:.85rem;justify-content:center;width:100%;max-width:900px}
+.stat{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-card-sm);padding:1rem 1.1rem;text-align:left;box-shadow:var(--shadow-card)}
+.stat .v{font-size:1.75rem;font-weight:700;line-height:1;letter-spacing:-.02em;color:var(--sage);display:block}
+.stat .v.c{color:var(--coral)}.stat .v.l{color:var(--lavender)}.stat .v.n{color:var(--text-primary)}
+.stat .v.sm{font-size:1.15rem;line-height:1.2}
+.stat .k{font-size:.72rem;color:var(--text-secondary);line-height:1.4;display:block;margin-top:.35rem}
+.slide-sage .stat{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.2)}
+.slide-sage .stat .v,.slide-sage .stat .k{color:#fff}
+.slide-dark .stat{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.13)}
+.slide-dark .stat .k{color:rgba(255,255,255,.66)}
+
+/* Aviso */
+.note{display:flex;gap:.7rem;align-items:flex-start;max-width:640px;text-align:left;
+  background:rgba(228,168,83,.09);border:1px solid rgba(228,168,83,.3);border-radius:var(--radius-card-sm);padding:.85rem 1rem}
+.note svg{flex-shrink:0;color:#9a6c1a;margin-top:.1rem}
+.note p{font-size:.8rem;color:var(--text-secondary);line-height:1.55}
+.note p strong{color:var(--text-primary)}
+.slide-dark .note{background:rgba(228,168,83,.1);border-color:rgba(228,168,83,.28)}
+.slide-dark .note p{color:rgba(255,255,255,.72)}
+.slide-dark .note p strong{color:#fff}
+
+/* Dos columnas etiquetadas — paciente / profesional */
+.sides{display:grid;grid-template-columns:1fr 1fr;gap:.85rem;width:100%;max-width:900px}
+@media(max-width:760px){.sides{grid-template-columns:1fr}}
+.side{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:1.05rem 1.2rem;text-align:left;box-shadow:var(--shadow-card)}
+.side .who{font-size:.63rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--sage);display:block;margin-bottom:.55rem}
+.side .who.c{color:#c2614a}
+.side ul{list-style:none;display:flex;flex-direction:column;gap:.42rem}
+.side li{font-size:.79rem;color:var(--text-secondary);line-height:1.5;padding-left:.85rem;position:relative}
+.side li::before{content:'';position:absolute;left:0;top:.5rem;width:4px;height:4px;border-radius:50%;background:var(--border-hover)}
+.side li strong{color:var(--text-primary);font-weight:600}
+.slide-dark .side{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.13)}
+.slide-dark .side li{color:rgba(255,255,255,.68)}
+.slide-dark .side li strong{color:#fff}
+</style>
+</head>
+<body>
+
+<div id="nav">
+  <span id="brand">Healthier</span>
+  <div id="dots"></div>
+  <span id="counter">01 / 20</span>
+</div>
+
+<button class="arrow-btn hidden" id="btn-prev" aria-label="Anterior">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+</button>
+<button class="arrow-btn" id="btn-next" aria-label="Siguiente">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+</button>
+<div class="progress-bar" style="width:5%"></div>
+
+<div id="deck">
+
+<!-- 1 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory active" data-slide="1">
+  <div class="content">
+    <span class="eyebrow">Cómo funciona una consulta · Documento interno</span>
+    <h1 class="hero">De la sala de espera<br>al <span class="a">cierre.</span></h1>
+    <p class="lead">Una videoconsulta de Healthier son dos personas que tienen que encontrarse en el mismo lugar y a la misma hora, y un documento clínico que queda escrito al final. Acá está todo el recorrido: quién avisa a quién, qué habilita cada paso, cómo se emite la receta y qué pasa cuando algo se corta en el medio.</p>
+    <div class="pill-row">
+      <span class="pill">Los avisos</span>
+      <span class="pill">La sala de espera</span>
+      <span class="pill">Ingresar al paciente</span>
+      <span class="pill">La videollamada</span>
+      <span class="pill">La receta</span>
+      <span class="pill">El cierre</span>
+    </div>
+    <p class="hint">→ Navegá con las flechas o la barra espaciadora</p>
+  </div>
+</section>
+
+<!-- 2 ─────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="2">
+  <div class="content">
+    <span class="eyebrow">El mapa</span>
+    <h2 class="st">Seis tramos,<br>de punta a <span class="a">punta.</span></h2>
+    <p class="lead">Cada uno tiene su propio disparador. Ninguno arranca porque sí: siempre hay una acción de una de las dos personas que habilita la siguiente.</p>
+    <div class="fg">
+      <div class="fc">
+        <div class="ic s"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <h3>1 · Los avisos</h3>
+        <p>El día antes y media hora antes. Mail y teléfono, siempre los dos.</p>
+      </div>
+      <div class="fc">
+        <div class="ic s"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M9 13h6M9 17h4"/></svg></div>
+        <h3>2 · La pre-consulta</h3>
+        <p>El paciente contesta antes de anunciarse. No es opcional.</p>
+      </div>
+      <div class="fc">
+        <div class="ic c"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+        <h3>3 · La sala de espera</h3>
+        <p>El paciente se anuncia. Ahí le suena el teléfono al profesional.</p>
+      </div>
+      <div class="fc">
+        <div class="ic l"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="m23 7-7 5 7 5V7Z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div>
+        <h3>4 · La videollamada</h3>
+        <p>Una sala privada de dos lugares, con el panel clínico al lado.</p>
+      </div>
+      <div class="fc">
+        <div class="ic k"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg></div>
+        <h3>5 · La receta</h3>
+        <p>Del vademécum, firmada por el servicio de recetas electrónicas.</p>
+      </div>
+      <div class="fc">
+        <div class="ic g"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <h3>6 · El cierre</h3>
+        <p>Con el código del paciente. Recién ahí existe el resumen.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="3">
+  <div class="content">
+    <span class="eyebrow">Antes del turno</span>
+    <h2 class="st">Tres avisos,<br>y ninguno es <span class="a">opcional.</span></h2>
+    <p class="lead">Todo lo que sale antes de la consulta va por <strong>mail y por el teléfono a la vez</strong>. No es uno u otro: si el aviso al teléfono falla, el mail sale igual.</p>
+    <div class="flow">
+      <div class="fs"><span class="n">Al reservar</span><span class="h">Turno confirmado</span><span class="d">Al paciente, con día, hora y valor. Al profesional, la reserva nueva en su agenda.</span></div>
+      <div class="fs"><span class="n">24 h antes</span><span class="h">Mañana tenés turno</span><span class="d">Al paciente. Le recuerda probar cámara y micrófono.</span></div>
+      <div class="fs hot"><span class="n">30 min antes</span><span class="h">Empieza pronto</span><span class="d">Al paciente. Es el último empujón antes de la hora.</span></div>
+      <div class="fs"><span class="n">1 h antes</span><span class="h">Tenés una consulta</span><span class="d">Al profesional, a su agenda. Es el único recordatorio que recibe.</span></div>
+    </div>
+    <div class="note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <p>Cada aviso se marca en la consulta apenas sale, así que <strong>no se puede mandar dos veces</strong> aunque el chequeo corra cada quince minutos.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 4 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="4">
+  <div class="content">
+    <span class="eyebrow lavender">La pre-consulta</span>
+    <h2 class="st">El paciente llega<br>con la ficha <span class="al">hecha.</span></h2>
+    <p class="lead">Antes de poder anunciarse, el paciente contesta un cuestionario de tres pasos. <strong>No se puede saltear</strong>, y el motivo es concreto: anunciarse convoca al profesional, así que esto tiene que estar contestado antes de que el otro deje lo que está haciendo.</p>
+    <div class="flow">
+      <div class="fs"><span class="n l">01</span><span class="h">El síntoma</span><span class="d">Se elige de una lista codificada, no se escribe a mano.</span></div>
+      <div class="fs"><span class="n l">02</span><span class="h">Las preguntas</span><span class="d">Cuánto hace, qué tan fuerte, con qué mejora. Dependen del síntoma elegido.</span></div>
+      <div class="fs"><span class="n l">03</span><span class="h">Qué está tomando</span><span class="d">Medicación actual, también del catálogo.</span></div>
+    </div>
+    <p class="lead">Aprovecha el mismo momento para pedirle los datos que hacen falta para poder recetarle —documento, fecha de nacimiento, sexo— y los guarda <strong>en su perfil, no en esa consulta</strong>: se cargan una vez y sirven para siempre.</p>
+  </div>
+</section>
+
+<!-- 5 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="5">
+  <div class="content">
+    <span class="eyebrow coral">La distinción que ordena todo</span>
+    <h2 class="st">Estar esperando no es<br>estar <span class="ac">habilitado.</span></h2>
+    <p class="lead">Son dos cosas distintas y se guardan por separado. Confundirlas fue el origen del problema que este diseño resuelve: antes, el paciente quedaba habilitado como <em>efecto secundario</em> de que el profesional abriera la videollamada, y no tenía forma de enterarse.</p>
+    <div class="two-col" style="max-width:900px;margin-top:.4rem">
+      <div class="fc" style="border-color:rgba(232,146,124,.4)">
+        <div class="ic c"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+        <h3>Está esperando</h3>
+        <p>Lo escribe <strong>el paciente</strong> al apretar "Iniciar consulta". Se refresca solo cada 30 segundos y se considera vigente hasta un minuto y medio después del último latido: si cerró la app, deja de figurar.</p>
+      </div>
+      <div class="fc" style="border-color:rgba(124,179,139,.45)">
+        <div class="ic s"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h3>Está habilitado a entrar</h3>
+        <p>Lo escribe <strong>el profesional</strong> con "Ingresar paciente". Es una marca de una sola vez, no se apaga, y es lo único que le abre la puerta al paciente.</p>
+      </div>
+    </div>
+    <div class="note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <p>Ninguna de las dos es "la consulta empezó". <strong>Ese es un tercer estado</strong>, y lo escribe el sistema cuando alguien pide entrar a la sala de video.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 6 ─────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="6">
+  <div class="content">
+    <span class="eyebrow">La sala de espera</span>
+    <h2 class="st">Lo que ve<br>cada <span class="a">uno.</span></h2>
+    <div class="sides">
+      <div class="side">
+        <span class="who c">El paciente</span>
+        <ul>
+          <li>Cuenta regresiva cuando falta menos de una hora, y la foto de quien lo va a atender.</li>
+          <li>El botón de entrar está apagado hasta que lo habilitan. El título cambia a <strong>"¡Ya podés entrar!"</strong> en el momento, sin recargar nada.</li>
+          <li>Si el profesional no aparece, a los <strong>5 minutos</strong> le ofrece seguir esperando o marcarlo ausente.</li>
+        </ul>
+      </div>
+      <div class="side">
+        <span class="who">El profesional</span>
+        <ul>
+          <li>Un aviso al teléfono: <strong>"Tenés un paciente esperando"</strong>, que lo lleva directo a esa videollamada.</li>
+          <li>En su agenda, la fila se resalta y aparece la chapa <strong>"En sala · hace N min"</strong>, que titila a propósito.</li>
+          <li>El botón de esa fila cambia de "Entrar" a <strong>"Ingresar paciente"</strong>.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="stats" style="margin-top:.3rem">
+      <div class="stat"><span class="v">15 min</span><span class="k">Antes del turno se puede entrar</span></div>
+      <div class="stat"><span class="v">1 h</span><span class="k">Después de la hora todavía se puede</span></div>
+      <div class="stat"><span class="v c">5 min</span><span class="k">Antes de poder marcar al otro como ausente</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="7">
+  <div class="content">
+    <span class="eyebrow">Ingresar al paciente</span>
+    <h2 class="st">Un botón que hace<br>una <span class="a">sola cosa.</span></h2>
+    <p class="lead">"Ingresar paciente" <strong>no arranca la consulta</strong> ni abre la videollamada. Solamente levanta la barrera: deja anotado que ese paciente ya puede entrar, y el paciente lo ve al instante.</p>
+    <div class="flow">
+      <div class="fs"><span class="n">01</span><span class="h">El profesional toca el botón</span><span class="d">Desde su agenda o desde adentro de la videollamada, indistinto.</span></div>
+      <div class="fs hot"><span class="n">02</span><span class="h">Queda habilitado</span><span class="d">Una marca con la hora. Tocarlo dos veces no hace nada: la primera manda.</span></div>
+      <div class="fs"><span class="n">03</span><span class="h">Al paciente se le abre la puerta</span><span class="d">Le llega en el momento, sin recargar la pantalla.</span></div>
+    </div>
+    <div class="note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <p>El botón aparece <strong>aunque el paciente todavía no figure esperando</strong>, y es a propósito: habilitar de más no cuesta nada, no poder habilitar deja la consulta sin hacer.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 8 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="8">
+  <div class="content">
+    <span class="eyebrow lavender">La videollamada</span>
+    <h2 class="st">Una sala privada,<br>de dos <span class="al">lugares.</span></h2>
+    <p class="lead">La sala la crea el sistema la primera vez que alguien pide entrar, y queda guardada en la consulta. No hay salas fijas ni links que circulen: <strong>cada persona recibe su propio permiso de entrada</strong>, emitido en el momento y sólo para esa consulta.</p>
+    <div class="fg" style="max-width:880px">
+      <div class="fc">
+        <div class="ic l"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg></div>
+        <h3>Privada y de dos</h3>
+        <p>Cupo máximo de dos participantes. Sin grabación y sin compartir pantalla.</p>
+      </div>
+      <div class="fc">
+        <div class="ic s"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+        <h3>Vence sola</h3>
+        <p>La sala caduca a las 24 horas. No queda nada abierto después.</p>
+      </div>
+      <div class="fc">
+        <div class="ic k"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h3>Una sola, garantizado</h3>
+        <p>Si los dos piden entrar en el mismo segundo, el sistema se queda con una y descarta la otra. Nunca quedan en salas distintas.</p>
+      </div>
+      <div class="fc">
+        <div class="ic d"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <h3>No se vuelve a entrar</h3>
+        <p>Con la consulta cerrada o cancelada, el permiso no se emite. El bloqueo está en el servidor, no en el botón.</p>
+      </div>
+    </div>
+    <p class="lead">Pedir el permiso de entrada es, además, <strong>lo que marca la consulta como "en curso"</strong>. Es el único momento en que ese estado se escribe.</p>
+  </div>
+</section>
+
+<!-- 9 ─────────────────────────────────────────────── -->
+<section class="slide slide-dark" data-slide="9">
+  <div class="content">
+    <span class="eyebrow ondark">Las dos puntas</span>
+    <h2 class="st">Cuatro pantallas<br>para la <span class="a">misma sala.</span></h2>
+    <p class="lead">Paciente y profesional pueden estar cada uno en la web o en el teléfono. Son cuatro combinaciones y todas tienen que funcionar contra la misma sala.</p>
+    <div class="fg four">
+      <div class="fc">
+        <div class="ic s"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <h3>Paciente · web</h3>
+        <p>Video con la pantalla propia de Healthier.</p>
+      </div>
+      <div class="fc">
+        <div class="ic s"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg></div>
+        <h3>Paciente · app</h3>
+        <p>La pantalla de video del proveedor, embebida.</p>
+      </div>
+      <div class="fc">
+        <div class="ic l"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <h3>Profesional · web</h3>
+        <p>Video más el panel clínico, lado a lado.</p>
+      </div>
+      <div class="fc">
+        <div class="ic l"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg></div>
+        <h3>Profesional · app</h3>
+        <p>La <strong>misma pantalla de la web</strong>, embebida con su sesión. No hay una versión aparte que mantener.</p>
+      </div>
+    </div>
+    <p class="lead"><strong>Web contra web no prueba nada.</strong> Cada punta implementa su mitad por separado, así que una consulta sólo está probada de verdad cuando se abre con las dos puntas distintas a la vez.</p>
+  </div>
+</section>
+
+<!-- 10 ────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="10">
+  <div class="content">
+    <span class="eyebrow coral">La compuerta</span>
+    <h2 class="st">El profesional espera<br>a que el otro <span class="ac">se anuncie.</span></h2>
+    <p class="lead">Para no dejarlo hablando solo en una sala vacía, el profesional no entra al video hasta que el paciente aparece. Esa compuerta <strong>se abre una vez y no vuelve atrás</strong>: un parpadeo de conexión ya no lo saca de la llamada.</p>
+    <div class="note" style="background:rgba(217,83,79,.07);border-color:rgba(217,83,79,.28)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color:var(--danger)"><path d="M12 2 2 20h20L12 2Z"/><path d="M12 9v5M12 17h.01"/></svg>
+      <p><strong>Acá vivió un bug meses.</strong> El paciente que entraba desde la app no se anunciaba, así que la compuerta no se abría nunca y el profesional se quedaba en "Esperando al paciente…" para siempre — aunque los dos estuvieran, de hecho, en la misma sala. Web contra web funcionaba, y por eso nadie lo veía.</p>
+    </div>
+    <p class="lead">Se arregló de los dos lados: la app ahora se anuncia igual que la web, y el profesional tiene un botón de escape, <strong>"Entrar igual a la sala"</strong>. Entrar de más cuesta una sala vacía; no poder entrar deja la consulta sin hacer.</p>
+  </div>
+</section>
+
+<!-- 11 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="11">
+  <div class="content">
+    <span class="eyebrow">Durante la consulta</span>
+    <h2 class="st">El video ocupa un tercio.<br>El resto es la <span class="a">planilla.</span></h2>
+    <p class="lead">El profesional trabaja en una sola pantalla partida, con el divisor movible y la proporción que elija guardada para la próxima. Cuatro entradas en la barra, y funcionan de dos maneras distintas.</p>
+    <div class="sides">
+      <div class="side">
+        <span class="who">Bajan por la misma planilla</span>
+        <ul>
+          <li><strong>Notas de consulta</strong> — nota, diagnóstico presuntivo, indicación y addendum.</li>
+          <li><strong>Historia clínica</strong> — antecedentes, alergias activas en rojo, consultas anteriores.</li>
+        </ul>
+      </div>
+      <div class="side">
+        <span class="who c">Reemplazan el panel</span>
+        <ul>
+          <li><strong>Recetario</strong> — medicamentos y pedidos de estudios.</li>
+          <li><strong>Cerrar consulta</strong> — el código y el resumen.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="lead">La cobertura del paciente <strong>se puede corregir sin salir de la llamada</strong>: antes había que ir al detalle de la consulta, y sin ella cargada del catálogo no se puede emitir una receta con obra social.</p>
+    <p class="hint">El panel por dentro, pestaña por pestaña, está en <em>El panel clínico de la videollamada</em>.</p>
+  </div>
+</section>
+
+<!-- 12 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="12">
+  <div class="content">
+    <span class="eyebrow gold">El recetario</span>
+    <h2 class="st">Nada se escribe<br>a <span class="ag">mano.</span></h2>
+    <p class="lead">Las dos cosas que la receta necesita codificadas —el medicamento y la obra social— <strong>se eligen de una lista, siempre</strong>. Se guarda el código y se muestra el nombre.</p>
+    <div class="two-col" style="max-width:900px">
+      <div class="fc">
+        <div class="ic g"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg></div>
+        <h3>El medicamento</h3>
+        <p>Buscador contra el vademécum: nombre, presentación, droga y código a la vista. Avisa si es psicofármaco, si requiere duplicado y —cuando hay obra social cargada— <strong>si ese paciente lo tiene cubierto</strong>. Si no aparece en la lista, no se puede recetar.</p>
+      </div>
+      <div class="fc">
+        <div class="ic k"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
+        <h3>La obra social</h3>
+        <p>Tres estados, no dos: <strong>sin definir</strong>, <strong>obra social</strong> o <strong>particular</strong>. Con obra social hace falta el número de afiliado, y el sistema lo reclama antes de dejar emitir.</p>
+      </div>
+    </div>
+    <div class="note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <p>Si al paciente o al profesional le falta algún dato obligatorio —documento, matrícula, domicilio de atención— aparece un cartel <strong>antes</strong> de intentar emitir, y el profesional puede completar los del paciente ahí mismo.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 13 ────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="13">
+  <div class="content">
+    <span class="eyebrow gold">La emisión</span>
+    <h2 class="st">Guardar la medicación<br>no es <span class="ag">emitir.</span></h2>
+    <p class="lead">Son dos pasos y la pantalla lo dice: anotar qué le indicó deja el registro en la historia clínica; <strong>emitir</strong> es lo que genera el documento firmado con validez legal.</p>
+    <div class="flow">
+      <div class="fs"><span class="n g">01</span><span class="h">Se cargan los medicamentos</span><span class="d">Uno o varios. Quedan asentados en la historia clínica.</span></div>
+      <div class="fs"><span class="n g">02</span><span class="h">Se tildan los que van</span><span class="d">Todos los emitibles vienen marcados. Van juntos en <strong>una sola receta</strong>.</span></div>
+      <div class="fs hot"><span class="n g">03</span><span class="h">Emitir receta</span><span class="d">Sale al servicio de recetas electrónicas con los datos de los dos y el logo de Healthier.</span></div>
+      <div class="fs"><span class="n g">04</span><span class="h">Vuelve el documento</span><span class="d">Número de receta y PDF firmado. Se guarda el enlace, el código verificador y la fecha.</span></div>
+    </div>
+    <p class="lead">Sólo pueden emitir <strong>las especialidades habilitadas</strong> —hoy medicina general y pediatría—: a las demás ni siquiera les aparece la pestaña, y el permiso además se controla del lado del servidor.</p>
+    <div class="note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <p>Que el pedido salga bien <strong>no alcanza</strong>: la pantalla vuelve a leer la receta guardada y, si no quedó registrada, lo dice. Sale de un incidente real en el que la receta se emitió y no quedó asentada.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 14 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="14">
+  <div class="content">
+    <span class="eyebrow">Cómo le llega al paciente</span>
+    <h2 class="st">Tres caminos,<br>los tres <span class="a">solos.</span></h2>
+    <div class="fg" style="max-width:880px">
+      <div class="fc">
+        <div class="ic s"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/></svg></div>
+        <h3>Un mail</h3>
+        <p>Con el enlace al PDF. <strong>Uno por receta</strong>, no uno por medicamento, aunque lleve cuatro.</p>
+      </div>
+      <div class="fc">
+        <div class="ic c"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+        <h3>Un aviso al teléfono</h3>
+        <p>"Tu receta ya está disponible", con los medicamentos en el cuerpo. Lleva a sus recetas.</p>
+      </div>
+      <div class="fc">
+        <div class="ic l"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg></div>
+        <h3>La app</h3>
+        <p>Sus recetas, el detalle de cada una con el PDF, y —si alguna farmacia tiene stock— el botón para pedirlas.</p>
+      </div>
+    </div>
+    <p class="lead"><strong>El PDF lo hospeda el emisor, no Healthier.</strong> Lo que se guarda es el enlace: es el mismo documento que valida quien lo reciba en el mostrador.</p>
+    <div class="note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <p><strong>Ya no existe la receta subida a mano.</strong> Una foto o un PDF que subamos nosotros no es una receta: o sale electrónica, o no sale. Los <strong>pedidos de estudios</strong> son un circuito aparte —quedan como indicación en la historia clínica, sin firma ni PDF.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 15 ────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="15">
+  <div class="content">
+    <span class="eyebrow onsage">El cierre</span>
+    <h2 class="st">El código no<br>se dicta.</h2>
+    <p class="lead">Toda consulta tiene un código de cuatro dígitos que prueba que el paciente estuvo. Nadie lo lee en voz alta ni lo tipea: viaja solo entre las dos pantallas.</p>
+    <div class="flow">
+      <div class="fs" style="background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.28)"><span class="n" style="color:#fff">01</span><span class="h" style="color:#fff">El profesional lo pide</span><span class="d" style="color:rgba(255,255,255,.78)">Desde "Cerrar consulta", <strong>sin colgar</strong>.</span></div>
+      <div class="fs" style="background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.28)"><span class="n" style="color:#fff">02</span><span class="h" style="color:#fff">Al paciente le aparece</span><span class="d" style="color:rgba(255,255,255,.78)">Un solo botón: "Aceptar y compartir".</span></div>
+      <div class="fs" style="background:#fff;border-color:#fff"><span class="n">03</span><span class="h">Se verifica solo</span><span class="d">El código llega y se valida sin que nadie escriba nada.</span></div>
+      <div class="fs" style="background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.28)"><span class="n" style="color:#fff">04</span><span class="h" style="color:#fff">Se cierra</span><span class="d" style="color:rgba(255,255,255,.78)">Resumen, diagnóstico e indicaciones quedan firmados.</span></div>
+    </div>
+    <p class="lead">Hay <strong>cinco intentos</strong>. Si se agotan o el paciente ya se fue, la consulta <strong>se cierra igual dejando un motivo escrito</strong>: nunca queda trabada por no tener el código. El presencial no usa código.</p>
+  </div>
+</section>
+
+<!-- 16 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="16">
+  <div class="content">
+    <span class="eyebrow lavender">Entre colgar y cerrar</span>
+    <h2 class="st">"Preparando<br>tu <span class="al">receta."</span></h2>
+    <p class="lead">Cuando el profesional cuelga, la consulta <strong>no termina</strong>: entra en una ventana propia mientras él carga el cierre. Existe porque en ese rato el paciente necesita saber que todavía está pasando algo.</p>
+    <div class="sides">
+      <div class="side">
+        <span class="who c">El paciente</span>
+        <ul>
+          <li>Ve <strong>"Preparando tu receta"</strong> y consulta cada pocos segundos si ya terminó.</li>
+          <li><strong>No puede volver a entrar</strong> a la sala. El bloqueo está en el servidor: no alcanza con esconder el botón.</li>
+        </ul>
+      </div>
+      <div class="side">
+        <span class="who">El profesional</span>
+        <ul>
+          <li>Colgar lo lleva al detalle de la consulta, no a un modal encima del video.</li>
+          <li>Ahí carga el resumen, verifica el código si no lo hizo antes, y sube su factura.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <p>La tolerancia acá es de <strong>10 minutos</strong>, mucho más corta que en el resto: del otro lado hay alguien mirando esa pantalla ahora mismo. Pasado ese rato, la consulta se cierra sola.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 17 ────────────────────────────────────────────── -->
+<section class="slide slide-dark" data-slide="17">
+  <div class="content">
+    <span class="eyebrow ondark">La red de seguridad</span>
+    <h2 class="st">Ninguna consulta<br>se queda <span class="a">colgada.</span></h2>
+    <p class="lead">Se corta internet, se cierra una pestaña, nadie aparece. Un barrido automático resuelve cada caso sin que intervenga nadie, y distingue entre "no vino nadie" y "vino uno solo".</p>
+    <div class="fg" style="max-width:900px">
+      <div class="fc">
+        <div class="ic k"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+        <h3>Nadie se presentó</h3>
+        <p>Pasó la hora y no hubo ni un intento de entrar: la consulta <strong>vence</strong>.</p>
+      </div>
+      <div class="fc">
+        <div class="ic c"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div>
+        <h3>Uno esperó y el otro no vino</h3>
+        <p>Queda como <strong>ausente</strong>, y si estaba paga entra en la cola de devoluciones.</p>
+      </div>
+      <div class="fc">
+        <div class="ic s"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h3>Se atendió y quedó abierta</h3>
+        <p>A las dos horas se cierra sola. En la consulta inmediata, eso además <strong>destraba la plata retenida</strong>.</p>
+      </div>
+    </div>
+    <p class="lead">En la consulta inmediata el cobro real ocurre <strong>al completarse</strong>, así que cerrar es lo que cobra. Un segundo barrido, cada cinco minutos, captura las que quedaron sin cobrar y libera las que nunca pasaron.</p>
+  </div>
+</section>
+
+<!-- 18 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="18">
+  <div class="content">
+    <span class="eyebrow">Después de colgar</span>
+    <h2 class="st">Lo que queda <span class="a">escrito.</span></h2>
+    <div class="flow">
+      <div class="fs"><span class="n">Al instante</span><span class="h">La calificación</span><span class="d">Al paciente le aparece la pantalla de estrellas. Puede saltearla.</span></div>
+      <div class="fs hot"><span class="n">Al cerrar</span><span class="h">El resumen</span><span class="d">Mail y aviso al teléfono con el resumen, el diagnóstico, las indicaciones y la receta.</span></div>
+      <div class="fs"><span class="n">24 horas</span><span class="h">En el inicio</span><span class="d">La consulta recién terminada queda a mano en la pantalla principal.</span></div>
+      <div class="fs"><span class="n">Para siempre</span><span class="h">La historia clínica</span><span class="d">Notas, diagnósticos e indicaciones quedan firmados con la matrícula y no se editan.</span></div>
+    </div>
+    <p class="lead">El mail de resumen arma el contenido leyendo lo que el profesional realmente escribió, y <strong>chequea si el paciente ya calificó</strong> para no pedírselo dos veces. Lo que salió por receta no se repite como indicación suelta.</p>
+  </div>
+</section>
+
+<!-- 19 ────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="19">
+  <div class="content">
+    <span class="eyebrow">De un vistazo</span>
+    <h2 class="st">Los estados<br>de una <span class="a">consulta.</span></h2>
+    <div class="tbl">
+      <div class="tr th"><span>Estado</span><span>Qué significa</span><span>Quién lo escribe</span><span>Qué ve el paciente</span></div>
+      <div class="tr"><span>Reservada</span><span>Creada, el pago todavía no confirmó</span><span>El sistema, al reservar</span><span>Su turno en la agenda</span></div>
+      <div class="tr"><span>Confirmada</span><span>Pagada y en pie</span><span>Mercado Pago</span><span>El turno, y los recordatorios</span></div>
+      <div class="tr"><span>En curso</span><span>Alguno de los dos pidió entrar a la sala</span><span>El sistema, al dar el permiso</span><span>La videollamada</span></div>
+      <div class="tr"><span>En cierre</span><span>El profesional colgó y está cargando el cierre</span><span>El profesional, al colgar</span><span>"Preparando tu receta"</span></div>
+      <div class="tr"><span>Completada</span><span>Cerrada, con código o con motivo</span><span>El profesional, o el barrido</span><span>El resumen y la receta</span></div>
+      <div class="tr"><span>Ausente</span><span>Uno esperó y el otro no vino</span><span>Cualquiera de los dos, o el barrido</span><span>El turno marcado como ausente</span></div>
+      <div class="tr dim"><span>Vencida</span><span>Pasó la hora y no se presentó nadie</span><span>El barrido</span><span>El turno vencido</span></div>
+      <div class="tr dim"><span>Cancelada</span><span>Se dio de baja antes</span><span>Cualquiera de los dos</span><span>El aviso de cancelación</span></div>
+    </div>
+    <p class="lead">Los saltos entre estados <strong>los hace cumplir la base de datos</strong>, no la pantalla: una consulta cerrada no puede volver a "en curso" por más que alguien fuerce el pedido.</p>
+  </div>
+</section>
+
+<!-- 20 ────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="20">
+  <div class="content">
+    <span class="eyebrow onsage">En una línea</span>
+    <h1 class="hero" style="max-width:22ch">Cada paso lo habilita<br>una persona.</h1>
+    <p class="lead">El paciente se anuncia, el profesional lo ingresa, el paciente comparte su código. Lo único que hace el sistema solo es resolver lo que quedó a medias — y eso siempre a favor de que nadie quede esperando ni pagando de más.</p>
+  </div>
+</section>
+
+</div>
+
+<script>
+const slides=[...document.querySelectorAll('.slide')];
+const TOTAL=slides.length;
+const dotsEl=document.getElementById('dots');
+const counter=document.getElementById('counter');
+const progress=document.querySelector('.progress-bar');
+const btnPrev=document.getElementById('btn-prev');
+const btnNext=document.getElementById('btn-next');
+let current=1;
+
+slides.forEach((_,i)=>{
+  const d=document.createElement('span');
+  d.className='dot'+(i===0?' active':'');
+  d.addEventListener('click',()=>goTo(i+1));
+  dotsEl.appendChild(d);
+});
+
+function pad(n){return String(n).padStart(2,'0')}
+
+function goTo(n){
+  if(n<1||n>TOTAL||n===current) return;
+  slides[current-1].classList.remove('active');
+  current=n;
+  slides[current-1].classList.add('active');
+  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===current-1));
+  counter.textContent=`${pad(current)} / ${pad(TOTAL)}`;
+  progress.style.width=`${(current/TOTAL)*100}%`;
+  btnPrev.classList.toggle('hidden',current===1);
+  btnNext.classList.toggle('hidden',current===TOTAL);
+  history.replaceState(null,'',`#${current}`);
+
+  // La barra de arriba se adapta a las slides de fondo oscuro/sage.
+  const s=slides[current-1];
+  const dark=s.classList.contains('slide-dark')||s.classList.contains('slide-sage');
+  const nav=document.getElementById('nav');
+  nav.style.background=dark?'rgba(0,0,0,.25)':'rgba(246,245,240,.82)';
+  nav.style.borderBottomColor=dark?'rgba(255,255,255,.12)':'var(--border)';
+  counter.style.color=dark?'rgba(255,255,255,.45)':'var(--text-tertiary)';
+  document.getElementById('brand').style.color=dark?'#fff':'var(--sage)';
+  document.querySelectorAll('.dot').forEach(d=>{
+    d.style.background=dark
+      ?(d.classList.contains('active')?'#fff':'rgba(255,255,255,.28)')
+      :(d.classList.contains('active')?'var(--sage)':'var(--border)');
+  });
+}
+
+btnNext.addEventListener('click',()=>goTo(current+1));
+btnPrev.addEventListener('click',()=>goTo(current-1));
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='Enter'){e.preventDefault();goTo(current+1)}
+  else if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();goTo(current-1)}
+  else if(e.key==='Home'){e.preventDefault();goTo(1)}
+  else if(e.key==='End'){e.preventDefault();goTo(TOTAL)}
+  else if(e.key==='f'||e.key==='F'){
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  }
+});
+
+document.getElementById('deck').addEventListener('click',e=>{
+  if(e.target.closest('button')||e.target.closest('a')) return;
+  const x=e.clientX/window.innerWidth;
+  if(x<0.25) goTo(current-1); else if(x>0.75) goTo(current+1);
+});
+
+let tx=0;
+document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX},{passive:true});
+document.addEventListener('touchend',e=>{
+  const dx=tx-e.changedTouches[0].clientX;
+  if(Math.abs(dx)>50) dx>0?goTo(current+1):goTo(current-1);
+},{passive:true});
+
+counter.textContent=`01 / ${pad(TOTAL)}`;
+// Entrar directo por #N: se pasa por goTo para que la barra de arriba también se adapte.
+const hash=parseInt(location.hash.replace('#',''));
+if(hash>=1&&hash<=TOTAL&&hash!==1) goTo(hash);
+</script>
+</body>
+</html>
