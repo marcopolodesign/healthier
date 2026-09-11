@@ -1,0 +1,15 @@
+<!--
+  Ícono de la pestaña. El index.html lo venía pidiendo desde siempre pero el
+  archivo no existía: /favicon.svg daba 404 y el navegador mostraba la hoja en
+  blanco por defecto.
+
+  Es la "H" del logotipo sobre el verde de marca. Provisional a propósito: la
+  palabra "Healthier" entera no se lee a 16 px, y todavía no hay isotipo
+  (anotado en nextsteps.md). Cuando lo haya, se reemplaza este archivo.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="112" fill="#7CB38B" />
+  <g transform="translate(140.5 126) scale(0.4865)">
+    <path d="M356.33 477.02L358.76 443.52L358.51 272.01L116.85 272.04V457.49C116.85 467.26 118.96 475.95 121.85 484.61C131.7 508.2 154.35 513.91 179.15 516.45L179.01 534.41H0.14L0 516.72L28.12 510.85C44.23 505.88 55.54 493.3 58.91 476.54C60.89 466.69 61.18 457.14 61.18 446.44L61.16 88.16C61.16 74.64 60.14 62.41 57.17 49.81C50.95 23.4 26.97 20 1.89 17.78L1.98 0H176.91L177.08 17.97C151.12 20.13 127.33 25.33 120.81 51.88C118.16 64.83 117.05 77.36 117.03 91.07L116.82 238.01H358.51L358.59 90.07C358.6 76.98 357.53 65.04 355.21 52.59C349.36 24.33 326.68 20.09 299.46 17.86L299.55 0L474.04 0.02L474.18 17.91C448.41 19.45 422.24 26.03 417.51 52.61C415.26 65.24 414.33 77.34 414.32 90.56L414.11 426.45L414.65 455.72C414.8 464.19 415.62 472.6 417.82 480.71C424.75 506.34 448.09 514.62 474.69 516.41L474.82 534.39H297.59L297.87 516.06C326.87 512.7 349.44 506.94 356.33 477.02Z" fill="#FDFCF9" />
+  </g>
+</svg>
