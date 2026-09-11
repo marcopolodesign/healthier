@@ -503,12 +503,15 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
   // consulta. Mientras carga se trata como "todavía no sé": el botón se ve
   // apagado un instante, que es mejor que habilitarlo y que rebote.
   const { tieneFirma, cargando: cargandoFirma, marcar: marcarFirma } = useFirmaDelProfesional(professionalId)
-  const faltaLaFirma = !congelada && !cargandoFirma && !tieneFirma
 
   // Con la consulta cerrada no se agrega ni se emite nada: cerrar es el momento en
   // que la consulta queda congelada. Una receta emitida después del cierre sería un
   // acto médico fuera del acto médico.
   const congelada = bloqueada || sinPermisoParaRecetar
+
+  // Va DESPUÉS de `congelada`, que es un `const`: leerlo antes tira
+  // "Cannot access before initialization" y se cae la pantalla entera.
+  const faltaLaFirma = !congelada && !cargandoFirma && !tieneFirma
 
   const emitibles = congelada
     ? []
