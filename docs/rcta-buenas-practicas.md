@@ -208,8 +208,18 @@ implementarlo.
 ### La firma es obligatoria para emitir
 
 Decisión de Mateo (2026-09-11). `rcta-issue` corta con **`RCTA_FIRMA_FALTANTE`
-(422)** y un mensaje que dice qué hacer, antes de llamar a Innovamed; el front
-apaga el botón de emitir y ofrece firmar ahí mismo, sin salir de la consulta.
+(422)** y un mensaje que dice qué hacer, antes de llamar a Innovamed.
+
+Del lado del front, el disparador es **apretar "Emitir receta"**: si falta la
+firma se abre una hoja (`FirmaSheet` — bottom sheet abajo de 640px, modal
+centrado arriba) para firmar o subir una foto, y **al guardar la emisión sigue
+sola**. No hay que volver a marcar los medicamentos ni apretar de nuevo: quien
+abrió la hoja ya dijo que quiere emitir, la firma era un requisito que le
+faltaba, no una decisión nueva.
+
+Se probó primero con el botón apagado y un cartel arriba que desplegaba el
+recuadro. No sirve: hay que descubrirlo, y en el panel angosto de la
+videollamada el cartel queda fuera de pantalla.
 
 Dos detalles que importan si alguien toca esto:
 
