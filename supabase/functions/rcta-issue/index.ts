@@ -26,7 +26,7 @@
 //     con 503 en vez de caer en las de produccion;
 //   · no se escribe `clinical_medications` ni `rcta_issue_log`.
 // Todo lo demas —validaciones, armado del payload, llamada, reintento sin
-// logo— es el MISMO codigo, que es justamente lo que hace que la practica
+// firma— es el MISMO codigo, que es justamente lo que hace que la practica
 // sirva: si difiriera, ensenaria un flujo que no existe.
 //
 // Una receta puede llevar varios medicamentos: `medicamentos` es un array en el
@@ -46,7 +46,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { RCTA_LOGO_BASE64 } from './logo.ts'
 
 // El paciente de la practica. Espejo de `PACIENTE` en `src/lib/simulacion.js`
 // (el front lo muestra, esta funcion lo imprime en el PDF). El DNI arranca con
@@ -390,12 +389,22 @@ Deno.serve(async (req: Request) => {
     const { nombre: medicoNombre, apellido: medicoApellido } = splitName(med.professional?.full_name)
     const nombreConsultorio = medicoApellido ? `Consultorio Dr. ${medicoApellido}` : null
 
-    // El logo NUNCA puede impedir que se emita una receta (C4). Si algo falla
-    // al resolverlo, `subemisor` queda en `null` y la clave se OMITE del
-    // payload mas abajo -- nunca se manda vacio ni `null` explicito, eso es
-    // tan invalido como mandar basura. Ver logo.ts para el porque del base64
-    // hardcodeado en vez de una URL o un archivo leido en runtime.
-    const subemisor = resolveSubemisor()
+    // ── El logo YA NO VIAJA EN EL PAYLOAD (2026-09-11) ────────────────────────
+    // Hasta hoy se mandaba en `subemisor.logoBase64`, y NUNCA se imprimio:
+    // Innovamed contestaba `400 QBI147 DEBE INGRESAR NOMBRE, CUIT Y DIRECCION
+    // DEL SUBEMISOR` —mandabamos el subemisor con el logo y sin identificarlo—
+    // y el reintento de abajo salvaba la emision sacandolo. O sea que el logo
+    // se rechazaba en silencio en todas las recetas. No se vio nunca porque
+    // hasta el 2026-09-11 no se habia emitido ninguna receta real.
+    //
+    // `subemisor` ademas nunca fue el campo correcto: el contrato dice que es
+    // "una organizacion que esta usando el cliente app para prescribir, por ej.
+    // una sucursal de una cadena de clinicas". Healthier ES el cliente app.
+    //
+    // El mecanismo correcto es registrar el logo UNA vez por ambiente contra
+    // `POST /apirecipe/admin/Logo` — ver `scripts/registrar-logo-receta.mjs`.
+    // Verificado emitiendo contra homologacion: el logo sale arriba al centro,
+    // a color, sin `subemisor` en el payload.
 
     // La firma olografa del profesional (migracion 154). Se resuelve con el
     // mismo criterio que el logo: si no la cargo, o si leerla falla, la clave se
@@ -478,10 +487,8 @@ Deno.serve(async (req: Request) => {
         nombreConsultorio,
         domicilio: { ...parseAddress(prof.address), direccion: prof.address },
       } : undefined,
-      // C4 — logo de Healthier en el PDF de la receta. `subemisor` es opcional
-      // en el contrato de Innovamed (Core.Dtos.SubEmisor): se OMITE la clave
-      // entera cuando el logo no se pudo resolver, en vez de mandarlo vacio.
-      ...(subemisor ? { subemisor } : {}),
+      // Sin `subemisor`: el logo de Healthier se registra una vez por ambiente
+      // contra /admin/Logo, no se manda en cada receta. Ver el bloque de arriba.
     }
 
     // ── Call QBI2 API ─────────────────────────────────────────────────────────
@@ -509,7 +516,7 @@ Deno.serve(async (req: Request) => {
     if (result.kind === 'rejected') {
       console.error('RCTA API error:', result.status, result.body)
 
-      // C4 — reintento UNICO sin el logo, y SOLO ante esto: un rechazo
+      // Reintento UNICO sin la firma, y SOLO ante esto: un rechazo
       // definitivo de Innovamed, acotado a 4xx. Un 4xx es una negativa a
       // PROCESAR el request (validacion/contrato/payload) — prueba
       // razonable de que no se creo nada. Un 5xx es un fallo del LADO DE
@@ -518,28 +525,30 @@ Deno.serve(async (req: Request) => {
       // crear la receta — reintentar ahi arriesga exactamente lo mismo que
       // un network_error (emitir una segunda receta legalmente valida), asi
       // que un 5xx se propaga sin reintentar, igual que un network_error.
-      // Encaja ademas con la causa real que motiva este reintento: si a
-      // Innovamed no le gusta el formato de `logoBase64`, contesta 400, no
-      // 500.
+      // Encaja ademas con la causa que motiva el reintento: si a Innovamed no
+      // le gusta una imagen que le mandamos, contesta 400, no 500.
       //
-      // Desde el 2026-09-11 el payload lleva DOS imagenes — el logo en
-      // `subemisor.logoBase64` y la firma del profesional en
-      // `medico.firmabase64` — y el reintento saca las dos. Sacar solo una
-      // dejaria media clase de fallo sin red: no sabemos cual de las dos
-      // rechazo Innovamed, y una receta sin adorno le sirve al paciente
-      // infinitamente mas que un 502.
+      // La unica imagen que viaja en el payload es la firma del profesional
+      // (el logo se registra aparte, contra /admin/Logo). Una receta sin la
+      // firma dibujada le sirve al paciente infinitamente mas que un 502: es
+      // valida igual, la firma electronica la aplica Innovamed.
+      //
+      // 🔴 Este reintento NO es una red de seguridad de la que se pueda vivir.
+      // Entre agosto y el 2026-09-11 tapo que el logo se rechazaba SIEMPRE
+      // (`QBI147`, subemisor sin nombre/cuit/direccion) y nadie se entero,
+      // porque la emision terminaba bien. Si `reintento` empieza a aparecer
+      // seguido en `rcta_issue_log`, hay algo roto que hay que arreglar — no
+      // es ruido.
       const esRechazoDe4xx = result.status >= 400 && result.status < 500
-      const llevaImagenes = 'subemisor' in payload || !!firmabase64
-      if (llevaImagenes && esRechazoDe4xx) {
-        console.error(`rcta-issue: rechazo con imágenes puestas (status ${result.status}), reintentando UNA vez sin logo ni firma`)
-        const { subemisor: _omitido, ...resto } = payload
+      if (firmabase64 && esRechazoDe4xx) {
+        console.error(`rcta-issue: rechazo con la firma puesta (status ${result.status}), reintentando UNA vez sin firma`)
         const { firmabase64: _sinFirma, ...medicoSinFirma } = payload.medico
-        const payloadSinLogo = { ...resto, medico: medicoSinFirma }
-        ctx.reintento = { sin_imagenes: true, llevaba_firma: !!firmabase64 }
-        const retryResult = await postReceta(RCTA_API_URL, RCTA_API_KEY, payloadSinLogo)
+        const payloadSinFirma = { ...payload, medico: medicoSinFirma }
+        ctx.reintento = { sin_firma: true }
+        const retryResult = await postReceta(RCTA_API_URL, RCTA_API_KEY, payloadSinFirma)
 
         if (retryResult.kind === 'ok') {
-          console.error(`rcta-issue: receta emitida SIN LOGO NI FIRMA tras reintento — Innovamed rechazó alguna de las dos imágenes (status original ${result.status}: ${result.body}). Evaluar cuál, y desactivarla hasta confirmar el formato exacto que acepta.`)
+          console.error(`rcta-issue: receta emitida SIN FIRMA tras reintento — Innovamed rechazó "medico.firmabase64" (status original ${result.status}: ${result.body}). Revisar el formato antes de que se vuelva la norma.`)
           // Se guarda el rechazo original completo en el log de la emision
           // EXITOSA: es la unica fila que va a quedar escrita para este
           // intento (el rechazo con logo nunca se registra por separado), y
@@ -547,33 +556,33 @@ Deno.serve(async (req: Request) => {
           // adivinar.
           ctx.reintento = {
             ...ctx.reintento,
-            imagenes_rechazadas: true,
+            firma_rechazada: true,
             rechazo_status: result.status,
             rechazo_detalle: result.body,
           }
-          ctx.request = payloadSinLogo
+          ctx.request = payloadSinFirma
           result = retryResult
           // sigue mas abajo — a esta altura `result.kind === 'ok'`
         } else if (retryResult.kind === 'network_error') {
           // Tambien ambiguo — no hay un tercer intento. Se propaga el
           // rechazo ORIGINAL (con logo), que es la unica certeza real: esa
           // receta puntual, sabemos con seguridad, no se creo.
-          console.error('rcta-issue: reintento sin imágenes tambien fallo de red, no se reintenta de nuevo:', String(retryResult.err))
+          console.error('rcta-issue: reintento sin firma tambien fallo de red, no se reintenta de nuevo:', String(retryResult.err))
           await setStatus('error')
           ctx.reintento = { ...ctx.reintento, error_de_red: String(retryResult.err) }
           return await fallar('api_error', { error: 'RCTA API error', status: result.status, detail: result.body }, 502,
             { response: result.json ?? { raw: result.body }, error_code: result.json?.error ?? null })
         } else {
-          // Rechazado tambien sin las imagenes — no eran la causa real.
-          console.error('RCTA API error (reintento sin imágenes tambien rechazado):', retryResult.status, retryResult.body)
+          // Rechazado tambien sin la firma — no era la causa real.
+          console.error('RCTA API error (reintento sin firma tambien rechazado):', retryResult.status, retryResult.body)
           await setStatus('error')
           ctx.reintento = { ...ctx.reintento, rechazo_status: retryResult.status, rechazo_detalle: retryResult.body }
           return await fallar('api_error', { error: 'RCTA API error', status: result.status, detail: result.body }, 502,
             { response: result.json ?? { raw: result.body }, error_code: result.json?.error ?? null })
         }
       } else {
-        // Aca caen dos casos, sin reintento en ninguno: (1) no habia ni logo
-        // ni firma en el payload, nada que sacar; (2) SI habia pero el rechazo fue
+        // Aca caen dos casos, sin reintento en ninguno: (1) no habia firma
+        // en el payload, nada que sacar; (2) SI habia pero el rechazo fue
         // 5xx — resultado desconocido del lado de Innovamed, no se reintenta
         // (ver el comentario de arriba).
         await setStatus('error')
@@ -768,32 +777,11 @@ async function notifyPharmacyMatch(supabase: any, med: any) {
   })
 }
 
-// C4 — logo de Healthier en la receta. Nunca puede tumbar una emision: si el
-// logo esta vacio, mal formado, o tirar cualquier excepcion al leerlo, esta
-// funcion devuelve `null` y quien la llama omite la clave `subemisor` del
-// payload entero. La emision sigue exactamente como si el logo no existiera.
-//
-// El chequeo de longitud (>100) es solo para no mandar un string vacio o
-// truncado por error humano al editar logo.ts a mano en el futuro — el PNG
-// real tiene ~2400 caracteres en base64.
-function resolveSubemisor(): { logoBase64: string } | null {
-  try {
-    if (typeof RCTA_LOGO_BASE64 !== 'string' || RCTA_LOGO_BASE64.trim().length < 100) {
-      console.error('rcta-issue: logo omitido del payload — RCTA_LOGO_BASE64 vacío o inválido')
-      return null
-    }
-    return { logoBase64: RCTA_LOGO_BASE64 }
-  } catch (err) {
-    console.error('rcta-issue: logo omitido del payload — error al resolverlo:', String(err))
-    return null
-  }
-}
-
 // Firma olografa del profesional (migracion 154), para `medico.firmabase64`.
 //
-// Mismo contrato que `resolveSubemisor`: NUNCA puede tumbar una emision. Si el
-// profesional no cargo firma, si la lectura falla o si lo guardado esta
-// truncado, devuelve `null` y quien la llama omite la clave — la receta sale
+// NUNCA puede tumbar una emision: si el profesional no cargo firma, si la
+// lectura falla o si lo guardado esta truncado, devuelve `null` y quien la
+// llama omite la clave del payload — la receta sale
 // como salia antes, con la linea de puno vacia. Mateo la definio opcional a
 // proposito (2026-09-11): bloquear la emision por una firma faltante dejaria a
 // un paciente sin su receta en medio de la consulta.
@@ -834,8 +822,8 @@ async function resolverFirma(
   }
 }
 
-// C4 — resultado tipado de una llamada a POST /apirecipe/Receta. Un solo tipo
-// para el intento original y el reintento sin logo (ver el bloque de
+// Resultado tipado de una llamada a POST /apirecipe/Receta. Un solo tipo
+// para el intento original y el reintento sin firma (ver el bloque de
 // reintento en el handler principal): evita que las dos llamadas diverjan en
 // como arman el request o parsean la respuesta.
 type RctaCallResult =

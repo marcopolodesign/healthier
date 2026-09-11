@@ -56,6 +56,7 @@ All paths are prefixed `/apirecipe`.
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `/Receta` | Generate one or more prescriptions → PDF + hash. Body: `RecetaRequestDto`. |
+| POST | `/Receta/Preview` | **Render the PDF WITHOUT issuing anything.** Body: `RecetaPreviewDto` (a subset of `RecetaRequestDto` — no `medicamentos`, no `paciente`; it fills in sample data). Returns the PDF bytes. The right tool for iterating on the receta's appearance: costs no prescriptions, leaves no trace, is not a medical act. ⚠️ **More permissive than the real issue call** — a payload Preview accepts can still be rejected by `POST /Receta` (that is exactly what hid the `subemisor` logo bug for a month). Use it to see *how it looks*, not to conclude *that it works*. |
 | PUT | `/Receta` | Persist a receta to Innovamed's DB **without** sending to the mandataria or generating a PDF. Body: `PersistirRecetaRequestDto`. |
 | GET | `/Receta/S3Link` | Get the PDF S3 link for a receta by hash. Body: `S3LinkRequestDto` (yes, GET with body). |
 | DELETE | `/Receta/{idRecetaHash}` | Cancel/anular a prescription. Body: `RecetaAnularRequestDto` (`clienteAppId`). |
@@ -71,7 +72,11 @@ All paths are prefixed `/apirecipe`.
 
 ### Admin / backoffice (not needed for the patient-facing flow)
 
-`POST /admin/Credenciales`, `POST /admin/Financiador`, `POST|GET|DELETE /admin/Logo` — client/funder/logo management on Innovamed's side.
+`POST /admin/Credenciales`, `POST /admin/Financiador` — client/funder management on Innovamed's side.
+
+`POST|GET|DELETE /admin/Logo` — **this is how the institutional logo gets on the receta**, and it is not optional backoffice trivia. `POST` is `multipart/form-data` with `ClienteAppId`, `IdFinanciador` (0 = default, applies to every funder), `Posicion` (1 = top center) and `ImagenLogo` (the PNG). It is registered **once per environment**; the logo then prints on every prescription without travelling in any payload. `GET` and `DELETE` take a JSON body `{clienteAppId, idFinanciador}` — note `GET` **with a body**, which `fetch()` refuses, so use curl.
+
+Run it with `node scripts/registrar-logo-receta.mjs <homologacion|produccion>`. See §7 for why `subemisor` is *not* the way to do this.
 
 ## 4. `POST /apirecipe/Receta` — the core call
 
@@ -122,7 +127,13 @@ All paths are prefixed `/apirecipe`.
     "pais": "string",
     "matricula": { "tipo": "MN", "numero": "string", "provincia": "string", "profesion": "string", "especialidad": "string" },
     "profesion": "string",
-    "lugarAtencion": "string"
+    "lugarAtencion": "string",
+    "firmabase64": "string",           // firma ológrafa — base64 CRUDO del PNG, SIN el prefijo `data:image/png;base64,`
+    "firmalink": "string",             // ⚠️ no funciona: se acepta y no dibuja nada
+    "sello": { "linea1": "", "linea2": "", "linea3": "" },  // pisa las 3 líneas que la plantilla ya imprime sola
+    "logoInstitucion": "string",       // pone el logo ARRIBA A LA IZQUIERDA, tapando el código de barras
+    "idREFEPS": "string",
+    "idTributario": "string"
   },
   "subemisor": {                       // optional — a branch/org using the client app to prescribe (e.g. a clinic chain location)
     "nombre": "string", "cuit": "string", "direccion": "string", "logoLink": "string", "logoBase64": "string"
@@ -196,7 +207,45 @@ The scaffold in `website/supabase/functions/rcta-issue/index.ts` was written bef
 | Response read as `{ prescriptionId, pdfUrl, issuedAt }` | Reads `recetas[0].idReceta` / `recetas[0].s3Link` / `recetas[0].fecha`, surfaces `errores[]` |
 | Read `profiles.date_of_birth` (doesn't exist) | Reads `profiles.birth_date` |
 
-## 7. Env vars
+## 7. Branding and the professional's signature
+
+Verified 2026-09-11, first against `POST /Receta/Preview` and then by actually
+issuing against homologación.
+
+| What | Field / endpoint | Where it lands |
+|---|---|---|
+| Healthier's logo | `POST /apirecipe/admin/Logo`, `Posicion: 1` | Top center, **in colour** |
+| Professional's handwritten signature | `medico.firmabase64` | Over the dotted line of the FIRMA Y SELLO block |
+
+**Colour works** — the renderer honours the PNG's colours. Healthier's receta
+logo is `#4A6B53`, a darkened version of the brand's `#7CB38B`, because the
+brand sage washes out on paper and nearly vanishes in a pharmacy photocopy.
+
+**There is no header colour, font or style field.** The PDF template belongs to
+Innovamed and the logo image is the only branding lever. These are accepted by
+the API and **not printed**: `leyenda`, `informacionAdicional`, `horario`,
+`diasAtencion`, `datosContacto`, `nombreConsultorio`.
+
+### 🔴 Do not put the logo in `subemisor`
+
+Between 2026-08-13 and 2026-09-11 `rcta-issue` sent the logo as
+`subemisor.logoBase64`. It **never printed once**: the API answered
+`400 QBI147 — DEBE INGRESAR NOMBRE, CUIT Y DIRECCIÓN DEL SUBEMISOR` and the
+function's retry-without-logo rescued the issue by dropping it. Every receta came
+out logo-less, successfully, with nothing to show for it.
+
+`subemisor` was never the right field either — the contract defines it as "an
+organisation using the client app to prescribe, e.g. a branch of a clinic
+chain". Healthier **is** the client app. Use `/admin/Logo` — see §3.
+
+### `logoInstitucion` and `lugarAtencion.logo`
+
+Both also render the logo, but **top left**, over/replacing the prescription
+barcode. Not useful.
+
+---
+
+## 8. Env vars
 
 | Var | Where | Value (sandbox) |
 |---|---|---|
@@ -210,6 +259,6 @@ npx supabase secrets set RCTA_API_URL=... RCTA_API_KEY=... RCTA_CLIENT_APP_ID=59
 npx supabase functions deploy rcta-issue
 ```
 
-## 8. Pricing (reference, from original scaffold comment)
+## 9. Pricing (reference, from original scaffold comment)
 
 ~$50.000 ARS/mes por médico (institucional). Apply for production access: `web.innovamed.com.ar/rcta-institucional`.

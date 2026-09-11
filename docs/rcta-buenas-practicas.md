@@ -169,6 +169,79 @@ opcionales:
 
 ---
 
+## 9bis. La marca y la firma: qué se puede y qué no (2026-09-11)
+
+Todo esto se probó contra el endpoint **`POST /apirecipe/Receta/Preview`**, que
+devuelve el PDF armado **sin emitir nada**. Es la herramienta correcta para
+iterar sobre la apariencia de la receta: no gasta recetas, no deja rastro y no
+es un acto médico. No estaba documentado de nuestro lado; apareció en el swagger
+vivo.
+
+⚠️ **El preview es más permisivo que la emisión real.** Un payload que el
+preview acepta puede ser rechazado por `POST /apirecipe/Receta` — eso es
+exactamente lo que tapó el bug del logo durante un mes. Úsalo para ver **cómo
+queda**, no para concluir que **anda**. Lo segundo se confirma emitiendo contra
+homologación.
+
+### Lo que sí se puede
+
+| Qué | Cómo | Dónde sale |
+|---|---|---|
+| **Logo de Healthier** | `POST /apirecipe/admin/Logo` (multipart, `Posicion: 1`), una vez por ambiente | Arriba al centro, **a color** |
+| **Firma ológrafa del profesional** | `medico.firmabase64` | Sobre la línea de puño del bloque FIRMA Y SELLO |
+| **Las 3 líneas del sello** | `medico.sello` (`linea1/2/3`) | Debajo de la firma — **pero pisan** las que la plantilla ya imprime sola (nombre, especialidad, matrícula), así que no se manda |
+
+El renderer **respeta el color del PNG**. El logo de la receta usa `#4A6B53` y
+no el `#7CB38B` de la marca: el de marca es un sage claro que sobre papel queda
+lavado y en una fotocopia de farmacia casi desaparece.
+
+### Lo que NO se puede
+
+**No hay ningún campo de color, tipografía ni estilo de cabecera.** La plantilla
+del PDF es de Innovamed y la única palanca de marca que existe es la imagen del
+logo. Probados uno por uno contra el preview, estos campos **se aceptan en el
+request y no se imprimen**: `leyenda`, `informacionAdicional`, `horario`,
+`diasAtencion`, `datosContacto`, `nombreConsultorio`. Si alguien pide "cambiarle
+el color al encabezado", la respuesta es que no se puede — no que falta
+implementarlo.
+
+### Las tres trampas de las imágenes
+
+1. **`firmabase64` quiere el base64 CRUDO.** Con `data:image/png;base64,`
+   adelante la API contesta **200 y no dibuja nada**: una receta sin firma, sin
+   error y sin aviso. `firmalink` (la variante por URL del mismo contrato)
+   tampoco dibuja nada.
+2. **Recortar la imagen al trazo.** El PDF dibuja la firma en unos 90×25 puntos.
+   Un PNG con márgenes en blanco —y un canvas de firma es casi todo margen—
+   escala los márgenes junto con el trazo y la firma sale como una rayita. Ver
+   `src/lib/firmaImagen.js`.
+3. **El logo NO va en `subemisor`.** Ver abajo.
+
+### 🔴 El logo estuvo roto un mes y nada avisó
+
+Desde el 2026-08-13 el logo viajaba en `subemisor.logoBase64` dentro del payload
+de cada emisión. **Nunca se imprimió ni una vez.** Innovamed contestaba
+`400 QBI147 — DEBE INGRESAR NOMBRE, CUIT Y DIRECCIÓN DEL SUBEMISOR` (mandábamos
+un subemisor con logo y sin identificarlo) y el reintento de `rcta-issue` salvaba
+la emisión sacándolo. La receta salía bien, sin logo, y en verde en la UI.
+
+Dos lecciones, y la segunda es la que importa:
+
+- **`subemisor` nunca fue el campo correcto.** El contrato lo define como "una
+  organización que está usando el cliente app para prescribir, por ej. una
+  sucursal de una cadena de clínicas". Healthier **es** el cliente app. El
+  mecanismo del logo institucional es `/admin/Logo`, que se registra una vez por
+  ambiente: `node scripts/registrar-logo-receta.mjs <homologacion|produccion>`.
+- **Un reintento que "salva" la emisión también esconde el motivo.** El bug
+  sobrevivió porque el camino degradado terminaba en éxito. Por eso ahora el
+  reintento deja su propio renglón en `rcta_issue_log.reintento`: **si esa
+  columna empieza a venir llena, hay algo roto**, aunque todas las recetas
+  salgan. Antes ni siquiera eso se escribía — las cuatro claves que el código
+  cargaba no existían como columnas, PostgREST rechazaba el insert entero y el
+  error se tragaba en un `catch`.
+
+---
+
 ## 10bis. Los catálogos de los dos ambientes NO son el mismo
 
 Verificado el 2026-08-28 comparando `GetFinanciadores` en los dos ambientes:
