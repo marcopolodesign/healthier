@@ -8,7 +8,7 @@ import { capitalizarNombreCatalogo } from '../../lib/format'
 import MedicationSearch from './MedicationSearch'
 import InfoTooltip from '../common/InfoTooltip'
 import DatosRecetaFaltantes from './DatosRecetaFaltantes'
-import FirmaFaltante from './FirmaFaltante'
+import FirmaSheet from './FirmaSheet'
 import { useFirmaDelProfesional } from '../../hooks/useFirmaDelProfesional'
 import { clinicalService, logClinicalAccess } from '../../services/clinicalService'
 import { esSimulado, marcarRecetaEmitida } from '../../lib/simulacion'
@@ -498,20 +498,21 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
   const sinPermisoParaRecetar = !puedeRecetar(profProfile?.specialty)
 
   // Sin firma cargada no se emite (Mateo, 2026-09-11). El bloqueo de verdad lo
-  // hace `rcta-issue`; acá se apaga el botón para no mandarlo a un rechazo con
-  // el paciente esperando, y el cartel de abajo lo deja firmar sin salir de la
-  // consulta. Mientras carga se trata como "todavía no sé": el botón se ve
-  // apagado un instante, que es mejor que habilitarlo y que rebote.
+  // hace `rcta-issue` con un 422; acá se intercepta antes para resolverlo en el
+  // momento en vez de mostrarle un error.
   const { tieneFirma, cargando: cargandoFirma, marcar: marcarFirma } = useFirmaDelProfesional(professionalId)
+
+  // Los medicamentos que estaban por emitirse cuando se descubrió que faltaba
+  // la firma. Se guardan para poder seguir solos apenas firme: si tuviera que
+  // volver a marcarlos y apretar "Emitir", la hoja sería un obstáculo en vez de
+  // un atajo. `null` = la hoja está cerrada.
+  const [emisionEnEspera, setEmisionEnEspera] = useState(null)
 
   // Con la consulta cerrada no se agrega ni se emite nada: cerrar es el momento en
   // que la consulta queda congelada. Una receta emitida después del cierre sería un
   // acto médico fuera del acto médico.
   const congelada = bloqueada || sinPermisoParaRecetar
 
-  // Va DESPUÉS de `congelada`, que es un `const`: leerlo antes tira
-  // "Cannot access before initialization" y se cae la pantalla entera.
-  const faltaLaFirma = !congelada && !cargandoFirma && !tieneFirma
 
   const emitibles = congelada
     ? []
@@ -559,6 +560,22 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
     const data = await clinicalService.getMedicationsByEncounter(encounterId).catch(() => [])
     setPrescriptions(data)
     return data
+  }
+
+  /**
+   * Lo que corre al apretar "Emitir receta".
+   *
+   * Si al profesional le falta la firma, en vez de emitir —y comerse el 422 de
+   * `rcta-issue`— se abre la hoja para que firme en el momento, y la emisión
+   * sigue sola apenas guarde. Ver `FirmaSheet`.
+   *
+   * Mientras `cargandoFirma` el botón está apagado, así que acá `tieneFirma`
+   * ya es una respuesta y no un "todavía no sé".
+   */
+  function pedirEmitir(medicationIds) {
+    if (!medicationIds.length) return
+    if (!tieneFirma) { setEmisionEnEspera(medicationIds); return }
+    handleIssueRcta(medicationIds)
   }
 
   async function handleIssueRcta(medicationIds) {
@@ -639,6 +656,20 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
 
   return (
     <div className="space-y-3">
+      {/* Se abre sola al apretar "Emitir receta" sin firma cargada, y al
+          guardarla sigue con la emisión. Ver FirmaSheet. */}
+      <FirmaSheet
+        open={emisionEnEspera !== null}
+        userId={professionalId}
+        onClose={() => setEmisionEnEspera(null)}
+        onFirmada={() => {
+          const ids = emisionEnEspera
+          setEmisionEnEspera(null)
+          marcarFirma(true)
+          if (ids?.length) handleIssueRcta(ids)
+        }}
+      />
+
       {/* Se avisa ACÁ y no al apretar "emitir": descubrir que falta un dato
           recién cuando la API lo rechaza es la peor version de esto. Y ahora
           además se puede resolver desde acá — el cartel solía terminar en "se lo
@@ -652,8 +683,6 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
         onActualizado={onDatosActualizados}
       />}
 
-      {/* Sin firma no se emite, y se resuelve acá mismo. Ver FirmaFaltante. */}
-      {faltaLaFirma && <FirmaFaltante userId={professionalId} onCargada={() => marcarFirma(true)} />}
 
       {loading && (
         <div className="space-y-2">
@@ -690,8 +719,8 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => handleIssueRcta(seleccionados)}
-              disabled={issuing || seleccionados.length === 0 || cargandoFirma || !tieneFirma}
+              onClick={() => pedirEmitir(seleccionados)}
+              disabled={issuing || seleccionados.length === 0 || cargandoFirma}
               className="btn-primary flex-1 py-3 flex items-center justify-center gap-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {issuing
@@ -709,15 +738,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
               <Info className="h-4 w-4 text-text-tertiary cursor-help" />
             </InfoTooltip>
           </div>
-          {/* Por qué está apagado el botón. Sin esta línea, un profesional sin
-              firma ve el botón gris y no tiene forma de saber qué le falta —el
-              cartel de arriba puede quedar fuera de pantalla en el panel
-              angosto de la videollamada. */}
-          {faltaLaFirma ? (
-            <p className="text-[11px] text-amber-800 text-center">
-              Cargá tu firma para poder emitir.
-            </p>
-          ) : emitibles.length > 1 && (
+          {emitibles.length > 1 && (
             <p className="text-[11px] text-text-tertiary text-center">
               {seleccionados.length === 0
                 ? 'Marcá al menos un medicamento.'

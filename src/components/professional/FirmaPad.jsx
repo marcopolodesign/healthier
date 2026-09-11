@@ -14,9 +14,8 @@ import { toast } from '../Toast'
  *  - **Subir una foto** de la firma hecha en papel, que se limpia sola (ver
  *    `lib/firmaImagen.js`).
  *
- * Se usa en dos lugares: la pestaña Firma de Configuración y el panel de
- * receta, donde aparece dentro del cartel que bloquea la emisión mientras no
- * haya firma (`FirmaFaltante`).
+ * Se usa en dos lugares: la pestaña Firma de Configuración y la hoja que se
+ * abre al emitir una receta sin firma cargada (`FirmaSheet`).
  *
  * ── Detalles que parecen de adorno y no lo son ──────────────────────────────
  * `touch-action: none` sobre el canvas: sin eso, en el teléfono el primer

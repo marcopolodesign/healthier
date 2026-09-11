@@ -4,17 +4,14 @@ import { firmaService } from '../services/firmaService'
 /**
  * Si el profesional tiene cargada su firma para las recetas.
  *
- * Vive en un hook y no adentro de `FirmaFaltante` porque lo necesitan dos
- * componentes a la vez: el aviso —que ofrece firmar ahí mismo— y
- * `PrescriptionCreator`, que **bloquea el botón de emitir** mientras no haya
- * firma (Mateo la hizo obligatoria el 2026-09-11). Si cada uno consultara por
- * su lado, el aviso podría decir "listo" con el botón todavía apagado.
+ * Lo usa `PrescriptionCreator` para decidir, al apretar "Emitir receta", si
+ * emite o si abre la hoja de firma (`FirmaSheet`). La firma es obligatoria
+ * desde el 2026-09-11.
  *
  * ── Qué pasa mientras carga, y por qué ──────────────────────────────────────
- * Devuelve `cargando: true` y `tieneFirma: false`. Quien bloquea tiene que
- * mirar `cargando` y NO tratar ese `false` como "no tiene": el botón se muestra
- * deshabilitado un instante, que es preferible a habilitarlo y que la emisión
- * rebote del lado del servidor con el paciente esperando.
+ * Devuelve `cargando: true` y `tieneFirma: false`. Ese `false` NO significa
+ * "no tiene": mientras carga, el botón de emitir se muestra apagado —es un
+ * instante— en vez de abrir la hoja a alguien que sí tiene firma cargada.
  *
  * Ante un error de red devuelve `tieneFirma: true` — o sea, **no bloquea**. La
  * validación de verdad la hace `rcta-issue`, que corta con
