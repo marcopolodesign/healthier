@@ -217,6 +217,11 @@ issuing against homologación.
 | Healthier's logo | `POST /apirecipe/admin/Logo`, `Posicion: 1` | Top center, **in colour** |
 | Professional's handwritten signature | `medico.firmabase64` | Over the dotted line of the FIRMA Y SELLO block |
 
+**Healthier requires the signature to issue** — `rcta-issue` returns
+`RCTA_FIRMA_FALTANTE` (422) before calling the API if the professional has none.
+That is our rule, not Innovamed's: the API happily issues a signature-less
+receta.
+
 **Colour works** — the renderer honours the PNG's colours. Healthier's receta
 logo is `#4A6B53`, a darkened version of the brand's `#7CB38B`, because the
 brand sage washes out on paper and nearly vanishes in a pharmacy photocopy.

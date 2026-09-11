@@ -15,7 +15,8 @@ import { toast } from '../Toast'
  *    `lib/firmaImagen.js`).
  *
  * Se usa en dos lugares: la pestaña Firma de Configuración y el panel de
- * receta, donde aparece como atajo si el profesional todavía no cargó ninguna.
+ * receta, donde aparece dentro del cartel que bloquea la emisión mientras no
+ * haya firma (`FirmaFaltante`).
  *
  * ── Detalles que parecen de adorno y no lo son ──────────────────────────────
  * `touch-action: none` sobre el canvas: sin eso, en el teléfono el primer
@@ -177,7 +178,12 @@ export default function FirmaPad({ userId, onGuardada, compacto = false }) {
     }
   }
 
+  // Se puede borrar —es su firma— pero se avisa qué implica: desde que es
+  // obligatoria, quedarse sin firma es quedarse sin poder recetar. Mismo
+  // criterio que desconectar Mercado Pago en Configuración. Para reemplazarla
+  // no hace falta borrarla: está "Cambiar la firma".
   const borrar = async () => {
+    if (!confirm('¿Eliminar tu firma? No vas a poder emitir recetas hasta que cargues otra.')) return
     setGuardando(true)
     try {
       await firmaService.remove(userId)

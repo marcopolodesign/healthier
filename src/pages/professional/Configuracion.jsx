@@ -755,22 +755,23 @@ export default function Configuracion({ profile }) {
           <div>
             <h2 className="font-semibold text-text-primary">Tu firma</h2>
             <p className="text-sm text-text-secondary mt-0.5">
-              Se imprime en el recuadro de firma y sello de las recetas electrónicas que emitís.
-              La cargás una vez y queda para todas.
+              Se imprime en el recuadro de firma y sello de las recetas electrónicas que emitís,
+              y <strong>hace falta para poder emitirlas</strong>. La cargás una vez y queda para todas.
             </p>
           </div>
 
           <FirmaPad userId={profile.id} />
 
           {/* El profesional pregunta esto apenas ve el recuadro, así que se
-              contesta antes: la receta ya es válida sin la firma dibujada — la
-              firma electrónica va aparte y la pone el propio servicio. Lo que
-              agrega el trazo es que la farmacia y el paciente vean una receta
-              con la cara de siempre. */}
+              contesta antes: la validez legal no depende del trazo —la firma
+              electrónica va aparte y la pone el propio servicio con su
+              matrícula—, pero igual se la pedimos, para que la receta que
+              recibe el paciente se vea como la de papel. Sin esta línea, a
+              alguien le suena a trámite de más. */}
           <p className="text-xs text-text-tertiary border-t border-border-default pt-3">
-            La receta tiene validez legal con o sin este trazo: la firma electrónica
-            la aplica el servicio de recetas con tu matrícula. Esto es tu firma de puño,
-            para que la receta se vea como la de papel.
+            La validez legal de la receta la da la firma electrónica, que aplica el servicio
+            con tu matrícula. Este trazo es tu firma de puño: va impreso para que la receta
+            que recibe el paciente se vea como la de papel, y te lo pedimos antes de emitir.
           </p>
         </div>
       )}

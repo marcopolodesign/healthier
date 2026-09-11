@@ -205,6 +205,21 @@ request y no se imprimen**: `leyenda`, `informacionAdicional`, `horario`,
 el color al encabezado", la respuesta es que no se puede — no que falta
 implementarlo.
 
+### La firma es obligatoria para emitir
+
+Decisión de Mateo (2026-09-11). `rcta-issue` corta con **`RCTA_FIRMA_FALTANTE`
+(422)** y un mensaje que dice qué hacer, antes de llamar a Innovamed; el front
+apaga el botón de emitir y ofrece firmar ahí mismo, sin salir de la consulta.
+
+Dos detalles que importan si alguien toca esto:
+
+- **El corte va antes de armar el payload**, no después de un rechazo de la API.
+  Innovamed acepta la receta sin firma sin chistar — el requisito es nuestro.
+- **`resolverFirma` devuelve `null` también ante un error de lectura**, así que
+  un fallo de la base se presenta como "te falta la firma". Es el lado seguro
+  para equivocarse: la alternativa sería emitir una receta sin firma por un
+  error nuestro, y una receta emitida no se deshace.
+
 ### Las tres trampas de las imágenes
 
 1. **`firmabase64` quiere el base64 CRUDO.** Con `data:image/png;base64,`

@@ -34,6 +34,10 @@
 // por lo tanto del mismo paciente y profesional): una receta es un acto medico
 // unico y firmado por un solo profesional.
 //
+// Para emitir hace falta que el profesional tenga cargada su firma olografa
+// (`professional_signatures`, migracion 154). Sin ella se corta con 422
+// `RCTA_FIRMA_FALTANTE` — ver el bloque donde se resuelve.
+//
 // On success: updates clinical_medications.rcta_prescription_id + rcta_transaction_id
 //             + rcta_verificador + rcta_pdf_url + rcta_status + rcta_issued_at
 // On error: sets rcta_status = 'error'
@@ -166,10 +170,16 @@ Deno.serve(async (req: Request) => {
       // INGRESAR EL NUMERO DE DOCUMENTO`, que no le dice a nadie que le falta
       // cargar su DNI. Es ademas el momento util para enterarse: mejor
       // descubrirlo practicando que con un paciente esperando.
+      // La firma entra en la misma lista que el DNI y la matricula: es
+      // obligatoria para emitir, y la practica existe justamente para que el
+      // profesional se entere de lo que le falta ANTES de tener un paciente
+      // adelante.
+      const tieneFirma = !!(await resolverFirma(supabase, quien.id))
       const faltan = [
         !quien.dni && 'tu DNI',
         !legajo?.license_number && 'tu número de matrícula',
         !legajo?.address && 'la dirección de tu consultorio',
+        !tieneFirma && 'tu firma',
       ].filter(Boolean)
       if (faltan.length) {
         return { data: null, error: {
@@ -406,12 +416,32 @@ Deno.serve(async (req: Request) => {
     // Verificado emitiendo contra homologacion: el logo sale arriba al centro,
     // a color, sin `subemisor` en el payload.
 
-    // La firma olografa del profesional (migracion 154). Se resuelve con el
-    // mismo criterio que el logo: si no la cargo, o si leerla falla, la clave se
-    // OMITE y la receta sale igual que antes, con la linea de puno vacia. Mateo
-    // la definio OPCIONAL el 2026-09-11 — no bloquea la emision.
+    // ── La firma olografa del profesional (migracion 154) ────────────────────
+    // OBLIGATORIA desde el 2026-09-11 (Mateo): sin firma cargada no se emite.
+    // Arranco siendo opcional ese mismo dia y lo cambio.
+    //
+    // El corte va ACA y no mas abajo por dos motivos. Uno: si se dejara pasar,
+    // la receta saldria con el renglon de puno vacio y eso es justamente lo que
+    // se quiso arreglar. Dos: es un 422 con un mensaje que dice que hacer, en
+    // vez de un rechazo de Innovamed que el profesional no puede interpretar.
+    //
+    // El front tambien apaga el boton (`useFirmaDelProfesional`), pero eso es
+    // cortesia: un cliente viejo desplegado, o la pestana abierta desde antes,
+    // llegan igual hasta aca.
+    //
+    // `resolverFirma` nunca tira: ante un error de lectura devuelve `null`, o
+    // sea que un fallo de la base se presenta como "te falta la firma". Es el
+    // lado seguro para equivocarse — la alternativa seria emitir una receta sin
+    // firma por un error nuestro, y una receta emitida no se deshace.
     const firmabase64 = await resolverFirma(supabase, meds[0].professional_id)
     ctx.con_firma = !!firmabase64
+    if (!firmabase64) {
+      await setStatus('error')
+      return await fallar('validation_error', {
+        error: 'Para emitir la receta necesitás cargar tu firma. Se hace una sola vez y queda para todas: entrá a Configuración → Firma, o firmá desde el mismo recetario.',
+        code: 'RCTA_FIRMA_FALTANTE',
+      }, 422)
+    }
 
     const payload = {
       clienteAppId: Number(RCTA_CLIENT_APP_ID),
