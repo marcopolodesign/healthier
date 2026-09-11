@@ -8,6 +8,7 @@ import { capitalizarNombreCatalogo } from '../../lib/format'
 import MedicationSearch from './MedicationSearch'
 import InfoTooltip from '../common/InfoTooltip'
 import DatosRecetaFaltantes from './DatosRecetaFaltantes'
+import FirmaFaltante from './FirmaFaltante'
 import { clinicalService, logClinicalAccess } from '../../services/clinicalService'
 import { esSimulado, marcarRecetaEmitida } from '../../lib/simulacion'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
@@ -638,6 +639,10 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
         consultationId={consultationId}
         onActualizado={onDatosActualizados}
       />}
+
+      {/* La firma no frena nada — es un aviso, y se puede resolver sin salir de
+          la consulta. Ver FirmaFaltante. */}
+      {!congelada && <FirmaFaltante professionalId={professionalId} />}
 
       {loading && (
         <div className="space-y-2">

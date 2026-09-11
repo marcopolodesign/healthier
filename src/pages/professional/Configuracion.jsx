@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Plus, Trash, Clock, CurrencyCircleDollar, Bank, VideoCamera, Buildings, MapPin, CheckCircle, Warning, LinkSimple } from '@phosphor-icons/react'
+import { Plus, Trash, Clock, CurrencyCircleDollar, Bank, VideoCamera, Buildings, MapPin, CheckCircle, Warning, LinkSimple, Signature } from '@phosphor-icons/react'
 import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import { professionalService } from '../../services/professionalService'
 import { consultationTypesService } from '../../services/consultationTypesService'
@@ -16,6 +16,8 @@ import {
   estaPorDebajoDelMinimo,
 } from '../../lib/tarifas'
 import { toast } from '../../components/Toast'
+import FirmaPad from '../../components/professional/FirmaPad'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 
 const MODALITIES = [
   { id: 'virtual',    label: 'Solo virtual',        icon: VideoCamera },
@@ -40,6 +42,10 @@ const TABS = [
   { id: 'horarios', label: 'Horarios', icon: Clock },
   { id: 'tarifas',  label: 'Tarifas',  icon: CurrencyCircleDollar },
   { id: 'cuenta',   label: 'Cuenta',   icon: Bank },
+  // Sólo para las especialidades habilitadas a recetar (migración 116): a un
+  // nutricionista que no puede emitir recetas, una pestaña "Firma" no le dice
+  // nada. Se filtra abajo con `puedeRecetar`.
+  { id: 'firma',    label: 'Firma',    icon: Signature, soloRecetan: true },
 ]
 
 // Returns something like "Lunes a Viernes: 09:00 – 13:00 y 15:00 – 19:00 · Sábado: 09:00 – 13:00"
@@ -112,6 +118,12 @@ export default function Configuracion({ profile }) {
   const tabParam = searchParams.get('tab')
   const [tab, setTab] = useState(VALID_TABS.includes(tabParam) ? tabParam : 'horarios')
   const [loading, setLoading] = useState(true)
+
+  // Qué pestañas ve este profesional. Mientras el catálogo de especialidades
+  // carga, `puedeRecetar` devuelve false — mismo criterio que
+  // `PrescriptionCreator`: mejor mostrar la pestaña un instante tarde que
+  // ofrecerle cargar una firma a alguien que no receta.
+  const { puedeRecetar } = useEspecialidades()
 
   // ── Horarios state ──────────────────────────────────────────
   const [schedules, setSchedules] = useState([])
@@ -291,21 +303,29 @@ export default function Configuracion({ profile }) {
 
   if (loading) return <div className="h-64 bg-bg-surface rounded-xl animate-pulse" />
 
+  const recetaHabilitada = puedeRecetar(profData?.specialty)
+  const tabsVisibles = TABS.filter(t => !t.soloRecetan || recetaHabilitada)
+  // Entrar con `?tab=firma` sin poder recetar dejaba la pestaña seleccionada y
+  // el cuerpo vacío. Pasa de verdad: el link se lo manda la app.
+  const tabActiva = tabsVisibles.some(t => t.id === tab) ? tab : 'horarios'
+
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold text-text-primary">Configuración</h1>
-        <p className="text-text-secondary mt-1">Horarios de atención, tarifas y datos de cobro</p>
+        <p className="text-text-secondary mt-1">
+          Horarios de atención, tarifas, datos de cobro{recetaHabilitada ? ' y tu firma' : ''}
+        </p>
       </div>
 
       {/* Tab bar */}
       <div className="flex gap-1 bg-bg-surface rounded-xl p-1">
-        {TABS.map(({ id, label, icon: Icon }) => (
+        {tabsVisibles.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setTab(id)}
             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
-              tab === id
+              tabActiva === id
                 ? 'bg-white text-text-primary shadow-sm'
                 : 'text-text-secondary hover:text-text-primary'
             }`}
@@ -317,7 +337,7 @@ export default function Configuracion({ profile }) {
       </div>
 
       {/* ── HORARIOS TAB ── */}
-      {tab === 'horarios' && (
+      {tabActiva === 'horarios' && (
         <div className="card space-y-4">
           <div>
             <h2 className="font-semibold text-text-primary">Horarios de atención</h2>
@@ -417,7 +437,7 @@ export default function Configuracion({ profile }) {
           profesional ve la burbuja del browser —en el idioma del browser— en vez
           del mensaje que nombra el campo a corregir. La validación real la hace
           `saveTarifas`, y por debajo el trigger de la migración 142. */}
-      {tab === 'tarifas' && (
+      {tabActiva === 'tarifas' && (
         <form onSubmit={saveTarifas} noValidate className="space-y-6">
           <div className="card space-y-5">
             <div>
@@ -615,7 +635,7 @@ export default function Configuracion({ profile }) {
       )}
 
       {/* ── CUENTA TAB ── */}
-      {tab === 'cuenta' && (
+      {tabActiva === 'cuenta' && (
         <div className="space-y-6">
           {/* Mercado Pago — required to receive paid bookings (spec D4) */}
           <div className="card space-y-4">
@@ -726,6 +746,32 @@ export default function Configuracion({ profile }) {
             {savingCuenta ? 'Guardando...' : 'Guardar datos de cobro'}
           </button>
           </form>
+        </div>
+      )}
+
+      {/* ── FIRMA TAB ── */}
+      {tabActiva === 'firma' && (
+        <div className="card space-y-4">
+          <div>
+            <h2 className="font-semibold text-text-primary">Tu firma</h2>
+            <p className="text-sm text-text-secondary mt-0.5">
+              Se imprime en el recuadro de firma y sello de las recetas electrónicas que emitís.
+              La cargás una vez y queda para todas.
+            </p>
+          </div>
+
+          <FirmaPad userId={profile.id} />
+
+          {/* El profesional pregunta esto apenas ve el recuadro, así que se
+              contesta antes: la receta ya es válida sin la firma dibujada — la
+              firma electrónica va aparte y la pone el propio servicio. Lo que
+              agrega el trazo es que la farmacia y el paciente vean una receta
+              con la cara de siempre. */}
+          <p className="text-xs text-text-tertiary border-t border-border-default pt-3">
+            La receta tiene validez legal con o sin este trazo: la firma electrónica
+            la aplica el servicio de recetas con tu matrícula. Esto es tu firma de puño,
+            para que la receta se vea como la de papel.
+          </p>
         </div>
       )}
     </div>

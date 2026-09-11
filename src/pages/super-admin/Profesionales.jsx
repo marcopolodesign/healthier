@@ -882,7 +882,7 @@ export default function SuperAdminProfesionales() {
       const [profResult, consultResult] = await Promise.all([
         supabase
           .from('professional_profiles')
-          .select('id, specialty, is_verified, verification_source, sisa_status, mp_connected, mp_account_label, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, profiles!user_id(id, full_name, email, phone, created_at, utm_source, avatar_url)')
+          .select('id, specialty, is_verified, verification_source, sisa_status, mp_connected, mp_account_label, has_signature, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, profiles!user_id(id, full_name, email, phone, created_at, utm_source, avatar_url)')
           .order('created_at', { ascending: false }),
         supabase.from('consultations').select('professional_id'),
       ])
@@ -996,6 +996,7 @@ export default function SuperAdminProfesionales() {
                 <th className="table-header">Estado</th>
                 <th className="table-header">SISA</th>
                 <th className="table-header">MP</th>
+                <th className="table-header">Firma</th>
                 <th className="table-header">Inmediata</th>
                 <th className="table-header">Rating</th>
                 <th className="table-header">Consultas</th>
@@ -1025,7 +1026,7 @@ export default function SuperAdminProfesionales() {
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-16 text-center">
+                  <td colSpan={12} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-3 text-gray-400">
                       <User size={40} weight="thin" />
                       <p className="text-sm">No se encontraron profesionales</p>
@@ -1097,6 +1098,17 @@ export default function SuperAdminProfesionales() {
                             </div>
                           )
                           : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600">Sin conectar</span>}
+                      </td>
+                      {/* Firma para las recetas. Es el booleano
+                          `professional_profiles.has_signature` (migración 154),
+                          NUNCA la imagen: la firma ológrafa no sale de la fila
+                          del profesional. "Sin firma" es gris y no rojo a
+                          propósito — la firma es opcional y la receta sale
+                          igual, así que no es un estado roto. */}
+                      <td className="table-cell">
+                        {pro.has_signature
+                          ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">Cargada</span>
+                          : <span className="text-xs text-gray-400">Sin firma</span>}
                       </td>
                       {/* Disponibilidad para consulta inmediata.
                           Los tres estados son distintos y hay que poder
