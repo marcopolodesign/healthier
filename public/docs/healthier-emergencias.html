@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Healthier — El módulo de emergencias</title>
+<style>
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Light.woff2') format('woff2');font-weight:300;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Regular.woff2') format('woff2');font-weight:400 600;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-RegularItalic.woff2') format('woff2');font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+:root{
+  --sage:#7CB38B;--sage-hover:#5f9470;--sage-muted:rgba(124,179,139,.1);--sage-muted2:rgba(124,179,139,.18);
+  --coral:#E8927C;--lavender:#9B8EC4;--danger:#D9534F;--gold:#E4A853;--sky:#6BAFCF;--green:#6BBF7B;
+  --bg-primary:#F6F5F0;--bg-secondary:#FDFCF9;--surface:#fff;
+  --text-primary:#2D2A26;--text-secondary:#6B6560;--text-tertiary:#A8A29E;
+  --border:#D8D4CE;--border-hover:#C4BFB8;
+  --radius-pill:999px;--radius-card:1.5rem;--radius-card-sm:1rem;
+  --shadow-card:0 1px 4px rgba(45,42,38,.06);--shadow-hover:0 8px 28px rgba(124,179,139,.14);
+  --t:all .36s cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-primary)}
+body{font-family:'Everett',-apple-system,BlinkMacSystemFont,sans-serif;color:var(--text-primary);-webkit-font-smoothing:antialiased}
+button{all:unset;cursor:pointer}
+
+/* DECK */
+#deck{position:fixed;inset:0;overflow:hidden}
+.slide{
+  position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;
+  padding:4.5rem 2rem 3.5rem;opacity:0;pointer-events:none;
+  transition:opacity .42s cubic-bezier(.4,0,.2,1),transform .42s cubic-bezier(.4,0,.2,1);
+  transform:translateY(20px);overflow:hidden;
+}
+.slide.active{opacity:1;pointer-events:auto;transform:translateY(0)}
+@media(prefers-reduced-motion:reduce){.slide{transition:opacity .15s}}
+.slide-ivory{background:var(--bg-primary)}
+.slide-cream{background:var(--bg-secondary)}
+.slide-white{background:var(--surface)}
+.slide-sage{background:var(--sage);color:#fff}
+.slide-dark{background:#1d1e1a;color:#f9f8f5}
+.slide-rose{background:#FBF2F1}
+
+/* NAV */
+#nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;
+  padding:.75rem 1.5rem;height:52px;background:rgba(246,245,240,.82);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);transition:background .3s,border-color .3s}
+#brand{font-size:.8rem;font-weight:700;color:var(--sage);letter-spacing:-.01em;min-width:4rem}
+#dots{display:flex;align-items:center;gap:.35rem;flex:1;justify-content:center;flex-wrap:wrap}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--border);transition:var(--t);cursor:pointer}
+.dot.active{background:var(--sage);width:18px;border-radius:3px}
+#counter{font-size:.75rem;font-weight:600;color:var(--text-tertiary);letter-spacing:.04em;min-width:4rem;text-align:right}
+.arrow-btn{position:fixed;top:50%;z-index:99;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.7);backdrop-filter:blur(8px);
+  border:1px solid var(--border);color:var(--text-secondary);transition:var(--t);opacity:.55}
+.arrow-btn:hover{opacity:1;background:#fff;color:var(--text-primary)}
+#btn-prev{left:.75rem}#btn-next{right:.75rem}
+.arrow-btn.hidden{opacity:0;pointer-events:none}
+.progress-bar{position:fixed;bottom:0;left:0;height:2px;background:var(--sage);transition:width .4s cubic-bezier(.4,0,.2,1);z-index:100}
+
+/* LAYOUT */
+.content{width:100%;max-width:880px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:1.3rem;text-align:center}
+.content.wide{max-width:1080px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:2.5rem;align-items:center;width:100%;max-width:1000px}
+.two-col.r{direction:rtl}.two-col.r>*{direction:ltr}
+.two-col .txt{display:flex;flex-direction:column;gap:.9rem;text-align:left;align-items:flex-start}
+.two-col .txt h2.st{text-align:left}
+@media(max-width:900px){.two-col{grid-template-columns:1fr;gap:1.2rem}}
+
+/* TYPOGRAPHY */
+.eyebrow{display:inline-flex;align-items:center;gap:.4rem;font-size:.72rem;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;background:var(--sage-muted);color:var(--sage);padding:.3rem .85rem;border-radius:var(--radius-pill)}
+.eyebrow.coral{background:rgba(232,146,124,.12);color:#c2614a}
+.eyebrow.lavender{background:rgba(155,142,196,.12);color:#6d5fa3}
+.eyebrow.gold{background:rgba(228,168,83,.12);color:#9a6c1a}
+.eyebrow.danger{background:rgba(217,83,79,.1);color:#b8433f}
+.eyebrow.onsage{background:rgba(255,255,255,.18);color:#fff}
+.eyebrow.ondark{background:rgba(255,255,255,.1);color:#cfe6d6}
+h1.hero{font-size:clamp(2.2rem,5vw,3.8rem);font-weight:700;line-height:1.1;letter-spacing:-.02em;max-width:18ch}
+h1.hero .a{color:var(--sage)}
+h1.hero .d{color:var(--danger)}
+h2.st{font-size:clamp(1.55rem,3.2vw,2.35rem);font-weight:700;line-height:1.15;letter-spacing:-.02em;max-width:24ch}
+h2.st .a{color:var(--sage)}
+h2.st .ac{color:var(--coral)}
+h2.st .al{color:var(--lavender)}
+h2.st .ag{color:var(--gold)}
+h2.st .ad{color:var(--danger)}
+.lead{font-size:clamp(.88rem,1.55vw,1.02rem);color:var(--text-secondary);line-height:1.6;max-width:56ch}
+.lead strong{color:var(--text-primary);font-weight:600}
+.two-col .lead{max-width:44ch}
+.slide-sage .lead,.slide-dark .lead{color:rgba(255,255,255,.82)}
+.slide-sage .lead strong,.slide-dark .lead strong{color:#fff}
+
+/* SCREENSHOTS */
+.shots{display:flex;gap:1.1rem;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+.shot{display:flex;flex-direction:column;gap:.5rem;align-items:center}
+.shot img{height:52vh;max-height:470px;width:auto;border-radius:20px;border:1px solid var(--border);
+  box-shadow:0 12px 34px rgba(45,42,38,.16);background:#fff;display:block}
+.shot .cap{font-size:.7rem;color:var(--text-tertiary);text-align:center;max-width:24ch;line-height:1.4}
+.shot .cap b{color:var(--text-secondary);font-weight:600;display:block}
+.slide-dark .shot .cap{color:rgba(255,255,255,.5)}
+.slide-dark .shot .cap b{color:rgba(255,255,255,.8)}
+.shots.three .shot img{height:44vh;max-height:400px}
+.shots.four .shot img{height:38vh;max-height:340px}
+.two-col > .shot img{height:56vh;max-height:520px}
+.two-col .shots{flex-wrap:nowrap;gap:.8rem}
+.two-col .shots .shot img{height:42vh;max-height:380px}
+.shot.wide img{height:auto;width:min(720px,84vw);max-height:44vh;object-fit:contain;border-radius:14px}
+.shots.par{gap:1.4rem;align-items:center}
+.shots.par .shot img{height:42vh;max-height:390px}
+.shots.par .shot.wide img{height:auto;width:min(620px,52vw);max-height:34vh}
+
+/* LISTAS */
+.bl{display:flex;flex-direction:column;gap:.5rem;list-style:none;text-align:left}
+.bl li{display:flex;align-items:flex-start;gap:.6rem;font-size:.84rem;color:var(--text-secondary);line-height:1.5}
+.bl .bi{width:20px;height:20px;border-radius:50%;background:var(--sage-muted);display:flex;align-items:center;
+  justify-content:center;color:var(--sage);flex-shrink:0;margin-top:.1rem;font-size:.62rem;font-weight:700}
+.bl .bi.d{background:rgba(217,83,79,.12);color:var(--danger)}
+.bl li strong{color:var(--text-primary);font-weight:600}
+.slide-dark .bl li{color:rgba(255,255,255,.75)}
+.slide-dark .bl li strong{color:#fff}
+.slide-dark .bl .bi{background:rgba(124,179,139,.22);color:var(--sage)}
+
+/* FEATURE GRID */
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.8rem;width:100%;max-width:920px}
+.fg.four{grid-template-columns:repeat(4,1fr)}
+.fg.three{grid-template-columns:repeat(3,1fr)}
+@media(max-width:860px){.fg.four,.fg.three{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.fg.four,.fg.three{grid-template-columns:1fr}}
+.fc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:1rem 1.15rem;
+  text-align:left;box-shadow:var(--shadow-card);transition:var(--t)}
+.fc:hover{box-shadow:var(--shadow-hover);border-color:rgba(124,179,139,.3);transform:translateY(-2px)}
+.fc h3{font-size:.86rem;font-weight:700;margin-bottom:.25rem}
+.fc p{font-size:.76rem;color:var(--text-secondary);line-height:1.5}
+.fc .n{font-size:.6rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--sage);display:block;margin-bottom:.3rem}
+.fc .n.d{color:var(--danger)}.fc .n.g{color:#9a6c1a}.fc .n.l{color:#6d5fa3}.fc .n.c{color:#c2614a}
+.slide-dark .fc{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12)}
+.slide-dark .fc p{color:rgba(255,255,255,.68)}
+.slide-sage .fc{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.22)}
+.slide-sage .fc h3{color:#fff}
+.slide-sage .fc p{color:rgba(255,255,255,.8)}
+.slide-sage .fc .n{color:rgba(255,255,255,.75)}
+
+.pill-row{display:flex;flex-wrap:wrap;gap:.45rem;justify-content:center}
+.pill{font-size:.76rem;font-weight:500;padding:.32rem .85rem;border-radius:var(--radius-pill);
+  border:1px solid var(--border);background:var(--surface);color:var(--text-secondary)}
+.hint{font-size:.78rem;color:var(--text-tertiary);margin-top:.6rem}
+
+/* Línea de tiempo */
+.flow{display:flex;align-items:stretch;gap:.55rem;width:100%;max-width:960px;flex-wrap:wrap;justify-content:center}
+.fs{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);
+  padding:.8rem .95rem;text-align:left;position:relative;box-shadow:var(--shadow-card)}
+.fs .n{font-size:.6rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--sage);display:block;margin-bottom:.28rem}
+.fs .h{font-size:.83rem;font-weight:700;line-height:1.25;display:block;margin-bottom:.2rem}
+.fs .d{font-size:.72rem;color:var(--text-secondary);line-height:1.45}
+.fs .n.d{color:var(--danger)}.fs .n.g{color:#9a6c1a}.fs .n.l{color:#6d5fa3}
+.fs.hot{border-color:rgba(217,83,79,.4);background:rgba(217,83,79,.05)}
+.fs.off{opacity:.6;border-style:dashed}
+.slide-dark .fs{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.13)}
+.slide-dark .fs .d{color:rgba(255,255,255,.66)}
+@media(max-width:760px){.flow{flex-direction:column}}
+
+/* Tabla */
+.tbl{width:100%;max-width:960px;border:1px solid var(--border);border-radius:var(--radius-card-sm);
+  overflow:hidden;background:var(--surface);box-shadow:var(--shadow-card)}
+.tbl .tr{display:grid;grid-template-columns:.85fr 1.2fr 1.2fr 1.3fr;gap:.75rem;padding:.55rem .95rem;text-align:left;align-items:center}
+.tbl .tr+.tr{border-top:1px solid var(--border)}
+.tbl .th{background:var(--sage-muted);font-size:.61rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--sage)}
+.tbl .tr span{font-size:.73rem;color:var(--text-secondary);line-height:1.4}
+.tbl .tr span:first-child{font-weight:700;color:var(--text-primary)}
+.tbl.dos .tr{grid-template-columns:.8fr 1.4fr 1.4fr}
+@media(max-width:760px){.tbl .tr,.tbl.dos .tr{grid-template-columns:1fr 1fr}.tbl .th{display:none}}
+
+/* Aviso */
+.note{display:flex;gap:.7rem;align-items:flex-start;max-width:680px;text-align:left;
+  background:rgba(228,168,83,.09);border:1px solid rgba(228,168,83,.3);border-radius:var(--radius-card-sm);padding:.8rem 1rem}
+.note.d{background:rgba(217,83,79,.07);border-color:rgba(217,83,79,.3)}
+.note .k{font-size:.95rem;flex-shrink:0;line-height:1.4}
+.note p{font-size:.78rem;color:var(--text-secondary);line-height:1.55}
+.note p strong{color:var(--text-primary)}
+.slide-dark .note{background:rgba(228,168,83,.1);border-color:rgba(228,168,83,.28)}
+.slide-dark .note p{color:rgba(255,255,255,.72)}
+.slide-dark .note p strong{color:#fff}
+
+/* Dos columnas etiquetadas */
+.sides{display:grid;grid-template-columns:1fr 1fr;gap:.85rem;width:100%;max-width:920px}
+@media(max-width:760px){.sides{grid-template-columns:1fr}}
+.side{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:1rem 1.15rem;text-align:left;box-shadow:var(--shadow-card)}
+.side .who{font-size:.61rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--sage);display:block;margin-bottom:.5rem}
+.side .who.c{color:#c2614a}.side .who.d{color:var(--danger)}
+.side ul{list-style:none;display:flex;flex-direction:column;gap:.4rem}
+.side li{font-size:.77rem;color:var(--text-secondary);line-height:1.5;padding-left:.85rem;position:relative}
+.side li::before{content:'';position:absolute;left:0;top:.5rem;width:4px;height:4px;border-radius:50%;background:var(--border-hover)}
+.side li strong{color:var(--text-primary);font-weight:600}
+.slide-dark .side{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.13)}
+.slide-dark .side li{color:rgba(255,255,255,.68)}
+.slide-dark .side li strong{color:#fff}
+</style>
+</head>
+<body>
+
+<div id="nav">
+  <span id="brand">Healthier</span>
+  <div id="dots"></div>
+  <span id="counter">01 / 20</span>
+</div>
+
+<button class="arrow-btn hidden" id="btn-prev" aria-label="Anterior">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+</button>
+<button class="arrow-btn" id="btn-next" aria-label="Siguiente">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+</button>
+<div class="progress-bar" style="width:5%"></div>
+
+<div id="deck">
+
+<!-- 1 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory active" data-slide="1">
+  <div class="content">
+    <span class="eyebrow danger">Emergencias · S.O.S · Documento interno</span>
+    <h1 class="hero">Un botón rojo,<br>y un médico que <span class="d">sale.</span></h1>
+    <p class="lead">El S.O.S. es lo único de Healthier donde alguien se mueve físicamente hacia el paciente. Este documento recorre las dos mitades —primero la del profesional, después la del paciente— con las pantallas reales de cada estado, capturadas contra staging.</p>
+    <div class="pill-row">
+      <span class="pill">El triage</span>
+      <span class="pill">El despacho</span>
+      <span class="pill">El GPS en vivo</span>
+      <span class="pill">La llegada</span>
+      <span class="pill">Lo que hoy no funciona</span>
+    </div>
+    <p class="hint">→ Navegá con las flechas o la barra espaciadora</p>
+  </div>
+</section>
+
+<!-- 2 ─────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="2">
+  <div class="content wide">
+    <span class="eyebrow">El mapa</span>
+    <h2 class="st">Cuatro estados,<br>y una sola <span class="a">fila.</span></h2>
+    <p class="lead">Toda la emergencia vive en una fila de la tabla <code>emergencies</code>. Su columna <strong>status</strong> es lo único que manda: las dos pantallas —la del paciente y la del profesional— dibujan lo que esa columna dice, y se enteran de los cambios por Realtime. No hay timers, no hay simulación.</p>
+    <div class="flow">
+      <div class="fs hot">
+        <span class="n d">01 · el paciente</span>
+        <span class="h">dispatched</span>
+        <span class="d">Se eligió un profesional y la fila se creó. El aviso le llega a él por push.</span>
+      </div>
+      <div class="fs">
+        <span class="n">02 · el profesional</span>
+        <span class="h">in_transit</span>
+        <span class="d">Aceptó y salió. Desde acá —y sólo desde acá— empieza a compartir su GPS.</span>
+      </div>
+      <div class="fs">
+        <span class="n">03 · el profesional</span>
+        <span class="h">arrived</span>
+        <span class="d">Llegó. Ve los síntomas que el paciente eligió en el triage.</span>
+      </div>
+      <div class="fs">
+        <span class="n">04 · cierre</span>
+        <span class="h">completed / cancelled</span>
+        <span class="d">Terminó o se canceló. Deja de compartirse la ubicación y las dos pantallas se vacían.</span>
+      </div>
+    </div>
+    <div class="note">
+      <span class="k">↔</span>
+      <p>Los dos primeros saltos <strong>los hace una persona distinta</strong>: el paciente crea la fila, el profesional la mueve. Nada avanza solo — no hay vencimiento automático ni reasignación.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 3 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="3">
+  <div class="two-col">
+    <div class="txt">
+      <span class="eyebrow danger">Lo primero que se dice</span>
+      <h2 class="st">Healthier no es<br>una <span class="ad">ambulancia.</span></h2>
+      <p class="lead">La primera pantalla del flujo, antes de cualquier síntoma, manda a llamar al <strong>107 (SAME)</strong> si hay riesgo de vida, y aclara que esto conecta con un profesional de Healthier — no con una urgencia.</p>
+      <p class="lead">El mismo teléfono vuelve a aparecer en las dos pantallas de "no se puede seguir". Es la salida honesta cuando el sistema no tiene nada que ofrecer.</p>
+      <div class="note d">
+        <span class="k">⚠</span>
+        <p>Esta aclaración <strong>existe sólo en la web</strong>. La app dice lo contrario — hay una slide entera sobre eso más adelante.</p>
+      </div>
+    </div>
+    <div class="shot">
+      <img src="screenshots-emergencias/pac-02-triage.jpg" alt="Pantalla de triage del paciente con el aviso del 107">
+      <span class="cap"><b>Paciente · Emergencia S.O.S</b>El aviso del SAME, arriba de todo</span>
+    </div>
+  </div>
+</section>
+
+<!-- 4 ─────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="4">
+  <div class="content">
+    <span class="eyebrow onsage">Primera mitad</span>
+    <h2 class="st">El paciente.</h2>
+    <p class="lead">Desde el botón rojo del inicio hasta el médico parado en la puerta. Siete pantallas, y dos finales que no son el que uno espera.</p>
+  </div>
+</section>
+
+<!-- 5 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="5">
+  <div class="two-col r">
+    <div class="txt">
+      <span class="eyebrow">Dónde arranca</span>
+      <h2 class="st">Un botón rojo,<br>al final del <span class="a">inicio.</span></h2>
+      <p class="lead">"EMERGENCIA S.O.S · Solicitar atención de inmediato", abajo de todo en el inicio del paciente. Es la única entrada al flujo.</p>
+      <ul class="bl">
+        <li><span class="bi">1</span><span>El botón <strong>se esconde entero</strong> si el S.O.S. está deshabilitado desde <code>/super-admin/verticales</code>.</span></li>
+        <li><span class="bi">2</span><span>Si ya hay una emergencia en curso, arriba de todo aparece una chapa roja para <strong>volver al seguimiento</strong>.</span></li>
+      </ul>
+    </div>
+    <div class="shots">
+      <div class="shot">
+        <img src="screenshots-emergencias/pac-01-inicio.jpg" alt="Inicio del paciente con el botón de emergencia">
+        <span class="cap"><b>Inicio</b>La entrada al S.O.S.</span>
+      </div>
+      <div class="shot">
+        <img src="screenshots-emergencias/pac-09-inicio-aviso.jpg" alt="Inicio del paciente con una emergencia en curso">
+        <span class="cap"><b>Con una en curso</b>Vuelve al seguimiento</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="6">
+  <div class="two-col">
+    <div class="txt">
+      <span class="eyebrow">El triage</span>
+      <h2 class="st">Se eligen síntomas,<br>no <span class="a">gravedad.</span></h2>
+      <p class="lead">Quince síntomas en una sola lista, sin títulos de grupo y sin colores. El paciente tilda los que tiene y listo.</p>
+      <p class="lead">Por detrás cada síntoma pertenece a un grupo —rojo, amarillo o verde— y <strong>gana el más grave de los tildados</strong>. Pero eso no se le muestra mientras elige, a propósito: ver "Código Rojo" encima mientras uno tilda cambia lo que tilda.</p>
+      <div class="note">
+        <span class="k">→</span>
+        <p>El botón <strong>Continuar</strong> queda gris hasta que haya al menos un síntoma. Sin síntomas no hay código, y sin código no hay emergencia.</p>
+      </div>
+    </div>
+    <div class="shot">
+      <img src="screenshots-emergencias/pac-03-triage-elegido.jpg" alt="Triage con dos síntomas críticos tildados">
+      <span class="cap"><b>Dos síntomas tildados</b>Los dos son del grupo rojo → Código Rojo</span>
+    </div>
+  </div>
+</section>
+
+<!-- 7 ─────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="7">
+  <div class="two-col r">
+    <div class="txt">
+      <span class="eyebrow gold">Confirmar</span>
+      <h2 class="st">Recién acá aparece<br>el <span class="ag">código.</span></h2>
+      <p class="lead">La hoja de confirmación es donde el paciente ve por primera vez en qué categoría cayó: <strong>Síntomas críticos</strong>, y el precio del servicio.</p>
+      <ul class="bl">
+        <li><span class="bi">$</span><span>El precio sale de <code>/super-admin/verticales</code>, no está escrito en el código.</span></li>
+        <li><span class="bi">✓</span><span>Dice, con todas las letras, que <strong>no se cobra ahora</strong>: se abona al finalizar la atención.</span></li>
+        <li><span class="bi">▢</span><span>Acá sólo se <strong>captura</strong> la tarjeta —la misma de Mercado Pago que usa el resto de la app—. Si no tiene ninguna guardada, la puede agregar sin salir de la pantalla.</span></li>
+      </ul>
+    </div>
+    <div class="shot">
+      <img src="screenshots-emergencias/pac-04-confirmar.jpg" alt="Hoja de confirmación del S.O.S.">
+      <span class="cap"><b>Confirmar S.O.S</b>Código, precio y método de pago</span>
+    </div>
+  </div>
+</section>
+
+<!-- 8 ─────────────────────────────────────────────── -->
+<section class="slide slide-dark" data-slide="8">
+  <div class="content wide">
+    <span class="eyebrow ondark">El despacho</span>
+    <h2 class="st">Uno al azar,<br>y si no hay, se <span class="a">dice.</span></h2>
+    <p class="lead">Al apretar <strong>SOLICITAR S.O.S</strong> pasan tres cosas, en este orden.</p>
+    <div class="fg three">
+      <div class="fc">
+        <span class="n d">01</span>
+        <h3>Se pide el GPS</h3>
+        <p>Con 8 segundos de techo. Si no llega, el flujo <strong>no se traba</strong>: sigue, y se le avisa que va a tener que pasar la ubicación por otro medio.</p>
+      </div>
+      <div class="fc">
+        <span class="n d">02</span>
+        <h3>Se elige un profesional</h3>
+        <p>Entre los de medicina general que estén <strong>verificados, activos y con consulta inmediata prendida</strong>. Se sortea uno. Sin zonas, sin ranking, sin olas.</p>
+      </div>
+      <div class="fc">
+        <span class="n d">03</span>
+        <h3>Se escribe la fila</h3>
+        <p>Con el código de despacho (UTM-XXXX), los síntomas tal como los eligió y las coordenadas. <strong>Antes</strong> de mostrar cualquier confirmación.</p>
+      </div>
+    </div>
+    <div class="note">
+      <span class="k">⚠</span>
+      <p><strong>Si no hay nadie elegible, no se inserta nada.</strong> No hay cola, no hay reintento automático y no queda una emergencia "esperando" que nadie ve. Se le dice al paciente y decide él — es una decisión tomada a propósito para este estadio del producto, con un pool de un solo clínico.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 9 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="9">
+  <div class="two-col">
+    <div class="txt">
+      <span class="eyebrow">Despachada</span>
+      <h2 class="st">El reloj corre<br>hacia <span class="a">arriba.</span></h2>
+      <p class="lead">Lo que se muestra es <strong>tiempo transcurrido</strong>, no un ETA inventado. Mientras el profesional no salga, no hay ninguna estimación que dar, y no se da.</p>
+      <ul class="bl">
+        <li><span class="bi">◷</span><span>La barra de tres pasos marca dónde está: <strong>Despachada · En camino · Llegó</strong>.</span></li>
+        <li><span class="bi">☺</span><span>Se muestra quién es el profesional asignado, con su foto si la tiene.</span></li>
+        <li><span class="bi">☎</span><span>El botón <strong>Llamar</strong> marca su teléfono. Si no cargó ninguno, lo dice en vez de mostrar un botón muerto.</span></li>
+      </ul>
+      <div class="note">
+        <span class="k">↻</span>
+        <p>Si cierra la app o recarga la página, al volver a entrar <strong>cae de nuevo en esta pantalla</strong>. La fila está en la base, no en la memoria del navegador.</p>
+      </div>
+    </div>
+    <div class="shot">
+      <img src="screenshots-emergencias/pac-05-despachada.jpg" alt="Seguimiento — emergencia despachada">
+      <span class="cap"><b>Emergencia despachada</b>Todavía no salió: no hay punto en el mapa</span>
+    </div>
+  </div>
+</section>
+
+<!-- 10 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="10">
+  <div class="two-col r">
+    <div class="txt">
+      <span class="eyebrow">En camino</span>
+      <h2 class="st">El punto del mapa<br>es el <span class="a">GPS real.</span></h2>
+      <p class="lead">Cuando el profesional acepta, su teléfono empieza a publicar su posición y el paciente ve <strong>dónde está, la ruta y cuánto falta</strong>, actualizándose solo.</p>
+      <ul class="bl">
+        <li><span class="bi">●</span><span>La chapa verde <strong>"Ubicación en vivo"</strong> con los minutos y los kilómetros que faltan.</span></li>
+        <li><span class="bi">⌁</span><span>La ruta la calcula el servicio de mapas — no es una línea recta entre dos puntos.</span></li>
+        <li><span class="bi d">✕</span><span>Si el dato queda viejo, el marcador <strong>desaparece</strong> y en su lugar se dice que se perdió la señal. Nunca queda un punto quieto que parece en vivo.</span></li>
+      </ul>
+      <div class="note">
+        <span class="k">◆</span>
+        <p>Esta pantalla <strong>era una simulación</strong> hasta el 2026-09-06: la "ambulancia" arrancaba en un punto inventado y se movía en línea recta con un contador de 4 minutos. Nadie estaba del otro lado.</p>
+      </div>
+    </div>
+    <div class="shot">
+      <img src="screenshots-emergencias/pac-06-en-camino.jpg" alt="Seguimiento — profesional en camino con ruta en vivo">
+      <span class="cap"><b>En camino</b>Posición, ruta y "6 min · 2,4 km"</span>
+    </div>
+  </div>
+</section>
+
+<!-- 11 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="11">
+  <div class="content wide">
+    <span class="eyebrow">Los dos finales del paciente</span>
+    <h2 class="st">Llegó, o se <span class="ad">canceló.</span></h2>
+    <div class="shots three">
+      <div class="shot">
+        <img src="screenshots-emergencias/pac-08-llego.jpg" alt="El profesional llegó a la ubicación">
+        <span class="cap"><b>Llegó a tu ubicación</b>Los tres pasos completos. La consulta sigue en persona.</span>
+      </div>
+      <div class="shot">
+        <img src="screenshots-emergencias/pac-07-cancelar.jpg" alt="Hoja de cancelación del S.O.S.">
+        <span class="cap"><b>Cancelar S.O.S</b>Dice qué implica: el profesional deja de venir.</span>
+      </div>
+      <div class="shot">
+        <img src="screenshots-emergencias/pac-10-sin-profesionales.jpg" alt="No hay profesionales disponibles">
+        <span class="cap"><b>Sin profesionales</b>Sin cola y sin reintento — con el 107 a mano.</span>
+      </div>
+    </div>
+    <p class="lead">Cuando el profesional cierra la emergencia, al paciente le aparece <strong>"Atención finalizada"</strong> y vuelve solo al inicio a los 2,5 segundos. Si cancela él, el aviso le llega al profesional; si cancela el profesional, el aviso le llega al paciente. Nunca se le avisa a quien apretó el botón.</p>
+  </div>
+</section>
+
+<!-- 12 ─────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="12">
+  <div class="content">
+    <span class="eyebrow onsage">Segunda mitad</span>
+    <h2 class="st">El profesional.</h2>
+    <p class="lead">Una sola pantalla, pensada para usarse caminando por la calle: sin barra lateral, botones de 56px y fondo oscuro para leerla al sol.</p>
+  </div>
+</section>
+
+<!-- 13 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="13">
+  <div class="content wide">
+    <span class="eyebrow coral">Cómo se entera</span>
+    <h2 class="st">Push primero,<br>pantalla <span class="ac">después.</span></h2>
+    <p class="lead">El aviso lo dispara <strong>un trigger de la base</strong>, no el navegador de quien pidió la emergencia: <em>"🚨 Emergencia asignada — Código ROJO (UTM-8842). Abrí la app para aceptarla."</em>, con link directo. Que avise la base es lo que hace que una emergencia pedida <strong>desde la app</strong> también le llegue — antes salía del website y desde la app no avisaba a nadie.</p>
+    <div class="shots par">
+      <div class="shot">
+        <img src="screenshots-emergencias/pro-01-guardia.jpg" alt="Pantalla de emergencias en guardia">
+        <span class="cap"><b>En guardia</b>Escuchando en tiempo real, sin nada asignado</span>
+      </div>
+      <div class="shot wide">
+        <img src="screenshots-emergencias/pro-05-dashboard-aviso.jpg" alt="Inicio del profesional con la barra de emergencia activa">
+        <span class="cap"><b>Su inicio</b>La barra roja con el código y el estado, que lo lleva a la pantalla</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 14 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="14">
+  <div class="two-col r">
+    <div class="txt">
+      <span class="eyebrow danger">Entrante</span>
+      <h2 class="st">Un solo botón,<br>y ocupa media <span class="ad">pantalla.</span></h2>
+      <p class="lead">La pantalla de emergencia entrante no tiene menú, ni pestañas, ni nada que leer de más: el código de triage en grande, los cuatro datos que importan, y <strong>Aceptar emergencia</strong>.</p>
+      <ul class="bl">
+        <li><span class="bi d">▲</span><span>El encabezado <strong>late</strong> y toma el color del triage: rojo, amarillo o verde.</span></li>
+        <li><span class="bi d">◷</span><span><strong>"Recibida hace 1min"</strong> se recalcula solo cada 30 segundos.</span></li>
+        <li><span class="bi d">✕</span><span><strong>No hay botón de rechazar.</strong> La emergencia ya está asignada a esta persona: si no la toma, nadie más la recibe.</span></li>
+      </ul>
+    </div>
+    <div class="shot">
+      <img src="screenshots-emergencias/pro-02-entrante.jpg" alt="Emergencia entrante — Código Rojo">
+      <span class="cap"><b>Nueva emergencia asignada</b>Código, paciente, cuándo llegó y dónde</span>
+    </div>
+  </div>
+</section>
+
+<!-- 15 ─────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="15">
+  <div class="two-col">
+    <div class="txt">
+      <span class="eyebrow">En camino</span>
+      <h2 class="st">Aceptar es empezar<br>a <span class="a">transmitir.</span></h2>
+      <p class="lead">Aceptar hace dos cosas a la vez: mueve la fila a <code>in_transit</code> y <strong>prende el GPS</strong>. Sólo en este estado — antes de aceptar no hay motivo para tenerlo abierto, y después de llegar tampoco.</p>
+      <ul class="bl">
+        <li><span class="bi">●</span><span>La chapa verde <strong>"El paciente está viendo dónde estás"</strong> es la misma verdad que el paciente ve del otro lado. Si el GPS falla, lo dice.</span></li>
+        <li><span class="bi">➤</span><span><strong>Navegar al paciente</strong> abre Google Maps con las coordenadas y la navegación ya arrancada.</span></li>
+        <li><span class="bi">☎</span><span><strong>Llamar al paciente</strong> queda apagado y explicado cuando el paciente no tiene teléfono cargado — que es el caso de la captura.</span></li>
+      </ul>
+    </div>
+    <div class="shot">
+      <img src="screenshots-emergencias/pro-03-en-camino.jpg" alt="Profesional en camino, compartiendo ubicación">
+      <span class="cap"><b>En camino</b>Transmitiendo, con navegar y llamar</span>
+    </div>
+  </div>
+</section>
+
+<!-- 16 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="16">
+  <div class="two-col r">
+    <div class="txt">
+      <span class="eyebrow">Llegó</span>
+      <h2 class="st">Lo que el paciente<br>dijo, tal <span class="a">cual.</span></h2>
+      <p class="lead">Al marcar <strong>Llegué al paciente</strong>, la pantalla pasa a ser una ficha de lo que hay delante: los síntomas que el paciente tildó en el triage, sin traducir ni completar.</p>
+      <ul class="bl">
+        <li><span class="bi">✓</span><span>Si no hay síntomas registrados, dice <strong>"Sin síntomas registrados — llamá al paciente para relevarlos"</strong>. Nunca inventa una lista genérica por código: mostrar síntomas que nadie reportó es clínicamente engañoso.</span></li>
+        <li><span class="bi">✓</span><span>Al llegar se publica una última posición con ETA 0, para que al paciente no le quede el número de la penúltima.</span></li>
+        <li><span class="bi">✓</span><span><strong>Cerrar emergencia</strong> apaga el GPS, marca <code>completed</code> y lo devuelve a su inicio.</span></li>
+      </ul>
+    </div>
+    <div class="shot">
+      <img src="screenshots-emergencias/pro-04-llegue.jpg" alt="Profesional llegó — síntomas reportados">
+      <span class="cap"><b>¡Llegaste!</b>Los síntomas del triage, y el cierre</span>
+    </div>
+  </div>
+</section>
+
+<!-- 17 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="17">
+  <div class="content wide">
+    <span class="eyebrow">Los dos lados</span>
+    <h2 class="st">El mismo momento,<br>contado <span class="a">dos veces.</span></h2>
+    <div class="tbl dos">
+      <div class="tr th"><span>Estado</span><span>Ve el paciente</span><span>Ve el profesional</span></div>
+      <div class="tr"><span>dispatched</span><span>"Emergencia despachada", el reloj corriendo y quién lo va a atender. Sin punto en el mapa.</span><span>Push + la pantalla roja de emergencia entrante con un solo botón.</span></div>
+      <div class="tr"><span>in_transit</span><span>El médico moviéndose en el mapa, la ruta y "6 min · 2,4 km".</span><span>"El paciente está viendo dónde estás", navegar y llamar.</span></div>
+      <div class="tr"><span>arrived</span><span>"Llegó a tu ubicación" y los tres pasos completos.</span><span>Los síntomas del triage y el botón de cerrar.</span></div>
+      <div class="tr"><span>completed</span><span>"Atención finalizada" y vuelve al inicio solo.</span><span>Vuelve a su inicio; la pantalla queda "En guardia".</span></div>
+      <div class="tr"><span>cancelled</span><span>Si lo canceló el profesional, le llega el aviso y vuelve al inicio.</span><span>Si lo canceló el paciente, le llega el aviso y la pantalla se vacía.</span></div>
+    </div>
+    <div class="note">
+      <span class="k">◆</span>
+      <p>Ninguno de los dos lados <strong>consulta</strong> para enterarse: los dos están suscriptos por Realtime a la misma fila. Por eso las dos pantallas cambian a la vez.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 18 ─────────────────────────────────────────────── -->
+<section class="slide slide-rose" data-slide="18">
+  <div class="content wide">
+    <span class="eyebrow danger">Lo que hay que arreglar</span>
+    <h2 class="st">La app cuenta<br>otra <span class="ad">historia.</span></h2>
+    <p class="lead">El flujo del paciente en la app <strong>no es el mismo</strong> que el de la web. Estas tres capturas son de la app corriendo hoy.</p>
+    <div class="shots three">
+      <div class="shot">
+        <img src="screenshots-emergencias/app-01-triage.jpg" alt="Triage de la app — paso 1">
+        <span class="cap"><b>Triage en 3 pasos</b>Primero los críticos. Sin el aviso del 107.</span>
+      </div>
+      <div class="shot">
+        <img src="screenshots-emergencias/app-02-paso3.jpg" alt="Confirmación de la app — Código Rojo">
+        <span class="cap"><b>"Despacharemos una ambulancia de inmediato"</b>No hay ninguna ambulancia.</span>
+      </div>
+      <div class="shot">
+        <img src="screenshots-emergencias/app-03-pago.jpg" alt="Pago de emergencia de la app — maqueta">
+        <span class="cap"><b>Pago de emergencia</b>$45.00 fijo y una tarjeta inventada.</span>
+      </div>
+    </div>
+    <div class="note d">
+      <span class="k">⚠</span>
+      <p><strong>Las tres son de fondo, no de diseño.</strong> La app promete una ambulancia en tres lugares distintos y omite el 107; su pantalla de pago es una maqueta —el precio está escrito en el código, la tarjeta <code>•••• 4321</code> no existe y el botón sólo espera 1,5 segundos—; y como no manda ni el precio ni el método de pago, la emergencia creada desde la app queda sin esos datos en el panel de super admin.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 19 ─────────────────────────────────────────────── -->
+<section class="slide slide-dark" data-slide="19">
+  <div class="content wide">
+    <span class="eyebrow ondark">Estado real</span>
+    <h2 class="st">Lo que hoy está<br><span class="a">apagado.</span></h2>
+    <div class="fg three">
+      <div class="fc">
+        <span class="n d">En producción</span>
+        <h3>El S.O.S. está deshabilitado</h3>
+        <p>La vertical <code>sos</code> está en <strong>enabled: false</strong>, así que hoy ningún paciente ve el botón — ni en la web ni en la app. Se prende desde <code>/super-admin/verticales</code>.</p>
+      </div>
+      <div class="fc">
+        <span class="n g">Nunca se cobra</span>
+        <h3>El cobro no está construido</h3>
+        <p>Se guardan el precio y la tarjeta elegidos, y el super admin los ve. Pero <strong>no hay nada que cobre al cerrar la emergencia</strong>, aunque la pantalla de confirmación lo prometa.</p>
+      </div>
+      <div class="fc">
+        <span class="n l">Por diseño</span>
+        <h3>Un solo intento</h3>
+        <p>Si el profesional sorteado no acepta, la emergencia <strong>se queda quieta</strong>. No vence, no se reasigna y no le suena a nadie más. Con un pool de uno, da igual; con diez, no.</p>
+      </div>
+    </div>
+    <div class="note">
+      <span class="k">◆</span>
+      <p>Las tres son decisiones distintas: la primera es <strong>un interruptor</strong>, la segunda es <strong>trabajo que falta</strong>, y la tercera es <strong>una decisión tomada a propósito</strong> para este estadio — la misma lógica por la que el pool se sortea al azar en vez de repartirse con estado en el servidor.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 20 ─────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="20">
+  <div class="content">
+    <span class="eyebrow onsage">En una línea</span>
+    <h2 class="st">Lo que funciona<br>funciona de verdad.</h2>
+    <p class="lead">El recorrido completo —triage, despacho, GPS en vivo, llegada y cierre— está construido contra datos reales en las dos puntas, y las dos pantallas se mueven juntas sin que nadie recargue nada. Lo que falta está acotado y es nombrable: <strong>prender la vertical, construir el cobro y alinear la app con lo que dice la web</strong>.</p>
+    <div class="pill-row">
+      <span class="pill">15 pantallas capturadas en staging</span>
+      <span class="pill">3 capturas de la app</span>
+      <span class="pill">2026-09-11</span>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+const slides=[...document.querySelectorAll('.slide')];
+const TOTAL=slides.length;
+const dotsEl=document.getElementById('dots');
+const counter=document.getElementById('counter');
+const progress=document.querySelector('.progress-bar');
+const btnPrev=document.getElementById('btn-prev');
+const btnNext=document.getElementById('btn-next');
+let current=1;
+
+slides.forEach((_,i)=>{
+  const d=document.createElement('span');
+  d.className='dot'+(i===0?' active':'');
+  d.addEventListener('click',()=>goTo(i+1));
+  dotsEl.appendChild(d);
+});
+
+function pad(n){return String(n).padStart(2,'0')}
+
+function goTo(n){
+  if(n<1||n>TOTAL||n===current) return;
+  slides[current-1].classList.remove('active');
+  current=n;
+  slides[current-1].classList.add('active');
+  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===current-1));
+  counter.textContent=`${pad(current)} / ${pad(TOTAL)}`;
+  progress.style.width=`${(current/TOTAL)*100}%`;
+  btnPrev.classList.toggle('hidden',current===1);
+  btnNext.classList.toggle('hidden',current===TOTAL);
+  history.replaceState(null,'',`#${current}`);
+
+  const s=slides[current-1];
+  const dark=s.classList.contains('slide-dark')||s.classList.contains('slide-sage');
+  const nav=document.getElementById('nav');
+  nav.style.background=dark?'rgba(0,0,0,.25)':'rgba(246,245,240,.82)';
+  nav.style.borderBottomColor=dark?'rgba(255,255,255,.12)':'var(--border)';
+  counter.style.color=dark?'rgba(255,255,255,.45)':'var(--text-tertiary)';
+  document.getElementById('brand').style.color=dark?'#fff':'var(--sage)';
+  document.querySelectorAll('.dot').forEach(d=>{
+    d.style.background=dark
+      ?(d.classList.contains('active')?'#fff':'rgba(255,255,255,.28)')
+      :(d.classList.contains('active')?'var(--sage)':'var(--border)');
+  });
+}
+
+btnNext.addEventListener('click',()=>goTo(current+1));
+btnPrev.addEventListener('click',()=>goTo(current-1));
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='Enter'){e.preventDefault();goTo(current+1)}
+  else if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();goTo(current-1)}
+  else if(e.key==='Home'){e.preventDefault();goTo(1)}
+  else if(e.key==='End'){e.preventDefault();goTo(TOTAL)}
+  else if(e.key==='f'||e.key==='F'){
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  }
+});
+
+document.getElementById('deck').addEventListener('click',e=>{
+  if(e.target.closest('button')||e.target.closest('a')||e.target.closest('img')) return;
+  const x=e.clientX/window.innerWidth;
+  if(x<0.25) goTo(current-1); else if(x>0.75) goTo(current+1);
+});
+
+let tx=0;
+document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX},{passive:true});
+document.addEventListener('touchend',e=>{
+  const dx=tx-e.changedTouches[0].clientX;
+  if(Math.abs(dx)>50) dx>0?goTo(current+1):goTo(current-1);
+},{passive:true});
+
+counter.textContent=`01 / ${pad(TOTAL)}`;
+const hash=parseInt(location.hash.replace('#',''));
+if(hash>=1&&hash<=TOTAL&&hash!==1) goTo(hash);
+</script>
+
+</body>
+</html>
