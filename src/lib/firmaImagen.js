@@ -21,6 +21,18 @@
 /** Máximo lado de la imagen con la que se trabaja — arriba de esto es peso al pedo. */
 const MAX_LADO = 1400
 
+/**
+ * Ancho máximo de la firma que se guarda.
+ *
+ * El PDF la dibuja a ~90 puntos de ancho, o sea ~375px a 300dpi: cualquier cosa
+ * arriba de eso no se ve mejor impresa, sólo engorda. Y el peso importa de
+ * verdad — la firma viaja en base64 DENTRO del JSON de la emisión, junto con el
+ * logo: un canvas de 600 CSS-px en una pantalla retina sale de 1200px reales y
+ * son ~58 KB de base64 por receta. 600px deja margen de sobra y lo baja a un
+ * tercio.
+ */
+const ANCHO_MAXIMO = 600
+
 /** Cuánto más oscuro que su entorno tiene que ser un píxel para contar como tinta (0–255). */
 const DELTA_TINTA = 26
 
@@ -69,15 +81,20 @@ export function recortarAlTrazo(canvas) {
   maxX = Math.min(w - 1, maxX + MARGEN)
   maxY = Math.min(h - 1, maxY + MARGEN)
 
-  const ancho = maxX - minX + 1
-  const alto = maxY - minY + 1
+  const anchoCrudo = maxX - minX + 1
+  const altoCrudo = maxY - minY + 1
+  const k = Math.min(1, ANCHO_MAXIMO / anchoCrudo)
+  const ancho = Math.max(1, Math.round(anchoCrudo * k))
+  const alto = Math.max(1, Math.round(altoCrudo * k))
+
   const salida = nuevoCanvas(ancho, alto)
   const sctx = salida.getContext('2d')
   // Fondo blanco explícito: el PDF de la receta no compone transparencia y una
   // firma con alpha llega como un rectángulo negro.
   sctx.fillStyle = '#ffffff'
   sctx.fillRect(0, 0, ancho, alto)
-  sctx.drawImage(canvas, minX, minY, ancho, alto, 0, 0, ancho, alto)
+  sctx.imageSmoothingQuality = 'high'
+  sctx.drawImage(canvas, minX, minY, anchoCrudo, altoCrudo, 0, 0, ancho, alto)
   return { canvas: salida, ancho, alto }
 }
 
