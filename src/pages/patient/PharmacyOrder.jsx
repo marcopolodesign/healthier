@@ -18,6 +18,7 @@ export default function PharmacyOrder() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [order, setOrder] = useState(null)
+  const [codigo, setCodigo] = useState(null)
   const [loading, setLoading] = useState(true)
 
   const primeraRef = useRef(true)
@@ -25,6 +26,11 @@ export default function PharmacyOrder() {
     try {
       const data = await medicationOrdersService.getById(id)
       setOrder(data)
+      // El código vive en otra tabla justamente para que la farmacia no lo vea
+      // (migración 155): sólo lo lee el paciente dueño del pedido.
+      if (data?.status === 'enviado') {
+        setCodigo(await medicationOrdersService.getDeliveryCode(id).catch(() => null))
+      }
     } catch (err) {
       // Sólo la primera carga avisa: un refresco de fondo que falla no tiene
       // por qué tirarle un cartel encima a quien está mirando el pedido.
@@ -88,6 +94,16 @@ export default function PharmacyOrder() {
             </div>
           </div>
         ) : (
+          <>
+          {order.status === 'enviado' && codigo?.code && (
+            <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 text-center">
+              <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Código de entrega</p>
+              <p className="my-2 font-mono text-[34px] leading-none tracking-[0.35em] text-text-primary">{codigo.code}</p>
+              <p className="text-[12px] text-text-secondary">
+                Decíselo a quien te traiga el pedido. No hace falta que muestres el DNI.
+              </p>
+            </div>
+          )}
           <div className="rounded-2xl border border-border-default bg-bg-secondary p-4">
             <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-4">Estado</p>
             <ol className="space-y-0">
@@ -118,6 +134,7 @@ export default function PharmacyOrder() {
               })}
             </ol>
           </div>
+          </>
         )}
 
         <div className="rounded-2xl border border-border-default bg-bg-secondary p-4">

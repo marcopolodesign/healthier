@@ -207,5 +207,37 @@ export const medicationOrdersService = {
     return toCamelCase(data)
   },
 
+  /**
+   * Entregar contra el código que el paciente ve en la app (migración 155).
+   * La farmacia nunca lee el código: lo manda y la base contesta. Si acierta,
+   * el pedido queda `entregado` en el mismo movimiento — separar "verificar" de
+   * "entregar" es lo que permitiría entregar sin verificar.
+   *
+   * Devuelve `{ ok, motivo, intentosRestantes }`.
+   */
+  async verificarCodigoEntrega(orderId, codigo) {
+    const { data, error } = await supabase.rpc('verificar_codigo_entrega', {
+      p_order: orderId,
+      p_codigo: codigo,
+    })
+    if (error) throw error
+    return {
+      ok: Boolean(data?.ok),
+      motivo: data?.motivo ?? null,
+      intentosRestantes: data?.intentos_restantes ?? null,
+    }
+  },
+
+  /** El código de MI pedido. Sólo lo puede leer el paciente dueño (RLS). */
+  async getDeliveryCode(orderId) {
+    const { data, error } = await supabase
+      .from('medication_order_delivery_codes')
+      .select('code, verified_at')
+      .eq('order_id', orderId)
+      .maybeSingle()
+    if (error) throw error
+    return data ? { code: data.code, verifiedAt: data.verified_at } : null
+  },
+
   PHARMACY_ID,
 }

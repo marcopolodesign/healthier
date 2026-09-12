@@ -643,7 +643,7 @@ export default function Emergency({ profile }) {
           <div className="flex items-start gap-3 mb-5 p-4 bg-danger/5 border border-danger/20 rounded-2xl">
             <PhoneCall className="w-5 h-5 text-danger shrink-0 mt-0.5" />
             <p className="text-[13px] text-gray-700 leading-snug">
-              <span className="font-semibold">Si hay riesgo de vida, llamá directamente al {SAME_PHONE} (SAME Buenos Aires).</span> Este flujo conecta con un profesional de Healthier, no reemplaza a una ambulancia de urgencias.
+              <span className="font-semibold">Si hay riesgo de vida, llamá directamente al {SAME_PHONE} (SAME Buenos Aires).</span> Healthier despacha una ambulancia con un médico de urgencias; el servicio público de emergencias sigue siendo la vía más rápida ante un riesgo inmediato.
             </p>
           </div>
 

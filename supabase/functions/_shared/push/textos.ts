@@ -168,8 +168,8 @@ export const AVISOS = {
     para: 'paciente' as Destinatario,
     cuando: 'La farmacia marca el pedido como enviado.',
     build: (d: Datos): Aviso => ({
-      title: 'Tu pedido salió',
-      body: 'Está en viaje a tu domicilio. Tené a mano tu DNI para recibirlo.',
+      title: 'Tu pedido está en camino',
+      body: 'Va hacia tu domicilio. Abrí el pedido: adentro está el código que tenés que dar al recibirlo.',
       url: `/paciente/farmacia/pedido/${d.orderId}`,
     }),
   },
@@ -284,8 +284,8 @@ export const AVISOS = {
     para: 'paciente' as Destinatario,
     cuando: 'El profesional sale hacia el domicilio.',
     build: (): Aviso => ({
-      title: 'El médico está en camino',
-      body: 'Ya salió hacia tu domicilio. Podés seguirlo desde la app.',
+      title: 'La ambulancia está en camino',
+      body: 'Ya salió hacia tu domicilio. Podés seguirla desde la app.',
       url: '/paciente/sos',
     }),
   },
@@ -294,7 +294,7 @@ export const AVISOS = {
     para: 'paciente' as Destinatario,
     cuando: 'El profesional llega al domicilio.',
     build: (): Aviso => ({
-      title: 'El médico llegó',
+      title: 'La ambulancia llegó',
       body: 'Está en la puerta de tu domicilio.',
       url: '/paciente/sos',
     }),

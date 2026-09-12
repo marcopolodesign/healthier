@@ -64,6 +64,29 @@ function filasDeConsulta(c: ConsultaBase) {
   ]
 }
 
+/**
+ * Las filas de plata. Antes decía sólo "Valor: $X", que deja al paciente sin
+ * saber si eso ya se lo cobraron o se lo van a cobrar — justo lo contrario de
+ * lo que promete el modelo (sin sorpresas). Ahora el monto viene con el estado
+ * real del pago.
+ */
+function filasDePago(c: ConsultaBase) {
+  if (!c.priceAtBooking) return []
+  const estado: Record<string, string> = {
+    paid: 'Abonado',
+    exempt: 'Sin cargo',
+    pending_payment: 'Pendiente de cobro',
+    in_process: 'Procesándose',
+    rejected: 'Rechazado',
+    refunded: 'Devuelto',
+  }
+  const texto = estado[c.paymentStatus ?? ''] ?? null
+  return [
+    { label: 'Monto', value: esc(money(c.priceAtBooking)) },
+    ...(texto ? [{ label: 'Estado del pago', value: esc(texto) }] : []),
+  ]
+}
+
 /** El color de la familia de mails según de qué se trate. */
 export const ACCENT_POR_VERTICAL: Record<string, Accent> = {
   clinica: 'sage', nutricion: 'amber', mente: 'lavender', fisico: 'sage', veterinaria: 'coral',
@@ -79,6 +102,13 @@ export type ConsultaBase = {
   isOnDemand: boolean
   vertical: string | null
   priceAtBooking: number | null
+  /**
+   * `consultations.payment_status`. El mail de reserva sale en el `insert`, o
+   * sea **antes** de que Mercado Pago confirme: por eso el monto nunca se
+   * anuncia como "abonado" a secas — se dice el estado real, que es lo que
+   * evita la duda de "¿me lo cobraron o me lo van a cobrar?".
+   */
+  paymentStatus?: string | null
   /** Nombre de pila — es con el que se saluda en el cuerpo del mail. */
   patientName: string
   /** Nombre completo — es el que necesita el profesional para identificarlo. */
@@ -95,8 +125,7 @@ export function turnoConfirmadoPaciente(c: ConsultaBase): Sent {
   const presencial = c.modality === 'presencial'
   const cuando = c.scheduledAt ? fechaYHora(c.scheduledAt) : 'A confirmar'
 
-  const rows = filasDeConsulta(c)
-  if (c.priceAtBooking) rows.push({ label: 'Valor', value: esc(money(c.priceAtBooking)) })
+  const rows = [...filasDeConsulta(c), ...filasDePago(c)]
 
   const body = [
     p(`Hola <strong style="color:${C.ink}">${esc(c.patientName)}</strong>, tu turno quedó reservado.`),
@@ -115,7 +144,7 @@ export function turnoConfirmadoPaciente(c: ConsultaBase): Sent {
       eyebrow: 'Turno confirmado', accent,
       title: 'Tu turno está reservado',
       body,
-      footnote: 'Podés reprogramarlo o cancelarlo desde la app hasta el horario del turno.',
+      footnote: 'Podés reprogramarlo o cancelarlo desde la app hasta el horario del turno. Conviene hacerlo con al menos 30 minutos de anticipación, para que el horario le quede libre a otra persona.',
     }),
   }
 }
@@ -129,12 +158,13 @@ export function turnoConfirmadoProfesional(c: ConsultaBase): Sent {
     { label: 'Paciente', value: esc(c.patientFullName) },
     { label: 'Cuándo', value: esc(cuando) },
     { label: 'Modalidad', value: c.modality === 'presencial' ? 'Consulta presencial' : 'Videoconsulta' },
+    ...filasDePago(c),
   ]
-  if (c.priceAtBooking) rows.push({ label: 'Valor', value: esc(money(c.priceAtBooking)) })
 
   const body = [
     p(`Hola <strong style="color:${C.ink}">${esc(c.professionalName)}</strong>, tenés una consulta nueva en tu agenda.`),
     panel(rows, 'sage'),
+    ...(c.priceAtBooking ? [note('El pago se te acredita cuando <strong>cerrás la consulta</strong>, no al reservarse el turno.', 'sage')] : []),
     button(`${APP_URL}/profesional/agenda`, 'Ver mi agenda', 'sage'),
   ].join('')
 
@@ -155,8 +185,6 @@ export function turnoConfirmadoProfesional(c: ConsultaBase): Sent {
 // El copy es distinto a propósito: acá no hay "llegá 10 minutos antes", el
 // paciente tiene que ir a la sala AHORA y el profesional lo está esperando.
 export function ondemandConfirmadaPaciente(c: ConsultaBase & { waitMinutes?: number | null }): Sent {
-  const espera = c.waitMinutes && c.waitMinutes > 0 ? `${c.waitMinutes} minutos` : 'unos minutos'
-
   const body = [
     p(`Hola <strong style="color:${C.ink}">${esc(c.patientName)}</strong>, ya tenés profesional asignado. Te está esperando en la sala.`),
     // El nombre y la especialidad viven en la tarjeta de la persona; el panel
@@ -167,9 +195,11 @@ export function ondemandConfirmadaPaciente(c: ConsultaBase & { waitMinutes?: num
     }),
     panel([
       { label: 'Modalidad', value: 'Videoconsulta · empieza ahora' },
-      ...(c.priceAtBooking ? [{ label: 'Valor', value: esc(money(c.priceAtBooking)) }] : []),
+      ...filasDePago(c),
     ], 'coral'),
-    note(`Entrá ahora: la consulta arranca apenas los dos estén en la sala. Suele tardar <strong>${esc(espera)}</strong>.`, 'coral'),
+    // Decía "suele tardar N minutos" y no se entendía si era la espera o la
+    // consulta entera. Lo que hay que transmitir es inmediatez, no una duración.
+    note('Entrá a la sala: <strong>la consulta comienza en instantes</strong>.', 'coral'),
     button(`${APP_URL}/paciente/sala-espera/${c.id}`, 'Entrar a la sala', 'coral'),
     link(`${APP_URL}/paciente/consultas`, 'Ver mis consultas'),
   ].join('')
@@ -227,7 +257,7 @@ export function postConsultaPaciente(c: PostConsulta): Sent {
   ]
 
   if (c.closingNotes?.trim()) {
-    partes.push(sectionLabel('Resumen de tu consulta'))
+    partes.push(sectionLabel('Lo que anotó el profesional'))
     partes.push(quote(c.closingNotes.trim()))
   }
 
@@ -267,7 +297,7 @@ export function postConsultaPaciente(c: PostConsulta): Sent {
         ? `Tu resumen, las indicaciones y ${c.recetas.length > 1 ? 'tus recetas' : 'tu receta'} ya están en la app.`
         : 'Tu resumen y las indicaciones ya están en la app.',
       eyebrow: 'Consulta finalizada', accent,
-      title: 'Cómo seguís desde acá',
+      title: 'El resumen de tu consulta',
       body: partes.join(''),
       footnote: 'Todo esto queda guardado para siempre en tu historia clínica de Healthier.',
     }),
@@ -325,7 +355,7 @@ export function pedidoFarmaciaConfirmado(o: PedidoFarmacia): Sent {
 export function pedidoFarmaciaEstado(o: PedidoFarmacia & { estado: 'en_preparacion' | 'enviado' | 'entregado' | 'cancelado'; motivo?: string | null }): Sent {
   const M = {
     en_preparacion: { eyebrow: 'En preparación', title: 'La farmacia está preparando tu pedido', line: 'ya lo tienen y lo están armando.', accent: 'lavender' as Accent },
-    enviado:        { eyebrow: 'En camino',      title: 'Tu pedido salió para tu domicilio', line: 'está en viaje. Tené a mano tu DNI para recibirlo.', accent: 'lavender' as Accent },
+    enviado:        { eyebrow: 'En camino',      title: 'Tu pedido está en camino', line: 'está en viaje a tu domicilio. Abrí el pedido en la app: adentro está el código de 4 dígitos que tenés que darle a quien te lo entregue.', accent: 'lavender' as Accent },
     entregado:      { eyebrow: 'Entregado',      title: 'Tu pedido fue entregado',           line: 'listo. Cualquier cosa, escribinos desde la app.', accent: 'sage' as Accent },
     cancelado:      { eyebrow: 'Pedido cancelado', title: 'Tu pedido se canceló',            line: 'si ya lo habías pagado, la devolución sale automáticamente por Mercado Pago.', accent: 'coral' as Accent },
   }[o.estado]
@@ -338,6 +368,11 @@ export function pedidoFarmaciaEstado(o: PedidoFarmacia & { estado: 'en_preparaci
       ...(o.deliveryAddress ? [{ label: 'Se entrega en', value: esc(o.deliveryAddress) }] : []),
     ], M.accent),
     ...(o.motivo ? [note(`Motivo: ${esc(o.motivo)}`, M.accent)] : []),
+    // El código NO viaja por mail a propósito: un mail se reenvía y se lee en
+    // pantallas ajenas. Vive sólo en la app, que es donde prueba algo.
+    ...(o.estado === 'enviado'
+      ? [note('El código de entrega está en la app, en el seguimiento del pedido — por seguridad no lo mandamos por mail.', M.accent)]
+      : []),
     button(`${APP_URL}/paciente/farmacia/pedido/${o.id}`, 'Ver el pedido', M.accent),
   ].join('')
 
@@ -404,7 +439,7 @@ export function consultaCancelada(c: ConsultaBase & { paraQuien: 'paciente' | 'p
       ...(c.motivo ? [{ label: 'Motivo', value: esc(c.motivo) }] : []),
     ], 'coral'),
     ...(esPaciente && c.priceAtBooking
-      ? [note('Si ya habías pagado, la devolución sale automáticamente por Mercado Pago y se acredita en tu medio de pago en unos días hábiles.', 'coral')]
+      ? [note('Si ya habías pagado, la devolución sale automáticamente por Mercado Pago y se acredita en tu medio de pago <strong>entre 5 y 10 días hábiles</strong>.', 'coral')]
       : []),
     esPaciente
       ? button(`${APP_URL}/paciente/buscar`, 'Reservar otro turno', 'sage')
@@ -426,12 +461,12 @@ export function consultaCancelada(c: ConsultaBase & { paraQuien: 'paciente' | 'p
 // ═══════════════════════════════════════════════════════════════════════════
 export function bienvenidaPaciente(u: { name: string }): Sent {
   const body = [
-    p(`Hola <strong style="color:${C.ink}">${esc(u.name)}</strong>, tu cuenta ya está lista. Healthier junta en un solo lugar a los profesionales, tus consultas, tus recetas y tu historia clínica.`),
-    itemList('Con qué podés empezar', [
-      { title: 'Atenderte ahora', detail: 'Consulta inmediata por video con un profesional disponible, sin sacar turno.' },
-      { title: 'Sacar un turno', detail: 'Elegís especialidad, profesional y horario. Presencial o por video.' },
-      { title: 'Tus recetas, en el celular', detail: 'La receta electrónica se emite en la consulta y la presentás desde la app.' },
-      { title: 'Tu historia clínica', detail: 'Diagnósticos, indicaciones y estudios guardados para siempre, tuyos.' },
+    p(`Hola <strong style="color:${C.ink}">${esc(u.name)}</strong>, tu cuenta ya está lista. Healthier une en un solo lugar a los profesionales, tus consultas, tus recetas y tu historia clínica.`),
+    itemList('Cómo podés empezar', [
+      { title: 'Atendete ahora', detail: 'Consulta inmediata con un profesional disponible, sin sacar turno.' },
+      { title: 'Sacá un turno', detail: 'Elegí especialidad, profesional y horario. Presencial o en línea.' },
+      { title: 'Tus recetas digitales', detail: 'Se emiten en la consulta y las presentás en la farmacia desde la app.' },
+      { title: 'Tu bóveda clínica', detail: 'Historia clínica interdisciplinaria: diagnósticos, indicaciones y estudios, en un solo lugar.' },
     ], 'sage'),
     button(`${APP_URL}/paciente/buscar`, 'Buscar un profesional', 'sage'),
     link(`${APP_URL}/paciente/dashboard`, 'Ir a mi inicio'),
@@ -572,7 +607,9 @@ export function authCambioDeMail(): string {
     eyebrow: 'Cambio de correo', accent: 'amber',
     title: 'Confirmá tu correo nuevo',
     body: [
-      p('Pediste cambiar el correo de tu cuenta de <strong style="color:${C.ink}">{{ .Email }}</strong> a <strong style="color:${C.ink}">{{ .NewEmail }}</strong>.'),
+      // Ojo: comillas simples, así que nada de `${...}` acá adentro — el color
+      // va escrito, no interpolado (estaba saliendo literal en el HTML).
+      p(`Pediste cambiar el correo de tu cuenta de <strong style="color:${C.ink}">{{ .Email }}</strong> a <strong style="color:${C.ink}">{{ .NewEmail }}</strong>.`),
       button('{{ .ConfirmationURL }}', 'Confirmar el cambio', 'amber'),
       p(fallbackLink),
     ].join(''),

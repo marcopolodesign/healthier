@@ -15,6 +15,7 @@ export default function PharmacyOrderDetail({ profile }) {
   const [updating, setUpdating] = useState(false)
   const [cancelando, setCancelando] = useState(false)
   const [motivo, setMotivo] = useState('')
+  const [codigo, setCodigo] = useState('')
 
   const canEdit = profile?.role === 'pharmacy_admin' || profile?.role === 'pharmacy_operator'
 
@@ -28,6 +29,36 @@ export default function PharmacyOrderDetail({ profile }) {
       .catch(() => toast.error('Error al cargar el pedido'))
       .finally(() => setLoading(false))
   }, [id])
+
+  /**
+   * Entregar no es un cambio de estado más: hace falta el código de 4 dígitos
+   * que el paciente ve en la app (migración 155). La base lo exige igual, así
+   * que esto es la puerta de entrada, no la única defensa.
+   */
+  const entregar = async () => {
+    if (codigo.trim().length !== 4) { toast.error('Pedile al paciente el código de 4 dígitos'); return }
+    setUpdating(true)
+    try {
+      const r = await medicationOrdersService.verificarCodigoEntrega(order.id, codigo.trim())
+      if (!r.ok) {
+        toast.error(
+          r.motivo === 'demasiados_intentos'
+            ? 'Se agotaron los intentos. Llamá a soporte para entregarlo.'
+            : r.motivo === 'codigo_incorrecto'
+              ? `Código incorrecto. Quedan ${r.intentosRestantes} intento(s).`
+              : 'No se pudo entregar el pedido.'
+        )
+        return
+      }
+      setOrder(o => ({ ...o, status: 'entregado' }))
+      setCodigo('')
+      toast.success('Pedido entregado')
+    } catch (err) {
+      toast.error(err?.message || 'Error al verificar el código')
+    } finally {
+      setUpdating(false)
+    }
+  }
 
   const advance = async () => {
     const next = NEXT_STATUS[order.status]
@@ -133,9 +164,29 @@ export default function PharmacyOrderDetail({ profile }) {
         </div>
       )}
 
+      {canEdit && order.status === 'enviado' && (
+        <div className="card space-y-3">
+          <p className="text-xs uppercase text-text-muted font-semibold">Código de entrega</p>
+          <p className="text-sm text-text-secondary">
+            Pedíselo al paciente al entregarle el pedido. Lo ve en la app, en el seguimiento.
+          </p>
+          <input
+            className="form-input w-40 text-center text-2xl tracking-[0.4em] font-mono"
+            inputMode="numeric"
+            maxLength={4}
+            value={codigo}
+            onChange={e => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            placeholder="----"
+          />
+          <button className="btn-primary" disabled={updating || codigo.length !== 4} onClick={entregar}>
+            {updating ? 'Verificando...' : 'Confirmar entrega'}
+          </button>
+        </div>
+      )}
+
       {canEdit && order.status !== 'entregado' && order.status !== 'cancelado' && (
         <div className="flex flex-wrap items-center gap-3">
-          {NEXT_STATUS[order.status] && (
+          {NEXT_STATUS[order.status] && order.status !== 'enviado' && (
             <button className="btn-primary" disabled={updating} onClick={advance}>
               {updating ? 'Actualizando...' : `Marcar ${STATUS_LABEL[NEXT_STATUS[order.status]].toLowerCase()}`}
             </button>

@@ -47,7 +47,7 @@ async function leerConsulta(sb: SupabaseClient, id: string) {
     .from('consultations')
     .select(`
       id, scheduled_at, completed_at, modality, is_on_demand, vertical,
-      price_at_booking, closing_notes, status, cancel_reason, cancelled_by,
+      price_at_booking, payment_status, closing_notes, status, cancel_reason, cancelled_by,
       patient_id, professional_id,
       patient:profiles!patient_id(full_name, email, avatar_url),
       professional:profiles!professional_id(
@@ -73,6 +73,7 @@ async function leerConsulta(sb: SupabaseClient, id: string) {
     isOnDemand: Boolean(data.is_on_demand),
     vertical: data.vertical,
     priceAtBooking: data.price_at_booking,
+    paymentStatus: data.payment_status,
     patientName: primerNombre(patient?.full_name) ?? 'Paciente',
     patientFullName: patient?.full_name ?? 'Paciente',
     professionalName: professional?.full_name ?? 'Profesional',

@@ -165,6 +165,15 @@ export default function CloseConsultationModal({
   }
 
   const handleSubmit = async () => {
+    // 🔴 Sin resumen no se cierra (Mateo, 2026-09-11). Puede no haber
+    // diagnóstico ni receta —eso es normal y está bien—, pero el paciente
+    // siempre se tiene que llevar algo escrito: es lo que le llega por mail y
+    // lo que le queda en la historia clínica. Antes se podía cerrar en blanco y
+    // el mail salía prácticamente vacío.
+    if (!form.notes.trim()) {
+      toast.error('Escribí el resumen de la consulta: es lo que le queda al paciente.')
+      return
+    }
     setClosing(true)
     try {
       if (esVideo) await handleSubmitVideo()
@@ -190,14 +199,17 @@ export default function CloseConsultationModal({
         </p>
 
         <div>
-          <label className="form-label">Notas de la consulta</label>
+          <label className="form-label">Resumen de la consulta</label>
           <textarea
             value={form.notes}
             onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
             rows={3}
-            placeholder="Resumen, indicaciones, diagnóstico…"
+            placeholder="Qué pasó, qué le indicaste, cómo sigue…"
             className="form-textarea"
           />
+          <p className="mt-1 text-xs text-text-tertiary">
+            Se lo mandamos al paciente por mail y le queda en su historia clínica.
+          </p>
         </div>
 
         <div>
