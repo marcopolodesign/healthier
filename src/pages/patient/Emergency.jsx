@@ -2,16 +2,15 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Warning, CircleNotch, Check, Phone,
-  User, CheckCircle, PhoneCall, MapPinLine,
+  User, CheckCircle, PhoneCall, MapPinLine, Ambulance, ShieldCheck,
 } from '@phosphor-icons/react'
 import { emergencyService, getSosSettings, SOS_FALLBACK } from '../../services/emergencyService'
 import { emergencyTrackingService, esReciente, FRESCURA_MINUTOS } from '../../services/emergencyTrackingService'
 import { getRoute, formatMeters, formatMinutes } from '../../lib/directions'
 import { mpService } from '../../services/mpService'
-import { brandLabel } from '../../components/payment/cardBrand'
 import InteractiveMap from '../../components/patient/InteractiveMap'
 import PatientSheet from '../../components/patient/PatientSheet'
-import MPCardHolder from '../../components/payment/MPCardHolder'
+import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import { toast } from '../../components/Toast'
 import {
   EMERGENCY_SYMPTOMS, TRIAGE_SEVERITY_ORDER, computeTriageCode, symptomLabelsFromIds,
@@ -27,6 +26,27 @@ const TRACKING_STEPS = [
   { status: 'in_transit', label: 'En camino' },
   { status: 'arrived', label: 'Llegó' },
 ]
+
+/**
+ * A qué pantalla corresponde cada fila. Es lo único que decide dónde cae el
+ * paciente al entrar o al recargar: el estado de la base manda sobre
+ * cualquier cosa que tenga el componente en memoria.
+ *
+ * `pending` no alcanza para decidir solo. Entre la reserva en la tarjeta y el
+ * triage la fila sigue en `pending`, y si el paciente recarga justo ahí,
+ * mandarlo de vuelta a pagar le muestra un error de "ya está paga" por algo
+ * que hizo bien. `paid_at` es lo que distingue los dos momentos.
+ */
+function pantallaPara(emergencia) {
+  switch (emergencia.status) {
+    case 'pending':           return emergencia.paidAt ? 'triage' : 'pago'
+    case 'awaiting_dispatch': return 'esperando'
+    case 'dispatched':
+    case 'in_transit':
+    case 'arrived':           return 'tracking'
+    default:                  return 'pago'
+  }
+}
 
 const LOCATION_TIMEOUT_MS = 8000
 
@@ -85,7 +105,18 @@ function SosBlockedScreen({ title, body, onBack }) {
 export default function Emergency({ profile }) {
   const navigate = useNavigate()
 
-  // phase: 'loading' | 'triage' | 'confirm' | 'dispatching' | 'noProfessional' | 'unavailable' | 'tracking' | 'closing'
+  /*
+   * El orden lo fijó la reunión del 2026-09-11: primero el cobro, después el
+   * triage, después la entidad que despacha, y recién ahí la ambulancia.
+   *
+   *   pago → triage → esperando → tracking
+   *
+   * Antes era triage → confirmar, y en ese "confirmar" el sistema sorteaba un
+   * profesional al azar y lo despachaba. No había cobro, ni entidad, ni
+   * operador: la ambulancia era una palabra del copy.
+   *
+   * phase: 'loading' | 'pago' | 'triage' | 'esperando' | 'tracking' | 'closing' | 'unavailable'
+   */
   const [phase, setPhase] = useState('loading')
 
   // ── Triage ──────────────────────────────────────────────────────────────
@@ -100,13 +131,17 @@ export default function Emergency({ profile }) {
   )
   const triageCode = useMemo(() => computeTriageCode(selectedSymptoms), [selectedSymptoms])
 
-  // ── Payment method — capturing it here is only the method for the eventual
-  // charge, which happens after the service ends (see the honest "no se cobra
-  // ahora" copy on the confirm screen). No charging logic lives in this file. ─
-  const [defaultCard, setDefaultCard] = useState(null)
-  const [cardLoading, setCardLoading] = useState(true)
-  const [showAddCard, setShowAddCard] = useState(false)
+  // ── El cobro ────────────────────────────────────────────────────────────
+  // Es una PREAUTORIZACIÓN: se reserva el monto en la tarjeta y se captura
+  // recién cuando el traslado termina (mp-capture action=capture-emergency).
+  // Cobrarle de una a alguien que está pidiendo una ambulancia, y devolverle
+  // después si no sale, es peor que reservar.
   const [mpPublicKey, setMpPublicKey] = useState(null)
+  const [selectedCardId, setSelectedCardId] = useState(null)
+  const [agregandoTarjeta, setAgregandoTarjeta] = useState(false)
+  const [pagando, setPagando] = useState(false)
+  const [errorPago, setErrorPago] = useState('')
+  const cardSelectorRef = useRef(null)
 
   // ── SOS settings — precio y disponibilidad, /super-admin/verticales ─────
   const [sosSettings, setSosSettings] = useState(null)
@@ -143,30 +178,20 @@ export default function Emergency({ profile }) {
         if (cancelled) return
         setSosSettings(settings)
         if (active) {
+          // Una emergencia ya abierta manda por encima del toggle de
+          // disponibilidad: si está en curso se sigue acompañando aunque el
+          // servicio se haya deshabilitado después.
           setEmergency(active)
-          setPhase('tracking')
+          setPhase(pantallaPara(active))
         } else if (!settings.enabled) {
           setPhase('unavailable')
         } else {
-          setPhase('triage')
+          setPhase('pago')
         }
       })
-      .catch(() => { if (!cancelled) setPhase('triage') })
+      .catch(() => { if (!cancelled) setPhase('pago') })
     return () => { cancelled = true }
   }, [profile?.id])
-
-  // Saved card — capture only, the charge happens after the service ends.
-  // getMyCards() orders by created_at desc, so [0] is always the most recent
-  // — reused after a successful add-card so the just-saved card is selected.
-  const loadDefaultCard = useCallback(() => {
-    setCardLoading(true)
-    return mpService.getMyCards()
-      .then(({ data }) => setDefaultCard(data?.[0] ?? null))
-      .catch(() => setDefaultCard(null))
-      .finally(() => setCardLoading(false))
-  }, [])
-
-  useEffect(() => { loadDefaultCard() }, [loadDefaultCard])
 
   // MP public key — needed to mount the CardPayment brick (see MPCardHolder).
   useEffect(() => {
@@ -175,17 +200,27 @@ export default function Emergency({ profile }) {
       .catch(() => setMpPublicKey(null))
   }, [])
 
-  const handleCardSaved = () => {
-    setShowAddCard(false)
-    toast.success('Tarjeta guardada')
-    loadDefaultCard()
-  }
-
   // Realtime updates while tracking — the only source of truth for status.
   useEffect(() => {
-    if (phase !== 'tracking' || !emergency?.id) return
+    if (!emergency?.id || (phase !== 'tracking' && phase !== 'esperando')) return
     const cleanup = emergencyService.subscribeForPatient(emergency.id, updated => {
       setEmergency(prev => (prev ? { ...prev, ...updated } : updated))
+      // Es el evento que el paciente está esperando en la pantalla de espera:
+      // el operador le asignó un móvil.
+      if (updated.status === 'dispatched') {
+        setPhase('tracking')
+        /*
+         * El payload de realtime es la FILA CRUDA: trae `ambulance_id` y
+         * `provider_id`, no el móvil ni la entidad. Sin este refetch la
+         * pantalla decía "Ambulancia asignada / En camino hacia vos" sin la
+         * patente, sin el nombre de la entidad y sin el teléfono de guardia
+         * —o sea, sin el botón de llamar a despacho, que es lo único que el
+         * paciente puede hacer mientras espera.
+         */
+        emergencyService.getActiveForPatient(profile.id)
+          .then(completa => { if (completa?.id === updated.id) setEmergency(completa) })
+          .catch(() => {/* el estado ya cambió; esto sólo suma los nombres */})
+      }
       if (updated.status === 'completed') {
         setPhase('closing')
         setTimeout(() => navigate('/paciente/dashboard'), 2500)
@@ -195,7 +230,7 @@ export default function Emergency({ profile }) {
       }
     })
     return cleanup
-  }, [phase, emergency?.id, navigate])
+  }, [phase, emergency?.id, profile?.id, navigate])
 
   // Posición del profesional — carga inicial + realtime sobre `emergency_tracking`.
   useEffect(() => {
@@ -238,7 +273,7 @@ export default function Emergency({ profile }) {
 
   // Elapsed time since dispatch — honest, ticks every second, never a fake ETA countdown.
   useEffect(() => {
-    if (phase !== 'tracking' || !emergency?.createdAt) return
+    if (!emergency?.createdAt || (phase !== 'tracking' && phase !== 'esperando')) return
     const createdMs = new Date(emergency.createdAt).getTime()
     const tick = () => setElapsedSec(Math.max(0, Math.floor((Date.now() - createdMs) / 1000)))
     tick()
@@ -250,39 +285,104 @@ export default function Emergency({ profile }) {
     setSelectedSymptoms(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id])
   }
 
-  const handleConfirmSOS = async () => {
-    if (!triageCode || phase === 'dispatching') return
-    setPhase('dispatching')
-    setLocationWarning(false)
+  /**
+   * Paso 1 y 2 — la solicitud y la reserva en la tarjeta.
+   *
+   * La fila se escribe ANTES de cobrar, a propósito: si acá se corta la red,
+   * `getActiveForPatient()` la encuentra en `pending` y el paciente vuelve a
+   * esta misma pantalla. Al revés (cobrar y después escribir) deja una
+   * reserva en la tarjeta sin ninguna emergencia que la explique.
+   */
+  const asegurarSolicitud = useCallback(async () => {
+    if (emergency?.id) return emergency
 
     let coords = null
     try {
       coords = await getCurrentPosition()
     } catch {
+      // La ubicación no frena una emergencia. Se avisa y se sigue: el operador
+      // se la va a pedir por teléfono.
       setLocationWarning(true)
     }
 
+    const fila = await emergencyService.crearSolicitud({
+      patientId: profile.id,
+      latitude: coords?.lat ?? null,
+      longitude: coords?.lng ?? null,
+      priceAtRequest: sosSettings?.price ?? SOS_FALLBACK.price,
+    })
+    setEmergency(fila)
+    return fila
+  }, [emergency, profile?.id, sosSettings?.price])
+
+  /** Reserva hecha → al triage. El monto lo puso el servidor, no esta pantalla. */
+  const trasReservar = async (resultado, fila) => {
+    if (resultado?.error || !resultado?.data?.approved) {
+      // El error REAL de Mercado Pago, no uno genérico: es lo único que le
+      // permite al paciente entender si tiene que cambiar de tarjeta.
+      setErrorPago(resultado?.error || resultado?.data?.statusDetail || 'No pudimos reservar el monto en tu tarjeta.')
+      return
+    }
+    setEmergency(prev => ({ ...(prev ?? fila), paidAt: new Date().toISOString() }))
+    setPhase('triage')
+  }
+
+  /** Tarjeta guardada — necesita re-tokenizar con el CVV (lo hace el selector). */
+  const handlePagar = async () => {
+    if (!selectedCardId || pagando) return
+    setPagando(true)
+    setErrorPago('')
     try {
-      const result = await emergencyService.create({
-        patientId: profile.id,
+      const fila = await asegurarSolicitud()
+      const chargeInfo = await cardSelectorRef.current?.getSavedCardCharge()
+      const resultado = await mpService.createPayment({
+        emergencyId: fila.id,
+        ...chargeInfo,
+        description: 'Servicio de emergencias',
+      })
+      await trasReservar(resultado, fila)
+    } catch (err) {
+      setErrorPago(err?.message || 'No pudimos procesar el pago.')
+    } finally {
+      setPagando(false)
+    }
+  }
+
+  /** Tarjeta nueva — el Brick tiene su propio botón y ya trae el token. */
+  const handleNewCardCharge = async (chargeInfo) => {
+    setPagando(true)
+    setErrorPago('')
+    try {
+      const fila = await asegurarSolicitud()
+      const resultado = await mpService.createPayment({
+        emergencyId: fila.id,
+        ...chargeInfo,
+        description: 'Servicio de emergencias',
+      })
+      await trasReservar(resultado, fila)
+    } catch (err) {
+      setErrorPago(err?.message || 'No pudimos procesar el pago.')
+    } finally {
+      setPagando(false)
+    }
+  }
+
+  /** Paso 3 — el triage. Con esto entra a la cola de la entidad. */
+  const handleConfirmarTriage = async () => {
+    if (!triageCode || !emergency?.id || pagando) return
+    setPagando(true)
+    try {
+      const fila = await emergencyService.confirmarTriage({
+        emergencyId: emergency.id,
         triageCode,
         symptoms: symptomLabelsFromIds(selectedSymptoms),
-        latitude: coords?.lat ?? null,
-        longitude: coords?.lng ?? null,
-        priceAtRequest: sosSettings?.price ?? SOS_FALLBACK.price,
-        paymentMethodId: defaultCard?.id ?? null,
       })
-
-      if (result?.noProfessional) {
-        setPhase('noProfessional')
-        return
-      }
-
-      setEmergency(result)
-      setPhase('tracking')
+      setEmergency(prev => ({ ...prev, ...fila }))
+      setPhase('esperando')
     } catch {
-      toast.error('No pudimos solicitar el SOS. Intentá de nuevo.')
-      setPhase('confirm')
+      toast.error('No pudimos enviar tu pedido. Intentá de nuevo.')
+    } finally {
+      setPagando(false)
     }
   }
 
@@ -291,7 +391,15 @@ export default function Emergency({ profile }) {
     setCancelling(true)
     try {
       await emergencyService.cancel(emergency.id)
-      toast.info('Emergencia cancelada')
+      // Se libera la reserva de la tarjeta. No es una devolución: nunca se
+      // capturó nada, así que el banco suelta la retención solo. Si esto
+      // falla, la cancelación igual vale — la barrida de MP la libera sola
+      // al vencer — pero queda en el log para poder mirarlo.
+      if (emergency.paidAt) {
+        const { error } = await mpService.liberarEmergencia(emergency.id)
+        if (error) console.error('No se pudo liberar la reserva de la emergencia:', error)
+      }
+      toast.info('Emergencia cancelada — no se te cobró nada')
       navigate('/paciente/dashboard')
     } catch {
       toast.error('No pudimos cancelar. Intentá de nuevo.')
@@ -322,17 +430,6 @@ export default function Emergency({ profile }) {
     )
   }
 
-  // ── No professional available — honest, no queue, no auto-retry ──────────
-  if (phase === 'noProfessional') {
-    return (
-      <SosBlockedScreen
-        title="No hay profesionales disponibles en este momento"
-        body="Por ahora no encontramos a nadie para atenderte por esta vía."
-        onBack={() => navigate('/paciente/dashboard')}
-      />
-    )
-  }
-
   // ── Servicio deshabilitado desde /super-admin/verticales — honesto, sin
   // insistir con reintentos, misma estética que "no hay profesionales" ───────
   if (phase === 'unavailable') {
@@ -345,6 +442,90 @@ export default function Emergency({ profile }) {
     )
   }
 
+  // ── Esperando móvil — el estado que faltaba ──────────────────────────────
+  // Entre "pagué y conté qué me pasa" y "la ambulancia salió" hay un rato real
+  // en el que decide una persona. Antes no existía en la pantalla porque no
+  // existía en el flujo: el sistema sorteaba solo y saltaba directo al mapa.
+  if (phase === 'esperando' && emergency) {
+    const triage = EMERGENCY_SYMPTOMS[emergency.triageCode] ?? null
+    return (
+      <div className="absolute inset-0 bg-bg-primary flex flex-col items-center justify-center p-6 animate-fade-in">
+        <div className="w-full sm:max-w-md flex flex-col items-center">
+          <div className="relative flex items-center justify-center mb-7">
+            <div className="absolute w-28 h-28 rounded-full bg-danger/10 animate-[ping_2.5s_cubic-bezier(0,0,0.2,1)_infinite]" />
+            <div className="w-20 h-20 rounded-full bg-danger flex items-center justify-center shadow-[0_10px_30px_rgba(217,83,79,0.35)] relative">
+              <Ambulance className="w-10 h-10 text-white" />
+            </div>
+          </div>
+
+          {triage && (
+            <div className={`px-3 py-1.5 rounded-full text-[11px] font-semibold tracking-widest uppercase inline-flex items-center gap-2 border mb-4 ${triage.badgeClass}`}>
+              <span className={`w-2 h-2 rounded-full animate-pulse ${triage.dotClass}`} /> {emergency.triageCode}
+            </div>
+          )}
+
+          <h2 className="text-[24px] font-light text-gray-900 mb-2 text-center leading-tight">
+            Estamos asignando una ambulancia
+          </h2>
+          <p className="text-gray-500 font-medium text-[15px] text-center mb-6 leading-snug">
+            Tu pedido ya está en el despacho. Un operador está eligiendo el móvil
+            que llega más rápido hasta donde estás.
+          </p>
+
+          <div className="w-full bg-white rounded-[24px] border border-gray-100 shadow-sm p-5 mb-5">
+            <div className="flex justify-between items-end">
+              <div>
+                <p className="text-gray-500 font-medium text-[13px]">Esperando desde hace</p>
+                <p className="text-[11px] text-gray-400 mt-1">Te avisamos apenas salga</p>
+              </div>
+              <p className="font-light text-[32px] text-gray-900 leading-none tabular-nums">{formatElapsed(elapsedSec)}</p>
+            </div>
+          </div>
+
+          <div className="w-full flex items-start gap-3 rounded-[20px] bg-emerald-50 border border-emerald-100 px-4 py-3 mb-5">
+            <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <p className="text-[13px] text-emerald-800 leading-snug">
+              Reservamos ${emergency.priceAtRequest ?? sosSettings?.price ?? SOS_FALLBACK.price} en tu tarjeta.
+              Se cobra sólo si la ambulancia sale.
+            </p>
+          </div>
+
+          <a
+            href={`tel:${SAME_PHONE}`}
+            className="flex items-center gap-2 text-danger font-semibold text-[15px] mb-6"
+          >
+            <PhoneCall className="w-5 h-5" /> Si es riesgo de vida, llamá al {SAME_PHONE} (SAME)
+          </a>
+
+          <button
+            onClick={() => setShowCancelConfirm(true)}
+            className="w-full py-3.5 rounded-[20px] font-semibold text-danger hover:bg-danger/5 transition-colors"
+          >
+            Cancelar pedido
+          </button>
+        </div>
+
+        <PatientSheet open={showCancelConfirm} onClose={() => setShowCancelConfirm(false)} maxWidth="max-w-md">
+          <div className="px-6 pt-2 pb-8">
+            <h2 className="text-[20px] font-light text-gray-900 mb-2 text-center leading-tight">¿Cancelar el pedido?</h2>
+            <p className="text-gray-500 text-[14px] text-center mb-7 leading-snug">
+              Todavía no salió ningún móvil. Liberamos lo que reservamos en tu tarjeta —
+              no se te cobra nada.
+            </p>
+            <div className="flex flex-col gap-3">
+              <button onClick={handleCancel} disabled={cancelling} className="btn-danger w-full py-4 text-[15px]">
+                {cancelling ? 'Cancelando…' : 'Sí, cancelar'}
+              </button>
+              <button onClick={() => setShowCancelConfirm(false)} className="btn-secondary w-full py-4 text-[15px]">
+                Seguir esperando
+              </button>
+            </div>
+          </div>
+        </PatientSheet>
+      </div>
+    )
+  }
+
   // ── Tracking — driven only by the real DB row + realtime updates ─────────
   if (phase === 'tracking' && emergency) {
     const triage = EMERGENCY_SYMPTOMS[emergency.triageCode] ?? null
@@ -352,7 +533,15 @@ export default function Emergency({ profile }) {
     const patientCoords = (emergency.patientLatitude != null && emergency.patientLongitude != null)
       ? { lat: emergency.patientLatitude, lng: emergency.patientLongitude }
       : null
-    const proName = emergency.professional?.fullName || 'Profesional asignado'
+    const movil = emergency.ambulancia ?? null
+    const entidad = emergency.entidad ?? null
+    const nombreMovil = movil?.label || 'La ambulancia'
+    // Macarena fue clara en la reunión: el paciente habla con DESPACHO, no con
+    // el médico ni con el chofer. El teléfono que se muestra es el de guardia
+    // de la entidad; el del profesional queda como último recurso cuando la
+    // entidad todavía no cargó el suyo.
+    const telefono = entidad?.dispatchPhone || emergency.professional?.phone || null
+    const telefonoEsDespacho = Boolean(entidad?.dispatchPhone)
 
     const proEnVivo = esReciente(tracking)
     const proCoords = proEnVivo
@@ -425,39 +614,62 @@ export default function Emergency({ profile }) {
               <div className="rounded-[20px] bg-gray-50 border border-gray-100 px-4 py-3 mb-4">
                 <span className="text-[13px] text-gray-500 leading-snug">
                   {tracking
-                    ? `Perdimos la señal hace más de ${FRESCURA_MINUTOS} min. ${proName} sigue a cargo de tu emergencia.`
-                    : `${proName} ya tiene tu emergencia. En cuanto salga vas a ver dónde está.`}
+                    ? `Perdimos la señal hace más de ${FRESCURA_MINUTOS} min. ${nombreMovil} sigue yendo hacia vos.`
+                    : `${nombreMovil} ya salió. En cuanto empiece a reportar vas a ver dónde está.`}
                 </span>
               </div>
             )}
 
             <div className="bg-bg-primary rounded-[24px] p-5 mb-5 border border-gray-100 shadow-sm">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-white rounded-[16px] flex items-center justify-center border border-gray-200 shadow-sm overflow-hidden shrink-0">
-                  {emergency.professional?.avatarUrl
-                    ? <img src={emergency.professional.avatarUrl} alt={proName} className="w-full h-full object-cover" />
-                    : <User className="w-6 h-6 text-gray-400" />
-                  }
+                <div
+                  className="w-14 h-14 rounded-[16px] flex items-center justify-center border shadow-sm shrink-0"
+                  style={{
+                    backgroundColor: `${entidad?.color ?? '#DC2626'}15`,
+                    borderColor: `${entidad?.color ?? '#DC2626'}33`,
+                  }}
+                >
+                  <Ambulance className="w-7 h-7" style={{ color: entidad?.color ?? '#DC2626' }} />
                 </div>
                 <div className="min-w-0">
-                  <h4 className="font-semibold text-[17px] text-gray-900 leading-tight truncate">{proName}</h4>
-                  <p className="text-gray-500 text-[13px] font-medium mt-0.5">Profesional asignado</p>
+                  <h4 className="font-semibold text-[17px] text-gray-900 leading-tight truncate">
+                    {movil?.label ?? 'Ambulancia asignada'}
+                  </h4>
+                  <p className="text-gray-500 text-[13px] font-medium mt-0.5 truncate">
+                    {[entidad?.name, movil?.plate].filter(Boolean).join(' · ') || 'En camino hacia vos'}
+                  </p>
                 </div>
               </div>
+              {emergency.professional?.fullName && (
+                <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-100">
+                  <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center border border-gray-200 overflow-hidden shrink-0">
+                    {emergency.professional.avatarUrl
+                      ? <img src={emergency.professional.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      : <User className="w-4 h-4 text-gray-400" />
+                    }
+                  </div>
+                  <p className="text-[13px] text-gray-600 font-medium truncate">
+                    Va {emergency.professional.fullName}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="space-y-3">
-              {emergency.professional?.phone ? (
+              {telefono ? (
                 <a
-                  href={`tel:${emergency.professional.phone}`}
+                  href={`tel:${telefono}`}
                   className="w-full bg-gray-900 text-white py-4 rounded-[24px] font-semibold text-[16px] shadow-[0_10px_30px_rgba(0,0,0,0.2)] flex justify-center items-center gap-3 hover:bg-black active:scale-95 transition-transform"
                 >
-                  <Phone className="h-5 w-5" /> Llamar
+                  <Phone className="h-5 w-5" /> {telefonoEsDespacho ? 'Llamar a despacho' : 'Llamar'}
                 </a>
               ) : (
-                <div className="w-full bg-gray-50 text-gray-400 py-4 rounded-[24px] font-medium text-[14px] text-center">
-                  El profesional todavía no cargó un teléfono de contacto
-                </div>
+                <a
+                  href={`tel:${SAME_PHONE}`}
+                  className="w-full bg-gray-50 border border-gray-200 text-gray-700 py-4 rounded-[24px] font-semibold text-[15px] flex justify-center items-center gap-3"
+                >
+                  <PhoneCall className="h-5 w-5 text-danger" /> Si empeora, llamá al {SAME_PHONE}
+                </a>
               )}
               <button
                 onClick={() => setShowCancelConfirm(true)}
@@ -473,7 +685,7 @@ export default function Emergency({ profile }) {
           <div className="px-6 pt-2 pb-8">
             <h2 className="text-[20px] font-light text-gray-900 mb-2 text-center leading-tight">¿Cancelar la emergencia?</h2>
             <p className="text-gray-500 text-[14px] text-center mb-7 leading-snug">
-              El profesional asignado va a dejar de estar en camino hacia vos.
+              La ambulancia va a dejar de estar en camino hacia vos.
             </p>
             <div className="flex flex-col gap-3">
               <button onClick={handleCancel} disabled={cancelling} className="btn-danger w-full py-4 text-[15px]">
@@ -489,136 +701,120 @@ export default function Emergency({ profile }) {
     )
   }
 
-  // ── Confirm — real price, honest "not charged yet" copy, real geolocation ─
-  if (phase === 'confirm' || phase === 'dispatching') {
-    const triage = triageCode ? EMERGENCY_SYMPTOMS[triageCode] : null
+  // ── Cobro — PRIMER paso del flujo (reunión 2026-09-11) ───────────────────
+  // Es una reserva, no un cobro: `mp-payment` manda `capture:false` y el
+  // importe queda retenido hasta que el traslado termina. El monto lo pone el
+  // servidor leyendo /super-admin/verticales — acá se muestra, no se manda.
+  if (phase === 'pago') {
+    const precio = sosSettings?.price ?? SOS_FALLBACK.price
     return (
-      <>
-      <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex flex-col justify-end sm:items-center sm:justify-center animate-fade-in">
-        <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-[60]">
-          <button onClick={() => setPhase('triage')} className="w-12 h-12 bg-white rounded-full flex items-center justify-center hover:bg-gray-50 shadow-sm">
-            <ArrowLeft className="h-6 w-6 text-gray-900" />
+      <div className="absolute inset-0 bg-bg-primary flex flex-col animate-fade-in">
+        <div className="flex items-center gap-3 px-4 pt-6 pb-4 sm:px-6 sm:pt-8 flex-shrink-0">
+          <button
+            onClick={() => navigate('/paciente/dashboard')}
+            className="w-11 h-11 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50 shrink-0"
+          >
+            <ArrowLeft className="h-5 w-5 text-gray-900" />
           </button>
+          <div>
+            <h1 className="text-[20px] sm:text-[22px] font-light tracking-tight text-gray-900 leading-none">Emergencia S.O.S</h1>
+            <p className="text-[13px] text-gray-500 font-medium mt-1">Paso 1 de 2 — tu forma de pago</p>
+          </div>
         </div>
-        <div className="w-full sm:max-w-lg bg-white rounded-t-[40px] sm:rounded-[28px] shadow-[0_-20px_50px_rgba(0,0,0,0.2)] sm:shadow-2xl pb-10 pt-4 animate-slide-up-spring relative overflow-hidden border-t sm:border border-gray-100">
-          <div className="p-8 relative z-10">
-            <div className="w-14 h-1.5 bg-gray-200 rounded-full mx-auto mb-8 sm:hidden" />
-            <div className="flex items-center gap-4 mb-7">
-              <div className="w-16 h-16 rounded-[20px] bg-danger/10 flex items-center justify-center border border-danger/20 shadow-sm">
-                <Warning className="h-8 w-8 text-danger" />
+
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-8">
+          <div className="w-full sm:max-w-lg mx-auto">
+            <div className="flex items-start gap-3 mb-5 p-4 bg-danger/5 border border-danger/20 rounded-2xl">
+              <PhoneCall className="w-5 h-5 text-danger shrink-0 mt-0.5" />
+              <p className="text-[13px] text-gray-700 leading-snug">
+                <span className="font-semibold">Si hay riesgo de vida, llamá directamente al {SAME_PHONE} (SAME Buenos Aires).</span>{' '}
+                El servicio público de emergencias sigue siendo la vía más rápida ante un riesgo inmediato.
+              </p>
+            </div>
+
+            <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-6 mb-5">
+              <div className="flex items-center gap-4 mb-5">
+                <div className="w-14 h-14 rounded-[18px] bg-danger/10 flex items-center justify-center border border-danger/20 shrink-0">
+                  <Ambulance className="h-7 w-7 text-danger" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-[17px] text-gray-900 leading-tight">Ambulancia con médico de urgencias</h3>
+                  <p className="text-gray-500 text-[13px] font-medium mt-0.5">Va hasta donde estés</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-[28px] font-light tracking-tight leading-none mb-1 text-gray-900">Confirmar S.O.S</h2>
-                {/* Triage code — computed from the flat selection, shown here for the
-                    first time (the triage screen itself no longer reveals it). */}
-                {triage && (
-                  <div className={`mt-1 px-3 py-1 rounded-full text-[11px] font-semibold tracking-widest uppercase inline-flex items-center gap-2 border w-fit ${triage.badgeClass}`}>
-                    <span className={`w-2 h-2 rounded-full ${triage.dotClass}`} /> {triage.label}
-                  </div>
-                )}
+              <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                <span className="text-[15px] font-semibold text-gray-900">Total</span>
+                <span className="text-[22px] font-light text-gray-900 tabular-nums">${precio}</span>
               </div>
             </div>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
-              <Warning className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-[13px] text-amber-700 leading-snug">
-                El costo del servicio es ${sosSettings?.price ?? SOS_FALLBACK.price}. <span className="font-semibold">No se cobra ahora</span> — se abona al finalizar la atención.
+            {/* La frase más importante de la pantalla: lo que pasa con su plata. */}
+            <div className="flex items-start gap-3 rounded-[20px] bg-emerald-50 border border-emerald-100 px-4 py-3.5 mb-5">
+              <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <p className="text-[13px] text-emerald-800 leading-snug">
+                <span className="font-semibold">Reservamos ${precio} en tu tarjeta, no te lo cobramos todavía.</span>{' '}
+                Se cobra sólo si la ambulancia sale. Si cancelás antes, liberamos la reserva.
               </p>
             </div>
 
             {locationWarning && (
-              <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
+              <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-5 flex items-start gap-3">
                 <MapPinLine className="w-5 h-5 text-gray-500 shrink-0 mt-0.5" />
                 <p className="text-[13px] text-gray-600 leading-snug">
-                  No pudimos acceder a tu ubicación — el profesional va a necesitar que se la compartas por otro medio.
+                  No pudimos acceder a tu ubicación — el despacho te la va a pedir por teléfono.
                 </p>
               </div>
             )}
 
-            <div className="mb-7 px-1">
-              <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Método de pago</h4>
-              <div className="flex items-center justify-between bg-gray-50 p-4 rounded-[20px] border border-gray-100">
-                {cardLoading ? (
-                  <span className="text-[14px] font-medium text-gray-400">Cargando método de pago…</span>
-                ) : defaultCard ? (
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-7 rounded bg-white border border-gray-200 flex items-center justify-center text-[9px] text-gray-700 font-semibold tracking-wide">
-                      {brandLabel(defaultCard.cardBrand).slice(0, 5).toUpperCase()}
-                    </div>
-                    <span className="font-semibold text-[16px] text-gray-800">•••• {defaultCard.lastFour ?? '????'}</span>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowAddCard(true)}
-                    className="text-[14px] font-semibold text-brand underline underline-offset-2"
-                  >
-                    No tenés una tarjeta guardada — añadir una
-                  </button>
-                )}
+            {errorPago && (
+              <div className="bg-danger/5 border border-danger/20 rounded-2xl p-4 mb-5 flex items-start gap-3">
+                <Warning className="w-5 h-5 text-danger shrink-0 mt-0.5" />
+                <p className="text-[13px] text-gray-700 leading-snug">{errorPago}</p>
               </div>
-              {/* Secondary path when a card already exists — this only captures the
-                  method, it's never charged here (see the amber notice above). */}
-              {!cardLoading && defaultCard && (
-                <button
-                  onClick={() => setShowAddCard(true)}
-                  className="mt-2 text-[13px] font-semibold text-gray-500 underline underline-offset-2"
-                >
-                  Añadir otra tarjeta
-                </button>
-              )}
-            </div>
+            )}
 
-            <button
-              onClick={handleConfirmSOS}
-              disabled={phase === 'dispatching'}
-              className={`w-full py-5 rounded-[24px] font-semibold text-[18px] transition-all flex justify-center items-center gap-3 tracking-wide
-                ${phase === 'dispatching' ? 'bg-gray-200 text-gray-500' : 'bg-danger text-white shadow-[0_8px_25px_rgba(217,83,79,0.3)] hover:bg-danger-hover active:scale-95'}`}
-            >
-              {phase === 'dispatching'
-                ? <><CircleNotch className="w-6 h-6 animate-spin" /> Buscando profesional…</>
-                : <>SOLICITAR S.O.S (${sosSettings?.price ?? SOS_FALLBACK.price})</>
-              }
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Añadir tarjeta — mismo Brick que usa Perfil (MPCardHolder), reutilizado
-          tal cual: sólo captura el método de pago, nunca cobra acá. PatientSheet
-          es `fixed z-[80]`, así que siempre queda arriba del backdrop `z-50` de
-          esta pantalla de confirmación (mismo criterio que la hoja de cancelar
-          en la pantalla de tracking, más abajo en este archivo). */}
-      <PatientSheet open={showAddCard} onClose={() => setShowAddCard(false)} maxWidth="max-w-md">
-        <div className="px-6 pt-4 pb-4 flex justify-between items-center flex-shrink-0 border-b border-gray-100">
-          <button onClick={() => setShowAddCard(false)} className="w-10 h-10 bg-white border border-gray-100 shadow-sm rounded-full flex items-center justify-center hover:bg-bg-primary">
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
-          </button>
-          <p className="font-semibold text-[15px] text-gray-900">Añadir tarjeta</p>
-          <div className="w-10" />
-        </div>
-        <div className="overflow-y-auto scrollbar-hide flex-1 p-6 pb-8 bg-bg-primary">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             {mpPublicKey ? (
-              <MPCardHolder
+              <SavedCardSelector
+                ref={cardSelectorRef}
+                selectedCardId={selectedCardId}
+                onCardSelected={setSelectedCardId}
                 publicKey={mpPublicKey}
-                mode="save"
                 payerEmail={profile?.email ?? ''}
-                submitLabel="Guardar tarjeta"
-                onSuccess={handleCardSaved}
-                onError={err => toast.error(err || 'No pudimos guardar la tarjeta.')}
+                amount={precio}
+                disabled={pagando}
+                onNewCardCharge={handleNewCardCharge}
+                onAddCardModeChange={setAgregandoTarjeta}
               />
             ) : (
               <p className="text-sm text-gray-500 text-center py-6">
-                Guardar tarjetas no está disponible en este momento. Probá de nuevo más tarde.
+                No pudimos cargar los medios de pago. Probá de nuevo en unos segundos.
               </p>
             )}
           </div>
-          <p className="text-[12px] text-gray-400 text-center mt-4 px-4">
-            Los datos de tu tarjeta se procesan directamente con Mercado Pago. Healthier solo guarda la marca y los últimos 4 dígitos.
-          </p>
         </div>
-      </PatientSheet>
-      </>
+
+        {/* Se esconde mientras el Brick de tarjeta nueva está abierto: ese trae
+            su propio botón de submit y dos botones confunden. */}
+        {!agregandoTarjeta && (
+          <div className="flex-shrink-0 p-4 sm:p-6 bg-gradient-to-t from-bg-primary via-bg-primary/95 to-transparent">
+            <div className="w-full sm:max-w-lg mx-auto">
+              <button
+                onClick={handlePagar}
+                disabled={!selectedCardId || pagando}
+                className={`w-full py-5 rounded-[24px] font-semibold text-[17px] flex justify-center items-center gap-3 transition-all
+                  ${selectedCardId && !pagando
+                    ? 'bg-danger text-white shadow-[0_8px_25px_rgba(217,83,79,0.3)] hover:bg-danger-hover active:scale-95'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+              >
+                {pagando
+                  ? <><CircleNotch className="w-6 h-6 animate-spin" /> Reservando…</>
+                  : <>Reservar ${precio} y continuar</>
+                }
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -634,7 +830,7 @@ export default function Emergency({ profile }) {
         </button>
         <div>
           <h1 className="text-[20px] sm:text-[22px] font-light tracking-tight text-gray-900 leading-none">Emergencia S.O.S</h1>
-          <p className="text-[13px] text-gray-500 font-medium mt-1">Contanos qué te está pasando</p>
+          <p className="text-[13px] text-gray-500 font-medium mt-1">Paso 2 de 2 — contanos qué te está pasando</p>
         </div>
       </div>
 
@@ -682,12 +878,15 @@ export default function Emergency({ profile }) {
       <div className="flex-shrink-0 p-4 sm:p-6 bg-gradient-to-t from-bg-primary via-bg-primary/95 to-transparent">
         <div className="w-full sm:max-w-lg mx-auto">
           <button
-            onClick={() => setPhase('confirm')}
-            disabled={!triageCode}
+            onClick={handleConfirmarTriage}
+            disabled={!triageCode || pagando}
             className={`w-full py-5 rounded-[24px] font-semibold text-[17px] flex justify-center items-center gap-2 transition-all
-              ${triageCode ? 'bg-danger text-white shadow-[0_8px_25px_rgba(217,83,79,0.3)] hover:bg-danger-hover active:scale-95' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+              ${triageCode && !pagando ? 'bg-danger text-white shadow-[0_8px_25px_rgba(217,83,79,0.3)] hover:bg-danger-hover active:scale-95' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
           >
-            Continuar
+            {pagando
+              ? <><CircleNotch className="w-6 h-6 animate-spin" /> Enviando…</>
+              : <>Pedir la ambulancia</>
+            }
           </button>
         </div>
       </div>

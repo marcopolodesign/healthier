@@ -27,6 +27,8 @@
  *   'cancelled' + payment_status='pending_payment'. Already cancelled → 200
  *   with `alreadyCancelled: true`, no MP call.
  *
+ * action: "capture-emergency"     body: { emergencyId }  — traslado hecho, se cobra
+ * action: "cancel-auth-emergency" body: { emergencyId }  — cancelado, se libera
  * action: "sweep" (no body)
  *   Internal-only — header `x-cron-secret` === MP_CRON_SECRET or
  *   MP_WEBHOOK_SECRET, or `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>`
@@ -249,6 +251,82 @@ async function cancelAuthorizedPayment(
   if (consUpdateErr) console.error("mp-capture: consultations update error:", consUpdateErr.message);
 
   return { status: 200, data: { cancelled: true }, error: null };
+}
+
+/**
+ * Captura o libera la preautorización de una EMERGENCIA.
+ *
+ * Un solo helper para los dos casos porque, salvo el verbo, es el mismo
+ * pedido a MP. La diferencia real con el de consultas es el token: la
+ * emergencia la cobró la plataforma (mp-payment, rama `emergencyId`), no la
+ * cuenta vinculada de un profesional, así que acá NO se llama a
+ * getSellerAccessToken — con el token del profesional MP contesta 404 y la
+ * reserva se queda colgada en la tarjeta del paciente hasta que vence sola.
+ */
+async function resolverPreautorizacionDeEmergencia(
+  supabase: SupabaseClient,
+  payment: PaymentRow,
+  emergencyId: string,
+  accion: "capture" | "cancel"
+): Promise<{ status: number; data: unknown; error: string | null }> {
+  const estadoFinal = accion === "capture" ? "approved" : "cancelled";
+  if (payment.status === estadoFinal) {
+    return { status: 200, data: { yaResuelta: true, accion }, error: null };
+  }
+  if (payment.status !== "authorized") {
+    return { status: 409, data: null, error: `Payment is not authorized (status=${payment.status})` };
+  }
+  if (!payment.mp_payment_id) {
+    return { status: 422, data: null, error: "Payment has no mp_payment_id" };
+  }
+
+  const platformToken = Deno.env.get("MP_IS_PROD") === "true"
+    ? Deno.env.get("MP_ACCESS_TOKEN_PROD")!
+    : Deno.env.get("MP_ACCESS_TOKEN_SANDBOX")!;
+
+  const idempotencyKey = await sha256Hex(`emergency-${accion}:${payment.id}:${payment.mp_payment_id}`);
+
+  const mpRes = await fetch(`${MP_API_BASE}/payments/${payment.mp_payment_id}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${platformToken}`,
+      "Content-Type": "application/json",
+      "X-Idempotency-Key": idempotencyKey,
+    },
+    body: JSON.stringify(accion === "capture" ? { capture: true } : { status: "cancelled" }),
+  });
+
+  const mpData = await mpRes.json().catch(() => ({} as Record<string, unknown>));
+
+  if (!mpRes.ok) {
+    console.error(`mp-capture (emergency ${accion}): MP error:`, JSON.stringify(mpData));
+    return {
+      status: 502,
+      data: null,
+      error: (mpData as { message?: string })?.message ?? "MercadoPago request failed",
+    };
+  }
+
+  const now = new Date().toISOString();
+  const patch = accion === "capture"
+    ? { status: "approved", captured_at: now, ...reconciledFromMp(mpData) }
+    : { status: "cancelled", auth_cancelled_at: now };
+
+  const { error: payErr } = await supabase.from("payments").update(patch).eq("id", payment.id);
+  if (payErr) console.error("mp-capture (emergency): payments update error:", payErr.message);
+
+  // La emergencia NO se toca acá: el estado del traslado lo mueve quien lo
+  // vive (la tripulación marca llegó/terminó, el paciente cancela). Escribirlo
+  // también desde el cobro es la forma de que los dos se contradigan.
+  if (accion === "cancel") {
+    const { error: emErr } = await supabase
+      .from("emergencies")
+      .update({ paid_at: null })
+      .eq("id", emergencyId);
+    if (emErr) console.error("mp-capture (emergency): emergencies update error:", emErr.message);
+  }
+
+  return { status: 200, data: accion === "capture" ? { captured: true } : { cancelled: true }, error: null };
 }
 
 interface SweepConsultationJoin {
@@ -514,6 +592,49 @@ Deno.serve(async (req) => {
       }
 
       const result = await cancelAuthorizedPayment(serviceSupabase, payment as PaymentRow, consultationId);
+      return jsonResponse({ data: result.data, error: result.error }, result.status);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // action: capture-emergency / cancel-auth-emergency
+    //
+    // Capturar = el traslado se hizo. Liberar = se canceló y no se cobra.
+    // Quién puede: el paciente dueño (cancelar), la entidad que despacha, y
+    // admin/super_admin. La tripulación no: cerrar el traslado y decidir que
+    // se cobra son dos cosas distintas, y la segunda es del despacho.
+    // ────────────────────────────────────────────────────────────────────────
+    if (action === "capture-emergency" || action === "cancel-auth-emergency") {
+      const { emergencyId } = body as { emergencyId?: string };
+      if (!emergencyId) return jsonResponse({ data: null, error: "Missing emergencyId" }, 400);
+
+      const { data: emergencia } = await serviceSupabase
+        .from("emergencies")
+        .select("id, patient_id")
+        .eq("id", emergencyId)
+        .single();
+      if (!emergencia) return jsonResponse({ data: null, error: "Emergency not found" }, 404);
+
+      const esDespacho = callerRole === "emergency_admin" || callerRole === "emergency_operator";
+      const esPaciente = emergencia.patient_id === user.id;
+      const puede = isAdmin || esDespacho || (esPaciente && action === "cancel-auth-emergency");
+      if (!puede) return jsonResponse({ data: null, error: "Forbidden" }, 403);
+
+      const { data: payment } = await serviceSupabase
+        .from("payments")
+        .select("*")
+        .eq("emergency_id", emergencyId)
+        .eq("status", "authorized")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!payment) return jsonResponse({ data: null, error: "No authorized payment for this emergency" }, 404);
+
+      const result = await resolverPreautorizacionDeEmergencia(
+        serviceSupabase,
+        payment as PaymentRow,
+        emergencyId,
+        action === "capture-emergency" ? "capture" : "cancel"
+      );
       return jsonResponse({ data: result.data, error: result.error }, result.status);
     }
 

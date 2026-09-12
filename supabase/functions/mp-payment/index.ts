@@ -40,6 +40,8 @@ const corsHeaders = {
 interface PaymentBody {
   consultationId?: string
   orderId?: string
+  /** Emergencia: preautorización de monto fijo, SIEMPRE capture:false. */
+  emergencyId?: string
   cardToken?: string
   paymentMethodId?: string
   payerEmail?: string
@@ -148,7 +150,228 @@ Deno.serve(async (req) => {
 
     // --- Parse body ---
     const body: PaymentBody = await req.json()
-    const { consultationId, orderId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits, description, authorizeOnly, payerDocType, payerDocNumber, deviceId } = body
+    const { consultationId, orderId, emergencyId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits, description, authorizeOnly, payerDocType, payerDocNumber, deviceId } = body
+
+    // --- Emergencia: PREAUTORIZACIÓN de monto fijo ------------------------
+    // Reunión del 2026-09-11 (Nacho + Macarena): el paciente preautoriza un
+    // importe predeterminado ANTES de contestar el triage, y recién con eso
+    // pagado la solicitud entra a la cola de la entidad que despacha.
+    //
+    // Tres diferencias con los otros dos caminos, todas a propósito:
+    //   · `capture: false` SIEMPRE, no es opcional. Se reserva en la tarjeta y
+    //     se captura (o se libera) cuando el traslado termina. Cobrarle de una
+    //     a alguien que está pidiendo una ambulancia y después devolverle es
+    //     peor que reservar.
+    //   · Cobra la PLATAFORMA, no la entidad. La entidad todavía no tiene una
+    //     cuenta de Mercado Pago vinculada; el reparto con ella es una decisión
+    //     comercial que no está tomada. Cuando lo esté, esto pasa a usar su
+    //     token igual que farmacia usa el suyo.
+    //   · Sin Healthy Credits y sin binary_mode (incompatible con capture:false).
+    if (emergencyId) {
+      if (consultationId || orderId) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'emergencyId is mutually exclusive with consultationId and orderId' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      if (!cardToken || !paymentMethodId || !payerEmail) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'Missing required fields for card charge: cardToken, paymentMethodId, payerEmail' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const serviceSupabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      )
+
+      const [
+        { data: emergencia, error: emErr },
+        { data: sos },
+        { data: perfilPagador },
+        metodoResult,
+      ] = await Promise.all([
+        serviceSupabase
+          .from('emergencies')
+          .select('id, patient_id, status, paid_at')
+          .eq('id', emergencyId)
+          .single(),
+        // El monto sale de la base (/super-admin/verticales), nunca del cliente.
+        serviceSupabase.from('vertical_settings').select('ondemand_price, enabled').eq('id', 'sos').maybeSingle(),
+        serviceSupabase.from('profiles').select('full_name, dni').eq('id', user.id).maybeSingle(),
+        savedCardId
+          ? serviceSupabase.from('payment_methods').select('mp_customer_id').eq('id', savedCardId).eq('user_id', user.id).maybeSingle()
+          : Promise.resolve({ data: null }),
+      ])
+
+      if (emErr || !emergencia) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'Emergency not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      // Que sólo la pueda pagar su dueño no lo garantiza la RLS acá: este
+      // bloque corre con la service role, que se la saltea entera.
+      if (emergencia.patient_id !== user.id) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'Forbidden' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      if (emergencia.paid_at) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'Esta emergencia ya está paga' }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const amount = round2(Number(sos?.ondemand_price ?? 0))
+      if (!(amount > 0)) {
+        return new Response(
+          JSON.stringify({ data: null, error: 'El precio del servicio de emergencias no está configurado' }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      let mpCustomerId: string | null = null
+      if (savedCardId) {
+        mpCustomerId = metodoResult.data?.mp_customer_id ?? null
+        if (!mpCustomerId) {
+          return new Response(
+            JSON.stringify({ data: null, error: 'No encontramos la tarjeta guardada. Probá con otra tarjeta.' }),
+            { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      }
+
+      const docNumber = payerDocNumber ?? perfilPagador?.dni ?? null
+      const docType = docNumber ? (payerDocType ?? 'DNI') : null
+      const nombreCompleto = (perfilPagador?.full_name ?? '').trim()
+      const [firstName, ...restoNombre] = nombreCompleto.split(/\s+/)
+      const lastName = restoNombre.join(' ') || null
+
+      const platformToken = Deno.env.get('MP_IS_PROD') === 'true'
+        ? Deno.env.get('MP_ACCESS_TOKEN_PROD')!
+        : Deno.env.get('MP_ACCESS_TOKEN_SANDBOX')!
+
+      const mpPayload: Record<string, unknown> = {
+        transaction_amount: amount,
+        token: cardToken,
+        description: description ? `Healthier — ${description}` : 'Healthier — Servicio de emergencias',
+        installments: 1,
+        payment_method_id: paymentMethodId,
+        capture: false,
+        payer: {
+          ...(mpCustomerId ? { type: 'customer', id: mpCustomerId } : {}),
+          email: payerEmail,
+          ...(firstName ? { first_name: firstName } : {}),
+          ...(lastName ? { last_name: lastName } : {}),
+          ...(docNumber ? { identification: { type: docType, number: docNumber } } : {}),
+        },
+        external_reference: emergencyId,
+      }
+
+      const { data: existingPayment } = await serviceSupabase
+        .from('payments')
+        .select('id')
+        .eq('emergency_id', emergencyId)
+        .in('status', ['pending', 'rejected'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      async function upsertEmergencyPayment(row: Record<string, unknown>): Promise<string> {
+        if (existingPayment) {
+          const { error } = await serviceSupabase.from('payments').update(row).eq('id', existingPayment.id)
+          if (error) throw new Error(`payments update failed: ${error.message}`)
+          return existingPayment.id
+        }
+        const { data, error } = await serviceSupabase.from('payments').insert(row).select('id').single()
+        if (error) throw new Error(`payments insert failed: ${error.message}`)
+        return data.id
+      }
+
+      const filaBase = {
+        emergency_id: emergencyId,
+        patient_id: user.id,
+        method: 'card',
+        gross_amount: amount,
+        credits_used: 0,
+        charged_amount: amount,
+        platform_fee: 0,
+        mp_fee_estimated: 0,
+        net_to_professional: 0,
+        manual_settlement_amount: 0,
+        currency: 'ARS',
+      }
+
+      const idempotencyKey = await sha256Hex(`${emergencyId}:${cardToken}`)
+
+      const mpRes = await fetch(`${MP_API_BASE}/payments`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${platformToken}`,
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': idempotencyKey,
+          ...(deviceId ? { 'X-meli-session-id': deviceId } : {}),
+        },
+        body: JSON.stringify(mpPayload),
+      })
+
+      const mpData = await mpRes.json() as { id?: number; status?: string; status_detail?: string; error?: string; message?: string }
+
+      if (!mpRes.ok || !mpData.id) {
+        console.error('mp-payment (emergency): MP payment error:', JSON.stringify(mpData))
+        const paymentId = await upsertEmergencyPayment({
+          ...filaBase,
+          status: 'rejected',
+          status_detail: mpData.status_detail ?? mpData.message ?? mpData.error ?? 'mp_request_failed',
+        })
+        return new Response(
+          JSON.stringify({
+            data: { paymentId, status: 'rejected', approved: false, statusDetail: mpData.status_detail ?? null, chargedAmount: amount },
+            error: mpData.message ?? mpData.error ?? 'MercadoPago payment failed',
+          }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const { paymentsStatus } = mapMpStatus(mpData.status ?? 'unknown')
+      const paymentId = await upsertEmergencyPayment({
+        ...filaBase,
+        mp_payment_id: String(mpData.id),
+        status: paymentsStatus,
+        status_detail: mpData.status_detail ?? '',
+      })
+
+      // `authorized` es el SÍ de una preautorización — `approved` sería una
+      // captura inmediata, que acá no pedimos. Los dos habilitan el despacho;
+      // cualquier otro estado (pending / in revisión) NO, y por eso no se
+      // escribe `paid_at`: es lo único que mira la cola de la entidad.
+      const reservado = paymentsStatus === 'authorized' || paymentsStatus === 'approved'
+      if (reservado) {
+        const { error: emUpdErr } = await serviceSupabase
+          .from('emergencies')
+          .update({ paid_at: new Date().toISOString(), preauth_id: String(mpData.id), price_at_request: amount })
+          .eq('id', emergencyId)
+        if (emUpdErr) console.error('mp-payment (emergency): emergencies update error:', emUpdErr.message)
+      }
+
+      return new Response(
+        JSON.stringify({
+          data: {
+            paymentId,
+            status: paymentsStatus,
+            approved: reservado,
+            statusDetail: mpData.status_detail ?? null,
+            chargedAmount: amount,
+          },
+          error: null,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     // --- Medication order charge (mutually exclusive with consultationId) ---
     // Own, self-contained code path: no Healthy Credits, no pre-authorization,

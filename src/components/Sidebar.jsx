@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple } from '@phosphor-icons/react';
+import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, MapTrifold, Ambulance } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
 import { toast } from './Toast'
 import { CompanyLogo } from './common/CompanyLogo'
@@ -85,6 +85,18 @@ const NAV_BY_ROLE = {
   ],
   pharmacy_readonly: [
     { to: '/farmacia/pedidos', icon: ClipboardText, label: 'Pedidos' },
+  ],
+  emergency_admin: [
+    { to: '/despacho',               icon: Siren,        label: 'Cola' },
+    { to: '/despacho/mapa',          icon: MapTrifold,   label: 'Mapa' },
+    { to: '/despacho/ambulancias',   icon: Ambulance,    label: 'Ambulancias' },
+    { to: '/despacho/configuracion', icon: Gear,         label: 'Configuración' },
+  ],
+  emergency_operator: [
+    { to: '/despacho',               icon: Siren,        label: 'Cola' },
+    { to: '/despacho/mapa',          icon: MapTrifold,   label: 'Mapa' },
+    { to: '/despacho/ambulancias',   icon: Ambulance,    label: 'Ambulancias' },
+    { to: '/despacho/configuracion', icon: Gear,         label: 'Configuración' },
   ],
 }
 

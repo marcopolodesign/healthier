@@ -109,6 +109,10 @@ import PharmacyOrders from './pages/pharmacy/Pedidos'
 import PharmacyOrderDetail from './pages/pharmacy/PedidoDetail'
 import PharmacyCatalog from './pages/pharmacy/Catalogo'
 import PharmacyConfiguracion from './pages/pharmacy/Configuracion'
+import DespachoCola from './pages/dispatch/Cola'
+import DespachoMapa from './pages/dispatch/Mapa'
+import DespachoAmbulancias from './pages/dispatch/Ambulancias'
+import DespachoConfiguracion from './pages/dispatch/Configuracion'
 import { tomarDestinoPostRegistro } from './lib/postSignupRedirect'
 
 // ── Role guards ──────────────────────────────────────────
@@ -120,6 +124,12 @@ const ROLE_REDIRECTS = {
   pharmacy_admin: '/farmacia/pedidos',
   pharmacy_operator: '/farmacia/pedidos',
   pharmacy_readonly: '/farmacia/pedidos',
+  emergency_admin: '/despacho',
+  emergency_operator: '/despacho',
+  // La tripulación sin matrícula (chofer, enfermero). Su pantalla real es la
+  // app, pero desde la web tiene que caer en el traslado que le toca y no en
+  // la landing de marketing.
+  emergency_crew: '/profesional/emergencias',
 }
 
 // Ver el comentario de la ruta `/paciente/agendar/:id`.
@@ -429,8 +439,11 @@ export default function App() {
         } />
 
         {/* Professional — full-screen standalone routes (no sidebar) */}
+        {/* También la tripulación sin matrícula: el chofer y el enfermero van
+            al domicilio igual que el médico y mueven los mismos estados. La
+            pantalla no muestra historia clínica. */}
         <Route path="/profesional/emergencias" element={
-          <RequireRole profile={profile} allowed={['professional']}>
+          <RequireRole profile={profile} allowed={['professional', 'emergency_crew']}>
             <ProfessionalEmergencias profile={profile} />
           </RequireRole>
         } />
@@ -511,6 +524,18 @@ export default function App() {
           <Route path="/farmacia/pedidos/:id" element={<PharmacyOrderDetail profile={profile} />} />
           <Route path="/farmacia/catalogo" element={<PharmacyCatalog profile={profile} />} />
           <Route path="/farmacia/configuracion" element={<PharmacyConfiguracion profile={profile} />} />
+        </Route>
+
+        {/* Despacho de emergencias */}
+        <Route element={
+          <RequireRole profile={profile} allowed={['emergency_admin', 'emergency_operator']}>
+            <AppLayout profile={profile} />
+          </RequireRole>
+        }>
+          <Route path="/despacho" element={<DespachoCola profile={profile} />} />
+          <Route path="/despacho/mapa" element={<DespachoMapa profile={profile} />} />
+          <Route path="/despacho/ambulancias" element={<DespachoAmbulancias profile={profile} />} />
+          <Route path="/despacho/configuracion" element={<DespachoConfiguracion profile={profile} />} />
         </Route>
 
         {/* Catch-all */}

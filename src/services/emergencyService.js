@@ -31,19 +31,23 @@ export async function getSosSettings() {
   }
 }
 
-// Mismo pool que usa mobile hoy (EmergencyService.ts findOnCallDoctor):
-// especialidad clínica general, on-demand, verificado y activo. Pre-MVP el
-// pool es de UN solo profesional — no hay zonas, olas de despacho ni scoring
-// de reputación (ver "Estadio del producto" en el CLAUDE.md raíz). Dispatch =
-// elegir UNO al azar entre los elegibles. Sin cola, sin reintento: si no hay
-// nadie elegible, no se inserta la fila — se avisa al paciente.
-const ELIGIBLE_SPECIALTY = 'medicina_general'
-
 // Shared across professional + patient queries and their consumers
 // (professional/Dashboard.jsx, professional/Emergencias.jsx) so the set of
 // "still active" / "already resolved" statuses lives in one place.
 export const EMERGENCY_ACTIVE_STATUSES = ['dispatched', 'in_transit', 'arrived']
 export const EMERGENCY_TERMINAL_STATUSES = ['cancelled', 'completed']
+
+/**
+ * Lo que el PACIENTE tiene que poder retomar. Es un conjunto más ancho que el
+ * del profesional a propósito: una solicitud sin pagar (`pending`) o pagada y
+ * esperando móvil (`awaiting_dispatch`) todavía no tiene a nadie asignado, así
+ * que no aparece en ninguna de las otras consultas — pero si el paciente
+ * recarga la pantalla en ese momento tiene que volver a donde estaba, no
+ * empezar de cero con una emergencia colgada en la base.
+ */
+export const EMERGENCY_PATIENT_OPEN_STATUSES = [
+  'pending', 'awaiting_dispatch', 'dispatched', 'in_transit', 'arrived',
+]
 
 // ─────────────────────────────────────────────────────────────
 // TODO (future): WhatsApp notification on emergency assignment
@@ -149,9 +153,14 @@ export const emergencyService = {
   async getActiveForPatient(patientId) {
     const { data, error } = await supabase
       .from('emergencies')
-      .select('*, professional:profiles!professional_id(full_name, phone, avatar_url)')
+      .select(`
+        *,
+        professional:profiles!professional_id(full_name, phone, avatar_url),
+        ambulancia:ambulances!ambulance_id(id, label, plate, unit_type),
+        entidad:emergency_providers!provider_id(id, name, color, dispatch_phone)
+      `)
       .eq('patient_id', patientId)
-      .in('status', EMERGENCY_ACTIVE_STATUSES)
+      .in('status', EMERGENCY_PATIENT_OPEN_STATUSES)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -160,56 +169,154 @@ export const emergencyService = {
   },
 
   /**
-   * Create a real SOS dispatch. Pre-MVP dispatch model: pick ONE eligible
-   * professional AT RANDOM (random rotation, not rating-ordered) — no queue,
-   * no retry. If nobody is eligible, do NOT insert a row; return a signal so
-   * the UI can tell the patient nobody is available right now.
+   * Paso 1 — la solicitud, todavía sin cobrar y sin nadie asignado.
    *
-   * Writes to the DB before any UI confirmation — this is the flow-critical
-   * record for the state-resilience rule (network drop / refresh mid-SOS
-   * must be resumable via getActiveForPatient()).
+   * Antes acá vivía `create()`, que sorteaba un profesional al azar entre los
+   * de medicina general on-demand y lo despachaba en el mismo insert. Se fue:
+   * la reunión del 2026-09-11 dejó el orden en pedido → cobro → triage →
+   * entidad → ambulancia, y la asignación es MANUAL de un operador. Macarena
+   * fue explícita en por qué: la ambulancia más cercana no es la más rápida,
+   * eso lo sabe el despachante y no un algoritmo de distancia.
+   *
+   * La fila se escribe ANTES de cobrar por la regla de resiliencia de estado:
+   * si el paciente pierde la red en medio del pago tiene que poder volver a
+   * `getActiveForPatient()` y retomar, no quedarse con una tarjeta reservada y
+   * ninguna emergencia.
    */
-  async create({ patientId, triageCode, symptoms, latitude, longitude, priceAtRequest, paymentMethodId }) {
-    const { data: eligible, error: eligibleError } = await supabase
-      .from('professional_profiles')
-      .select('user_id')
-      .eq('specialty', ELIGIBLE_SPECIALTY)
-      .eq('is_on_demand', true)
-      .eq('is_verified', true)
-      .eq('is_active', true)
-    if (eligibleError) throw eligibleError
-
-    if (!eligible || eligible.length === 0) {
-      return { noProfessional: true }
-    }
-
-    const chosen = eligible[Math.floor(Math.random() * eligible.length)]
-    const dispatchCode = `UTM-${Math.floor(1000 + Math.random() * 9000)}`
-
+  async crearSolicitud({ patientId, latitude, longitude, priceAtRequest }) {
     const { data, error } = await supabase
       .from('emergencies')
       .insert({
         patient_id: patientId,
-        professional_id: chosen.user_id,
-        triage_code: triageCode,
-        status: 'dispatched',
-        dispatch_code: dispatchCode,
-        notes: symptoms?.length ? JSON.stringify(symptoms) : null,
+        // El triage se contesta DESPUÉS del cobro, pero la columna es NOT NULL
+        // desde la migración 015. VERDE es el piso: si el paciente abandona
+        // entre el cobro y el triage, la solicitud que queda no miente
+        // diciendo que era grave.
+        triage_code: 'VERDE',
+        status: 'pending',
         patient_latitude: latitude ?? null,
         patient_longitude: longitude ?? null,
         price_at_request: priceAtRequest ?? null,
-        payment_method_id: paymentMethodId ?? null,
       })
-      .select('*, professional:profiles!professional_id(full_name, phone, avatar_url)')
+      .select()
+      .single()
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
+  /**
+   * Paso 3 — el triage, ya con el cobro hecho. Recién con esto la solicitud
+   * entra a la cola de la entidad (`awaiting_dispatch`).
+   *
+   * Que la base no permita saltearse el cobro lo garantiza `paid_at`: la cola
+   * del operador filtra por él, así que una fila que llegue a
+   * `awaiting_dispatch` sin pagar simplemente no la ve nadie.
+   */
+  async confirmarTriage({ emergencyId, triageCode, symptoms }) {
+    const { data, error } = await supabase
+      .from('emergencies')
+      .update({
+        triage_code: triageCode,
+        notes: symptoms?.length ? JSON.stringify(symptoms) : null,
+        status: 'awaiting_dispatch',
+      })
+      .eq('id', emergencyId)
+      .select()
+      .single()
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
+  // ── Lado de la entidad que despacha ───────────────────────────────────
+
+  /**
+   * La cola del operador: pagas, triadas y sin móvil. Ordenadas por gravedad
+   * y después por antigüedad — un ROJO que entró hace un minuto va antes que
+   * un VERDE que entró hace diez.
+   */
+  async colaDeDespacho() {
+    const { data, error } = await supabase
+      .from('emergencies')
+      .select('*, patient:profiles!patient_id(full_name, phone, avatar_url)')
+      .eq('status', 'awaiting_dispatch')
+      .not('paid_at', 'is', null)
+      .order('created_at', { ascending: true })
+    if (error) throw error
+    const orden = { ROJO: 0, AMARILLO: 1, VERDE: 2 }
+    return (data ?? []).map(toCamelCase)
+      .sort((a, b) => (orden[a.triageCode] ?? 9) - (orden[b.triageCode] ?? 9))
+  },
+
+  /** Los traslados en curso de la entidad — la otra mitad del panel. */
+  async enCursoParaDespacho() {
+    const { data, error } = await supabase
+      .from('emergencies')
+      .select(`
+        *,
+        patient:profiles!patient_id(full_name, phone, avatar_url),
+        ambulancia:ambulances!ambulance_id(id, label, plate)
+      `)
+      .in('status', EMERGENCY_ACTIVE_STATUSES)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data ?? []).map(toCamelCase)
+  },
+
+  /**
+   * Paso 4 — el operador asigna un móvil. Esto es el despacho.
+   *
+   * `professional_id` se sigue escribiendo, con el médico de la tripulación:
+   * es lo que miran la agenda del profesional, el aviso de la migración 150 y
+   * todo el seguimiento de `emergency_tracking`. Sin médico a bordo queda en
+   * NULL y el traslado igual existe — un móvil de traslado sin médico es un
+   * caso real, no un error.
+   */
+  async asignarAmbulancia({ emergencyId, ambulanceId, providerId, operatorId }) {
+    const { data: tripulacion, error: crewError } = await supabase
+      .from('ambulance_crew')
+      .select('profile_id, crew_role')
+      .eq('ambulance_id', ambulanceId)
+      .eq('active', true)
+    if (crewError) throw crewError
+
+    const medico = (tripulacion ?? []).find(t => t.crew_role === 'medico')
+
+    const { data, error } = await supabase
+      .from('emergencies')
+      .update({
+        ambulance_id: ambulanceId,
+        provider_id: providerId,
+        operator_id: operatorId,
+        professional_id: medico?.profile_id ?? null,
+        status: 'dispatched',
+        dispatched_at: new Date().toISOString(),
+        dispatch_code: `UTM-${Math.floor(1000 + Math.random() * 9000)}`,
+      })
+      .eq('id', emergencyId)
+      .select('*, patient:profiles!patient_id(full_name, phone)')
       .single()
     if (error) throw error
 
-    const result = toCamelCase(data)
+    // El móvil pasa a ocupado. Si esto falla, el despacho queda hecho igual y
+    // el operador ve el estado viejo en el mapa — se avisa, no se revierte un
+    // despacho por no poder pintar un badge.
+    const { error: ambError } = await supabase
+      .from('ambulances')
+      .update({ status: 'en_servicio' })
+      .eq('id', ambulanceId)
+    if (ambError) console.error('asignarAmbulancia: no se pudo marcar el móvil en servicio', ambError.message)
 
-    // El aviso al profesional lo manda un trigger de la base (migración 150).
-    // Salía de acá, así que una emergencia pedida desde la app no le avisaba a
-    // nadie — y es el caso donde más caro sale que no llegue.
-    return result
+    return toCamelCase(data)
+  },
+
+  /** El móvil vuelve a estar disponible cuando el traslado termina. */
+  async liberarAmbulancia(ambulanceId) {
+    if (!ambulanceId) return
+    const { error } = await supabase
+      .from('ambulances')
+      .update({ status: 'disponible' })
+      .eq('id', ambulanceId)
+    if (error) throw error
   },
 
   /** Patient cancels their own emergency (RLS: emergency_patient_cancel). */
@@ -245,7 +352,14 @@ export const emergencyService = {
   async listAllForAdmin() {
     const { data, error } = await supabase
       .from('emergencies')
-      .select('*, patient:profiles!patient_id(full_name, phone), professional:profiles!professional_id(full_name)')
+      .select(`
+        *,
+        patient:profiles!patient_id(full_name, phone),
+        professional:profiles!professional_id(full_name),
+        operador:profiles!operator_id(full_name),
+        ambulancia:ambulances!ambulance_id(id, label, plate, unit_type),
+        entidad:emergency_providers!provider_id(id, name, color)
+      `)
       .order('created_at', { ascending: false })
     if (error) throw error
     return (data ?? []).map(toCamelCase)

@@ -11,6 +11,8 @@ import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
 
 const STATUS_BADGE = {
+  pending:           'bg-gray-100 text-gray-500',
+  awaiting_dispatch: 'bg-orange-50 text-orange-600',
   dispatched:  'bg-amber-50 text-amber-700',
   in_transit:  'bg-blue-50 text-blue-600',
   arrived:     'bg-brand-muted text-brand',
@@ -18,6 +20,8 @@ const STATUS_BADGE = {
   cancelled:   'bg-gray-100 text-gray-500',
 }
 const STATUS_LABEL = {
+  pending:           'Sin pagar',
+  awaiting_dispatch: 'Esperando móvil',
   dispatched:  'Despachada',
   in_transit:  'En camino',
   arrived:     'En el lugar',
@@ -76,7 +80,7 @@ export default function SuperAdminEmergencias() {
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="page-title-lg">Emergencias</h1>
-        <p className="text-text-secondary mt-1">Todas las emergencias S.O.S despachadas en la plataforma, de más reciente a más antigua</p>
+        <p className="text-text-secondary mt-1">Todas las emergencias S.O.S de la plataforma, de más reciente a más antigua — con la entidad que despachó, el móvil y quién lo asignó</p>
       </div>
 
       <div className="card">
@@ -94,7 +98,7 @@ export default function SuperAdminEmergencias() {
           </div>
         ) : (
           <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <table className="w-full min-w-[980px] text-sm">
+            <table className="w-full min-w-[1240px] text-sm">
               <thead>
                 <tr>
                   <th className="table-header w-8">
@@ -105,7 +109,10 @@ export default function SuperAdminEmergencias() {
                   <th className="table-header">Triage</th>
                   <th className="table-header">Estado</th>
                   <th className="table-header">Paciente</th>
-                  <th className="table-header">Profesional</th>
+                  <th className="table-header">Entidad</th>
+                  <th className="table-header">Móvil</th>
+                  <th className="table-header">Despachó</th>
+                  <th className="table-header">Cobro</th>
                   <th className="table-header">Ubicación</th>
                   <th className="table-header">En vivo</th>
                   <th className="table-header text-right">Precio</th>
@@ -138,8 +145,33 @@ export default function SuperAdminEmergencias() {
                         <p className="text-text-primary truncate max-w-[160px]">{e.patient?.fullName || '—'}</p>
                         <p className="text-xs text-text-tertiary truncate max-w-[160px]">{e.patient?.phone || ''}</p>
                       </td>
-                      <td className="table-cell truncate max-w-[160px]">
-                        {e.professional?.fullName || <span className="text-text-tertiary">Sin asignar</span>}
+                      <td className="table-cell">
+                        {e.entidad ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: e.entidad.color || '#DC2626' }} />
+                            <span className="truncate max-w-[130px]">{e.entidad.name}</span>
+                          </span>
+                        ) : <span className="text-text-tertiary">Sin asignar</span>}
+                      </td>
+                      <td className="table-cell">
+                        {e.ambulancia ? (
+                          <>
+                            <p className="text-text-primary truncate max-w-[130px]">{e.ambulancia.label}</p>
+                            <p className="text-xs text-text-tertiary truncate max-w-[130px]">
+                              {[e.ambulancia.plate, e.professional?.fullName].filter(Boolean).join(' · ')}
+                            </p>
+                          </>
+                        ) : <span className="text-text-tertiary">Sin móvil</span>}
+                      </td>
+                      <td className="table-cell truncate max-w-[140px]">
+                        {e.operador?.fullName || <span className="text-text-tertiary">—</span>}
+                      </td>
+                      <td className="table-cell">
+                        {/* `paidAt` es la marca de la preautorización: es lo único
+                            que deja entrar una solicitud a la cola del operador. */}
+                        {e.paidAt
+                          ? <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600">Reservado</span>
+                          : <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">Sin cobrar</span>}
                       </td>
                       <td className="table-cell">
                         {mapsUrl ? (
