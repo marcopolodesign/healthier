@@ -14,6 +14,10 @@ import { toast } from './Toast'
  * correo de siempre y el pedido vence solo a los 30 minutos.
  */
 export default function CambiarCorreo({ emailActual, onCambiado }) {
+  // El perfil que dibuja la pantalla de arriba no se recarga solo, así que sin
+  // esto la tarjeta seguía mostrando el correo viejo después de cambiarlo.
+  const [aplicado, setAplicado] = useState(null)
+  const email = aplicado ?? emailActual
   const [paso, setPaso] = useState('quieto')   // quieto | pidiendo | codigos
   const [nuevoEmail, setNuevoEmail] = useState('')
   const [codActual, setCodActual] = useState('')
@@ -56,6 +60,7 @@ export default function CambiarCorreo({ emailActual, onCambiado }) {
         return
       }
       toast.success('Listo, tu correo de acceso cambió')
+      setAplicado(r.email)
       reset()
       onCambiado?.(r.email)
     } catch (err) {
@@ -79,7 +84,7 @@ export default function CambiarCorreo({ emailActual, onCambiado }) {
       <div>
         <h2 className="font-semibold text-text-primary">Correo de acceso</h2>
         <p className="text-sm text-text-secondary mt-0.5">
-          Es con el que entrás y al que te llega todo. Hoy es <strong>{emailActual}</strong>.
+          Es con el que entrás y al que te llega todo. Hoy es <strong>{email}</strong>.
         </p>
       </div>
 
@@ -101,10 +106,15 @@ export default function CambiarCorreo({ emailActual, onCambiado }) {
               placeholder="tu@correo.com"
             />
           </div>
+          {/* El texto va dentro de un <span>: en un contenedor flex, cada nodo
+              —incluido un <strong> suelto— se vuelve un item propio y la frase
+              se parte en columnas. */}
           <p className="text-xs text-text-secondary flex items-start gap-1.5">
             <ShieldCheck className="h-4 w-4 shrink-0 mt-px" />
-            Vamos a mandar un código a <strong>cada</strong> dirección: a esta nueva y a la actual.
-            Hacen falta los dos, y es lo que evita que alguien más se quede con tu cuenta.
+            <span>
+              Vamos a mandar un código a <strong>cada</strong> dirección: a esta nueva y a la actual.
+              Hacen falta los dos, y es lo que evita que alguien más se quede con tu cuenta.
+            </span>
           </p>
           <div className="flex gap-3">
             <button
@@ -123,12 +133,14 @@ export default function CambiarCorreo({ emailActual, onCambiado }) {
         <div className="space-y-3">
           <p className="text-sm text-text-secondary flex items-start gap-1.5">
             <Envelope className="h-4 w-4 shrink-0 mt-0.5" />
-            Mandamos un código a <strong>{emailActual}</strong> y otro a <strong>{nuevoEmail}</strong>.
-            Vencen en 30 minutos.
+            <span>
+              Mandamos un código a <strong>{email}</strong> y otro a <strong>{nuevoEmail}</strong>.
+              Vencen en 30 minutos.
+            </span>
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="form-label">Código que llegó a {emailActual}</label>
+              <label className="form-label">Código que llegó a {email}</label>
               <input
                 className="form-input text-center text-xl tracking-[0.3em] font-mono"
                 inputMode="numeric" maxLength={6}
