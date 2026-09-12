@@ -50,10 +50,10 @@ async function conReintento(fn, etiqueta, intentos = 3) {
       if (i < intentos - 1) await new Promise(r => setTimeout(r, 800 * (i + 1)))
     }
   }
-  throw new Error(
-    `No pudimos subir ${etiqueta}: se cortó la conexión. Probá de nuevo — lo que ya se subió no se vuelve a subir. ` +
-    `(${ultimo?.message || 'error de red'})`
-  )
+  // El detalle técnico va a la consola, no al mensaje: "Failed to fetch" no le
+  // dice nada al profesional y ensucia la hoja que sí le explica qué hacer.
+  console.error(`[onboarding] falló subir ${etiqueta}:`, ultimo)
+  throw new Error(`No pudimos subir ${etiqueta}: se cortó la conexión antes de terminar.`)
 }
 
 export default function Onboarding({ profile }) {
@@ -344,7 +344,13 @@ export default function Onboarding({ profile }) {
       // Lo que sí llegó al bucket tiene que aparecer como "ya subido" antes de
       // que vuelva a intentar: si no, el segundo intento repite las mismas
       // subidas y se cae en el mismo lugar.
-      professionalService.listDocuments(profile.id).then(setExistingDocs).catch(() => {})
+      // Ojo: sólo se pisa si el listado trajo algo. `listDocuments` devuelve
+      // `{}` cuando falla, y si la conexión sigue caída eso borraría de la hoja
+      // la lista de lo que el profesional ya tiene guardado — justo cuando más
+      // necesita verla.
+      professionalService.listDocuments(profile.id)
+        .then(docs => { if (Object.keys(docs).length) setExistingDocs(docs) })
+        .catch(() => {})
     } finally {
       setLoading(false)
     }
