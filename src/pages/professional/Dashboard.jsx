@@ -381,10 +381,19 @@ export default function ProfessionalDashboard({ profile }) {
             pasa al verificado. Conectarlo NO depende de la verificación, así
             que puede ir adelantándolo mientras espera, que es justo lo que
             propone el resto de esta pantalla. */}
+        {/* Las tres tarjetas de arriba —Mercado Pago, el estado del perfil y la
+            práctica— van en fila en escritorio y apiladas en el teléfono
+            (Mateo, 2026-09-12). En una columna sola empujaban el checklist
+            abajo del pliegue, que es lo único accionable mientras se espera la
+            verificación.
+            `empty:hidden` en el envoltorio de la práctica: la tarjeta se cierra
+            sola (guarda su estado adentro) y sin eso dejaría un tercio de fila
+            vacío. */}
+        <div className="flex flex-col lg:flex-row lg:items-stretch gap-6">
         {!loading && mpStatus && !mpStatus.connected && (
           <a
             href={mpService.getMpConnectUrl(profile.id)}
-            className="card flex items-center gap-4 border-red-300 bg-red-50 hover:border-red-400 transition-colors group"
+            className="card flex-1 min-w-0 flex items-center gap-4 border-red-300 bg-red-50 hover:border-red-400 transition-colors group"
           >
             <div className="w-12 h-12 rounded-2xl bg-white border border-red-200 flex items-center justify-center shrink-0">
               <MercadoPagoMark className="w-8 h-8" />
@@ -400,8 +409,9 @@ export default function ProfessionalDashboard({ profile }) {
           </a>
         )}
 
+        <div className="flex-1 min-w-0">
         {isPermanentlyRejected ? (
-          <div className="card border-red-200 bg-red-50">
+          <div className="card h-full border-red-200 bg-red-50">
             <div className="flex items-start gap-3">
               <XCircle className="h-6 w-6 text-red-500 shrink-0 mt-0.5" />
               <div className="flex-1">
@@ -421,7 +431,7 @@ export default function ProfessionalDashboard({ profile }) {
             </div>
           </div>
         ) : isRejected ? (
-          <div className="card border-warning/30 bg-yellow-50">
+          <div className="card h-full border-warning/30 bg-yellow-50">
             <div className="flex items-start gap-3">
               <Warning className="h-6 w-6 text-warning shrink-0 mt-0.5" />
               <div className="flex-1">
@@ -444,7 +454,7 @@ export default function ProfessionalDashboard({ profile }) {
             </div>
           </div>
         ) : !profProfile ? (
-          <div className="card border-brand/20 bg-brand-muted/30">
+          <div className="card h-full border-brand/20 bg-brand-muted/30">
             <div className="flex items-start gap-3">
               <Warning className="h-6 w-6 text-brand shrink-0 mt-0.5" />
               <div>
@@ -462,7 +472,7 @@ export default function ProfessionalDashboard({ profile }) {
             </div>
           </div>
         ) : isMissingDocs ? (
-          <div className="card border-blue-200 bg-blue-50">
+          <div className="card h-full border-blue-200 bg-blue-50">
             <div className="flex items-start gap-3">
               <FileText className="h-6 w-6 text-blue-600 shrink-0 mt-0.5" />
               <div>
@@ -480,7 +490,7 @@ export default function ProfessionalDashboard({ profile }) {
             </div>
           </div>
         ) : (
-          <div className="card border-warning/30 bg-yellow-50">
+          <div className="card h-full border-warning/30 bg-yellow-50">
             <div className="flex items-start gap-3">
               <Warning className="h-6 w-6 text-warning shrink-0 mt-0.5" />
               <div>
@@ -493,6 +503,12 @@ export default function ProfessionalDashboard({ profile }) {
             </div>
           </div>
         )}
+        </div>
+
+        <div data-tour="pro-practica" className="flex-1 min-w-0 empty:hidden">
+          {!isPermanentlyRejected && <TarjetaPractica />}
+        </div>
+        </div>
 
         {/* Get Started — let a not-yet-verified professional set price/horarios/zona/avatar
             while they wait, instead of losing that time. Shown regardless of isRejected/
@@ -504,8 +520,6 @@ export default function ProfessionalDashboard({ profile }) {
         {/* El que está esperando la verificación es justo el que más necesita
             conocer el panel: cuando lo aprueben va a entrar a una consulta real
             sin haber visto nunca la pantalla. */}
-        <div data-tour="pro-practica">{!isPermanentlyRejected && <TarjetaPractica />}</div>
-
         <div data-tour="pro-checklist">
           {!!profProfile && !isPermanentlyRejected && (
             <ProfileCompletenessCard
