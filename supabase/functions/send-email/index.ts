@@ -361,7 +361,7 @@ Deno.serve(async (req) => {
           invitadoPor: u.invitadoPor,
         }))
 
-      // Los dos códigos del cambio de correo (migración 156). El código NO
+      // Los dos códigos del cambio de correo (migración 161). El código NO
       // viaja en el payload del trigger: se lee acá, con service role, de una
       // tabla que no tiene una sola policy de lectura.
       case 'cambio-correo': {

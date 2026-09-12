@@ -1,6 +1,6 @@
 /**
  * Cambiar el correo de acceso, con DOS códigos: uno al correo actual y otro al
- * nuevo. Los dos hacen falta (migración 156).
+ * nuevo. Los dos hacen falta (migración 161).
  *
  * ── Por qué no se usa el flujo de Supabase ──────────────────────────────────
  * `auth.updateUser({ email })` manda un **link** al correo nuevo y listo. Eso
@@ -123,7 +123,7 @@ Deno.serve(async (req: Request) => {
         .single()
       if (error) return json({ error: error.message }, 500)
 
-      // Los dos mails los manda el trigger de la migración 156, no esta
+      // Los dos mails los manda el trigger de la migración 161, no esta
       // función: así el disparo no depende de desde dónde se haya pedido.
       return json({ ok: true, nuevoEmail: creado.new_email, venceEn: creado.expires_at })
     }

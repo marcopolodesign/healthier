@@ -8,7 +8,7 @@ import { toast } from './Toast'
  * otro a la nueva— y hacen falta los dos.
  *
  * El del correo **actual** es el que importa: sin él, cambiar de correo sería
- * una forma de pasarle la cuenta a otra persona (migración 156).
+ * una forma de pasarle la cuenta a otra persona (migración 161).
  *
  * Mientras el cambio no se verifica no pasa nada: se sigue entrando con el
  * correo de siempre y el pedido vence solo a los 30 minutos.

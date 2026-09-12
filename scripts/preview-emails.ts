@@ -94,7 +94,7 @@ const CASOS: Caso[] = [
     T.bienvenidaPaciente({ name: 'Sofía Ramírez', invitadoPor: 'Dra. Valentina Ortiz' })),
 
   // Los dos que salen juntos al pedir un cambio de correo: van códigos
-  // distintos y hacen falta los dos (migración 156).
+  // distintos y hacen falta los dos (migración 161).
   caso('cambio-correo-actual', 'Cambio de correo · al correo actual', 'Cuenta y acceso',
     T.cambioDeCorreoCodigo({
       name: 'Sofía', destino: 'actual', codigo: '408215',

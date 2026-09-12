@@ -640,7 +640,7 @@ export default function Configuracion({ profile }) {
         <div className="space-y-6">
           {/* Cambiar el correo de acceso pide un código a CADA dirección — sin
               el del correo actual, cambiar de correo sería una forma de pasarle
-              la cuenta (y la matrícula) a otra persona. Migración 156. */}
+              la cuenta (y la matrícula) a otra persona. Migración 161. */}
           <CambiarCorreo emailActual={profile?.email} />
 
           {/* Mercado Pago — required to receive paid bookings (spec D4) */}

@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase'
 
 /**
- * Cambio del correo de acceso, con dos códigos (migración 156 +
+ * Cambio del correo de acceso, con dos códigos (migración 161 +
  * Edge Function `cambio-de-correo`).
  *
  * No se usa `supabase.auth.updateUser({ email })` a propósito: ese flujo manda

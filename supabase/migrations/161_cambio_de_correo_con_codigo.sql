@@ -1,4 +1,4 @@
--- 156 — Cambiar el correo de acceso pide DOS códigos: al viejo y al nuevo.
+-- 161 — Cambiar el correo de acceso pide DOS códigos: al viejo y al nuevo.
 --
 -- ── Por qué ──────────────────────────────────────────────────────────────────
 -- Lo planteó Mateo (2026-09-11): *"me voy de vacaciones, no quiero atender pero

@@ -496,7 +496,7 @@ export function bienvenidaPaciente(u: { name: string; invitadoPor?: string | nul
 /**
  * Salen dos mails por pedido: uno al correo **actual** y otro al **nuevo**, con
  * códigos distintos, y hacen falta los dos para que el cambio se aplique
- * (migración 156). El del correo actual es además el aviso: si el cambio no lo
+ * (migración 161). El del correo actual es además el aviso: si el cambio no lo
  * pediste vos, es el mail que te entera.
  */
 export function cambioDeCorreoCodigo(d: {
