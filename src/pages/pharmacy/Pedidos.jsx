@@ -115,7 +115,18 @@ export default function PharmacyOrders({ profile }) {
                   <td className="table-cell hidden sm:table-cell text-text-secondary">{formatARS(o.total)}</td>
                   {canEdit && (
                     <td className="table-cell">
-                      {NEXT_STATUS[o.status] && (
+                      {/* Entregar necesita el código del paciente (migración
+                          155) y eso no entra en una celda: se hace en el
+                          detalle. La base lo rechaza igual, así que sin esto el
+                          botón sólo daría un error. */}
+                      {o.status === 'enviado' ? (
+                        <button
+                          className="btn-secondary text-xs px-2.5 py-1.5"
+                          onClick={e => { e.stopPropagation(); navigate(`/farmacia/pedidos/${o.id}`) }}
+                        >
+                          Entregar con código
+                        </button>
+                      ) : NEXT_STATUS[o.status] && (
                         <button
                           className="btn-secondary text-xs px-2.5 py-1.5"
                           disabled={updatingId === o.id}

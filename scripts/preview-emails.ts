@@ -27,6 +27,9 @@ const base: T.ConsultaBase = {
   isOnDemand: false,
   vertical: 'clinica',
   priceAtBooking: 28000,
+  // El mail de reserva sale en el `insert`, antes de que Mercado Pago confirme:
+  // por eso el fixture arranca pendiente y no "pagado".
+  paymentStatus: 'pending_payment',
   patientName: 'Sofía',
   patientFullName: 'Sofía Ramírez',
   professionalName: 'Dra. Valentina Ortiz',
@@ -90,7 +93,7 @@ const CASOS: Caso[] = [
   caso('turno-video', 'Turno confirmado · video', 'Turnos', T.turnoConfirmadoPaciente(base)),
   caso('turno-presencial', 'Turno confirmado · presencial', 'Turnos', T.turnoConfirmadoPaciente(presencial)),
   caso('turno-profesional', 'Nueva reserva (al profesional)', 'Turnos', T.turnoConfirmadoProfesional(base)),
-  caso('ondemand', 'Consulta inmediata confirmada', 'Turnos', T.ondemandConfirmadaPaciente({ ...base, isOnDemand: true, scheduledAt: null, waitMinutes: 4 })),
+  caso('ondemand', 'Consulta inmediata confirmada', 'Turnos', T.ondemandConfirmadaPaciente({ ...base, isOnDemand: true, scheduledAt: null, paymentStatus: 'paid' })),
   caso('recordatorio-manana', 'Recordatorio · mañana', 'Turnos', T.recordatorioTurno({ ...base, cuando: 'manana' })),
   caso('recordatorio-pronto', 'Recordatorio · en 30 minutos', 'Turnos', T.recordatorioTurno({ ...base, scheduledAt: enHoras(0.5), cuando: 'pronto' })),
   caso('cancelada-paciente', 'Turno cancelado (al paciente)', 'Turnos', T.consultaCancelada({ ...base, paraQuien: 'paciente', motivo: 'El profesional tuvo una urgencia', canceladaPorMi: false })),
