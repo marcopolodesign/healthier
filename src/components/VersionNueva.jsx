@@ -76,7 +76,10 @@ export default function VersionNueva() {
   if (!hayNueva) return null
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[200] px-3 w-full max-w-md">
+    // `bottom-24` abajo de `lg`: ahí vive el menú inferior (paciente y
+    // profesional), y un aviso encima de "Agenda" y "Pacientes" tapa justo lo
+    // que la persona iba a tocar.
+    <div className="fixed bottom-24 lg:bottom-4 left-1/2 -translate-x-1/2 z-[200] px-3 w-full max-w-md">
       <div className="flex items-center gap-3 rounded-2xl bg-text-primary text-white shadow-lg px-4 py-3">
         <ArrowsClockwise className="h-5 w-5 shrink-0" />
         <p className="flex-1 text-sm leading-snug">
