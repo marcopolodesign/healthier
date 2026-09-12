@@ -278,7 +278,18 @@ export default function Onboarding({ profile }) {
       // la persona, no de su perfil profesional. Se saca del payload para no
       // mandarlo a la tabla equivocada.
       const { dni, gender, ...formSinDni } = form
-      await profilesService.update(profile.id, { dni: dni.trim(), gender })
+      // 🔴 Vacío NO se manda. `profiles.gender` tiene un CHECK con cuatro
+      // valores (migración 006) y `''` no es ninguno: el PATCH vuelve 400 y el
+      // envío entero se cae **después** de haber subido todos los archivos.
+      // Pasa de verdad al entrar por el "te faltan documentos" del dashboard
+      // (`?resubmit=1&step=2`), que saltea el paso donde se piden esos datos:
+      // si el profesional no los tenía cargados, el legajo no se guardaba nunca.
+      const datosPersona = {}
+      if (dni?.trim()) datosPersona.dni = dni.trim()
+      if (gender) datosPersona.gender = gender
+      if (Object.keys(datosPersona).length) {
+        await profilesService.update(profile.id, datosPersona)
+      }
 
       // Precio, modalidad, zona y dirección NO van en este payload a propósito
       // (la bio sí, viene dentro de `form`):
