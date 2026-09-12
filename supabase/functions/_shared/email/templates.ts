@@ -5,7 +5,7 @@
  */
 import { APP_URL, C, type Accent } from './theme.ts'
 import {
-  button, divider, esc, itemList, link, note, p, panel, personCard, quote,
+  button, codeBlock, divider, esc, itemList, link, note, p, panel, personCard, quote,
   renderEmail, sectionLabel, type EmailDoc,
 } from './layout.ts'
 
@@ -459,9 +459,17 @@ export function consultaCancelada(c: ConsultaBase & { paraQuien: 'paciente' | 'p
 // ═══════════════════════════════════════════════════════════════════════════
 // 9 · Bienvenida — al paciente recién registrado
 // ═══════════════════════════════════════════════════════════════════════════
-export function bienvenidaPaciente(u: { name: string }): Sent {
+/**
+ * `invitadoPor` es el profesional cuyo link de referido usó el paciente. Las
+ * invitaciones de Healthier son ese link (`/r/<codigo>`), no un mail, así que
+ * este es el único mail donde ese nombre puede aparecer — y verlo escrito es lo
+ * que convierte "otra app de salud" en "la app de mi médico".
+ */
+export function bienvenidaPaciente(u: { name: string; invitadoPor?: string | null }): Sent {
   const body = [
-    p(`Hola <strong style="color:${C.ink}">${esc(u.name)}</strong>, tu cuenta ya está lista. Healthier une en un solo lugar a los profesionales, tus consultas, tus recetas y tu historia clínica.`),
+    u.invitadoPor
+      ? p(`Hola <strong style="color:${C.ink}">${esc(u.name)}</strong>, <strong style="color:${C.ink}">${esc(u.invitadoPor)}</strong> te invitó a Healthier y tu cuenta ya está lista. Acá tenés en un solo lugar a tus profesionales, tus consultas, tus recetas y tu historia clínica.`)
+      : p(`Hola <strong style="color:${C.ink}">${esc(u.name)}</strong>, tu cuenta ya está lista. Healthier une en un solo lugar a los profesionales, tus consultas, tus recetas y tu historia clínica.`),
     itemList('Cómo podés empezar', [
       { title: 'Atendete ahora', detail: 'Consulta inmediata con un profesional disponible, sin sacar turno.' },
       { title: 'Sacá un turno', detail: 'Elegí especialidad, profesional y horario. Presencial o en línea.' },
@@ -473,11 +481,53 @@ export function bienvenidaPaciente(u: { name: string }): Sent {
   ].join('')
 
   return {
-    subject: 'Bienvenido a Healthier',
+    subject: u.invitadoPor ? `${u.invitadoPor} te invitó a Healthier` : 'Bienvenido a Healthier',
     html: renderEmail({
       preheader: 'Tu cuenta ya está lista. Así podés empezar a usarla.',
       eyebrow: 'Bienvenido', accent: 'sage',
       title: 'Tu salud, en un solo lugar', body,
+    }),
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 9bis · Cambio de correo de acceso — un código a cada dirección
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * Salen dos mails por pedido: uno al correo **actual** y otro al **nuevo**, con
+ * códigos distintos, y hacen falta los dos para que el cambio se aplique
+ * (migración 156). El del correo actual es además el aviso: si el cambio no lo
+ * pediste vos, es el mail que te entera.
+ */
+export function cambioDeCorreoCodigo(d: {
+  name: string
+  destino: 'actual' | 'nuevo'
+  codigo: string
+  emailActual: string
+  emailNuevo: string
+}): Sent {
+  const alActual = d.destino === 'actual'
+  const body = [
+    p(alActual
+      ? `Hola <strong style="color:${C.ink}">${esc(d.name)}</strong>, pediste cambiar el correo de tu cuenta de Healthier de <strong style="color:${C.ink}">${esc(d.emailActual)}</strong> a <strong style="color:${C.ink}">${esc(d.emailNuevo)}</strong>. Este es <strong>tu código</strong>:`
+      : `Hola <strong style="color:${C.ink}">${esc(d.name)}</strong>, este correo va a pasar a ser el de acceso a tu cuenta de Healthier. Este es <strong>tu código</strong>:`),
+    codeBlock(d.codigo),
+    note(alActual
+      ? 'Hace falta <strong>este código y el que le llegó a la dirección nueva</strong>: los dos se escriben en la misma pantalla desde la que pediste el cambio.'
+      : 'Hace falta <strong>este código y el que le llegó a la dirección anterior</strong>: los dos se escriben en la misma pantalla desde la que se pidió el cambio.',
+      'amber'),
+  ].join('')
+
+  return {
+    subject: `Tu código para cambiar el correo · ${d.codigo}`,
+    html: renderEmail({
+      preheader: `Código ${d.codigo} — vence en 30 minutos.`,
+      eyebrow: 'Cambio de correo', accent: 'amber',
+      title: 'Confirmá el cambio de correo',
+      body,
+      footnote: alActual
+        ? 'Si no pediste este cambio, ignorá el mail y avisanos: sin los dos códigos tu correo no se modifica, y tu cuenta sigue funcionando igual.'
+        : 'El código vence en 30 minutos. Nunca te lo vamos a pedir por teléfono ni por WhatsApp.',
     }),
   }
 }
@@ -624,21 +674,25 @@ export function authCodigo(): string {
     title: 'Tu código',
     body: [
       p('Ingresá este código en Healthier para confirmar que sos vos:'),
-      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#EDF4EF;border-radius:18px;margin:0 0 22px">
-         <tr><td align="center" style="padding:22px 16px">
-           <p style="margin:0;font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:30px;line-height:1.2;font-weight:700;letter-spacing:.22em;color:#3F6B4C">{{ .Token }}</p>
-         </td></tr>
-       </table>`,
+      codeBlock('{{ .Token }}'),
     ].join(''),
     footnote: 'El código vence en una hora. Nunca te lo vamos a pedir por teléfono ni por WhatsApp.',
   })
 }
 
+/**
+ * Ojo: **esta NO es la invitación que usan los profesionales.** Ellos invitan
+ * con su link de referido (`/r/<codigo>`), que abre una landing con su cara y
+ * su nombre, y el nombre de quien invitó aparece después en la bienvenida. Este
+ * mail es el `inviteUserByEmail` de Supabase, que hoy sólo puede disparar el
+ * equipo. El nombre sale de la metadata de la invitación, si quien la manda la
+ * carga — y si no, el saludo sigue teniendo sentido sin él.
+ */
 export function authInvitacion(): string {
   return authDoc({
     preheader: 'Te invitaron a crear tu cuenta en Healthier.',
     eyebrow: 'Invitación', accent: 'sage',
-    title: 'Te invitaron a Healthier',
+    title: '{{ if .Data.invited_by_name }}{{ .Data.invited_by_name }} te invitó a Healthier{{ else }}Te invitaron a Healthier{{ end }}',
     body: [
       p('Creá tu cuenta para empezar a usar Healthier: consultas, recetas e historia clínica en un solo lugar.'),
       button('{{ .ConfirmationURL }}', 'Crear mi cuenta', 'sage'),

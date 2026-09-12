@@ -111,6 +111,21 @@ export function quote(text: string) {
   </table>`
 }
 
+/**
+ * Un código para tipear. Se pasa el código ya armado — puede ser un valor real
+ * o el marcador `{{ .Token }}` de una plantilla de Supabase Auth, así que acá NO
+ * se escapa.
+ */
+export function codeBlock(codigo: string, accent: Accent = 'sage') {
+  const a = ACCENTS[accent]
+  return `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${a.soft};border-radius:18px;margin:0 0 22px">
+    <tr><td align="center" style="padding:22px 16px">
+      <p style="margin:0;font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:30px;line-height:1.2;font-weight:700;letter-spacing:.22em;color:${a.ink}">${codigo}</p>
+    </td></tr>
+  </table>`
+}
+
 /** Aviso chico al pie del cuerpo — el "ojo con esto". */
 export function note(text: string, accent: Accent = 'amber') {
   const a = ACCENTS[accent]

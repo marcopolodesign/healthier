@@ -172,8 +172,29 @@ async function leerPedido(sb: SupabaseClient, id: string) {
 }
 
 async function leerPerfil(sb: SupabaseClient, userId: string) {
-  const { data } = await sb.from('profiles').select('full_name, email').eq('id', userId).maybeSingle()
-  return data as { full_name: string | null; email: string | null } | null
+  // `referred_by_professional_id` → quién lo invitó. Las invitaciones son el
+  // link del profesional (`/r/<codigo>`), no un mail: el único lugar donde ese
+  // nombre puede aparecer escrito es la bienvenida.
+  const { data } = await sb
+    .from('profiles')
+    .select('full_name, email, referred_by_professional_id')
+    .eq('id', userId)
+    .maybeSingle()
+  if (!data) return null
+
+  let invitadoPor: string | null = null
+  if (data.referred_by_professional_id) {
+    const { data: pro } = await sb
+      .from('profiles').select('full_name')
+      .eq('id', data.referred_by_professional_id).maybeSingle()
+    invitadoPor = pro?.full_name ?? null
+  }
+
+  return { ...data, invitadoPor } as {
+    full_name: string | null
+    email: string | null
+    invitadoPor: string | null
+  }
 }
 
 // ── Despacho ────────────────────────────────────────────────────────────────
@@ -192,6 +213,9 @@ type Body = {
   motivo?: string | null
   /** receta */
   prescriptionId?: string
+  /** cambio-correo */
+  requestId?: string
+  destino?: 'actual' | 'nuevo'
 }
 
 Deno.serve(async (req) => {
@@ -222,7 +246,7 @@ Deno.serve(async (req) => {
   const tipo = body.tipo ?? (body.consultationId ? 'reserva' : null)
   if (!tipo) return json({ error: 'Falta `tipo`' }, 400)
 
-  const porUsuario = async (construir: (u: { full_name: string | null; email: string | null }) => T.Sent) => {
+  const porUsuario = async (construir: (u: { full_name: string | null; email: string | null; invitadoPor: string | null }) => T.Sent) => {
     if (!body.userId) return json({ error: 'Falta userId' }, 400)
     const u = await leerPerfil(sb, body.userId)
     if (!u) return json({ error: 'Usuario no encontrado' }, 404)
@@ -332,7 +356,38 @@ Deno.serve(async (req) => {
       // Los tres que sólo necesitan el perfil de una persona comparten la
       // misma forma; lo único que cambia es qué plantilla se arma.
       case 'bienvenida':
-        return await porUsuario(u => T.bienvenidaPaciente({ name: primerNombre(u.full_name) ?? 'qué tal' }))
+        return await porUsuario(u => T.bienvenidaPaciente({
+          name: primerNombre(u.full_name) ?? 'qué tal',
+          invitadoPor: u.invitadoPor,
+        }))
+
+      // Los dos códigos del cambio de correo (migración 156). El código NO
+      // viaja en el payload del trigger: se lee acá, con service role, de una
+      // tabla que no tiene una sola policy de lectura.
+      case 'cambio-correo': {
+        if (!body.requestId) return json({ error: 'Falta requestId' }, 400)
+        const { data: req } = await sb
+          .from('email_change_requests')
+          .select('user_id, new_email, code_current, code_new')
+          .eq('id', body.requestId)
+          .maybeSingle()
+        if (!req) return json({ error: 'Pedido no encontrado' }, 404)
+        const u = await leerPerfil(sb, req.user_id)
+        if (!u?.email) return json({ error: 'Usuario sin correo' }, 404)
+
+        const alActual = body.destino !== 'nuevo'
+        const sent = T.cambioDeCorreoCodigo({
+          name: primerNombre(u.full_name) ?? 'qué tal',
+          destino: alActual ? 'actual' : 'nuevo',
+          codigo: alActual ? req.code_current : req.code_new,
+          emailActual: u.email,
+          emailNuevo: req.new_email,
+        })
+        return await salida(
+          { usuarioId: req.user_id },
+          [{ to: alActual ? u.email : req.new_email, ...sent }],
+        )
+      }
 
       case 'pro-verificado':
         return await porUsuario(u => T.profesionalVerificado({ name: u.full_name ?? 'profesional' }))

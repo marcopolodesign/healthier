@@ -1,7 +1,7 @@
 <!doctype html><html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Los textos de los mails de Healthier</title>
-<meta name="description" content="Los 27 mails que manda Healthier, en texto, para revisar el copy.">
+<meta name="description" content="Los 30 mails que manda Healthier, en texto, para revisar el copy.">
 <style>
   /* Las mismas fuentes y los mismos tokens que los mails y las landings. Se
      sirven desde la raíz del sitio, así que sólo funcionan publicadas. */
@@ -106,7 +106,7 @@
 <div class="marca">
   <img src="/email/healthier-logo.png" alt="Healthier" width="118">
   <h1>Los textos de los mails</h1>
-  <p>27 mails · para revisar qué dicen, no cómo se ven</p>
+  <p>30 mails · para revisar qué dicen, no cómo se ven</p>
 </div>
 
 <header class="top"><div class="wrap">
@@ -220,7 +220,7 @@
         <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
         <dd>Te invitaron a crear tu cuenta en Healthier.</dd>
       </dl>
-      <div class="cuerpo"><p class="chip">Invitación</p><p class="titulo">Te invitaron a Healthier</p><p>Creá tu cuenta para empezar a usar Healthier: consultas, recetas e historia clínica en un solo lugar.</p><p class="boton">Crear mi cuenta</p><p>Si el botón no funciona, copiá y pegá esta dirección en tu navegador:</p><p>[acá va el enlace]</p><p>Si no esperabas esta invitación, podés ignorar el mail.</p></div>
+      <div class="cuerpo"><p class="chip">Invitación</p><p class="titulo">{{ if .Data.invited_by_name }}{{ .Data.invited_by_name }} te invitó a Healthier{{ else }}Te invitaron a Healthier{{ end }}</p><p>Creá tu cuenta para empezar a usar Healthier: consultas, recetas e historia clínica en un solo lugar.</p><p class="boton">Crear mi cuenta</p><p>Si el botón no funciona, copiá y pegá esta dirección en tu navegador:</p><p>[acá va el enlace]</p><p>Si no esperabas esta invitación, podés ignorar el mail.</p></div>
       <label class="obs">
         <span>Observaciones</span>
         <textarea data-slug="auth-invitacion" data-titulo="Invitación"
@@ -244,6 +244,57 @@
                   rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
       </label>
     </article>
+    <article class="mail" id="bienvenida-referida">
+      <header>
+        <h3>Bienvenida · invitada por su profesional</h3>
+        <a class="ver" href="index.html#bienvenida-referida" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Dra. Valentina Ortiz te invitó a Healthier</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Tu cuenta ya está lista. Así podés empezar a usarla.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Bienvenido</p><p class="titulo">Tu salud, en un solo lugar</p><p>Hola Sofía Ramírez, Dra. Valentina Ortiz te invitó a Healthier y tu cuenta ya está lista. Acá tenés en un solo lugar a tus profesionales, tus consultas, tus recetas y tu historia clínica.</p><p class="etiqueta">Cómo podés empezar</p><p>Atendete ahora</p><p>Consulta inmediata con un profesional disponible, sin sacar turno.</p><p>Sacá un turno</p><p>Elegí especialidad, profesional y horario. Presencial o en línea.</p><p>Tus recetas digitales</p><p>Se emiten en la consulta y las presentás en la farmacia desde la app.</p><p>Tu bóveda clínica</p><p>Historia clínica interdisciplinaria: diagnósticos, indicaciones y estudios, en un solo lugar.</p><p class="boton">Buscar un profesional</p><p class="enlace">Ir a mi inicio</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="bienvenida-referida" data-titulo="Bienvenida · invitada por su profesional"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="cambio-correo-actual">
+      <header>
+        <h3>Cambio de correo · al correo actual</h3>
+        <a class="ver" href="index.html#cambio-correo-actual" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Tu código para cambiar el correo · 408215</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Código 408215 — vence en 30 minutos.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Cambio de correo</p><p class="titulo">Confirmá el cambio de correo</p><p>Hola Sofía, pediste cambiar el correo de tu cuenta de Healthier de sofia@correoviejo.com a sofia@correonuevo.com. Este es tu código:</p><p>408215</p><p>Hace falta este código y el que le llegó a la dirección nueva: los dos se escriben en la misma pantalla desde la que pediste el cambio.</p><p>Si no pediste este cambio, ignorá el mail y avisanos: sin los dos códigos tu correo no se modifica, y tu cuenta sigue funcionando igual.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="cambio-correo-actual" data-titulo="Cambio de correo · al correo actual"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
+    <article class="mail" id="cambio-correo-nuevo">
+      <header>
+        <h3>Cambio de correo · al correo nuevo</h3>
+        <a class="ver" href="index.html#cambio-correo-nuevo" target="_blank" rel="noopener">Ver el diseño ↗</a>
+      </header>
+      <dl class="meta">
+        <dt>Asunto</dt><dd class="destacado">Tu código para cambiar el correo · 731094</dd>
+        <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
+        <dd>Código 731094 — vence en 30 minutos.</dd>
+      </dl>
+      <div class="cuerpo"><p class="chip">Cambio de correo</p><p class="titulo">Confirmá el cambio de correo</p><p>Hola Sofía, este correo va a pasar a ser el de acceso a tu cuenta de Healthier. Este es tu código:</p><p>731094</p><p>Hace falta este código y el que le llegó a la dirección anterior: los dos se escriben en la misma pantalla desde la que se pidió el cambio.</p><p>El código vence en 30 minutos. Nunca te lo vamos a pedir por teléfono ni por WhatsApp.</p></div>
+      <label class="obs">
+        <span>Observaciones</span>
+        <textarea data-slug="cambio-correo-nuevo" data-titulo="Cambio de correo · al correo nuevo"
+                  rows="2" placeholder="Qué cambiarías de este texto…"></textarea>
+      </label>
+    </article>
   </section>
   <section class="grupo">
     <h2 id="g-turnos">Turnos</h2>
@@ -254,11 +305,11 @@
         <a class="ver" href="index.html#turno-video" target="_blank" rel="noopener">Ver el diseño ↗</a>
       </header>
       <dl class="meta">
-        <dt>Asunto</dt><dd class="destacado">Turno confirmado · Dra. Valentina Ortiz — dom, 13 de septiembre, 01:29</dd>
+        <dt>Asunto</dt><dd class="destacado">Turno confirmado · Dra. Valentina Ortiz — dom, 13 de septiembre, 09:25</dd>
         <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
-        <dd>Domingo, 13 de septiembre · 01:29 h · videoconsulta con Dra. Valentina Ortiz</dd>
+        <dd>Domingo, 13 de septiembre · 09:25 h · videoconsulta con Dra. Valentina Ortiz</dd>
       </dl>
-      <div class="cuerpo"><p class="chip">Turno confirmado</p><p class="titulo">Tu turno está reservado</p><p>Hola Sofía, tu turno quedó reservado.</p><p class="etiqueta">Cuándo</p><p>Domingo, 13 de septiembre · 01:29 h</p><p class="etiqueta">Con quién</p><p>Dra. Valentina Ortiz</p><p class="etiqueta">Modalidad</p><p>Videoconsulta</p><p class="etiqueta">Monto</p><p>$ 28.000</p><p class="etiqueta">Estado del pago</p><p>Pendiente de cobro</p><p>Entrá a la sala 5 minutos antes desde la app. Vas a necesitar cámara y micrófono.</p><p class="boton">Ver mi turno</p><p class="enlace">Ver todos mis turnos</p><p>Podés reprogramarlo o cancelarlo desde la app hasta el horario del turno. Conviene hacerlo con al menos 30 minutos de anticipación, para que el horario le quede libre a otra persona.</p></div>
+      <div class="cuerpo"><p class="chip">Turno confirmado</p><p class="titulo">Tu turno está reservado</p><p>Hola Sofía, tu turno quedó reservado.</p><p class="etiqueta">Cuándo</p><p>Domingo, 13 de septiembre · 09:25 h</p><p class="etiqueta">Con quién</p><p>Dra. Valentina Ortiz</p><p class="etiqueta">Modalidad</p><p>Videoconsulta</p><p class="etiqueta">Monto</p><p>$ 28.000</p><p class="etiqueta">Estado del pago</p><p>Pendiente de cobro</p><p>Entrá a la sala 5 minutos antes desde la app. Vas a necesitar cámara y micrófono.</p><p class="boton">Ver mi turno</p><p class="enlace">Ver todos mis turnos</p><p>Podés reprogramarlo o cancelarlo desde la app hasta el horario del turno. Conviene hacerlo con al menos 30 minutos de anticipación, para que el horario le quede libre a otra persona.</p></div>
       <label class="obs">
         <span>Observaciones</span>
         <textarea data-slug="turno-video" data-titulo="Turno confirmado · video"
@@ -271,11 +322,11 @@
         <a class="ver" href="index.html#turno-presencial" target="_blank" rel="noopener">Ver el diseño ↗</a>
       </header>
       <dl class="meta">
-        <dt>Asunto</dt><dd class="destacado">Turno confirmado · Dra. Valentina Ortiz — dom, 13 de septiembre, 01:29</dd>
+        <dt>Asunto</dt><dd class="destacado">Turno confirmado · Dra. Valentina Ortiz — dom, 13 de septiembre, 09:25</dd>
         <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
-        <dd>Domingo, 13 de septiembre · 01:29 h · consulta presencial con Dra. Valentina Ortiz</dd>
+        <dd>Domingo, 13 de septiembre · 09:25 h · consulta presencial con Dra. Valentina Ortiz</dd>
       </dl>
-      <div class="cuerpo"><p class="chip">Turno confirmado</p><p class="titulo">Tu turno está reservado</p><p>Hola Sofía, tu turno quedó reservado.</p><p class="etiqueta">Cuándo</p><p>Domingo, 13 de septiembre · 01:29 h</p><p class="etiqueta">Con quién</p><p>Dra. Valentina Ortiz</p><p class="etiqueta">Modalidad</p><p>Consulta presencial</p><p class="etiqueta">Dónde</p><p>Av. Santa Fe 2450, piso 4 “B” — Recoleta, CABA</p><p class="etiqueta">Monto</p><p>$ 28.000</p><p class="etiqueta">Estado del pago</p><p>Pendiente de cobro</p><p>Llegá 10 minutos antes. Si no vas a poder ir, cancelá desde la app para liberarle el horario a otra persona.</p><p class="boton">Ver mi turno</p><p class="enlace">Ver todos mis turnos</p><p>Podés reprogramarlo o cancelarlo desde la app hasta el horario del turno. Conviene hacerlo con al menos 30 minutos de anticipación, para que el horario le quede libre a otra persona.</p></div>
+      <div class="cuerpo"><p class="chip">Turno confirmado</p><p class="titulo">Tu turno está reservado</p><p>Hola Sofía, tu turno quedó reservado.</p><p class="etiqueta">Cuándo</p><p>Domingo, 13 de septiembre · 09:25 h</p><p class="etiqueta">Con quién</p><p>Dra. Valentina Ortiz</p><p class="etiqueta">Modalidad</p><p>Consulta presencial</p><p class="etiqueta">Dónde</p><p>Av. Santa Fe 2450, piso 4 “B” — Recoleta, CABA</p><p class="etiqueta">Monto</p><p>$ 28.000</p><p class="etiqueta">Estado del pago</p><p>Pendiente de cobro</p><p>Llegá 10 minutos antes. Si no vas a poder ir, cancelá desde la app para liberarle el horario a otra persona.</p><p class="boton">Ver mi turno</p><p class="enlace">Ver todos mis turnos</p><p>Podés reprogramarlo o cancelarlo desde la app hasta el horario del turno. Conviene hacerlo con al menos 30 minutos de anticipación, para que el horario le quede libre a otra persona.</p></div>
       <label class="obs">
         <span>Observaciones</span>
         <textarea data-slug="turno-presencial" data-titulo="Turno confirmado · presencial"
@@ -288,11 +339,11 @@
         <a class="ver" href="index.html#turno-profesional" target="_blank" rel="noopener">Ver el diseño ↗</a>
       </header>
       <dl class="meta">
-        <dt>Asunto</dt><dd class="destacado">Nueva reserva · Sofía Ramírez — dom, 13 de septiembre, 01:29</dd>
+        <dt>Asunto</dt><dd class="destacado">Nueva reserva · Sofía Ramírez — dom, 13 de septiembre, 09:25</dd>
         <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
-        <dd>Sofía Ramírez · Domingo, 13 de septiembre · 01:29 h</dd>
+        <dd>Sofía Ramírez · Domingo, 13 de septiembre · 09:25 h</dd>
       </dl>
-      <div class="cuerpo"><p class="chip">Nueva reserva</p><p class="titulo">Te reservaron un turno</p><p>Hola Dra. Valentina Ortiz, tenés una consulta nueva en tu agenda.</p><p class="etiqueta">Paciente</p><p>Sofía Ramírez</p><p class="etiqueta">Cuándo</p><p>Domingo, 13 de septiembre · 01:29 h</p><p class="etiqueta">Modalidad</p><p>Videoconsulta</p><p class="etiqueta">Monto</p><p>$ 28.000</p><p class="etiqueta">Estado del pago</p><p>Pendiente de cobro</p><p>El pago se te acredita cuando cerrás la consulta, no al reservarse el turno.</p><p class="boton">Ver mi agenda</p></div>
+      <div class="cuerpo"><p class="chip">Nueva reserva</p><p class="titulo">Te reservaron un turno</p><p>Hola Dra. Valentina Ortiz, tenés una consulta nueva en tu agenda.</p><p class="etiqueta">Paciente</p><p>Sofía Ramírez</p><p class="etiqueta">Cuándo</p><p>Domingo, 13 de septiembre · 09:25 h</p><p class="etiqueta">Modalidad</p><p>Videoconsulta</p><p class="etiqueta">Monto</p><p>$ 28.000</p><p class="etiqueta">Estado del pago</p><p>Pendiente de cobro</p><p>El pago se te acredita cuando cerrás la consulta, no al reservarse el turno.</p><p class="boton">Ver mi agenda</p></div>
       <label class="obs">
         <span>Observaciones</span>
         <textarea data-slug="turno-profesional" data-titulo="Nueva reserva (al profesional)"
@@ -324,9 +375,9 @@
       <dl class="meta">
         <dt>Asunto</dt><dd class="destacado">Mañana tenés turno con Dra. Valentina Ortiz</dd>
         <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
-        <dd>Domingo, 13 de septiembre · 01:29 h</dd>
+        <dd>Domingo, 13 de septiembre · 09:25 h</dd>
       </dl>
-      <div class="cuerpo"><p class="chip">Recordatorio</p><p class="titulo">Mañana tenés turno</p><p>Hola Sofía, te recordamos que mañana tenés turno.</p><p class="etiqueta">Cuándo</p><p>Domingo, 13 de septiembre · 01:29 h</p><p class="etiqueta">Con quién</p><p>Dra. Valentina Ortiz</p><p class="etiqueta">Modalidad</p><p>Videoconsulta</p><p>Probá cámara y micrófono antes de entrar. La sala se abre 5 minutos antes.</p><p class="boton">Entrar a la sala</p></div>
+      <div class="cuerpo"><p class="chip">Recordatorio</p><p class="titulo">Mañana tenés turno</p><p>Hola Sofía, te recordamos que mañana tenés turno.</p><p class="etiqueta">Cuándo</p><p>Domingo, 13 de septiembre · 09:25 h</p><p class="etiqueta">Con quién</p><p>Dra. Valentina Ortiz</p><p class="etiqueta">Modalidad</p><p>Videoconsulta</p><p>Probá cámara y micrófono antes de entrar. La sala se abre 5 minutos antes.</p><p class="boton">Entrar a la sala</p></div>
       <label class="obs">
         <span>Observaciones</span>
         <textarea data-slug="recordatorio-manana" data-titulo="Recordatorio · mañana"
@@ -341,9 +392,9 @@
       <dl class="meta">
         <dt>Asunto</dt><dd class="destacado">Tu turno con Dra. Valentina Ortiz empieza en 30 minutos</dd>
         <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
-        <dd>Viernes, 11 de septiembre · 23:59 h</dd>
+        <dd>Sábado, 12 de septiembre · 07:55 h</dd>
       </dl>
-      <div class="cuerpo"><p class="chip">Empieza pronto</p><p class="titulo">Tu turno empieza en 30 minutos</p><p>Hola Sofía, tu turno empieza en media hora.</p><p class="etiqueta">Cuándo</p><p>Viernes, 11 de septiembre · 23:59 h</p><p class="etiqueta">Con quién</p><p>Dra. Valentina Ortiz</p><p class="etiqueta">Modalidad</p><p>Videoconsulta</p><p>Probá cámara y micrófono antes de entrar. La sala se abre 5 minutos antes.</p><p class="boton">Entrar a la sala</p></div>
+      <div class="cuerpo"><p class="chip">Empieza pronto</p><p class="titulo">Tu turno empieza en 30 minutos</p><p>Hola Sofía, tu turno empieza en media hora.</p><p class="etiqueta">Cuándo</p><p>Sábado, 12 de septiembre · 07:55 h</p><p class="etiqueta">Con quién</p><p>Dra. Valentina Ortiz</p><p class="etiqueta">Modalidad</p><p>Videoconsulta</p><p>Probá cámara y micrófono antes de entrar. La sala se abre 5 minutos antes.</p><p class="boton">Entrar a la sala</p></div>
       <label class="obs">
         <span>Observaciones</span>
         <textarea data-slug="recordatorio-pronto" data-titulo="Recordatorio · en 30 minutos"
@@ -358,9 +409,9 @@
       <dl class="meta">
         <dt>Asunto</dt><dd class="destacado">Turno cancelado · Dra. Valentina Ortiz</dd>
         <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
-        <dd>Domingo, 13 de septiembre · 01:29 h con Dra. Valentina Ortiz se canceló.</dd>
+        <dd>Domingo, 13 de septiembre · 09:25 h con Dra. Valentina Ortiz se canceló.</dd>
       </dl>
-      <div class="cuerpo"><p class="chip">Turno cancelado</p><p class="titulo">Se canceló el turno</p><p>Hola Sofía, se canceló el turno que tenías con Dra. Valentina Ortiz.</p><p class="chip">Turno cancelado</p><p>Domingo, 13 de septiembre · 01:29 h</p><p class="etiqueta">Con quién era</p><p>Dra. Valentina Ortiz</p><p class="etiqueta">Motivo</p><p>El profesional tuvo una urgencia</p><p>Si ya habías pagado, la devolución sale automáticamente por Mercado Pago y se acredita en tu medio de pago entre 5 y 10 días hábiles.</p><p class="boton">Reservar otro turno</p></div>
+      <div class="cuerpo"><p class="chip">Turno cancelado</p><p class="titulo">Se canceló el turno</p><p>Hola Sofía, se canceló el turno que tenías con Dra. Valentina Ortiz.</p><p class="chip">Turno cancelado</p><p>Domingo, 13 de septiembre · 09:25 h</p><p class="etiqueta">Con quién era</p><p>Dra. Valentina Ortiz</p><p class="etiqueta">Motivo</p><p>El profesional tuvo una urgencia</p><p>Si ya habías pagado, la devolución sale automáticamente por Mercado Pago y se acredita en tu medio de pago entre 5 y 10 días hábiles.</p><p class="boton">Reservar otro turno</p></div>
       <label class="obs">
         <span>Observaciones</span>
         <textarea data-slug="cancelada-paciente" data-titulo="Turno cancelado (al paciente)"
@@ -375,9 +426,9 @@
       <dl class="meta">
         <dt>Asunto</dt><dd class="destacado">Turno cancelado · Sofía Ramírez</dd>
         <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
-        <dd>Domingo, 13 de septiembre · 01:29 h con Sofía Ramírez se canceló.</dd>
+        <dd>Domingo, 13 de septiembre · 09:25 h con Sofía Ramírez se canceló.</dd>
       </dl>
-      <div class="cuerpo"><p class="chip">Turno cancelado</p><p class="titulo">Se canceló el turno</p><p>Hola Dra. Valentina Ortiz, se canceló el turno que tenías con Sofía Ramírez.</p><p class="chip">Turno cancelado</p><p>Domingo, 13 de septiembre · 01:29 h</p><p class="etiqueta">Paciente</p><p>Sofía Ramírez</p><p class="boton">Ver mi agenda</p></div>
+      <div class="cuerpo"><p class="chip">Turno cancelado</p><p class="titulo">Se canceló el turno</p><p>Hola Dra. Valentina Ortiz, se canceló el turno que tenías con Sofía Ramírez.</p><p class="chip">Turno cancelado</p><p>Domingo, 13 de septiembre · 09:25 h</p><p class="etiqueta">Paciente</p><p>Sofía Ramírez</p><p class="boton">Ver mi agenda</p></div>
       <label class="obs">
         <span>Observaciones</span>
         <textarea data-slug="cancelada-profesional" data-titulo="Turno cancelado (al profesional)"
@@ -398,7 +449,7 @@
         <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
         <dd>Tu resumen, las indicaciones y tu receta ya están en la app.</dd>
       </dl>
-      <div class="cuerpo"><p class="chip">Consulta finalizada</p><p class="titulo">El resumen de tu consulta</p><p>Hola Sofía, terminó tu videoconsulta con Dra. Valentina Ortiz. Acá está todo lo que hablaron.</p><p>Dra. Valentina Ortiz</p><p>Medicina General</p><p>Videoconsulta · 11 de septiembre de 2026</p><p class="etiqueta">Lo que anotó el profesional</p><p>Cuadro compatible con faringitis bacteriana. Arrancá el antibiótico hoy mismo y completá los 7 días aunque te sientas mejor a los dos.</p><p>Si a las 72 h seguís con fiebre por encima de 38 °C, escribime por la app antes de volver a consultar.</p><p class="etiqueta">Diagnóstico</p><p>Faringitis aguda estreptocócica (J02.0)</p><p>Confirmada por examen clínico.</p><p class="etiqueta">Indicaciones</p><p>Reposo relativo 48 h</p><p>Evitá esfuerzo físico hasta que baje la fiebre.</p><p>Hidratación abundante</p><p>2 a 2,5 litros de agua por día.</p><p>Paracetamol 500 mg</p><p>Cada 8 h si hay dolor o fiebre · venta libre</p><p>No pasar de 3 comprimidos por día.</p><p class="etiqueta">Recetas electrónicas</p><p>Amoxicilina 500 mg · Ibuprofeno 400 mg</p><p>Presentala en la farmacia desde el celular o descargala en PDF.</p><p class="enlace">Descargar receta →</p><p>Con la receta electrónica podés pedir los medicamentos por la app y que te lleguen a tu casa.</p><p class="boton">Ver el resumen completo</p><p class="enlace">Ver todas mis recetas</p><p class="enlace">Calificar la atención de Dra. Valentina Ortiz</p><p>Todo esto queda guardado para siempre en tu historia clínica de Healthier.</p></div>
+      <div class="cuerpo"><p class="chip">Consulta finalizada</p><p class="titulo">El resumen de tu consulta</p><p>Hola Sofía, terminó tu videoconsulta con Dra. Valentina Ortiz. Acá está todo lo que hablaron.</p><p>Dra. Valentina Ortiz</p><p>Medicina General</p><p>Videoconsulta · 12 de septiembre de 2026</p><p class="etiqueta">Lo que anotó el profesional</p><p>Cuadro compatible con faringitis bacteriana. Arrancá el antibiótico hoy mismo y completá los 7 días aunque te sientas mejor a los dos.</p><p>Si a las 72 h seguís con fiebre por encima de 38 °C, escribime por la app antes de volver a consultar.</p><p class="etiqueta">Diagnóstico</p><p>Faringitis aguda estreptocócica (J02.0)</p><p>Confirmada por examen clínico.</p><p class="etiqueta">Indicaciones</p><p>Reposo relativo 48 h</p><p>Evitá esfuerzo físico hasta que baje la fiebre.</p><p>Hidratación abundante</p><p>2 a 2,5 litros de agua por día.</p><p>Paracetamol 500 mg</p><p>Cada 8 h si hay dolor o fiebre · venta libre</p><p>No pasar de 3 comprimidos por día.</p><p class="etiqueta">Recetas electrónicas</p><p>Amoxicilina 500 mg · Ibuprofeno 400 mg</p><p>Presentala en la farmacia desde el celular o descargala en PDF.</p><p class="enlace">Descargar receta →</p><p>Con la receta electrónica podés pedir los medicamentos por la app y que te lleguen a tu casa.</p><p class="boton">Ver el resumen completo</p><p class="enlace">Ver todas mis recetas</p><p class="enlace">Calificar la atención de Dra. Valentina Ortiz</p><p>Todo esto queda guardado para siempre en tu historia clínica de Healthier.</p></div>
       <label class="obs">
         <span>Observaciones</span>
         <textarea data-slug="post-video" data-titulo="Post consulta · videoconsulta"
@@ -415,7 +466,7 @@
         <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
         <dd>Tu resumen, las indicaciones y tu receta ya están en la app.</dd>
       </dl>
-      <div class="cuerpo"><p class="chip">Consulta finalizada</p><p class="titulo">El resumen de tu consulta</p><p>Hola Sofía, gracias por venir. Acá está el resumen de tu consulta con Dra. Valentina Ortiz.</p><p>Dra. Valentina Ortiz</p><p>Medicina General</p><p>Consulta presencial · 11 de septiembre de 2026</p><p class="etiqueta">Lo que anotó el profesional</p><p>Cuadro compatible con faringitis bacteriana. Arrancá el antibiótico hoy mismo y completá los 7 días aunque te sientas mejor a los dos.</p><p>Si a las 72 h seguís con fiebre por encima de 38 °C, escribime por la app antes de volver a consultar.</p><p class="etiqueta">Diagnóstico</p><p>Faringitis aguda estreptocócica (J02.0)</p><p>Confirmada por examen clínico.</p><p class="etiqueta">Indicaciones</p><p>Reposo relativo 48 h</p><p>Evitá esfuerzo físico hasta que baje la fiebre.</p><p>Hidratación abundante</p><p>2 a 2,5 litros de agua por día.</p><p>Paracetamol 500 mg</p><p>Cada 8 h si hay dolor o fiebre · venta libre</p><p>No pasar de 3 comprimidos por día.</p><p class="etiqueta">Recetas electrónicas</p><p>Amoxicilina 500 mg · Ibuprofeno 400 mg</p><p>Presentala en la farmacia desde el celular o descargala en PDF.</p><p class="enlace">Descargar receta →</p><p>Con la receta electrónica podés pedir los medicamentos por la app y que te lleguen a tu casa.</p><p class="boton">Ver el resumen completo</p><p class="enlace">Ver todas mis recetas</p><p class="enlace">Calificar la atención de Dra. Valentina Ortiz</p><p>Todo esto queda guardado para siempre en tu historia clínica de Healthier.</p></div>
+      <div class="cuerpo"><p class="chip">Consulta finalizada</p><p class="titulo">El resumen de tu consulta</p><p>Hola Sofía, gracias por venir. Acá está el resumen de tu consulta con Dra. Valentina Ortiz.</p><p>Dra. Valentina Ortiz</p><p>Medicina General</p><p>Consulta presencial · 12 de septiembre de 2026</p><p class="etiqueta">Lo que anotó el profesional</p><p>Cuadro compatible con faringitis bacteriana. Arrancá el antibiótico hoy mismo y completá los 7 días aunque te sientas mejor a los dos.</p><p>Si a las 72 h seguís con fiebre por encima de 38 °C, escribime por la app antes de volver a consultar.</p><p class="etiqueta">Diagnóstico</p><p>Faringitis aguda estreptocócica (J02.0)</p><p>Confirmada por examen clínico.</p><p class="etiqueta">Indicaciones</p><p>Reposo relativo 48 h</p><p>Evitá esfuerzo físico hasta que baje la fiebre.</p><p>Hidratación abundante</p><p>2 a 2,5 litros de agua por día.</p><p>Paracetamol 500 mg</p><p>Cada 8 h si hay dolor o fiebre · venta libre</p><p>No pasar de 3 comprimidos por día.</p><p class="etiqueta">Recetas electrónicas</p><p>Amoxicilina 500 mg · Ibuprofeno 400 mg</p><p>Presentala en la farmacia desde el celular o descargala en PDF.</p><p class="enlace">Descargar receta →</p><p>Con la receta electrónica podés pedir los medicamentos por la app y que te lleguen a tu casa.</p><p class="boton">Ver el resumen completo</p><p class="enlace">Ver todas mis recetas</p><p class="enlace">Calificar la atención de Dra. Valentina Ortiz</p><p>Todo esto queda guardado para siempre en tu historia clínica de Healthier.</p></div>
       <label class="obs">
         <span>Observaciones</span>
         <textarea data-slug="post-presencial" data-titulo="Post consulta · presencial"
@@ -432,7 +483,7 @@
         <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
         <dd>Tu resumen, las indicaciones y tu receta ya están en la app.</dd>
       </dl>
-      <div class="cuerpo"><p class="chip">Consulta finalizada</p><p class="titulo">El resumen de tu consulta</p><p>Hola Sofía, terminó tu consulta inmediata con Dra. Valentina Ortiz. Acá quedó todo lo que necesitás.</p><p>Dra. Valentina Ortiz</p><p>Medicina General</p><p>Consulta inmediata · 11 de septiembre de 2026</p><p class="etiqueta">Lo que anotó el profesional</p><p>Cuadro compatible con faringitis bacteriana. Arrancá el antibiótico hoy mismo y completá los 7 días aunque te sientas mejor a los dos.</p><p>Si a las 72 h seguís con fiebre por encima de 38 °C, escribime por la app antes de volver a consultar.</p><p class="etiqueta">Diagnóstico</p><p>Faringitis aguda estreptocócica (J02.0)</p><p>Confirmada por examen clínico.</p><p class="etiqueta">Indicaciones</p><p>Reposo relativo 48 h</p><p>Evitá esfuerzo físico hasta que baje la fiebre.</p><p>Hidratación abundante</p><p>2 a 2,5 litros de agua por día.</p><p>Paracetamol 500 mg</p><p>Cada 8 h si hay dolor o fiebre · venta libre</p><p>No pasar de 3 comprimidos por día.</p><p class="etiqueta">Recetas electrónicas</p><p>Amoxicilina 500 mg · Ibuprofeno 400 mg</p><p>Presentala en la farmacia desde el celular o descargala en PDF.</p><p class="enlace">Descargar receta →</p><p>Con la receta electrónica podés pedir los medicamentos por la app y que te lleguen a tu casa.</p><p class="boton">Ver el resumen completo</p><p class="enlace">Ver todas mis recetas</p><p class="enlace">Calificar la atención de Dra. Valentina Ortiz</p><p>Todo esto queda guardado para siempre en tu historia clínica de Healthier.</p></div>
+      <div class="cuerpo"><p class="chip">Consulta finalizada</p><p class="titulo">El resumen de tu consulta</p><p>Hola Sofía, terminó tu consulta inmediata con Dra. Valentina Ortiz. Acá quedó todo lo que necesitás.</p><p>Dra. Valentina Ortiz</p><p>Medicina General</p><p>Consulta inmediata · 12 de septiembre de 2026</p><p class="etiqueta">Lo que anotó el profesional</p><p>Cuadro compatible con faringitis bacteriana. Arrancá el antibiótico hoy mismo y completá los 7 días aunque te sientas mejor a los dos.</p><p>Si a las 72 h seguís con fiebre por encima de 38 °C, escribime por la app antes de volver a consultar.</p><p class="etiqueta">Diagnóstico</p><p>Faringitis aguda estreptocócica (J02.0)</p><p>Confirmada por examen clínico.</p><p class="etiqueta">Indicaciones</p><p>Reposo relativo 48 h</p><p>Evitá esfuerzo físico hasta que baje la fiebre.</p><p>Hidratación abundante</p><p>2 a 2,5 litros de agua por día.</p><p>Paracetamol 500 mg</p><p>Cada 8 h si hay dolor o fiebre · venta libre</p><p>No pasar de 3 comprimidos por día.</p><p class="etiqueta">Recetas electrónicas</p><p>Amoxicilina 500 mg · Ibuprofeno 400 mg</p><p>Presentala en la farmacia desde el celular o descargala en PDF.</p><p class="enlace">Descargar receta →</p><p>Con la receta electrónica podés pedir los medicamentos por la app y que te lleguen a tu casa.</p><p class="boton">Ver el resumen completo</p><p class="enlace">Ver todas mis recetas</p><p class="enlace">Calificar la atención de Dra. Valentina Ortiz</p><p>Todo esto queda guardado para siempre en tu historia clínica de Healthier.</p></div>
       <label class="obs">
         <span>Observaciones</span>
         <textarea data-slug="post-ondemand" data-titulo="Post consulta · inmediata"
@@ -449,7 +500,7 @@
         <dt>Vista previa <span title="El renglón gris que Gmail muestra al lado del asunto">(?)</span></dt>
         <dd>Tu resumen y las indicaciones ya están en la app.</dd>
       </dl>
-      <div class="cuerpo"><p class="chip">Consulta finalizada</p><p class="titulo">El resumen de tu consulta</p><p>Hola Sofía, terminó tu videoconsulta con Dra. Valentina Ortiz. Acá está todo lo que hablaron.</p><p>Dra. Valentina Ortiz</p><p>Medicina General</p><p>Videoconsulta · 11 de septiembre de 2026</p><p class="boton">Ver el resumen completo</p><p class="enlace">Calificar la atención de Dra. Valentina Ortiz</p><p>Todo esto queda guardado para siempre en tu historia clínica de Healthier.</p></div>
+      <div class="cuerpo"><p class="chip">Consulta finalizada</p><p class="titulo">El resumen de tu consulta</p><p>Hola Sofía, terminó tu videoconsulta con Dra. Valentina Ortiz. Acá está todo lo que hablaron.</p><p>Dra. Valentina Ortiz</p><p>Medicina General</p><p>Videoconsulta · 12 de septiembre de 2026</p><p class="boton">Ver el resumen completo</p><p class="enlace">Calificar la atención de Dra. Valentina Ortiz</p><p>Todo esto queda guardado para siempre en tu historia clínica de Healthier.</p></div>
       <label class="obs">
         <span>Observaciones</span>
         <textarea data-slug="post-sin-receta" data-titulo="Post consulta · sin receta ni diagnóstico"
