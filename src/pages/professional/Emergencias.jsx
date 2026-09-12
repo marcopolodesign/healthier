@@ -11,6 +11,7 @@ import {
   CheckCircle, ArrowLeft, Warning, Pulse, UserCircle, Broadcast, WifiSlash,
 } from '@phosphor-icons/react'
 import { emergencyService, EMERGENCY_TERMINAL_STATUSES } from '../../services/emergencyService'
+import { dispatchService } from '../../services/dispatchService'
 import { emergencyTrackingService } from '../../services/emergencyTrackingService'
 import { useCompartirUbicacionEmergencia } from '../../hooks/useCompartirUbicacionEmergencia'
 import { formatMeters, formatMinutes } from '../../lib/directions'
@@ -86,9 +87,13 @@ export default function ProfessionalEmergencias({ profile }) {
 
     if (!profile?.id) return
 
+    // El que va puede no ser el médico: desde la migración 160 la tripulación
+    // incluye chofer y enfermero, y a ellos `getActiveForProfessional` —que
+    // filtra por `professional_id`— les devuelve vacío. Entraban y leían "En
+    // guardia" con su propia ambulancia despachada.
     const load = emergenciaId
       ? emergencyService.getById(emergenciaId)
-      : emergencyService.getActiveForProfessional(profile.id)
+      : emergencyService.getActiveParaTripulacion(profile.id)
 
     load
       .then(e => setEmergency(e))
@@ -97,12 +102,24 @@ export default function ProfessionalEmergencias({ profile }) {
 
     // Realtime only when not pinned to a specific ID
     if (!emergenciaId) {
-      unsubRef.current = emergencyService.subscribe(profile.id, (updated) => {
+      const alCambiar = (updated) => {
         setEmergency(EMERGENCY_TERMINAL_STATUSES.includes(updated.status) ? null : updated)
         if (updated.status === 'dispatched' && navigator.vibrate) {
           navigator.vibrate([200, 100, 200])
         }
-      })
+      }
+      // Dos suscripciones por el mismo motivo que dos consultas: el filtro de
+      // `subscribe()` es por `professional_id` y no alcanza para la
+      // tripulación. Las dos se limpian juntas.
+      const cortarPropia = emergencyService.subscribe(profile.id, alCambiar)
+      let cortarTripulacion = () => {}
+      dispatchService.misAmbulancias()
+        .then(cs => {
+          const ids = cs.map(c => c.ambulance?.id).filter(Boolean)
+          if (ids.length) cortarTripulacion = emergencyService.suscribirTripulacion(ids, alCambiar)
+        })
+        .catch(() => {/* la carga inicial ya trajo lo que hay */})
+      unsubRef.current = () => { cortarPropia(); cortarTripulacion() }
     }
     return () => unsubRef.current?.()
   }, [profile?.id, emergenciaId, demoPhase])

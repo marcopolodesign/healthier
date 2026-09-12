@@ -97,6 +97,62 @@ export const emergencyService = {
     return data ? toCamelCase(data) : null
   },
 
+  /**
+   * El traslado que le toca al usuario logueado, sea el médico asignado o
+   * cualquier otro tripulante del móvil.
+   *
+   * `getActiveForProfessional` busca por `professional_id`, que es el médico.
+   * Con la migración 160 la tripulación incluye chofer y enfermero, y a ellos
+   * esa consulta les devuelve vacío: entraban a la pantalla y leían "En
+   * guardia · No hay emergencias activas asignadas" con su ambulancia
+   * despachada. Se vio probando desde el front con la cuenta del chofer.
+   *
+   * Dos consultas y no un `or` de PostgREST: el filtro por ambulancia sale de
+   * otra tabla (`ambulance_crew`), así que no hay forma de expresarlo en un
+   * solo `.or()`. La RLS igual acota las dos — un ajeno no ve ninguna.
+   */
+  async getActiveParaTripulacion(profileId) {
+    const propia = await this.getActiveForProfessional(profileId)
+    if (propia) return propia
+
+    const { data: moviles, error: crewError } = await supabase
+      .from('ambulance_crew')
+      .select('ambulance_id')
+      .eq('profile_id', profileId)
+      .eq('active', true)
+    if (crewError) throw crewError
+    if (!moviles?.length) return null
+
+    const { data, error } = await supabase
+      .from('emergencies')
+      .select('*, patient:profiles!patient_id(full_name, avatar_url, phone)')
+      .in('ambulance_id', moviles.map(m => m.ambulanceId ?? m.ambulance_id))
+      .in('status', EMERGENCY_ACTIVE_STATUSES)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) throw error
+    return data ? toCamelCase(data) : null
+  },
+
+  /**
+   * Realtime para la tripulación: el filtro de `subscribe()` es
+   * `professional_id=eq.<uid>`, que al chofer no le trae nada. Acá se escucha
+   * por ambulancia.
+   */
+  suscribirTripulacion(ambulanceIds, onChange) {
+    if (!ambulanceIds?.length) return () => {}
+    const canales = ambulanceIds.map(id =>
+      supabase
+        .channel(`crew-emergency-${id}`)
+        .on('postgres_changes',
+          { event: '*', schema: 'public', table: 'emergencies', filter: `ambulance_id=eq.${id}` },
+          payload => onChange(toCamelCase(payload.new)))
+        .subscribe(),
+    )
+    return () => { canales.forEach(c => supabase.removeChannel(c)) }
+  },
+
   /** Update emergency status — returns the updated row (camelCased). */
   async updateStatus(emergencyId, status) {
     const { data, error } = await supabase
