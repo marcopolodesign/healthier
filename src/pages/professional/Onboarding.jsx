@@ -12,6 +12,7 @@ import { OPCIONES_SEXO } from '../../lib/datosReceta'
 import { toast } from '../../components/Toast'
 import { isLikelyTooSmallForFace } from '../../lib/imageCompression'
 import OnboardingPreview from '../../components/professional/OnboardingPreview'
+import EnvioFallidoSheet from '../../components/professional/EnvioFallidoSheet'
 import { LAWS } from '../../lib/laws'
 import { track } from '../../utils/analytics'
 
@@ -232,6 +233,22 @@ export default function Onboarding({ profile }) {
   // Lo que ya subió en ESTA pantalla, aunque el envío después se haya caído.
   // Sobrevive a los reintentos porque es un ref, no estado.
   const yaSubido = useRef({})
+  const [errorEnvio, setErrorEnvio] = useState(null)
+
+  // Los documentos que hoy están guardados: los del bucket (de cualquier
+  // intento, incluso de otro día) más los que subió recién. Es lo que la hoja
+  // de error le muestra para que sepa que no perdió nada.
+  const ETIQUETA_DOC = {
+    titulo: 'Título profesional',
+    matricula: 'Matrícula profesional',
+    dni: 'DNI',
+    seguro_mala_praxis: 'Seguro de mala praxis',
+    certificado_especialista: 'Certificado de especialista',
+    cuit: 'CUIT / Monotributo',
+  }
+  const docsGuardados = Object.keys(ETIQUETA_DOC)
+    .filter(k => existingDocs[k] || yaSubido.current[k])
+    .map(k => ETIQUETA_DOC[k])
 
   const submit = async () => {
     setLoading(true)
@@ -316,10 +333,14 @@ export default function Onboarding({ profile }) {
       await professionalService.upsert(profile.id, payload)
 
       track('sign_up_complete', { flow: 'profesional', profile_completed: true })
+      setErrorEnvio(null)
       toast.success('¡Perfil enviado! Un administrador lo revisará pronto.')
       navigate('/profesional/dashboard')
     } catch (err) {
-      toast.error(err.message || 'Error al enviar el perfil')
+      // La hoja reemplaza al toast para el error: un cartel que se va solo no
+      // deja reintentar ni dice que lo subido está a salvo, que es lo que hace
+      // que alguien abandone el alta. Ver EnvioFallidoSheet.
+      setErrorEnvio(err.message || 'No pudimos enviar tu legajo.')
       // Lo que sí llegó al bucket tiene que aparecer como "ya subido" antes de
       // que vuelva a intentar: si no, el segundo intento repite las mismas
       // subidas y se cae en el mismo lugar.
@@ -773,6 +794,15 @@ export default function Onboarding({ profile }) {
       <div className="hidden lg:flex lg:sticky lg:top-0 lg:h-screen lg:self-start bg-bg-secondary p-8">
         <OnboardingPreview step={step} form={form} profile={profile} avatarPreview={avatarPreview} />
       </div>
+
+      <EnvioFallidoSheet
+        open={!!errorEnvio}
+        motivo={errorEnvio}
+        subidos={docsGuardados}
+        reintentando={loading}
+        onClose={() => setErrorEnvio(null)}
+        onReintentar={submit}
+      />
     </div>
   )
 }
