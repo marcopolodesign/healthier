@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate, useLocation, useParams } from 'react-router-dom'
 import { ToastContainer, toast } from './components/Toast'
+import VersionNueva from './components/VersionNueva'
 import AppLayout from './layouts/AppLayout'
 import AuthLayout from './layouts/AuthLayout'
 import PatientMobileLayout from './layouts/PatientMobileLayout'
@@ -335,6 +336,7 @@ export default function App() {
   return (
     <Router>
       <ToastContainer />
+      <VersionNueva />
       <AuthRedirectHandler profile={profile} authUser={authUser} />
       <CioPageTracker />
       <Routes>
