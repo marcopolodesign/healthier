@@ -75,7 +75,14 @@ function practicaEstaVisible() {
   try { return !localStorage.getItem(CLAVE_PRACTICA_CERRADA) } catch { return true }
 }
 
-function TarjetaPractica() {
+/**
+ * `enFila` — la misma tarjeta convive en dos anchos: a todo lo ancho en el
+ * inicio del verificado, y a un tercio en la fila de tres del que espera la
+ * verificación. En un tercio, el layout horizontal (ícono | texto | CTA) deja
+ * el título en una columna de cuatro palabras. Con `enFila` se apila adentro a
+ * partir de `lg`, que es justo donde la fila existe.
+ */
+function TarjetaPractica({ enFila = false }) {
   const [cerrada, setCerrada] = useState(() => !practicaEstaVisible())
   if (cerrada) return null
 
@@ -91,7 +98,9 @@ function TarjetaPractica() {
   return (
     <Link
       to={`/profesional/videollamada/${ID_SIMULACION}`}
-      className="card relative flex items-center gap-4 border-brand/25 bg-brand-muted/25 hover:border-brand/50 transition-colors group"
+      className={`card relative flex items-center gap-4 border-brand/25 bg-brand-muted/25 hover:border-brand/50 transition-colors group${
+        enFila ? ' h-full lg:flex-col lg:items-start lg:gap-3' : ''
+      }`}
     >
       <div className="w-12 h-12 rounded-2xl bg-white border border-brand/20 flex items-center justify-center shrink-0">
         <GraduationCap weight="fill" className="h-6 w-6 text-brand" />
@@ -106,7 +115,9 @@ function TarjetaPractica() {
       </div>
       {/* `mt-4` para que no quede pegado a la cruz de cerrar: separados por 4px
           se toca la equivocada, y las dos hacen cosas opuestas. */}
-      <div className="hidden sm:flex items-center gap-1 mt-4 text-brand text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">
+      <div className={`hidden sm:flex items-center gap-1 mt-4 text-brand text-sm font-semibold shrink-0 group-hover:gap-2 transition-all${
+        enFila ? ' lg:mt-auto' : ''
+      }`}>
         Empezar <ArrowRight className="h-4 w-4" />
       </div>
       <button
@@ -393,7 +404,7 @@ export default function ProfessionalDashboard({ profile }) {
         {!loading && mpStatus && !mpStatus.connected && (
           <a
             href={mpService.getMpConnectUrl(profile.id)}
-            className="card flex-1 min-w-0 flex items-center gap-4 border-red-300 bg-red-50 hover:border-red-400 transition-colors group"
+            className="card flex-1 min-w-0 flex items-center gap-4 lg:flex-col lg:items-start lg:gap-3 border-red-300 bg-red-50 hover:border-red-400 transition-colors group"
           >
             <div className="w-12 h-12 rounded-2xl bg-white border border-red-200 flex items-center justify-center shrink-0">
               <MercadoPagoMark className="w-8 h-8" />
@@ -403,7 +414,7 @@ export default function ProfessionalDashboard({ profile }) {
               <p className="text-base font-semibold text-text-primary mt-0.5">Conectá tu Mercado Pago</p>
               <p className="text-xs text-text-secondary mt-0.5">Podés hacerlo ahora, sin esperar la verificación. Sin esto no vas a poder recibir turnos.</p>
             </div>
-            <div className="flex items-center gap-1 text-red-600 text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">
+            <div className="flex items-center gap-1 text-red-600 text-sm font-semibold shrink-0 lg:mt-auto group-hover:gap-2 transition-all">
               Conectar <ArrowRight className="h-4 w-4" />
             </div>
           </a>
@@ -506,7 +517,7 @@ export default function ProfessionalDashboard({ profile }) {
         </div>
 
         <div data-tour="pro-practica" className="flex-1 min-w-0 empty:hidden">
-          {!isPermanentlyRejected && <TarjetaPractica />}
+          {!isPermanentlyRejected && <TarjetaPractica enFila />}
         </div>
         </div>
 
