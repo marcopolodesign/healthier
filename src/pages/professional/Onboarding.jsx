@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Check, Stethoscope, User, FileText, ClipboardText, LockKey, MagnifyingGlass, LinkSimple } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
@@ -30,6 +30,30 @@ const STEPS = [
   { label: 'Datos y privacidad', short: 'Privacidad',   icon: LockKey       },
   { label: 'Revisión y envío',   short: 'Revisión',     icon: ClipboardText },
 ]
+
+/**
+ * Sube una vez y, si se corta, reintenta dos veces más antes de darse por
+ * vencida. Desde un teléfono con datos móviles una subida que falla no es un
+ * archivo roto: es la conexión, y al segundo intento suele andar.
+ *
+ * El error que sale es el que lee el profesional. "Failed to fetch" —que es lo
+ * que tira el navegador— no le dice qué pasó ni qué hacer.
+ */
+async function conReintento(fn, etiqueta, intentos = 3) {
+  let ultimo
+  for (let i = 0; i < intentos; i++) {
+    try {
+      return await fn()
+    } catch (err) {
+      ultimo = err
+      if (i < intentos - 1) await new Promise(r => setTimeout(r, 800 * (i + 1)))
+    }
+  }
+  throw new Error(
+    `No pudimos subir ${etiqueta}: se cortó la conexión. Probá de nuevo — lo que ya se subió no se vuelve a subir. ` +
+    `(${ultimo?.message || 'error de red'})`
+  )
+}
 
 export default function Onboarding({ profile }) {
   const { especialidades, porSlug, subEspecialidadesDe } = useEspecialidades()
@@ -205,29 +229,50 @@ export default function Onboarding({ profile }) {
     professionalService.listDocuments(profile.id).then(setExistingDocs).catch(() => {})
   }, [profile?.id])
 
+  // Lo que ya subió en ESTA pantalla, aunque el envío después se haya caído.
+  // Sobrevive a los reintentos porque es un ref, no estado.
+  const yaSubido = useRef({})
+
   const submit = async () => {
     setLoading(true)
     try {
-      // Independent uploads to different storage paths — no data dependency
-      // between them, so run concurrently instead of serializing round-trips.
-      // Sin archivo nuevo se reusa el que ya estaba subido, en vez de mandar
-      // '' —que con el `|| undefined` de abajo deja la columna sin tocar y el
-      // archivo huérfano en el bucket—. Es el caso normal de un reenvío: el
-      // profesional ya subió todo y sólo viene a corregir la especialidad.
-      const uploadDoc = (file, fileName) =>
-        file
-          ? professionalService.uploadDocument(profile.id, file, 'professional-docs', fileName)
-          : Promise.resolve(existingDocs[fileName]?.url || '')
+      /*
+       * 🔴 Los archivos se suben DE A UNO, no en paralelo (2026-09-12).
+       *
+       * Iban los 7 juntos con `Promise.all`. Desde un teléfono con datos
+       * móviles eso es media docena de subidas multipart compitiendo por la
+       * misma conexión: alcanza con que UNA se corte para que el `Promise.all`
+       * rechace, y entonces **se pierde todo** — el legajo no se guarda, el
+       * profesional ve un "Failed to fetch" que no le dice nada, y los archivos
+       * que sí subieron quedan huérfanos en el bucket. Le pasó a un profesional
+       * real con 3 PDF en 4G: subió sólo el DNI y `professional_profiles` quedó
+       * sin crear.
+       *
+       * De a uno + dos reintentos, y lo que ya subió en este intento no se
+       * vuelve a subir (`yaSubido`), así que reintentar es barato.
+       */
+      const uploadDoc = async (file, fileName, etiqueta) => {
+        if (!file) return existingDocs[fileName]?.url || ''
+        if (yaSubido.current[fileName]) return yaSubido.current[fileName]
+        const url = await conReintento(
+          () => professionalService.uploadDocument(profile.id, file, 'professional-docs', fileName),
+          etiqueta,
+        )
+        yaSubido.current[fileName] = url
+        return url
+      }
 
-      const [, titleUrl, licenseUrl, dniUrl, malpracticeUrl, specialistCertUrl, cuitUrl] = await Promise.all([
-        avatarFile ? profilesService.uploadAvatar(profile.id, avatarFile) : Promise.resolve(null),
-        uploadDoc(titleFile, 'titulo'),
-        uploadDoc(licenseFile, 'matricula'),
-        uploadDoc(dniFile, 'dni'),
-        uploadDoc(malpracticeFile, 'seguro_mala_praxis'),
-        uploadDoc(specialistCertFile, 'certificado_especialista'),
-        uploadDoc(cuitFile, 'cuit'),
-      ])
+      if (avatarFile && !yaSubido.current.avatar) {
+        yaSubido.current.avatar = await conReintento(
+          () => profilesService.uploadAvatar(profile.id, avatarFile), 'tu foto',
+        )
+      }
+      const titleUrl          = await uploadDoc(titleFile, 'titulo', 'el título')
+      const licenseUrl        = await uploadDoc(licenseFile, 'matricula', 'la matrícula')
+      const dniUrl            = await uploadDoc(dniFile, 'dni', 'el DNI')
+      const malpracticeUrl    = await uploadDoc(malpracticeFile, 'seguro_mala_praxis', 'el seguro de mala praxis')
+      const specialistCertUrl = await uploadDoc(specialistCertFile, 'certificado_especialista', 'el certificado de especialista')
+      const cuitUrl           = await uploadDoc(cuitFile, 'cuit', 'el CUIT')
 
       // El DNI vive en `profiles`, no en `professional_profiles`: es un dato de
       // la persona, no de su perfil profesional. Se saca del payload para no
@@ -264,6 +309,10 @@ export default function Onboarding({ profile }) {
       navigate('/profesional/dashboard')
     } catch (err) {
       toast.error(err.message || 'Error al enviar el perfil')
+      // Lo que sí llegó al bucket tiene que aparecer como "ya subido" antes de
+      // que vuelva a intentar: si no, el segundo intento repite las mismas
+      // subidas y se cae en el mismo lugar.
+      professionalService.listDocuments(profile.id).then(setExistingDocs).catch(() => {})
     } finally {
       setLoading(false)
     }
