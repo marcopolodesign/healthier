@@ -1,6 +1,7 @@
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 // Ver la nota de la valla en `consultationsService.js`.
 import { esSimulado, PACIENTE } from '../lib/simulacion'
+import { aBlobSubible, extensionDe, TIPOS_AVATAR } from '../lib/archivoSubible'
 
 export const profilesService = {
   async getById(id) {
@@ -42,11 +43,14 @@ export const profilesService = {
   },
 
   async uploadAvatar(userId, file) {
-    const ext = file.name.split('.').pop()
-    const path = `${userId}/avatar.${ext}`
+    // Mismo criterio que los documentos del legajo: leer primero, mandar el
+    // tipo explícito. Ver `lib/archivoSubible.js`.
+    const { blob, contentType } = await aBlobSubible(file, TIPOS_AVATAR)
+    const ext = extensionDe(file)
+    const path = `${userId}/avatar${ext ? `.${ext}` : ''}`
     const { error: uploadError } = await supabase.storage
       .from('avatars')
-      .upload(path, file, { upsert: true })
+      .upload(path, blob, { upsert: true, contentType })
     if (uploadError) throw uploadError
 
     const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)

@@ -47,6 +47,10 @@ async function conReintento(fn, etiqueta, intentos = 3) {
       return await fn()
     } catch (err) {
       ultimo = err
+      // Un archivo ilegible o vacío no mejora reintentando: el problema es el
+      // archivo, no la conexión. Reintentarlo tres veces sólo retrasa el
+      // mensaje que la persona necesita leer. Ver `lib/archivoSubible.js`.
+      if (err?.noReintentar) throw err
       if (i < intentos - 1) await new Promise(r => setTimeout(r, 800 * (i + 1)))
     }
   }
@@ -145,7 +149,8 @@ export default function Onboarding({ profile }) {
   // si no el que ya tenía subido. Mostrar '—' teniéndolo subido haría creer
   // que se pierde.
   const docResumen = (file, key) =>
-    file?.name || (existingDocs[key] ? `${existingDocs[key].name} (ya subido)` : '—')
+    (file?.name && `${file.name}${subidos[key] ? ' (subido)' : ''}`)
+    || (existingDocs[key] ? `${existingDocs[key].name} (ya subido)` : '—')
 
   // Categorías con una sola especialidad (Nutrición, Psicología, Veterinaria,
   // Entrenamiento, Otra) mostraban abajo un segundo chip con el MISMO texto que
@@ -230,10 +235,38 @@ export default function Onboarding({ profile }) {
     professionalService.listDocuments(profile.id).then(setExistingDocs).catch(() => {})
   }, [profile?.id])
 
-  // Lo que ya subió en ESTA pantalla, aunque el envío después se haya caído.
-  // Sobrevive a los reintentos porque es un ref, no estado.
+  // Lo que ya subió en ESTA pantalla. Desde 2026-09-14 los archivos se suben
+  // **al elegirlos**, no al enviar, así que para el momento del envío esto ya
+  // tiene todas las URLs y `submit` no toca el storage. Sigue siendo un ref
+  // además del estado porque `submit` lo lee dentro de un closure.
   const yaSubido = useRef({})
+  const [subidos, setSubidos] = useState({})
   const [errorEnvio, setErrorEnvio] = useState(null)
+
+  /**
+   * El `uploader` que recibe cada FileUpload: sube el archivo en el momento en
+   * que se elige y se queda con la URL. Si falla, tira — y la tarjeta del campo
+   * muestra el motivo y el botón de reintentar, al lado del archivo que lo
+   * causó.
+   */
+  const subirDoc = (fileName, etiqueta) => async (file) => {
+    const url = await conReintento(
+      () => professionalService.uploadDocument(profile.id, file, 'professional-docs', fileName),
+      etiqueta,
+    )
+    yaSubido.current[fileName] = url
+    setSubidos(p => ({ ...p, [fileName]: url }))
+    return url
+  }
+
+  /** La foto también se sube al elegirla: es el mismo problema y el mismo arreglo. */
+  const subirAvatar = async (file) => {
+    const url = await conReintento(
+      () => profilesService.uploadAvatar(profile.id, file), 'tu foto',
+    )
+    yaSubido.current.avatar = url
+    return url
+  }
 
   // Los documentos que hoy están guardados: los del bucket (de cualquier
   // intento, incluso de otro día) más los que subió recién. Es lo que la hoja
@@ -247,49 +280,41 @@ export default function Onboarding({ profile }) {
     cuit: 'CUIT / Monotributo',
   }
   const docsGuardados = Object.keys(ETIQUETA_DOC)
-    .filter(k => existingDocs[k] || yaSubido.current[k])
+    .filter(k => subidos[k] || existingDocs[k]?.url)
     .map(k => ETIQUETA_DOC[k])
 
   const submit = async () => {
     setLoading(true)
     try {
       /*
-       * 🔴 Los archivos se suben DE A UNO, no en paralelo (2026-09-12).
+       * 🔴 Acá NO se sube nada (2026-09-14).
        *
-       * Iban los 7 juntos con `Promise.all`. Desde un teléfono con datos
-       * móviles eso es media docena de subidas multipart compitiendo por la
-       * misma conexión: alcanza con que UNA se corte para que el `Promise.all`
-       * rechace, y entonces **se pierde todo** — el legajo no se guarda, el
-       * profesional ve un "Failed to fetch" que no le dice nada, y los archivos
-       * que sí subieron quedan huérfanos en el bucket. Le pasó a un profesional
-       * real con 3 PDF en 4G: subió sólo el DNI y `professional_profiles` quedó
-       * sin crear.
+       * Los seis documentos y la foto se suben en el momento en que se eligen
+       * —cada FileUpload trae su `uploader`— así que para cuando se aprieta
+       * "Enviar para revisión" ya están todos en el bucket y este botón sólo
+       * escribe el legajo.
        *
-       * De a uno + dos reintentos, y lo que ya subió en este intento no se
-       * vuelve a subir (`yaSubido`), así que reintentar es barato.
+       * Antes subía los siete acá. Primero en paralelo, y alcanzaba con que UNA
+       * subida se cortara para que **se perdiera todo**: el legajo no se creaba,
+       * los archivos que sí habían subido quedaban huérfanos en el bucket, y el
+       * profesional veía un "Failed to fetch" que no le decía nada. Después de
+       * a uno con reintentos, que arregló la pérdida pero no lo de fondo: un
+       * solo archivo que el teléfono no puede leer seguía tirando abajo el
+       * envío entero, y el profesional quedaba **fuera de la cola de
+       * aprobación sin enterarse** — tres días en el caso de Santiago Fourcade.
+       *
+       * Subiendo al elegir, el error aparece pegado al campo que lo causó y el
+       * envío ya no puede fallar por un archivo. Ver `lib/archivoSubible.js`
+       * para los dos modos en que un picker de teléfono entrega un archivo que
+       * no se puede leer.
        */
-      const uploadDoc = async (file, fileName, etiqueta) => {
-        if (!file) return existingDocs[fileName]?.url || ''
-        if (yaSubido.current[fileName]) return yaSubido.current[fileName]
-        const url = await conReintento(
-          () => professionalService.uploadDocument(profile.id, file, 'professional-docs', fileName),
-          etiqueta,
-        )
-        yaSubido.current[fileName] = url
-        return url
-      }
-
-      if (avatarFile && !yaSubido.current.avatar) {
-        yaSubido.current.avatar = await conReintento(
-          () => profilesService.uploadAvatar(profile.id, avatarFile), 'tu foto',
-        )
-      }
-      const titleUrl          = await uploadDoc(titleFile, 'titulo', 'el título')
-      const licenseUrl        = await uploadDoc(licenseFile, 'matricula', 'la matrícula')
-      const dniUrl            = await uploadDoc(dniFile, 'dni', 'el DNI')
-      const malpracticeUrl    = await uploadDoc(malpracticeFile, 'seguro_mala_praxis', 'el seguro de mala praxis')
-      const specialistCertUrl = await uploadDoc(specialistCertFile, 'certificado_especialista', 'el certificado de especialista')
-      const cuitUrl           = await uploadDoc(cuitFile, 'cuit', 'el CUIT')
+      const urlDoc = (fileName) => subidos[fileName] || yaSubido.current[fileName] || existingDocs[fileName]?.url || ''
+      const titleUrl          = urlDoc('titulo')
+      const licenseUrl        = urlDoc('matricula')
+      const dniUrl            = urlDoc('dni')
+      const malpracticeUrl    = urlDoc('seguro_mala_praxis')
+      const specialistCertUrl = urlDoc('certificado_especialista')
+      const cuitUrl           = urlDoc('cuit')
 
       // El DNI vive en `profiles`, no en `professional_profiles`: es un dato de
       // la persona, no de su perfil profesional. Se saca del payload para no
@@ -532,6 +557,7 @@ export default function Onboarding({ profile }) {
                 )}
                 <FileUpload
                   onFile={handleAvatar}
+                  uploader={subirAvatar}
                   accept="image/*"
                   label={avatarFile ? avatarFile.name : 'Subir foto (JPG, PNG)'}
                   hint="Que se te vea la cara con claridad, de frente y con buena luz."
@@ -606,6 +632,7 @@ export default function Onboarding({ profile }) {
                 <label className="form-label">Título profesional</label>
                 <FileUpload
                   onFile={setTitleFile}
+                  uploader={subirDoc('titulo', 'el título')}
                   existing={existingDocs.titulo}
                   accept=".pdf,.jpg,.jpeg,.png"
                   label={titleFile ? titleFile.name : 'Subir título (PDF o imagen)'}
@@ -615,6 +642,7 @@ export default function Onboarding({ profile }) {
                 <label className="form-label">Matrícula profesional</label>
                 <FileUpload
                   onFile={setLicenseFile}
+                  uploader={subirDoc('matricula', 'la matrícula')}
                   existing={existingDocs.matricula}
                   accept=".pdf,.jpg,.jpeg,.png"
                   label={licenseFile ? licenseFile.name : 'Subir matrícula (PDF o imagen)'}
@@ -624,6 +652,7 @@ export default function Onboarding({ profile }) {
                 <label className="form-label">DNI <span className="text-text-tertiary text-xs">(frente y dorso en un archivo)</span></label>
                 <FileUpload
                   onFile={setDniFile}
+                  uploader={subirDoc('dni', 'el DNI')}
                   existing={existingDocs.dni}
                   accept=".pdf,.jpg,.jpeg,.png"
                   label={dniFile ? dniFile.name : 'Subir DNI (PDF o imagen)'}
@@ -633,6 +662,7 @@ export default function Onboarding({ profile }) {
                 <label className="form-label">Seguro de mala praxis <span className="text-text-tertiary text-xs">(recomendado)</span></label>
                 <FileUpload
                   onFile={setMalpracticeFile}
+                  uploader={subirDoc('seguro_mala_praxis', 'el seguro de mala praxis')}
                   existing={existingDocs.seguro_mala_praxis}
                   accept=".pdf,.jpg,.jpeg,.png"
                   label={malpracticeFile ? malpracticeFile.name : 'Subir póliza de responsabilidad civil profesional'}
@@ -643,6 +673,7 @@ export default function Onboarding({ profile }) {
                   <label className="form-label">Certificado de especialista <span className="text-text-tertiary text-xs">(requerido si declarás sub-especialidad)</span></label>
                   <FileUpload
                     onFile={setSpecialistCertFile}
+                    uploader={subirDoc('certificado_especialista', 'el certificado de especialista')}
                     existing={existingDocs.certificado_especialista}
                     accept=".pdf,.jpg,.jpeg,.png"
                     label={specialistCertFile ? specialistCertFile.name : `Subir certificado de especialista en ${form.subSpecialty}`}
@@ -661,6 +692,7 @@ export default function Onboarding({ profile }) {
                 />
                 <FileUpload
                   onFile={setCuitFile}
+                  uploader={subirDoc('cuit', 'el CUIT')}
                   existing={existingDocs.cuit}
                   accept=".pdf,.jpg,.jpeg,.png"
                   label={cuitFile ? cuitFile.name : 'Subir constancia de CUIT/Monotributo (AFIP)'}
