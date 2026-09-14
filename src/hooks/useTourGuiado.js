@@ -26,8 +26,9 @@ import 'driver.js/dist/driver.css'
  * detector propio, y un detector roto deja el tour trabado sin salida.
  *
  * **Arranca solo la primera vez** y después queda el punto de entrada
- * permanente que cada guía ofrece. Cerrarlo cuenta como visto: si lo cerró es
- * porque no lo quiere, y volver a abrirlo solo es exactamente lo que molesta.
+ * permanente que cada guía ofrece. Ofrecerlo cuenta como visto —se marca al
+ * arrancar, ver `marcarVisto()`—: si lo cerró es porque no lo quiere, y volver
+ * a abrirlo solo es exactamente lo que molesta.
  *
  * **Cada tour lleva su propia clave** — haber visto el del paciente no marca el
  * del profesional. Se guarda en `localStorage` y no en la base: es una cortesía,
@@ -65,17 +66,41 @@ export function useTourGuiado({ clave, pasos, ctx = {}, listo = true, autoArranq
   const tourRef = useRef(null)
   const [corriendo, setCorriendo] = useState(false)
   const [yaVisto, setYaVisto] = useState(() => leerVisto(clave))
+  // Ya se ofreció solo en esta visita, haya terminado o no. Ver el efecto de
+  // arranque automático.
+  const ofrecidoSolo = useRef(false)
 
   // El `ctx` se arma con un literal en cada render, así que como dependencia
   // haría que `arrancar` cambie de identidad siempre y el efecto de abajo
   // reiniciara el tour en cada pintada. Se compara por contenido.
   const ctxSerializado = JSON.stringify(ctx)
 
+  const marcarVisto = useCallback(() => {
+    setYaVisto(true)
+    try { localStorage.setItem(clave, '1') } catch { /* modo privado: se vuelve a ofrecer */ }
+  }, [clave])
+
   const arrancar = useCallback(() => {
     tourRef.current?.destroy()
     const contexto = JSON.parse(ctxSerializado)
     const aplicables = pasos.filter(p => !p.aplica || p.aplica(contexto))
     if (!aplicables.length) return
+
+    // 🔴 Visto = **ofrecido**, y se marca acá, al arrancar (2026-09-14).
+    //
+    // Estaba marcado en `onDestroyed`, que suena más correcto ("lo cerró, no lo
+    // quiere") y **no se cumple**: cerrando el tour con la X de driver.js el
+    // hook no llega a correr, así que la clave nunca se escribía y el tour
+    // volvía a abrirse solo **en cada visita al dashboard**, para siempre.
+    // Verificado en el browser con una cuenta nueva: cerrar con la X deja
+    // `localStorage` sin la clave.
+    //
+    // Atarlo al arranque no depende de ningún camino interno de driver.js y
+    // deja el mismo trato: se ofrece una vez, y el punto de entrada para
+    // volver a verlo está en el Centro de ayuda. El costo es que quien recarga
+    // en la mitad no lo vuelve a ver solo — bastante mejor que no poder
+    // sacárselo de encima.
+    marcarVisto()
 
     const tour = driver({
       showProgress: true,
@@ -97,24 +122,45 @@ export function useTourGuiado({ clave, pasos, ctx = {}, listo = true, autoArranq
           align: p.alineacion ?? 'start',
         },
       })),
-      onDestroyed: () => {
-        setCorriendo(false)
-        setYaVisto(true)
-        try { localStorage.setItem(clave, '1') } catch { /* modo privado: se vuelve a ofrecer */ }
-      },
+      // Ojo: con driver.js 1.8 esto NO corre al cerrar con la X — por eso lo
+      // que se persiste se escribe en `marcarVisto()`, arriba. Acá queda sólo
+      // el estado en memoria, que sí sirve cuando el hook llega a correr.
+      onDestroyed: () => setCorriendo(false),
     })
     tourRef.current = tour
     setCorriendo(true)
     tour.drive()
-  }, [clave, pasos, ctxSerializado])
+  }, [clave, pasos, ctxSerializado, marcarVisto])
 
-  // Arranque automático, sólo la primera vez y sólo con el contexto completo.
+  // Arranque automático: **una sola vez por visita**, y sólo con el contexto
+  // completo.
+  //
+  // 🔴 `ofrecidoSolo` no es redundante con `leerVisto` (2026-09-14). Este
+  // efecto depende de `arrancar`, que cambia de identidad cada vez que cambia
+  // el `ctx` — y el `ctx` del dashboard del profesional se completa de a
+  // pedazos: si conectó Mercado Pago, cuál es su especialidad, si la tarjeta de
+  // práctica sigue abierta. Cada uno de esos datos que llega **volvía a
+  // disparar el efecto**, y 600 ms después `arrancar` destruía el tour que la
+  // persona estaba leyendo y lo **empezaba de nuevo desde el paso 1**, a veces
+  // con otro total ("Paso 2 de 5" → "Paso 2 de 4"). `leerVisto` no lo ataja:
+  // se evalúa acá, antes de que `arrancar` marque el tour como visto al
+  // destruirlo, así que el reinicio ya está en camino.
+  //
+  // Le pasaba justo al profesional recién registrado —el de más pasos por
+  // cargar, y el único que tiene el tour sin ver— encima de la tarjeta
+  // "Completá tu perfil", que es adonde lo queremos mandar.
+  //
+  // El ref no toca el `arrancar()` manual del Centro de ayuda: ahí sí se
+  // reconstruye a pedido, que es lo que se pidió.
   useEffect(() => {
-    if (!autoArranque || !listo || leerVisto(clave)) return
+    if (!autoArranque || !listo || leerVisto(clave) || ofrecidoSolo.current) return
     // Un tick para que la pantalla ya esté pintada: driver.js mide el elemento
     // al resaltarlo, y sobre un DOM a medio montar mide mal (o no lo encuentra
     // y manda el globo al centro, que es peor porque no se nota).
-    const t = setTimeout(arrancar, 600)
+    const t = setTimeout(() => {
+      ofrecidoSolo.current = true
+      arrancar()
+    }, 600)
     return () => clearTimeout(t)
   }, [arrancar, listo, autoArranque, clave])
 
