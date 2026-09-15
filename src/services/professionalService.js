@@ -1,5 +1,6 @@
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 import { veProfesionalesDePrueba } from '../lib/featureFlags'
+import { aBlobSubible, extensionDe, TIPOS_DOCUMENTO } from '../lib/archivoSubible'
 
 /**
  * Esconde los profesionales de prueba (`solo_pruebas`, migración 153) de las
@@ -80,11 +81,16 @@ export const professionalService = {
   },
 
   async uploadDocument(userId, file, bucket, fileName) {
-    const ext = file.name.split('.').pop()
-    const path = `${userId}/${fileName}.${ext}`
+    // 🔴 El archivo se lee a memoria ANTES de subirlo y el tipo se manda
+    // explícito. No es una optimización: es lo que separa "este PDF no se puede
+    // leer desde tu teléfono" de un 400 de Storage o de un archivo de 0 bytes
+    // que el legajo cuenta como presente. Ver `lib/archivoSubible.js`.
+    const { blob, contentType } = await aBlobSubible(file, TIPOS_DOCUMENTO)
+    const ext = extensionDe(file)
+    const path = `${userId}/${fileName}${ext ? `.${ext}` : ''}`
     const { error } = await supabase.storage
       .from(bucket)
-      .upload(path, file, { upsert: true })
+      .upload(path, blob, { upsert: true, contentType })
     if (error) throw error
     const { data } = supabase.storage.from(bucket).getPublicUrl(path)
     return data.publicUrl
