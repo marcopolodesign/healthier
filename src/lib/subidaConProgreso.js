@@ -1,5 +1,8 @@
 import { supabase } from './supabase'
 
+/** Lo que aceptan `professional-docs` y `patient-docs` en Supabase Storage. */
+export const LIMITE_BUCKET_BYTES = 10 * 1024 * 1024
+
 /**
  * Sube un Blob a Supabase Storage **informando el porcentaje** mientras viaja.
  *
@@ -28,6 +31,14 @@ import { supabase } from './supabase'
  * @returns {Promise<void>}
  */
 export async function subirConProgreso(bucket, path, blob, contentType, onProgress) {
+  // Cortarlo acá le ahorra a la persona subir 15 MB por una conexión de
+  // teléfono para que el servidor lo rechace al final. El mismo texto que
+  // daría el 413, pero al instante.
+  if (blob.size > LIMITE_BUCKET_BYTES) {
+    const e = new Error(`Ese archivo pesa ${(blob.size / 1024 / 1024).toFixed(1)} MB y el máximo que podemos guardar son 10 MB. Mandá una versión más liviana o sacale una foto.`)
+    e.noReintentar = true
+    throw e
+  }
   const base = import.meta.env.VITE_SUPABASE_URL || ''
   const anon = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
   const { data } = await supabase.auth.getSession()
@@ -53,7 +64,7 @@ export async function subirConProgreso(bucket, path, blob, contentType, onProgre
 
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) { resolve(); return }
-      reject(new Error(mensajeDeError(xhr)))
+      reject(errorDeSubida(xhr))
     }
     xhr.onerror = () => reject(new Error('Se cortó la conexión antes de terminar de subirlo.'))
     xhr.onabort = () => reject(new Error('Se canceló la subida.'))
@@ -64,17 +75,40 @@ export async function subirConProgreso(bucket, path, blob, contentType, onProgre
 }
 
 /**
- * El texto que va a leer el profesional. Storage contesta JSON con su propio
- * mensaje en inglés; los dos casos que de verdad pasan tienen traducción propia
- * porque además dicen qué hacer.
+ * El texto que va a leer el profesional, y si tiene sentido reintentar.
+ *
+ * 🔴 **El status HTTP de Storage miente** (2026-09-15). Un archivo más grande
+ * que el límite del bucket vuelve con **HTTP 400** y el 413 real metido
+ * *adentro del JSON*:
+ *
+ *     HTTP/1.1 400
+ *     {"statusCode":"413","error":"Payload too large",
+ *      "message":"The object exceeded the maximum allowed size",
+ *      "code":"EntityTooLarge"}
+ *
+ * Comprobado contra el bucket de staging con un PDF de 12 MB. Por eso el código
+ * de verdad se lee del cuerpo, no de `xhr.status`. Mirando sólo el status, un
+ * archivo demasiado grande caía en el cajón de "error raro, reintentá" — y
+ * `conReintento` lo mandaba **tres veces enteras**, cada una llenando la barra
+ * hasta 100% para volver a empezar. Es lo que reportó Mateo probando en staging
+ * con un PDF grande: "llega a 100 y vuelve a empezar".
  */
-function mensajeDeError(xhr) {
-  if (xhr.status === 413) return 'Ese archivo pesa más de 10 MB. Mandá una versión más liviana o sacale una foto.'
-  if (xhr.status === 415) return 'No podemos guardar ese formato. Mandalo como PDF o como foto JPG o PNG.'
-  if (xhr.status === 401 || xhr.status === 403) return 'Se venció tu sesión. Volvé a entrar y subilo de nuevo.'
-  try {
-    const { message, error } = JSON.parse(xhr.responseText || '{}')
-    if (message || error) return `No pudimos guardarlo: ${message || error}`
-  } catch { /* la respuesta no era JSON */ }
-  return `No pudimos guardarlo (error ${xhr.status}). Probá de nuevo.`
+function errorDeSubida(xhr) {
+  let cuerpo = {}
+  try { cuerpo = JSON.parse(xhr.responseText || '{}') } catch { /* no era JSON */ }
+  const codigo = Number(cuerpo.statusCode) || xhr.status
+
+  const err = new Error(texto(codigo, cuerpo, xhr.status))
+  // Ninguno de estos mejora reintentando: el archivo es el que es y la sesión
+  // no se arregla sola. Reintentar sólo repite la subida entera.
+  err.noReintentar = [413, 415, 401, 403].includes(codigo)
+  return err
+}
+
+function texto(codigo, cuerpo, status) {
+  if (codigo === 413) return 'Ese archivo pesa más de 10 MB, que es el máximo que podemos guardar. Mandá una versión más liviana o sacale una foto.'
+  if (codigo === 415) return 'No podemos guardar ese formato. Mandalo como PDF o como foto JPG o PNG.'
+  if (codigo === 401 || codigo === 403) return 'Se venció tu sesión. Volvé a entrar y subilo de nuevo.'
+  if (cuerpo.message || cuerpo.error) return `No pudimos guardarlo: ${cuerpo.message || cuerpo.error}`
+  return `No pudimos guardarlo (error ${status}). Probá de nuevo.`
 }

@@ -45,6 +45,10 @@ export default function FileUpload({ onFile, accept = '.pdf,.jpg,.jpeg,.png', la
   const [reintentable, setReintentable] = useState(true)
   // 0 a 1 mientras viajan los bytes. `null` = todavía no empezó o ya terminó.
   const [avance, setAvance] = useState(null)
+  // Qué se está haciendo antes de subir: comprimir la imagen, o rasterizar un
+  // PDF pesado. Un PDF de 20 MB tarda unos segundos y el silencio se lee como
+  // que se colgó.
+  const [preparando, setPreparando] = useState(null)
 
   const subir = async (f) => {
     if (!uploader) return
@@ -72,12 +76,14 @@ export default function FileUpload({ onFile, accept = '.pdf,.jpg,.jpeg,.png', la
     setSubido(false)
     let processed = f
     try {
+      setPreparando(f.type?.startsWith('image/') ? 'Procesando imagen…' : null)
       processed = await compressImage(f)
     } catch {
       // Comprimir es una mejora, no un requisito: si la imagen no se puede
       // leer, que lo diga el uploader con su propio texto.
       processed = f
     }
+    setPreparando(null)
     setProcessing(false)
     setFile(processed)
     onFile?.(processed)
@@ -139,7 +145,7 @@ export default function FileUpload({ onFile, accept = '.pdf,.jpg,.jpeg,.png', la
           {processing ? (
             <>
               <CircleNotch className="h-8 w-8 mx-auto text-brand mb-2 animate-spin" />
-              <p className="text-sm font-medium text-text-primary">Procesando imagen…</p>
+              <p className="text-sm font-medium text-text-primary">{preparando || 'Preparando el archivo…'}</p>
             </>
           ) : (
             <>
