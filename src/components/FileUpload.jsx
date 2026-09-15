@@ -11,9 +11,11 @@ import { compressImage } from '../lib/imageCompression'
  * documento).
  *
  * `uploader` — si se pasa, el archivo **se sube en el momento en que se elige**
- * (`async (file) => url`) y la tarjeta muestra subiendo / subido / el error con
- * "Reintentar". Sin `uploader` el componente se queda como estaba: sólo avisa
- * qué archivo se eligió y el que lo consume sube después.
+ * (`async (file, onProgress) => url`) y la tarjeta muestra el porcentaje con su
+ * barra, después "Subido", o el error con "Elegir otro". El `onProgress` que
+ * recibe es opcional de usar: si el uploader no lo llama, se ve "Subiendo…" sin
+ * número. Sin `uploader` el componente se queda como estaba: sólo avisa qué
+ * archivo se eligió y el que lo consume sube después.
  *
  * ── Por qué subir al elegir ─────────────────────────────────────────────────
  * Antes los seis documentos del legajo se subían todos juntos al apretar
@@ -41,13 +43,20 @@ export default function FileUpload({ onFile, accept = '.pdf,.jpg,.jpeg,.png', la
   // elegir otro. Mostrar "Reintentar" en ese caso es mandar a la persona a
   // apretar tres veces un botón que ya sabemos que no la va a sacar del pozo.
   const [reintentable, setReintentable] = useState(true)
+  // 0 a 1 mientras viajan los bytes. `null` = todavía no empezó o ya terminó.
+  const [avance, setAvance] = useState(null)
+  // Qué se está haciendo antes de subir: comprimir la imagen, o rasterizar un
+  // PDF pesado. Un PDF de 20 MB tarda unos segundos y el silencio se lee como
+  // que se colgó.
+  const [preparando, setPreparando] = useState(null)
 
   const subir = async (f) => {
     if (!uploader) return
     setSubiendo(true)
     setError(null)
+    setAvance(0)
     try {
-      await uploader(f)
+      await uploader(f, setAvance)
       setSubido(true)
     } catch (err) {
       setSubido(false)
@@ -55,6 +64,7 @@ export default function FileUpload({ onFile, accept = '.pdf,.jpg,.jpeg,.png', la
       setError(err?.message || 'No pudimos subir ese archivo.')
     } finally {
       setSubiendo(false)
+      setAvance(null)
     }
   }
 
@@ -66,12 +76,14 @@ export default function FileUpload({ onFile, accept = '.pdf,.jpg,.jpeg,.png', la
     setSubido(false)
     let processed = f
     try {
+      setPreparando(f.type?.startsWith('image/') ? 'Procesando imagen…' : null)
       processed = await compressImage(f)
     } catch {
       // Comprimir es una mejora, no un requisito: si la imagen no se puede
       // leer, que lo diga el uploader con su propio texto.
       processed = f
     }
+    setPreparando(null)
     setProcessing(false)
     setFile(processed)
     onFile?.(processed)
@@ -133,7 +145,7 @@ export default function FileUpload({ onFile, accept = '.pdf,.jpg,.jpeg,.png', la
           {processing ? (
             <>
               <CircleNotch className="h-8 w-8 mx-auto text-brand mb-2 animate-spin" />
-              <p className="text-sm font-medium text-text-primary">Procesando imagen…</p>
+              <p className="text-sm font-medium text-text-primary">{preparando || 'Preparando el archivo…'}</p>
             </>
           ) : (
             <>
@@ -159,7 +171,22 @@ export default function FileUpload({ onFile, accept = '.pdf,.jpg,.jpeg,.png', la
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-text-primary truncate">{file.name}</p>
             {subiendo ? (
-              <p className="text-xs text-text-secondary">Subiendo…</p>
+              <>
+                <p className="text-xs text-text-secondary">
+                  {/* Al 100% los bytes ya salieron y lo que falta es que el
+                      servidor conteste. Decir "Subiendo… 100%" ahí parece que
+                      se colgó justo al final. */}
+                  {avance === null ? 'Subiendo…'
+                    : avance >= 1 ? 'Guardando…'
+                    : `Subiendo… ${Math.round(avance * 100)}%`}
+                </p>
+                <div className="mt-1 h-1 w-full rounded-full bg-border-default overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-brand transition-[width] duration-200 ease-out"
+                    style={{ width: `${Math.round((avance ?? 0) * 100)}%` }}
+                  />
+                </div>
+              </>
             ) : error ? (
               <p className="text-xs text-danger">{error}</p>
             ) : (
