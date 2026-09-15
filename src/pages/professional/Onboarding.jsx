@@ -249,9 +249,14 @@ export default function Onboarding({ profile }) {
    * muestra el motivo y el botón de reintentar, al lado del archivo que lo
    * causó.
    */
-  const subirDoc = (fileName, etiqueta) => async (file) => {
+  const subirDoc = (fileName, etiqueta) => async (file, onProgress) => {
     const url = await conReintento(
-      () => professionalService.uploadDocument(profile.id, file, 'professional-docs', fileName),
+      () => {
+        // Cada reintento arranca la barra de cero: dejarla donde se cortó el
+        // anterior hace parecer que sigue el mismo envío.
+        onProgress?.(0)
+        return professionalService.uploadDocument(profile.id, file, 'professional-docs', fileName, onProgress)
+      },
       etiqueta,
     )
     yaSubido.current[fileName] = url
@@ -260,9 +265,12 @@ export default function Onboarding({ profile }) {
   }
 
   /** La foto también se sube al elegirla: es el mismo problema y el mismo arreglo. */
-  const subirAvatar = async (file) => {
+  const subirAvatar = async (file, onProgress) => {
     const url = await conReintento(
-      () => profilesService.uploadAvatar(profile.id, file), 'tu foto',
+      () => {
+        onProgress?.(0)
+        return profilesService.uploadAvatar(profile.id, file, onProgress)
+      }, 'tu foto',
     )
     yaSubido.current.avatar = url
     return url
