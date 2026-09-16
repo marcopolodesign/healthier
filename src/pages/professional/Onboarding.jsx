@@ -4,6 +4,7 @@ import { Check, Stethoscope, User, FileText, ClipboardText, LockKey, MagnifyingG
 import { professionalService } from '../../services/professionalService'
 import { profilesService } from '../../services/profilesService'
 import { professionalOnboardingService } from '../../services/professionalOnboardingService'
+import { uploadLogService } from '../../services/uploadLogService'
 import { PROFESSION_CATEGORIES, specialtiesForCategory, categoryForSpecialty } from '../../lib/verticals'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { AnimatedTagCascade } from '../../components/common/AnimatedTagCascade'
@@ -250,15 +251,24 @@ export default function Onboarding({ profile }) {
    * causó.
    */
   const subirDoc = (fileName, etiqueta) => async (file, onProgress) => {
-    const url = await conReintento(
-      () => {
-        // Cada reintento arranca la barra de cero: dejarla donde se cortó el
-        // anterior hace parecer que sigue el mismo envío.
-        onProgress?.(0)
-        return professionalService.uploadDocument(profile.id, file, 'professional-docs', fileName, onProgress)
-      },
-      etiqueta,
-    )
+    let url
+    try {
+      url = await conReintento(
+        () => {
+          // Cada reintento arranca la barra de cero: dejarla donde se cortó el
+          // anterior hace parecer que sigue el mismo envío.
+          onProgress?.(0)
+          return professionalService.uploadDocument(profile.id, file, 'professional-docs', fileName, onProgress)
+        },
+        etiqueta,
+      )
+    } catch (err) {
+      // Queda la constancia y se sigue tirando: la tarjeta tiene que mostrar el
+      // error igual. Ver `services/uploadLogService.js`.
+      uploadLogService.rechazado(profile.id, fileName, file, err)
+      throw err
+    }
+    uploadLogService.ok(profile.id, fileName, file)
     yaSubido.current[fileName] = url
     setSubidos(p => ({ ...p, [fileName]: url }))
     return url
@@ -266,12 +276,19 @@ export default function Onboarding({ profile }) {
 
   /** La foto también se sube al elegirla: es el mismo problema y el mismo arreglo. */
   const subirAvatar = async (file, onProgress) => {
-    const url = await conReintento(
-      () => {
-        onProgress?.(0)
-        return profilesService.uploadAvatar(profile.id, file, onProgress)
-      }, 'tu foto',
-    )
+    let url
+    try {
+      url = await conReintento(
+        () => {
+          onProgress?.(0)
+          return profilesService.uploadAvatar(profile.id, file, onProgress)
+        }, 'tu foto',
+      )
+    } catch (err) {
+      uploadLogService.rechazado(profile.id, 'avatar', file, err, 'avatars')
+      throw err
+    }
+    uploadLogService.ok(profile.id, 'avatar', file, 'avatars')
     yaSubido.current.avatar = url
     return url
   }
