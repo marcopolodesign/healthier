@@ -47,7 +47,14 @@ const MOTIVOS = {
 
 const PAGE_SIZE = 300
 
-const mb = (bytes) => bytes == null ? '—' : `${(bytes / 1024 / 1024).toFixed(2)} MB`
+// Debajo de 1 MB se muestra en KB: la mediana de los legajos ronda los 160 KB,
+// y "0.00 MB" en cada fila no dice nada.
+const peso = (bytes) => {
+  if (bytes == null) return '—'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+}
 
 export default function SuperAdminSubidas() {
   const [rows, setRows] = useState([])
@@ -132,7 +139,7 @@ export default function SuperAdminSubidas() {
         <MetricCard label="Entraron" value={resumen.ok} tone="ok" />
         <MetricCard label="Rebotaron" value={resumen.rechazadas} tone={resumen.rechazadas > 0 ? 'bad' : 'neutral'} />
         <MetricCard label="Profesionales afectados" value={resumen.personas} tone={resumen.personas > 0 ? 'bad' : 'neutral'} />
-        <MetricCard label="Peso mediano" value={mb(resumen.mediana)} small />
+        <MetricCard label="Peso mediano" value={peso(resumen.mediana)} small />
       </div>
 
       {resumen.personas > 0 && (
@@ -219,7 +226,7 @@ export default function SuperAdminSubidas() {
                     <p className="text-xs text-text-secondary break-all">{r.usuario?.email}</p>
                   </td>
                   <td className="px-4 py-3 text-text-primary whitespace-nowrap">{DOCUMENTOS[r.documento] ?? r.documento}</td>
-                  <td className="px-4 py-3 text-text-secondary whitespace-nowrap tabular-nums">{mb(r.bytes)}</td>
+                  <td className="px-4 py-3 text-text-secondary whitespace-nowrap tabular-nums">{peso(r.bytes)}</td>
                   <td className="px-4 py-3">
                     {r.estado === 'ok' ? (
                       <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700 whitespace-nowrap">
