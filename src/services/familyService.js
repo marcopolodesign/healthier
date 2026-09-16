@@ -26,6 +26,23 @@ export const familyService = {
     return toCamelCase(data)
   },
 
+  /**
+   * Faltaba desde el día uno, acá y en la app: sólo el nombre es obligatorio,
+   * así que se podía guardar un familiar a medias y después no había forma de
+   * completarlo — el único camino era borrarlo y cargarlo de nuevo
+   * (Nacho, 2026-09-14).
+   */
+  async update(id, member) {
+    const { data, error } = await supabase
+      .from('family_members')
+      .update(toSnakeCase(member))
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
   async remove(id) {
     const { error } = await supabase.from('family_members').delete().eq('id', id)
     if (error) throw error

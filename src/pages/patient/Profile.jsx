@@ -62,6 +62,10 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   const [savingFamiliar, setSavingFamiliar] = useState(false)
   const [deletingFamiliarId, setDeletingFamiliarId] = useState(null)
   const [showAddFamiliar, setShowAddFamiliar] = useState(false)
+  // Con id → la misma hoja edita en vez de crear. Antes sólo se podía borrar,
+  // así que un familiar cargado a medias había que eliminarlo y rehacerlo
+  // (Nacho, 2026-09-14). Paridad con app/family-add.tsx.
+  const [editingFamiliarId, setEditingFamiliarId] = useState(null)
   const [newFamiliar, setNewFamiliar] = useState({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '' })
 
   // Comprobantes — mismas consultas cobradas que muestra /paciente/comprobantes.
@@ -192,11 +196,27 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
 
   useEffect(() => { loadFamiliares() }, [loadFamiliares])
 
+  const abrirEdicionFamiliar = f => {
+    setEditingFamiliarId(f.id)
+    setNewFamiliar({
+      nombre: f.fullName || '', vinculo: f.relationship || '', dni: f.dni || '',
+      email: f.email || '', telefono: f.phone || '',
+      obraSocial: f.insuranceName || '', numeroSocio: f.insuranceNum || '',
+    })
+    setShowAddFamiliar(true)
+  }
+
+  const cerrarHojaFamiliar = () => {
+    setShowAddFamiliar(false)
+    setEditingFamiliarId(null)
+    setNewFamiliar({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '' })
+  }
+
   const saveNuevoFamiliar = async () => {
     if (!newFamiliar.nombre.trim() || savingFamiliar) return
     setSavingFamiliar(true)
     try {
-      const created = await familyService.create(profile.id, {
+      const datos = {
         fullName:      newFamiliar.nombre.trim(),
         relationship:  newFamiliar.vinculo || null,
         dni:           newFamiliar.dni || null,
@@ -204,13 +224,19 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         phone:         newFamiliar.telefono || null,
         insuranceName: newFamiliar.obraSocial || null,
         insuranceNum:  newFamiliar.numeroSocio || null,
-      })
-      setFamiliares(prev => [created, ...prev])
-      setShowAddFamiliar(false)
-      setNewFamiliar({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '' })
-      toast.success('Familiar añadido')
-    } catch {
-      toast.error('No pudimos guardar el familiar. Intentá de nuevo.')
+      }
+      if (editingFamiliarId) {
+        const actualizado = await familyService.update(editingFamiliarId, datos)
+        setFamiliares(prev => prev.map(f => (f.id === editingFamiliarId ? actualizado : f)))
+        toast.success('Familiar actualizado')
+      } else {
+        const created = await familyService.create(profile.id, datos)
+        setFamiliares(prev => [created, ...prev])
+        toast.success('Familiar añadido')
+      }
+      cerrarHojaFamiliar()
+    } catch (e) {
+      toast.error(`No pudimos guardar el familiar. Intentá de nuevo.${e?.message ? ` (${e.message})` : ''}`)
     } finally {
       setSavingFamiliar(false)
     }
@@ -364,7 +390,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       <div className="bg-bg-secondary rounded-2xl p-6 shadow-sm border border-border-default mb-6">
         <div className="flex justify-between items-center mb-6">
           <h3 className="font-semibold text-[18px] text-text-primary flex items-center gap-2"><Users className="w-5 h-5 text-emerald-500" /> Grupo Familiar</h3>
-          {!editing && <span onClick={() => { track('family_member_add_click', { flow: 'paciente' }); setShowAddFamiliar(true) }} className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full cursor-pointer hover:bg-emerald-100 transition-colors">+ AÑADIR</span>}
+          {!editing && <span onClick={() => { track('family_member_add_click', { flow: 'paciente' }); setEditingFamiliarId(null); setNewFamiliar({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '' }); setShowAddFamiliar(true) }} className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full cursor-pointer hover:bg-emerald-100 transition-colors">+ AÑADIR</span>}
         </div>
         {familiaresLoading
           ? <p className="text-sm text-text-tertiary text-center py-4">Cargando tu grupo familiar…</p>
@@ -381,6 +407,11 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <p className="text-[14px] text-text-tertiary">{f.insuranceName || '—'}</p>
+                    <button
+                      onClick={() => abrirEdicionFamiliar(f)}
+                      aria-label="Editar familiar"
+                      className="p-2 bg-white rounded-full text-text-secondary shadow-sm hover:text-brand"
+                    ><PencilSimple className="w-4 h-4" /></button>
                     {editing && (
                       <button
                         onClick={() => handleDeleteFamiliar(f.id)}
@@ -576,13 +607,13 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       </div>{/* end max-w-lg */}
 
       {/* Añadir Familiar — responsive sheet/modal */}
-      <PatientSheet open={showAddFamiliar} onClose={() => setShowAddFamiliar(false)} maxWidth="max-w-md">
+      <PatientSheet open={showAddFamiliar} onClose={cerrarHojaFamiliar} maxWidth="max-w-md">
         <div className="px-6 pt-4 pb-2 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
-            <button onClick={() => setShowAddFamiliar(false)} className="w-10 h-10 bg-white border border-border-default rounded-full flex items-center justify-center shadow-sm hover:bg-bg-primary">
+            <button onClick={cerrarHojaFamiliar} className="w-10 h-10 bg-white border border-border-default rounded-full flex items-center justify-center shadow-sm hover:bg-bg-primary">
               <ArrowLeft className="w-5 h-5 text-text-secondary" />
             </button>
-            <h2 className="text-xl font-semibold text-text-primary">Añadir Familiar</h2>
+            <h2 className="text-xl font-semibold text-text-primary">{editingFamiliarId ? 'Editar Familiar' : 'Añadir Familiar'}</h2>
           </div>
           <button onClick={saveNuevoFamiliar} className="text-emerald-700 font-semibold px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-full hover:bg-emerald-100 text-sm">Guardar</button>
         </div>
