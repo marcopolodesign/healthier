@@ -9,6 +9,7 @@ import { profilesService } from '../../services/profilesService'
 import { authService } from '../../services/authService'
 import { mpService } from '../../services/mpService'
 import { familyService } from '../../services/familyService'
+import { isoADdmmaaaa, ddmmaaaaAIso } from '../../lib/fechaNacimiento'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
 import { toast } from '../../components/Toast'
@@ -49,6 +50,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
     telefono:         profile?.phone         || '',
     domicilio:        profile?.address       || '',
     dni:              profile?.dni           || '',
+    nacimiento:       isoADdmmaaaa(profile?.birthDate),
     sangre:           profile?.bloodType     || '',
     obraSocial:       profile?.insuranceName || '',
     numeroSocio:      profile?.insuranceNum  || '',
@@ -110,11 +112,22 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
 
   const toggleEdit = async () => {
     if (editing) {
+      // La fecha se valida ANTES de guardar: un 31/02 que el parser de JS
+      // corre al 2 de marzo terminaría en una receta electrónica.
+      const nacimiento = ddmmaaaaAIso(userData.nacimiento)
+      if (nacimiento === undefined) {
+        toast.error('Revisá la fecha de nacimiento: va como DD/MM/AAAA.')
+        return
+      }
       try {
         await profilesService.update(profile.id, {
           full_name: userData.nombre,
           phone: userData.telefono,
           address: userData.domicilio,
+          // `dni` estaba en el formulario y se mostraba, pero NUNCA se
+          // guardaba: no viajaba en este update (2026-09-16).
+          dni: userData.dni || null,
+          birth_date: nacimiento,
           blood_type: userData.sangre || null,
           insurance_name: userData.obraSocial,
           insurance_num: userData.numeroSocio,
@@ -356,6 +369,9 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-4">
             {field('DNI', 'dni')}
+            {field('Fecha de nacimiento', 'nacimiento')}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col">
               <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-widest mb-1.5 ml-1">Sangre</label>
               {editing
