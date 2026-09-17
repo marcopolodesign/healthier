@@ -212,7 +212,7 @@ export default function AppLayout({ profile, profSpecialty }) {
               className="px-8 pt-3.5 pb-6"
             />
           ) : (
-            <SuperAdminBottomNav className="px-5 pt-3.5 pb-6" />
+            <SuperAdminBottomNav className="px-5 pt-3.5 pb-6" profile={profile} />
           )}
         </div>
       )}

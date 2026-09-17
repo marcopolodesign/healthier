@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, UploadSimple } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
+import { veSubidas } from '../lib/permisos'
 import { toast } from './Toast'
 import { CompanyLogo } from './common/CompanyLogo'
 
@@ -62,7 +63,7 @@ const NAV_BY_ROLE = {
     },
     { to: '/super-admin/auditoria',              icon: Eye,             label: 'Auditoría HC' },
     { to: '/super-admin/mails',                  icon: EnvelopeSimple,  label: 'Mails' },
-    { to: '/super-admin/subidas',                icon: UploadSimple,    label: 'Subidas' },
+    { to: '/super-admin/subidas',                icon: UploadSimple,    label: 'Subidas', permiso: 'subidas' },
     {
       group: 'configuracion', label: 'Configuración', icon: Gear,
       items: [
@@ -93,7 +94,11 @@ export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onCl
   const navigate = useNavigate()
   const { pathname, search } = useLocation()
   const allItems = NAV_BY_ROLE[role] || []
-  const items = allItems.filter(item => !item.specialty || item.specialty === profSpecialty)
+  // `specialty` filtra por vertical; `permiso` filtra por cuenta — hoy sólo
+  // "Subidas", que ve una sola persona. Ver `lib/permisos.js`.
+  const items = allItems.filter(item =>
+    (!item.specialty || item.specialty === profSpecialty) &&
+    (item.permiso !== 'subidas' || veSubidas(profile)))
 
   // Grupos colapsables (Configuración, Consultas+Emergencias, Pacientes,
   // Profesionales): abiertos por default si la ruta activa está adentro, si
