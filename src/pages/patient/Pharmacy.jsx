@@ -22,12 +22,24 @@ const CATEGORIES = [
 ]
 
 function ProductCard({ product, quantity, onAdd, onRemove }) {
-  const hasImage = product.imageUrl
+  // Que haya URL no quiere decir que la foto cargue. El catálogo sembrado
+  // apuntaba a un banco de imágenes de internet que dejó de servirlas, y las 20
+  // fotos se veían como el ícono de imagen rota del navegador (2026-09-17).
+  // Con el fallo tomado se cae al ícono, que es el mismo que ya se usa cuando
+  // el producto no tiene foto.
+  const [fotoFallo, setFotoFallo] = useState(false)
+  const hasImage = product.imageUrl && !fotoFallo
   return (
     <div className="rounded-2xl border border-border-default bg-bg-secondary p-3 flex flex-col gap-2 h-full">
       <div className="w-full aspect-square rounded-xl bg-bg-primary flex items-center justify-center overflow-hidden relative">
         {hasImage ? (
-          <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
+          <img
+            src={product.imageUrl}
+            alt={product.name}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            onError={() => setFotoFallo(true)}
+          />
         ) : (
           <ShoppingBag className="w-8 h-8 text-text-tertiary" />
         )}

@@ -4,7 +4,7 @@ import { ArrowLeft, MapPin, Pill, XCircle } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
 import { formatARS, formatDate } from '../../lib/format'
-import { STATUS_LABEL, NEXT_STATUS } from '../../lib/pharmacyOrders'
+import { STATUS_LABEL, NEXT_STATUS, etiquetaDePago, claseDePago } from '../../lib/pharmacyOrders'
 
 export default function PharmacyOrderDetail({ profile }) {
   const { id } = useParams()
@@ -113,8 +113,8 @@ export default function PharmacyOrderDetail({ profile }) {
           <span className="text-[10px] font-semibold uppercase px-2 py-1 rounded-full bg-brand-tertiary/10 text-brand-tertiary">
             {STATUS_LABEL[order.status]}
           </span>
-          <span className={`text-[10px] font-semibold uppercase px-2 py-1 rounded-full ${order.paymentStatus === 'pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'}`}>
-            {order.paymentStatus === 'pagado' ? 'Pagado' : 'No pagado'}
+          <span className={`text-[10px] font-semibold uppercase px-2 py-1 rounded-full ${claseDePago(order.paymentStatus)}`}>
+            {etiquetaDePago(order.paymentStatus)}
           </span>
         </div>
       </div>

@@ -25,6 +25,11 @@ export default function PharmacyPayment({ profile }) {
   const [intentoFallido, setIntentoFallido] = useState(false)
 
   const isDemoMode = !configLoading && !publicKey
+  // El paciente tiene el pedido bonificado (profiles.payment_exempt, migración
+  // 135). Hasta el 2026-09-17 la farmacia era el único lugar que NO miraba esta
+  // marca: las consultas ya se salteaban Mercado Pago y acá se seguía pidiendo
+  // tarjeta, así que una cuenta exenta podía atenderse pero no comprar.
+  const paymentExempt = Boolean(profile?.paymentExempt)
   const amount = order?.total ?? 0
   const description = 'Pedido de medicamentos — Healthier'
 
@@ -78,6 +83,22 @@ export default function PharmacyPayment({ profile }) {
 
   const handlePay = async () => {
     if (paying || paid || addCardMode) return
+    if (paymentExempt) {
+      // Bonificado: el pedido pasa a 'exento' y no se toca Mercado Pago. El
+      // trigger de la base sólo lo deja si el perfil está realmente exento
+      // (migración 165), así que esto no es una puerta de atrás.
+      setPaying(true)
+      try {
+        await medicationOrdersService.marcarBonificado(order.id)
+        handlePaymentResult({ approved: true, status: 'paid' })
+      } catch (err) {
+        setIntentoFallido(true)
+        toast.error(err?.message || 'No pudimos confirmar el pedido')
+      } finally {
+        setPaying(false)
+      }
+      return
+    }
     if (isDemoMode) {
       // Demo/sin MP configurado: no hay cobro real posible.
       toast.error('Mercado Pago no está configurado en este ambiente')
@@ -118,7 +139,7 @@ export default function PharmacyPayment({ profile }) {
             <span className="text-[20px] font-black text-text-primary">{fmtPrice(amount)}</span>
           </div>
 
-          {!isDemoMode && (
+          {!isDemoMode && !paymentExempt && (
             <SavedCardSelector
               ref={cardSelectorRef}
               selectedCardId={selectedCardId}
@@ -136,7 +157,7 @@ export default function PharmacyPayment({ profile }) {
         {!addCardMode && (
           <button
             onClick={handlePay}
-            disabled={paying || paid || (!isDemoMode && !selectedCardId)}
+            disabled={paying || paid || (!isDemoMode && !paymentExempt && !selectedCardId)}
             className={[
               'w-full py-5 rounded-full font-bold text-[16px] flex items-center justify-center gap-3 transition-all',
               paid
