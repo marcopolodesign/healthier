@@ -6,6 +6,7 @@ import {
   Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning, Path, EnvelopeSimple, UploadSimple } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
+import { veSubidas } from '../../lib/permisos'
 
 // Nav de super admin en mobile. Hasta ahora el único acceso era la hamburguesa
 // del header: en un teléfono eso deja Pagos —lo que más se mira— a dos toques y
@@ -45,7 +46,6 @@ const MORE_GROUPS = [
     links: [
       { path: '/super-admin/auditoria', icon: Eye, label: 'Auditoría HC', sub: 'Accesos a historias clínicas' },
       { path: '/super-admin/mails', icon: EnvelopeSimple, label: 'Mails', sub: 'Qué salió y qué falló' },
-      { path: '/super-admin/subidas', icon: UploadSimple, label: 'Subidas', sub: 'Qué documento rebotó y por qué' },
     ],
   },
   {
@@ -59,7 +59,17 @@ const MORE_GROUPS = [
   },
 ]
 
-export default function SuperAdminBottomNav({ className = '' }) {
+export default function SuperAdminBottomNav({ className = '', profile = null }) {
+  // "Subidas" no se abre por rol sino por cuenta — ver `lib/permisos.js`.
+  const grupos = MORE_GROUPS.map(g => g.title !== 'Otros' ? g : {
+    ...g,
+    links: [
+      ...g.links,
+      ...(veSubidas(profile)
+        ? [{ path: '/super-admin/subidas', icon: UploadSimple, label: 'Subidas', sub: 'Qué documento rebotó y por qué' }]
+        : []),
+    ],
+  })
   const navigate = useNavigate()
   const { pathname, search } = useLocation()
   const [open, setOpen] = useState(false)
@@ -136,7 +146,7 @@ export default function SuperAdminBottomNav({ className = '' }) {
                 </button>
               </div>
 
-              {MORE_GROUPS.map(group => (
+              {grupos.map(group => (
                 <div key={group.title} className="mb-2">
                   <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">
                     {group.title}

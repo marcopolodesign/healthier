@@ -98,6 +98,7 @@ import SuperAdminVerticales from './pages/super-admin/Verticales'
 import SuperAdminAuditoria from './pages/super-admin/Auditoria'
 import SuperAdminMails from './pages/super-admin/Mails'
 import SuperAdminSubidas from './pages/super-admin/Subidas'
+import { veSubidas } from './lib/permisos'
 import SuperAdminUsuarios from './pages/super-admin/Usuarios'
 import SuperAdminUsuariosProspects from './pages/super-admin/UsuariosProspects'
 import SuperAdminProfesionalesProspects from './pages/super-admin/ProfesionalesProspects'
@@ -145,6 +146,19 @@ function RequireRole({ profile, allowed, children }) {
   if (!allowed.includes(profile.role)) {
     return <Navigate to={ROLE_REDIRECTS[profile.role] || '/'} replace />
   }
+  return children
+}
+
+/**
+ * Pantallas que no se abren por rol sino por cuenta — hoy sólo el registro de
+ * subidas del legajo. Ver `lib/permisos.js`.
+ *
+ * Es cortesía, no seguridad: quien entre igual escribiendo la URL no va a ver
+ * nada porque la RLS no le devuelve filas (migración 163). Esto evita el
+ * cartel vacío y la pregunta de por qué.
+ */
+function RequierePermiso({ permitido, children }) {
+  if (!permitido) return <Navigate to="/super-admin/dashboard" replace />
   return children
 }
 
@@ -514,7 +528,7 @@ export default function App() {
           <Route path="/super-admin/profesionales/referidos" element={<SuperAdminReferidos />} />
           <Route path="/super-admin/emergencias" element={<SuperAdminEmergencias />} />
           <Route path="/super-admin/mails" element={<SuperAdminMails />} />
-          <Route path="/super-admin/subidas" element={<SuperAdminSubidas />} />
+          <Route path="/super-admin/subidas" element={<RequierePermiso permitido={veSubidas(profile)}><SuperAdminSubidas /></RequierePermiso>} />
           <Route path="/super-admin/farmacia" element={<SuperAdminFarmacia />} />
         </Route>
 
