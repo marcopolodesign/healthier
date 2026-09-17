@@ -80,8 +80,16 @@ export default function PharmacyCartSheet() {
           {items.map(it => (
             <div key={it.productId ?? it.itemId} className="flex items-center gap-3 rounded-xl border border-border-default bg-bg-surface px-3 py-2.5">
               <div className="w-10 h-10 rounded-lg bg-bg-primary flex items-center justify-center overflow-hidden shrink-0">
+                {/* Si la foto no carga se esconde y queda el fondo — mismo
+                    criterio que la tarjeta del catálogo, donde el catálogo
+                    sembrado tenía las 20 imágenes rotas (2026-09-17). */}
                 {it.imageUrl
-                  ? <img src={it.imageUrl} alt="" className="w-full h-full object-cover" />
+                  ? <img
+                      src={it.imageUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.currentTarget.style.display = 'none' }}
+                    />
                   : <Pill className="w-4 h-4 text-brand" />}
               </div>
               <div className="flex-1 min-w-0">

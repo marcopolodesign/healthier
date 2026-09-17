@@ -37,3 +37,25 @@ export const STATUS_PATIENT_HINT = {
   entregado: 'Llegó a destino.',
   cancelado: 'La farmacia canceló este pedido.',
 }
+
+/**
+ * Cómo se muestra el estado de pago de un pedido.
+ *
+ * 'exento' se agregó el 2026-09-17 (migración 165): el pedido se despacha pero
+ * no se cobró. Se muestra distinto de "Pagado" a propósito — quien concilia la
+ * plata tiene que poder distinguirlos de un vistazo.
+ */
+export const PAYMENT_LABEL = {
+  pagado:    'Pagado',
+  exento:    'Bonificado',
+  no_pagado: 'No pagado',
+}
+
+export const PAYMENT_CLASS = {
+  pagado:    'bg-emerald-50 text-emerald-600',
+  exento:    'bg-violet-50 text-violet-600',
+  no_pagado: 'bg-gray-100 text-gray-500',
+}
+
+export const etiquetaDePago = (estado) => PAYMENT_LABEL[estado] ?? 'No pagado'
+export const claseDePago = (estado) => PAYMENT_CLASS[estado] ?? PAYMENT_CLASS.no_pagado

@@ -4,7 +4,7 @@ import { Package, MapPin } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
 import { formatARS, formatDate } from '../../lib/format'
-import { STATUS_LABEL, NEXT_STATUS } from '../../lib/pharmacyOrders'
+import { STATUS_LABEL, NEXT_STATUS, etiquetaDePago, claseDePago } from '../../lib/pharmacyOrders'
 
 const STATUS_BADGE = {
   pendiente:       'bg-amber-50 text-amber-600',
@@ -67,6 +67,7 @@ export default function PharmacyOrders({ profile }) {
           <option value="">Todos los pagos</option>
           <option value="pagado">Pagado</option>
           <option value="no_pagado">No pagado</option>
+          <option value="exento">Bonificado</option>
         </select>
       </div>
 
@@ -108,8 +109,8 @@ export default function PharmacyOrders({ profile }) {
                     </span>
                   </td>
                   <td className="table-cell">
-                    <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${o.paymentStatus === 'pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'}`}>
-                      {o.paymentStatus === 'pagado' ? 'Pagado' : 'No pagado'}
+                    <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${claseDePago(o.paymentStatus)}`}>
+                      {etiquetaDePago(o.paymentStatus)}
                     </span>
                   </td>
                   <td className="table-cell hidden sm:table-cell text-text-secondary">{formatARS(o.total)}</td>

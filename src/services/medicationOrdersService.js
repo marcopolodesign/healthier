@@ -28,6 +28,32 @@ const ORDER_ITEMS_SELECT = `
   items:medication_order_items(*)
 `
 
+/**
+ * Le pega el nombre del paciente a los pedidos, para el panel de la farmacia.
+ *
+ * No se puede hacer con el join de PostgREST a `profiles`: la farmacia no tiene
+ * —ni debe tener— permiso sobre esa tabla, y el join devolvía `patient: null`
+ * en silencio, así que la columna "Paciente" salía con un guion (2026-09-17).
+ * Los datos salen de la vista `pharmacy_order_patients` (migración 164), que
+ * expone sólo nombre y teléfono y sólo al personal de farmacia.
+ *
+ * Una consulta para todos los pedidos, no una por pedido.
+ */
+async function conPacientes(orders) {
+  const lista = orders ?? []
+  const ids = [...new Set(lista.map(o => o.patient_id).filter(Boolean))]
+  if (ids.length === 0) return lista
+  const { data, error } = await supabase
+    .from('pharmacy_order_patients')
+    .select('id, full_name, phone')
+    .in('id', ids)
+  // Si la vista falla, el pedido igual se muestra: quedarse sin el nombre es
+  // mejor que dejar a la farmacia sin la lista.
+  if (error) return lista
+  const porId = new Map((data ?? []).map(p => [p.id, p]))
+  return lista.map(o => ({ ...o, patient: porId.get(o.patient_id) ?? null }))
+}
+
 export const medicationOrdersService = {
   async updateDeliveryAddress(orderId, deliveryAddress) {
     const { data, error } = await supabase
@@ -93,7 +119,11 @@ export const medicationOrdersService = {
       .eq('id', orderId)
       .maybeSingle()
     if (error) throw error
-    return toCamelCase(data)
+    if (!data) return null
+    // El detalle del panel de farmacia muestra a quién se le entrega. Para el
+    // paciente la vista devuelve vacío y queda en null, que es lo correcto.
+    const [conPaciente] = await conPacientes([data])
+    return toCamelCase(conPaciente)
   },
 
   /** Last unpaid draft for the patient — used to resume an abandoned checkout. */
@@ -119,7 +149,9 @@ export const medicationOrdersService = {
       .from('medication_orders')
       .select(ORDER_ITEMS_SELECT)
       .eq('patient_id', patientId)
-      .eq('payment_status', 'pagado')
+      // 'exento' cuenta igual que 'pagado': el pedido existe y se despacha,
+      // sólo que no se cobró (migración 165).
+      .in('payment_status', ['pagado', 'exento'])
       .order('created_at', { ascending: false })
     if (error) throw error
     return toCamelCase(data)
@@ -134,7 +166,7 @@ export const medicationOrdersService = {
       .from('medication_orders')
       .select(ORDER_ITEMS_SELECT)
       .eq('patient_id', patientId)
-      .eq('payment_status', 'pagado')
+      .in('payment_status', ['pagado', 'exento'])
       .in('status', ['pendiente', 'en_preparacion', 'enviado'])
       .order('created_at', { ascending: false })
     if (error) throw error
@@ -154,7 +186,6 @@ export const medicationOrdersService = {
       .from('medication_orders')
       .select(`
         *,
-        patient:profiles!patient_id(full_name, email, phone),
         items:medication_order_items(*)
       `)
       .order('created_at', { ascending: false })
@@ -165,6 +196,25 @@ export const medicationOrdersService = {
     if (filters.dateTo) query = query.lte('created_at', filters.dateTo)
 
     const { data, error } = await query
+    if (error) throw error
+    return toCamelCase(await conPacientes(data))
+  },
+
+  /**
+   * Deja el pedido en 'exento' — bonificado, sin pasar por Mercado Pago.
+   *
+   * La autorización NO está acá: el trigger
+   * `proteger_payment_status_pedidos_medicamentos` (migración 165) sólo acepta
+   * 'exento' si el que escribe es el propio paciente y su perfil tiene
+   * `payment_exempt`. Si no, la base rechaza con 42501 y el error se ve.
+   */
+  async marcarBonificado(orderId) {
+    const { data, error } = await supabase
+      .from('medication_orders')
+      .update({ payment_status: 'exento' })
+      .eq('id', orderId)
+      .select(ORDER_ITEMS_SELECT)
+      .single()
     if (error) throw error
     return toCamelCase(data)
   },
