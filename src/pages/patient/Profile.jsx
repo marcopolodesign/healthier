@@ -58,6 +58,32 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
     emergenciaTelefono: profile?.emergencyPhone || '',
     emergenciaVinculo: profile?.emergencyRel  || '',
   })
+  // `userData` se arma una sola vez, en el `useState` de arriba. Como el perfil
+  // ahora se revalida contra la base por atrás (ver authService), el prop puede
+  // llegar actualizado DESPUÉS del primer render — y sin esto la pantalla se
+  // quedaba con el dato viejo aunque el cache ya estuviera al día: así se veía
+  // "SANGRE —" con `blood_type: O+` en la base (2026-09-16).
+  //
+  // No pisa nada mientras se está editando: lo que la persona está tipeando
+  // gana siempre.
+  useEffect(() => {
+    if (!profile || editing) return
+    setUserData({
+      nombre:           profile.fullName      || '',
+      email:            profile.email         || '',
+      telefono:         profile.phone         || '',
+      domicilio:        profile.address       || '',
+      dni:              profile.dni           || '',
+      nacimiento:       isoADdmmaaaa(profile.birthDate),
+      sangre:           profile.bloodType     || '',
+      obraSocial:       profile.insuranceName || '',
+      numeroSocio:      profile.insuranceNum  || '',
+      emergenciaNombre: profile.emergencyName || '',
+      emergenciaTelefono: profile.emergencyPhone || '',
+      emergenciaVinculo: profile.emergencyRel  || '',
+    })
+  }, [profile, editing])
+
   // Grupo familiar — persistido en `family_members` (migración 068)
   const [familiares, setFamiliares] = useState([])
   const [familiaresLoading, setFamiliaresLoading] = useState(true)
