@@ -122,15 +122,47 @@ export const authService = {
     return user
   },
 
-  async getCurrentUserProfile(userId) {
+  /**
+   * Relee el perfil por atrás y avisa sólo si cambió algo. Nunca rechaza: si
+   * la red falla, la persona se queda con el cache, que es lo que tenía igual.
+   */
+  async _revalidarPerfil(uid, cacheado, onFresh) {
+    try {
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).single()
+      if (error || !data) return
+      const fresco = toCamelCase(data)
+      if (JSON.stringify(fresco) === JSON.stringify(cacheado)) return
+      localStorage.setItem('userProfile', JSON.stringify(fresco))
+      if (typeof onFresh === 'function') onFresh(fresco)
+    } catch {
+      /* sin red: se sigue con el cache */
+    }
+  },
+
+  async getCurrentUserProfile(userId, { onFresh } = {}) {
     const uid = userId || (await this.getCurrentUser())?.id
     if (!uid) return null
 
+    // El cache es sólo para la PRIMERA pintada: se devuelve al toque y
+    // enseguida se relee de la base por atrás.
+    //
+    // 🔴 Antes se devolvía el cache y se cortaba ahí, sin vencimiento ni
+    // invalidación: mientras el id coincidiera, ese perfil era el que veía la
+    // persona **para siempre**. Un perfil cambiado en otro lado —la app, o el
+    // profesional cargando DNI y fecha de nacimiento para emitir una receta
+    // (migración 075)— no aparecía nunca. Encontrado el 2026-09-16 en vivo: la
+    // base decía `blood_type: O+` y la pantalla decía "—".
+    //
+    // Quien llame pasa `onFresh` para enterarse cuando llegue el dato de
+    // verdad; si no lo pasa, igual queda el cache al día para la próxima.
     const cached = localStorage.getItem('userProfile')
     if (cached) {
       try {
         const p = JSON.parse(cached)
-        if (p && p.id === uid) return p
+        if (p && p.id === uid) {
+          this._revalidarPerfil(uid, p, onFresh)
+          return p
+        }
       } catch {
         localStorage.removeItem('userProfile')
       }

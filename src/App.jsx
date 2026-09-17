@@ -253,7 +253,9 @@ export default function App() {
       try {
         const user = await authService.getCurrentUser()
         if (user) {
-          const p = await authService.getCurrentUserProfile(user.id)
+          // `onFresh`: el perfil cacheado se pinta al toque y, si la base
+          // tiene algo distinto, se repinta solo. Ver authService.
+          const p = await authService.getCurrentUserProfile(user.id, { onFresh: setProfile })
           if (p) {
             setProfile(p)
             if (p.role === 'professional') loadProfSpecialty(user.id)
@@ -276,7 +278,7 @@ export default function App() {
     const { data: { subscription } } = authService.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         try {
-          const p = await authService.getCurrentUserProfile(session.user.id)
+          const p = await authService.getCurrentUserProfile(session.user.id, { onFresh: setProfile })
           if (p) {
             setProfile(p)
             setAuthUser(null)
