@@ -120,7 +120,12 @@ export default function Pharmacy({ profile }) {
   // Casi la mitad del catálogo no tiene foto cargada y la grilla queda pobre,
   // así que arranca en true — pero como filtro visible, no como regla oculta:
   // antes se filtraba a mano y no había forma de ver el resto del catálogo.
-  const [showWithPhotoOnly, setShowWithPhotoOnly] = useState(true)
+  // 🔴 Arrancaba en `true`: el catálogo escondía todo producto sin foto.
+  // Mientras las fotos existían —aunque estuvieran rotas— no se notaba; al
+  // sacar las URLs muertas el catálogo quedó en CERO productos (2026-09-17).
+  // Una farmacia no puede esconderle un medicamento a un paciente porque le
+  // falta la foto: el filtro queda, pero hay que prenderlo a propósito.
+  const [showWithPhotoOnly, setShowWithPhotoOnly] = useState(false)
   const [prescriptionType, setPrescriptionType] = useState(null) // null = todas
   const [showFilters, setShowFilters] = useState(false)
   const [canBuy, setCanBuy] = useState(null) // null = todavía no se sabe
