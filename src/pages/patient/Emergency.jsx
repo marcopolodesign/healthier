@@ -446,6 +446,13 @@ export default function Emergency({ profile }) {
               </div>
             </div>
 
+            {/* 🔴 ÚNICA excepción a la regla de no mostrarle al paciente el
+                contacto del profesional (Mateo, 2026-09-18). En la ficha del
+                profesional se sacaron WhatsApp, mail y llamar; acá el botón
+                queda a propósito, y sólo acá: hay una emergencia ACTIVA y un
+                profesional YA ASIGNADO yendo hacia el paciente, que es el
+                único momento en que necesita hablar con él en el acto.
+                No replicar esto en ninguna otra pantalla. */}
             <div className="space-y-3">
               {emergency.professional?.phone ? (
                 <a
