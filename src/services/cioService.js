@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import { cioTrack } from '../utils/customerio'
+import { cioTrack, toE164Ar } from '../utils/customerio'
 
 // Eventos "ricos" de Customer.io — los que llevan payload completo porque del
 // otro lado hay una campaña que manda un mail o un WhatsApp de verdad.
@@ -27,7 +27,7 @@ async function fetchParties(patientId, professionalId) {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, email, phone, role, professional_profiles!professional_profiles_user_id_fkey(id)')
+    .select('id, full_name, email, phone, role, professional_profiles!professional_profiles_user_id_fkey(id, address)')
     .in('id', ids)
   if (error) return {}
 
@@ -35,13 +35,23 @@ async function fetchParties(patientId, professionalId) {
   return { patient: byId[patientId], professional: byId[professionalId] }
 }
 
+/**
+ * El teléfono sale SIEMPRE en E.164 (`+549…`). Antes salía crudo, tal como la
+ * persona lo había tipeado ("11 5555-0000", "011…", "15…"), y Customer.io no
+ * puede mandar un WhatsApp a eso: el envío falla o le llega a otro número. Es
+ * el stopper transversal que levantó Hyppo el 2026-09-16.
+ *
+ * El crudo viaja igual en `*_phone_raw` para poder corregirlo sin perder el dato.
+ */
 function partyProps(prefix, row) {
   if (!row) return {}
+  const phone = toE164Ar(row.phone)
   return {
     [`${prefix}_id`]:    row.id,
     [`${prefix}_name`]:  row.full_name,
     [`${prefix}_email`]: row.email,
-    [`${prefix}_phone`]: row.phone,
+    [`${prefix}_phone`]: phone ?? undefined,
+    [`${prefix}_phone_raw`]: phone ? undefined : row.phone,
   }
 }
 
@@ -60,6 +70,61 @@ function whenProps(iso) {
     scheduled_time:      d.toLocaleTimeString('es-AR', { ...opts, hour: '2-digit', minute: '2-digit' }),
     scheduled_weekday:   d.toLocaleDateString('es-AR', { ...opts, weekday: 'long' }),
   }
+}
+
+/**
+ * Base pública de la app, para los links que van en el cuerpo del mail o del
+ * WhatsApp.
+ *
+ * A propósito NO usa `import.meta.env.VITE_APP_URL`: esa variable vale
+ * `http://localhost:5173` en desarrollo, y un evento disparado desde un build
+ * de dev o de preview le metería ese link al WhatsApp de un paciente real —
+ * Customer.io no distingue de qué entorno vino el evento. El link tiene que ser
+ * el de producción siempre.
+ *
+ * Es el mismo valor que devuelve `cio.base_url()` en la migración 166, que es
+ * la otra mitad de lo que lee Customer.io.
+ */
+const APP_URL = 'https://gethealthier.vercel.app'
+
+/**
+ * ¿Es en el consultorio o por video? `modality` admite null en la base (turnos
+ * viejos), así que la comparación directa deja el turno sin dirección Y sin link.
+ * Espeja `cio.es_presencial()` de la migración 166.
+ */
+function esPresencial(row) {
+  return (row.modality ?? 'video') === 'presencial' && !row.is_on_demand
+}
+
+/**
+ * Dónde y por dónde. Los dos datos que pidió Hyppo y que el mail de confirmación
+ * y los recordatorios no podían nombrar.
+ *
+ * ⚠️ El link de video NO es `consultations.daily_room_url`: esa columna está en
+ * null al reservar, porque la sala de Daily se crea recién cuando el primero de
+ * los dos entra (edge function `daily-token`). Un recordatorio de 24 hs armado
+ * con esa columna sale con el campo vacío. El link que sirve siempre es el de la
+ * pantalla de la app, que resuelve la sala cuando la persona llega.
+ */
+function dondeProps(row, professional) {
+  const presencial = esPresencial(row)
+  const direccion = professional?.professional_profiles?.[0]?.address || undefined
+  return {
+    modalidad:        presencial ? 'presencial' : 'videoconsulta',
+    direccion:        presencial ? direccion : undefined,
+    // Un turno presencial cuyo profesional nunca cargó el consultorio: la campaña
+    // tiene que poder ramificar en vez de mandar el campo vacío.
+    falta_direccion:  presencial && !direccion,
+    link_videollamada: presencial ? undefined : `${APP_URL}/paciente/videollamada/${row.id}`,
+    link_videollamada_profesional: presencial ? undefined : `${APP_URL}/profesional/videollamada/${row.id}`,
+    link_mis_turnos:  `${APP_URL}/paciente/consultas`,
+  }
+}
+
+/** Ficha pública del profesional — el botón "reagendar" del follow-up. */
+function linkReserva(professional) {
+  const id = professional?.professional_profiles?.[0]?.id
+  return id ? `${APP_URL}/paciente/profesional/${id}` : undefined
 }
 
 export const cioService = {
@@ -82,6 +147,8 @@ export const cioService = {
         has_obra_social:         !!row.obra_social_name,
         professional_profile_id: professional?.professional_profiles?.[0]?.id,
         ...whenProps(row.scheduled_at),
+        ...dondeProps(row, professional),
+        link_reserva:            linkReserva(professional),
         ...partyProps('patient', patient),
         ...partyProps('professional', professional),
       })
@@ -123,8 +190,15 @@ export const cioService = {
         has_obra_social:         !!row.obra_social_name,
         // Booleano a propósito: el texto de cierre es dato clínico.
         has_closing_notes:       !!row.closing_notes,
+        // La rama "¿asistió al turno?" de Hyppo no tenía de dónde leer. `no_show`
+        // es un estado real de `consultations`, así que la señal existía — sólo
+        // no salía en ningún evento.
+        attended:                row.status === 'completed',
         professional_profile_id: professional?.professional_profiles?.[0]?.id,
+        // El follow-up de +7 días manda a reagendar con el mismo profesional.
+        link_reserva:            linkReserva(professional),
         ...whenProps(row.scheduled_at),
+        ...dondeProps(row, professional),
         ...partyProps('patient', patient),
         ...partyProps('professional', professional),
       })

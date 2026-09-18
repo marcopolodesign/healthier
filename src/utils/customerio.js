@@ -83,28 +83,49 @@ function compact(obj) {
  * "+54 9 11...").
  *
  * Reglas aplicadas (Argentina):
- *   • Ya empieza con "+" → se respeta tal cual, sólo se limpian separadores.
+ *   • Ya empieza con "+" → se respeta el país, sólo se limpian separadores.
  *   • Empieza con 54 → se le antepone "+".
- *   • 10 dígitos (área + número, sin 0 y sin 15) → "+549" + número. El 9 es
- *     obligatorio para móviles argentinos en WhatsApp.
+ *   • 10 dígitos (área + número, sin 0 y sin 15) → "+549" + número.
  *   • Se sacan el 0 inicial de larga distancia y el 15 de celular.
+ *   • "+54" + 10 dígitos es un móvil escrito SIN el 9 → se le agrega. Sin el 9
+ *     WhatsApp lo trata como fijo y el envío falla; lo pidió explícito el
+ *     equipo de Hyppo (mail del 2026-09-16).
  *
  * Si no cae en ningún caso se manda `phone_raw` igual, para no perder el dato
  * y poder corregirlo desde Customer.io.
+ *
+ * 🔴 Espeja `cio.to_e164_ar()` (migración 166), que es el que usa el Data
+ * Warehouse Sync. Si se cambia una regla acá, va también en esa migración — si
+ * no, el mismo teléfono llega distinto según por qué camino entró.
  */
 export function toE164Ar(raw) {
   if (!raw) return null
   const trimmed = String(raw).trim()
-  if (trimmed.startsWith('+')) return '+' + trimmed.slice(1).replace(/\D/g, '')
 
-  let digits = trimmed.replace(/\D/g, '')
+  let digits
+  if (trimmed.startsWith('+')) {
+    digits = trimmed.slice(1).replace(/\D/g, '')
+  } else {
+    digits = trimmed.replace(/\D/g, '')
+    if (!digits) return null
+    if (!digits.startsWith('54')) {
+      if (digits.startsWith('0')) digits = digits.slice(1)
+      // El 15 de celular va después del código de área (2 a 4 dígitos), y SÓLO
+      // se saca si el número quedó largo de más. Un número argentino completo
+      // tiene 10 dígitos: si ya los tiene, lo que parece un 15 es parte del
+      // número — "2615123456" (Mendoza) es área 261 + abonado 5123456, no
+      // "26" + 15 + "123456". Ver `cio.to_e164_ar()` en la migración 166.
+      if (digits.length > 10) digits = digits.replace(/^(\d{2,4})15(\d{6,8})$/, '$1$2')
+      // Formato móvil nacional: "9" + área + abonado. Ningún código de área
+      // argentino arranca con 9, así que no es ambiguo.
+      if (digits.length === 11 && digits.startsWith('9')) return '+54' + digits
+      return digits.length === 10 ? '+549' + digits : null
+    }
+  }
   if (!digits) return null
-  if (digits.startsWith('54')) return '+' + digits
-  if (digits.startsWith('0')) digits = digits.slice(1)
-  // 15 de celular: va después del código de área (2 a 4 dígitos).
-  digits = digits.replace(/^(\d{2,4})15(\d{6,8})$/, '$1$2')
-  if (digits.length === 10) return '+549' + digits
-  return null
+  // "+54" + 10 dígitos = móvil sin el 9.
+  if (digits.startsWith('54') && digits.length === 12) return '+549' + digits.slice(2)
+  return '+' + digits
 }
 
 function toUnixSeconds(value) {
