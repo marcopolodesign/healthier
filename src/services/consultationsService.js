@@ -504,6 +504,31 @@ export const consultationsService = {
     return result
   },
 
+  /**
+   * Pasa la consulta a `closing`, pero **sólo si la base todavía la tiene en
+   * `in_progress`** — no si lo cree el componente.
+   *
+   * Por qué importa: `closing` es lo que le impide al paciente volver a entrar
+   * a una sala que ya terminó. El profesional decidía esa transición mirando su
+   * copia local del estado, y esa copia se queda atrasada (el paciente entra,
+   * la fila pasa a `in_progress` y el componente no se entera). Cuando estaba
+   * atrasada, "Finalizar" navegaba sin cerrar la sala **y sin decir nada**, así
+   * que el paciente podía reingresar.
+   *
+   * Devuelve `true` si la movió y `false` si ya no estaba en curso.
+   */
+  async marcarCierreSiSigueEnCurso(id) {
+    if (esSimulado(id)) return false
+    const { data, error } = await supabase
+      .from('consultations')
+      .update({ status: 'closing', closing_started_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('status', 'in_progress')
+      .select('id')
+    if (error) throw error
+    return (data?.length ?? 0) > 0
+  },
+
   async cancel(id, cancelledBy, reason = '') {
     return this.updateStatus(id, 'cancelled', {
       cancelledAt: new Date().toISOString(),

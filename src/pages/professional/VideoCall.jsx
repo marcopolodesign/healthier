@@ -1400,11 +1400,14 @@ export default function ProfessionalVideoCall({ profile }) {
     // que ya terminó. Sólo se dispara si venía de `in_progress` — si por lo que
     // sea todavía no llegó a esa altura, la transición no es válida y no hace
     // falta forzarla.
-    if (consultation?.status === 'in_progress') {
-      consultationsService
-        .updateStatus(id, 'closing', { closingStartedAt: new Date().toISOString() })
-        .catch(() => {})
-    }
+    // 🔴 Lo decide la BASE, no el estado local: esta copia se queda atrasada
+    // —el paciente entra, la fila pasa a `in_progress` y el componente no se
+    // entera— y cuando eso pasaba "Finalizar" navegaba sin cerrar la sala y sin
+    // decir una palabra, así que el paciente podía volver a entrar. Y si falla
+    // se avisa: un `.catch(() => {})` acá dejaba al paciente adentro en silencio.
+    consultationsService
+      .marcarCierreSiSigueEnCurso(id)
+      .catch((err) => toast.error(`No pudimos cerrar la sala: ${err.message}`))
     navigate(`/profesional/consulta/${id}`)
   }
 
