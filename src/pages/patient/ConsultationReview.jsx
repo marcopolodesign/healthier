@@ -4,6 +4,7 @@ import { Star, SealCheck, Warning } from '@phosphor-icons/react'
 import { consultationsService } from '../../services/consultationsService'
 import { reviewsService } from '../../services/reviewsService'
 import { toast } from '../../components/Toast'
+import { inicialesDe } from '../../lib/format'
 
 const RATING_LABELS = ['Muy mala', 'Mala', 'Regular', 'Buena', '¡Excelente!']
 
@@ -150,7 +151,7 @@ export default function ConsultationReview({ profile }) {
             ? <img src={proAvatar} alt={proName} className="w-16 h-16 rounded-full object-cover flex-shrink-0 border-2 border-white shadow-sm" />
             : (
               <div className="w-16 h-16 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0 border-2 border-white shadow-sm">
-                <span className="text-[26px] font-black text-brand">{proName.charAt(0)}</span>
+                <span className="text-[26px] font-black text-brand">{inicialesDe(proName)}</span>
               </div>
             )
           }
