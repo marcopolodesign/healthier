@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { User, Envelope, Lock, Phone, ArrowLeft } from '@phosphor-icons/react';
+import { User, Envelope, Lock, ArrowLeft } from '@phosphor-icons/react';
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { marcarDestinoPostRegistro } from '../../lib/postSignupRedirect'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
 import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
+import PhoneInput from '../../components/common/PhoneInput'
 import { track } from '../../utils/analytics'
 
 export default function RegisterProfessional({ onLogin }) {
@@ -140,17 +141,11 @@ export default function RegisterProfessional({ onLogin }) {
 
         <div>
           <label className="form-label">Teléfono (WhatsApp)</label>
-          <div className="relative">
-            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
-            <input
-              type="tel"
-              required
-              value={form.phone}
-              onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
-              placeholder="+54 9 11 1234 5678"
-              className="form-input pl-9"
-            />
-          </div>
+          <PhoneInput
+            required
+            value={form.phone}
+            onChange={phone => setForm(p => ({ ...p, phone }))}
+          />
         </div>
 
         <div>
