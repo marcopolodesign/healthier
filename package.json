@@ -11,7 +11,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:deploy": "playwright test tests/e2e/alta-cuenta.spec.js",
-    "emails": "tsx scripts/preview-emails.ts && tsx scripts/push-textos.ts",
+    "emails": "tsx scripts/preview-emails.ts && tsx scripts/plantilla-customerio.ts && tsx scripts/push-textos.ts",
     "emails:auth": "tsx scripts/aplicar-mails-de-auth.ts",
     "push": "tsx scripts/push-textos.ts"
   },

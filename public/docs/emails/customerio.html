@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="es"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Healthier — plantilla de mails para Customer.io</title>
+<style>
+  :root { color-scheme: light }
+  body { margin:0; background:#F6F5F0; color:#2D2A26; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif; line-height:1.6 }
+  .wrap { max-width:940px; margin:0 auto; padding:48px 20px 80px }
+  h1 { font-size:30px; line-height:1.2; letter-spacing:-.4px; margin:0 0 10px }
+  h2 { font-size:19px; margin:44px 0 12px; letter-spacing:-.2px }
+  p, li { color:#6B6560; font-size:15px }
+  strong { color:#2D2A26 }
+  table { width:100%; border-collapse:collapse; font-size:15px }
+  code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13.5px;
+         background:#FAF9F5; border:1px solid #E7E3DC; border-radius:6px; padding:1px 5px }
+  .card { background:#FFFFFF; border:1px solid #E7E3DC; border-radius:18px; padding:22px 24px; margin:0 0 20px }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start }
+  @media (max-width:760px) { .grid { grid-template-columns:1fr } }
+  iframe { width:100%; height:760px; border:1px solid #E7E3DC; border-radius:18px; background:#fff }
+  pre { margin:0; padding:16px; background:#2D2A26; color:#EDEAE4; border-radius:14px;
+        overflow:auto; max-height:420px; font-size:12px; line-height:1.5 }
+  .btn { display:inline-block; background:#7CB38B; color:#fff; border:0; border-radius:999px;
+         padding:10px 18px; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit }
+  .muted { color:#A8A29E; font-size:13px }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="muted" style="text-transform:uppercase;letter-spacing:.09em;font-weight:700">Healthier · para Hyppo</p>
+  <h1>La plantilla de mails, para replicar en Customer.io</h1>
+  <p style="max-width:62ch">Este es el mismo armazón con el que Healthier manda hoy sus mails
+  transaccionales. Se genera desde el código de la plataforma, así que si cambia la
+  paleta o el pie, esta página cambia sola.</p>
+
+  <h2>1 · Cómo se ve</h2>
+  <div class="grid">
+    <iframe src="customerio-plantilla.html" title="Vista previa de la plantilla"></iframe>
+    <div>
+      <div class="card">
+        <p style="margin:0 0 10px"><strong>Las reglas que no se negocian.</strong></p>
+        <ul style="margin:0;padding-left:18px">
+          <li>Tablas, nunca flex ni grid — Outlook renderiza con Word y desarma todo lo moderno.</li>
+          <li>Estilos inline. Gmail borra el <code>&lt;style&gt;</code> del head en varias vistas.</li>
+          <li>Ancho 600px, una sola columna: se lee igual en el teléfono, que es donde se abre.</li>
+          <li>El <strong>preheader</strong> oculto va siempre. Es el renglón gris que Gmail muestra al lado del asunto; si no se escribe, muestra el principio del HTML.</li>
+          <li>Tipografía del sistema. General Sans y Everett son webfonts propias y ningún cliente de mail las carga.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <p style="margin:0 0 10px"><strong>Variables</strong></p>
+        <table>
+          <tr>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC"><code>{{customer.first_name}}</code></td>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Nombre de pila de la persona</td>
+          </tr><tr>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC"><code>{{event.professional_name}}</code></td>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Nombre del profesional</td>
+          </tr><tr>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC"><code>{{event.specialty}}</code></td>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Especialidad, debajo del nombre</td>
+          </tr><tr>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC"><code>{{event.date}}</code></td>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Fecha del turno, ya formateada</td>
+          </tr><tr>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC"><code>{{event.time}}</code></td>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Hora del turno</td>
+          </tr><tr>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC"><code>{{event.modality}}</code></td>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">"Videoconsulta" o "Presencial"</td>
+          </tr><tr>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC"><code>{{event.cta_url}}</code></td>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">A dónde lleva el botón</td>
+          </tr><tr>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC"><code>{{event.professional_name | slice: 0 | upcase}}</code></td>
+            <td style="padding:7px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">La inicial del círculo, si no hay foto</td>
+          </tr>
+        </table>
+        <p class="muted" style="margin:12px 0 0">Los nombres son de ejemplo: lo importante es
+        dónde va cada dato. Reemplácenlos por los suyos.</p>
+      </div>
+    </div>
+  </div>
+
+  <h2>2 · Los cuatro acentos</h2>
+  <p style="max-width:62ch">El color cambia según la vertical de la consulta. Es lo único que
+  cambia: el resto del mail es idéntico. Cada acento son tres valores — el fuerte (botón y
+  puntos), el oscuro (texto sobre el suave) y el suave (fondos de bloque).</p>
+  <div class="card">
+    <table>
+      <tr><th align="left" style="padding-bottom:8px">Acento</th>
+          <th align="left" style="padding-bottom:8px">Cuándo</th>
+          <th align="left" style="padding-bottom:8px">Fuerte · Oscuro · Suave</th></tr>
+      <tr>
+    <td style="padding:10px 0;border-bottom:1px solid #E7E3DC">
+      <span style="display:inline-block;width:18px;height:18px;border-radius:9px;background:#7CB38B;vertical-align:middle"></span>
+      <strong style="margin-left:8px">sage</strong>
+    </td>
+    <td style="padding:10px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Clínica médica y entrenamiento físico. Es el que va por defecto.</td>
+    <td style="padding:10px 0;border-bottom:1px solid #E7E3DC;font-family:ui-monospace,monospace;font-size:13px;color:#6B6560">
+      #7CB38B · #3F6B4C · #EDF4EF
+    </td>
+  </tr>
+      <tr>
+    <td style="padding:10px 0;border-bottom:1px solid #E7E3DC">
+      <span style="display:inline-block;width:18px;height:18px;border-radius:9px;background:#E4A853;vertical-align:middle"></span>
+      <strong style="margin-left:8px">amber</strong>
+    </td>
+    <td style="padding:10px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Nutrición</td>
+    <td style="padding:10px 0;border-bottom:1px solid #E7E3DC;font-family:ui-monospace,monospace;font-size:13px;color:#6B6560">
+      #E4A853 · #8A5E13 · #FBF2E3
+    </td>
+  </tr>
+      <tr>
+    <td style="padding:10px 0;border-bottom:1px solid #E7E3DC">
+      <span style="display:inline-block;width:18px;height:18px;border-radius:9px;background:#9B8EC4;vertical-align:middle"></span>
+      <strong style="margin-left:8px">lavender</strong>
+    </td>
+    <td style="padding:10px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Salud mental</td>
+    <td style="padding:10px 0;border-bottom:1px solid #E7E3DC;font-family:ui-monospace,monospace;font-size:13px;color:#6B6560">
+      #9B8EC4 · #584B80 · #F1EFF8
+    </td>
+  </tr>
+      <tr>
+    <td style="padding:10px 0;border-bottom:1px solid #E7E3DC">
+      <span style="display:inline-block;width:18px;height:18px;border-radius:9px;background:#E8927C;vertical-align:middle"></span>
+      <strong style="margin-left:8px">coral</strong>
+    </td>
+    <td style="padding:10px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Veterinaria</td>
+    <td style="padding:10px 0;border-bottom:1px solid #E7E3DC;font-family:ui-monospace,monospace;font-size:13px;color:#6B6560">
+      #E8927C · #9C4B36 · #FCEFEB
+    </td>
+  </tr>
+    </table>
+  </div>
+
+  <h2>3 · Los bloques</h2>
+  <p style="max-width:62ch">El cuerpo se arma apilando estos bloques. No hace falta usarlos todos
+  ni respetar el orden, pero conviene no inventar otros.</p>
+  <div class="card">
+    <table>
+      <tr><td style="padding:9px 0;border-bottom:1px solid #E7E3DC"><strong>Etiqueta</strong></td>
+       <td style="padding:9px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">La píldora chica arriba del título. Opcional.</td></tr>
+      <tr><td style="padding:9px 0;border-bottom:1px solid #E7E3DC"><strong>Título</strong></td>
+       <td style="padding:9px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Una línea. Dice qué pasó, no cómo se llama el mail.</td></tr>
+      <tr><td style="padding:9px 0;border-bottom:1px solid #E7E3DC"><strong>Párrafo</strong></td>
+       <td style="padding:9px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Una o dos frases. El nombre de la persona va en negrita.</td></tr>
+      <tr><td style="padding:9px 0;border-bottom:1px solid #E7E3DC"><strong>Tarjeta de persona</strong></td>
+       <td style="padding:9px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Foto o inicial + nombre + especialidad. Para el profesional.</td></tr>
+      <tr><td style="padding:9px 0;border-bottom:1px solid #E7E3DC"><strong>Panel de datos</strong></td>
+       <td style="padding:9px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Los datos duros en pares etiqueta/valor: cuándo, modalidad, precio.</td></tr>
+      <tr><td style="padding:9px 0;border-bottom:1px solid #E7E3DC"><strong>Aviso</strong></td>
+       <td style="padding:9px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Recuadro con fondo del acento, para lo que hay que hacer o saber.</td></tr>
+      <tr><td style="padding:9px 0;border-bottom:1px solid #E7E3DC"><strong>Botón</strong></td>
+       <td style="padding:9px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Uno solo por mail, la acción principal.</td></tr>
+      <tr><td style="padding:9px 0;border-bottom:1px solid #E7E3DC"><strong>Enlace secundario</strong></td>
+       <td style="padding:9px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Debajo del botón, en gris.</td></tr>
+      <tr><td style="padding:9px 0;border-bottom:1px solid #E7E3DC"><strong>Pie</strong></td>
+       <td style="padding:9px 0;border-bottom:1px solid #E7E3DC;color:#6B6560">Mi cuenta · Mis consultas · Términos · WhatsApp, y el motivo del envío. Va siempre.</td></tr>
+    </table>
+  </div>
+
+  <h2>4 · El HTML</h2>
+  <p style="max-width:62ch">Pegar tal cual en el editor de código de Customer.io y reemplazar el
+  texto. <a href="customerio-plantilla.html">También se puede abrir suelto</a>.</p>
+  <p><button class="btn" onclick="navigator.clipboard.writeText(document.getElementById('codigo').textContent).then(()=>{this.textContent='Copiado'})">Copiar el HTML</button></p>
+  <pre id="codigo">&lt;!doctype html&gt;
+&lt;html lang=&quot;es&quot;&gt;&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;&gt;
+&lt;meta name=&quot;color-scheme&quot; content=&quot;light&quot;&gt;
+&lt;meta name=&quot;supported-color-schemes&quot; content=&quot;light&quot;&gt;
+&lt;title&gt;El título del mail, en una línea&lt;/title&gt;
+&lt;/head&gt;
+&lt;body style=&quot;margin:0;padding:0;background:#F6F5F0;-webkit-font-smoothing:antialiased&quot;&gt;
+  &lt;div style=&quot;display:none;font-size:1px;color:#F6F5F0;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden&quot;&gt;Este renglón es lo que se ve al lado del asunto en la bandeja — escribirlo siempre&lt;/div&gt;
+  &lt;div style=&quot;display:none;max-height:0;overflow:hidden&quot;&gt;&amp;#8199;&amp;#65279;&amp;#847;&amp;#8199;&amp;#65279;&amp;#847;&amp;#8199;&amp;#65279;&amp;#847;&amp;#8199;&amp;#65279;&amp;#847;&amp;#8199;&amp;#65279;&amp;#847;&amp;#8199;&amp;#65279;&amp;#847;&amp;#8199;&amp;#65279;&amp;#847;&amp;#8199;&amp;#65279;&amp;#847;&lt;/div&gt;
+
+  &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;background:#F6F5F0&quot;&gt;
+    &lt;tr&gt;&lt;td align=&quot;center&quot; style=&quot;padding:32px 16px 44px&quot;&gt;
+
+      &lt;table role=&quot;presentation&quot; width=&quot;600&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;width:100%;max-width:600px&quot;&gt;
+
+        &lt;!-- Logo --&gt;
+        &lt;tr&gt;&lt;td align=&quot;center&quot; style=&quot;padding:4px 0 22px&quot;&gt;
+          &lt;a href=&quot;https://gethealthier.vercel.app&quot; style=&quot;text-decoration:none&quot;&gt;
+            &lt;img src=&quot;https://gethealthier.vercel.app/email/healthier-logo.png&quot; width=&quot;118&quot; alt=&quot;Healthier&quot; style=&quot;display:block;width:118px;height:auto;border:0&quot;&gt;
+          &lt;/a&gt;
+        &lt;/td&gt;&lt;/tr&gt;
+
+        &lt;!-- Tarjeta --&gt;
+        &lt;tr&gt;&lt;td style=&quot;background:#FFFFFF;border:1px solid #E7E3DC;border-radius:26px&quot;&gt;
+          &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+            &lt;tr&gt;&lt;td style=&quot;padding:34px 34px 30px&quot;&gt;
+              &lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;margin:0 0 16px&quot;&gt;&lt;tr&gt;
+                  &lt;td style=&quot;background:#EDF4EF;border-radius:999px;padding:6px 13px;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#3F6B4C&quot;&gt;Etiqueta opcional&lt;/td&gt;
+                &lt;/tr&gt;&lt;/table&gt;
+              &lt;h1 style=&quot;margin:0 0 14px;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif;font-size:27px;line-height:1.22;font-weight:600;letter-spacing:-.4px;color:#2D2A26&quot;&gt;El título del mail, en una línea&lt;/h1&gt;
+              &lt;p style=&quot;margin:0 0 16px;font-size:15px;line-height:1.65;color:#6B6560;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif&quot;&gt;Hola &lt;strong style=&quot;color:#2D2A26&quot;&gt;{{customer.first_name}}&lt;/strong&gt;, acá va el primer párrafo. Una o dos frases, sin vueltas.&lt;/p&gt;
+  &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;
+         style=&quot;border:1px solid #E7E3DC;border-radius:18px;margin:0 0 24px&quot;&gt;
+    &lt;tr&gt;&lt;td style=&quot;padding:16px 18px&quot;&gt;
+      &lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+        &lt;tr&gt;
+          &lt;td width=&quot;52&quot; valign=&quot;top&quot;&gt;&lt;table role=&quot;presentation&quot; width=&quot;52&quot; height=&quot;52&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;background:#EDF4EF;border-radius:26px&quot;&gt;
+         &lt;tr&gt;&lt;td align=&quot;center&quot; valign=&quot;middle&quot; style=&quot;height:52px;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif;font-size:20px;font-weight:700;color:#3F6B4C&quot;&gt;{{event.professional_name | slice: 0 | upcase}}&lt;/td&gt;&lt;/tr&gt;
+       &lt;/table&gt;&lt;/td&gt;
+          &lt;td width=&quot;14&quot;&gt;&lt;/td&gt;
+          &lt;td valign=&quot;middle&quot;&gt;
+            &lt;p style=&quot;margin:0;font-size:16px;line-height:1.35;font-weight:600;color:#2D2A26;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif&quot;&gt;{{event.professional_name}}&lt;/p&gt;
+            &lt;p style=&quot;margin:2px 0 0;font-size:13px;line-height:1.4;color:#6B6560;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif&quot;&gt;{{event.specialty}}&lt;/p&gt;
+            
+          &lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/table&gt;
+    &lt;/td&gt;&lt;/tr&gt;
+  &lt;/table&gt;
+  &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;
+         style=&quot;background:#EDF4EF;border-radius:18px;margin:0 0 24px&quot;&gt;
+    &lt;tr&gt;&lt;td style=&quot;padding:22px 24px&quot;&gt;
+      &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+    &lt;tr&gt;
+      &lt;td style=&quot;padding:0 0 0 0&quot;&gt;
+        &lt;p style=&quot;margin:0 0 3px;font-size:11px;line-height:1.4;letter-spacing:.08em;text-transform:uppercase;color:#A8A29E;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif&quot;&gt;Cuándo&lt;/p&gt;
+        &lt;p style=&quot;margin:0;font-size:16px;line-height:1.45;color:#2D2A26;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif&quot;&gt;{{event.date}} · {{event.time}}&lt;/p&gt;
+      &lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td style=&quot;padding:14px 0 0 0&quot;&gt;
+        &lt;p style=&quot;margin:0 0 3px;font-size:11px;line-height:1.4;letter-spacing:.08em;text-transform:uppercase;color:#A8A29E;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif&quot;&gt;Modalidad&lt;/p&gt;
+        &lt;p style=&quot;margin:0;font-size:16px;line-height:1.45;color:#2D2A26;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif&quot;&gt;{{event.modality}}&lt;/p&gt;
+      &lt;/td&gt;
+    &lt;/tr&gt;&lt;/table&gt;
+    &lt;/td&gt;&lt;/tr&gt;
+  &lt;/table&gt;
+  &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;background:#EDF4EF;border-radius:14px;margin:0 0 22px&quot;&gt;
+    &lt;tr&gt;&lt;td style=&quot;padding:14px 16px&quot;&gt;
+      &lt;p style=&quot;margin:0;font-size:13px;line-height:1.55;color:#3F6B4C;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif&quot;&gt;El recuadro de aviso, para lo que la persona tiene que hacer o saber antes.&lt;/p&gt;
+    &lt;/td&gt;&lt;/tr&gt;
+  &lt;/table&gt;
+  &lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;margin:2px 0 8px&quot;&gt;
+    &lt;tr&gt;&lt;td align=&quot;center&quot; bgcolor=&quot;#7CB38B&quot; style=&quot;border-radius:999px&quot;&gt;
+      &lt;a href=&quot;{{event.cta_url}}&quot;
+         style=&quot;display:inline-block;padding:14px 30px;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif;font-size:15px;font-weight:600;line-height:1;color:#ffffff;text-decoration:none;border-radius:999px&quot;&gt;
+        La acción principal
+      &lt;/a&gt;
+    &lt;/td&gt;&lt;/tr&gt;
+  &lt;/table&gt;&lt;p style=&quot;margin:0 0 4px;font-size:13px;line-height:1.5;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif&quot;&gt;&lt;a href=&quot;https://gethealthier.vercel.app/paciente/consultas&quot; style=&quot;color:#6B6560;text-decoration:underline&quot;&gt;Un enlace secundario, debajo del botón&lt;/a&gt;&lt;/p&gt;
+              &lt;p style=&quot;margin:20px 0 0;font-size:12px;line-height:1.6;color:#A8A29E;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif&quot;&gt;El renglón chico del final, dentro de la tarjeta.&lt;/p&gt;
+            &lt;/td&gt;&lt;/tr&gt;
+          &lt;/table&gt;
+        &lt;/td&gt;&lt;/tr&gt;
+
+        &lt;!-- Pie --&gt;
+        &lt;tr&gt;&lt;td align=&quot;center&quot; style=&quot;padding:24px 16px 0&quot;&gt;
+          &lt;p style=&quot;margin:0 0 8px;font-size:12px;line-height:1.6;color:#A8A29E;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif&quot;&gt;
+            &lt;a href=&quot;https://gethealthier.vercel.app/paciente/dashboard&quot; style=&quot;color:#A8A29E;text-decoration:underline&quot;&gt;Mi cuenta&lt;/a&gt;
+            &amp;nbsp;·&amp;nbsp;
+            &lt;a href=&quot;https://gethealthier.vercel.app/paciente/consultas&quot; style=&quot;color:#A8A29E;text-decoration:underline&quot;&gt;Mis consultas&lt;/a&gt;
+            &amp;nbsp;·&amp;nbsp;
+            &lt;a href=&quot;https://gethealthier.vercel.app/terminos&quot; style=&quot;color:#A8A29E;text-decoration:underline&quot;&gt;Términos&lt;/a&gt;
+            &amp;nbsp;·&amp;nbsp;
+            &lt;a href=&quot;https://wa.me/5491172713599&quot; style=&quot;color:#A8A29E;text-decoration:underline&quot;&gt;WhatsApp +54 9 11 7271-3599&lt;/a&gt;
+          &lt;/p&gt;
+          &lt;p style=&quot;margin:0;font-size:12px;line-height:1.6;color:#A8A29E;font-family:-apple-system,BlinkMacSystemFont,&#39;Segoe UI&#39;,Inter,Roboto,&#39;Helvetica Neue&#39;,Arial,sans-serif&quot;&gt;
+            Healthier · Buenos Aires, Argentina&lt;br&gt;
+            Recibís este mail porque tenés una cuenta en Healthier.
+          &lt;/p&gt;
+        &lt;/td&gt;&lt;/tr&gt;
+
+      &lt;/table&gt;
+    &lt;/td&gt;&lt;/tr&gt;
+  &lt;/table&gt;
+&lt;/body&gt;&lt;/html&gt;</pre>
+
+  <h2>5 · Lo que conviene cruzar antes</h2>
+  <div class="card">
+    <p style="margin:0">Healthier ya manda desde <code>healthier.com.ar</code> la bienvenida, la
+    confirmación de turno y dos recordatorios. Son los tres que se cruzan con las campañas que
+    están armando: si los mandamos los dos, la persona recibe todo dos veces. Conviene definir
+    quién manda cada uno antes de prender nada.</p>
+  </div>
+
+  <p class="muted" style="margin-top:44px">Healthier · Preparado por Marco Polo</p>
+</div>
+</body></html>
