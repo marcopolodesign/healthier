@@ -34,7 +34,7 @@ Healthier — Health-services marketplace MVP connecting patients with healthcar
 - **Stack:** React 19 + Vite 7 + Tailwind CSS 4 + Supabase JS + React Router v7
 - **Icons:** `@phosphor-icons/react` ONLY — https://phosphoricons.com. Do NOT use lucide-react or any other icon library.
 - **Language:** All UI copy in Spanish (Argentine)
-- **Payments:** Deferred — no Stripe
+- **Payments:** Mercado Pago, en producción — brick `CardPayment` (`@mercadopago/sdk-react`), tarjetas tokenizadas, comisión de plataforma con `application_fee`, preautorización para on-demand (`capture: false`, se captura o se libera con `mp-capture`) y devoluciones. Las Edge Functions `mp-*` son las dueñas del circuito; antes de tocarlas, la regla de `verificar-pagos.mjs` de arriba.
 - **Scheduling:** Healthier's own availability system (`professional_schedules`, 15-min slots, anti-double-booking) — Calendly removed 2026-07-17. Future: sync booked consultations to the professional's own Google Calendar (not yet built, see nextsteps.md).
 
 ---
@@ -87,8 +87,9 @@ Healthier — Health-services marketplace MVP connecting patients with healthcar
 | `professional` | `/profesional/dashboard` |
 | `admin` | `/admin/profesionales` |
 | `super_admin` | `/super-admin/dashboard` |
+| `pharmacy_admin` · `pharmacy_operator` · `pharmacy_readonly` | `/farmacia/pedidos` |
 
-Role guards are in `src/App.jsx` via `RequireRole`. Patient routes use `PatientMobileLayout`; all other roles use `AppLayout`.
+Role guards are in `src/App.jsx` via `RequireRole`, y el mapa de destinos por rol es `ROLE_REDIRECTS` en ese mismo archivo — agregar un rol nuevo en los dos lugares. Patient routes use `PatientMobileLayout`; all other roles (farmacia incluida) use `AppLayout`.
 
 ---
 
@@ -128,14 +129,22 @@ Some professional pages are designed exclusively for phone use and must never be
 
 ---
 
-## Mock Services — Do Not Wire Yet
+## IA y emergencias — ya no son mocks
 
-The following services are **UI-only mocks** with realistic `setTimeout` delays. Do not attempt to wire real backends without a dedicated task:
+Esta sección decía hasta el 2026-09-21 que la triage con IA y el despacho de
+emergencias eran maquetas con `setTimeout`. **Las dos están construidas contra
+datos reales**; lo que queda acá es dónde vive cada cosa, para no volver a
+tratarlas como mocks:
 
-| Service | File | TODO |
-|---------|------|------|
-| AI triage | `src/services/aiService.js` | Gemini 2.5 Flash via `VITE_GEMINI_API_KEY` |
-| Emergency dispatch | `src/services/emergencyService.js` | Real dispatcher + ETA feed |
+| Qué | Dónde vive hoy |
+|-----|----------------|
+| Despacho de emergencias | `src/services/emergencyService.js` (tabla `emergencies`, precio y disponibilidad desde `/super-admin/verticales`) y `emergencyTrackingService.js` (`emergency_tracking`, migración 149: el profesional despachado transmite dónde está de verdad). Panel en `/super-admin/emergencias`, pantalla de calle en `/profesional/emergencias`. ⚠️ La vuelta más grande — entidad que despacha, operador, ambulancia y tripulación como objetos — está en la rama `staging`, todavía sin mergear a `main` |
+| Lectura de análisis (BioVisor) | Edge Function `biovisor-extract` — Gemini corre **del lado del servidor** a propósito: la key vivía en `VITE_GEMINI_API_KEY`, o sea compilada dentro del bundle |
+| Chat de salud, escriba clínico, alimentos | Edge Functions `ai-companion`, `clinical-scribe`, `fatsecret-search` (ver `src/services/companionService.js`, `scribeService.js`, `nutriplanService.js`) |
+
+> **`src/services/aiService.js` no lo usa nadie** — es la triage vieja, con la
+> llamada a Gemini desde el browser. Cualquier IA nueva va por Edge Function,
+> nunca con la key en el bundle.
 
 ---
 
