@@ -61,6 +61,28 @@ const PLANTILLA_CIO = PLANTILLA.replace(
 
 writeFileSync(join(OUT, 'customerio-plantilla.html'), PLANTILLA_CIO)
 
+// La vista previa se rinde con datos de ejemplo, NO con las variables: si no, el
+// círculo del avatar muestra la expresión de Liquid entera y el mail se ve roto.
+// Lo que se pega en Customer.io es `PLANTILLA_CIO`, que está en el bloque de código.
+const PLANTILLA_DEMO = renderEmail({
+  preheader: 'Tu turno con la Dra. Valentina Ortiz quedó reservado',
+  eyebrow: 'Turno confirmado',
+  title: 'Tu turno quedó reservado',
+  accent: 'sage',
+  body: [
+    p(`Hola <strong style="color:${C.ink}">Sofía</strong>, acá va el primer párrafo. Una o dos frases, sin vueltas.`),
+    personCard({ name: 'Dra. Valentina Ortiz', subtitle: 'Clínica médica', accent: 'sage' }),
+    panel([
+      { label: 'Cuándo', value: 'Martes 23 de septiembre · 15:30' },
+      { label: 'Modalidad', value: 'Videoconsulta' },
+    ], 'sage'),
+    note('El recuadro de aviso, para lo que la persona tiene que hacer o saber antes.', 'sage'),
+    button('#', 'La acción principal', 'sage'),
+    link(`${APP_URL}/paciente/consultas`, 'Un enlace secundario, debajo del botón'),
+  ].join(''),
+  footnote: 'El renglón chico del final, dentro de la tarjeta.',
+})
+
 // ── La guía ──────────────────────────────────────────────────────────────────
 
 const swatch = (nombre: Accent, cuando: string) => {
@@ -119,7 +141,7 @@ const guia = `<!doctype html>
 
   <h2>1 · Cómo se ve</h2>
   <div class="grid">
-    <iframe src="customerio-plantilla.html" title="Vista previa de la plantilla"></iframe>
+    <iframe srcdoc="${esc(PLANTILLA_DEMO)}" title="Vista previa de la plantilla"></iframe>
     <div>
       <div class="card">
         <p style="margin:0 0 10px"><strong>Las reglas que no se negocian.</strong></p>
@@ -180,7 +202,7 @@ const guia = `<!doctype html>
 
   <h2>4 · El HTML</h2>
   <p style="max-width:62ch">Pegar tal cual en el editor de código de Customer.io y reemplazar el
-  texto. <a href="customerio-plantilla.html">También se puede abrir suelto</a>.</p>
+  texto. Va también como archivo suelto adjunto.</p>
   <p><button class="btn" onclick="navigator.clipboard.writeText(document.getElementById('codigo').textContent).then(()=>{this.textContent='Copiado'})">Copiar el HTML</button></p>
   <pre id="codigo">${esc(PLANTILLA_CIO)}</pre>
 

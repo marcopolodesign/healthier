@@ -41,10 +41,30 @@ export function panel(rows: Array<{ label: string; value: string }>, accent: Acc
   </table>`
 }
 
+
+/**
+ * La inicial de una persona, salteando el título profesional.
+ *
+ * En la base TODOS los profesionales están guardados con el título adelante
+ * ("Dra. Valentina Ortiz", "Lic. Camila Duarte"), así que un `charAt(0)` deja a
+ * todos los médicos con **D** y a todas las licenciadas con **L** en el círculo
+ * del avatar de cada mail.
+ *
+ * Espejo de `inicialesDe()` de `src/lib/format.js` y `mobile/src/lib/format.ts`.
+ * Se duplica porque las Edge Functions no comparten el bundle del front.
+ */
+const TITULOS = new Set(['dr', 'dra', 'lic', 'licda', 'mg', 'mgtr', 'prof', 'ing', 'od', 'klgo', 'klga', 'tec'])
+
+export function inicialSinTitulo(fullName?: string | null): string {
+  const partes = String(fullName ?? '').trim().split(/\s+/).filter(Boolean)
+  const sinTitulo = partes.filter((x, i) => !(i === 0 && TITULOS.has(x.toLowerCase().replace(/\.$/, ''))))
+  return ((sinTitulo[0] ?? partes[0] ?? '?').charAt(0)).toUpperCase()
+}
+
 /** Quién te atendió / quién te reservó — foto + nombre + especialidad. */
 export function personCard(opts: { name: string; subtitle?: string | null; avatarUrl?: string | null; note?: string | null; accent?: Accent }) {
   const a = ACCENTS[opts.accent ?? 'sage']
-  const initial = esc((opts.name || '?').trim().charAt(0).toUpperCase())
+  const initial = esc(inicialSinTitulo(opts.name))
   const avatar = opts.avatarUrl
     ? `<img src="${esc(opts.avatarUrl)}" width="52" height="52" alt="" style="display:block;width:52px;height:52px;border-radius:26px;object-fit:cover;border:0">`
     : `<table role="presentation" width="52" height="52" cellpadding="0" cellspacing="0" border="0" style="background:${a.soft};border-radius:26px">
