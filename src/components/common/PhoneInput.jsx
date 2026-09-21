@@ -61,9 +61,25 @@ export default function PhoneInput({
   }
 
   const onNumberChange = e => {
-    // Se deja sólo lo que puede formar parte de un número. Si pega el código de
-    // país de nuevo, el `+` no entra y no queda un `+54 +54 11...`.
-    const limpio = e.target.value.replace(/[^\d\s()-]/g, '')
+    const escrito = e.target.value
+
+    // Pegar el número entero —`+54 11 1234 5678`, tal cual sale de WhatsApp— es
+    // lo más común que hace la gente, así que el código se mueve a la pastilla
+    // en vez de quedar pegado adelante del número. Sin esto el `+` se filtraba
+    // pero los dígitos no, y quedaba guardado un `+54 5411 1234 5678` que no se
+    // puede normalizar: justo el dato roto que este campo viene a evitar.
+    if (escrito.trimStart().startsWith('+')) {
+      const { country: pais, number: resto } = splitPhone(escrito)
+      if (resto !== escrito.trim()) {
+        setCountry(pais)
+        setNumber(resto)
+        emitir(pais, resto)
+        return
+      }
+    }
+
+    // Se deja sólo lo que puede formar parte de un número.
+    const limpio = escrito.replace(/[^\d\s()-]/g, '')
     setNumber(limpio)
     emitir(country, limpio)
   }
