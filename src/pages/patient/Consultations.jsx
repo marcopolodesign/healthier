@@ -547,10 +547,9 @@ export default function PatientConsultations({ profile }) {
           (Mateo, 2026-08-03): con el carrusel de vuelta arriba, elegir
           primero la especialidad es otra vez la puerta de entrada — la
           modalidad se sigue preguntando adentro del wizard de reserva. */}
-      <div className="mb-6">
-        <h2 className="text-[17px] font-semibold text-text-primary leading-tight">Agendá tu consulta médica</h2>
-        <p className="text-[13px] text-text-secondary leading-snug mt-0.5 mb-3">Elegí la especialidad y buscá al profesional</p>
-        <div className="-mr-6 overflow-x-auto scrollbar-hide -mx-6 px-6">
+      <div className="mb-6 bg-white border border-border-subtle rounded-[24px] pt-4 pb-3 overflow-hidden">
+        <h2 className="text-[14px] font-semibold text-text-primary leading-tight px-4 mb-3">Agendá tu consulta médica</h2>
+        <div className="overflow-x-auto scrollbar-hide px-4">
           <div className="flex gap-3 w-max pb-1">
             {VERTICALS.map(v => (
               <button

@@ -291,7 +291,7 @@ export default function PatientDashboard({ profile }) {
     <button
       data-tour="pac-mapa"
       onClick={() => { track('view_map_click', { flow: 'paciente' }); setShowMap(true) }}
-      className="w-full bg-bg-secondary border border-brand/30 rounded-3xl shadow-[0_1px_4px_rgba(45,42,38,0.06)] overflow-hidden text-left active:scale-[0.98] transition-all"
+      className="w-full bg-bg-secondary border border-border-subtle rounded-3xl shadow-[0_1px_4px_rgba(45,42,38,0.06)] overflow-hidden text-left active:scale-[0.98] transition-all"
     >
       <img
         src={staticMapUrl}
@@ -350,7 +350,7 @@ export default function PatientDashboard({ profile }) {
             data-tour={a.tour}
             {...(a.href ? { href: a.href, target: '_blank', rel: 'noreferrer' } : {})}
             onClick={a.onClick}
-            className="bg-bg-secondary border border-border-default rounded-[24px] p-4 flex flex-col text-left hover:border-brand/40 active:opacity-90 transition-colors"
+            className="bg-bg-secondary border border-border-subtle rounded-[24px] p-4 flex flex-col text-left hover:border-brand/40 active:opacity-90 transition-colors"
           >
             <div className="flex items-center justify-between">
               <span className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center">
