@@ -20,6 +20,7 @@ export default function NotificationBell({ userId, tone = 'light', className = '
 
   return (
     <button
+      data-tour="pac-avisos"
       onClick={() => { track('notificaciones_bell_click', { unread: count, flow: 'paciente' }); navigate('/paciente/notificaciones') }}
       aria-label={count > 0 ? `Notificaciones — ${count} sin leer` : 'Notificaciones'}
       className={`relative w-11 h-11 rounded-full flex items-center justify-center transition-colors shrink-0 ${bg} ${className}`}
