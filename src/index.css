@@ -950,7 +950,12 @@
    en clases de Tailwind. Ver CLAUDE.md § inline styles. */
 @utility od-card {
   transform: scale(calc(0.86 + var(--progress, 1) * 0.14));
-  opacity: calc(0.7 + var(--progress, 1) * 0.3);
+  opacity: calc((0.7 + var(--progress, 1) * 0.3) * var(--dim, 1));
+}
+
+/* Vertical sin nadie en línea: la tarjeta se ve, pero apagada. */
+@utility od-card-offline {
+  --dim: 0.6;
 }
 
 @utility od-gradient-bg {
