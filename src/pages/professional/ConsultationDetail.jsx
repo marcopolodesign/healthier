@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, FileText, VideoCamera, ClipboardText, User,
   Clock, CalendarPlus, Key, ShieldCheck, Tag, PencilSimple, Check, X,
-  FirstAidKit, Pill, Sparkle, Info, FilePdf, LockSimple,
+  FirstAidKit, Pill, Sparkle, Info, FilePdf, LockSimple, PawPrint,
 } from '@phosphor-icons/react'
 import InfoTooltip from '../../components/common/InfoTooltip'
 import { consultationsService } from '../../services/consultationsService'
@@ -270,6 +270,19 @@ export default function ConsultationDetail({ profile }) {
             <Clock className="h-4 w-4" />
             Duración:{' '}
             <span className="text-text-primary font-medium">{consultation.durationMinutes} min</span>
+          </div>
+        )}
+
+        {/* Vertical veterinaria — mascota elegida al reservar (tabla `pets`,
+            migración 172; petName/petSpecies son el snapshot que ya se
+            escribía desde la migración 028). */}
+        {consultation.petName && (
+          <div className="mt-3 pt-3 border-t border-border-default flex items-center gap-2 text-sm">
+            <PawPrint className="h-4 w-4 text-sky-600 flex-shrink-0" />
+            <span className="text-text-secondary">Mascota:</span>
+            <span className="text-text-primary font-medium capitalize">
+              {consultation.petName}{consultation.petSpecies ? ` (${consultation.petSpecies})` : ''}
+            </span>
           </div>
         )}
 

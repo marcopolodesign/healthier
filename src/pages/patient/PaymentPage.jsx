@@ -25,6 +25,7 @@ export default function PaymentPage({ profile }) {
     scheduledAt,
     // Veterinaria: se cargan en un paso propio del wizard. Si no se persisten
     // acá se pierden, porque esta pantalla es la que crea la consulta.
+    petId,
     petName,
     petSpecies,
   } = state
@@ -100,6 +101,7 @@ export default function PaymentPage({ profile }) {
       paymentStatus:  paymentExempt ? 'exempt' : 'pending_payment',
       priceAtBooking: price ?? null,
       scheduledAt:    scheduledAt ?? new Date().toISOString(),
+      petId:          petId ?? null,
       petName:        petName ?? null,
       petSpecies:     petSpecies ?? null,
     })
@@ -146,6 +148,7 @@ export default function PaymentPage({ profile }) {
         paymentStatus:  'demo',
         priceAtBooking: price ?? null,
         scheduledAt:    scheduledAt ?? new Date().toISOString(),
+        petId:          petId ?? null,
         petName:        petName ?? null,
         petSpecies:     petSpecies ?? null,
       })

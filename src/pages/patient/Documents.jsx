@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ShieldCheck, CaretRight, ArrowLeft, Eye, Plus,
-  CloudArrowUp, Camera, CircleNotch, Pulse, Check,
-  FileText, FolderOpen, AppleLogo, Barbell, PawPrint, Sparkle, ClipboardText, Pill,
+  CloudArrowUp, Camera, CircleNotch, Pulse,
+  FileText, FolderOpen, AppleLogo, Barbell, Brain, PawPrint, Sparkle, ClipboardText, Pill,
+  PencilSimple, Trash,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
@@ -11,29 +12,47 @@ import PatientPageOverlay from '../../components/patient/PatientPageOverlay'
 import { farmaciaVisible } from '../../lib/featureFlags'
 import { track } from '../../utils/analytics'
 import AnalisisVault from '../../components/patient/AnalisisVault'
+import ActivityPlanVault from '../../components/patient/ActivityPlanVault'
+import { petsService } from '../../services/petsService'
+
+const PET_SPECIES = ['Perro', 'Gato', 'Otro']
+
+// mente/rehabilitacion/preparador tienen plan real (activity_plans, migración
+// 171) — el id de la categoría es directamente el `tipo` de la tabla.
+const TIPOS_CON_PLAN = new Set(['mente', 'rehabilitacion', 'preparador'])
 
 const CATEGORIES = [
   // Recetas ya NO es `comingSoon` ni una categoría de documentos subidos a mano:
   // lleva a `/paciente/recetas`, la lista real de recetas electrónicas emitidas
   // (Mateo, 2026-09-04). Antes era una tarjeta apagada con la lista fija en [].
   { id: 'recetas',       name: 'Recetas Digitales', icon: FileText,   bgClass: 'bg-amber-50',   textClass: 'text-amber-700',   uploadable: false, ruta: '/paciente/recetas' },
-  // Análisis es la única categoría con datos reales: escribe en
+  // Análisis es la única categoría "clásica" con datos reales: escribe en
   // `diagnostic_reports`, la misma tabla que lee el BioVisor y que el
-  // profesional ve en la historia clínica. El resto sigue siendo maqueta.
+  // profesional ve en la historia clínica. Nutrición vive en su propia tarjeta
+  // arriba (real, `/paciente/nutriplan`) — ésta sigue siendo maqueta.
   { id: 'analisis',      name: 'Análisis',           icon: Pulse,     bgClass: 'bg-emerald-50', textClass: 'text-emerald-600', uploadable: true },
   { id: 'nutricion',     name: 'Plan Nutricional',   icon: AppleLogo, bgClass: 'bg-emerald-50', textClass: 'text-emerald-600', uploadable: true, comingSoon: true },
-  { id: 'entrenamiento', name: 'Rehab y Físico',     icon: Barbell,   bgClass: 'bg-orange-50',  textClass: 'text-orange-600',  uploadable: true, comingSoon: true },
+  // Las tres de abajo tienen plan real (activity_plans) — pedido de Nacho,
+  // aprobado por Mateo, "como el plan de nutrición" (2026-09-23).
+  { id: 'mente',          name: 'Salud Mental',       icon: Brain,     bgClass: 'bg-violet-50',  textClass: 'text-violet-600',  uploadable: true },
+  { id: 'rehabilitacion', name: 'Rehabilitación',     icon: Barbell,   bgClass: 'bg-orange-50',  textClass: 'text-orange-600',  uploadable: true },
+  { id: 'preparador',     name: 'Preparador Físico',  icon: Pulse,     bgClass: 'bg-orange-50',  textClass: 'text-orange-600',  uploadable: true },
   { id: 'historial',     name: 'Historial',          icon: FolderOpen, bgClass: 'bg-violet-50', textClass: 'text-violet-600',  uploadable: false },
-  { id: 'peludo',        name: 'Amigo Peludo',       icon: PawPrint,  bgClass: 'bg-sky-50',     textClass: 'text-sky-600',     uploadable: true, comingSoon: true },
+  // Ya no es maqueta (2026-09-23, pedido de Nacho): lista y alta de mascotas
+  // reales sobre `pets` (migración 172). No usa el visor de documentos
+  // genérico de más abajo — tiene su propia vista dentro del overlay.
+  { id: 'peludo',        name: 'Amigo Peludo',       icon: PawPrint,  bgClass: 'bg-sky-50',     textClass: 'text-sky-600',     uploadable: false },
 ]
 
 const MOCK_DOCS_BY_CATEGORY = {
-  recetas:       [],
-  analisis:      [],
-  nutricion:     [{ id: 2, titulo: 'Dieta Hipertrofia', subtitulo: 'Lic. Nutrición • Hoy', source: 'profesional' }],
-  entrenamiento: [{ id: 3, titulo: 'Rehabilitación Rodilla', subtitulo: 'Kinesiólogo • 3 días', source: 'profesional' }],
-  historial:     [],
-  peludo:        [{ id: 4, titulo: 'Foto Evolución (Herida)', subtitulo: 'Subido por vos • Ayer', source: 'paciente' }],
+  recetas:        [],
+  analisis:       [],
+  nutricion:      [{ id: 2, titulo: 'Dieta Hipertrofia', subtitulo: 'Lic. Nutrición • Hoy', source: 'profesional' }],
+  mente:          [],
+  rehabilitacion: [],
+  preparador:     [],
+  historial:      [],
+  peludo:         [{ id: 4, titulo: 'Foto Evolución (Herida)', subtitulo: 'Subido por vos • Ayer', source: 'paciente' }],
 }
 
 function CategoryHeader({ cat, onBack }) {
@@ -64,7 +83,75 @@ export default function PatientDocuments({ profile }) {
   const [foodLogs, setFoodLogs] = useState([
     { id: 1, time: '08:30 AM', desc: 'Desayuno: Huevos y tostada', cals: 320, img: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=200&q=80' }
   ])
-  const [workoutLogs, setWorkoutLogs] = useState([])
+
+  // Amigo Peludo — mascotas reales, tabla `pets` (migración 172).
+  const [pets, setPets] = useState([])
+  const [loadingPets, setLoadingPets] = useState(false)
+  const [showPetForm, setShowPetForm] = useState(false)
+  const [editingPetId, setEditingPetId] = useState(null)
+  const [savingPet, setSavingPet] = useState(false)
+  const [newPet, setNewPet] = useState({ nombre: '', especie: 'Perro', raza: '' })
+
+  const loadPets = async () => {
+    if (!profile?.id) return
+    setLoadingPets(true)
+    try {
+      setPets(await petsService.listForOwner(profile.id))
+    } catch {
+      toast.error('No pudimos cargar tus mascotas')
+    } finally {
+      setLoadingPets(false)
+    }
+  }
+
+  useEffect(() => {
+    if (viewingCat?.id === 'peludo') loadPets()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewingCat])
+
+  const abrirEdicionPet = pet => {
+    setEditingPetId(pet.id)
+    setNewPet({ nombre: pet.nombre, especie: pet.especie === 'perro' ? 'Perro' : pet.especie === 'gato' ? 'Gato' : 'Otro', raza: pet.raza || '' })
+    setShowPetForm(true)
+  }
+
+  const cerrarFormPet = () => {
+    setShowPetForm(false)
+    setEditingPetId(null)
+    setNewPet({ nombre: '', especie: 'Perro', raza: '' })
+  }
+
+  const savePet = async () => {
+    if (!newPet.nombre.trim() || savingPet) return
+    setSavingPet(true)
+    try {
+      const datos = { nombre: newPet.nombre.trim(), especie: newPet.especie.toLowerCase(), raza: newPet.raza.trim() || null }
+      if (editingPetId) {
+        const actualizado = await petsService.update(editingPetId, datos)
+        setPets(prev => prev.map(p => (p.id === editingPetId ? actualizado : p)))
+        toast.success('Mascota actualizada')
+      } else {
+        const created = await petsService.create(profile.id, datos)
+        setPets(prev => [created, ...prev])
+        toast.success('Mascota agregada')
+      }
+      cerrarFormPet()
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos guardar la mascota')
+    } finally {
+      setSavingPet(false)
+    }
+  }
+
+  const removePet = async id => {
+    try {
+      await petsService.remove(id)
+      setPets(prev => prev.filter(p => p.id !== id))
+      toast.success('Mascota eliminada')
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos eliminar la mascota')
+    }
+  }
 
   // Derived data for category detail (safe when viewingCat is null)
   const catDocs = viewingCat ? (docs[viewingCat.id] || []) : []
@@ -80,22 +167,14 @@ export default function PatientDocuments({ profile }) {
     toast.success('Documento guardado')
   }
 
-  const simulatePhotoUpload = type => {
+  const simulatePhotoUpload = () => {
     setIsAnalyzingImage(true)
     setTimeout(() => {
-      if (type === 'food') {
-        setFoodLogs(prev => [{
-          id: Date.now(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          desc: 'Almuerzo (analizado por IA)', cals: 450,
-          img: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=200&q=80'
-        }, ...prev])
-      } else {
-        setWorkoutLogs(prev => [{
-          id: Date.now(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          desc: 'Movilidad completada sin dolor ✅',
-          img: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=200&q=80'
-        }, ...prev])
-      }
+      setFoodLogs(prev => [{
+        id: Date.now(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        desc: 'Almuerzo (analizado por IA)', cals: 450,
+        img: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=200&q=80'
+      }, ...prev])
       setIsAnalyzingImage(false)
     }, 2000)
   }
@@ -240,6 +319,102 @@ export default function PatientDocuments({ profile }) {
               </div>
             </>
           )
+          // Amigo Peludo tampoco es maqueta: lee y escribe `pets` (migración 172).
+          if (viewingCat.id === 'peludo') return (
+            <>
+              <CategoryHeader cat={viewingCat} onBack={() => setViewingCat(null)} />
+              <div className="flex-1 overflow-y-auto p-6 pb-10 scrollbar-hide space-y-4 bg-bg-primary">
+                {loadingPets ? (
+                  <div className="flex justify-center py-12">
+                    <CircleNotch className="w-8 h-8 animate-spin text-sky-500" />
+                  </div>
+                ) : (
+                  <>
+                    {pets.length === 0 && !showPetForm && (
+                      <div className="border-2 border-dashed border-border-default rounded-2xl p-8 flex flex-col items-center justify-center bg-bg-secondary text-center">
+                        <PawPrint className="w-10 h-10 text-sky-400 mb-2" />
+                        <p className="font-semibold text-[14px] text-text-secondary">Todavía no cargaste mascotas.</p>
+                      </div>
+                    )}
+                    <div className="space-y-3">
+                      {pets.map(pet => (
+                        <div key={pet.id} className="card flex justify-between items-center">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-sky-50">
+                              <PawPrint className="w-6 h-6 text-sky-600" />
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-[15px] text-text-primary capitalize">{pet.nombre}</h4>
+                              <p className="text-[12px] text-text-tertiary font-medium mt-0.5 capitalize">{pet.especie}{pet.raza ? ` · ${pet.raza}` : ''}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => abrirEdicionPet(pet)} className="w-9 h-9 rounded-full bg-bg-secondary border border-border-default flex items-center justify-center hover:bg-bg-surface">
+                              <PencilSimple className="w-4 h-4 text-text-secondary" />
+                            </button>
+                            <button onClick={() => removePet(pet.id)} className="w-9 h-9 rounded-full bg-bg-secondary border border-border-default flex items-center justify-center hover:bg-red-50">
+                              <Trash className="w-4 h-4 text-red-500" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {!showPetForm && (
+                      <button
+                        onClick={() => setShowPetForm(true)}
+                        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border-2 border-dashed border-sky-200 text-[14px] font-semibold text-sky-600 hover:bg-sky-50 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" /> Agregar mascota
+                      </button>
+                    )}
+
+                    {showPetForm && (
+                      <div className="card space-y-3">
+                        <input
+                          type="text"
+                          placeholder="Nombre"
+                          value={newPet.nombre}
+                          onChange={e => setNewPet(p => ({ ...p, nombre: e.target.value }))}
+                          className="w-full bg-bg-secondary border border-border-default rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-text-primary focus:border-brand"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Raza (opcional)"
+                          value={newPet.raza}
+                          onChange={e => setNewPet(p => ({ ...p, raza: e.target.value }))}
+                          className="w-full bg-bg-secondary border border-border-default rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-text-primary focus:border-brand"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          {PET_SPECIES.map(sp => (
+                            <button
+                              key={sp}
+                              onClick={() => setNewPet(p => ({ ...p, especie: sp }))}
+                              className={`px-4 py-2 rounded-full border text-[13px] font-medium transition-all ${newPet.especie === sp ? 'text-white border-sky-500 bg-sky-500' : 'text-text-secondary border-border-default bg-bg-secondary hover:border-sky-300'}`}
+                            >
+                              {sp}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={cerrarFormPet} className="flex-1 py-3 rounded-full font-semibold text-[14px] text-text-secondary border border-border-default">
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={savePet}
+                            disabled={!newPet.nombre.trim() || savingPet}
+                            className="flex-1 py-3 rounded-full font-semibold text-[14px] text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-40"
+                          >
+                            {savingPet ? 'Guardando…' : editingPetId ? 'Guardar cambios' : 'Guardar'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </>
+          )
           // Las maquetas todavía usan el icono suelto más abajo.
           const CatIcon = viewingCat.icon
           return (
@@ -281,7 +456,7 @@ export default function PatientDocuments({ profile }) {
                       ))}
                     </div>
                     <button
-                      onClick={() => simulatePhotoUpload('food')}
+                      onClick={() => simulatePhotoUpload()}
                       disabled={isAnalyzingImage}
                       className={`w-full py-4 rounded-2xl font-semibold text-[15px] flex justify-center items-center gap-2 transition-all shadow-sm ${isAnalyzingImage ? 'bg-emerald-200 text-emerald-700 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95'}`}
                     >
@@ -290,39 +465,10 @@ export default function PatientDocuments({ profile }) {
                   </div>
                 )}
 
-                {/* Entrenamiento special view */}
-                {viewingCat.id === 'entrenamiento' && (
-                  <div className="bg-orange-50/50 p-6 rounded-2xl border border-orange-100 shadow-sm">
-                    <div className="flex items-center gap-3 mb-5">
-                      <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center shadow-md">
-                        <Pulse className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-[18px] text-orange-950">Kine AI</h3>
-                        <p className="text-[11px] text-orange-700 font-semibold uppercase tracking-widest">Tracking de Recuperación</p>
-                      </div>
-                    </div>
-                    <div className="space-y-3 mb-5">
-                      {workoutLogs.map(log => (
-                        <div key={log.id} className="bg-white p-3 rounded-2xl border border-orange-100/60 shadow-sm flex gap-3 items-center animate-fade-in">
-                          <img src={log.img} alt="Ejercicio" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-[14px] text-text-primary leading-tight">{log.desc}</h4>
-                            <p className="text-[12px] text-text-tertiary font-medium">{log.time}</p>
-                          </div>
-                          <Check className="w-5 h-5 text-orange-500 flex-shrink-0 mr-2" />
-                        </div>
-                      ))}
-                      {workoutLogs.length === 0 && <p className="text-[13px] text-orange-600/70 text-center py-2 font-medium">Aún no registraste avances hoy.</p>}
-                    </div>
-                    <button
-                      onClick={() => simulatePhotoUpload('workout')}
-                      disabled={isAnalyzingImage}
-                      className={`w-full py-4 rounded-2xl font-semibold text-[15px] flex justify-center items-center gap-2 transition-all shadow-sm ${isAnalyzingImage ? 'bg-orange-200 text-orange-700 cursor-not-allowed' : 'bg-orange-600 text-white hover:bg-orange-700 active:scale-95'}`}
-                    >
-                      {isAnalyzingImage ? <><CircleNotch className="w-5 h-5 animate-spin" /> Analizando Biomecánica...</> : <><Camera className="w-5 h-5" /> Subir VideoCamera/Foto del Ejercicio</>}
-                    </button>
-                  </div>
+                {/* Salud Mental / Rehabilitación / Preparador Físico — plan real
+                    del profesional (activity_plans, migración 171). */}
+                {TIPOS_CON_PLAN.has(viewingCat.id) && (
+                  <ActivityPlanVault patientId={profile?.id} tipo={viewingCat.id} />
                 )}
 
                 {/* Professional docs */}
