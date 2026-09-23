@@ -134,7 +134,7 @@ export default function PatientDocuments({ profile }) {
           className="bg-gradient-to-br from-teal-500 to-teal-700 rounded-2xl p-4 text-left text-white shadow-md hover:shadow-lg active:scale-95 transition-all"
         >
           <Pulse className="w-6 h-6 mb-2 opacity-90" />
-          <p className="font-semibold text-[15px] leading-tight">Biovisor</p>
+          <p className="font-semibold text-[15px] leading-tight">Análisis de sangre</p>
           <p className="text-[11px] opacity-80 mt-0.5">Parámetros de salud</p>
         </button>
         <button
