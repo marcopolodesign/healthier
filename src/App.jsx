@@ -38,6 +38,8 @@ import ReferralLanding from './pages/ReferralLanding'
 import PatientDashboard from './pages/patient/Dashboard'
 import PatientOnboarding from './pages/patient/Onboarding'
 import PatientSearch from './pages/patient/Search'
+import PatientBuscarDisponibles from './pages/patient/BuscarDisponibles'
+import PatientNotificaciones from './pages/patient/Notificaciones'
 import ProfessionalProfile from './pages/patient/ProfessionalProfile'
 import PatientConsultations from './pages/patient/Consultations'
 import PatientDocuments from './pages/patient/Documents'
@@ -53,6 +55,7 @@ import ConsultationDetail from './pages/professional/ConsultationDetail'
 import ProfessionalProfileEdit from './pages/professional/Profile'
 import ProfessionalVideoCall from './pages/professional/VideoCall'
 import NutriPlan from './pages/professional/NutriPlan'
+import ActivityPlan from './pages/professional/ActivityPlan'
 import ProfessionalEmergencias from './pages/professional/Emergencias'
 import HistoriaClinica from './pages/professional/HistoriaClinica'
 import ProfessionalHistorial from './pages/professional/Historial'
@@ -388,6 +391,12 @@ export default function App() {
           <Route path="/paciente/perfil"           element={<PatientProfile      profile={profile} onProfileUpdate={setProfile} />} />
           <Route path="/paciente/ondemand/:vertical" element={<OnDemand          profile={profile} />} />
           <Route path="/paciente/sos"              element={<Emergency           profile={profile} />} />
+          <Route path="/paciente/notificaciones"   element={<PatientNotificaciones profile={profile} />} />
+          {/* Lista de profesionales on demand disponibles AHORA MISMO — acceso
+              nuevo desde el Inicio (spec 2026-09-23). Distinta de
+              `/paciente/buscar` de abajo, que busca entre todos los
+              profesionales cobrables para agendar un turno, disponibles o no. */}
+          <Route path="/paciente/buscar-disponibles" element={<PatientBuscarDisponibles profile={profile} />} />
           {/* Legacy routes kept for backward compatibility */}
           <Route path="/paciente/buscar"           element={<PatientSearch       profile={profile} />} />
           <Route path="/paciente/profesional/:id"  element={<ProfessionalProfile profile={profile} />} />
@@ -475,6 +484,7 @@ export default function App() {
           <Route path="/profesional/consulta/:id" element={<ConsultationDetail profile={profile} />} />
           <Route path="/profesional/perfil" element={<ProfessionalProfileEdit profile={profile} onProfileUpdate={setProfile} />} />
           <Route path="/profesional/nutriplan" element={<NutriPlan profile={profile} />} />
+          <Route path="/profesional/plan-actividad" element={<ActivityPlan profile={profile} />} />
           <Route path="/profesional/historia-clinica/:patientId" element={<HistoriaClinica profile={profile} />} />
           <Route path="/profesional/historial" element={<ProfessionalHistorial profile={profile} />} />
           <Route path="/profesional/paciente/:patientId" element={<ProfessionalPatientProfile profile={profile} />} />

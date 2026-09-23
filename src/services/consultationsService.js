@@ -419,6 +419,25 @@ export const consultationsService = {
     return data ? toCamelCase(data) : null
   },
 
+  /**
+   * Ids de profesionales que ahora mismo están EN ATENCIÓN — lo que "Buscar
+   * por nombre — disponibles ahora" usa para apagar y bloquear al que está
+   * ocupado en vez de dejar que el paciente le mande un segundo pedido.
+   *
+   * Va por RPC (migración 168) y no por un `select` directo a `consultations`:
+   * la RLS de esa tabla sólo deja leer las consultas PROPIAS, así que un
+   * paciente nunca podría enterarse de que OTRO profesional está ocupado con
+   * un `select` normal. La función es `security definer` y devuelve sólo los
+   * ids — ni paciente, ni consulta, ni horario.
+   */
+  async getProfesionalesEnAtencion() {
+    const { data, error } = await supabase.rpc('profesionales_en_atencion')
+    // Fail-open: si el RPC falla, nadie se muestra ocupado de más — es
+    // preferible mostrar a alguien como libre que bloquearlo por error.
+    if (error) return new Set()
+    return new Set(data ?? [])
+  },
+
   async update(id, fields) {
     if (esSimulado(id)) return { ...simulacion.consulta(), ...fields }
     const { data, error } = await supabase
@@ -502,6 +521,31 @@ export const consultationsService = {
      * el paciente no se enteraba de nada.
      */
     return result
+  },
+
+  /**
+   * Pasa la consulta a `closing`, pero **sólo si la base todavía la tiene en
+   * `in_progress`** — no si lo cree el componente.
+   *
+   * Por qué importa: `closing` es lo que le impide al paciente volver a entrar
+   * a una sala que ya terminó. El profesional decidía esa transición mirando su
+   * copia local del estado, y esa copia se queda atrasada (el paciente entra,
+   * la fila pasa a `in_progress` y el componente no se entera). Cuando estaba
+   * atrasada, "Finalizar" navegaba sin cerrar la sala **y sin decir nada**, así
+   * que el paciente podía reingresar.
+   *
+   * Devuelve `true` si la movió y `false` si ya no estaba en curso.
+   */
+  async marcarCierreSiSigueEnCurso(id) {
+    if (esSimulado(id)) return false
+    const { data, error } = await supabase
+      .from('consultations')
+      .update({ status: 'closing', closing_started_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('status', 'in_progress')
+      .select('id')
+    if (error) throw error
+    return (data?.length ?? 0) > 0
   },
 
   async cancel(id, cancelledBy, reason = '') {

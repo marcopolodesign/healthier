@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import PatientBottomNav from '../components/patient/PatientBottomNav'
 import { Bell, X } from '@phosphor-icons/react'
@@ -50,6 +50,19 @@ export default function PatientMobileLayout({ profile }) {
 
   const hideNav = HIDE_NAV_PREFIXES.some(p => pathname.startsWith(p))
 
+  // Alto real del banner de notificaciones, para correr el contenido hacia
+  // abajo en vez de dejar que se lo coma. Ver el comentario del contenido.
+  const bannerRef = useRef(null)
+  const [bannerHeight, setBannerHeight] = useState(0)
+  useLayoutEffect(() => {
+    const el = bannerRef.current
+    if (!showPushBanner || hideNav || !el) { setBannerHeight(0); return }
+    setBannerHeight(el.offsetHeight)
+    const ro = new ResizeObserver(() => setBannerHeight(el.offsetHeight))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [showPushBanner, hideNav])
+
   return (
     <PharmacyCartProvider profile={profile}>
     <div className="h-dvh bg-bg-primary relative overflow-hidden overscroll-none">
@@ -59,7 +72,7 @@ export default function PatientMobileLayout({ profile }) {
           botón de volver — el del mapa del camino al consultorio quedaba
           literalmente abajo del banner. */}
       {showPushBanner && !hideNav && (
-        <div className="absolute top-0 left-0 right-0 z-[70] bg-brand text-white flex items-center gap-3 px-4 py-3 shadow-lg">
+        <div ref={bannerRef} className="absolute top-0 left-0 right-0 z-[70] bg-brand text-white flex items-center gap-3 px-4 py-3 shadow-lg">
           <Bell size={18} className="shrink-0" />
           <p className="flex-1 text-sm font-medium">Activá notificaciones para recibir confirmaciones de turnos</p>
           <button onClick={enablePush} className="text-xs font-semibold bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-full transition-colors whitespace-nowrap">Activar</button>
@@ -69,8 +82,14 @@ export default function PatientMobileLayout({ profile }) {
         </div>
       )}
 
-      {/* Page content */}
-      <div className="absolute inset-0">
+      {/* Page content.
+          🔴 El contenido arranca DEBAJO del banner, no atrás. Con `inset-0` a
+          secas el banner —que es `absolute top-0`— le tapaba el encabezado a
+          todas las pantallas del paciente: "Buscar profesional", "Bóveda",
+          "Farmacia" y el resto quedaban cortadas por la barra verde. La altura
+          se mide en vez de hardcodearse porque en un teléfono el texto del
+          banner envuelve y ocupa dos renglones. */}
+      <div className="absolute inset-x-0 bottom-0" style={{ top: bannerHeight }}>
         <Outlet />
       </div>
 

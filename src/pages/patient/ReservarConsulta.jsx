@@ -2,16 +2,18 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, VideoCamera, MapPin, Star, CaretRight, Check,
-  CircleNotch,
+  CircleNotch, PawPrint, Plus,
 } from '@phosphor-icons/react'
 import { professionalService } from '../../services/professionalService'
 import { availabilityService } from '../../services/availabilityService'
 import { consultationsService } from '../../services/consultationsService'
 import { paymentsService } from '../../services/paymentsService'
+import { petsService } from '../../services/petsService'
 import { useVerticales } from '../../hooks/useVerticales'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../../components/Toast'
 import { track } from '../../utils/analytics'
+import { inicialesDe } from '../../lib/format'
 
 // Verticals that trigger the clinica auto-match flow
 const SPECIES = ['Perro', 'Gato', 'Conejo', 'Ave', 'Otro']
@@ -223,8 +225,55 @@ export default function ReservarConsulta({ profile }) {
   }, [VERTICALS, paramVerticalId, selectedVertical])
 
   const [modality, setModality] = useState(paramModality || null) // 'virtual' | 'presencial'
-  const [petName, setPetName]           = useState('')
-  const [petSpecies, setPetSpecies]     = useState('')
+  // Mascota elegida de la lista guardada (tabla `pets`, migración 172) — antes
+  // se tipeaba nombre/especie a mano en cada turno. petName/petSpecies se
+  // siguen derivando del pet elegido: son las que lee `consultations` y las
+  // pantallas ya construidas alrededor de esas dos columnas.
+  const [pets, setPets]                 = useState([])
+  const [loadingPets, setLoadingPets]   = useState(false)
+  const [selectedPet, setSelectedPet]   = useState(null)
+  const [showAddPet, setShowAddPet]     = useState(false)
+  const [savingPet, setSavingPet]       = useState(false)
+  const [newPet, setNewPet]             = useState({ nombre: '', especie: 'Perro' })
+  const petName    = selectedPet?.nombre ?? ''
+  const petSpecies = selectedPet?.especie ?? ''
+
+  const loadPets = async () => {
+    if (!profile?.id) return
+    setLoadingPets(true)
+    try {
+      const lista = await petsService.listForOwner(profile.id)
+      setPets(lista)
+      // Si sólo tiene una mascota, se preselecciona para no obligar un tap de más.
+      if (lista.length === 1) setSelectedPet(lista[0])
+    } catch {
+      toast.error('No pudimos cargar tus mascotas')
+    } finally {
+      setLoadingPets(false)
+    }
+  }
+
+  useEffect(() => {
+    if (step === 'pet') loadPets()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step])
+
+  const saveNewPet = async () => {
+    if (!newPet.nombre.trim() || savingPet) return
+    setSavingPet(true)
+    try {
+      const created = await petsService.create(profile.id, { nombre: newPet.nombre.trim(), especie: newPet.especie.toLowerCase() })
+      setPets(prev => [created, ...prev])
+      setSelectedPet(created)
+      setShowAddPet(false)
+      setNewPet({ nombre: '', especie: 'Perro' })
+      toast.success('Mascota agregada')
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos guardar la mascota')
+    } finally {
+      setSavingPet(false)
+    }
+  }
   const [professionals, setProfessionals] = useState([])
   const [loadingPros, setLoadingPros]   = useState(false)
   const [selectedPro, setSelectedPro]   = useState(null)
@@ -450,8 +499,9 @@ export default function ReservarConsulta({ profile }) {
         scheduledAt: selectedDate && selectedFranja
           ? new Date(`${selectedDate}T${selectedFranja.startTime.slice(0, 5)}:00-03:00`).toISOString()
           : null,
-        // La mascota se cargó en un paso propio del wizard; si no viaja hasta
+        // La mascota se eligió en un paso propio del wizard; si no viaja hasta
         // acá, se pierde al crear la consulta del otro lado.
+        petId:      selectedVertical.id === 'veterinaria' ? (selectedPet?.id || null) : null,
         petName:    selectedVertical.id === 'veterinaria' ? (petName || null)    : null,
         petSpecies: selectedVertical.id === 'veterinaria' ? (petSpecies || null) : null,
       },
@@ -614,50 +664,92 @@ export default function ReservarConsulta({ profile }) {
             <h1 className="font-serif font-bold text-3xl text-text-primary">
               ¿Para qué mascota?
             </h1>
-            <div className="flex justify-center py-2">
-              <div
-                className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                style={{ backgroundColor: '#F0F9FF' }}
-              >
-                <PawPrint className="w-8 h-8" style={{ color: '#0284C7' }} />
+
+            {loadingPets ? (
+              <div className="flex justify-center py-12">
+                <CircleNotch className="w-8 h-8 animate-spin" style={{ color: '#0284C7' }} />
               </div>
-            </div>
-            <div>
-              <label className="text-[13px] font-semibold text-text-secondary mb-2 block">
-                Nombre de la mascota
-              </label>
-              <input
-                type="text"
-                placeholder="Ej: Luna, Max, Simba…"
-                value={petName}
-                onChange={e => setPetName(e.target.value)}
-                className="w-full px-4 py-3.5 rounded-xl border border-border-default bg-bg-secondary text-text-primary placeholder-text-tertiary text-[15px] focus:outline-none focus:border-brand transition-colors"
-              />
-            </div>
-            <div>
-              <label className="text-[13px] font-semibold text-text-secondary mb-2 block">
-                Especie
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {SPECIES.map(sp => (
+            ) : (
+              <div className="space-y-2">
+                {pets.map(pet => (
                   <button
-                    key={sp}
-                    onClick={() => setPetSpecies(sp)}
-                    className={`px-4 py-2 rounded-full border text-[13px] font-medium transition-all ${
-                      petSpecies === sp
-                        ? 'text-white border-transparent'
-                        : 'text-text-secondary border-border-default bg-bg-secondary hover:border-brand/40'
+                    key={pet.id}
+                    onClick={() => setSelectedPet(pet)}
+                    className={`w-full flex items-center gap-3 rounded-2xl border px-4 py-3.5 transition-all text-left ${
+                      selectedPet?.id === pet.id
+                        ? 'border-brand bg-brand/5'
+                        : 'border-border-default bg-bg-secondary hover:border-brand/30'
                     }`}
-                    style={petSpecies === sp ? { backgroundColor: '#0284C7', borderColor: '#0284C7' } : {}}
                   >
-                    {sp}
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#F0F9FF' }}>
+                      <PawPrint className="w-5 h-5" style={{ color: '#0284C7' }} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-[15px] text-text-primary">{pet.nombre}</div>
+                      <div className="text-[13px] text-text-secondary capitalize">{pet.especie}{pet.raza ? ` · ${pet.raza}` : ''}</div>
+                    </div>
+                    {selectedPet?.id === pet.id && <Check className="w-5 h-5 flex-shrink-0" style={{ color: '#7CB38B' }} />}
                   </button>
                 ))}
+
+                {!showAddPet && (
+                  <button
+                    onClick={() => setShowAddPet(true)}
+                    className="w-full flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border-default px-4 py-3.5 text-[14px] font-semibold text-text-secondary hover:border-brand/40 hover:text-brand transition-all"
+                  >
+                    <Plus className="w-4 h-4" /> Agregar mascota
+                  </button>
+                )}
+
+                {showAddPet && (
+                  <div className="rounded-2xl border border-border-default bg-bg-secondary p-4 space-y-3">
+                    <input
+                      type="text"
+                      placeholder="Nombre — Ej: Luna, Max, Simba…"
+                      value={newPet.nombre}
+                      onChange={e => setNewPet(p => ({ ...p, nombre: e.target.value }))}
+                      className="w-full px-4 py-3 rounded-xl border border-border-default bg-white text-text-primary placeholder-text-tertiary text-[15px] focus:outline-none focus:border-brand transition-colors"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      {SPECIES.map(sp => (
+                        <button
+                          key={sp}
+                          onClick={() => setNewPet(p => ({ ...p, especie: sp }))}
+                          className={`px-4 py-2 rounded-full border text-[13px] font-medium transition-all ${
+                            newPet.especie === sp
+                              ? 'text-white border-transparent'
+                              : 'text-text-secondary border-border-default bg-white hover:border-brand/40'
+                          }`}
+                          style={newPet.especie === sp ? { backgroundColor: '#0284C7', borderColor: '#0284C7' } : {}}
+                        >
+                          {sp}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setShowAddPet(false); setNewPet({ nombre: '', especie: 'Perro' }) }}
+                        className="flex-1 py-3 rounded-full font-semibold text-[14px] text-text-secondary border border-border-default"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={saveNewPet}
+                        disabled={!newPet.nombre.trim() || savingPet}
+                        className="flex-1 py-3 rounded-full font-semibold text-[14px] text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={{ backgroundColor: '#0284C7' }}
+                      >
+                        {savingPet ? 'Guardando…' : 'Guardar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
+
             <button
               onClick={() => setStep(paramProId && selectedPro ? 'datetime' : 'professional')}
-              disabled={!petName.trim() || !petSpecies}
+              disabled={!selectedPet}
               className="w-full py-4 rounded-full font-semibold text-[15px] text-white transition-all mt-2 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ backgroundColor: '#7CB38B' }}
             >
@@ -704,7 +796,7 @@ export default function ReservarConsulta({ profile }) {
                           className="w-full h-full flex items-center justify-center text-[20px] font-bold"
                           style={{ backgroundColor: 'rgba(124,179,139,0.15)', color: '#7CB38B' }}
                         >
-                          {pro.name.charAt(0)}
+                          {inicialesDe(pro.name)}
                         </div>
                       )}
                     </div>

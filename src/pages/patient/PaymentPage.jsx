@@ -6,6 +6,7 @@ import { mpService } from '../../services/mpService'
 import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
 import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
+import { inicialesDe } from '../../lib/format'
 
 export default function PaymentPage({ profile }) {
   const navigate  = useNavigate()
@@ -24,6 +25,7 @@ export default function PaymentPage({ profile }) {
     scheduledAt,
     // Veterinaria: se cargan en un paso propio del wizard. Si no se persisten
     // acá se pierden, porque esta pantalla es la que crea la consulta.
+    petId,
     petName,
     petSpecies,
   } = state
@@ -99,6 +101,7 @@ export default function PaymentPage({ profile }) {
       paymentStatus:  paymentExempt ? 'exempt' : 'pending_payment',
       priceAtBooking: price ?? null,
       scheduledAt:    scheduledAt ?? new Date().toISOString(),
+      petId:          petId ?? null,
       petName:        petName ?? null,
       petSpecies:     petSpecies ?? null,
     })
@@ -145,6 +148,7 @@ export default function PaymentPage({ profile }) {
         paymentStatus:  'demo',
         priceAtBooking: price ?? null,
         scheduledAt:    scheduledAt ?? new Date().toISOString(),
+        petId:          petId ?? null,
         petName:        petName ?? null,
         petSpecies:     petSpecies ?? null,
       })
@@ -267,7 +271,7 @@ export default function PaymentPage({ profile }) {
             <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-brand/10 flex items-center justify-center">
               {professionalAvatar
                 ? <img src={professionalAvatar} alt={professionalName} className="w-full h-full object-cover" />
-                : <span className="text-[18px] font-bold text-brand">{professionalName.charAt(0)}</span>
+                : <span className="text-[18px] font-bold text-brand">{inicialesDe(professionalName)}</span>
               }
             </div>
             <div>

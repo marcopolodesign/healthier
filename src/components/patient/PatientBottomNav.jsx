@@ -8,7 +8,7 @@ import { House, Calendar, FolderOpen, User } from '@phosphor-icons/react'
 // barra de abajo.
 const TABS = [
   { id: 'home',     path: '/paciente/dashboard',  icon: House,        label: 'Inicio'    },
-  { id: 'agenda',   path: '/paciente/consultas',   icon: Calendar,     label: 'Agenda'    },
+  { id: 'agenda',   path: '/paciente/consultas',   icon: Calendar,     label: 'Turnos'    },
   { id: 'boveda',   path: '/paciente/documentos',  icon: FolderOpen,   label: 'Bóveda'    },
   { id: 'perfil',   path: '/paciente/perfil',      icon: User,         label: 'Perfil'    },
 ]

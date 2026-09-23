@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import {
   Calendar, Clock, VideoCamera, MapPin, Star, CaretRight, ArrowLeft, CircleNotch, Check,
-  X, FileText, Ambulance, Sparkle, Warning, FirstAidKit, ClipboardText, NavigationArrow,
+  X, FileText, Ambulance, Sparkle, Warning, ClipboardText, NavigationArrow,
 } from '@phosphor-icons/react'
 import { consultationsService, perfilDelProfesional } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
@@ -59,6 +59,11 @@ function groupSlotsByDate(slots) {
 
 // Map BuscarProfesional URL modality values to Consultations internal modality state
 const MODALITY_PARAM_MAP = { video: 'Videollamada', presencial: 'Presencial' }
+
+// Recordar la última vertical elegida — mismo comportamiento que tenía este
+// carrusel cuando vivía en el Inicio (se mudó acá, spec 2026-09-23: "Agendá
+// con un profesional" ya no está en Inicio, vive en Turnos).
+const LAST_VERTICAL_KEY = 'healthier_last_vertical'
 
 export default function PatientConsultations({ profile }) {
   // Habilitación de cada vertical: sale de `vertical_settings`, no del código.
@@ -244,6 +249,16 @@ export default function PatientConsultations({ profile }) {
       .catch(() => setMpPublicKey(null))
       .finally(() => setMpConfigLoading(false))
   }, [step])
+
+  // Carrusel "Agendá tu consulta médica" — se mudó del Inicio (Dashboard.jsx)
+  // a acá, spec 2026-09-23. Navega directo a la vertical, sin pasar por el
+  // modal de abajo (que sigue existiendo para cuando se entra desde otro
+  // lado, ej. el banner de "próximo turno").
+  const goToVertical = v => {
+    track('specialty_select', { specialty: v.id, status: v.comingSoon ? 'coming_soon' : 'available', flow: 'paciente' })
+    localStorage.setItem(LAST_VERTICAL_KEY, JSON.stringify({ id: v.id, nombre: v.nombre }))
+    navigate(`/paciente/reservar?vertical=${v.id}`)
+  }
 
   const openModal = vertical => {
     setSelVertical(vertical)
@@ -518,7 +533,7 @@ export default function PatientConsultations({ profile }) {
     <div className="absolute inset-0 bg-bg-primary pt-6 sm:pt-8 pb-32 px-6 overflow-y-auto animate-fade-in scrollbar-hide">
       <div className="max-w-2xl lg:max-w-4xl mx-auto">
       <div className="mb-8 mt-4">
-        <h1 className="text-2xl sm:text-3xl font-light text-gray-900 tracking-tight leading-none">Mi Agenda</h1>
+        <h1 className="text-2xl sm:text-3xl font-light text-gray-900 tracking-tight leading-none">Turnos</h1>
         {creditBalance > 0 && (
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-muted text-brand text-[12px] font-semibold mt-3 w-fit">
             <Sparkle className="w-3.5 h-3.5" weight="fill" /> Healthy Credits: ${creditBalance.toLocaleString('es-AR')}
@@ -526,34 +541,35 @@ export default function PatientConsultations({ profile }) {
         )}
       </div>
 
-      {/* Entrada a reservar turno por modalidad (Zocdoc-style), reemplaza el
-          selector por vertical que había acá (Mateo, 2026-08-03). Antes se
-          elegía primero la especialidad y recién ahí Virtual/Presencial en
-          `/paciente/reservar`; ahora se pregunta la modalidad acá mismo y
-          viaja preseleccionada por `?modality=`, entrando directo a elegir
-          vertical → profesional → turno (ver `selectVerticalStep` en
-          ReservarConsulta.jsx). */}
-      <div className="mb-6">
-        <h2 className="text-[17px] font-semibold text-text-primary leading-tight mb-3">Reservar próximo turno</h2>
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { modality: 'virtual', label: 'Virtual', Icon: VideoCamera, bg: 'bg-brand/15', color: 'text-brand' },
-            { modality: 'presencial', label: 'Presencial', Icon: FirstAidKit, bg: 'bg-brand-secondary/20', color: 'text-brand-secondary' },
-          ].map(opt => (
-            <button
-              key={opt.modality}
-              onClick={() => {
-                track('booking_start', { entry: 'agenda_modality_card', modality: opt.modality, flow: 'paciente' })
-                navigate(`/paciente/reservar?modality=${opt.modality}`)
-              }}
-              className="bg-bg-secondary border border-border-default rounded-3xl p-6 flex flex-col items-center gap-3 hover:border-brand/40 active:opacity-80 transition-all"
-            >
-              <div className={`w-16 h-16 rounded-full flex items-center justify-center ${opt.bg}`}>
-                <opt.Icon className={`w-8 h-8 ${opt.color}`} />
-              </div>
-              <span className="text-[15px] font-medium text-text-primary">{opt.label}</span>
-            </button>
-          ))}
+      {/* "Agendá tu consulta médica" — carrusel de verticales, mudado acá
+          desde el Inicio (spec 2026-09-23: ya no vive en Dashboard.jsx).
+          Reemplaza el selector de modalidad Virtual/Presencial que estaba acá
+          (Mateo, 2026-08-03): con el carrusel de vuelta arriba, elegir
+          primero la especialidad es otra vez la puerta de entrada — la
+          modalidad se sigue preguntando adentro del wizard de reserva. */}
+      <div className="mb-6 bg-white border border-border-subtle rounded-[24px] pt-4 pb-3 overflow-hidden">
+        <h2 className="text-[14px] font-semibold text-text-primary leading-tight px-4 mb-3">Agendá tu consulta médica</h2>
+        <div className="overflow-x-auto scrollbar-hide px-4">
+          <div className="flex gap-3 w-max pb-1">
+            {VERTICALS.map(v => (
+              <button
+                key={v.id}
+                onClick={v.comingSoon ? undefined : () => goToVertical(v)}
+                disabled={v.comingSoon}
+                className={`shrink-0 w-20 flex flex-col items-center gap-2 text-center transition-all ${
+                  v.comingSoon ? 'opacity-50 cursor-default' : 'cursor-pointer hover:scale-[0.97] active:scale-95'
+                }`}
+              >
+                <span className="w-16 h-16 rounded-full flex items-center justify-center" style={{ backgroundColor: v.bg }}>
+                  <v.icon className="w-[30px] h-[30px]" style={{ color: v.color }} />
+                </span>
+                <span className="text-[12px] leading-[15px] font-medium text-text-primary">
+                  {v.nombre}
+                  {v.comingSoon && <span className="block text-[9px] font-bold tracking-wide uppercase text-text-tertiary">Próximamente</span>}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

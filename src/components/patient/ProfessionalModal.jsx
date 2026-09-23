@@ -1,6 +1,7 @@
-import { Star, SealCheck, VideoCamera, MapPin, CalendarPlus, X, ChatCircle, Phone, Lightning } from '@phosphor-icons/react'
+import { Star, SealCheck, VideoCamera, MapPin, CalendarPlus, X, Lightning } from '@phosphor-icons/react'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import PatientSheet from './PatientSheet'
+import { inicialesDe } from '../../lib/format'
 
 /**
  * ProfessionalModal
@@ -26,7 +27,6 @@ export default function ProfessionalModal({ pro, open, onClose, modality, onBook
   const rating  = pro.averageRating ?? null
   const reviews = pro.totalReviews   ?? 0
   const label   = porSlug[pro.specialty] ?? pro.specialty ?? '—'
-  const phone   = pro.profiles?.phone || null
 
   const price = modality === 'presencial'
     ? (pro.pricePresencial ?? pro.priceVideo ?? null)
@@ -35,7 +35,7 @@ export default function ProfessionalModal({ pro, open, onClose, modality, onBook
   const accentColor = vertical?.color ?? 'var(--color-brand)'
   const accentBg    = vertical?.bg    ?? 'var(--color-brand-muted)'
   const VertIcon    = vertical?.icon  ?? null
-  const initial     = name.charAt(0).toUpperCase()
+  const initial     = inicialesDe(name)
 
   // First + last initial for the avatar fallback (matches mobile pattern)
   const parts    = name.trim().split(/\s+/)
@@ -47,17 +47,6 @@ export default function ProfessionalModal({ pro, open, onClose, modality, onBook
   const handleBook = () => {
     onClose()
     onBook?.(pro)
-  }
-
-  const handleWhatsApp = () => {
-    if (!phone) return
-    const num = phone.replace(/\D/g, '')
-    window.open(`https://wa.me/${num}`, '_blank', 'noopener')
-  }
-
-  const handlePhone = () => {
-    if (!phone) return
-    window.location.href = `tel:${phone}`
   }
 
   return (
@@ -175,28 +164,13 @@ export default function ProfessionalModal({ pro, open, onClose, modality, onBook
           </div>
         )}
 
-        {/* Quick contact row */}
-        <div>
-          <p className="text-[11px] font-bold text-text-muted uppercase tracking-widest mb-2">Contacto rápido</p>
-          <div className="flex gap-2">
-            <button
-              onClick={handleWhatsApp}
-              disabled={!phone}
-              className="flex-1 flex flex-col items-center gap-1.5 py-3.5 rounded-[16px] border border-border-default bg-bg-primary text-text-secondary hover:bg-bg-secondary transition-colors disabled:opacity-40 text-[11px] font-semibold"
-            >
-              <ChatCircle className="w-5 h-5 text-green-500" />
-              WhatsApp
-            </button>
-            <button
-              onClick={handlePhone}
-              disabled={!phone}
-              className="flex-1 flex flex-col items-center gap-1.5 py-3.5 rounded-[16px] border border-border-default bg-bg-primary text-text-secondary hover:bg-bg-secondary transition-colors disabled:opacity-40 text-[11px] font-semibold"
-            >
-              <Phone className="w-5 h-5 text-text-secondary" />
-              Llamar
-            </button>
-          </div>
-        </div>
+        {/* 🔴 Acá estaba "Contacto rápido" — WhatsApp y Llamar al profesional.
+            Se sacó por pedido de Mateo (2026-09-18): el paciente NO ve el
+            WhatsApp, el mail ni el teléfono del profesional en ningún momento.
+            El contacto pasa por la plataforma — se reserva el turno y se habla
+            por la videollamada. Lo mismo en la app
+            (`mobile/src/components/professional/ProfessionalBottomSheet.tsx`).
+            No volver a agregarlo sin preguntarle. */
       </div>
 
       {/* Primary CTA */}

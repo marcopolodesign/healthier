@@ -2,20 +2,21 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import PatientSheet from '../../components/patient/PatientSheet'
 import {
-  MapPin, CaretRight, Star, VideoCamera,
-  Heartbeat, X, Sparkle, CalendarBlank, MagnifyingGlass, Siren, FileText,
+  MapPin, CaretRight, Star, VideoCamera, CalendarBlank,
+  Heartbeat, X, MagnifyingGlass, Siren, FileText, ClipboardText,
 } from '@phosphor-icons/react'
 import { track } from '../../utils/analytics'
 import { SUPPORT_PHONE_DISPLAY, supportWhatsAppLink } from '../../lib/support'
 import WhatsAppMark from '../../components/icons/WhatsAppMark'
 
-const LAST_VERTICAL_KEY = 'healthier_last_vertical'
 import InteractiveMap from '../../components/patient/InteractiveMap'
 import ActiveAppointmentBanner from '../../components/patient/ActiveAppointmentBanner'
 import ActivePharmacyOrderCard from '../../components/patient/ActivePharmacyOrderCard'
 import MedicoCabeceraCard from '../../components/patient/MedicoCabeceraCard'
 import MedicoCabeceraModal from '../../components/patient/MedicoCabeceraModal'
 import TourPaciente from '../../components/patient/TourPaciente'
+import PatientHeader from '../../components/patient/PatientHeader'
+import OnDemandCarousel from '../../components/patient/OnDemandCarousel'
 import { professionalService } from '../../services/professionalService'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { emergencyService, getSosSettings } from '../../services/emergencyService'
@@ -23,6 +24,10 @@ import { pickProForVertical } from '../../lib/verticals'
 import { useVerticales } from '../../hooks/useVerticales'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { latLngToPixel, haversineKm, formatDistance } from '../../lib/geo'
+
+// Orden fijo del carrusel on demand (spec 2026-09-23) — no el orden de
+// `VERTICALS`, que trae también las que no tienen consulta inmediata.
+const ORDEN_ONDEMAND = ['clinica', 'pediatria', 'mente', 'nutricion']
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
@@ -55,7 +60,7 @@ export default function PatientDashboard({ profile }) {
   // App.jsx después de un `PATCH`, así que sin esto la tarjeta reaparecería en
   // cuanto el componente re-renderizara por cualquier otra razón.
   const [medicoCabeceraDismissed, setMedicoCabeceraDismissed] = useState(!!profile?.medicoCabeceraDismissed)
-  // Cuántas recetas emitidas tiene. En 0 el acceso no se muestra — ver `recetasCta`.
+  // Cuántas recetas emitidas tiene — subtítulo del acceso "Mis recetas" (ver `ACCESOS`).
   const [recetasCount, setRecetasCount] = useState(0)
   useEffect(() => {
     if (!profile?.id) return
@@ -131,10 +136,31 @@ export default function PatientDashboard({ profile }) {
     [markersByVertical, userLocation, VERTICALS]
   )
 
-  // Only specialties bookable right now (no "próximamente") get the on-demand hero treatment
-  // Deps con VERTICALS a propósito: dejó de ser una constante de módulo y ahora
-  // llega de la base. Con `[]` esto se quedaba clavado en los valores del código.
-  const onDemandVerticals = useMemo(() => VERTICALS.filter(v => !v.comingSoon), [VERTICALS])
+  // ── Carrusel "Atención inmediata" (spec 2026-09-23) ──────────────────────
+  // Sólo entran las verticales con AL MENOS UN profesional on demand
+  // disponible ahora mismo — misma consulta que ya usa el flujo on demand
+  // (OnDemand.jsx) y el mapa: `onDemand: true, onlyLive: true` respeta el TTL
+  // de presencia existente (ON_DEMAND_PRESENCE_TTL_MS). Se trae UNA vez, sin
+  // filtro de especialidad, y se agrupa acá por vertical — así son 4
+  // verticales resueltas con 1 sola consulta en vez de 4.
+  const [onDemandLivePros, setOnDemandLivePros] = useState([])
+  useEffect(() => {
+    professionalService.search({ onDemand: true, onlyLive: true })
+      .then(setOnDemandLivePros)
+      .catch(() => {}) // aditivo — sin datos, el carrusel muestra el estado "sin nadie en línea"
+  }, [])
+
+  const verticalesConOnDemand = useMemo(() => {
+    return ORDEN_ONDEMAND
+      .map(id => VERTICALS.find(v => v.id === id))
+      .filter(v => v && !v.comingSoon)
+      // Siempre las cuatro (Mateo, 2026-09-23): la que no tiene a nadie en
+      // línea se muestra apagada y manda a sacar turno.
+      .map(v => {
+        const slugs = porVertical[v.id] || []
+        return { ...v, disponible: onDemandLivePros.some(p => slugs.includes(p.specialty)) }
+      })
+  }, [VERTICALS, porVertical, onDemandLivePros])
 
   // Geolocation
   useEffect(() => {
@@ -241,122 +267,13 @@ export default function PatientDashboard({ profile }) {
     navigate(`/paciente/reservar?vertical=${verticalId}&proId=${userId}${modalityParam}`)
   }
 
-  const goToVertical = v => {
-    track('specialty_select', { specialty: v.id, status: v.comingSoon ? 'coming_soon' : 'available', flow: 'paciente' })
-    const entry = { id: v.id, nombre: v.nombre }
-    localStorage.setItem(LAST_VERTICAL_KEY, JSON.stringify(entry))
-    navigate(`/paciente/reservar?vertical=${v.id}`)
-  }
-
-
   // ── Shared content blocks ────────────────────────────────
-
-  // Contenido del bloque verde full-bleed. Ya no es una tarjeta con márgenes:
-  // el fondo y el redondeo inferior los pone el contenedor del render, que se
-  // extiende de borde a borde y arranca pegado al tope de la pantalla.
-  const onDemandHero = (
-    /* Anclajes de los tours guiados (`useTourGuiado`): contrato explícito con
-       `TourPaciente`. Si se renombran o se borran, el paso que los señala se
-       queda sin foco y el globo se va al centro de la pantalla.
-
-       El anclaje envuelve el título Y el carrusel, no sólo el título: resaltar
-       el encabezado dejaba las tarjetas debajo del globo, o sea tapadas
-       justamente mientras el paso habla de ellas y de su precio. El wrapper
-       repite el `gap-5` del padre para que juntar los dos hijos en uno no
-       cambie el espaciado. */
-    <div data-tour="pac-ondemand" className="flex flex-col gap-5">
-      <div>
-        <span className="text-[11px] font-semibold tracking-widest uppercase text-white/70">Atención inmediata</span>
-        <h2 className="text-[28px] tracking-tight font-light leading-none mt-1.5">Hablá con un médico ahora</h2>
-        <p className="text-[14px] text-white/80 mt-2">Sin turno · Te atiende el primero disponible, en minutos</p>
-      </div>
-
-      {/* Carrusel horizontal, sangrado a la derecha (-mr-6) para que la última
-          tarjeta se vea cortada contra el borde y se lea que hay más. Mismas
-          fotos que las landings de marketing. */}
-      <div className="-mr-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory lg:mr-0 lg:overflow-visible">
-        <div className="flex gap-3 w-max pr-6 lg:grid lg:grid-cols-2 lg:w-full lg:pr-0">
-          {onDemandVerticals.map(v => (
-            <button
-              key={v.id}
-              onClick={() => { track('ondemand_start', { vertical: v.id, flow: 'paciente' }); navigate(`/paciente/ondemand/${v.id}`) }}
-              className="snap-start shrink-0 w-[256px] h-[280px] lg:w-full lg:h-[320px] relative rounded-[26px] overflow-hidden group active:scale-[0.98] transition-all"
-            >
-              {v.img && (
-                <img
-                  src={v.img}
-                  alt=""
-                  loading="lazy"
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                />
-              )}
-              {/* Degradé para que el texto se lea sobre cualquier foto */}
-              <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-              {/* Precio arriba: responde "¿cuánto sale?" antes de entrar al checkout */}
-              {/* Ya no dice "desde": el precio lo fija la vertical y es el mismo
-                  para todos los profesionales, así que un "desde" sugeriría una
-                  variación que no existe. */}
-              {v.onDemandPrice != null && (
-                <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-black/45 backdrop-blur-sm text-white text-[12px] font-semibold">
-                  ${Number(v.onDemandPrice).toLocaleString('es-AR')}
-                </span>
-              )}
-
-              <span className="absolute inset-x-0 bottom-0 p-5 flex items-end justify-between gap-3">
-                <span className="flex items-center gap-2.5 text-white font-semibold text-[20px] min-w-0">
-                  <v.icon className="w-[22px] h-[22px] flex-shrink-0" weight="fill" />
-                  <span className="truncate">{v.nombre}</span>
-                </span>
-                {/* La tarjeta entera es clickeable, pero sin un CTA visible se
-                    lee como banner y no como botón. */}
-                <span className="shrink-0 px-3.5 py-1.5 rounded-full bg-white text-text-primary text-[13px] font-bold">
-                  Empezar
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-
-  const specialtyGrid = (
-    <div data-tour="pac-especialidades" className="flex flex-col gap-3">
-      <div className="flex flex-col gap-0.5">
-        <h2 className="text-[17px] font-semibold text-text-primary leading-tight">Buscar por especialidad</h2>
-        <p className="text-[13px] text-text-secondary leading-snug">Agendá turno con un profesional</p>
-      </div>
-      {/* Carrusel horizontal. El primer ítem queda alineado con el título; el
-          sangrado es solo a la derecha (-mr-6) para que la última píldora se vea
-          cortada contra el borde y se lea que hay más para scrollear. */}
-      <div className="-mr-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
-        <div className="flex gap-3 w-max pr-6 pb-1">
-          {VERTICALS.map(v => (
-            <button
-              key={v.id}
-              onClick={v.comingSoon ? undefined : () => goToVertical(v)}
-              disabled={v.comingSoon}
-              className={`snap-start shrink-0 w-[104px] h-[104px] rounded-full bg-bg-secondary shadow-[0_1px_4px_rgba(45,42,38,0.06)] flex flex-col items-center justify-center gap-1.5 px-2 text-center transition-all ${
-                v.comingSoon
-                  ? 'opacity-50 cursor-default'
-                  : 'cursor-pointer hover:scale-[0.97] active:scale-95'
-              }`}
-            >
-              <v.icon className="w-6 h-6 flex-shrink-0" style={{ color: v.color }} />
-              <span className="text-[12px] leading-[14px] font-semibold" style={{ color: v.color }}>
-                {v.nombre}
-              </span>
-              {v.comingSoon && (
-                <span className="text-[8px] font-bold tracking-wide uppercase" style={{ color: v.color }}>
-                  Próximamente
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
+  //
+  // El carrusel "Agendá con un profesional" (antes `specialtyGrid`, con
+  // `goToVertical`) se mudó a la pestaña Turnos — spec 2026-09-23: "se saca
+  // del Inicio, vive en Turnos". Ver `Consultations.jsx`. El hero de on
+  // demand con las fotos por vertical también se reemplazó — ahora vive en
+  // `OnDemandCarousel.jsx`, con el drag+degradé interpolado del spec.
 
   // Vista previa estática del mapa con la Static Images API de Mapbox — mismo
   // estilo (light-v11) que el mapa interactivo, así la miniatura y lo que se
@@ -369,36 +286,14 @@ export default function PatientDashboard({ profile }) {
     return `https://api.mapbox.com/styles/v1/mapbox/light-v11/static/${lng},${lat},${zoom},0/640x260@2x?access_token=${MAPBOX_TOKEN}&attribution=false&logo=false`
   })()
 
-  /*
-   * "Mis recetas" — arriba de "Ver mapa", y **sólo si el paciente tiene alguna**
-   * (Mateo, 2026-09-04). Un acceso a una lista vacía es ruido, y en este
-   * producto la mayoría de los pacientes todavía no tiene ninguna receta.
-   */
-  const recetasCta = recetasCount > 0 ? (
-    <button
-      onClick={() => navigate('/paciente/recetas')}
-      className="w-full bg-bg-secondary border border-border-default rounded-[24px] p-4 flex items-center gap-3 hover:border-brand transition-colors text-left"
-    >
-      <div className="w-10 h-10 rounded-xl bg-brand-muted flex items-center justify-center flex-shrink-0">
-        <FileText className="w-5 h-5 text-brand" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <span className="font-semibold text-[15px] text-text-primary leading-none">Mis recetas</span>
-          <CaretRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-        </div>
-        <p className="text-[12px] text-text-secondary mt-1.5">
-          {recetasCount === 1 ? '1 receta emitida' : `${recetasCount} recetas emitidas`}
-        </p>
-      </div>
-    </button>
-  ) : null
-
+  // "Profesionales cerca tuyo" — tarjeta-mapa, spec 2026-09-23. Usa la
+  // vista previa real de Mapbox (ya existía) en vez del mockup decorativo del
+  // diseño de referencia: es información real, no un placeholder.
   const mapCta = (
     <button
       data-tour="pac-mapa"
       onClick={() => { track('view_map_click', { flow: 'paciente' }); setShowMap(true) }}
-      className="w-full bg-bg-secondary rounded-3xl shadow-[0_1px_4px_rgba(45,42,38,0.06)] overflow-hidden text-left active:scale-[0.98] transition-all"
+      className="w-full bg-bg-secondary border border-border-subtle rounded-3xl shadow-[0_1px_4px_rgba(45,42,38,0.06)] overflow-hidden text-left active:scale-[0.98] transition-all"
     >
       <img
         src={staticMapUrl}
@@ -406,67 +301,72 @@ export default function PatientDashboard({ profile }) {
         loading="lazy"
         className="w-full h-[130px] object-cover"
       />
-      <div className="p-4">
+      <div className="p-4 flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-semibold text-[15px] text-text-primary leading-none">Ver mapa</span>
-          <CaretRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
+          <span className="font-semibold text-[17px] text-text-primary leading-none">Profesionales cerca tuyo</span>
+          <span className="shrink-0 flex items-center gap-1.5 bg-brand rounded-full px-3.5 py-2 text-white text-[13px] font-semibold">
+            Ver el mapa <CaretRight className="w-3.5 h-3.5" />
+          </span>
         </div>
-        <p className="text-[12px] text-text-secondary mt-1.5">Encontrá profesionales por cercanía</p>
+        <p className="text-[13px] text-text-secondary leading-snug">
+          Fijate qué profesionales hay disponibles cerca tuyo para una atención presencial o virtual inmediata.
+        </p>
       </div>
     </button>
   )
 
-  // Buscar por nombre. Va debajo del mapa a propósito: el mapa resuelve "quién
-  // hay cerca" y esto resuelve "me recomendaron a alguien y lo quiero encontrar",
-  // que es la otra mitad y no tenía entrada desde el inicio (Mateo, 2026-07-31).
-  const buscarPorNombreCta = (
-    <button
-      data-tour="pac-buscar"
-      onClick={() => { track('search_by_name_click', { flow: 'paciente' }); navigate('/paciente/buscar') }}
-      className="card-hover w-full flex items-center gap-4 active:scale-[0.98] transition-all text-left"
-    >
-      <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0">
-        <MagnifyingGlass className="w-5 h-5 text-brand" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <span className="font-semibold text-[14px] text-text-primary leading-none">Buscar por nombre</span>
-        <p className="text-[11px] text-text-secondary mt-0.5">Si ya sabés con quién te querés atender</p>
-      </div>
-      <CaretRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-    </button>
-  )
+  // "4 accesos iguales" — spec 2026-09-23: historia clínica, recetas, buscar
+  // por nombre, soporte. `Buscar por nombre` acá apunta a la lista de
+  // disponibles-ahora nueva (§3 del spec), NO a `/paciente/buscar` (esa
+  // busca entre TODOS los profesionales cobrables, disponibles o no — sigue
+  // existiendo, sólo que ya no tiene acceso directo desde el Inicio).
+  const ACCESOS = [
+    {
+      key: 'historia', icon: ClipboardText, label: 'Historia clínica electrónica', sub: 'Tus estudios y evoluciones',
+      onClick: () => { track('quick_access_click', { access: 'historia_clinica', flow: 'paciente' }); navigate('/paciente/historia-clinica') },
+    },
+    {
+      key: 'recetas', icon: FileText,
+      label: 'Mis recetas',
+      sub: recetasCount > 0 ? (recetasCount === 1 ? '1 receta emitida' : `${recetasCount} recetas emitidas`) : 'Sin recetas emitidas',
+      onClick: () => { track('quick_access_click', { access: 'recetas', flow: 'paciente' }); navigate('/paciente/recetas') },
+    },
+    {
+      key: 'buscar', tour: 'pac-buscar', icon: MagnifyingGlass, label: 'Buscar por nombre', sub: 'Quién está disponible ahora',
+      onClick: () => { track('quick_access_click', { access: 'buscar_disponibles', flow: 'paciente' }); navigate('/paciente/buscar-disponibles') },
+    },
+    {
+      key: 'soporte', icon: null, label: 'Contactá a soporte', sub: `WhatsApp ${SUPPORT_PHONE_DISPLAY}`,
+      href: supportWhatsAppLink('Hola, soy paciente en Healthier y necesito ayuda con:'),
+      onClick: () => track('support_whatsapp_click', { flow: 'paciente' }),
+    },
+  ]
 
-  // Mismo canal de soporte que usa el lado profesional (lib/support.js), para
-  // que no haya dos números dando vueltas.
-  const supportCta = (
-    <a
-      href={supportWhatsAppLink('Hola, soy paciente en Healthier y necesito ayuda con:')}
-      target="_blank"
-      rel="noreferrer"
-      onClick={() => track('support_whatsapp_click', { flow: 'paciente' })}
-      className="card-hover w-full flex items-center gap-4 active:scale-[0.98] transition-all text-left"
-    >
-      <WhatsAppMark className="w-8 h-8 flex-shrink-0" />
-      <div className="flex-1 min-w-0">
-        <span className="font-semibold text-[14px] text-text-primary leading-none">Contactá a soporte</span>
-        <p className="text-[11px] text-text-secondary mt-0.5">Por WhatsApp al {SUPPORT_PHONE_DISPLAY}</p>
-      </div>
-      <CaretRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
-    </a>
-  )
-
-  const aiTriageCta = (
-    <div className="card w-full flex items-center gap-4 opacity-60 pointer-events-none text-left relative">
-      <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0">
-        <Sparkle className="w-5 h-5 text-brand" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <span className="font-semibold text-[14px] text-text-primary leading-none">¿No sabés qué especialista necesitás?</span>
-        <p className="text-[11px] text-text-secondary mt-0.5 truncate">Contanos tus síntomas y te orientamos</p>
-      </div>
-      <span className="text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full bg-brand-muted text-brand flex-shrink-0">
-        Próximamente
-      </span>
+  const accesosGrid = (
+    <div className="grid grid-cols-2 gap-2.5">
+      {ACCESOS.map(a => {
+        const Tag = a.href ? 'a' : 'button'
+        return (
+          <Tag
+            key={a.key}
+            data-tour={a.tour}
+            {...(a.href ? { href: a.href, target: '_blank', rel: 'noreferrer' } : {})}
+            onClick={a.onClick}
+            className="bg-bg-secondary border border-border-subtle rounded-[24px] p-4 flex flex-col text-left hover:border-brand/40 active:opacity-90 transition-colors"
+          >
+            <div className="flex items-center justify-between">
+              <span className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center">
+                {a.icon ? <a.icon className="w-5 h-5 text-brand" /> : <WhatsAppMark className="w-5 h-5" />}
+              </span>
+              <CaretRight className="w-[18px] h-[18px] text-text-muted" />
+            </div>
+            <div className="mt-5 flex flex-col">
+              <span className="font-medium text-[14px] text-text-primary leading-tight">{a.label}</span>
+              <span className="text-[11px] text-text-secondary mt-0.5 leading-snug">{a.sub}</span>
+            </div>
+          </Tag>
+        )
+      })}
     </div>
   )
 
@@ -520,24 +420,35 @@ export default function PatientDashboard({ profile }) {
           arrancar, y con `VERTICALS` todavía vacío el paso de consulta
           inmediata se perdería en silencio. */}
       <TourPaciente
-        hayOnDemand={onDemandVerticals.length > 0}
+        hayOnDemand={verticalesConOnDemand.some(v => v.disponible)}
         sosActivo={sosEnabled}
         listo={VERTICALS.length > 0}
       />
 
       <div className="absolute inset-0 overflow-y-auto scrollbar-hide bg-bg-primary">
 
-        {/* Bloque verde de borde a borde: arranca pegado al tope (sin redondeo
-            arriba) y cierra redondeado abajo. El saludo vive adentro, así que
-            todo el encabezado de la pantalla es una sola pieza. */}
-        <div className="bg-gradient-to-br from-brand to-brand-hover rounded-b-[32px] px-6 patient-column pt-safe sm:pt-10 pb-6 flex flex-col gap-5 text-white shadow-[0_12px_32px_rgba(124,179,139,0.28)]">
-          {/* Active SOS outranks a resumable appointment — both render nothing
-              when there's nothing to resume. Must stay above the on-demand
-              cards: resuming either beats starting something new. */}
+        {/* Bloque de borde a borde: arranca pegado al tope (sin redondeo
+            arriba) y cierra redondeado abajo. El header (Hola + avatar +
+            campana) y el padding del texto viven DENTRO de `OnDemandCarousel`
+            — así el degradé de fondo queda de borde a borde de verdad y el
+            texto/tarjetas tienen su propio padding adentro. */}
+        <div className="rounded-b-[32px] overflow-hidden">
+          <OnDemandCarousel
+            verticals={verticalesConOnDemand}
+            header={<PatientHeader profile={profile} />}
+          />
+        </div>
+
+        {/* Banners de flujo crítico — consulta activa / turno próximo /
+            emergencia en curso. Antes vivían DENTRO del bloque verde; con el
+            carrusel ahora dueño de ese fondo (degradé por especialidad, no
+            más un verde parejo), se muestran acá debajo, apenas se sale del
+            carrusel — siguen siendo lo primero que se ve después de él.
+            `empty:hidden` los saca sin dejar el padding cuando ninguno de los
+            dos tiene algo que mostrar (los dos devuelven `null`). */}
+        <div className="px-6 patient-column pt-5 w-full flex flex-col gap-3 empty:hidden empty:pt-0">
           {activeEmergencyBanner}
           <ActiveAppointmentBanner profile={profile} />
-
-          {onDemandHero}
         </div>
 
         {/* El pedido de farmacia en curso. Sale solo cuando no hay ninguno,
@@ -546,10 +457,7 @@ export default function PatientDashboard({ profile }) {
           <ActivePharmacyOrderCard profile={profile} />
         </div>
 
-        {/* "Tu médico de cabecera" — sólo si vino referido y no la cerró.
-            Entre el bloque verde y la grilla de especialidades a propósito
-            (Mateo, 2026-08-21): es lo primero que ve después del saludo, antes
-            de que el resto de la app le ofrezca elegir entre todos. */}
+        {/* "Tu médico de cabecera" — sólo si vino referido y no la cerró. */}
         {medicoCabecera && !medicoCabeceraDismissed && (
           <div className="px-6 patient-column pt-5 w-full">
             <MedicoCabeceraCard
@@ -562,12 +470,8 @@ export default function PatientDashboard({ profile }) {
         )}
 
         <div className="px-6 patient-column pt-6 pb-32 flex flex-col gap-5 w-full">
-          {specialtyGrid}
-          {recetasCta}
           {mapCta}
-          {buscarPorNombreCta}
-          {supportCta}
-          {aiTriageCta}
+          {accesosGrid}
           {sosButton}
         </div>
       </div>
