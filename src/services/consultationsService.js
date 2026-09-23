@@ -419,6 +419,25 @@ export const consultationsService = {
     return data ? toCamelCase(data) : null
   },
 
+  /**
+   * Ids de profesionales que ahora mismo están EN ATENCIÓN — lo que "Buscar
+   * por nombre — disponibles ahora" usa para apagar y bloquear al que está
+   * ocupado en vez de dejar que el paciente le mande un segundo pedido.
+   *
+   * Va por RPC (migración 168) y no por un `select` directo a `consultations`:
+   * la RLS de esa tabla sólo deja leer las consultas PROPIAS, así que un
+   * paciente nunca podría enterarse de que OTRO profesional está ocupado con
+   * un `select` normal. La función es `security definer` y devuelve sólo los
+   * ids — ni paciente, ni consulta, ni horario.
+   */
+  async getProfesionalesEnAtencion() {
+    const { data, error } = await supabase.rpc('profesionales_en_atencion')
+    // Fail-open: si el RPC falla, nadie se muestra ocupado de más — es
+    // preferible mostrar a alguien como libre que bloquearlo por error.
+    if (error) return new Set()
+    return new Set(data ?? [])
+  },
+
   async update(id, fields) {
     if (esSimulado(id)) return { ...simulacion.consulta(), ...fields }
     const { data, error } = await supabase
