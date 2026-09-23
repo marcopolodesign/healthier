@@ -193,6 +193,14 @@ export const authService = {
   },
 
   onAuthStateChange(callback) {
-    return supabase.auth.onAuthStateChange(callback)
+    // 🔴 El callback corre DESPUÉS, fuera del lock de auth de supabase-js.
+    // Supabase avisa `SIGNED_IN` mientras tiene tomado el lock (al recuperar
+    // la sesión guardada, entre otros); si el callback consulta la base, esa
+    // consulta espera el mismo lock y la app queda en "Cargando..." para
+    // siempre. Pasaba con sesión guardada y sin el perfil cacheado en el
+    // navegador (2026-09-23). Es la forma que recomienda Supabase.
+    return supabase.auth.onAuthStateChange((event, session) => {
+      setTimeout(() => callback(event, session), 0)
+    })
   },
 }
