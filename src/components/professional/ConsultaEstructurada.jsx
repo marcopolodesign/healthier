@@ -17,6 +17,12 @@ import {
   evaluarSat, calcularIMC, categoriaIMC, guardarConsultaEnHC,
 } from '../../lib/consultaDraft'
 
+/** ¿El paciente sincronizó Apple Health en los últimos 7 días? */
+function saludReciente(p) {
+  if (!p?.saludSincronizadoAt) return false
+  return Date.now() - new Date(p.saludSincronizadoAt).getTime() < 7 * 24 * 60 * 60 * 1000
+}
+
 // Border-radius normal (Mateo, 2026-08-24: "no tan pronunciado") — no usa la
 // utility `form-input`, que es 999px (pill), pensada para inputs de una
 // línea. Las tres textareas de esta pantalla comparten esta clase.
@@ -120,13 +126,21 @@ export default function ConsultaEstructurada({
     vitalesPrecargados.current = true
     const pesoInicial = patientData?.weightKg != null ? String(patientData.weightKg) : ''
     const tallaInicial = patientData?.heightCm != null ? String(patientData.heightCm) : ''
-    if (!pesoInicial && !tallaInicial) return
+    // Pulso y saturación vienen del teléfono del paciente (Apple Health,
+    // migración 170). Sólo si son de la última semana: un valor viejo en una
+    // consulta de hoy confunde más de lo que ayuda.
+    const reciente = saludReciente(patientData)
+    const fcInicial = reciente && patientData?.fcLpm != null ? String(patientData.fcLpm) : ''
+    const satInicial = reciente && patientData?.saturacionPct != null ? String(patientData.saturacionPct) : ''
+    if (!pesoInicial && !tallaInicial && !fcInicial && !satInicial) return
     update(d => ({
       ...d,
       vitales: {
         ...d.vitales,
         peso: d.vitales.peso || pesoInicial,
         talla: d.vitales.talla || tallaInicial,
+        fc: d.vitales.fc || fcInicial,
+        sat: d.vitales.sat || satInicial,
       },
     }))
   }, [loadingPatientData, patientData, update])
@@ -405,7 +419,9 @@ export default function ConsultaEstructurada({
             </p>
           )}
           <p className="text-[10px] text-text-tertiary mt-2">
-            Más adelante se van a autocompletar desde Apple Health / Google Health en el celular.
+            {saludReciente(patientData)
+              ? `Precargado desde Apple Health del paciente (${new Date(patientData.saludSincronizadoAt).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}). Revisalo antes de guardar.`
+              : 'Si el paciente conecta Apple Health en la app, el pulso, la saturación, el peso y la talla se precargan acá.'}
           </p>
         </NumberedSection>
 
