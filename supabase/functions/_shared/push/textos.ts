@@ -39,7 +39,15 @@ export type Datos = {
   /** Post-consulta */
   professionalName?: string | null
   tieneReceta?: boolean
+  /** Recetas: para llevar al detalle y no a la lista */
+  prescriptionId?: string
+  /** Devoluciones */
+  monto?: number | null
+  aCreditos?: boolean
 }
+
+const pesos = (n?: number | null) =>
+  n == null ? null : '$' + Math.round(n).toLocaleString('es-AR')
 
 const TZ = 'America/Argentina/Buenos_Aires'
 
@@ -150,7 +158,7 @@ export const AVISOS = {
       body: d.medicamentos?.length
         ? `${d.medicamentos.join(' · ')}. Presentala desde el celular en cualquier farmacia.`
         : 'Presentala desde el celular en cualquier farmacia.',
-      url: '/paciente/recetas',
+      url: d.prescriptionId ? `/paciente/receta/${d.prescriptionId}` : '/paciente/recetas',
     }),
   },
 
@@ -193,6 +201,33 @@ export const AVISOS = {
         ? `${d.motivo}. Si ya lo pagaste, la devolución sale automáticamente.`
         : 'Si ya lo pagaste, la devolución sale automáticamente.',
       url: `/paciente/farmacia/pedido/${d.orderId}`,
+    }),
+  },
+
+  // ── Pagos ─────────────────────────────────────────────────────────────────
+  // El pago aprobado no tiene aviso propio: el turno confirmado y el pedido
+  // confirmado ya lo dicen. Lo que faltaba es enterarse de la devolución.
+  'devolucion-hecha': {
+    para: 'paciente' as Destinatario,
+    cuando: 'Se hace la devolución de un pago (a la tarjeta o como crédito en Healthier).',
+    build: (d: Datos): Aviso => ({
+      title: d.aCreditos ? 'Te acreditamos la devolución' : 'Te devolvimos el pago',
+      body: d.aCreditos
+        ? `${pesos(d.monto) ?? 'El importe'} ya está disponible como crédito para tu próxima consulta.`
+        : `${pesos(d.monto) ?? 'El importe'} vuelve a tu medio de pago. Puede tardar entre 5 y 10 días hábiles en verse.`,
+      url: '/paciente/comprobantes',
+    }),
+  },
+
+  'devolucion-rechazada': {
+    para: 'paciente' as Destinatario,
+    cuando: 'Healthier rechaza un pedido de devolución.',
+    build: (d: Datos): Aviso => ({
+      title: 'No pudimos hacer la devolución',
+      body: d.motivo
+        ? `${d.motivo}. Si tenés dudas, escribinos desde la app.`
+        : 'Revisamos tu pedido y no corresponde la devolución. Si tenés dudas, escribinos desde la app.',
+      url: '/paciente/comprobantes',
     }),
   },
 
