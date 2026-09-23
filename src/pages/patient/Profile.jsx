@@ -9,6 +9,9 @@ import { profilesService } from '../../services/profilesService'
 import { authService } from '../../services/authService'
 import { mpService } from '../../services/mpService'
 import { familyService } from '../../services/familyService'
+import { patientAddressesService } from '../../services/patientAddressesService'
+import AddressPickerSheet from '../../components/patient/AddressPickerSheet'
+import AddressFormSheet from '../../components/patient/AddressFormSheet'
 import { isoADdmmaaaa, ddmmaaaaAIso } from '../../lib/fechaNacimiento'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
@@ -235,6 +238,53 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
 
   useEffect(() => { loadFamiliares() }, [loadFamiliares])
 
+  // ── Domicilio (Mis direcciones, migración 173) ────────────
+  // El campo "Domicilio" ya no edita `profiles.address` directo: lee la
+  // dirección principal de `patient_addresses` y abre el mismo selector que
+  // usa el checkout de farmacia para elegir o agregar una nueva.
+  const [direcciones, setDirecciones] = useState([])
+  const [addrPickerOpen, setAddrPickerOpen] = useState(false)
+  const [addrFormOpen, setAddrFormOpen] = useState(false)
+  const [savingAddr, setSavingAddr] = useState(false)
+
+  const cargarDirecciones = useCallback(async () => {
+    if (!profile?.id) return
+    try {
+      setDirecciones(await patientAddressesService.list(profile.id))
+    } catch {
+      // Sin direcciones cargadas no rompe el perfil — se queda vacío y ofrece agregar.
+    }
+  }, [profile?.id])
+
+  useEffect(() => { cargarDirecciones() }, [cargarDirecciones])
+
+  const direccionPrincipal = direcciones.find(d => d.principal) ?? direcciones[0] ?? null
+
+  const elegirDireccionPrincipal = async a => {
+    setAddrPickerOpen(false)
+    if (a.id === direccionPrincipal?.id) return
+    try {
+      await patientAddressesService.setPrincipal(profile.id, a.id)
+      await cargarDirecciones()
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos actualizar el domicilio')
+    }
+  }
+
+  const agregarDireccion = async payload => {
+    setSavingAddr(true)
+    try {
+      const created = await patientAddressesService.create(profile.id, { ...payload, principal: direcciones.length === 0 })
+      setDirecciones(prev => [created, ...prev])
+      setAddrFormOpen(false)
+      toast.success('Dirección agregada')
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos guardar la dirección')
+    } finally {
+      setSavingAddr(false)
+    }
+  }
+
   const abrirEdicionFamiliar = f => {
     setEditingFamiliarId(f.id)
     setNewFamiliar({
@@ -359,7 +409,26 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         <div className="space-y-5">
           {field('Nombre', 'nombre')}
           {field('Teléfono', 'telefono', 'tel')}
-          {field('Domicilio', 'domicilio')}
+          <div className="flex flex-col">
+            <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-widest mb-1.5 ml-1">Domicilio</label>
+            {direccionPrincipal ? (
+              <button
+                type="button"
+                onClick={() => setAddrPickerOpen(true)}
+                className="px-1 py-1 text-[17px] font-medium text-text-primary text-left hover:text-brand transition-colors truncate"
+              >
+                {direccionPrincipal.direccion}{direccionPrincipal.pisoDepto ? `, ${direccionPrincipal.pisoDepto}` : ''}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAddrFormOpen(true)}
+                className="px-1 py-1 text-[15px] font-semibold text-brand text-left"
+              >
+                + Agregar domicilio
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -712,6 +781,22 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           </p>
         </div>
       </PatientSheet>
+
+      {/* Mis direcciones — mismo selector que usa el checkout de farmacia */}
+      <AddressPickerSheet
+        open={addrPickerOpen}
+        onClose={() => setAddrPickerOpen(false)}
+        addresses={direcciones}
+        selectedId={direccionPrincipal?.id}
+        onSelect={elegirDireccionPrincipal}
+        onAdd={() => { setAddrPickerOpen(false); setAddrFormOpen(true) }}
+      />
+      <AddressFormSheet
+        open={addrFormOpen}
+        onClose={() => setAddrFormOpen(false)}
+        onSave={agregarDireccion}
+        saving={savingAddr}
+      />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { medicationOrdersService } from '../services/medicationOrdersService'
+import { pharmacyService } from '../services/pharmacyService'
 import { toast } from '../components/Toast'
 import { farmaciaVisible } from '../lib/featureFlags'
 
@@ -75,6 +76,42 @@ export function PharmacyCartProvider({ profile, children }) {
     setDeltas({})
     refresh()
   }, [refresh])
+
+  /**
+   * `imageUrl` (y nombre/precio de respaldo) para lo que ya está en el
+   * carrito, sin depender de que el paciente haya tocado `+`/`-` en esta
+   * sesión — antes `productsById` sólo se llenaba desde `changeQuantity`, así
+   * que un carrito recién cargado se veía sin fotos aunque
+   * `pharmacy_products.image_url` existiera (bug 2026-09-23).
+   *
+   * La clave del efecto es el conjunto de ids, no el objeto `order` entero:
+   * así no se repite la consulta en cada `+`/`-` (que sólo cambia cantidades,
+   * no qué productos hay), sólo cuando entra o sale un producto del carrito.
+   */
+  const idsEnOrden = useMemo(
+    () => [...new Set((order?.items ?? []).map(it => it.pharmacyProductId).filter(Boolean))].sort(),
+    [order],
+  )
+  const idsKey = idsEnOrden.join(',')
+
+  useEffect(() => {
+    if (!idsKey) return
+    let cancelado = false
+    pharmacyService.getByIds(idsEnOrden)
+      .then(productos => {
+        if (cancelado) return
+        setProductsById(prev => {
+          const next = { ...prev }
+          for (const p of productos) next[p.id] = { ...next[p.id], ...p }
+          return next
+        })
+      })
+      .catch(() => {
+        // Sin fotos no rompe el carrito — se queda con el ícono de respaldo.
+      })
+    return () => { cancelado = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey])
 
   const olvidarDelta = useCallback((productId, delta) => {
     setDeltas(prev => {

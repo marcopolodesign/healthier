@@ -284,6 +284,16 @@ export const AVISOS = {
     }),
   },
 
+  'pro-disponibilidad-por-vencer': {
+    para: 'profesional' as Destinatario,
+    cuando: 'Al latido de consulta inmediata le quedan 10 minutos de vigencia (cron).',
+    build: (): Aviso => ({
+      title: '¿Seguís disponible?',
+      body: 'En 10 minutos dejás de aparecer para los pacientes. Abrí Healthier para seguir disponible.',
+      url: '/profesional/dashboard',
+    }),
+  },
+
   'pro-verificado': {
     para: 'profesional' as Destinatario,
     cuando: 'El equipo aprueba su documentación.',

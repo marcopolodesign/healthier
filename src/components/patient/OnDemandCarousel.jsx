@@ -101,6 +101,12 @@ export default function OnDemandCarousel({ verticals, header }) {
   useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }, [])
 
   const empezar = (v) => {
+    if (v.disponible === false) {
+      // Sin nadie en línea: a sacar turno de esa misma especialidad.
+      track('ondemand_offline_book', { vertical: v.id, flow: 'paciente' })
+      navigate(`/paciente/consultas?vertical=${v.id}`)
+      return
+    }
     track('ondemand_start', { vertical: v.id, flow: 'paciente' })
     navigate(`/paciente/ondemand/${v.id}`)
   }
@@ -158,7 +164,7 @@ export default function OnDemandCarousel({ verticals, header }) {
               key={v.id}
               ref={el => { if (el) cardRefs.current[v.id] = el }}
               onClick={() => empezar(v)}
-              className="od-card snap-center shrink-0 relative w-[290px] h-[340px] rounded-[28px] overflow-hidden shadow-[0_18px_40px_rgba(0,0,0,0.18)]"
+              className={`od-card snap-center shrink-0 relative w-[290px] h-[340px] rounded-[28px] overflow-hidden shadow-[0_18px_40px_rgba(0,0,0,0.18)] ${v.disponible === false ? 'od-card-offline' : ''}`}
             >
               {v.img ? (
                 <img src={v.img} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
@@ -173,7 +179,8 @@ export default function OnDemandCarousel({ verticals, header }) {
               )}
               <span className="absolute inset-x-0 bottom-0 p-[18px] flex flex-col items-start gap-2.5">
                 <span className="text-[22px] font-medium text-white">{v.nombre}</span>
-                <span className="px-[18px] py-2 rounded-full bg-white text-text-primary text-[14px] font-medium">Empezar</span>
+                {v.disponible === false && <span className="-mt-1.5 text-[12px] text-white/90">Sin profesionales en línea ahora</span>}
+                <span className="px-[18px] py-2 rounded-full bg-white text-text-primary text-[14px] font-medium">{v.disponible === false ? 'Sacá un turno' : 'Empezar'}</span>
               </span>
             </button>
           ))}

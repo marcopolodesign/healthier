@@ -154,9 +154,11 @@ export default function PatientDashboard({ profile }) {
     return ORDEN_ONDEMAND
       .map(id => VERTICALS.find(v => v.id === id))
       .filter(v => v && !v.comingSoon)
-      .filter(v => {
+      // Siempre las cuatro (Mateo, 2026-09-23): la que no tiene a nadie en
+      // línea se muestra apagada y manda a sacar turno.
+      .map(v => {
         const slugs = porVertical[v.id] || []
-        return onDemandLivePros.some(p => slugs.includes(p.specialty))
+        return { ...v, disponible: onDemandLivePros.some(p => slugs.includes(p.specialty)) }
       })
   }, [VERTICALS, porVertical, onDemandLivePros])
 
@@ -418,7 +420,7 @@ export default function PatientDashboard({ profile }) {
           arrancar, y con `VERTICALS` todavía vacío el paso de consulta
           inmediata se perdería en silencio. */}
       <TourPaciente
-        hayOnDemand={verticalesConOnDemand.length > 0}
+        hayOnDemand={verticalesConOnDemand.some(v => v.disponible)}
         sosActivo={sosEnabled}
         listo={VERTICALS.length > 0}
       />
