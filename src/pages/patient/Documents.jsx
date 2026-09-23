@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ShieldCheck, CaretRight, ArrowLeft, Eye, Plus,
+  ShieldCheck, CaretRight, ArrowLeft, Plus,
   CloudArrowUp, Camera, CircleNotch, Pulse,
-  FileText, FolderOpen, AppleLogo, Barbell, Brain, PawPrint, Sparkle, ClipboardText, Pill,
-  PencilSimple, Trash, ShoppingBag,
+  FileText, FolderOpen, AppleLogo, Barbell, Brain, PawPrint, Sparkle, ClipboardText,
+  PencilSimple, Trash, ShoppingBag, ForkKnife,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
@@ -57,6 +57,34 @@ const MOCK_DOCS_BY_CATEGORY = {
   peludo:         [{ id: 4, titulo: 'Foto Evolución (Herida)', subtitulo: 'Subido por vos • Ayer', source: 'paciente' }],
 }
 
+// ── Carpetas apiladas (Mateo, 2026-09-23) — mismo diseño que la app: con la
+// pila cerrada asoma sólo el título de cada carpeta y en los primeros 260px de
+// scroll se separan hasta verse enteras. Las medidas viven en `carpetas-pila` /
+// `carpeta` (index.css); acá sólo va el orden y el progreso de apertura.
+const RECORRIDO_APERTURA = 260
+// Clases literales para que Tailwind las genere (no se pueden armar con template strings).
+const INDICE = ['[--i:0]', '[--i:1]', '[--i:2]', '[--i:3]', '[--i:4]', '[--i:5]', '[--i:6]', '[--i:7]', '[--i:8]', '[--i:9]', '[--i:10]', '[--i:11]']
+const CANTIDAD = ['[--n:1]', '[--n:1]', '[--n:2]', '[--n:3]', '[--n:4]', '[--n:5]', '[--n:6]', '[--n:7]', '[--n:8]', '[--n:9]', '[--n:10]', '[--n:11]', '[--n:12]']
+const FONDOS = ['carpeta-fondo-0', 'carpeta-fondo-1', 'carpeta-fondo-2', 'carpeta-fondo-3', 'carpeta-fondo-4']
+
+const DESCRIPCION = {
+  biovisor: 'Tus valores leídos de cada análisis.',
+  nutriplan: 'Tu plan de alimentación vigente.',
+  recetas: 'Tus recetas electrónicas, vigentes y anteriores.',
+  analisis: 'Subí tus estudios y guardalos en tu historia.',
+  mente: 'Tu plan y los documentos de salud mental.',
+  rehabilitacion: 'Tu plan de ejercicios de rehabilitación.',
+  preparador: 'Tu rutina de entrenamiento.',
+  farmacia: 'Tus pedidos y compras de farmacia.',
+  peludo: 'La salud de tus mascotas.',
+}
+
+// Lo que antes eran las tarjetas destacadas (Análisis de sangre, NutriPlan,
+// Farmacia) entra a la pila como una carpeta más, igual que en la app.
+const CARPETA_BIOVISOR = { id: 'biovisor', name: 'Análisis de sangre', icon: Pulse, textClass: 'text-emerald-700', ruta: '/paciente/biovisor', chip: 'Activo' }
+const CARPETA_NUTRIPLAN = { id: 'nutriplan', name: 'Nutrición', icon: ForkKnife, textClass: 'text-amber-700', ruta: '/paciente/nutriplan', chip: 'Activo' }
+const CARPETA_FARMACIA = { id: 'farmacia', name: 'Farmacia', icon: ShoppingBag, textClass: 'text-[#A5472F]', ruta: '/paciente/farmacia', acento: true }
+
 function CategoryHeader({ cat, onBack }) {
   const CatIcon = cat.icon
   return (
@@ -78,6 +106,13 @@ export default function PatientDocuments({ profile }) {
   const navigate = useNavigate()
   const { count: cartCount, openSheet: abrirCarrito } = usePharmacyCart()
   const [viewingCat, setViewingCat] = useState(null)
+  // `--abre` se escribe directo en la pila desde el scroll (sin re-render por
+  // cada px): es el único valor que cambia en vivo.
+  const pilaRef = useRef(null)
+  const onScrollBoveda = (e) => {
+    const abre = Math.min(1, Math.max(0, e.currentTarget.scrollTop / RECORRIDO_APERTURA))
+    pilaRef.current?.style.setProperty('--abre', String(abre))
+  }
   const [docs, setDocs] = useState(MOCK_DOCS_BY_CATEGORY)
   const [showUpload, setShowUpload] = useState(false)
   const [newDocName, setNewDocName] = useState('')
@@ -183,119 +218,117 @@ export default function PatientDocuments({ profile }) {
   }
 
   // Main vault view (category detail rendered via PatientPageOverlay below)
+  // Nutrición "comingSoon" y el Historial viejo no entran: la Historia
+  // Clínica ya es la tarjeta oscura, y Nutrición es el plan (mismo criterio que la app).
+  const carpetas = [
+    CARPETA_BIOVISOR,
+    CARPETA_NUTRIPLAN,
+    ...CATEGORIES.filter(c => !c.comingSoon && c.id !== 'historial' && c.id !== 'peludo'),
+    ...(farmaciaVisible(profile) ? [CARPETA_FARMACIA] : []),
+    ...CATEGORIES.filter(c => c.id === 'peludo'),
+  ]
+
+  const abrirCarpeta = (cat) => {
+    track('vault_category_view', { category: cat.id, flow: 'paciente' })
+    // Categorías con pantalla propia (recetas, biovisor, nutriplan, farmacia)
+    // — el resto abre el visor de documentos subidos.
+    if (cat.ruta) { navigate(cat.ruta); return }
+    setViewingCat(cat)
+  }
+
   return (
-    <div className="absolute inset-0 bg-bg-primary pt-6 sm:pt-8 pb-32 px-6 patient-column overflow-y-auto animate-fade-in scrollbar-hide">
-      <div className="mb-6 mt-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="page-title-lg text-text-primary tracking-tight leading-none">Bóveda</h1>
-          <p className="text-text-secondary font-medium text-[15px] mt-2 flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-500" /> Tu historial médico seguro
-          </p>
-        </div>
-        {/* Bell + carrito de farmacia — mismo tratamiento de header que
-            Inicio (`PatientHeader`, 2026-09-23), en su versión clara ("tone
-            dark") porque acá el fondo es el beige de la página, no un
-            degradé oscuro. El carrito comparte gate con el resto de farmacia. */}
-        <div className="flex items-center gap-2 shrink-0">
-          {farmaciaVisible(profile) && (
-            <button
-              onClick={abrirCarrito}
-              aria-label={cartCount > 0 ? `Ver el carrito — ${cartCount} producto${cartCount !== 1 ? 's' : ''}` : 'Ver el carrito'}
-              className="relative w-11 h-11 rounded-full flex items-center justify-center shrink-0 bg-white/90 backdrop-blur-[20px] border border-white/80 shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:bg-white transition-colors"
-            >
-              <ShoppingBag className="w-5 h-5 text-text-primary" weight={cartCount > 0 ? 'fill' : 'regular'} />
-              {cartCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-semibold flex items-center justify-center border-2 border-white">
-                  {cartCount > 9 ? '9+' : cartCount}
-                </span>
+    <div onScroll={onScrollBoveda} className="absolute inset-0 bg-bg-primary pt-6 sm:pt-8 pb-32 px-6 patient-column overflow-y-auto animate-fade-in scrollbar-hide">
+      <div className="lg:grid lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-10 lg:items-start">
+        <div className="lg:sticky lg:top-0">
+          <div className="mb-6 mt-4 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="page-title-lg text-text-primary tracking-tight leading-none">Bóveda</h1>
+              <p className="text-text-secondary font-medium text-[15px] mt-2 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" /> Tu historial médico seguro
+              </p>
+            </div>
+            {/* Bell + carrito de farmacia — mismo tratamiento de header que
+                Inicio (`PatientHeader`, 2026-09-23). El carrito comparte gate
+                con el resto de farmacia. */}
+            <div className="flex items-center gap-2 shrink-0">
+              {farmaciaVisible(profile) && (
+                <button
+                  onClick={abrirCarrito}
+                  aria-label={cartCount > 0 ? `Ver el carrito — ${cartCount} producto${cartCount !== 1 ? 's' : ''}` : 'Ver el carrito'}
+                  className="relative w-11 h-11 rounded-full flex items-center justify-center shrink-0 bg-white/90 backdrop-blur-[20px] border border-white/80 shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:bg-white transition-colors"
+                >
+                  <ShoppingBag className="w-5 h-5 text-text-primary" weight={cartCount > 0 ? 'fill' : 'regular'} />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-semibold flex items-center justify-center border-2 border-white">
+                      {cartCount > 9 ? '9+' : cartCount}
+                    </span>
+                  )}
+                </button>
               )}
-            </button>
-          )}
-          <NotificationBell userId={profile?.id} tone="dark" />
-        </div>
-      </div>
-
-      {/* Historia Clínica banner */}
-      <button
-        onClick={() => navigate('/paciente/historia-clinica')}
-        className="w-full bg-gradient-to-r from-brand to-brand-hover rounded-2xl p-5 text-left text-white shadow-md hover:shadow-lg active:scale-[0.98] transition-all mb-4 flex items-center justify-between"
-      >
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-            <ClipboardText className="w-7 h-7 text-white" />
-          </div>
-          <div>
-            <p className="font-semibold text-[17px] leading-tight">Historia Clínica</p>
-            <p className="text-[12px] opacity-80 mt-0.5">Ver y descargar tu HC completa</p>
-          </div>
-        </div>
-        <CaretRight className="w-5 h-5 opacity-70 flex-shrink-0" />
-      </button>
-
-      {/* Feature cards — Biovisor, NutriPlan & Farmacia */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <button
-          onClick={() => navigate('/paciente/biovisor')}
-          className="bg-gradient-to-br from-teal-500 to-teal-700 rounded-2xl p-4 text-left text-white shadow-md hover:shadow-lg active:scale-95 transition-all"
-        >
-          <Pulse className="w-6 h-6 mb-2 opacity-90" />
-          <p className="font-semibold text-[15px] leading-tight">Análisis de sangre</p>
-          <p className="text-[11px] opacity-80 mt-0.5">Parámetros de salud</p>
-        </button>
-        <button
-          onClick={() => navigate('/paciente/nutriplan')}
-          className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl p-4 text-left text-white shadow-md hover:shadow-lg active:scale-95 transition-all"
-        >
-          <AppleLogo className="w-6 h-6 mb-2 opacity-90" />
-          <p className="font-semibold text-[15px] leading-tight">NutriPlan</p>
-          <p className="text-[11px] opacity-80 mt-0.5">Mi plan nutricional</p>
-        </button>
-        {/* Farmacia todavía no sale: el acceso se sacó el 2026-08-29 y sigue
-            afuera en producción. Se muestra en staging y a las cuentas de
-            prueba, para poder probar el circuito completo sin publicarlo
-            (decisión de Mateo, 2026-09-02 — ver lib/featureFlags.js). */}
-        {farmaciaVisible(profile) && (
-          <button
-            onClick={() => navigate('/paciente/farmacia')}
-            className="col-span-2 bg-gradient-to-br from-brand to-brand-hover rounded-2xl p-4 text-left text-white shadow-md hover:shadow-lg active:scale-95 transition-all flex items-center justify-between"
-          >
-            <div>
-              <Pill className="w-6 h-6 mb-2 opacity-90" />
-              <p className="font-semibold text-[15px] leading-tight">Farmacia</p>
-              <p className="text-[11px] opacity-80 mt-0.5">Comprá tus medicamentos</p>
+              <NotificationBell userId={profile?.id} tone="dark" />
             </div>
-            <CaretRight className="w-5 h-5 opacity-70 flex-shrink-0" />
-          </button>
-        )}
-      </div>
+          </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-        {CATEGORIES.map(cat => {
-          const CatIcon = cat.icon
-          const isPeludo = cat.id === 'peludo'
-          return (
-            <div
-              key={cat.id}
-              onClick={() => {
-                if (cat.comingSoon) return
-                track('vault_category_view', { category: cat.id, flow: 'paciente' })
-                // Categorías con pantalla propia (recetas) — el resto abre el
-                // visor de documentos subidos.
-                if (cat.ruta) { navigate(cat.ruta); return }
-                setViewingCat(cat)
-              }}
-              className={`card-hover relative overflow-hidden group flex ${cat.comingSoon ? 'opacity-40 pointer-events-none' : 'cursor-pointer'} ${isPeludo ? 'col-span-2 lg:col-span-3 flex-row items-center gap-4' : 'flex-col items-center justify-center text-center'}`}
+          {/* Historia Clínica — la única tarjeta oscura de la pantalla. */}
+          <div className="tarjeta-oscura rounded-[28px] p-5 lg:p-6 text-white mb-4 lg:mb-0">
+            <button
+              onClick={() => navigate('/paciente/historia-clinica')}
+              className="relative z-10 w-full text-left flex items-center justify-between gap-4"
             >
-              <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[9px] font-semibold tracking-widest flex items-center gap-1 ${cat.comingSoon ? 'bg-bg-surface text-text-tertiary' : cat.uploadable ? 'bg-emerald-50 text-emerald-600' : 'bg-bg-surface text-text-tertiary'}`}>
-                {cat.comingSoon ? 'PRÓXIMAMENTE' : cat.uploadable ? <><Plus className="w-3 h-3" /> AÑADIR</> : <><Eye className="w-3 h-3" /> VER</>}
-              </div>
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110 ${isPeludo ? '' : 'mb-3 mt-2'} ${cat.bgClass}`}>
-                <CatIcon className={`w-6 h-6 ${cat.textClass}`} />
-              </div>
-              <h3 className={`font-semibold text-text-primary leading-tight ${isPeludo ? 'text-[16px]' : 'text-[14px]'}`}>{cat.name}</h3>
+              <span className="flex items-center gap-4">
+                <span className="w-11 h-11 rounded-full bg-white/12 flex items-center justify-center shrink-0">
+                  <ClipboardText className="w-6 h-6 text-white" />
+                </span>
+                <span>
+                  <span className="block font-semibold text-[18px] lg:text-[24px] leading-tight">Historia Clínica</span>
+                  <span className="block text-[13px] text-white/80 mt-0.5">Ver y descargar tu HC completa</span>
+                </span>
+              </span>
+              <CaretRight className="w-5 h-5 shrink-0" />
+            </button>
+            <div className="relative z-10 hidden lg:flex gap-2 mt-8">
+              <button
+                onClick={() => navigate('/paciente/historia-clinica')}
+                className="px-4 py-2.5 rounded-full bg-[#DDEBC9] text-[#1E2621] text-[14px] font-semibold hover:bg-white transition-colors"
+              >
+                Ver y exportar
+              </button>
             </div>
-          )
-        })}
+          </div>
+        </div>
+
+        {/* Carpetas apiladas */}
+        <div ref={pilaRef} className={`carpetas-pila ${CANTIDAD[carpetas.length] ?? '[--n:12]'} mt-2 lg:mt-4 mb-8`}>
+          {carpetas.map((cat, i) => {
+            const CatIcon = cat.icon
+            const chip = cat.chip ?? (cat.uploadable ? 'Añadir' : null)
+            return (
+              <button
+                key={cat.id}
+                onClick={() => abrirCarpeta(cat)}
+                className={`carpeta ${INDICE[i]} ${cat.acento ? 'carpeta-fondo-coral' : FONDOS[i % FONDOS.length]} text-left px-5 lg:px-6 pt-3.5 lg:pt-[18px] pb-5 flex flex-col justify-between hover:brightness-[1.02] transition-[filter]`}
+              >
+                <span className="flex items-center gap-3.5 w-full">
+                  <span className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full bg-white/75 border border-[rgba(45,42,38,0.06)] flex items-center justify-center shrink-0 ${cat.textClass}`}>
+                    <CatIcon className="w-5 h-5" />
+                  </span>
+                  <span className="flex-1 min-w-0 truncate text-[18px] lg:text-[22px] font-medium text-text-primary">{cat.name}</span>
+                  {chip && (
+                    <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-white/85 border border-[rgba(45,42,38,0.06)] text-[12px] lg:text-[13px] font-semibold text-text-primary shrink-0">
+                      {chip === 'Añadir' && <Plus className="w-3 h-3" />}{chip}
+                    </span>
+                  )}
+                </span>
+                <span className="flex items-end justify-between gap-4 w-full">
+                  <span className="text-[13px] lg:text-[16px] leading-snug text-text-secondary max-w-[420px]">{DESCRIPCION[cat.id]}</span>
+                  <span className={`flex items-center gap-1 px-4 py-2 rounded-full text-[13px] lg:text-[14px] font-semibold border border-[rgba(45,42,38,0.06)] shrink-0 ${cat.acento ? 'bg-[#C5654B] text-white' : 'bg-white/85 text-text-primary'}`}>
+                    Abrir <CaretRight className="w-3.5 h-3.5" />
+                  </span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Upload modal — responsive sheet/modal */}
