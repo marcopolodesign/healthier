@@ -25,6 +25,7 @@ import Modal from '../../components/Modal'
 import { useWaitingPresence } from '../../hooks/useWaitingPresence'
 import { toast } from '../../components/Toast'
 import { useNavigate } from 'react-router-dom'
+import { nombreDePila } from '../../lib/format'
 
 const CODE_COLORS = { ROJO: 'bg-red-600', AMARILLO: 'bg-amber-500', VERDE: 'bg-emerald-600' }
 
@@ -382,7 +383,7 @@ export default function ProfessionalDashboard({ profile }) {
       <div className="space-y-6 animate-fade-in">
         {tourProfesional}
         <div>
-          <h1 className="page-title">Hola, {profile?.fullName?.split(' ')[0]}</h1>
+          <h1 className="page-title">Hola, {nombreDePila(profile?.fullName)}</h1>
         </div>
 
         {/* Mercado Pago también acá (Mateo, 2026-08-25). Este `return` temprano
@@ -670,7 +671,7 @@ export default function ProfessionalDashboard({ profile }) {
       )}
 
       <div data-tour="pro-saludo">
-        <h1 className="page-title">Hola, {profile?.fullName?.split(' ')[0]} 👋</h1>
+        <h1 className="page-title">Hola, {nombreDePila(profile?.fullName)} 👋</h1>
         <p className="text-text-secondary mt-1">Tu agenda de hoy</p>
       </div>
 

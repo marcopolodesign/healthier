@@ -1,6 +1,7 @@
 import { Star, SealCheck, VideoCamera, MapPin, CalendarPlus, X, Lightning } from '@phosphor-icons/react'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import PatientSheet from './PatientSheet'
+import { inicialesDe } from '../../lib/format'
 
 /**
  * ProfessionalModal
@@ -34,7 +35,7 @@ export default function ProfessionalModal({ pro, open, onClose, modality, onBook
   const accentColor = vertical?.color ?? 'var(--color-brand)'
   const accentBg    = vertical?.bg    ?? 'var(--color-brand-muted)'
   const VertIcon    = vertical?.icon  ?? null
-  const initial     = name.charAt(0).toUpperCase()
+  const initial     = inicialesDe(name)
 
   // First + last initial for the avatar fallback (matches mobile pattern)
   const parts    = name.trim().split(/\s+/)

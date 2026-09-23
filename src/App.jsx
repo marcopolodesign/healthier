@@ -38,6 +38,8 @@ import ReferralLanding from './pages/ReferralLanding'
 import PatientDashboard from './pages/patient/Dashboard'
 import PatientOnboarding from './pages/patient/Onboarding'
 import PatientSearch from './pages/patient/Search'
+import PatientBuscarDisponibles from './pages/patient/BuscarDisponibles'
+import PatientNotificaciones from './pages/patient/Notificaciones'
 import ProfessionalProfile from './pages/patient/ProfessionalProfile'
 import PatientConsultations from './pages/patient/Consultations'
 import PatientDocuments from './pages/patient/Documents'
@@ -398,6 +400,12 @@ export default function App() {
           <Route path="/paciente/perfil"           element={<PatientProfile      profile={profile} onProfileUpdate={setProfile} />} />
           <Route path="/paciente/ondemand/:vertical" element={<OnDemand          profile={profile} />} />
           <Route path="/paciente/sos"              element={<Emergency           profile={profile} />} />
+          <Route path="/paciente/notificaciones"   element={<PatientNotificaciones profile={profile} />} />
+          {/* Lista de profesionales on demand disponibles AHORA MISMO — acceso
+              nuevo desde el Inicio (spec 2026-09-23). Distinta de
+              `/paciente/buscar` de abajo, que busca entre todos los
+              profesionales cobrables para agendar un turno, disponibles o no. */}
+          <Route path="/paciente/buscar-disponibles" element={<PatientBuscarDisponibles profile={profile} />} />
           {/* Legacy routes kept for backward compatibility */}
           <Route path="/paciente/buscar"           element={<PatientSearch       profile={profile} />} />
           <Route path="/paciente/profesional/:id"  element={<ProfessionalProfile profile={profile} />} />
