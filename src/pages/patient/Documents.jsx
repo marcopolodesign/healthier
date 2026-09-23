@@ -4,11 +4,13 @@ import {
   ShieldCheck, CaretRight, ArrowLeft, Eye, Plus,
   CloudArrowUp, Camera, CircleNotch, Pulse,
   FileText, FolderOpen, AppleLogo, Barbell, Brain, PawPrint, Sparkle, ClipboardText, Pill,
-  PencilSimple, Trash,
+  PencilSimple, Trash, ShoppingBag,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
 import PatientPageOverlay from '../../components/patient/PatientPageOverlay'
+import NotificationBell from '../../components/patient/NotificationBell'
+import { usePharmacyCart } from '../../context/PharmacyCartContext'
 import { farmaciaVisible } from '../../lib/featureFlags'
 import { track } from '../../utils/analytics'
 import AnalisisVault from '../../components/patient/AnalisisVault'
@@ -74,6 +76,7 @@ function CategoryHeader({ cat, onBack }) {
 
 export default function PatientDocuments({ profile }) {
   const navigate = useNavigate()
+  const { count: cartCount, openSheet: abrirCarrito } = usePharmacyCart()
   const [viewingCat, setViewingCat] = useState(null)
   const [docs, setDocs] = useState(MOCK_DOCS_BY_CATEGORY)
   const [showUpload, setShowUpload] = useState(false)
@@ -182,11 +185,34 @@ export default function PatientDocuments({ profile }) {
   // Main vault view (category detail rendered via PatientPageOverlay below)
   return (
     <div className="absolute inset-0 bg-bg-primary pt-6 sm:pt-8 pb-32 px-6 patient-column overflow-y-auto animate-fade-in scrollbar-hide">
-      <div className="mb-6 mt-4">
-        <h1 className="page-title-lg text-text-primary tracking-tight leading-none">Bóveda</h1>
-        <p className="text-text-secondary font-medium text-[15px] mt-2 flex items-center gap-1.5">
-          <ShieldCheck className="w-4 h-4 text-emerald-500" /> Tu historial médico seguro
-        </p>
+      <div className="mb-6 mt-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="page-title-lg text-text-primary tracking-tight leading-none">Bóveda</h1>
+          <p className="text-text-secondary font-medium text-[15px] mt-2 flex items-center gap-1.5">
+            <ShieldCheck className="w-4 h-4 text-emerald-500" /> Tu historial médico seguro
+          </p>
+        </div>
+        {/* Bell + carrito de farmacia — mismo tratamiento de header que
+            Inicio (`PatientHeader`, 2026-09-23), en su versión clara ("tone
+            dark") porque acá el fondo es el beige de la página, no un
+            degradé oscuro. El carrito comparte gate con el resto de farmacia. */}
+        <div className="flex items-center gap-2 shrink-0">
+          {farmaciaVisible(profile) && (
+            <button
+              onClick={abrirCarrito}
+              aria-label={cartCount > 0 ? `Ver el carrito — ${cartCount} producto${cartCount !== 1 ? 's' : ''}` : 'Ver el carrito'}
+              className="relative w-11 h-11 rounded-full flex items-center justify-center shrink-0 bg-white/90 backdrop-blur-[20px] border border-white/80 shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:bg-white transition-colors"
+            >
+              <ShoppingBag className="w-5 h-5 text-text-primary" weight={cartCount > 0 ? 'fill' : 'regular'} />
+              {cartCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-semibold flex items-center justify-center border-2 border-white">
+                  {cartCount > 9 ? '9+' : cartCount}
+                </span>
+              )}
+            </button>
+          )}
+          <NotificationBell userId={profile?.id} tone="dark" />
+        </div>
       </div>
 
       {/* Historia Clínica banner */}

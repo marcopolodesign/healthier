@@ -132,7 +132,7 @@ export default function PharmacyPayment({ profile }) {
       </div>
 
       <div className="px-4 py-6 pb-32 max-w-lg mx-auto space-y-4">
-        <div className="bg-bg-secondary rounded-2xl border border-border-default p-4">
+        <div className="bg-bg-secondary rounded-2xl border border-border-subtle p-4">
           <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-3">Resumen</p>
           <div className="flex items-center justify-between">
             <span className="text-[13px] text-text-secondary">{(order.items ?? []).length} medicamento{(order.items ?? []).length !== 1 ? 's' : ''}</span>
