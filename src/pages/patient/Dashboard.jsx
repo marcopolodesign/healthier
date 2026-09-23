@@ -330,7 +330,7 @@ export default function PatientDashboard({ profile }) {
       onClick: () => { track('quick_access_click', { access: 'recetas', flow: 'paciente' }); navigate('/paciente/recetas') },
     },
     {
-      key: 'buscar', icon: MagnifyingGlass, label: 'Buscar por nombre', sub: 'Quién está disponible ahora',
+      key: 'buscar', tour: 'pac-buscar', icon: MagnifyingGlass, label: 'Buscar por nombre', sub: 'Quién está disponible ahora',
       onClick: () => { track('quick_access_click', { access: 'buscar_disponibles', flow: 'paciente' }); navigate('/paciente/buscar-disponibles') },
     },
     {
@@ -347,6 +347,7 @@ export default function PatientDashboard({ profile }) {
         return (
           <Tag
             key={a.key}
+            data-tour={a.tour}
             {...(a.href ? { href: a.href, target: '_blank', rel: 'noreferrer' } : {})}
             onClick={a.onClick}
             className="bg-bg-secondary border border-border-default rounded-[24px] p-4 flex flex-col text-left hover:border-brand/40 active:opacity-90 transition-colors"
