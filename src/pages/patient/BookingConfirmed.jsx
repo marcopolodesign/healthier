@@ -4,6 +4,7 @@ import { CheckCircle, Calendar, VideoCamera, MapPin, CaretRight, Plus } from '@p
 import { consultationsService, perfilDelProfesional } from '../../services/consultationsService'
 import { isActive as puedeEntrarYa } from '../../components/patient/ActiveAppointmentBanner'
 import ComoLlegarCard from '../../components/patient/ComoLlegarCard'
+import { inicialDeNombre } from '../../lib/nombre'
 
 function buildGoogleCalendarUrl(consultation) {
   if (!consultation?.scheduledAt) return null
@@ -41,7 +42,7 @@ export default function BookingConfirmed({ profile }) {
   const proProfile = perfilDelProfesional(consultation)
   const specialty = proProfile?.specialty ?? null
   const proAvatar = consultation?.professional?.avatarUrl ?? null
-  const initial   = proName.charAt(0).toUpperCase()
+  const initial   = inicialDeNombre(proName)
 
   const scheduledAt = consultation?.scheduledAt
   const dateStr = scheduledAt

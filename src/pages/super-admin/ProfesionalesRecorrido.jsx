@@ -9,6 +9,7 @@ import {
   construirRecorrido, resumenRecorrido, formatearDuracion, etiquetaEvento,
   EVENT_META, ESTADO_META, STEP_LABELS,
 } from '../../lib/recorridoProfesional'
+import { inicialesDeNombre } from '../../lib/nombre'
 
 /**
  * Recorrido de los profesionales — pedido de Mateo (2026-08-13):
@@ -36,14 +37,6 @@ const FILTROS = [
   { id: 'enviaron',    label: 'Enviaron para verificar' },
   { id: 'no_enviaron', label: 'No enviaron' },
 ]
-
-function getInitials(name) {
-  if (!name) return '?'
-  const parts = name.trim().split(' ').filter(Boolean)
-  return parts.length === 1
-    ? parts[0][0].toUpperCase()
-    : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
 
 const fechaCorta = ts => new Date(ts).toLocaleDateString('es-AR', {
   day: '2-digit', month: '2-digit', timeZone: 'America/Argentina/Buenos_Aires',
@@ -82,7 +75,7 @@ function DetalleDrawer({ fila, onClose }) {
       <div className="relative z-50 w-full max-w-md bg-white shadow-2xl flex flex-col h-full overflow-hidden">
         <div className="flex items-start gap-3 p-5 border-b border-gray-100">
           <div className="w-10 h-10 rounded-full bg-[#e8f0eb] text-[#7CB38B] flex items-center justify-center font-semibold shrink-0">
-            {getInitials(p.full_name)}
+            {inicialesDeNombre(p.full_name)}
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-gray-900 truncate">{p.full_name || '(sin nombre)'}</p>

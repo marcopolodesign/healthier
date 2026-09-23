@@ -1,6 +1,7 @@
 import { Star, SealCheck, VideoCamera, MapPin, CalendarPlus, X, ChatCircle, Phone, Lightning } from '@phosphor-icons/react'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import PatientSheet from './PatientSheet'
+import { inicialDeNombre, inicialesDeNombre } from '../../lib/nombre'
 
 /**
  * ProfessionalModal
@@ -35,14 +36,10 @@ export default function ProfessionalModal({ pro, open, onClose, modality, onBook
   const accentColor = vertical?.color ?? 'var(--color-brand)'
   const accentBg    = vertical?.bg    ?? 'var(--color-brand-muted)'
   const VertIcon    = vertical?.icon  ?? null
-  const initial     = name.charAt(0).toUpperCase()
+  const initial     = inicialDeNombre(name)
 
   // First + last initial for the avatar fallback (matches mobile pattern)
-  const parts    = name.trim().split(/\s+/)
-  const initials = (parts.length >= 2
-    ? parts[0][0] + parts[parts.length - 1][0]
-    : parts[0].substring(0, 2)
-  ).toUpperCase()
+  const initials = inicialesDeNombre(name)
 
   const handleBook = () => {
     onClose()

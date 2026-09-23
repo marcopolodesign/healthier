@@ -4,6 +4,7 @@ import { SealCheck, FileText, ClipboardText, Star, CaretLeft, Stethoscope, Pill 
 import { consultationsService } from '../../services/consultationsService'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { reviewsService } from '../../services/reviewsService'
+import { inicialDeNombre } from '../../lib/nombre'
 
 /**
  * Resumen de consulta — /paciente/consulta/resumen/:id
@@ -122,7 +123,7 @@ export default function ConsultationSummary({ profile }) {
             ? <img src={proAvatar} alt={proName} className="w-16 h-16 rounded-full object-cover flex-shrink-0 border-2 border-white shadow-sm" />
             : (
               <div className="w-16 h-16 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0 border-2 border-white shadow-sm">
-                <span className="text-[26px] font-black text-brand">{proName.charAt(0)}</span>
+                <span className="text-[26px] font-black text-brand">{inicialDeNombre(proName)}</span>
               </div>
             )
           }

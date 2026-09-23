@@ -12,6 +12,7 @@ import { useVerticales } from '../../hooks/useVerticales'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../../components/Toast'
 import { track } from '../../utils/analytics'
+import { inicialDeNombre } from '../../lib/nombre'
 
 // Verticals that trigger the clinica auto-match flow
 const SPECIES = ['Perro', 'Gato', 'Conejo', 'Ave', 'Otro']
@@ -704,7 +705,7 @@ export default function ReservarConsulta({ profile }) {
                           className="w-full h-full flex items-center justify-center text-[20px] font-bold"
                           style={{ backgroundColor: 'rgba(124,179,139,0.15)', color: '#7CB38B' }}
                         >
-                          {pro.name.charAt(0)}
+                          {inicialDeNombre(pro.name)}
                         </div>
                       )}
                     </div>

@@ -10,18 +10,11 @@ import BulkActionBar from '../../components/super-admin/BulkActionBar';
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog';
 import RecorridoProfesional from '../../components/super-admin/RecorridoProfesional';
 import { useEspecialidades } from '../../hooks/useEspecialidades';
+import { inicialesDeNombre } from '../../lib/nombre';
 
 // Mismos labels que STEPS en pages/professional/Onboarding.jsx — si ese
 // wizard cambia de pasos, actualizar acá también.
 const STEP_LABELS = ['Especialidad', 'Presentación', 'Documentos', 'Privacidad', 'Revisión'];
-
-function getInitials(name) {
-  if (!name) return '?';
-  const parts = name.trim().split(' ').filter(Boolean);
-  return parts.length === 1
-    ? parts[0][0].toUpperCase()
-    : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
 function fmtDateTime(dateStr) {
   if (!dateStr) return '—';
@@ -67,7 +60,7 @@ function ProspectDrawer({ prospect, onClose }) {
       <div className="relative z-50 w-full max-w-md bg-white shadow-2xl flex flex-col h-full overflow-hidden">
         <div className="flex items-start gap-3 p-5 border-b border-gray-100">
           <div className="w-10 h-10 rounded-full bg-[#e8f0eb] text-[#7CB38B] flex items-center justify-center font-semibold shrink-0">
-            {getInitials(p.full_name)}
+            {inicialesDeNombre(p.full_name)}
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-gray-900 truncate">{p.full_name || '(sin nombre)'}</p>

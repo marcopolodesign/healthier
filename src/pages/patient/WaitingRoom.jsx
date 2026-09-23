@@ -6,6 +6,7 @@ import { consultationsService, WAITING_HEARTBEAT_MS } from '../../services/consu
 import PreconsultaForm from '../../components/patient/PreconsultaForm'
 import { toast } from '../../components/Toast'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
+import { inicialDeNombre } from '../../lib/nombre'
 
 /**
  * The pre-consulta payload is written by PreconsultaForm as snake_case JSON, but
@@ -173,7 +174,7 @@ export default function WaitingRoom({ profile }) {
 
   const doctorName   = consultation?.professional?.fullName ?? 'el profesional'
   const doctorAvatar = consultation?.professional?.avatarUrl ?? null
-  const initial      = doctorName.charAt(0).toUpperCase()
+  const initial      = inicialDeNombre(doctorName)
 
   const scheduledAt  = consultation?.scheduledAt
   const scheduledStr = scheduledAt

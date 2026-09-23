@@ -21,6 +21,7 @@ import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
 import WhatsAppButton from '../../components/super-admin/WhatsAppButton'
+import { inicialesDeNombre } from '../../lib/nombre'
 
 // Documentos que puede gestionar el super admin desde el drawer (A6) — mismo
 // nombre de archivo que usa Onboarding.jsx al subir, para que un reemplazo
@@ -47,14 +48,6 @@ const REVIEW_ACTION_LABELS = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function getInitials(name) {
-  if (!name) return '?'
-  const parts = name.trim().split(' ').filter(Boolean)
-  return parts.length === 1
-    ? parts[0][0].toUpperCase()
-    : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
-
 // Foto de perfil en vez de iniciales cuando existe (Mateo, 2026-08-26): la
 // misma celda se usa en el listado (chica) y en el header del sidecart
 // (grande) — un solo componente para no duplicar el fallback de iniciales.
@@ -78,7 +71,7 @@ function Avatar({ name, url, size = 32, onClick }) {
       className={`rounded-full bg-[#e8f0eb] text-[#7CB38B] flex items-center justify-center font-semibold shrink-0 ${clickable ? 'cursor-pointer' : ''}`}
       style={{ width: px, height: px, fontSize: size <= 32 ? '0.75rem' : '1rem' }}
     >
-      {getInitials(name)}
+      {inicialesDeNombre(name)}
     </div>
   )
 }
@@ -117,7 +110,7 @@ function PhotoLightbox({ name, url, profileId, onClose, onUploaded }) {
           <img src={url} alt={name || 'Foto de perfil'} className="w-full rounded-2xl object-contain max-h-[70vh] bg-black" />
         ) : (
           <div className="w-full aspect-square rounded-2xl bg-[#e8f0eb] text-[#7CB38B] flex items-center justify-center text-5xl font-semibold">
-            {getInitials(name)}
+            {inicialesDeNombre(name)}
           </div>
         )}
         <div className="mt-4 flex justify-center">

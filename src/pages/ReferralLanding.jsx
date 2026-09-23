@@ -5,6 +5,7 @@ import { referralService } from '../services/referralService'
 import { storeReferral } from '../lib/referral'
 import { track } from '../utils/analytics'
 import { CompanyLogo } from '../components/common/CompanyLogo'
+import { nombreDePila } from '../lib/nombre'
 
 const ESPECIALIDAD_LABEL = {
   medicina_general: 'Medicina General',
@@ -89,9 +90,7 @@ export default function ReferralLanding({ profile }) {
   // Para tutear al paciente hace falta el nombre de pila, no el tratamiento:
   // `fullName` casi siempre empieza con "Dr."/"Dra.", y quedaba "Sacás turno con
   // Dra.". Si después del tratamiento no queda nada, se usa el nombre completo.
-  const primerNombre = nombre
-    .split(' ')
-    .filter(p => !/^(dr|dra|lic|prof|mg|mgtr)\.?$/i.test(p))[0] ?? nombre
+  const primerNombre = nombreDePila(nombre)
 
   return (
     <div className="min-h-screen bg-bg-primary flex flex-col">

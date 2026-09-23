@@ -41,10 +41,24 @@ export function panel(rows: Array<{ label: string; value: string }>, accent: Acc
   </table>`
 }
 
+/**
+ * La inicial del avatar sale del nombre de la persona, no de su tratamiento:
+ * `full_name` casi siempre viene como "Dra. Valentina Ruiz" y la inicial cruda
+ * daba "D" para todo el mundo. Se toma la primera palabra que no sea un
+ * tratamiento; si el nombre es sólo eso, se cae a la primera palabra.
+ */
+const TRATAMIENTO = /^(dr|dra|lic|prof|mg|mgtr)\.?$/i
+
+export function inicialDeNombre(nombre: string | null | undefined): string {
+  const partes = (nombre ?? '').trim().split(/\s+/).filter(Boolean)
+  const propia = partes.find(p => !TRATAMIENTO.test(p)) ?? partes[0] ?? '?'
+  return propia.charAt(0).toUpperCase()
+}
+
 /** Quién te atendió / quién te reservó — foto + nombre + especialidad. */
 export function personCard(opts: { name: string; subtitle?: string | null; avatarUrl?: string | null; note?: string | null; accent?: Accent }) {
   const a = ACCENTS[opts.accent ?? 'sage']
-  const initial = esc((opts.name || '?').trim().charAt(0).toUpperCase())
+  const initial = esc(inicialDeNombre(opts.name))
   const avatar = opts.avatarUrl
     ? `<img src="${esc(opts.avatarUrl)}" width="52" height="52" alt="" style="display:block;width:52px;height:52px;border-radius:26px;object-fit:cover;border:0">`
     : `<table role="presentation" width="52" height="52" cellpadding="0" cellspacing="0" border="0" style="background:${a.soft};border-radius:26px">
