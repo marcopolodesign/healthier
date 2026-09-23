@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   House, Calendar, Users, Plus, X,
-  ClockCounterClockwise, TrendUp, ForkKnife, User, SignOut, Question, Gear } from '@phosphor-icons/react'
+  ClockCounterClockwise, TrendUp, ForkKnife, User, SignOut, Question, Gear, Barbell } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
 
@@ -37,6 +37,9 @@ export default function ProfessionalBottomNav({ profile, profSpecialty, classNam
     { path: '/profesional/ganancias',  icon: TrendUp,               label: 'Ganancias',   sub: 'Resumen de ingresos' },
     ...(profSpecialty === 'nutricion' ? [
       { path: '/profesional/nutriplan', icon: ForkKnife, label: 'NutriPlan Pro', sub: 'Planes nutricionales' },
+    ] : []),
+    ...(['psicologia', 'entrenamiento'].includes(profSpecialty) ? [
+      { path: '/profesional/plan-actividad', icon: Barbell, label: 'Plan de actividad', sub: 'Rutinas de tus pacientes' },
     ] : []),
     // Configuración estaba SÓLO en el sidebar de escritorio: desde el teléfono
     // no había forma de llegar, y ahí adentro vive la conexión con Mercado Pago

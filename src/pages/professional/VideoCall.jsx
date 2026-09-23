@@ -5,7 +5,7 @@ import {
   Plus, Check, CircleNotch, User, Microphone, MicrophoneSlash,
   Camera, CameraSlash, Warning, Sparkle, ClockCounterClockwise,
   IdentificationCard, Pill,
-  Key, SealCheck, PaperPlaneTilt, AppleLogo, ArrowSquareOut, CaretRight,
+  Key, SealCheck, PaperPlaneTilt, AppleLogo, ArrowSquareOut, CaretRight, Barbell,
 } from '@phosphor-icons/react'
 import DailyIframe from '@daily-co/daily-js'
 import { supabase } from '../../lib/supabase'
@@ -262,6 +262,36 @@ function NutriplanEnConsulta({ patientId }) {
           className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand hover:text-brand/80"
         >
           Abrir NutriPlan <ArrowSquareOut className="h-3.5 w-3.5" />
+        </a>
+      </div>
+    </div>
+  )
+}
+
+// ── Pestaña "Consulta" para psicología/entrenamiento — acceso directo al plan
+// de actividad de este paciente, mismo patrón que NutriplanEnConsulta de
+// arriba (genérico, ver migración 171 / activityPlanService.js).
+function PlanActividadEnConsulta({ patientId, specialty }) {
+  const esPsico = specialty === 'psicologia'
+  return (
+    <div className="rounded-lg border border-border-default bg-bg-surface p-3 mb-4 flex items-start gap-3">
+      <div className="h-8 w-8 rounded-full bg-brand-muted/30 flex items-center justify-center shrink-0">
+        <Barbell className="h-4 w-4 text-brand" weight="fill" />
+      </div>
+      <div className="flex-1">
+        <p className="text-xs font-semibold text-text-primary">Plan de actividad</p>
+        <p className="text-[11px] text-text-secondary mt-0.5">
+          {esPsico
+            ? 'Armá o editá la rutina/actividad de este paciente.'
+            : 'Armá o editá el plan de rehabilitación o de preparador físico de este paciente.'}
+        </p>
+        <a
+          href={`/profesional/plan-actividad?patientId=${patientId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand hover:text-brand/80"
+        >
+          Abrir plan de actividad <ArrowSquareOut className="h-3.5 w-3.5" />
         </a>
       </div>
     </div>
@@ -973,6 +1003,11 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
               {specialty === 'nutricion' && (
                 <div data-tour="nutriplan">
                   <NutriplanEnConsulta patientId={patientId} />
+                </div>
+              )}
+              {['psicologia', 'entrenamiento'].includes(specialty) && (
+                <div data-tour="plan-actividad">
+                  <PlanActividadEnConsulta patientId={patientId} specialty={specialty} />
                 </div>
               )}
             </section>

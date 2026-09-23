@@ -55,6 +55,7 @@ import ConsultationDetail from './pages/professional/ConsultationDetail'
 import ProfessionalProfileEdit from './pages/professional/Profile'
 import ProfessionalVideoCall from './pages/professional/VideoCall'
 import NutriPlan from './pages/professional/NutriPlan'
+import ActivityPlan from './pages/professional/ActivityPlan'
 import ProfessionalEmergencias from './pages/professional/Emergencias'
 import HistoriaClinica from './pages/professional/HistoriaClinica'
 import ProfessionalHistorial from './pages/professional/Historial'
@@ -483,6 +484,7 @@ export default function App() {
           <Route path="/profesional/consulta/:id" element={<ConsultationDetail profile={profile} />} />
           <Route path="/profesional/perfil" element={<ProfessionalProfileEdit profile={profile} onProfileUpdate={setProfile} />} />
           <Route path="/profesional/nutriplan" element={<NutriPlan profile={profile} />} />
+          <Route path="/profesional/plan-actividad" element={<ActivityPlan profile={profile} />} />
           <Route path="/profesional/historia-clinica/:patientId" element={<HistoriaClinica profile={profile} />} />
           <Route path="/profesional/historial" element={<ProfessionalHistorial profile={profile} />} />
           <Route path="/profesional/paciente/:patientId" element={<ProfessionalPatientProfile profile={profile} />} />

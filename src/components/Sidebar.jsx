@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, UploadSimple } from '@phosphor-icons/react';
+import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, UploadSimple, Barbell } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
 import { veSubidas } from '../lib/permisos'
 import { toast } from './Toast'
@@ -27,6 +27,8 @@ const NAV_BY_ROLE = {
     { to: '/profesional/ganancias',      icon: TrendUp,              label: 'Ganancias' },
     { to: '/profesional/configuracion',  icon: Gear,                 label: 'Configuración' },
     { to: '/profesional/nutriplan',      icon: ForkKnife,            label: 'NutriPlan Pro', specialty: 'nutricion' },
+    { to: '/profesional/plan-actividad', icon: Barbell,              label: 'Plan de actividad', specialty: 'psicologia' },
+    { to: '/profesional/plan-actividad', icon: Barbell,              label: 'Plan de actividad', specialty: 'entrenamiento' },
     { to: '/profesional/ayuda',          icon: Question,             label: 'Centro de ayuda' },
   ],
   admin: [
