@@ -15,9 +15,17 @@ import { supabase } from './supabase'
  */
 export function extraerPathDeStorage(bucket, storedValue) {
   if (!storedValue) return null
-  const marker = `/object/public/${bucket}/`
-  const i = storedValue.indexOf(marker)
-  return i >= 0 ? storedValue.slice(i + marker.length) : storedValue
+  // También los links firmados (`/object/sign/…?token=…`) que guarda la app en
+  // `medical_documents.file_url`: sin esto la web intentaba firmar la URL entera.
+  for (const tipo of ['public', 'sign']) {
+    const marker = `/object/${tipo}/${bucket}/`
+    const i = storedValue.indexOf(marker)
+    if (i < 0) continue
+    const path = storedValue.slice(i + marker.length).split('?')[0]
+    if (tipo === 'public') return path
+    try { return decodeURIComponent(path) } catch { return path }
+  }
+  return storedValue
 }
 
 export async function getSignedDocUrl(bucket, storedValue, expiresIn = 3600) {
@@ -28,7 +36,10 @@ export async function getSignedDocUrl(bucket, storedValue, expiresIn = 3600) {
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn)
   if (error) {
     console.error(`getSignedDocUrl failed for ${bucket}/${path}:`, error)
-    return null
+    // Un link ya firmado (lo que guarda la app) sirve tal cual mientras no
+    // venza — es el caso del profesional con archivos que la app subió a la
+    // raíz de la carpeta del paciente, donde su policy de storage no llega.
+    return storedValue.includes(`/object/sign/${bucket}/`) ? storedValue : null
   }
   return data.signedUrl
 }
