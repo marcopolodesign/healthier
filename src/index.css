@@ -482,6 +482,21 @@
    Requiere `viewport-fit=cover` en el meta viewport (index.html). */
 @utility vc-header {
   padding-top: calc(0.75rem + env(safe-area-inset-top));
+  /* Con la franja de práctica arriba, el área segura la absorbe la franja. */
+  &[data-franja='true'] {
+    padding-top: 0.75rem;
+  }
+}
+
+/* Franja de "modo práctica": es lo primero de la pantalla, así que en el
+   teléfono le toca dejar lugar al reloj. Dentro de la app, además, reserva la
+   esquina izquierda para la X nativa de salir (36px, a 8px del área segura). */
+@utility vc-franja {
+  padding-top: calc(0.375rem + env(safe-area-inset-top));
+  &[data-app='true'] {
+    padding-left: 3.75rem;
+    min-height: calc(3rem + env(safe-area-inset-top));
+  }
 }
 
 /* Controles de llamada (mobile): micrófono · colgar · cámara, centrados abajo

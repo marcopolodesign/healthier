@@ -83,7 +83,7 @@ const PASOS = [
   },
 ]
 
-export default function GuiaSimulacion({ especialidad, puedeRecetar = false, listo = true }) {
+export default function GuiaSimulacion({ especialidad, puedeRecetar = false, listo = true, enApp = false }) {
   const { arrancar } = useTourGuiado({
     clave: CLAVE_VISTA,
     pasos: PASOS,
@@ -92,7 +92,7 @@ export default function GuiaSimulacion({ especialidad, puedeRecetar = false, lis
   })
 
   return (
-    <div className="shrink-0 flex items-center gap-3 bg-brand px-4 py-1.5 text-white">
+    <div className="vc-franja shrink-0 flex items-center gap-3 bg-brand px-4 py-1.5 text-white" data-app={enApp ? 'true' : 'false'}>
       {/* La franja no se puede cerrar: el panel es idéntico al real, y quien
           vuelve a la pestaña diez minutos después no tiene otra forma de saber
           que la paciente no existe. */}

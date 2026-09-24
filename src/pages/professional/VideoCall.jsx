@@ -1252,6 +1252,11 @@ export default function ProfessionalVideoCall({ profile }) {
   // desactualizaría con el primer cambio del panel y enseñaría algo que ya no
   // existe.
   const simulando = simulacion.esSimulado(id)
+  // Dentro del WebView de la app (`app/(pro)/videollamada/[id].tsx`) ya hay una
+  // X nativa arriba a la izquierda que vuelve a la app. El "Volver" de la web
+  // quedaba debajo de esa X, y además en el WebView no tiene historia a la que
+  // volver: ahí se esconde y la esquina queda para la X.
+  const [enApp] = useState(() => typeof window !== 'undefined' && !!window.ReactNativeWebView)
   // El legajo se lee acá aparte del que ya carga `ClinicalPanel`: la consulta
   // simulada se arma con la especialidad y la matrícula de quien practica —salen
   // en el panel y en la receta— y hay que tenerlas antes de armarla, o sea antes
@@ -1597,14 +1602,24 @@ export default function ProfessionalVideoCall({ profile }) {
           especialidad={especialidadSim}
           puedeRecetar={puedeRecetarEsp(especialidadSim)}
           listo={!cargandoEsp && !cargandoLegajoSim}
+          enApp={enApp}
         />
       )}
 
       {/* Header — dark, Healthier-owned controls only */}
-      <div className="vc-header flex items-center justify-between px-6 py-3 border-b border-white/10 bg-zinc-900 shrink-0">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-white/50 hover:text-white transition-colors">
-          <ArrowLeft className="h-4 w-4" /> Volver
-        </button>
+      <div
+        className="vc-header flex items-center justify-between px-6 py-3 border-b border-white/10 bg-zinc-900 shrink-0"
+        data-franja={simulando ? 'true' : 'false'}
+      >
+        {enApp ? (
+          // Lugar para la X nativa. Con la franja de práctica la X vive en la
+          // franja, así que acá no hace falta reservar nada.
+          <span aria-hidden className={simulando ? '' : 'w-9 shrink-0'} />
+        ) : (
+          <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-white/50 hover:text-white transition-colors">
+            <ArrowLeft className="h-4 w-4" /> Volver
+          </button>
+        )}
 
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-white">
@@ -1910,9 +1925,12 @@ export default function ProfessionalVideoCall({ profile }) {
               className="lg:hidden w-full flex flex-col items-center gap-1 pt-2.5 pb-2 shrink-0 touch-none select-none cursor-grab"
             >
               <span className="h-1 w-10 rounded-full bg-text-tertiary/40" />
-              <span className="text-[11px] font-semibold text-text-tertiary">
-                {hojaAbierta ? 'Bajar' : 'Historia clínica'}
-              </span>
+              {/* Abierta, sólo la barrita: el gesto de bajarla se entiende solo
+                  (pedido de Mateo, 2026-09-24). El nombre queda para la hoja
+                  asomada, que es cuando hace falta saber qué hay abajo. */}
+              {!hojaAbierta && (
+                <span className="text-[11px] font-semibold text-text-tertiary">Historia clínica</span>
+              )}
             </button>
 
             {/* `min-h-0` para que el `h-full` de adentro no desborde la hoja al
