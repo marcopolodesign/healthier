@@ -4,6 +4,7 @@ import PatientSheet from './PatientSheet'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { verticalForSpecialty } from '../../lib/verticals'
 import { track } from '../../utils/analytics'
+import { estaDisponibleAhora } from '../../lib/onDemandPool'
 
 /**
  * Popup post-onboarding para el paciente que llegó por el link de un
@@ -56,7 +57,7 @@ export default function MedicoCabeceraModal({ open, onClose, professional }) {
           <p className="text-[11px] font-semibold text-brand uppercase tracking-widest mb-1">Tu médico de cabecera</p>
           <h2 className="text-[22px] font-light text-text-primary leading-tight">{name}</h2>
           <p className="text-text-secondary text-sm mt-0.5">{especialidadLabel}</p>
-          {professional.isOnDemand && (
+          {estaDisponibleAhora(professional) && (
             <span className="inline-flex items-center gap-1 text-xs bg-accent-muted text-accent px-3 py-1 rounded-full mt-3">
               <Lightning className="h-3.5 w-3.5" weight="fill" /> Disponible ahora
             </span>
@@ -69,7 +70,7 @@ export default function MedicoCabeceraModal({ open, onClose, professional }) {
           </div>
         ) : (
           <div className="space-y-3">
-            {professional.isOnDemand && (
+            {estaDisponibleAhora(professional) && (
               <button
                 onClick={handleLlamarAhora}
                 className="w-full flex items-center gap-4 p-4 rounded-2xl bg-brand text-white shadow-sm hover:bg-brand-hover active:scale-[0.98] transition-all"

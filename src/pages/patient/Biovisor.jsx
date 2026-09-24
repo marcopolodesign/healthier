@@ -224,10 +224,53 @@ function HistoricalChart({ paramName, reports }) {
       {points.map((p, i) => (
         <text key={i} x={xOf(i).toFixed(1)} y={H - 4} textAnchor="middle" fill="#9ca3af" fontSize="9">{fmtDate(p.date)}</text>
       ))}
-      {/* Ref range labels */}
-      <text x={PAD.left - 4} y={(yOf(refMax) + 4).toFixed(1)} textAnchor="end" fill="#9ca3af" fontSize="9">{refMax}</text>
-      <text x={PAD.left - 4} y={(yOf(refMin) + 4).toFixed(1)} textAnchor="end" fill="#9ca3af" fontSize="9">{refMin}</text>
+      {/* Ref range labels. Usaban `refMax`/`refMin`, variables que no existían:
+          con dos mediciones o más el gráfico tiraba un ReferenceError. */}
+      {ref.max != null && <text x={PAD.left - 4} y={(yOf(ref.max) + 4).toFixed(1)} textAnchor="end" fill="#9ca3af" fontSize="9">{ref.max}</text>}
+      {ref.min != null && <text x={PAD.left - 4} y={(yOf(ref.min) + 4).toFixed(1)} textAnchor="end" fill="#9ca3af" fontSize="9">{ref.min}</text>}
     </svg>
+  )
+}
+
+/**
+ * Un biomarcador en el historial: nombre, último valor con su estado, la
+ * tendencia y el rango. El historial es una sola página con todos, uno abajo
+ * del otro (Nacho, 2026-09-24) — antes había que ir tocando chips para ver de
+ * a uno, y nadie llegaba a ver más que el primero.
+ */
+function TarjetaMarcador({ nombre, reports, destacado }) {
+  const serie = serieDe(reports, nombre)
+  const ultimo = serie[serie.length - 1]
+  const ref = useRef(null)
+  useEffect(() => {
+    if (destacado) ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [destacado])
+  if (!ultimo) return null
+  const status = estadoDe(ultimo)
+  const color = statusColor(status)
+  return (
+    <div ref={ref} id={`marcador-${claveBiomarcador(nombre)}`} className={`card p-4 space-y-3 scroll-mt-4 ${destacado ? 'ring-1 ring-brand' : ''}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-text-primary">{nombre}</p>
+          <p className="text-[11px] text-text-tertiary mt-0.5">
+            {serie.length === 1 ? '1 medición' : `${serie.length} mediciones`} · última {fechaLarga(ultimo.fecha)}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-lg font-bold" style={{ color }}>{ultimo.value}</span>
+          <span className="text-xs text-text-secondary">{ultimo.unit}</span>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${BADGE_ESTADO[status]}`}>
+            {ETIQUETA_ESTADO[status]}
+          </span>
+        </div>
+      </div>
+      <HistoricalChart paramName={nombre} reports={reports} />
+      {/* `textoRango` y no `min – max` crudos: un "≥ 40" se leía como "40 – 0". */}
+      <p className="text-xs text-text-secondary text-center">
+        Rango de referencia: {textoRango(rangoDe(ultimo))} {ultimo.unit}
+      </p>
+    </div>
   )
 }
 
@@ -313,6 +356,8 @@ export default function PatientBiovisor({ profile }) {
   const [recienSubido, setRecienSubido] = useState(null)
   // Arranca en Subir: es lo que el paciente viene a hacer.
   const [activeTab, setActiveTab] = useState('subir')
+  // El biomarcador que se pidió ver desde "Parámetros": se destaca y se
+  // scrollea hasta él en el historial.
   const [selectedParam, setSelectedParam] = useState('')
   // Qué estudio es. Se pregunta ANTES de subir: después de la extracción el
   // paciente ya está mirando los resultados y no vuelve a completar un campo.
@@ -341,12 +386,7 @@ export default function PatientBiovisor({ profile }) {
   useEffect(() => {
     if (!profile?.id) return
     diagnosticReportService.getByPatient(profile.id)
-      .then(data => {
-        setReports(data)
-        if (data.length > 0 && data[0].parameters.length > 0) {
-          setSelectedParam(data[0].parameters[0].name)
-        }
-      })
+      .then(setReports)
       .catch(() => {})
       .finally(() => setLoadingReports(false))
   }, [profile?.id])
@@ -391,7 +431,6 @@ export default function PatientBiovisor({ profile }) {
     try {
       const actualizado = await diagnosticReportService.analizarEstudio(report)
       setReports(prev => prev.map(r => (r.id === actualizado.id ? actualizado : r)))
-      if (actualizado.parameters?.length) setSelectedParam(actualizado.parameters[0].name)
       setRecienSubido(null)
       setActiveTab('parametros')
     } catch (err) {
@@ -556,60 +595,17 @@ export default function PatientBiovisor({ profile }) {
               </div>
             ) : (
               <>
-                {/* Parameter selector pills */}
-                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-                  {nombresDeParametros.map(name => (
-                    <button
-                      key={name}
-                      onClick={() => setSelectedParam(name)}
-                      className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-                        selectedParam === name
-                          ? 'bg-brand text-white border-brand'
-                          : 'bg-bg-surface text-text-secondary border-border-default hover:border-brand hover:text-brand'
-                      }`}
-                    >
-                      {name}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Trend chart */}
-                {selectedParam && (
-                  <div className="card p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-text-primary">{selectedParam}</p>
-                      {(() => {
-                        const serie = serieDe(reports, selectedParam)
-                        const ultimo = serie[serie.length - 1]
-                        if (!ultimo) return null
-                        const status = estadoDe(ultimo)
-                        const color = statusColor(status)
-                        return (
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg font-bold" style={{ color }}>{ultimo.value}</span>
-                            <span className="text-xs text-text-secondary">{ultimo.unit}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${BADGE_ESTADO[status]}`}>
-                              {ETIQUETA_ESTADO[status]}
-                            </span>
-                          </div>
-                        )
-                      })()}
-                    </div>
-                    <HistoricalChart paramName={selectedParam} reports={reports} />
-                    {(() => {
-                      const serie = serieDe(reports, selectedParam)
-                      const refPoint = serie[serie.length - 1]
-                      if (!refPoint) return null
-                      // `textoRango` y no `min – max` crudos: un "≥ 40" se leía
-                      // como "40 – 0" abajo del gráfico.
-                      return (
-                        <p className="text-xs text-text-secondary text-center">
-                          Rango de referencia: {textoRango(rangoDe(refPoint))} {refPoint.unit}
-                        </p>
-                      )
-                    })()}
-                  </div>
-                )}
+                <p className="text-xs text-text-secondary font-medium uppercase tracking-wide">
+                  Tus biomarcadores en el tiempo ({nombresDeParametros.length})
+                </p>
+                {nombresDeParametros.map(name => (
+                  <TarjetaMarcador
+                    key={claveBiomarcador(name)}
+                    nombre={name}
+                    reports={reports}
+                    destacado={claveBiomarcador(name) === claveBiomarcador(selectedParam)}
+                  />
+                ))}
 
                 {/* Studies list */}
                 <p className="text-xs font-medium text-text-secondary uppercase tracking-wide">Estudios analizados ({analizados.length})</p>
@@ -623,12 +619,11 @@ export default function PatientBiovisor({ profile }) {
                       {entry.parameters.map(p => {
                         const status = estadoDe(p)
                         const color = statusColor(status)
-                        const activo = claveBiomarcador(p.name) === claveBiomarcador(selectedParam)
                         return (
                           <button
                             key={p.id}
-                            onClick={() => setSelectedParam(p.name)}
-                            className={`flex items-center justify-between bg-bg-subtle rounded-lg px-3 py-2 text-left transition-colors ${activo ? 'ring-1 ring-brand' : ''}`}
+                            onClick={() => document.getElementById(`marcador-${claveBiomarcador(p.name)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                            className="flex items-center justify-between bg-bg-subtle rounded-lg px-3 py-2 text-left transition-colors hover:ring-1 hover:ring-brand"
                           >
                             <span className="text-xs text-text-secondary truncate">{p.name}</span>
                             <span className="text-xs font-bold ml-2 shrink-0" style={{ color }}>{p.value} {p.unit}</span>

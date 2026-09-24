@@ -17,7 +17,7 @@ import MedicoCabeceraModal from '../../components/patient/MedicoCabeceraModal'
 import TourPaciente from '../../components/patient/TourPaciente'
 import PatientHeader from '../../components/patient/PatientHeader'
 import OnDemandCarousel from '../../components/patient/OnDemandCarousel'
-import { professionalService } from '../../services/professionalService'
+import { professionalService, estaDisponibleAhora } from '../../services/professionalService'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { emergencyService, getSosSettings } from '../../services/emergencyService'
 import { pickProForVertical } from '../../lib/verticals'
@@ -130,7 +130,7 @@ export default function PatientDashboard({ profile }) {
         const pixelPos = (userLocation && pro.latitude != null && pro.longitude != null)
           ? latLngToPixel(userLocation, pro)
           : FALLBACK_SLOTS[i]
-        return { id: i + 1, type: v.id, isOnDemand: pro.isOnDemand ?? false, ...pixelPos }
+        return { id: i + 1, type: v.id, isOnDemand: estaDisponibleAhora(pro), ...pixelPos }
       })
       .filter(Boolean),
     [markersByVertical, userLocation, VERTICALS]
@@ -138,14 +138,13 @@ export default function PatientDashboard({ profile }) {
 
   // ── Carrusel "Atención inmediata" (spec 2026-09-23) ──────────────────────
   // Sólo entran las verticales con AL MENOS UN profesional on demand
-  // disponible ahora mismo — misma consulta que ya usa el flujo on demand
-  // (OnDemand.jsx) y el mapa: `onDemand: true, onlyLive: true` respeta el TTL
-  // de presencia existente (ON_DEMAND_PRESENCE_TTL_MS). Se trae UNA vez, sin
+  // disponible ahora mismo — misma consulta que el flujo on demand
+  // (`getOnDemandPool`: switch + latido de la última hora + MP conectado). Se trae UNA vez, sin
   // filtro de especialidad, y se agrupa acá por vertical — así son 4
   // verticales resueltas con 1 sola consulta en vez de 4.
   const [onDemandLivePros, setOnDemandLivePros] = useState([])
   useEffect(() => {
-    professionalService.search({ onDemand: true, onlyLive: true })
+    professionalService.getOnDemandPool()
       .then(setOnDemandLivePros)
       .catch(() => {}) // aditivo — sin datos, el carrusel muestra el estado "sin nadie en línea"
   }, [])

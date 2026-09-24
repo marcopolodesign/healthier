@@ -14,6 +14,7 @@ import { usePharmacyCart } from '../../context/PharmacyCartContext'
 import { farmaciaVisible } from '../../lib/featureFlags'
 import { track } from '../../utils/analytics'
 import AnalisisVault from '../../components/patient/AnalisisVault'
+import EstudiosVault from '../../components/patient/EstudiosVault'
 import ActivityPlanVault from '../../components/patient/ActivityPlanVault'
 import { petsService } from '../../services/petsService'
 
@@ -124,6 +125,9 @@ export default function PatientDocuments({ profile }) {
 
   // Amigo Peludo — mascotas reales, tabla `pets` (migración 172).
   const [pets, setPets] = useState([])
+  // Ficha de una mascota: sus estudios (medical_documents, category
+  // 'veterinaria' + pet_id — migración 174).
+  const [petAbierta, setPetAbierta] = useState(null)
   const [loadingPets, setLoadingPets] = useState(false)
   const [showPetForm, setShowPetForm] = useState(false)
   const [editingPetId, setEditingPetId] = useState(null)
@@ -233,6 +237,7 @@ export default function PatientDocuments({ profile }) {
     // Categorías con pantalla propia (recetas, biovisor, nutriplan, farmacia)
     // — el resto abre el visor de documentos subidos.
     if (cat.ruta) { navigate(cat.ruta); return }
+    setPetAbierta(null)
     setViewingCat(cat)
   }
 
@@ -369,7 +374,7 @@ export default function PatientDocuments({ profile }) {
       {/* Category detail — responsive full-page overlay */}
       <PatientPageOverlay open={!!viewingCat} onClose={() => setViewingCat(null)} className="bg-bg-primary">
         {viewingCat && (() => {
-          // Análisis no es una maqueta: lee y escribe `diagnostic_reports`.
+          // Análisis: estudios por especialidad en `medical_documents` (migración 174).
           if (viewingCat.id === 'analisis') return (
             <>
               <CategoryHeader cat={viewingCat} onBack={() => setViewingCat(null)} />
@@ -379,6 +384,32 @@ export default function PatientDocuments({ profile }) {
             </>
           )
           // Amigo Peludo tampoco es maqueta: lee y escribe `pets` (migración 172).
+          if (viewingCat.id === 'peludo' && petAbierta) return (
+            <>
+              <CategoryHeader cat={{ ...viewingCat, name: petAbierta.nombre }} onBack={() => setPetAbierta(null)} />
+              <div className="flex-1 overflow-y-auto p-6 pb-10 scrollbar-hide space-y-4 bg-bg-primary">
+                <div className="card flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-sky-50">
+                    <PawPrint className="w-6 h-6 text-sky-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-[15px] text-text-primary capitalize">{petAbierta.nombre}</h4>
+                    <p className="text-[12px] text-text-tertiary font-medium mt-0.5 capitalize">{petAbierta.especie}{petAbierta.raza ? ` · ${petAbierta.raza}` : ''}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="font-semibold text-text-primary text-[15px]">Estudios</p>
+                  <p className="text-xs text-text-secondary mt-1">Análisis, radiografías y lo que te dio el veterinario. Quien atienda a {petAbierta.nombre} los va a poder ver.</p>
+                </div>
+                <EstudiosVault
+                  patientId={profile?.id}
+                  category="veterinaria"
+                  petId={petAbierta.id}
+                  vacio={`Todavía no subiste estudios de ${petAbierta.nombre}`}
+                />
+              </div>
+            </>
+          )
           if (viewingCat.id === 'peludo') return (
             <>
               <CategoryHeader cat={viewingCat} onBack={() => setViewingCat(null)} />
@@ -398,15 +429,16 @@ export default function PatientDocuments({ profile }) {
                     <div className="space-y-3">
                       {pets.map(pet => (
                         <div key={pet.id} className="card flex justify-between items-center">
-                          <div className="flex items-center gap-4">
+                          <button onClick={() => setPetAbierta(pet)} className="flex items-center gap-4 text-left flex-1 min-w-0">
                             <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-sky-50">
                               <PawPrint className="w-6 h-6 text-sky-600" />
                             </div>
                             <div>
                               <h4 className="font-semibold text-[15px] text-text-primary capitalize">{pet.nombre}</h4>
                               <p className="text-[12px] text-text-tertiary font-medium mt-0.5 capitalize">{pet.especie}{pet.raza ? ` · ${pet.raza}` : ''}</p>
+                              <p className="text-[12px] text-sky-600 font-semibold mt-0.5">Ver estudios</p>
                             </div>
-                          </div>
+                          </button>
                           <div className="flex items-center gap-2">
                             <button onClick={() => abrirEdicionPet(pet)} className="w-9 h-9 rounded-full bg-bg-secondary border border-border-default flex items-center justify-center hover:bg-bg-surface">
                               <PencilSimple className="w-4 h-4 text-text-secondary" />

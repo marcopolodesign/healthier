@@ -77,15 +77,6 @@ export const walkInQueueService = {
     if (error) throw error
   },
 
-  async getAvailableCount() {
-    const { count, error } = await supabase
-      .from('professional_profiles')
-      .select('id', { count: 'exact', head: true })
-      .eq('is_available_walkin', true)
-    if (error) throw error
-    return count ?? 0
-  },
-
   async setAvailability(professionalId, isAvailable) {
     const { error } = await supabase
       .from('professional_profiles')

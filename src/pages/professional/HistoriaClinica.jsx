@@ -15,6 +15,8 @@ import SignedDocLink from '../../components/SignedDocLink'
 import { toast } from '../../components/Toast'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { rangoDe, textoRango, estadoDe, estaAnalizado } from '../../lib/biomarcadores'
+import { professionalService } from '../../services/professionalService'
+import EstudiosDelPaciente from '../../components/professional/EstudiosDelPaciente'
 
 const SAGE = '#7CB38B'
 const WARNING_COLOR = '#E4A853'
@@ -325,6 +327,15 @@ export default function HistoriaClinica({ profile }) {
   const [encounters, setEncounters] = useState([])
   const [allergies, setAllergies] = useState([])
   const [labReports, setLabReports] = useState([])
+  const [cantEstudios, setCantEstudios] = useState(0)
+  // El `profile` de la sesión no trae `professionalProfiles` (viene de
+  // `profiles` a secas), así que la especialidad propia se busca aparte: es la
+  // que arranca destacada en el filtro de Estudios.
+  const [miEspecialidad, setMiEspecialidad] = useState(null)
+  useEffect(() => {
+    if (!profile?.id) return
+    professionalService.getByUserId(profile.id).then(p => setMiEspecialidad(p?.specialty ?? null)).catch(() => {})
+  }, [profile?.id])
   const [consultas, setConsultas] = useState([])
   const [loadingConsultas, setLoadingConsultas] = useState(true)
   const [loading, setLoading] = useState(true)
@@ -501,6 +512,7 @@ export default function HistoriaClinica({ profile }) {
           { key: 'notas', label: 'Notas clínicas' },
           { key: 'turnos', label: `Turnos previos${consultas.length > 0 ? ` (${consultas.length})` : ''}` },
           { key: 'laboratorio', label: `Laboratorio${labReports.length > 0 ? ` (${labReports.length})` : ''}` },
+          { key: 'estudios', label: `Estudios${cantEstudios > 0 ? ` (${cantEstudios})` : ''}` },
         ].map(({ key, label }) => (
           <button
             key={key}
@@ -583,6 +595,13 @@ export default function HistoriaClinica({ profile }) {
           emptyHint="Sólo se ven los turnos que tuviste vos con este paciente."
         />
       )}
+
+      {/* Estudios por imágenes que subió el paciente, con su especialidad
+          (medical_documents, migración 174). Se monta siempre, oculto, para
+          que el contador de la solapa esté desde el principio. */}
+      <div className={activeTab === 'estudios' ? '' : 'hidden'}>
+        <EstudiosDelPaciente patientId={patientId} specialtyDelProfesional={miEspecialidad} onCount={setCantEstudios} />
+      </div>
 
       {/* Laboratorio tab */}
       {activeTab === 'laboratorio' && (

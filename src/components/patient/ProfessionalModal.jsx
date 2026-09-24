@@ -2,6 +2,7 @@ import { Star, SealCheck, VideoCamera, MapPin, CalendarPlus, X, Lightning } from
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import PatientSheet from './PatientSheet'
 import { inicialesDe } from '../../lib/format'
+import { estaDisponibleAhora } from '../../lib/onDemandPool'
 
 /**
  * ProfessionalModal
@@ -112,8 +113,8 @@ export default function ProfessionalModal({ pro, open, onClose, modality, onBook
             )}
           </div>
 
-          {/* Walk-in available badge */}
-          {pro.isAvailableWalkin && (
+          {/* Disponible para consulta inmediata — mismo criterio que el pool on-demand */}
+          {estaDisponibleAhora(pro) && (
             <div className="flex items-center gap-1 bg-green-50 border border-green-200 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-semibold mt-2 self-start">
               <Lightning className="w-2.5 h-2.5" weight="fill" />
               Disponible ahora

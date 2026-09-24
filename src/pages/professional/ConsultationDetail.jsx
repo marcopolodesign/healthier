@@ -21,6 +21,7 @@ import FinanciadorPicker from '../../components/FinanciadorPicker'
 import Recetario from '../../components/professional/Recetario'
 import ScribeSession from '../../components/professional/ScribeSession'
 import { toast } from '../../components/Toast'
+import EstudiosDelPaciente from '../../components/professional/EstudiosDelPaciente'
 
 export default function ConsultationDetail({ profile }) {
   const { id } = useParams()
@@ -283,6 +284,17 @@ export default function ConsultationDetail({ profile }) {
             <span className="text-text-primary font-medium capitalize">
               {consultation.petName}{consultation.petSpecies ? ` (${consultation.petSpecies})` : ''}
             </span>
+          </div>
+        )}
+
+        {/* Estudios de ESA mascota que cargó el dueño (medical_documents con
+            pet_id, migración 174). */}
+        {consultation.petId && (
+          <div className="mt-3 pt-3 border-t border-border-default">
+            <p className="text-sm font-semibold text-text-primary mb-2">
+              Estudios de <span className="capitalize">{consultation.petName || 'la mascota'}</span>
+            </p>
+            <EstudiosDelPaciente patientId={consultation.patientId} petId={consultation.petId} />
           </div>
         )}
 

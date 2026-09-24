@@ -2,6 +2,7 @@ import { Star, SealCheck, VideoCamera, MapPin, Lightning } from '@phosphor-icons
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { track } from '../../utils/analytics'
 import { inicialesDe } from '../../lib/format'
+import { estaDisponibleAhora } from '../../lib/onDemandPool'
 
 /**
  * ProfessionalCard
@@ -42,7 +43,7 @@ export default function ProfessionalCard({ pro, onSelect, isSelected = false, mo
       price:                   price ?? undefined,
       currency:                'ARS',
       modality,
-      is_on_demand:            !!pro.isOnDemand,
+      is_on_demand:            estaDisponibleAhora(pro),
       origin:                  'buscar_profesional',
       flow:                    'paciente',
     }, {
@@ -105,8 +106,8 @@ export default function ProfessionalCard({ pro, onSelect, isSelected = false, mo
           )}
         </div>
 
-        {/* Walk-in available badge */}
-        {pro.isAvailableWalkin && (
+        {/* Disponible para consulta inmediata — mismo criterio que el pool on-demand */}
+        {estaDisponibleAhora(pro) && (
           <div className="flex items-center gap-1 bg-green-50 border border-green-200 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-semibold mt-1.5 self-start">
             <Lightning className="w-2.5 h-2.5 fill-green-600" weight="fill" />
             Disponible ahora
