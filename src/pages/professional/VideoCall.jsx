@@ -1221,7 +1221,19 @@ export default function ProfessionalVideoCall({ profile }) {
   // X nativa arriba a la izquierda que vuelve a la app. El "Volver" de la web
   // quedaba debajo de esa X, y además en el WebView no tiene historia a la que
   // volver: ahí se esconde y la esquina queda para la X.
-  const [enApp] = useState(() => typeof window !== 'undefined' && !!window.ReactNativeWebView)
+  // `window.ReactNativeWebView` sólo existe si el WebView escucha mensajes (el
+  // de la videollamada no), así que no alcanza: la app agrega "HealthierApp" al
+  // user agent, y para las versiones ya instaladas se reconoce el WebView por
+  // el UA — el de iOS no dice "Safari/" (Safari y Chrome sí), el de Android
+  // lleva "; wv)".
+  const [enApp] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const ua = navigator.userAgent || ''
+    return !!window.ReactNativeWebView
+      || ua.includes('HealthierApp')
+      || (/iPhone|iPad/.test(ua) && !ua.includes('Safari/'))
+      || ua.includes('; wv)')
+  })
   // El legajo se lee acá aparte del que ya carga `ClinicalPanel`: la consulta
   // simulada se arma con la especialidad y la matrícula de quien practica —salen
   // en el panel y en la receta— y hay que tenerlas antes de armarla, o sea antes
