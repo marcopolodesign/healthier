@@ -3,6 +3,7 @@ import { chromium, devices } from 'playwright'
 // arrastrarla abre/cierra, un toque la abre/cierra y durante el gesto no cambia
 // de estado. Corre contra la simulación (no escribe nada) con una cuenta de staging.
 //   BASE=https://gethealthier-staging.vercel.app node scripts/verificar-hoja-videollamada.mjs
+// También que "Entrar igual a la sala" recién aparezca a los 3 minutos.
 // Sale con código 1 si algún paso no da lo esperado.
 const BASE = process.env.BASE || 'http://localhost:5173'
 const OUT = process.env.OUT || '/tmp'
@@ -52,7 +53,20 @@ await handle.click(); await page.waitForTimeout(400); log.push(['toque', await e
 const bb = await pane.boundingBox(); await page.mouse.click(bb.x + bb.width / 2, bb.y + 120); await page.waitForTimeout(400)
 log.push(['toque en contenido', await estado()])
 await page.screenshot({ path: `${OUT}/5-final.png` })
-const esperado = ['false','true','false','false','true','true','false','false','true','false','true','false','true','true']
+// "Entrar igual a la sala" aparece recién a los 3 minutos de espera.
+const p2 = await ctx.newPage()
+await p2.clock.install()
+await p2.goto(BASE + '/profesional/videollamada/simulacion')
+await p2.locator('.vc-panel-pane').waitFor({ timeout: 20000 })
+const link = p2.getByText('Entrar igual a la sala')
+log.push(['"Entrar igual" oculto al entrar', String(await link.count() > 0)])
+await p2.clock.fastForward('02:50')
+log.push(['"Entrar igual" oculto a los 2:50', String(await link.count() > 0)])
+await p2.clock.fastForward('00:15')
+await p2.waitForTimeout(300)
+log.push(['"Entrar igual" visible a los 3:05', String(await link.count() > 0)])
+
+const esperado = ['false','true','false','false','true','true','false','false','true','false','true','false','true','true','false','false','true']
 let ok = errs.length === 0
 log.forEach(([paso, v], i) => { const bien = v === esperado[i]; ok &&= bien; console.log(bien ? '✓' : '✗', paso, '→', v) })
 if (errs.length) console.log('errores de página:', errs)

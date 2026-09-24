@@ -158,6 +158,7 @@ function useVideoSplit() {
 // Durante el gesto el `transform` va inline y sin transición; al soltar se
 // borra y la clase (`data-abierta`) vuelve a mandar, con su animación.
 const ARRASTRE_MIN_PX = 6
+const ESPERA_ENTRAR_IGUAL_MS = 3 * 60 * 1000
 const VELOCIDAD_DECIDE = 0.4 // px/ms — un flick decide aunque el recorrido sea corto
 
 function useHojaArrastrable(abierta, setAbierta) {
@@ -1187,6 +1188,17 @@ export default function ProfessionalVideoCall({ profile }) {
   const [joinGate, setJoinGate] = useState(false)
   // joining: actively connecting to Daily.co (after bothReady)
   const [joining, setJoining] = useState(false)
+  // "Entrar igual a la sala" es la salida por si el aviso de que el paciente
+  // llegó no aparece nunca. Se muestra recién después de ESPERA_ENTRAR_IGUAL_MS
+  // en la sala de espera: en el caso normal el aviso llega antes y el link sólo
+  // estorbaba (y en el teléfono quedaba debajo de los botones). 3 minutos,
+  // decisión de Mateo (2026-09-24).
+  const [mostrarEntrarIgual, setMostrarEntrarIgual] = useState(false)
+  useEffect(() => {
+    if (joinGate || joining) return
+    const t = setTimeout(() => setMostrarEntrarIgual(true), ESPERA_ENTRAR_IGUAL_MS)
+    return () => clearTimeout(t)
+  }, [joinGate, joining])
   const [splitScreen, setSplitScreen] = useState(true)
   const split = useVideoSplit()
   // Hoja de la HC en mobile. Arranca abajo: lo primero es ver al paciente.
@@ -1783,13 +1795,15 @@ export default function ProfessionalVideoCall({ profile }) {
                     profesional se queda mirando "Esperando al paciente…" para
                     siempre y sin nada que tocar. Entrar de más cuesta una sala
                     vacía; no poder entrar deja la consulta sin hacer. */}
-                <button
-                  type="button"
-                  onClick={() => setJoinGate(true)}
-                  className="text-white/40 hover:text-white/70 text-xs underline underline-offset-4"
-                >
-                  Entrar igual a la sala
-                </button>
+                {mostrarEntrarIgual && (
+                  <button
+                    type="button"
+                    onClick={() => setJoinGate(true)}
+                    className="text-white/40 hover:text-white/70 text-xs underline underline-offset-4"
+                  >
+                    Entrar igual a la sala
+                  </button>
+                )}
               </div>
             </div>
           )}
