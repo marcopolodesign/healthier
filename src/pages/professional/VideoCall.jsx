@@ -149,6 +149,76 @@ function useVideoSplit() {
   return { containerRef, pct, onPointerDown, onKeyDown, reset }
 }
 
+// La hoja de historia clínica en el teléfono se arrastra, como una hoja nativa:
+// hacia abajo la cierra, hacia arriba la abre, y durante el gesto sigue al dedo.
+// Antes sólo se movía tocando la barra, y Mateo lo marcó como mala experiencia
+// desde la app (2026-09-24). Se agarra de la barra de arriba; tocarla sin
+// arrastrar sigue abriendo y cerrando.
+//
+// Durante el gesto el `transform` va inline y sin transición; al soltar se
+// borra y la clase (`data-abierta`) vuelve a mandar, con su animación.
+const ARRASTRE_MIN_PX = 6
+const VELOCIDAD_DECIDE = 0.4 // px/ms — un flick decide aunque el recorrido sea corto
+
+function useHojaArrastrable(abierta, setAbierta) {
+  const hojaRef = useRef(null)
+  const agarreRef = useRef(null)
+  // El `click` llega después del `pointerup` aunque haya sido un arrastre:
+  // esto evita que un arrastre termine además en un toggle.
+  const fueArrastre = useRef(false)
+
+  const onPointerDown = e => {
+    const hoja = hojaRef.current
+    if (!hoja || (e.pointerType === 'mouse' && e.button !== 0)) return
+    fueArrastre.current = false
+    // Posición cerrada = la altura de la hoja menos lo que asoma (20dvh).
+    const cerradaY = Math.max(0, hoja.offsetHeight - window.innerHeight * 0.2)
+    const baseY = abierta ? 0 : cerradaY
+    const inicioY = e.clientY
+    let y = baseY
+    let ultimo = { y: e.clientY, t: e.timeStamp }
+    let velocidad = 0
+    const agarre = e.currentTarget
+    try { agarre.setPointerCapture(e.pointerId) } catch { /* sin captura igual anda con los listeners */ }
+
+    const mover = ev => {
+      const dy = ev.clientY - inicioY
+      if (!fueArrastre.current && Math.abs(dy) < ARRASTRE_MIN_PX) return
+      fueArrastre.current = true
+      y = Math.min(cerradaY, Math.max(0, baseY + dy))
+      hoja.style.transition = 'none'
+      hoja.style.transform = `translateY(${y}px)`
+      const dt = ev.timeStamp - ultimo.t
+      if (dt > 0) velocidad = (ev.clientY - ultimo.y) / dt
+      ultimo = { y: ev.clientY, t: ev.timeStamp }
+    }
+    const soltar = () => {
+      agarre.removeEventListener('pointermove', mover)
+      agarre.removeEventListener('pointerup', soltar)
+      agarre.removeEventListener('pointercancel', soltar)
+      if (!fueArrastre.current) return
+      hoja.style.transition = ''
+      hoja.style.transform = ''
+      const abrir = Math.abs(velocidad) > VELOCIDAD_DECIDE ? velocidad < 0 : y < cerradaY / 2
+      setAbierta(abrir)
+    }
+    agarre.addEventListener('pointermove', mover)
+    agarre.addEventListener('pointerup', soltar)
+    agarre.addEventListener('pointercancel', soltar)
+  }
+
+  const onClick = () => {
+    if (fueArrastre.current) { fueArrastre.current = false; return }
+    setAbierta(v => !v)
+  }
+
+  // Cualquier intención de usar la hoja la sube (ver el contenedor), salvo lo
+  // que pase en la barra: ahí manda el gesto.
+  const esDelAgarre = target => !!agarreRef.current?.contains(target)
+
+  return { hojaRef, agarreRef, onPointerDown, onClick, esDelAgarre }
+}
+
 // El valor guardado sigue siendo `diagnosis` — sólo cambia lo que se lee. Un
 // diagnóstico asentado durante la consulta es presuntivo hasta que lo confirme
 // un estudio, y llamarlo "Diagnóstico" a secas empuja a escribirlo con más
@@ -1121,6 +1191,7 @@ export default function ProfessionalVideoCall({ profile }) {
   const split = useVideoSplit()
   // Hoja de la HC en mobile. Arranca abajo: lo primero es ver al paciente.
   const [hojaAbierta, setHojaAbierta] = useState(false)
+  const hoja = useHojaArrastrable(hojaAbierta, setHojaAbierta)
   const [noShowBanner, setNoShowBanner] = useState(false)
 
   // ── Código de cierre EN la llamada (migración 099) ───────────────────────
@@ -1780,20 +1851,25 @@ export default function ProfessionalVideoCall({ profile }) {
             // el contenido. Antes sólo la abría el foco de un input y el resto
             // de los toques quedaban a medias, con la hoja tapada abajo
             // (reportado por Mateo desde el iPhone).
-            onFocusCapture={() => setHojaAbierta(true)}
-            onPointerDownCapture={() => setHojaAbierta(true)}
+            ref={hoja.hojaRef}
+            // La fase de captura del contenedor corre ANTES que cualquier
+            // handler de la barra, así que la barra se excluye acá (el foco
+            // también: apoyar el dedo la enfoca): si no, arrastrarla hacia
+            // abajo la abría al apoyar el dedo.
+            onFocusCapture={e => { if (!hoja.esDelAgarre(e.target)) setHojaAbierta(true) }}
+            onPointerDownCapture={e => { if (!hoja.esDelAgarre(e.target)) setHojaAbierta(true) }}
             onScrollCapture={() => setHojaAbierta(true)}
           >
-            {/* Sólo en mobile: la barra que se toca para subirla o bajarla. */}
+            {/* Sólo en mobile: la barra que se arrastra (o se toca) para subirla
+                o bajarla. `touch-none` para que el gesto no scrollee la página. */}
             <button
               type="button"
-              onClick={() => setHojaAbierta(v => !v)}
-              // El contenedor abre con onPointerDownCapture; sin frenarlo acá,
-              // tocar "Bajar" abría y cerraba en el mismo gesto.
-              onPointerDown={e => e.stopPropagation()}
+              ref={hoja.agarreRef}
+              onClick={hoja.onClick}
+              onPointerDown={hoja.onPointerDown}
               aria-expanded={hojaAbierta}
               aria-label={hojaAbierta ? 'Bajar la historia clínica' : 'Subir la historia clínica'}
-              className="lg:hidden w-full flex flex-col items-center gap-1 pt-2 pb-1 shrink-0"
+              className="lg:hidden w-full flex flex-col items-center gap-1 pt-2.5 pb-2 shrink-0 touch-none select-none cursor-grab"
             >
               <span className="h-1 w-10 rounded-full bg-text-tertiary/40" />
               <span className="text-[11px] font-semibold text-text-tertiary">
