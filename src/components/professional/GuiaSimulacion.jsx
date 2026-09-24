@@ -92,7 +92,7 @@ export default function GuiaSimulacion({ especialidad, puedeRecetar = false, lis
   })
 
   return (
-    <div className="vc-franja shrink-0 flex items-center gap-3 bg-brand px-4 py-1.5 text-white" data-app={enApp ? 'true' : 'false'}>
+    <div className="vc-franja shrink-0 flex items-center gap-3 bg-brand px-4 pb-1.5 text-white" data-app={enApp ? 'true' : 'false'}>
       {/* La franja no se puede cerrar: el panel es idéntico al real, y quien
           vuelve a la pestaña diez minutos después no tiene otra forma de saber
           que la paciente no existe. */}
