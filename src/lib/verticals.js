@@ -1,5 +1,6 @@
 import { Stethoscope, AppleLogo, Brain, Barbell, PawPrint, Pulse, Question } from '@phosphor-icons/react'
 import Pacifier from '../components/icons/Pacifier'
+import { estaDisponibleAhora, isPayable } from './onDemandPool'
 
 // Especialidades (labels, mapeo a vertical, sub-especialidades) dejaron de
 // vivir acá — migración 101 (`specialties`), editable desde
@@ -96,8 +97,16 @@ export function verticalForSpecialty(specialty, especialidades = []) {
 // the map still shows a marker rather than nothing. `porVertical` viene de
 // `useEspecialidades()` (verticalId → [slugs]); antes era el VERTICAL_SPECIALTIES
 // hardcodeado.
+//
+// Primero el que está disponible ahora para consulta inmediata (mismo criterio
+// que el pool on-demand, `estaDisponibleAhora`): si hay uno, el pin de la
+// vertical es ése y se pinta como "disponible". Antes se elegía sin mirar y el
+// verde salía de `isOnDemand` a secas — un switch prendido hace semanas.
 export function pickProForVertical(pool, verticalId, porVertical = {}) {
   const slugs = porVertical[verticalId] || []
   const matches = pool.filter(p => slugs.includes(p.specialty))
-  return matches.find(p => p.mpConnected !== false) || matches[0] || null
+  return matches.find(p => isPayable(p) && estaDisponibleAhora(p))
+    || matches.find(isPayable)
+    || matches[0]
+    || null
 }

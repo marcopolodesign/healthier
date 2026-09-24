@@ -5,7 +5,7 @@ import {
   ArrowClockwise,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
-import { professionalService, ON_DEMAND_PRESENCE_TTL_MS } from '../../services/professionalService'
+import { professionalService, estaDisponibleAhora } from '../../services/professionalService'
 import { consultationsService } from '../../services/consultationsService'
 import { mpService } from '../../services/mpService'
 import PatientSheet from '../../components/patient/PatientSheet'
@@ -398,18 +398,15 @@ export default function OnDemand({ profile }) {
     })
 
     const slugs = porVertical[verticalId] || []
-    const primarySlug = slugs[0]
 
     // Sin fallback a `search({ specialty })` a secas: ese catch hacía que un
     // error de red terminara matcheando contra TODOS los profesionales de la
     // especialidad, incluidos los que nunca se anotaron a on-demand. Un fallo
     // de lectura ahora es "no hay nadie", que es lo honesto.
-    const fetchPoolDeLaEspecialidad = () => primarySlug
-      // `onlyLive` existía y nunca se pasaba: entraban al pool médicos que habían
-      // tildado el switch hacía meses. Ahora "vivo" es haberlo declarado en la
-      // última hora, no tener una pestaña abierta.
-      ? professionalService.search({ specialty: primarySlug, onDemand: true, onlyLive: true }).catch(() => null)
-      : Promise.resolve([])
+    // Todas las especialidades de la vertical (antes sólo `slugs[0]`): un
+    // clínico anotado con la segunda especialidad de Clínica no entraba nunca.
+    const fetchPoolDeLaEspecialidad = () =>
+      professionalService.getOnDemandPool({ specialties: slugs }).catch(() => null)
 
     /*
      * `?pro=<userId>` — se llama a ESE profesional puntual, no al pool de la
@@ -423,10 +420,9 @@ export default function OnDemand({ profile }) {
      */
     const fetchPros = direccionamientoDirecto
       ? professionalService.getByUserId(direccionamientoDirecto).then(pro => {
-          const especialidadCoincide = !primarySlug || pro?.specialty === primarySlug
-          const elegible = pro?.isVerified && pro?.isActive && pro?.isOnDemand && especialidadCoincide
-            && pro?.onDemandLastSeenAt && (Date.now() - new Date(pro.onDemandLastSeenAt).getTime()) < ON_DEMAND_PRESENCE_TTL_MS
-            && isPayable(pro)
+          const especialidadCoincide = !slugs.length || slugs.includes(pro?.specialty)
+          const elegible = pro?.isVerified && pro?.isActive && especialidadCoincide
+            && estaDisponibleAhora(pro) && isPayable(pro)
           if (elegible) return [pro]
           return fetchPoolDeLaEspecialidad()
         }).catch(() => fetchPoolDeLaEspecialidad())

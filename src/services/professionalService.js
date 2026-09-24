@@ -2,6 +2,7 @@ import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 import { veProfesionalesDePrueba } from '../lib/featureFlags'
 import { aBlobSubible, extensionDe, TIPOS_DOCUMENTO } from '../lib/archivoSubible'
 import { subirConProgreso } from '../lib/subidaConProgreso'
+import { isPayable, ON_DEMAND_PRESENCE_TTL_MS } from '../lib/onDemandPool'
 
 /**
  * Esconde los profesionales de prueba (`solo_pruebas`, migración 153) de las
@@ -37,18 +38,10 @@ async function filtrarDePrueba(filas) {
  * lista (mismo criterio que la presencia del paciente en la sala).
  */
 export const ON_DEMAND_HEARTBEAT_MS = 30_000
-/**
- * Cuánto vale "estoy disponible" desde la última vez que el profesional lo
- * declaró. Era 90 segundos, atado a tener la pestaña abierta y visible.
- *
- * Decisión de Mateo (2026-07-31): **no** debe implicar tener la app abierta.
- * Exigirle a un médico dejar una pestaña visible para existir en el pool es un
- * impuesto de atención que nadie paga — y el resultado real es un pool vacío, no
- * un pool más confiable. Lo que dice "estoy" es haber prendido el switch hace
- * poco; lo que dice "no estoy" es no contestar, y para eso está la ventana corta
- * de la consulta y el failover al siguiente.
- */
-export const ON_DEMAND_PRESENCE_TTL_MS = 60 * 60 * 1000
+// El TTL y el criterio de "disponible ahora" viven en lib/onDemandPool.js (sin
+// dependencias, lo importa también lib/verticals.js); se re-exportan acá para
+// no tocar a quienes ya los traían de este archivo.
+export { ON_DEMAND_PRESENCE_TTL_MS, estaDisponibleAhora } from '../lib/onDemandPool'
 
 export const professionalService = {
   async getByUserId(userId) {
@@ -171,15 +164,19 @@ export const professionalService = {
     if (filters.specialty) {
       query = query.eq('specialty', filters.specialty)
     }
+    // Todas las especialidades de una vertical, no sólo la primera: Clínica
+    // tiene varias y el pool on-demand se quedaba con la de más arriba.
+    if (filters.specialties?.length) {
+      query = query.in('specialty', filters.specialties)
+    }
     if (filters.onDemand) {
       query = query.eq('is_on_demand', true)
     }
-    // La presencia (migración 066) dejó de ser un FILTRO cuando el despacho pasó
-    // a ser por pedido y aceptación (migración 067): exigir pestaña abierta para
-    // aparecer es un impuesto de atención inviable, y en web no se puede latir
-    // con el browser cerrado. Ahora es solo una señal: sirve para ordenar a quién
-    // mostrarle primero y para prometerle al paciente una espera realista, no
-    // para decidir quién entra al pool.
+    // La presencia SÍ es filtro del pool on-demand: `onlyLive` deja afuera a
+    // quien no declaró estar disponible en la última hora
+    // (ON_DEMAND_PRESENCE_TTL_MS). No exige tener la pestaña abierta — vale una
+    // hora desde el último latido o desde prender el switch. Mismo criterio que
+    // `estaDisponibleAhora()`, del lado de la base.
     if (filters.onlyLive) {
       query = query.gte('on_demand_last_seen_at', new Date(Date.now() - ON_DEMAND_PRESENCE_TTL_MS).toISOString())
     }
@@ -209,6 +206,18 @@ export const professionalService = {
    *
    * @param {{texto?: string, especialidades?: string[]}} opciones
    */
+  /**
+   * El pool de la consulta inmediata: verificados, activos, no de prueba, con
+   * el switch prendido y el latido vigente, de CUALQUIERA de las especialidades
+   * pedidas, y con MP conectado. Lo usan el flujo on-demand y el carrusel del
+   * inicio — el mismo "¿hay alguien que me pueda atender ahora?".
+   */
+  async getOnDemandPool({ specialties = null } = {}) {
+    if (Array.isArray(specialties) && specialties.length === 0) return []
+    const pros = await this.search({ specialties, onDemand: true, onlyLive: true })
+    return pros.filter(isPayable)
+  },
+
   async buscarCobrables({ texto = '', especialidades = null } = {}) {
     const { data, error } = await supabase.rpc('buscar_profesionales_cobrables', {
       p_texto: texto?.trim() || null,

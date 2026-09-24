@@ -6,6 +6,34 @@
  */
 
 /**
+ * Cuánto vale "estoy disponible" desde la última vez que el profesional lo
+ * declaró. Era 90 segundos, atado a tener la pestaña abierta y visible.
+ *
+ * Decisión de Mateo (2026-07-31): **no** debe implicar tener la app abierta.
+ * Exigirle a un médico dejar una pestaña visible para existir en el pool es un
+ * impuesto de atención que nadie paga — y el resultado real es un pool vacío, no
+ * un pool más confiable. Lo que dice "estoy" es haber prendido el switch hace
+ * poco; lo que dice "no estoy" es no contestar, y para eso está la ventana corta
+ * de la consulta y el failover al siguiente.
+ */
+export const ON_DEMAND_PRESENCE_TTL_MS = 60 * 60 * 1000
+
+/**
+ * 🔴 **El único criterio de "disponible ahora" para la consulta inmediata.**
+ *
+ * `is_on_demand` es la intención (el switch prendido); lo que lo vuelve real es
+ * haberlo declarado en la última hora (`on_demand_last_seen_at`). Mirar sólo el
+ * flag muestra como disponible a quien prendió el switch hace semanas — pasó en
+ * el mapa del inicio y en la chapa de la búsqueda por nombre (Nacho,
+ * 2026-09-24). El resto del criterio (verificado, activo, no de prueba, MP
+ * conectado, especialidad) lo resuelve cada consulta a la base.
+ */
+export function estaDisponibleAhora(pro) {
+  if (!pro?.isOnDemand || !pro.onDemandLastSeenAt) return false
+  return Date.now() - new Date(pro.onDemandLastSeenAt).getTime() < ON_DEMAND_PRESENCE_TTL_MS
+}
+
+/**
  * Puede cobrar: tiene Mercado Pago conectado.
  *
  * Antes exigía además que el profesional tuviera un precio cargado, porque el
