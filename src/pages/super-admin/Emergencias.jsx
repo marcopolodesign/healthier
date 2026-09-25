@@ -149,6 +149,12 @@ export default function SuperAdminEmergencias() {
                         <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${STATUS_BADGE[e.status] ?? 'bg-gray-100 text-gray-500'}`}>
                           {STATUS_LABEL[e.status] ?? e.status}
                         </span>
+                        {/* Migración 175: cancelar con la ambulancia asignada se cobra. */}
+                        {e.status === 'cancelled' && (
+                          <p className={`text-[10px] mt-1 ${e.cancellationCharged ? 'text-danger font-semibold' : 'text-text-tertiary'}`}>
+                            {e.cancellationCharged ? 'Con móvil asignado · cobrada' : 'Sin cargo'}
+                          </p>
+                        )}
                       </td>
                       <td className="table-cell">
                         <p className="text-text-primary truncate max-w-[160px]">{e.patient?.fullName || '—'}</p>
@@ -181,6 +187,10 @@ export default function SuperAdminEmergencias() {
                             que deja entrar una solicitud a la cola del operador. */}
                         {e.bonificada
                           ? <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Bonificada</span>
+                          : e.status === 'cancelled' && e.cancellationCharged
+                            ? <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-danger/10 text-danger">Cobrado al cancelar</span>
+                          : e.status === 'cancelled' && e.cancellationCharged === false && e.paidAt
+                            ? <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">Liberado</span>
                           : e.paidAt
                             ? <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600">Reservado</span>
                             : <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">Sin cobrar</span>}
