@@ -245,13 +245,14 @@ export const mpService = {
   },
 
   /**
-   * Libera la reserva de una emergencia sin cobrar nada — se canceló antes de
-   * despachar, o no hubo móvil. No es una devolución: nunca se capturó, así
-   * que el banco suelta la retención solo.
+   * El paciente cancela su emergencia. Qué pasa con la plata lo decide el
+   * servidor con el estado de la base: sin ambulancia asignada se libera la
+   * reserva (`cobrado: false`); con ambulancia asignada se cobra igual
+   * (`cobrado: true, monto`). Ya llegó / terminó / cancelada → error.
    */
-  async liberarEmergencia(emergencyId) {
+  async cancelarEmergencia(emergencyId) {
     try {
-      const result = await callEdgeFunction('mp-capture', { action: 'cancel-auth-emergency', emergencyId })
+      const result = await callEdgeFunction('mp-capture', { action: 'cancel-emergency', emergencyId })
       return { data: toCamelCase(result), error: null }
     } catch (err) {
       return { data: null, error: err.message }
