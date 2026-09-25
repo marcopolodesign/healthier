@@ -22,6 +22,7 @@ import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { track } from '../../utils/analytics'
 import { CLAVE_TOUR_PACIENTE } from '../../components/patient/TourPaciente'
 import { SUPPORT_PHONE_DISPLAY, supportWhatsAppLink } from '../../lib/support'
+import PhoneInput from '../../components/common/PhoneInput'
 
 // Mismas etiquetas y formato que /paciente/comprobantes, para que el resumen del
 // perfil y la página completa no digan cosas distintas de la misma consulta.
@@ -177,6 +178,22 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-widest mb-1.5 ml-1">{label}</label>
       {editing
         ? <input type={type} value={userData[name]} onChange={e => setUserData(p => ({ ...p, [name]: e.target.value }))} className="bg-bg-primary border border-border-default rounded-2xl px-4 py-3.5 outline-none text-[16px] font-medium text-text-primary focus:border-brand" />
+        : <div className="px-1 py-1 text-[17px] font-medium text-text-primary">{userData[name] || '—'}</div>
+      }
+    </div>
+  )
+
+  // El teléfono propio va aparte: se guarda con el código de país adelante,
+  // porque es el número por el que salen los avisos de WhatsApp.
+  const phoneField = (label, name) => (
+    <div className="flex flex-col">
+      <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-widest mb-1.5 ml-1">{label}</label>
+      {editing
+        ? <PhoneInput
+            value={userData[name]}
+            onChange={v => setUserData(p => ({ ...p, [name]: v }))}
+            inputClassName="w-full bg-bg-primary border border-border-default rounded-2xl px-4 py-3.5 outline-none text-[16px] font-medium text-text-primary focus:border-brand"
+          />
         : <div className="px-1 py-1 text-[17px] font-medium text-text-primary">{userData[name] || '—'}</div>
       }
     </div>
@@ -358,7 +375,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         <h3 className="font-semibold text-[18px] text-text-primary mb-6 flex items-center gap-2"><User className="w-5 h-5 text-brand" /> Información Básica</h3>
         <div className="space-y-5">
           {field('Nombre', 'nombre')}
-          {field('Teléfono', 'telefono', 'tel')}
+          {phoneField('Teléfono', 'telefono')}
           {field('Domicilio', 'domicilio')}
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, Briefcase, Heart, Phone } from '@phosphor-icons/react'
+import { User, Briefcase, Heart } from '@phosphor-icons/react'
+import PhoneInput from '../../components/common/PhoneInput'
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
@@ -98,17 +99,7 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
 
         <div>
           <label className="form-label">Teléfono (WhatsApp)</label>
-          <div className="relative">
-            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
-            <input
-              type="tel"
-              required
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
-              placeholder="+54 9 11 1234 5678"
-              className="form-input pl-9"
-            />
-          </div>
+          <PhoneInput required value={phone} onChange={setPhone} />
         </div>
 
         <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-2 disabled:opacity-40 disabled:cursor-not-allowed">
