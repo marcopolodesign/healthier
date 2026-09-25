@@ -41,19 +41,20 @@ const CONDICION_SIN_PRECIO = `
   )
 `
 
-// Espejo de la condición de `buscar_profesionales_cobrables` (migración 176):
-// verificado + activo + con Mercado Pago conectado es justamente a quién el
-// paciente puede buscar por nombre. Si alguien sin precio pasa este filtro,
-// el piso de la RPC se rompió.
+// Le pregunta a la RPC de verdad, no a una copia de su WHERE: una copia de la
+// condición da positivo con sólo que existan profesionales sin precio (que es
+// un estado válido), y no se entera si alguien cambia la función. Lo que
+// importa es qué devuelve el buscador.
 const SQL_COBRABLES_SIN_PRECIO = `
-  select p.email, p.full_name, pp.specialty, pp.price_video, pp.price_presencial, pp.session_price
-    from professional_profiles pp
-    join profiles p on p.id = pp.user_id
-   where pp.is_verified
-     and pp.is_active
-     and pp.mp_connected
-     and ${CONDICION_SIN_PRECIO}
-   order by p.email
+  select e->'profiles'->>'email' as email, e->'profiles'->>'full_name' as full_name,
+         e->>'specialty' as specialty, e->>'price_video' as price_video,
+         e->>'price_presencial' as price_presencial, e->>'session_price' as session_price
+    from jsonb_array_elements(public.buscar_profesionales_cobrables(null, null)) e
+   where not (
+     coalesce((e->>'price_video')::numeric, 0)      >= ${MINIMO}
+     or coalesce((e->>'price_presencial')::numeric, 0) >= ${MINIMO}
+     or coalesce((e->>'session_price')::numeric, 0)    >= ${MINIMO}
+   )
 `
 
 // Informativo: a quién hay que avisarle. Verificado + activo alcanza — no
