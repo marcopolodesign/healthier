@@ -159,12 +159,20 @@ function tienePrecio(pro) {
   return [pro.price_video, pro.price_presencial, pro.session_price].some(cumplePrecioMinimo)
 }
 
-// Sólo se marca para el verificado sin precio — es el único caso donde falta
-// algo que le impide aparecer en la búsqueda. Al no verificado no se le pide
-// todavía (regla de "a quién le llega", CLAUDE.md de website).
+// Los precios reales, no un "—": el super admin los tiene que ver a la hora de
+// verificar (Mateo, 2026-09-25). "Sin precio" se marca para verificados y
+// pendientes por igual — al pendiente es justo cuando conviene saberlo.
 function PrecioBadge({ pro }) {
-  if (tienePrecio(pro)) return <span className="text-xs text-gray-300">—</span>
-  if (!pro.is_verified) return <span className="text-xs text-gray-300">—</span>
+  if (tienePrecio(pro)) {
+    const video = pro.price_video ?? pro.session_price
+    const presencial = pro.price_presencial
+    return (
+      <div className="text-xs text-gray-700 leading-tight whitespace-nowrap">
+        {video ? <p>{formatARS(video)} <span className="text-gray-400">video</span></p> : null}
+        {presencial ? <p>{formatARS(presencial)} <span className="text-gray-400">pres.</span></p> : null}
+      </div>
+    )
+  }
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600"
           title="No tiene ningún precio cargado — no aparece en la búsqueda del paciente">
