@@ -386,26 +386,26 @@ export default function Emergency({ profile }) {
     }
   }
 
+  /**
+   * Cancelar. Qué pasa con la plata lo decide el servidor con el estado de la
+   * base en ese momento (mp-capture action=cancel-emergency): sin ambulancia
+   * asignada se libera la reserva; con ambulancia asignada se cobra igual
+   * (regla de Mateo, 2026-09-25). Acá sólo se avisa antes y se cuenta después.
+   */
   const handleCancel = async () => {
     if (!emergency?.id) return
     setCancelling(true)
-    try {
-      await emergencyService.cancel(emergency.id)
-      // Se libera la reserva de la tarjeta. No es una devolución: nunca se
-      // capturó nada, así que el banco suelta la retención solo. Si esto
-      // falla, la cancelación igual vale — la barrida de MP la libera sola
-      // al vencer — pero queda en el log para poder mirarlo.
-      if (emergency.paidAt) {
-        const { error } = await mpService.liberarEmergencia(emergency.id)
-        if (error) console.error('No se pudo liberar la reserva de la emergencia:', error)
-      }
-      toast.info('Emergencia cancelada — no se te cobró nada')
-      navigate('/paciente/dashboard')
-    } catch {
-      toast.error('No pudimos cancelar. Intentá de nuevo.')
+    const { data, error } = await mpService.cancelarEmergencia(emergency.id)
+    if (error) {
+      toast.error(error || 'No pudimos cancelar. Intentá de nuevo.')
       setCancelling(false)
       setShowCancelConfirm(false)
+      return
     }
+    toast.info(data?.cobrado
+      ? `Emergencia cancelada — se cobró el servicio${data.monto ? ` ($${data.monto})` : ''}`
+      : 'Emergencia cancelada — no se te cobró nada')
+    navigate('/paciente/dashboard')
   }
 
   // ── Loading — resuming state, keep it invisible/instant ──────────────────
@@ -486,7 +486,7 @@ export default function Emergency({ profile }) {
             <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
             <p className="text-[13px] text-emerald-800 leading-snug">
               Reservamos ${emergency.priceAtRequest ?? sosSettings?.price ?? SOS_FALLBACK.price} en tu tarjeta.
-              Se cobra sólo si la ambulancia sale.
+              Podés cancelar sin cargo hasta que se asigne una ambulancia.
             </p>
           </div>
 
@@ -509,8 +509,8 @@ export default function Emergency({ profile }) {
           <div className="px-6 pt-2 pb-8">
             <h2 className="text-[20px] font-light text-gray-900 mb-2 text-center leading-tight">¿Cancelar el pedido?</h2>
             <p className="text-gray-500 text-[14px] text-center mb-7 leading-snug">
-              Todavía no salió ningún móvil. Liberamos lo que reservamos en tu tarjeta —
-              no se te cobra nada.
+              Todavía no se asignó ninguna ambulancia. Liberamos lo que reservamos en tu
+              tarjeta — no se te cobra nada.
             </p>
             <div className="flex flex-col gap-3">
               <button onClick={handleCancel} disabled={cancelling} className="btn-danger w-full py-4 text-[15px]">
@@ -678,12 +678,21 @@ export default function Emergency({ profile }) {
                   <PhoneCall className="h-5 w-5 text-danger" /> Si empeora, llamá al {SAME_PHONE}
                 </a>
               )}
-              <button
-                onClick={() => setShowCancelConfirm(true)}
-                className="w-full py-3.5 rounded-[20px] font-semibold text-danger hover:bg-danger/5 transition-colors"
-              >
-                Cancelar S.O.S
-              </button>
+              {/* Con la ambulancia en el lugar ya no se cancela: el servidor
+                  contesta 409. Se saca el botón en vez de dejar que falle. */}
+              {emergency.status !== 'arrived' && (
+                <>
+                  <button
+                    onClick={() => setShowCancelConfirm(true)}
+                    className="w-full py-3.5 rounded-[20px] font-semibold text-danger hover:bg-danger/5 transition-colors"
+                  >
+                    Cancelar S.O.S
+                  </button>
+                  <p className="text-[12px] text-gray-500 text-center leading-snug">
+                    La ambulancia ya está asignada: si cancelás, se cobra igual el servicio.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -691,12 +700,16 @@ export default function Emergency({ profile }) {
         <PatientSheet open={showCancelConfirm} onClose={() => setShowCancelConfirm(false)} maxWidth="max-w-md">
           <div className="px-6 pt-2 pb-8">
             <h2 className="text-[20px] font-light text-gray-900 mb-2 text-center leading-tight">¿Cancelar la emergencia?</h2>
-            <p className="text-gray-500 text-[14px] text-center mb-7 leading-snug">
+            <p className="text-gray-700 text-[14px] text-center mb-2 leading-snug">
+              <span className="font-semibold">La ambulancia ya está asignada: si cancelás, se te cobra igual el servicio</span>
+              {' '}(${emergency.priceAtRequest ?? sosSettings?.price ?? SOS_FALLBACK.price}).
+            </p>
+            <p className="text-gray-500 text-[13px] text-center mb-7 leading-snug">
               La ambulancia va a dejar de estar en camino hacia vos.
             </p>
             <div className="flex flex-col gap-3">
               <button onClick={handleCancel} disabled={cancelling} className="btn-danger w-full py-4 text-[15px]">
-                {cancelling ? 'Cancelando…' : 'Sí, cancelar'}
+                {cancelling ? 'Cancelando…' : 'Cancelar y pagar el servicio'}
               </button>
               <button onClick={() => setShowCancelConfirm(false)} className="btn-secondary w-full py-4 text-[15px]">
                 Seguir esperando
@@ -760,7 +773,7 @@ export default function Emergency({ profile }) {
               <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
               <p className="text-[13px] text-emerald-800 leading-snug">
                 <span className="font-semibold">Reservamos ${precio} en tu tarjeta, no te lo cobramos todavía.</span>{' '}
-                Se cobra sólo si la ambulancia sale. Si cancelás antes, liberamos la reserva.
+                Podés cancelar sin cargo hasta que se asigne una ambulancia. Después de asignada, si cancelás se cobra igual.
               </p>
             </div>
 
