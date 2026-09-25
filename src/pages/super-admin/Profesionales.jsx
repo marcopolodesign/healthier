@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   MagnifyingGlass, ShieldCheck, X, ArrowSquareOut, Warning,
   CircleNotch, Check, IdentificationCard, FileText, ShieldWarning,
   ShieldSlash, User, Pencil, UploadSimple, ClockCounterClockwise, XCircle,
-  Clock, Trash, Camera, ArrowsClockwise,
+  Clock, Trash, Camera, ArrowsClockwise, CurrencyDollar,
 } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
@@ -15,7 +15,8 @@ import { professionalService, ON_DEMAND_PRESENCE_TTL_MS } from '../../services/p
 import { profilesService } from '../../services/profilesService'
 import { paymentsService } from '../../services/paymentsService'
 import { adminService } from '../../services/adminService'
-import { formatSettlementPlazo } from '../../lib/format'
+import { formatSettlementPlazo, formatARS } from '../../lib/format'
+import { cumplePrecioMinimo } from '../../lib/tarifas'
 import { CAMPOS_SENSIBLES } from '../../lib/reverificacion'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
@@ -148,6 +149,103 @@ function valorLegible(campo, valor, porSlug) {
   return String(valor)
 }
 
+/**
+ * `true` si el profesional tiene al menos un precio cargado y por encima del
+ * piso — mismo criterio que `professionalService.search()`/`getDashboardPool()`
+ * y la RPC `buscar_profesionales_cobrables` (migración 176): si esto da
+ * `false`, no aparece en la búsqueda del paciente aunque esté verificado.
+ */
+function tienePrecio(pro) {
+  return [pro.price_video, pro.price_presencial, pro.session_price].some(cumplePrecioMinimo)
+}
+
+// Sólo se marca para el verificado sin precio — es el único caso donde falta
+// algo que le impide aparecer en la búsqueda. Al no verificado no se le pide
+// todavía (regla de "a quién le llega", CLAUDE.md de website).
+function PrecioBadge({ pro }) {
+  if (tienePrecio(pro)) return <span className="text-xs text-gray-300">—</span>
+  if (!pro.is_verified) return <span className="text-xs text-gray-300">—</span>
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600"
+          title="No tiene ningún precio cargado — no aparece en la búsqueda del paciente">
+      Sin precio
+    </span>
+  )
+}
+
+// ── Cuentas duplicadas (Mateo, 2026-09-25) ──────────────────────────────────
+//
+// Caso real: Federico Beber se registró con dos cuentas de Google
+// (fedebeber@gmail.com y federicob.psi@gmail.com), las dos con la matrícula
+// 191860, y el super admin las aprobó a las dos sin tener forma de verlo —
+// nada en el drawer ni en la lista lo hubiera avisado.
+//
+// Dos señales, cualquiera alcanza: la misma matrícula (comparando sin
+// espacios ni puntos — "191.860" y "191 860" son la misma) o el mismo nombre
+// completo (sin acentos, en minúsculas). Se resuelve con los datos que la
+// lista YA carga (`fetchData` de más abajo trae `license_number` y
+// `profiles.full_name` de TODOS los profesionales) — no hace falta una query
+// nueva por fila ni al abrir el drawer.
+function normalizarMatricula(v) {
+  return (v ?? '').replace(/[\s.]/g, '').toLowerCase()
+}
+function normalizarNombre(v) {
+  return (v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, ' ')
+}
+
+/**
+ * `professionals` → Map(professional_profiles.id → [{ pro, porMatricula, porNombre }]).
+ * Cada entrada son las OTRAS cuentas con las que ese profesional comparte
+ * matrícula y/o nombre. Vacío/ausente = sin duplicados.
+ */
+function calcularDuplicados(professionals) {
+  const porMatricula = new Map()
+  const porNombre = new Map()
+  for (const p of professionals) {
+    const mat = normalizarMatricula(p.license_number)
+    if (mat) {
+      if (!porMatricula.has(mat)) porMatricula.set(mat, [])
+      porMatricula.get(mat).push(p)
+    }
+    const nom = normalizarNombre(p.profiles?.full_name)
+    if (nom) {
+      if (!porNombre.has(nom)) porNombre.set(nom, [])
+      porNombre.get(nom).push(p)
+    }
+  }
+
+  const resultado = new Map()
+  for (const p of professionals) {
+    const mat = normalizarMatricula(p.license_number)
+    const nom = normalizarNombre(p.profiles?.full_name)
+    const otros = new Map()
+    if (mat && porMatricula.get(mat).length > 1) {
+      for (const o of porMatricula.get(mat)) {
+        if (o.id === p.id) continue
+        otros.set(o.id, { pro: o, porMatricula: true, porNombre: !!otros.get(o.id)?.porNombre })
+      }
+    }
+    if (nom && porNombre.get(nom).length > 1) {
+      for (const o of porNombre.get(nom)) {
+        if (o.id === p.id) continue
+        const previo = otros.get(o.id)
+        otros.set(o.id, { pro: o, porMatricula: !!previo?.porMatricula, porNombre: true })
+      }
+    }
+    if (otros.size) resultado.set(p.id, [...otros.values()])
+  }
+  return resultado
+}
+
+function DuplicadoBadge({ tiene }) {
+  if (!tiene) return null
+  return (
+    <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-800">
+      Duplicado
+    </span>
+  )
+}
+
 // ── Status badges ─────────────────────────────────────────────────────────────
 
 // Antes esto era binario (Verificado / Pendiente): un profesional rechazado
@@ -264,7 +362,7 @@ function SisaBadge({ status }) {
 
 // ── Detail drawer ─────────────────────────────────────────────────────────────
 
-function ProfessionalDrawer({ pro, onClose, onUpdated }) {
+function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
   const { porSlug } = useEspecialidades()
   const [detail, setDetail] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -554,6 +652,34 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
                 </div>
               </div>
 
+              {/* Tarifas — mismo criterio que `PrecioBadge`/`tienePrecio` (migración
+                  176): si ninguno de los tres llega al piso de $15.000, no
+                  aparece en la búsqueda del paciente aunque esté verificado. */}
+              <div className="rounded-xl border border-gray-200 px-4 py-3 flex items-start gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${tienePrecio(d ?? {}) ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                  <CurrencyDollar className={`h-4 w-4 ${tienePrecio(d ?? {}) ? 'text-emerald-600' : 'text-red-500'}`} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-800">
+                    Tarifas: {tienePrecio(d ?? {}) ? 'Cargadas' : 'Sin cargar'}
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 mt-1.5 text-xs">
+                    <div>
+                      <p className="text-gray-400">Videollamada</p>
+                      <p className="font-medium text-gray-700">{d?.price_video ? formatARS(d.price_video) : <span className="text-amber-600">Sin cargar</span>}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Presencial</p>
+                      <p className="font-medium text-gray-700">{d?.price_presencial ? formatARS(d.price_presencial) : <span className="text-amber-600">Sin cargar</span>}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Genérico</p>
+                      <p className="font-medium text-gray-700">{d?.session_price ? formatARS(d.session_price) : <span className="text-amber-600">Sin cargar</span>}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Credenciales — DNI + Matrícula */}
               <div className="rounded-xl border border-gray-200 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
@@ -812,6 +938,38 @@ function ProfessionalDrawer({ pro, onClose, onUpdated }) {
         {/* Footer actions */}
         {!loading && (
           <div className="p-4 border-t border-gray-100 space-y-2">
+            {/* Duplicados — se muestra SIEMPRE que hay otra cuenta con la misma
+                matrícula o el mismo nombre, esté o no ya verificado: el caso
+                real (Federico Beber) eran dos cuentas YA aprobadas, así que
+                frenar el aviso sólo para el pendiente lo hubiera escondido
+                justo donde hacía falta. */}
+            {duplicados.map(({ pro: otro, porMatricula, porNombre }) => {
+              const otroNombre = otro.profiles?.full_name ?? '—'
+              const otroEmail = otro.profiles?.email ?? '—'
+              const motivo = porMatricula && porNombre ? 'esta matrícula y este nombre'
+                : porMatricula ? 'esta matrícula' : 'este nombre'
+              return (
+                <div key={otro.id} className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-800">
+                  <Warning className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    Ya hay otra cuenta con {motivo}: <strong>{otroNombre}</strong> ({otroEmail},{' '}
+                    {otro.is_verified ? 'verificada' : 'sin verificar'}, {otro.is_active ? 'activa' : 'inactiva'})
+                  </span>
+                </div>
+              )
+            })}
+            {/* Aviso ANTES del botón de aprobar, no después — es lo que hay
+                que saber antes de decidir, no una consecuencia a descubrir
+                después de haber aprobado. */}
+            {!d?.is_verified && d && !tienePrecio(d) && (
+              <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                <Warning className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>
+                  No tiene precio cargado: aunque lo apruebes, no va a aparecer en la búsqueda hasta
+                  que lo cargue. Le avisamos por mail al aprobarlo.
+                </span>
+              </div>
+            )}
             {!d?.is_verified ? (
               <button type="button" onClick={handleManualApprove} disabled={approving}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-60">
@@ -882,7 +1040,7 @@ export default function SuperAdminProfesionales() {
       const [profResult, consultResult] = await Promise.all([
         supabase
           .from('professional_profiles')
-          .select('id, specialty, is_verified, verification_source, sisa_status, mp_connected, mp_account_label, has_signature, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, profiles!user_id(id, full_name, email, phone, created_at, utm_source, avatar_url)')
+          .select('id, specialty, is_verified, is_active, verification_source, sisa_status, mp_connected, mp_account_label, has_signature, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, price_video, price_presencial, session_price, license_number, profiles!user_id(id, full_name, email, phone, created_at, utm_source, avatar_url)')
           .order('created_at', { ascending: false }),
         supabase.from('consultations').select('professional_id'),
       ])
@@ -904,6 +1062,11 @@ export default function SuperAdminProfesionales() {
   }
 
   useEffect(() => { fetchData() }, [])
+
+  // Recalcula sólo cuando cambia la lista (fetchData la vuelve a traer entera
+  // después de cualquier acción del drawer, `onUpdated` más abajo) — no en
+  // cada render ni en cada tecla del buscador.
+  const duplicadosPorId = useMemo(() => calcularDuplicados(professionals), [professionals])
 
   const filtered = professionals.filter(p => {
     if (filter === 'verificados' && !p.is_verified) return false
@@ -996,6 +1159,7 @@ export default function SuperAdminProfesionales() {
                 <th className="table-header">Estado</th>
                 <th className="table-header">SISA</th>
                 <th className="table-header">MP</th>
+                <th className="table-header">Precio</th>
                 <th className="table-header">Firma</th>
                 <th className="table-header">Inmediata</th>
                 <th className="table-header">Rating</th>
@@ -1017,7 +1181,7 @@ export default function SuperAdminProfesionales() {
                         </div>
                       </div>
                     </td>
-                    {Array.from({ length: 8 }).map((_, j) => (
+                    {Array.from({ length: 9 }).map((_, j) => (
                       <td key={j} className="table-cell">
                         <div className="h-3 w-16 bg-gray-200 rounded animate-pulse" />
                       </td>
@@ -1026,7 +1190,7 @@ export default function SuperAdminProfesionales() {
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-16 text-center">
+                  <td colSpan={13} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-3 text-gray-400">
                       <User size={40} weight="thin" />
                       <p className="text-sm">No se encontraron profesionales</p>
@@ -1066,6 +1230,9 @@ export default function SuperAdminProfesionales() {
                                   Prueba
                                 </span>
                               )}
+                              {/* Misma matrícula u mismo nombre que otra cuenta (Federico
+                                  Beber, 2026-09-25) — ver `calcularDuplicados` más arriba. */}
+                              <DuplicadoBadge tiene={duplicadosPorId.has(pro.id)} />
                             </div>
                             <p className="text-xs text-gray-400 truncate">{email}</p>
                           </div>
@@ -1098,6 +1265,9 @@ export default function SuperAdminProfesionales() {
                             </div>
                           )
                           : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600">Sin conectar</span>}
+                      </td>
+                      <td className="table-cell">
+                        <PrecioBadge pro={pro} />
                       </td>
                       {/* Firma para las recetas. Es el booleano
                           `professional_profiles.has_signature` (migración 154),
@@ -1165,6 +1335,7 @@ export default function SuperAdminProfesionales() {
       {selected && (
         <ProfessionalDrawer
           pro={selected}
+          duplicados={duplicadosPorId.get(selected.id) ?? []}
           onClose={() => setSelected(null)}
           onUpdated={() => {
             fetchData()
