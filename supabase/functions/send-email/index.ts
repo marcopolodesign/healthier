@@ -395,6 +395,9 @@ Deno.serve(async (req) => {
       case 'pro-observado':
         return await porUsuario(u => T.profesionalObservado({ name: u.full_name ?? 'profesional', motivo: body.motivo ?? null }))
 
+      case 'precio-pendiente':
+        return await porUsuario(u => T.profesionalSinPrecio({ name: u.full_name ?? 'profesional' }))
+
       default:
         return json({ error: `Tipo desconocido: ${tipo}` }, 400)
     }

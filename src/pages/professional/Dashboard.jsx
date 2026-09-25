@@ -14,6 +14,7 @@ import StatusBadge from '../../components/StatusBadge'
 import ProfileCompletenessCard from '../../components/professional/ProfileCompletenessCard'
 import TourProfesional from '../../components/professional/TourProfesional'
 import { atiendePresencial } from '../../lib/profileCompleteness'
+import { cumplePrecioMinimo } from '../../lib/tarifas'
 import { CAMPOS_SENSIBLES, enumerarCampos } from '../../lib/reverificacion'
 import { ID_CONSULTA as ID_SIMULACION } from '../../lib/simulacion'
 import ReferralLinkCard from '../../components/professional/ReferralLinkCard'
@@ -573,6 +574,39 @@ export default function ProfessionalDashboard({ profile }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Sin ningún precio cargado (migración 176): igual de urgente que el
+          banner de Mercado Pago de más abajo — no es una advertencia, es la
+          razón por la que no le está entrando ninguna consulta nueva. Va antes
+          de la tarjeta de práctica y no en el checklist general (que a un
+          verificado no se le muestra, 2026-08-21): éste es el mismo patrón
+          puntual que el aviso de dirección del consultorio, pero en rojo
+          porque acá no es "no aparecés en el mapa", es "no aparecés en NINGUNA
+          búsqueda" — la base lo saca del listado (`buscar_profesionales_cobrables`
+          y `professionalService.search`/`getDashboardPool`, las tres con el
+          mismo piso de $15.000 que el checklist y la migración 142). */}
+      {!loading && profProfile?.isVerified && ![
+        profProfile?.pricePresencial, profProfile?.priceVideo, profProfile?.sessionPrice,
+      ].some(cumplePrecioMinimo) && (
+        <Link
+          to="/profesional/configuracion?tab=tarifas"
+          className="card flex items-center gap-4 border-red-300 bg-red-50 hover:border-red-400 transition-colors group"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-white border border-red-200 flex items-center justify-center shrink-0">
+            <CurrencyDollar className="h-6 w-6 text-red-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-red-700 font-bold uppercase tracking-wide">Acción requerida</p>
+            <p className="text-base font-semibold text-text-primary mt-0.5">Cargá tu precio de consulta</p>
+            <p className="text-xs text-text-secondary mt-0.5">
+              No aparecés en las búsquedas de pacientes hasta que lo cargues.
+            </p>
+          </div>
+          <div className="flex items-center gap-1 text-red-600 text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">
+            Cargar <ArrowRight className="h-4 w-4" />
+          </div>
+        </Link>
       )}
 
       {/* Antes se mostraba sólo al que no había atendido a nadie. Ahora se
