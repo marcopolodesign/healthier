@@ -147,7 +147,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         return
       }
       try {
-        await profilesService.update(profile.id, {
+        const guardado = await profilesService.update(profile.id, {
           full_name: userData.nombre,
           phone: userData.telefono,
           address: userData.domicilio,
@@ -162,7 +162,12 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           emergency_phone: userData.emergenciaTelefono,
           emergency_rel: userData.emergenciaVinculo,
         })
-        if (onProfileUpdate) onProfileUpdate({ ...profile, fullName: userData.nombre })
+        // Se propaga la fila que devolvió la base, entera. Antes se mandaba
+        // `{ ...profile, fullName }`: el efecto de arriba repintaba con ese
+        // perfil viejo al salir de edición, y teléfono, DNI, obra social y el
+        // resto volvían a "—" hasta recargar aunque estuvieran guardados
+        // (2026-09-25). Control: tests/e2e/perfil-paciente.spec.js.
+        if (onProfileUpdate) onProfileUpdate(guardado)
         toast.success('Perfil actualizado')
       } catch {
         toast.error('Error al guardar perfil')
