@@ -576,6 +576,30 @@ export function profesionalObservado(pr: { name: string; motivo: string | null }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 10bis · Verificado, pero sin precio de consulta cargado (migración 176)
+// ═══════════════════════════════════════════════════════════════════════════
+// El piso es $15.000 (`validar_piso_precio_consulta`, migración 142, y
+// `PRECIO_MINIMO` en website/src/lib/tarifas.js) — se repite acá a mano
+// porque esta función corre en Deno, sin acceso al bundle del front. Si el
+// número cambia, cambia en los tres lugares.
+export function profesionalSinPrecio(pr: { name: string }): Sent {
+  const body = [
+    p(`Hola <strong style="color:${C.ink}">${esc(pr.name)}</strong>, tu perfil ya está verificado, pero todavía no cargaste el precio de tu consulta — así que por ahora no aparecés en las búsquedas de los pacientes.`),
+    p(`Es un paso rápido: el mínimo por consulta, presencial o por videollamada, es ${money(15000)}. En cuanto lo cargues quedás visible al instante.`),
+    button(`${APP_URL}/profesional/configuracion?tab=tarifas`, 'Cargar mi precio', 'amber'),
+  ].join('')
+
+  return {
+    subject: 'Te falta un paso para aparecer en las búsquedas',
+    html: renderEmail({
+      preheader: `Cargá tu precio de consulta (mínimo ${money(15000)}) para que los pacientes te encuentren.`,
+      eyebrow: 'Tarifas', accent: 'amber',
+      title: 'Cargá tu precio de consulta', body,
+    }),
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 11 · Receta electrónica emitida
 // ═══════════════════════════════════════════════════════════════════════════
 export function recetaEmitida(r: { patientName: string; professionalName: string; medicamentos: string[]; pdfUrl: string | null; prescriptionId: string }): Sent {

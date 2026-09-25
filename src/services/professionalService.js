@@ -2,6 +2,7 @@ import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 import { veProfesionalesDePrueba } from '../lib/featureFlags'
 import { aBlobSubible, extensionDe, TIPOS_DOCUMENTO } from '../lib/archivoSubible'
 import { subirConProgreso } from '../lib/subidaConProgreso'
+import { PRECIO_MINIMO } from '../lib/tarifas'
 
 /**
  * Esconde los profesionales de prueba (`solo_pruebas`, migración 153) de las
@@ -28,6 +29,24 @@ async function ocultaDePrueba() {
 async function filtrarDePrueba(filas) {
   if (!(await ocultaDePrueba())) return filas
   return (filas ?? []).filter((f) => !f.solo_pruebas)
+}
+
+/**
+ * Excluye del lado del servidor a quien no tiene NINGÚN precio cargado
+ * (`price_video`, `price_presencial`, `session_price` los tres `null` o por
+ * debajo del piso). Mateo, 2026-09-25: sin precio no se le puede reservar
+ * turno — hoy en producción hay verificados y activos así (Pogonza,
+ * Weyermann, Oviedo, Zaidman) y aparecen en la app cobrando "$0". `null` es
+ * un estado válido ("todavía no lo cargó", migración 142), así que esto no es
+ * un chequeo de integridad: es sólo de *listado*, igual que `filtrarDePrueba`.
+ *
+ * NO se aplica al pool on-demand (`filters.onDemand`): ahí cobra el precio de
+ * plataforma (`vertical_settings.ondemand_price`), no el del profesional.
+ */
+function conPrecioCargado(query) {
+  return query.or(
+    `price_video.gte.${PRECIO_MINIMO},price_presencial.gte.${PRECIO_MINIMO},session_price.gte.${PRECIO_MINIMO}`
+  )
 }
 
 /**
@@ -154,6 +173,9 @@ export const professionalService = {
       .eq('is_verified', true)
       .eq('is_active', true)
     if (ocultar) query = query.eq('solo_pruebas', false)
+    // Son los marcadores del mapa del paciente: mostrar a alguien sin precio
+    // ahí es prometerle un profesional al que después no le puede reservar.
+    query = conPrecioCargado(query)
     const { data, error } = await query.order('average_rating', { ascending: false })
     if (error) throw error
     return toCamelCase(data)
@@ -167,6 +189,12 @@ export const professionalService = {
       .eq('is_verified', true)
       .eq('is_active', true)
     if (ocultar) query = query.eq('solo_pruebas', false)
+    // El on-demand cobra el precio de PLATAFORMA (`vertical_settings.ondemand_price`),
+    // no el del profesional — así que un profesional sin precio propio cargado
+    // igual puede atender consultas inmediatas y no se lo puede excluir acá.
+    if (!filters.onDemand) {
+      query = conPrecioCargado(query)
+    }
 
     if (filters.specialty) {
       query = query.eq('specialty', filters.specialty)
