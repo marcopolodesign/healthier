@@ -271,7 +271,19 @@ export default function App() {
     init()
 
     // Auth state listener
-    const { data: { subscription } } = authService.onAuthStateChange(async (event, session) => {
+    //
+    // 🔴 Nada de `await` a Supabase adentro del callback. supabase-js lo llama
+    // con el candado de la sesión tomado (p. ej. al volver la pestaña a primer
+    // plano dispara SIGNED_IN desde adentro del candado), y cualquier consulta
+    // que se espere acá pide ese mismo candado: se cuelga todo, para siempre
+    // —login, `updateUser`, todas las queries—. Pasaba al abrir un link de
+    // "restablecer contraseña" con el perfil cacheado de otra cuenta
+    // (2026-09-27): el guardado quedaba en "Guardando..." sin error. El trabajo
+    // va en un setTimeout, que es lo que recomienda Supabase.
+    const { data: { subscription } } = authService.onAuthStateChange((event, session) => {
+      setTimeout(() => manejarCambioDeSesion(event, session), 0)
+    })
+    const manejarCambioDeSesion = async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         try {
           const p = await authService.getCurrentUserProfile(session.user.id, { onFresh: setProfile })
@@ -310,7 +322,7 @@ export default function App() {
         setAuthUser(null)
         setProfSpecialty(null)
       }
-    })
+    }
     return () => subscription.unsubscribe()
   }, [])
 
