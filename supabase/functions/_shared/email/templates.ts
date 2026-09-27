@@ -661,6 +661,13 @@ export function authMagicLink(): string {
   })
 }
 
+// 🔴 Con token_hash, NO con `{{ .ConfirmationURL }}`. Con PKCE el code verifier
+// queda en el dispositivo que pidió el mail: si lo pidió la app y se abre en la
+// web (o al revés), el canje falla. `/restablecer-contrasena` hace
+// `verifyOtp({ token_hash, type: 'recovery' })`, que anda desde cualquier lado.
+// Lo controla `scripts/verificar-recuperar-contrasena.mjs`.
+const RECUPERACION_URL = '{{ .SiteURL }}/restablecer-contrasena?token_hash={{ .TokenHash }}&type=recovery'
+
 export function authRecuperacion(): string {
   return authDoc({
     preheader: 'Elegí una contraseña nueva para tu cuenta de Healthier.',
@@ -668,8 +675,8 @@ export function authRecuperacion(): string {
     title: 'Cambiá tu contraseña',
     body: [
       p('Pediste recuperar el acceso a tu cuenta. Tocá el botón para elegir una contraseña nueva.'),
-      button('{{ .ConfirmationURL }}', 'Elegir contraseña nueva', 'sage'),
-      p(fallbackLink),
+      button(RECUPERACION_URL, 'Elegir contraseña nueva', 'sage'),
+      p(fallbackLink.replace('{{ .ConfirmationURL }}', RECUPERACION_URL)),
     ].join(''),
     footnote: 'El enlace vence en una hora. Si no pediste el cambio, ignorá este mail: tu contraseña actual sigue funcionando.',
   })

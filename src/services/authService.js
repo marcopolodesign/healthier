@@ -195,4 +195,54 @@ export const authService = {
   onAuthStateChange(callback) {
     return supabase.auth.onAuthStateChange(callback)
   },
+
+  // ── Recuperar contraseña ────────────────────────────────
+  //
+  // El mail de recuperación NO usa `{{ .ConfirmationURL }}`: con PKCE el
+  // code verifier queda guardado en el dispositivo que pidió el mail, así que
+  // un pedido hecho desde la app no se podía canjear en la web. La plantilla
+  // (`authRecuperacion` en `_shared/email/templates.ts`) arma
+  // `/restablecer-contrasena?token_hash=...&type=recovery`, y `verifyOtp` con
+  // ese token_hash anda desde cualquier dispositivo. Por eso acá no se pasa
+  // `redirectTo`: el destino lo fija la plantilla con `{{ .SiteURL }}`.
+
+  async requestPasswordReset(email) {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim())
+    if (error) throw new Error(traducirErrorDeAuth(error))
+  },
+
+  async verifyRecoveryToken(tokenHash) {
+    const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+    if (error) {
+      // Vencido, ya usado o mal copiado: GoTrue responde `otp_expired` o
+      // "Token has expired or is invalid". La pantalla ofrece pedir otro mail.
+      const vencido = error.code === 'otp_expired' || /expired|invalid/i.test(error.message || '')
+      const err = new Error(vencido ? 'El enlace venció o ya se usó.' : traducirErrorDeAuth(error))
+      err.vencido = vencido
+      throw err
+    }
+    return data.session
+  },
+
+  async updatePassword(password) {
+    const { data, error } = await supabase.auth.updateUser({ password })
+    if (error) throw new Error(traducirErrorDeAuth(error))
+    return data.user
+  },
+}
+
+// Los mensajes de GoTrue vienen en inglés. Se traducen los que la persona
+// puede resolver; el resto se muestra tal cual — nunca un error mudo.
+function traducirErrorDeAuth(error) {
+  const code = error?.code || ''
+  const msg = error?.message || 'Error desconocido'
+  if (code === 'over_email_send_rate_limit' || /rate limit|only request this after/i.test(msg)) {
+    return 'Pediste demasiados mails en poco tiempo. Esperá unos minutos y probá de nuevo.'
+  }
+  if (code === 'same_password') return 'La contraseña nueva tiene que ser distinta de la anterior.'
+  if (code === 'weak_password') return 'La contraseña es muy débil. Usá al menos 6 caracteres.'
+  if (code === 'session_not_found' || /auth session missing/i.test(msg)) {
+    return 'Tu sesión para cambiar la contraseña venció. Pedí otro mail.'
+  }
+  return msg
 }

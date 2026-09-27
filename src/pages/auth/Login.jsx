@@ -125,6 +125,11 @@ export default function Login({ onLogin }) {
               className="form-input pl-9"
             />
           </div>
+          <div className="text-right mt-2">
+            <Link to="/recuperar-contrasena" className="text-sm text-brand font-medium hover:underline">
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </div>
         </div>
 
         <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-2">
