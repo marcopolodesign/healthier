@@ -72,7 +72,10 @@ if (!anon || !service) {
   mal('no se pudieron leer las claves del proyecto')
 } else {
   const admin = createClient(entorno.url, service, { auth: { persistSession: false, autoRefreshToken: false } })
-  const email = `qa-recuperar-${Date.now()}@healthier-pruebas.com`
+  // Crear la cuenta dispara el mail de bienvenida (trigger de profiles). Va a
+  // la casilla sumidero de Resend, que lo acepta sin rebotar: un dominio
+  // inventado rebotaría en cada corrida y le baja la reputación al remitente.
+  const email = `delivered+recuperar-${Date.now()}@resend.dev`
   const vieja = `Vieja-${Math.random().toString(36).slice(2, 10)}`
   const nueva = `Nueva-${Math.random().toString(36).slice(2, 10)}`
   let userId = null
