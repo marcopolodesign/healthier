@@ -33,6 +33,8 @@ const ENTIDADES: Record<string, string> = {
  * puede cambiar. Se muestran por lo que son.
  */
 const PLACEHOLDERS: Array<[RegExp, string]> = [
+  // El de recuperación arma su propio link con token_hash (ver authRecuperacion).
+  [/\{\{\s*\.SiteURL\s*\}\}\/restablecer-contrasena\?\S*?\{\{\s*\.TokenHash\s*\}\}[^"'<\s]*/g, '[acá va el enlace]'],
   [/\{\{\s*\.ConfirmationURL\s*\}\}/g, '[acá va el enlace]'],
   [/\{\{\s*\.Token\s*\}\}/g, '[acá va el código]'],
   [/\{\{\s*\.NewEmail\s*\}\}/g, '[el correo nuevo]'],
