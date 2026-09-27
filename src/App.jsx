@@ -32,6 +32,8 @@ import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
 import RegisterProfessional from './pages/auth/RegisterProfessional'
 import CompleteProfile from './pages/auth/CompleteProfile'
+import RecuperarContrasena from './pages/auth/RecuperarContrasena'
+import RestablecerContrasena from './pages/auth/RestablecerContrasena'
 import TerminosYCondiciones from './pages/TerminosYCondiciones'
 import ReferralLanding from './pages/ReferralLanding'
 
@@ -120,23 +122,9 @@ import DespachoMapa from './pages/dispatch/Mapa'
 import DespachoAmbulancias from './pages/dispatch/Ambulancias'
 import DespachoConfiguracion from './pages/dispatch/Configuracion'
 import { tomarDestinoPostRegistro } from './lib/postSignupRedirect'
+import { ROLE_REDIRECTS } from './lib/roleRedirects'
 
 // ── Role guards ──────────────────────────────────────────
-const ROLE_REDIRECTS = {
-  patient: '/paciente/dashboard',
-  professional: '/profesional/dashboard',
-  admin: '/admin/profesionales',
-  super_admin: '/super-admin/dashboard',
-  pharmacy_admin: '/farmacia/pedidos',
-  pharmacy_operator: '/farmacia/pedidos',
-  pharmacy_readonly: '/farmacia/pedidos',
-  emergency_admin: '/despacho',
-  emergency_operator: '/despacho',
-  // La tripulación sin matrícula (chofer, enfermero). Su pantalla real es la
-  // app, pero desde la web tiene que caer en el traslado que le toca y no en
-  // la landing de marketing.
-  emergency_crew: '/profesional/emergencias',
-}
 
 // Ver el comentario de la ruta `/paciente/agendar/:id`.
 function RedirectToProfesional() {
@@ -182,6 +170,11 @@ function AuthRedirectHandler({ profile, authUser }) {
     // user gets stranded on the public landing page looking logged out while
     // actually holding a live session with no profile (reported 2026-08-03,
     // repro'd locally: authUser set, profile null, stuck on "/").
+    // En /restablecer-contrasena la sesión aparece al canjear el token del mail,
+    // ANTES de que la persona elija la contraseña nueva. Ningún redirect puede
+    // sacarla de ahí a mitad del cambio.
+    if (location.pathname === '/restablecer-contrasena') return
+
     if (needsCompletion) {
       if (location.pathname !== '/completar-registro') {
         navigate('/completar-registro', { replace: true })
@@ -278,7 +271,19 @@ export default function App() {
     init()
 
     // Auth state listener
-    const { data: { subscription } } = authService.onAuthStateChange(async (event, session) => {
+    //
+    // 🔴 Nada de `await` a Supabase adentro del callback. supabase-js lo llama
+    // con el candado de la sesión tomado (p. ej. al volver la pestaña a primer
+    // plano dispara SIGNED_IN desde adentro del candado), y cualquier consulta
+    // que se espere acá pide ese mismo candado: se cuelga todo, para siempre
+    // —login, `updateUser`, todas las queries—. Pasaba al abrir un link de
+    // "restablecer contraseña" con el perfil cacheado de otra cuenta
+    // (2026-09-27): el guardado quedaba en "Guardando..." sin error. El trabajo
+    // va en un setTimeout, que es lo que recomienda Supabase.
+    const { data: { subscription } } = authService.onAuthStateChange((event, session) => {
+      setTimeout(() => manejarCambioDeSesion(event, session), 0)
+    })
+    const manejarCambioDeSesion = async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         try {
           const p = await authService.getCurrentUserProfile(session.user.id, { onFresh: setProfile })
@@ -317,7 +322,7 @@ export default function App() {
         setAuthUser(null)
         setProfSpecialty(null)
       }
-    })
+    }
     return () => subscription.unsubscribe()
   }, [])
 
@@ -387,6 +392,11 @@ export default function App() {
           <Route path="/registro" element={<Register onLogin={handleLogin} />} />
           <Route path="/registro-profesional" element={<RegisterProfessional onLogin={handleLogin} />} />
           <Route path="/completar-registro" element={<CompleteProfile authUser={authUser} onProfileComplete={handleProfileComplete} />} />
+          {/* Recuperar contraseña. Públicas y fuera de AUTH_PATHS: quien ya tiene
+              sesión igual puede pedir el mail, y la segunda tiene que quedarse
+              quieta aunque aparezca una sesión (ver AuthRedirectHandler). */}
+          <Route path="/recuperar-contrasena" element={<RecuperarContrasena />} />
+          <Route path="/restablecer-contrasena" element={<RestablecerContrasena onLogin={handleLogin} />} />
         </Route>
 
         {/* Patient — mobile shell */}
