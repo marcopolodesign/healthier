@@ -712,9 +712,11 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
                 </div>
               </div>
 
-              {/* Credenciales — DNI + Matrícula */}
-              <div className="rounded-xl border border-gray-200 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
+              {/* Credenciales y datos para recetar. Sin overflow-hidden: las
+                  sugerencias de la dirección se abren hacia abajo y quedaban
+                  cortadas por la tarjeta. */}
+              <div className="rounded-xl border border-gray-200">
+                <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100 rounded-t-xl">
                   <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                     <IdentificationCard className="h-4 w-4 text-gray-400" />
                     Credenciales y datos para recetar
