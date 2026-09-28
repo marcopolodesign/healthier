@@ -27,6 +27,7 @@ import { toast } from '../../components/Toast'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 import * as simulacion from '../../lib/simulacion'
 import GuiaSimulacion from '../../components/professional/GuiaSimulacion'
+import { esWebViewDeLaApp } from '../../lib/enApp'
 
 const NO_SHOW_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
@@ -503,8 +504,12 @@ function VideoTile({ track, muted = false, mirror = false, className = '' }) {
   )
 }
 
-// ── Clinical notes panel (unchanged) ─────────────────────────────────────────
-function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrack, codigoCierre }) {
+// ── Clinical notes panel ─────────────────────────────────────────────────────
+// Exportado porque la atención de una emergencia (`AtencionEmergencia.jsx`) usa
+// este mismo panel sin la videollamada. Ahí no hay código de cierre (es
+// presencial): en vez de `codigoCierre` pasa `vistaCerrar`, lo que se muestra
+// en la pestaña "Cerrar Consulta".
+export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrack, codigoCierre, vistaCerrar }) {
   const patientId = consultation?.patientId
   const professionalId = consultation?.professionalId
 
@@ -1146,7 +1151,7 @@ function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrac
           </div>
         )}
 
-        {activeView === 'cerrar' && <CerrarTab {...codigoCierre} />}
+        {activeView === 'cerrar' && (vistaCerrar ?? <CerrarTab {...codigoCierre} />)}
       </div>
     </div>
   )
@@ -1230,22 +1235,9 @@ export default function ProfessionalVideoCall({ profile }) {
   // existe.
   const simulando = simulacion.esSimulado(id)
   // Dentro del WebView de la app (`app/(pro)/videollamada/[id].tsx`) ya hay una
-  // X nativa arriba a la izquierda que vuelve a la app. El "Volver" de la web
-  // quedaba debajo de esa X, y además en el WebView no tiene historia a la que
-  // volver: ahí se esconde y la esquina queda para la X.
-  // `window.ReactNativeWebView` sólo existe si el WebView escucha mensajes (el
-  // de la videollamada no), así que no alcanza: la app agrega "HealthierApp" al
-  // user agent, y para las versiones ya instaladas se reconoce el WebView por
-  // el UA — el de iOS no dice "Safari/" (Safari y Chrome sí), el de Android
-  // lleva "; wv)".
-  const [enApp] = useState(() => {
-    if (typeof window === 'undefined') return false
-    const ua = navigator.userAgent || ''
-    return !!window.ReactNativeWebView
-      || ua.includes('HealthierApp')
-      || (/iPhone|iPad/.test(ua) && !ua.includes('Safari/'))
-      || ua.includes('; wv)')
-  })
+  // X nativa arriba a la izquierda que vuelve a la app: ahí el "Volver" de la
+  // web se esconde y la esquina queda para la X (ver `lib/enApp.js`).
+  const [enApp] = useState(esWebViewDeLaApp)
   // El legajo se lee acá aparte del que ya carga `ClinicalPanel`: la consulta
   // simulada se arma con la especialidad y la matrícula de quien practica —salen
   // en el panel y en la receta— y hay que tenerlas antes de armarla, o sea antes
