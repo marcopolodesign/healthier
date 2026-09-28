@@ -3,10 +3,11 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, FileText, VideoCamera, ClipboardText, User,
   Clock, CalendarPlus, Key, ShieldCheck, Tag, PencilSimple, Check, X,
-  FirstAidKit, Pill, Sparkle, Info, FilePdf, LockSimple,
+  FirstAidKit, Pill, Sparkle, Info, FilePdf, LockSimple, Ambulance, ArrowRight,
 } from '@phosphor-icons/react'
 import InfoTooltip from '../../components/common/InfoTooltip'
 import { consultationsService } from '../../services/consultationsService'
+import { emergencyService } from '../../services/emergencyService'
 import { professionalService } from '../../services/professionalService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import { clinicalService } from '../../services/clinicalService'
@@ -58,6 +59,16 @@ export default function ConsultationDetail({ profile }) {
   }, [id])
 
   useEffect(() => { load() }, [load])
+
+  // Consulta que salió de una emergencia (migración 177): el código del
+  // despacho es lo que el médico del móvil reconoce, no la fecha del turno.
+  const [codigoEmergencia, setCodigoEmergencia] = useState(null)
+  useEffect(() => {
+    if (!consultation?.emergencyId) return
+    emergencyService.getById(consultation.emergencyId)
+      .then(e => setCodigoEmergencia(e?.dispatchCode ?? null))
+      .catch(() => {})
+  }, [consultation?.emergencyId])
 
   useEffect(() => {
     if (!consultation) return
@@ -170,6 +181,9 @@ export default function ConsultationDetail({ profile }) {
   const patientName = consultation.patient?.fullName
   const isPresencial = consultation.modality === 'presencial'
   const isVideo = consultation.modality === 'video'
+  // La atención de una emergencia no se factura ni se reagenda: ya se cobró la
+  // emergencia, y la próxima consulta no sale de una ambulancia.
+  const esEmergencia = Boolean(consultation.emergencyId)
   const isPending = ['pending', 'confirmed'].includes(consultation.status)
   const isInProgress = consultation.status === 'in_progress'
   // El profesional cortó la llamada y está cargando el cierre (migración 098).
@@ -210,6 +224,12 @@ export default function ConsultationDetail({ profile }) {
               {consultation.consultationType.name}
             </span>
           )}
+          {esEmergencia && (
+            <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-700">
+              <Ambulance className="h-3 w-3" weight="fill" />
+              Emergencia{codigoEmergencia ? ` ${codigoEmergencia}` : ''}
+            </span>
+          )}
           {consultation.modality && (
             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
               isPresencial ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
@@ -241,6 +261,25 @@ export default function ConsultationDetail({ profile }) {
             </p>
           </div>
         </div>
+      )}
+
+      {/* La atención de la emergencia se carga en su propia pantalla, que es el
+          panel de la videollamada sin video (historia clínica, notas,
+          recetario y cierre). Esta sigue siendo el registro. */}
+      {esEmergencia && !bloqueada && (
+        <Link
+          to={`/profesional/atencion/${consultation.id}`}
+          className="card border-2 border-red-200 bg-red-50 flex items-center gap-3 hover:border-red-300 transition-colors"
+        >
+          <div className="h-11 w-11 shrink-0 rounded-full bg-red-100 flex items-center justify-center">
+            <Ambulance className="h-6 w-6 text-red-600" weight="fill" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-text-primary">Abrir la atención</p>
+            <p className="text-sm text-text-secondary">Historia clínica, notas, recetario y cierre.</p>
+          </div>
+          <ArrowRight className="h-5 w-5 text-red-600 shrink-0" />
+        </Link>
       )}
 
       {/* Patient card */}
@@ -589,7 +628,7 @@ export default function ConsultationDetail({ profile }) {
           clínico que haya que congelar. */}
       {/* No se ofrece en consultas canceladas, con ausencia o vencidas: no hubo
           atención, no hay nada que facturar. */}
-      {!(isCancelled || isNoShow || isExpired) && (
+      {!(isCancelled || isNoShow || isExpired || esEmergencia) && (
         <div className="card space-y-3">
           <div className="flex items-center gap-2">
             <FilePdf className="h-5 w-5 text-brand" />
@@ -636,7 +675,7 @@ export default function ConsultationDetail({ profile }) {
       </div>
 
       {/* Reagendar */}
-      {!isCancelled && (
+      {!isCancelled && !esEmergencia && (
         <button
           onClick={() => setReagendarOpen(true)}
           className="btn-secondary w-full py-3 flex items-center justify-center gap-2"
@@ -685,6 +724,7 @@ export default function ConsultationDetail({ profile }) {
         licenseType={profProfile?.licenseType}
         licenseNumber={profProfile?.licenseNumber}
         hcDraft={consultation.hcDraft}
+        sinFactura={esEmergencia}
         onFinalized={() => navigate('/profesional/dashboard')}
       />
 
