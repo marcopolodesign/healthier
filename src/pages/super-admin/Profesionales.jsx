@@ -18,6 +18,8 @@ import { adminService } from '../../services/adminService'
 import { formatSettlementPlazo, formatARS } from '../../lib/format'
 import { cumplePrecioMinimo } from '../../lib/tarifas'
 import { CAMPOS_SENSIBLES } from '../../lib/reverificacion'
+import { faltanParaRecetar, OPCIONES_SEXO } from '../../lib/datosReceta'
+import AddressAutocomplete from '../../components/common/AddressAutocomplete'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
@@ -371,7 +373,7 @@ function SisaBadge({ status }) {
 // ── Detail drawer ─────────────────────────────────────────────────────────────
 
 function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
-  const { porSlug } = useEspecialidades()
+  const { porSlug, puedeRecetar } = useEspecialidades()
   const [detail, setDetail] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -379,6 +381,8 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
   const [dni, setDni] = useState('')
   const [licenseType, setLicenseType] = useState('MN')
   const [licenseNumber, setLicenseNumber] = useState('')
+  const [gender, setGender] = useState('')
+  const [direccion, setDireccion] = useState({ address: '', latitude: null, longitude: null })
   const [editingCredentials, setEditingCredentials] = useState(false)
 
   const [verifying, setVerifying] = useState(false)
@@ -409,7 +413,7 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
         .from('professional_profiles')
         .select(`
           *,
-          profile:profiles!user_id(id, full_name, email, phone, dni, created_at, avatar_url)
+          profile:profiles!user_id(id, full_name, email, phone, dni, gender, created_at, avatar_url)
         `)
         .eq('id', pro.id)
         .single(),
@@ -426,6 +430,8 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
       setDni(data.profile?.dni ?? '')
       setLicenseType(data.license_type ?? 'MN')
       setLicenseNumber(data.license_number ?? '')
+      setGender(data.profile?.gender ?? '')
+      setDireccion({ address: data.address ?? '', latitude: data.latitude ?? null, longitude: data.longitude ?? null })
     }
     setHistory(historyRows)
     setLoading(false)
@@ -436,13 +442,31 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
   async function saveCredentials() {
     const updates = []
 
-    // Save DNI to profiles
-    if (dni !== (detail?.profile?.dni ?? '')) {
+    // DNI y sexo viven en profiles
+    const cambiosPerfil = {}
+    if (dni !== (detail?.profile?.dni ?? '')) cambiosPerfil.dni = dni.trim() || null
+    if (gender !== (detail?.profile?.gender ?? '')) cambiosPerfil.gender = gender || null
+    if (Object.keys(cambiosPerfil).length) {
       const { error } = await supabase
         .from('profiles')
-        .update({ dni: dni.trim() || null })
+        .update(cambiosPerfil)
         .eq('id', detail.profile.id)
-      if (error) { toast.error('Error al guardar DNI'); return }
+      if (error) { toast.error(`Error al guardar DNI/sexo: ${error.message}`); return }
+    }
+
+    // Dirección del consultorio — la receta electrónica la exige aunque el
+    // profesional atienda sólo por video (Innovamed QBI248). Se la carga el
+    // super admin cuando el profesional no llega (Mateo, 2026-09-28).
+    if (direccion.address.trim() !== (detail?.address ?? '')) {
+      const { error } = await supabase
+        .from('professional_profiles')
+        .update({
+          address: direccion.address.trim() || null,
+          latitude: direccion.latitude,
+          longitude: direccion.longitude,
+        })
+        .eq('id', pro.id)
+      if (error) { toast.error(`Error al guardar la dirección: ${error.message}`); return }
     }
 
     // Save license to professional_profiles
@@ -693,7 +717,7 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
                 <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
                   <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                     <IdentificationCard className="h-4 w-4 text-gray-400" />
-                    Credenciales
+                    Credenciales y datos para recetar
                   </div>
                   {!editingCredentials && (
                     <button type="button" onClick={() => setEditingCredentials(true)}
@@ -703,6 +727,20 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
                   )}
                 </div>
                 <div className="p-4 space-y-3">
+                  {puedeRecetar(d?.specialty) && (() => {
+                    const falta = faltanParaRecetar({
+                      dni: d?.profile?.dni, gender: d?.profile?.gender, licenseNumber: d?.license_number,
+                      address: d?.address, hasSignature: d?.has_signature,
+                    })
+                    return falta.length
+                      ? <p data-testid="falta-para-recetar" className="text-xs rounded-lg bg-amber-50 text-amber-800 px-3 py-2">
+                          <strong>No puede recetar todavía.</strong> Le falta: {falta.join(', ')}.
+                          {falta.includes('firma') && ' La firma la tiene que cargar el profesional.'}
+                        </p>
+                      : <p data-testid="falta-para-recetar" className="text-xs rounded-lg bg-emerald-50 text-emerald-700 px-3 py-2">
+                          Tiene todo lo que pide la receta electrónica.
+                        </p>
+                  })()}
                   {editingCredentials ? (
                     <>
                       <div>
@@ -724,6 +762,18 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
                             placeholder="Ej: 123456" className="form-input text-sm" />
                         </div>
                       </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Sexo</label>
+                        <select value={gender} onChange={e => setGender(e.target.value)} className="form-select text-sm">
+                          <option value="">Sin cargar</option>
+                          {OPCIONES_SEXO.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                      </div>
+                      <AddressAutocomplete
+                        label="Dirección del consultorio"
+                        value={direccion}
+                        onChange={setDireccion}
+                      />
                       <div className="flex gap-2">
                         <button type="button" onClick={() => setEditingCredentials(false)}
                           className="btn-secondary flex-1 py-1.5 text-xs">Cancelar</button>
@@ -744,6 +794,16 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
                             ? `${d.license_type} ${d.license_number}`
                             : <span className="text-amber-600">Sin cargar</span>}
                         </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Sexo</p>
+                        <p className="font-medium text-gray-800">
+                          {OPCIONES_SEXO.find(o => o.value === d?.profile?.gender)?.label ?? <span className="text-amber-600">Sin cargar</span>}
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-xs text-gray-400 mb-0.5">Dirección del consultorio</p>
+                        <p className="font-medium text-gray-800">{d?.address || <span className="text-amber-600">Sin cargar</span>}</p>
                       </div>
                       {d?.sisa_matricula && (
                         <div className="col-span-2">
@@ -1024,7 +1084,7 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function SuperAdminProfesionales() {
-  const { porSlug } = useEspecialidades()
+  const { porSlug, puedeRecetar } = useEspecialidades()
   const [professionals, setProfessionals] = useState([])
   const [consultationMap, setConsultationMap] = useState({})
   const [loading, setLoading] = useState(true)
@@ -1048,7 +1108,7 @@ export default function SuperAdminProfesionales() {
       const [profResult, consultResult] = await Promise.all([
         supabase
           .from('professional_profiles')
-          .select('id, specialty, is_verified, is_active, verification_source, sisa_status, mp_connected, mp_account_label, has_signature, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, price_video, price_presencial, session_price, license_number, profiles!user_id(id, full_name, email, phone, created_at, utm_source, avatar_url)')
+          .select('id, specialty, is_verified, is_active, verification_source, sisa_status, mp_connected, mp_account_label, has_signature, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, price_video, price_presencial, session_price, license_number, address, profiles!user_id(id, full_name, email, phone, dni, gender, created_at, utm_source, avatar_url)')
           .order('created_at', { ascending: false }),
         supabase.from('consultations').select('professional_id'),
       ])
@@ -1287,6 +1347,17 @@ export default function SuperAdminProfesionales() {
                         {pro.has_signature
                           ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">Cargada</span>
                           : <span className="text-xs text-gray-400">Sin firma</span>}
+                        {/* Qué le falta para recetar, sin la firma (ya se ve
+                            arriba). Sólo para especialidades que recetan. */}
+                        {puedeRecetar(pro.specialty) && (() => {
+                          const falta = faltanParaRecetar({
+                            dni: pro.profiles?.dni, gender: pro.profiles?.gender,
+                            licenseNumber: pro.license_number, address: pro.address, hasSignature: true,
+                          })
+                          return falta.length
+                            ? <p className="text-[11px] text-amber-700 mt-0.5 whitespace-nowrap">Para recetar falta: {falta.join(', ')}</p>
+                            : null
+                        })()}
                       </td>
                       {/* Disponibilidad para consulta inmediata.
                           Los tres estados son distintos y hay que poder

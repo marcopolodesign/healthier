@@ -68,3 +68,20 @@ export const OPCIONES_SEXO = [
   { value: 'masculino', label: 'Masculino' },
   { value: 'otro',      label: 'Otro' },
 ]
+
+/**
+ * Todo lo que `rcta-issue` le exige al profesional para emitir, en una lista
+ * de etiquetas: [] = puede recetar. Lo usa el super admin para ver de un
+ * vistazo quién se va a trabar al recetar y cargárselo antes (2026-09-28). La
+ * firma entra porque `rcta-issue` corta sin ella (RCTA_FIRMA_FALTANTE).
+ * @param {{dni?, gender?, licenseNumber?, address?, hasSignature?}} d
+ */
+export function faltanParaRecetar(d = {}) {
+  return [
+    vacio(d.dni)           && 'DNI',
+    vacio(d.gender)        && 'sexo',
+    vacio(d.licenseNumber) && 'matrícula',
+    vacio(d.address)       && 'dirección',
+    !d.hasSignature        && 'firma',
+  ].filter(Boolean)
+}

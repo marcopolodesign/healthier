@@ -41,6 +41,15 @@ if (!cond) {
   if (!/\{faltaDireccionParaRecetar && \(/.test(dashboard)) fallas.push('Dashboard: el aviso está calculado pero no se muestra')
 }
 
+// 4. El super admin ve qué le falta para recetar y puede cargar la dirección.
+const superAdmin = leer('src/pages/super-admin/Profesionales.jsx')
+if (!/faltanParaRecetar\(/.test(superAdmin)) fallas.push('Super admin: no muestra qué le falta para recetar')
+if (!/label="Dirección del consultorio"/.test(superAdmin)) fallas.push('Super admin: no puede cargar la dirección')
+const datos = leer('src/lib/datosReceta.js')
+for (const campo of ['dni', 'gender', 'licenseNumber', 'address', 'hasSignature']) {
+  if (!new RegExp(`d\\.${campo}\\b`).test(datos)) fallas.push(`faltanParaRecetar dejó de mirar ${campo}`)
+}
+
 if (fallas.length) {
   console.error('✗ aviso de dirección para recetar:\n  - ' + fallas.join('\n  - '))
   process.exit(1)
