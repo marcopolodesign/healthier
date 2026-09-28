@@ -24,6 +24,7 @@ import OnDemandSwitch from '../../components/professional/OnDemandSwitch'
 import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import Modal from '../../components/Modal'
 import { useWaitingPresence } from '../../hooks/useWaitingPresence'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../../components/Toast'
 import { useNavigate } from 'react-router-dom'
 import { nombreDePila } from '../../lib/format'
@@ -195,6 +196,15 @@ export default function ProfessionalDashboard({ profile }) {
 
   // Pacientes que están yendo al consultorio ahora mismo (Realtime).
   const llegadas = useLlegadas(profile?.id)
+
+  // La receta electrónica exige domicilio de atención aunque el profesional
+  // atienda sólo por videollamada (Innovamed QBI248, `rcta-issue`). El aviso
+  // de "¿Atendés en un consultorio?" sólo sale para presenciales, así que una
+  // pediatra 100% virtual se enteraba recién al emitir (María José Francisco,
+  // 2026-09-28). Este aviso cubre a todo el que puede recetar.
+  const { puedeRecetar } = useEspecialidades()
+  const faltaDireccionParaRecetar = !loading && !profProfile?.address
+    && puedeRecetar(profProfile?.specialty)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -774,7 +784,30 @@ export default function ProfessionalDashboard({ profile }) {
 
           Es un único item accionable que desaparece solo al completarse — no
           reabre la discusión del checklist para verificados. */}
-      {!loading && atiendePresencial(profProfile) && !profProfile?.address && (
+      {faltaDireccionParaRecetar && (
+        <Link
+          to="/profesional/perfil"
+          data-testid="aviso-direccion-receta"
+          className="card flex items-center gap-4 border-amber-300 bg-amber-50 hover:border-amber-400 transition-colors group"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-white border border-amber-200 flex items-center justify-center shrink-0">
+            <FileText className="h-6 w-6 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-amber-700 font-bold uppercase tracking-wide">Falta un dato</p>
+            <p className="text-base font-semibold text-text-primary mt-0.5">Para emitir recetas te falta la dirección</p>
+            <p className="text-xs text-text-secondary mt-0.5">
+              La receta electrónica pide un domicilio de atención, aunque atiendas sólo por videollamada. Cargala en tu perfil.
+            </p>
+          </div>
+          <div className="flex items-center gap-1 text-amber-700 text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">
+            Cargar <ArrowRight className="h-4 w-4" />
+          </div>
+        </Link>
+      )}
+
+      {/* Si ya salió el aviso de la receta, que pide lo mismo, no se repite. */}
+      {!loading && !faltaDireccionParaRecetar && atiendePresencial(profProfile) && !profProfile?.address && (
         <Link
           to="/profesional/perfil"
           className="card flex items-center gap-4 border-amber-300 bg-amber-50 hover:border-amber-400 transition-colors group"

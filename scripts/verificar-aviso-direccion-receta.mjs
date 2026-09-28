@@ -1,0 +1,48 @@
+#!/usr/bin/env node
+// Control de regresión — la dirección que pide la receta electrónica.
+//
+// Caso real (2026-09-28): una pediatra que atiende sólo por videollamada quiso
+// emitir una receta y se enteró ahí de que le faltaba la dirección. El
+// dashboard no le avisó (el aviso sólo salía para presenciales) y el cartel de
+// la receta la mandaba a /profesional/configuracion, donde ese campo no existe.
+//
+// Chequea, sobre el código:
+//  1. Todo link "tu perfil" de DatosRecetaFaltantes apunta a la pantalla que
+//     tiene el campo de dirección (/profesional/perfil).
+//  2. Esa pantalla sigue teniendo el campo.
+//  3. El dashboard avisa por la receta sin depender de atiendePresencial.
+//
+// Uso: node scripts/verificar-aviso-direccion-receta.mjs   (sale 1 si falla)
+import { readFileSync } from 'node:fs'
+
+const leer = p => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+const fallas = []
+
+const faltantes = leer('src/components/professional/DatosRecetaFaltantes.jsx')
+if (/to="\/profesional\/configuracion"/.test(faltantes)) {
+  fallas.push('DatosRecetaFaltantes manda a /profesional/configuracion, que no tiene el campo de dirección')
+}
+if (!/to="\/profesional\/perfil"/.test(faltantes)) {
+  fallas.push('DatosRecetaFaltantes no linkea a /profesional/perfil')
+}
+
+const perfil = leer('src/pages/professional/Profile.jsx')
+if (!/label="Dirección del consultorio"/.test(perfil)) {
+  fallas.push('/profesional/perfil ya no tiene el campo "Dirección del consultorio" — actualizar los links que mandan ahí')
+}
+
+const dashboard = leer('src/pages/professional/Dashboard.jsx')
+const cond = dashboard.match(/const faltaDireccionParaRecetar = ([\s\S]*?)\n\n/)
+if (!cond) {
+  fallas.push('Dashboard: no está el aviso faltaDireccionParaRecetar')
+} else {
+  if (/atiendePresencial/.test(cond[1])) fallas.push('Dashboard: el aviso de la receta volvió a depender de atiendePresencial')
+  if (!/puedeRecetar/.test(cond[1])) fallas.push('Dashboard: el aviso de la receta no mira puedeRecetar')
+  if (!/\{faltaDireccionParaRecetar && \(/.test(dashboard)) fallas.push('Dashboard: el aviso está calculado pero no se muestra')
+}
+
+if (fallas.length) {
+  console.error('✗ aviso de dirección para recetar:\n  - ' + fallas.join('\n  - '))
+  process.exit(1)
+}
+console.log('✓ aviso de dirección para recetar: dashboard + link al perfil correctos')
