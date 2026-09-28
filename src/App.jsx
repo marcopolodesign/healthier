@@ -56,6 +56,7 @@ import ProfessionalAgenda from './pages/professional/Agenda'
 import ConsultationDetail from './pages/professional/ConsultationDetail'
 import ProfessionalProfileEdit from './pages/professional/Profile'
 import ProfessionalVideoCall from './pages/professional/VideoCall'
+import AtencionEmergencia from './pages/professional/AtencionEmergencia'
 import NutriPlan from './pages/professional/NutriPlan'
 import ActivityPlan from './pages/professional/ActivityPlan'
 import ProfessionalEmergencias from './pages/professional/Emergencias'
@@ -488,6 +489,13 @@ export default function App() {
         <Route path="/profesional/videollamada/:id" element={
           <RequireRole profile={profile} allowed={['professional']}>
             <ProfessionalVideoCall profile={profile} />
+          </RequireRole>
+        } />
+        {/* Atención de una emergencia en el lugar (migración 177): el panel
+            clínico de la videollamada, sin video. La app la abre en un WebView. */}
+        <Route path="/profesional/atencion/:id" element={
+          <RequireRole profile={profile} allowed={['professional']}>
+            <AtencionEmergencia profile={profile} />
           </RequireRole>
         } />
         <Route path="/profesional/onboarding" element={

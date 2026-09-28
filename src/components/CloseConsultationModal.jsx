@@ -21,6 +21,9 @@ export default function CloseConsultationModal({
   // lo guardó a mano ("Guardar consulta en la HC"), se asienta acá solo, para
   // que cerrar sin haber tocado ese botón no pierda lo cargado.
   hcDraft,
+  // La atención de una emergencia (migración 177) no se factura aparte: ya se
+  // cobró la emergencia. Ahí no se ofrece subir factura.
+  sinFactura = false,
 }) {
   const [form, setForm] = useState({ notes: '', code: '', sinCodigo: false, motivoSinCodigo: '' })
   const [closing, setClosing] = useState(false)
@@ -212,7 +215,7 @@ export default function CloseConsultationModal({
           </p>
         </div>
 
-        <div>
+        {!sinFactura && <div>
           <label className="form-label">
             Factura <span className="text-text-tertiary font-normal">(opcional)</span>
           </label>
@@ -226,7 +229,7 @@ export default function CloseConsultationModal({
           <p className="text-xs text-text-muted mt-1">
             Podés subirla ahora o después, desde el detalle de la consulta.
           </p>
-        </div>
+        </div>}
 
         {esVideo && yaVerificado && (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 font-medium">
