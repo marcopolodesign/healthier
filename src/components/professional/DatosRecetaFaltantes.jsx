@@ -246,7 +246,7 @@ export default function DatosRecetaFaltantes({
           {faltaProfEnConfig.length > 0 && (
             <p className="text-[11px] text-amber-800">
               {listar(faltaProfEnConfig)} se cargan en{' '}
-              <Link to="/profesional/configuracion" className="underline font-semibold">tu perfil</Link>.
+              <Link to="/profesional/perfil" className="underline font-semibold">tu perfil</Link>.
             </p>
           )}
         </div>
