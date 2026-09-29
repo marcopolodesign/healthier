@@ -40,11 +40,11 @@ function EmergencyProMarker({ color = '#F43F5E' }) {
   )
 }
 
-function ProMarker({ vertical, marker, dimmed }) {
+function ProMarker({ vertical, marker }) {
   const Icon = vertical.icon
   return (
-    <div className={`relative flex flex-col items-center transition-all duration-300 ${dimmed ? 'opacity-30' : ''}`}>
-      {marker.isOnDemand && !dimmed && (
+    <div className="relative flex flex-col items-center transition-all duration-300">
+      {marker.isOnDemand && (
         <div className="absolute -top-1.5 w-14 h-14 rounded-full bg-emerald-400/30 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite] -z-10" />
       )}
       <div className="w-11 h-11 bg-white rounded-full flex items-center justify-center shadow-[0_8px_20px_rgba(0,0,0,0.15)] border-2 border-white relative">
@@ -233,7 +233,9 @@ export default function InteractiveMap({
           {visibleMarkers.map(m => {
             const v = verticales.find(v => v.id === m.type)
             if (!v) return null
-            const dimmed = effectiveAvailableNow && !m.isOnDemand
+            // Con "Disponibles ahora" activo, quien no está disponible no se
+            // dibuja: atenuado seguía figurando en el filtro (2026-09-29).
+            if (effectiveAvailableNow && !m.isOnDemand) return null
             const { lat, lng } = pixelToLatLng(referencePoint, m, ZOOM)
             return (
               <Marker
@@ -241,9 +243,9 @@ export default function InteractiveMap({
                 longitude={lng}
                 latitude={lat}
                 anchor="bottom"
-                onClick={dimmed ? undefined : e => { e.originalEvent.stopPropagation(); onMarkerClick(m.type) }}
+                onClick={e => { e.originalEvent.stopPropagation(); onMarkerClick(m.type) }}
               >
-                <ProMarker vertical={v} marker={m} dimmed={dimmed} />
+                <ProMarker vertical={v} marker={m} />
               </Marker>
             )
           })}
