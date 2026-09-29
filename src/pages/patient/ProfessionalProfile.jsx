@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { UserCircle, Lightning, ArrowLeft } from '@phosphor-icons/react';
-import { professionalService } from '../../services/professionalService'
+import { professionalService, disponibleAhora } from '../../services/professionalService'
 import { reviewsService } from '../../services/reviewsService'
 import StarRating from '../../components/StarRating'
 import { toast } from '../../components/Toast'
@@ -76,7 +76,7 @@ export default function ProfessionalProfile() {
                 {professional.totalReviews > 0 && ` (${professional.totalReviews} reseñas)`}
               </span>
             </div>
-            {professional.isOnDemand && (
+            {disponibleAhora(professional) && (
               <span className="inline-flex items-center gap-1 text-sm bg-accent-muted text-accent px-3 py-1 rounded-full mt-2">
                 <Lightning className="h-4 w-4" />
                 Disponible para consulta ahora

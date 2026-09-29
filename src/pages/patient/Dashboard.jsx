@@ -17,7 +17,7 @@ import MedicoCabeceraModal from '../../components/patient/MedicoCabeceraModal'
 import TourPaciente from '../../components/patient/TourPaciente'
 import PatientHeader from '../../components/patient/PatientHeader'
 import OnDemandCarousel from '../../components/patient/OnDemandCarousel'
-import { professionalService } from '../../services/professionalService'
+import { professionalService, disponibleAhora } from '../../services/professionalService'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { emergencyService, getSosSettings } from '../../services/emergencyService'
 import { pickProForVertical } from '../../lib/verticals'
@@ -130,7 +130,7 @@ export default function PatientDashboard({ profile }) {
         const pixelPos = (userLocation && pro.latitude != null && pro.longitude != null)
           ? latLngToPixel(userLocation, pro)
           : FALLBACK_SLOTS[i]
-        return { id: i + 1, type: v.id, isOnDemand: pro.isOnDemand ?? false, ...pixelPos }
+        return { id: i + 1, type: v.id, isOnDemand: disponibleAhora(pro), ...pixelPos }
       })
       .filter(Boolean),
     [markersByVertical, userLocation, VERTICALS]
@@ -239,6 +239,7 @@ export default function PatientDashboard({ profile }) {
       icon:       vert.icon,
       userId:     pro.userId,
       verticalId: type,
+      disponibleAhora: disponibleAhora(pro),
       latitude:   pro.latitude ?? null,
       longitude:  pro.longitude ?? null,
     })
@@ -523,10 +524,14 @@ export default function PatientDashboard({ profile }) {
                   : <div className="w-20 h-20 rounded-2xl border-2 border-white shadow-sm flex-shrink-0 flex items-center justify-center text-3xl font-semibold" style={{ backgroundColor: selectedMapPro.bg, color: selectedMapPro.color }}>{selectedMapPro.name[0]}</div>
                 }
                 <div>
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                    <span className="text-[10px] font-semibold text-emerald-600 tracking-widest uppercase">Disponible ahora</span>
-                  </div>
+                  {/* Antes se mostraba a todos: cualquier pin del mapa decía
+                      "Disponible ahora", estuviera conectado o no. */}
+                  {selectedMapPro.disponibleAhora && (
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                      <span className="text-[10px] font-semibold text-emerald-600 tracking-widest uppercase">Disponible ahora</span>
+                    </div>
+                  )}
                   <h4 className="font-semibold text-[20px] text-gray-900 leading-tight">{selectedMapPro.name}</h4>
                   <p className="text-[14px] text-gray-500 font-medium mt-0.5">{selectedMapPro.specialty}</p>
                   {/* Only shown when the professional has real reviews behind it. */}
