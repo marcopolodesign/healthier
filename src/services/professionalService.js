@@ -69,6 +69,23 @@ export const ON_DEMAND_HEARTBEAT_MS = 30_000
  */
 export const ON_DEMAND_PRESENCE_TTL_MS = 60 * 60 * 1000
 
+/**
+ * 🔴 Único criterio de "Disponible ahora" del lado del paciente. Espejo de
+ * mobile's `disponibleAhora` (src/services/ProfessionalService.ts).
+ *
+ * `isOnDemand` solo NO alcanza: es el switch, y queda prendido para siempre
+ * aunque el profesional no vuelva a entrar. Lo que dice "estoy" es la vigencia
+ * (`on_demand_last_seen_at`, que el latido renueva y `professional_offline`
+ * borra) — mismo criterio que `search({ onlyLive })` y la columna de
+ * disponibilidad del super admin. El mapa del paciente pintaba "Disponible
+ * ahora" con el switch solo, y aparecía gente que no se conectaba hace
+ * semanas (Mateo, 2026-09-29).
+ */
+export function disponibleAhora(pro, now = Date.now()) {
+  if (!pro?.isOnDemand || !pro.onDemandLastSeenAt || pro.mpConnected === false) return false
+  return now - new Date(pro.onDemandLastSeenAt).getTime() < ON_DEMAND_PRESENCE_TTL_MS
+}
+
 export const professionalService = {
   async getByUserId(userId) {
     const { data, error } = await supabase
