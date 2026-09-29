@@ -1,4 +1,4 @@
-import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
+import { supabase, toCamelCase, toSnakeCase, asegurarSesion } from '../lib/supabase'
 
 /**
  * Ids de consultas que agendó el propio profesional en esta sesión.
@@ -440,6 +440,7 @@ export const consultationsService = {
 
   async update(id, fields) {
     if (esSimulado(id)) return { ...simulacion.consulta(), ...fields }
+    await asegurarSesion()
     const { data, error } = await supabase
       .from('consultations')
       .update(toSnakeCase(fields))

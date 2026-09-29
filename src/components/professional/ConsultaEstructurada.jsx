@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   IdentificationCard, Question, NotePencil, ClockCounterClockwise, ListChecks,
   Heartbeat, Stethoscope, Target, Plus, X, CheckCircle, Check, CircleNotch,
-  CaretDown, CaretUp,
 } from '@phosphor-icons/react'
 import DatosPacienteTab from './DatosPacienteTab'
 import CopilotoClinico from './CopilotoClinico'
+import CopilotoMovil from './CopilotoMovil'
 import { toast } from '../Toast'
 import { useConsultaDraft } from '../../hooks/useConsultaDraft'
+import { mensajeDeError } from '../../lib/supabase'
 import {
   ANTEC_CHIPS, FAM_CHIPS, SISTEMAS_EXAMEN, GUIDE_MOTIVOS, suggestMotivoFromPreconsulta,
 } from '../../lib/clinicalGuideKB'
@@ -96,7 +97,7 @@ export default function ConsultaEstructurada({
   consultation, patientId, professionalId, specialty, licenseType, licenseNumber,
   loadingProfProfile, ensureEncounter, onEntryAdded, patientData, loadingPatientData, historia,
 }) {
-  const { draft, update } = useConsultaDraft({
+  const { draft, update, errorGuardado } = useConsultaDraft({
     consultationId: consultation?.id,
     initialHcDraft: consultation?.hcDraft,
   })
@@ -147,7 +148,14 @@ export default function ConsultaEstructurada({
 
   const [nuevoSintoma, setNuevoSintoma] = useState('')
   const [guardando, setGuardando] = useState(false)
-  const [copilotoAbierto, setCopilotoAbierto] = useState(true)
+  const copilotoProps = {
+    motivo: draft.motivo,
+    motivoLibre: draft.motivoLibre,
+    draft,
+    onToggleBandera: texto => update(d => toggleSintomaOrigen(d, texto, 'bandera')),
+    onTogglePregunta: texto => update(d => toggleSintomaOrigen(d, texto, 'pregunta')),
+    onToggleDiferencial: (nombre, cie) => update(d => toggleDiferencial(d, nombre, cie)),
+  }
 
   const esMotivoLibre = !draft.motivo && !!draft.motivoLibre
   const motivoSelectValue = draft.motivo ? draft.motivo : (esMotivoLibre ? '__otro' : '')
@@ -194,8 +202,8 @@ export default function ConsultaEstructurada({
       onEntryAdded(entry)
       update(d => ({ ...d, asentada: true }))
       toast.success('Consulta guardada en la historia clínica')
-    } catch {
-      toast.error('No se pudo guardar la consulta')
+    } catch (err) {
+      toast.error(`No se pudo guardar la consulta: ${mensajeDeError(err)}`)
     } finally {
       setGuardando(false)
     }
@@ -223,31 +231,24 @@ export default function ConsultaEstructurada({
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 lg:items-start">
-      {/* Columna derecha en desktop (30%), primera en el DOM para que en
-          mobile — donde se apilan — el copiloto aparezca arriba del
-          formulario (pedido explícito de Mateo). */}
-      <div className="order-1 lg:order-2 w-full lg:w-[30%] shrink-0">
-        <button
-          type="button"
-          onClick={() => setCopilotoAbierto(v => !v)}
-          className="lg:hidden w-full flex items-center justify-between text-[11px] font-bold text-text-tertiary uppercase tracking-widest px-1 py-1.5"
-        >
-          Copiloto clínico
-          {copilotoAbierto ? <CaretUp className="h-3.5 w-3.5" /> : <CaretDown className="h-3.5 w-3.5" />}
-        </button>
-        <div className={`${copilotoAbierto ? 'block' : 'hidden'} lg:block lg:sticky lg:top-2`}>
-          <CopilotoClinico
-            motivo={draft.motivo}
-            motivoLibre={draft.motivoLibre}
-            draft={draft}
-            onToggleBandera={texto => update(d => toggleSintomaOrigen(d, texto, 'bandera'))}
-            onTogglePregunta={texto => update(d => toggleSintomaOrigen(d, texto, 'pregunta'))}
-            onToggleDiferencial={(nombre, cie) => update(d => toggleDiferencial(d, nombre, cie))}
-          />
+      {/* Columna derecha en desktop (30%). En el teléfono el copiloto no va
+          acá arriba —quedaba perdido lejos de lo que se está escribiendo— sino
+          en una barra fija abajo que se enciende con sugerencias
+          (`CopilotoMovil`, Mateo 2026-09-28). */}
+      <div className="hidden lg:block lg:order-2 lg:w-[30%] shrink-0">
+        <div className="lg:sticky lg:top-2">
+          <CopilotoClinico {...copilotoProps} />
         </div>
       </div>
+      <CopilotoMovil {...copilotoProps} />
 
-      <div className="order-2 lg:order-1 w-full lg:w-[70%] min-w-0 space-y-6">
+      <div className="order-2 lg:order-1 w-full lg:w-[70%] min-w-0 space-y-6 copiloto-barra-espacio">
+        {errorGuardado && (
+          <div role="alert" className="rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-xs text-danger">
+            Lo que escribís no se está guardando: {errorGuardado}
+          </div>
+        )}
+
         <NumberedSection n="01" icon={IdentificationCard} label="Filiación">
           <DatosPacienteTab loading={loadingPatientData} patient={patientData} />
         </NumberedSection>

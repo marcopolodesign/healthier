@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { consultationsService } from '../services/consultationsService'
 import { hydrateDraft } from '../lib/consultaDraft'
+import { mensajeDeError } from '../lib/supabase'
 
 const PERSIST_DELAY_MS = 1500
 
@@ -21,6 +22,8 @@ const PERSIST_DELAY_MS = 1500
  */
 export function useConsultaDraft({ consultationId, initialHcDraft }) {
   const [draft, setDraft] = useState(() => hydrateDraft(initialHcDraft))
+  // Motivo del último autoguardado fallido, o null si el último salió bien.
+  const [errorGuardado, setErrorGuardado] = useState(null)
   const prevIdRef = useRef(consultationId)
   const timerRef = useRef(null)
   const consultationIdRef = useRef(consultationId)
@@ -39,11 +42,15 @@ export function useConsultaDraft({ consultationId, initialHcDraft }) {
     if (!consultationIdRef.current) return
     clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
-      consultationsService.update(consultationIdRef.current, { hcDraft: next }).catch(() => {
-        // Falla en silencio a propósito: perder un ciclo de autoguardado no
-        // puede interrumpir al profesional en medio de la consulta. El
-        // próximo cambio reintenta.
-      })
+      consultationsService.update(consultationIdRef.current, { hcDraft: next })
+        .then(() => setErrorGuardado(null))
+        .catch(err => {
+          // Sin toast: perder un ciclo no puede interrumpir al profesional, y
+          // el próximo cambio reintenta. Pero ya no es mudo — el 2026-09-28
+          // el borrador dejó de guardarse varios minutos (sesión perdida en el
+          // WebView) y nada lo decía. La pantalla muestra este motivo.
+          setErrorGuardado(mensajeDeError(err))
+        })
     }, PERSIST_DELAY_MS)
   }, [])
 
@@ -55,5 +62,5 @@ export function useConsultaDraft({ consultationId, initialHcDraft }) {
     })
   }, [persist])
 
-  return { draft, update }
+  return { draft, update, errorGuardado }
 }
