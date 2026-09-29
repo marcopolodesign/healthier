@@ -1067,3 +1067,21 @@
 .driver-popover.guia-healthier .driver-popover-close-btn:hover {
   color: white;
 }
+
+/* ── Copiloto clínico en el teléfono (CopilotoMovil.jsx) ───────────────────
+   Barra fija abajo + hoja. El espacio lo deja la consulta estructurada para
+   que la barra no tape "Guardar consulta en la HC". */
+@utility copiloto-barra {
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+}
+
+@utility copiloto-hoja {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+@utility copiloto-barra-espacio {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  @media (width >= 64rem) {
+    padding-bottom: 0;
+  }
+}

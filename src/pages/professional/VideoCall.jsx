@@ -8,7 +8,7 @@ import {
   Key, SealCheck, PaperPlaneTilt, AppleLogo, ArrowSquareOut, CaretRight,
 } from '@phosphor-icons/react'
 import DailyIframe from '@daily-co/daily-js'
-import { supabase } from '../../lib/supabase'
+import { supabase, mensajeDeError } from '../../lib/supabase'
 import { consultationsService } from '../../services/consultationsService'
 import { clinicalService } from '../../services/clinicalService'
 import PreconsultaSummary, { hasPreconsulta } from '../../components/professional/PreconsultaSummary'
@@ -780,8 +780,8 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
       setForm(f => ({ ...f, content: '' }))
       setShowForm(false)
       toast.success('Nota guardada en la HC')
-    } catch {
-      toast.error('Error al guardar nota')
+    } catch (err) {
+      toast.error(`No se pudo guardar la nota: ${mensajeDeError(err)}`)
     } finally {
       setSubmitting(false)
     }

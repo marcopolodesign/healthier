@@ -1,4 +1,4 @@
-import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
+import { supabase, toCamelCase, toSnakeCase, asegurarSesion } from '../lib/supabase'
 // Ver la nota de la valla en `consultationsService.js`.
 import * as simulacion from '../lib/simulacion'
 import { esSimulado } from '../lib/simulacion'
@@ -48,6 +48,8 @@ export const clinicalService = {
 
   async createEncounter({ patientId, professionalId, consultationId, specialty, chiefComplaint, modality, licenseType, licenseNumber }) {
     if (esSimulado(consultationId)) return simulacion.encuentro()
+    // Sin sesión esto sale como anónimo y la RLS lo rechaza (ver asegurarSesion).
+    await asegurarSesion()
     const payload = toSnakeCase({
       patientId,
       professionalId,
@@ -102,6 +104,7 @@ export const clinicalService = {
 
   async addEntry(encounterId, { patientId, professionalId, entryType, content, data: entryData, correctsEntryId, icdCode, licenseType, licenseNumber }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, entryType, content, data: entryData, icdCode })
+    await asegurarSesion()
     const payload = toSnakeCase({
       encounterId,
       patientId,

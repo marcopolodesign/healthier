@@ -22,6 +22,22 @@ import { CLINICAL_GUIDE_KB, DISCLAIMER } from '../../lib/clinicalGuideKB'
  * consulta estructurada, y pedir estudios es el flujo propio de
  * Recetario > "Recetar estudios".
  */
+/**
+ * Cuántas sugerencias del copiloto quedan sin tomar para este motivo: banderas
+ * rojas, diferenciales y preguntas dirigidas todavía no marcadas. Es lo que
+ * enciende la barra del copiloto en el teléfono (`CopilotoMovil`). 0 si el
+ * motivo no tiene guía.
+ */
+export function contarSugerencias(motivo, draft) {
+  const guia = motivo ? CLINICAL_GUIDE_KB[motivo] : null
+  if (!guia) return 0
+  const marcados = new Set(draft.sintomas.filter(s => s.origen === 'bandera' || s.origen === 'pregunta').map(s => s.texto))
+  const diferenciales = new Set(draft.diferenciales.map(d => d.nombre))
+  return guia.rf.filter(t => !marcados.has(t)).length
+    + guia.q.filter(t => !marcados.has(t)).length
+    + guia.dx.filter(([nombre]) => !diferenciales.has(nombre)).length
+}
+
 export default function CopilotoClinico({ motivo, motivoLibre, draft, onToggleBandera, onTogglePregunta, onToggleDiferencial }) {
   const guia = motivo ? CLINICAL_GUIDE_KB[motivo] : null
 

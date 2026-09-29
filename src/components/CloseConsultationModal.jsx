@@ -5,6 +5,7 @@ import { clinicalService } from '../services/clinicalService'
 import { hydrateDraft, hasMeaningfulContent, guardarConsultaEnHC } from '../lib/consultaDraft'
 import FacturaConsulta from './professional/FacturaConsulta'
 import { toast } from './Toast'
+import { mensajeDeError } from '../lib/supabase'
 
 export default function CloseConsultationModal({
   open, onClose, consultationId, patientName, modality, profile, onFinalized,
@@ -108,7 +109,7 @@ export default function CloseConsultationModal({
       consultationsService.update(consultationId, { hcDraft: { ...draft, asentada: true } }).catch(() => {})
     } catch (err) {
       console.error('No se pudo auto-asentar la consulta estructurada:', err)
-      toast.warning('La consulta se cerró, pero lo documentado en "Consulta" no se pudo asentar en la historia clínica.')
+      toast.warning(`La consulta se cerró, pero lo documentado en "Consulta" no se pudo asentar en la historia clínica: ${mensajeDeError(err)}`)
     }
   }
 
@@ -186,7 +187,7 @@ export default function CloseConsultationModal({
       if (msg.includes('Código inválido') || msg.includes('código')) {
         toast.error(msg)
       } else {
-        toast.error('Error al finalizar la consulta')
+        toast.error(`No se pudo cerrar la consulta: ${mensajeDeError(err)}`)
       }
     } finally {
       setClosing(false)

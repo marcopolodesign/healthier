@@ -1,4 +1,4 @@
-import { supabase, toCamelCase } from '../lib/supabase'
+import { supabase, toCamelCase, olvidarSesion } from '../lib/supabase'
 
 // Shared insert payload for a new `profiles` row — used both by email/password
 // registration and by first-time Google sign-in completion.
@@ -113,6 +113,7 @@ export const authService = {
   },
 
   async logout() {
+    olvidarSesion()
     await supabase.auth.signOut()
     localStorage.removeItem('userProfile')
   },
