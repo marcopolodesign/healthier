@@ -9,6 +9,7 @@ import { EMERGENCY_SYMPTOMS } from '../../data/emergencySymptoms'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
+import CoordinadorAmbulancias from '../../components/super-admin/CoordinadorAmbulancias'
 
 const STATUS_BADGE = {
   pending:           'bg-gray-100 text-gray-500',
@@ -82,6 +83,8 @@ export default function SuperAdminEmergencias() {
         <h1 className="page-title-lg">Emergencias</h1>
         <p className="text-text-secondary mt-1">Todas las emergencias S.O.S de la plataforma, de más reciente a más antigua — con la entidad que despachó, el móvil y quién lo asignó</p>
       </div>
+
+      <CoordinadorAmbulancias />
 
       <div className="card">
         <div className="flex items-center justify-between mb-4">
