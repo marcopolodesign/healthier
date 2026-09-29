@@ -51,7 +51,8 @@ const antes = Number((label.match(/(\d+) sugerencia/) || [])[1])
 await hoja.locator('li button').first().click(); await page.waitForTimeout(400)
 await hoja.getByRole('button', { name: 'Cerrar', exact: true }).click(); await page.waitForTimeout(400)
 const despues = Number(((await barra.getAttribute('aria-label')).match(/(\d+) sugerencia/) || [])[1])
-check('tomar una sugerencia baja el contador', despues === antes - 1, `${antes} → ${despues}`)
+// ±1: si la consulta ya se usó, la primera sugerencia puede estar tomada y el toque la suelta.
+check('tocar una sugerencia mueve el contador', Math.abs(despues - antes) === 1, `${antes} → ${despues}`)
 // Guardar no queda tapado por la barra
 const guardar = page.getByRole('button', { name: /consulta en la HC/ })
 await guardar.scrollIntoViewIfNeeded(); await page.evaluate(() => document.querySelector('[class*="overflow-y-auto"]')?.scrollBy(0, 10000)); await page.waitForTimeout(400)
