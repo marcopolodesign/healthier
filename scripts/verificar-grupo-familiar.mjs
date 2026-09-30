@@ -113,7 +113,7 @@ async function main() {
   check((robo ?? []).length === 0, 'el titular no puede leer el perfil del tercero')
 
   // 3 ─ reservar para el familiar
-  const { data: pro } = await admin.from('profiles').select('id').eq('email', PROFESIONAL).single()
+  const { data: pro } = await admin.from('profiles').select('id').eq('email', PROFESIONAL).is('titular_id', null).single()
   let consultaId = null
   if (!PROD) {
     console.log('\n3. Reservar para el familiar')
@@ -154,7 +154,7 @@ async function main() {
   console.log('\n5. Historia clínica y estudios')
   // Una nota "external" de la HC: las tablas clínicas no se pueden borrar
   // (block_clinical_delete) y esta prueba tiene que limpiar lo que crea.
-  const { data: pro2 } = await admin.from('profiles').select('id').eq('email', PROFESIONAL).single()
+  const { data: pro2 } = await admin.from('profiles').select('id').eq('email', PROFESIONAL).is('titular_id', null).single()
   const { error: eCond } = await admin.from('clinical_notes').insert({
     patient_id: familiarId, professional_id: pro2.id, specialty: 'clinica', note_type: 'external',
     title: 'Verificación', content: 'Bronquiolitis resuelta (verificación)',
