@@ -20,6 +20,7 @@ import { cumplePrecioMinimo } from '../../lib/tarifas'
 import { CAMPOS_SENSIBLES } from '../../lib/reverificacion'
 import { faltanParaRecetar, OPCIONES_SEXO } from '../../lib/datosReceta'
 import AddressAutocomplete from '../../components/common/AddressAutocomplete'
+import { conCoordenadas } from '../../lib/geo'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
@@ -153,7 +154,7 @@ function valorLegible(campo, valor, porSlug) {
 
 /**
  * `true` si el profesional tiene al menos un precio cargado y por encima del
- * piso — mismo criterio que `professionalService.search()`/`getDashboardPool()`
+ * piso — mismo criterio que `professionalService.search()`/`getMapaProfesionales()`
  * y la RPC `buscar_profesionales_cobrables` (migración 176): si esto da
  * `false`, no aparece en la búsqueda del paciente aunque esté verificado.
  */
@@ -460,11 +461,8 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
     if (direccion.address.trim() !== (detail?.address ?? '')) {
       const { error } = await supabase
         .from('professional_profiles')
-        .update({
-          address: direccion.address.trim() || null,
-          latitude: direccion.latitude,
-          longitude: direccion.longitude,
-        })
+        // Con coordenadas: sin ellas el profesional no sale en el mapa del paciente.
+        .update(await conCoordenadas(direccion))
         .eq('id', pro.id)
       if (error) { toast.error(`Error al guardar la dirección: ${error.message}`); return }
     }
@@ -1110,7 +1108,7 @@ export default function SuperAdminProfesionales() {
       const [profResult, consultResult] = await Promise.all([
         supabase
           .from('professional_profiles')
-          .select('id, specialty, is_verified, is_active, verification_source, sisa_status, mp_connected, mp_account_label, has_signature, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, price_video, price_presencial, session_price, license_number, address, profiles!user_id(id, full_name, email, phone, dni, gender, created_at, utm_source, avatar_url)')
+          .select('id, specialty, is_verified, is_active, verification_source, sisa_status, mp_connected, mp_account_label, has_signature, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, price_video, price_presencial, session_price, license_number, address, latitude, longitude, profiles!user_id(id, full_name, email, phone, dni, gender, created_at, utm_source, avatar_url)')
           .order('created_at', { ascending: false }),
         supabase.from('consultations').select('professional_id'),
       ])
@@ -1232,6 +1230,7 @@ export default function SuperAdminProfesionales() {
                 <th className="table-header">Precio</th>
                 <th className="table-header">Firma</th>
                 <th className="table-header">Inmediata</th>
+                <th className="table-header">Mapa</th>
                 <th className="table-header">Rating</th>
                 <th className="table-header">Consultas</th>
                 <th className="table-header">Registro</th>
@@ -1260,7 +1259,7 @@ export default function SuperAdminProfesionales() {
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="py-16 text-center">
+                  <td colSpan={14} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-3 text-gray-400">
                       <User size={40} weight="thin" />
                       <p className="text-sm">No se encontraron profesionales</p>
@@ -1373,6 +1372,16 @@ export default function SuperAdminProfesionales() {
                           activo={pro.is_on_demand}
                           ultimoLatido={pro.on_demand_last_seen_at}
                         />
+                      </td>
+                      {/* Si sale en el mapa del paciente: hace falta dirección
+                          geocodificada (lat/lng). Sin dirección tampoco receta
+                          (2026-09-30). */}
+                      <td className="table-cell" data-testid="columna-mapa">
+                        {!pro.address?.trim()
+                          ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 whitespace-nowrap">Sin dirección</span>
+                          : (pro.latitude == null || pro.longitude == null)
+                            ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 whitespace-nowrap" title={pro.address}>Sin ubicar</span>
+                            : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700" title={pro.address}>En el mapa</span>}
                       </td>
                       <td className="table-cell">
                         {pro.average_rating > 0

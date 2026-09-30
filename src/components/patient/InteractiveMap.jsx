@@ -3,11 +3,13 @@ import { Map, Marker, Source, Layer } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Crosshair, Ambulance } from '@phosphor-icons/react';
 import MapFilters from './MapFilters'
-import { pixelToLatLng } from '../../lib/geo'
+import { haversineKm } from '../../lib/geo'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
 const ZOOM = 15
+// Cuántos profesionales cercanos entran en el primer encuadre del mapa.
+const PINES_AL_ENCUADRAR = 4
 // Fallback reference point when the user's real location isn't known yet —
 // same Buenos Aires default used by Dashboard.jsx's geolocation failure path.
 const DEFAULT_CENTER = { lat: -34.5956, lng: -58.3843 }
@@ -40,16 +42,22 @@ function EmergencyProMarker({ color = '#F43F5E' }) {
   )
 }
 
+/**
+ * Pin de un profesional: verde si está disponible para consulta inmediata
+ * (`disponibleAhora`), rojo si no — al rojo se le saca turno (Nacho,
+ * 2026-09-29). El ícono sigue siendo el de su especialidad.
+ */
 function ProMarker({ vertical, marker }) {
   const Icon = vertical.icon
+  const disponible = marker.isOnDemand
   return (
-    <div className="relative flex flex-col items-center transition-all duration-300">
-      {marker.isOnDemand && (
+    <div className="relative flex flex-col items-center transition-all duration-300 cursor-pointer" data-disponible={disponible ? 'si' : 'no'}>
+      {disponible && (
         <div className="absolute -top-1.5 w-14 h-14 rounded-full bg-emerald-400/30 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite] -z-10" />
       )}
-      <div className="w-11 h-11 bg-white rounded-full flex items-center justify-center shadow-[0_8px_20px_rgba(0,0,0,0.15)] border-2 border-white relative">
+      <div className={`w-11 h-11 bg-white rounded-full flex items-center justify-center shadow-[0_8px_20px_rgba(0,0,0,0.15)] border-[3px] relative ${disponible ? 'border-emerald-500' : 'border-red-500'}`}>
         <Icon className="w-[22px] h-[22px]" style={{ color: vertical.color }} />
-        <div className={`absolute top-0 -right-0.5 w-3.5 h-3.5 border-2 border-white rounded-full shadow-sm ${marker.isOnDemand ? 'bg-emerald-500' : 'bg-blue-500'}`} />
+        <div className={`absolute -top-0.5 -right-1 w-3.5 h-3.5 border-2 border-white rounded-full shadow-sm ${disponible ? 'bg-emerald-500' : 'bg-red-500'}`} />
       </div>
       <div className="w-2 h-1.5 bg-black/20 rounded-[100%] mt-1 blur-[1px]" />
     </div>
@@ -169,6 +177,30 @@ export default function InteractiveMap({
     )
   }, [emergencyPro?.lat, emergencyPro?.lng, userLocation?.lat, userLocation?.lng, baseY, mapaListo])
 
+  /*
+   * Los profesionales están en su dirección real, repartidos por la ciudad: a
+   * zoom 15 (~2 km de ancho) el paciente veía, con suerte, uno. La primera vez
+   * que hay pines se encuadra al paciente con los más cercanos, sin acercarse
+   * más que ZOOM. Una sola vez: después el mapa es del paciente.
+   */
+  const encuadradoConPines = useRef(false)
+  useEffect(() => {
+    if (encuadradoConPines.current || emergencyPro || !mapaListo || !mapRef.current) return
+    if (!userLocation || !activeMarkers.length) return
+    const cercanos = [...activeMarkers]
+      .sort((a, b) => haversineKm(userLocation, a) - haversineKm(userLocation, b))
+      .slice(0, PINES_AL_ENCUADRAR)
+    const lats = [userLocation.lat, ...cercanos.map(m => m.lat)]
+    const lngs = [userLocation.lng, ...cercanos.map(m => m.lng)]
+    mapRef.current.fitBounds(
+      [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+      // Arriba van los filtros; `duration: 0` por lo mismo que el encuadre de
+      // la emergencia (react-map-gl cancela las animaciones al re-renderizar).
+      { padding: { top: 110, bottom: 90, left: 50, right: 50 }, duration: 0, maxZoom: ZOOM },
+    )
+    encuadradoConPines.current = true
+  }, [activeMarkers, userLocation, mapaListo, emergencyPro])
+
   // Only offer vertical filters for specialties that actually have a marker on screen right now
   const filterableVerticales = useMemo(() => {
     const presentTypes = new Set(activeMarkers.map(m => m.type))
@@ -236,14 +268,13 @@ export default function InteractiveMap({
             // Con "Disponibles ahora" activo, quien no está disponible no se
             // dibuja: atenuado seguía figurando en el filtro (2026-09-29).
             if (effectiveAvailableNow && !m.isOnDemand) return null
-            const { lat, lng } = pixelToLatLng(referencePoint, m, ZOOM)
             return (
               <Marker
                 key={m.id}
-                longitude={lng}
-                latitude={lat}
+                longitude={m.lng}
+                latitude={m.lat}
                 anchor="bottom"
-                onClick={e => { e.originalEvent.stopPropagation(); onMarkerClick(m.type) }}
+                onClick={e => { e.originalEvent.stopPropagation(); onMarkerClick(m.id) }}
               >
                 <ProMarker vertical={v} marker={m} />
               </Marker>

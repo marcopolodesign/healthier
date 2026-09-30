@@ -1,32 +1,3 @@
-// Meters per pixel at a given zoom level for a given latitude
-function metersPerPixel(lat, zoom) {
-  return (156543.03 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom)
-}
-
-// Project a professional's real lat/lng onto the iframe overlay pixel grid.
-// Returns { x, y } offset in pixels relative to the user's position (center).
-// zoom must match the Google Maps iframe zoom parameter (currently 15).
-export function latLngToPixel(user, pro, zoom = 15) {
-  const mpp = metersPerPixel(user.lat, zoom)
-  const dLat = (pro.latitude - user.lat) * 111320
-  const dLng =
-    (pro.longitude - user.lng) *
-    111320 *
-    Math.cos((user.lat * Math.PI) / 180)
-  return { x: dLng / mpp, y: -dLat / mpp }
-}
-
-// Inverse of latLngToPixel — reconstructs an approximate { lat, lng } from a
-// pixel offset relative to a reference point (usually the user's location).
-// Used to place real markers on an interactive map (Leaflet) when the only
-// data available is a legacy pixel offset (e.g. from a fallback slot).
-export function pixelToLatLng(user, { x, y }, zoom = 15) {
-  const mpp = metersPerPixel(user.lat, zoom)
-  const dLat = (-y * mpp) / 111320
-  const dLng = (x * mpp) / (111320 * Math.cos((user.lat * Math.PI) / 180))
-  return { lat: user.lat + dLat, lng: user.lng + dLng }
-}
-
 // Great-circle distance in km between two { lat, lng } points.
 // Returns null when either point is missing coordinates — callers must treat
 // null as "unknown" and hide the distance rather than invent one.
@@ -86,15 +57,43 @@ export async function searchAddresses(query, signal) {
   }))
 }
 
+/**
+ * Versiones de una dirección tipeada a mano para probar contra Nominatim, que
+ * es estricto: "Arenales 3709 1A Palermo" no aparece y "Arenales 3709,
+ * Palermo" sí. Se prueban en orden y todas salen de la misma dirección — no se
+ * inventa nada (2026-09-30, con las direcciones reales que no se ubicaban).
+ */
+export function variantesDeDireccion(direccion) {
+  const original = direccion?.trim() ?? ''
+  const normalizada = original
+    .replace(/\bGral\.?\s/gi, 'General ')
+    .replace(/\bPte\.?\s/gi, 'Presidente ')
+    // piso / depto / oficina hasta la próxima coma
+    .replace(/\s*\b(piso|p\.|dto\.?|depto\.?|departamento|of\.?|oficina|local)\s*[^,]*/gi, '')
+    // "3709 1A" / "3709 4° B": la unidad pegada a la altura
+    .replace(/(\d{2,5})\s+\d{0,2}\s*°?\s*[A-Za-z]\b/, '$1')
+    // "Arenales 3709 Palermo" → "Arenales 3709, Palermo"
+    .replace(/(\D\s\d{2,5})\s+(?=[A-Za-zÁÉÍÓÚáéíóúÑñ])/, '$1, ')
+    // "Ramallo Buenos Aires" → "Ramallo, Buenos Aires"
+    .replace(/([^,\s])\s+(Buenos Aires|CABA|Capital Federal)\s*$/i, '$1, $2')
+    .replace(/\s+,/g, ',').replace(/\s{2,}/g, ' ').replace(/[.,\s]+$/, '')
+  const variantes = [original, normalizada, normalizada.split(',').slice(0, 2).join(',').trim()]
+  if (!/buenos aires|caba|capital federal/i.test(normalizada)) variantes.push(`${normalizada}, Buenos Aires`)
+  return [...new Set(variantes.filter(v => v.length >= 3))]
+}
+
 // Geocode a single address string — returns { lat, lng } or null.
 export async function geocodeAddress(address) {
   if (!address || address.trim().length < 3) return null
-  try {
-    const results = await searchAddresses(address)
-    return results.length > 0 ? { lat: results[0].lat, lng: results[0].lng } : null
-  } catch {
-    return null
+  for (const q of variantesDeDireccion(address)) {
+    try {
+      const results = await searchAddresses(q)
+      if (results.length > 0) return { lat: results[0].lat, lng: results[0].lng }
+    } catch {
+      return null
+    }
   }
+  return null
 }
 
 // Nominatim reverse geocode — returns a short street address string.
@@ -108,4 +107,22 @@ export async function reverseGeocode(lat, lng) {
   const street = data.address?.road || data.address?.suburb || data.address?.city || null
   const num = data.address?.house_number ? ` ${data.address.house_number}` : ''
   return street ? `${street}${num}` : null
+}
+
+/**
+ * La dirección del profesional con sus coordenadas, geocodificándola si el
+ * que la cargó la tipeó sin elegir una sugerencia (`AddressAutocomplete` pone
+ * lat/lng en null al tipear). Sin coordenadas el profesional no aparece en el
+ * mapa del paciente, así que cada lugar donde se guarda la dirección pasa por
+ * acá (perfil del profesional y super admin, 2026-09-30).
+ *
+ * Si no se puede ubicar, devuelve la dirección con lat/lng en null: la
+ * dirección igual sirve para recetar, y el aviso del panel le pide revisarla.
+ */
+export async function conCoordenadas({ address, latitude = null, longitude = null }) {
+  const limpia = address?.trim() || null
+  if (!limpia) return { address: null, latitude: null, longitude: null }
+  if (latitude != null && longitude != null) return { address: limpia, latitude, longitude }
+  const geo = await geocodeAddress(limpia)
+  return { address: limpia, latitude: geo?.lat ?? null, longitude: geo?.lng ?? null }
 }

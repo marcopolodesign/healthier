@@ -13,7 +13,6 @@ import { supportWhatsAppLink } from '../../lib/support'
 import StatusBadge from '../../components/StatusBadge'
 import ProfileCompletenessCard from '../../components/professional/ProfileCompletenessCard'
 import TourProfesional from '../../components/professional/TourProfesional'
-import { atiendePresencial } from '../../lib/profileCompleteness'
 import { cumplePrecioMinimo } from '../../lib/tarifas'
 import { CAMPOS_SENSIBLES, enumerarCampos } from '../../lib/reverificacion'
 import { ID_CONSULTA as ID_SIMULACION } from '../../lib/simulacion'
@@ -202,8 +201,16 @@ export default function ProfessionalDashboard({ profile }) {
   // pediatra 100% virtual se enteraba recién al emitir (María José Francisco,
   // 2026-09-28). Este aviso cubre a todo el que puede recetar.
   const { puedeRecetar } = useEspecialidades()
-  const faltaDireccionParaRecetar = !loading && !profProfile?.address
-    && puedeRecetar(profProfile?.specialty)
+  //
+  // Desde el 2026-09-30 el aviso es para TODOS: el mapa del paciente dibuja a
+  // cada profesional en su dirección (virtuales incluidos, decisión de Mateo),
+  // así que sin dirección —o con una que no se pudo ubicar— no aparece.
+  // Reemplaza al viejo "¿Atendés en un consultorio?", que era sólo para
+  // presenciales.
+  const avisoDireccion = loading || !profProfile ? null
+    : !profProfile.address?.trim() ? 'sin_direccion'
+    : (profProfile.latitude == null || profProfile.longitude == null) ? 'sin_coordenadas'
+    : null
 
   useEffect(() => {
     if (!profile?.id) return
@@ -593,7 +600,7 @@ export default function ProfessionalDashboard({ profile }) {
           puntual que el aviso de dirección del consultorio, pero en rojo
           porque acá no es "no aparecés en el mapa", es "no aparecés en NINGUNA
           búsqueda" — la base lo saca del listado (`buscar_profesionales_cobrables`
-          y `professionalService.search`/`getDashboardPool`, las tres con el
+          y `professionalService.search`/`getMapaProfesionales`, las tres con el
           mismo piso de $15.000 que el checklist y la migración 142). */}
       {!loading && profProfile?.isVerified && ![
         profProfile?.pricePresencial, profProfile?.priceVideo, profProfile?.sessionPrice,
@@ -772,43 +779,14 @@ export default function ProfessionalDashboard({ profile }) {
         </div>
       </Link>
 
-      {/* Dirección del consultorio — aviso puntual, NO el checklist completo.
-          El checklist general no se muestra a un verificado a propósito
-          (2026-08-21, ver el comentario más arriba), pero este caso concreto
-          se le escapaba: el profesional declaró que atiende presencial y no
-          tiene dirección cargada, así que **no aparece en el mapa de
-          pacientes** aunque esté verificado y cobrando. De 27 profesionales
-          sólo 2 tenían dirección, porque el onboarding nunca la pide y el
-          campo vive en /profesional/perfil (Mateo, 2026-08-27).
-
-          Es un único item accionable que desaparece solo al completarse — no
-          reabre la discusión del checklist para verificados. */}
-      {faltaDireccionParaRecetar && (
+      {/* Dirección de atención — aviso puntual, NO el checklist completo (que
+          a un verificado no se le muestra, 2026-08-21). Sin dirección no
+          receta ni aparece en el mapa del paciente; con una que no se pudo
+          geocodificar, tampoco aparece. Se va solo al completarse. */}
+      {avisoDireccion && (
         <Link
           to="/profesional/perfil"
           data-testid="aviso-direccion-receta"
-          className="card flex items-center gap-4 border-amber-300 bg-amber-50 hover:border-amber-400 transition-colors group"
-        >
-          <div className="w-12 h-12 rounded-2xl bg-white border border-amber-200 flex items-center justify-center shrink-0">
-            <FileText className="h-6 w-6 text-amber-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-amber-700 font-bold uppercase tracking-wide">Falta un dato</p>
-            <p className="text-base font-semibold text-text-primary mt-0.5">Para emitir recetas te falta la dirección</p>
-            <p className="text-xs text-text-secondary mt-0.5">
-              La receta electrónica pide un domicilio de atención, aunque atiendas sólo por videollamada. Cargala en tu perfil.
-            </p>
-          </div>
-          <div className="flex items-center gap-1 text-amber-700 text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">
-            Cargar <ArrowRight className="h-4 w-4" />
-          </div>
-        </Link>
-      )}
-
-      {/* Si ya salió el aviso de la receta, que pide lo mismo, no se repite. */}
-      {!loading && !faltaDireccionParaRecetar && atiendePresencial(profProfile) && !profProfile?.address && (
-        <Link
-          to="/profesional/perfil"
           className="card flex items-center gap-4 border-amber-300 bg-amber-50 hover:border-amber-400 transition-colors group"
         >
           <div className="w-12 h-12 rounded-2xl bg-white border border-amber-200 flex items-center justify-center shrink-0">
@@ -816,15 +794,15 @@ export default function ProfessionalDashboard({ profile }) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs text-amber-700 font-bold uppercase tracking-wide">Falta un dato</p>
-            <p className="text-base font-semibold text-text-primary mt-0.5">¿Atendés en un consultorio?</p>
-            {/* NO decir "dijiste que atendés presencial": `modality_preference`
-                tiene DEFAULT 'ambas' en la base (migración 049) y nadie se lo
-                pregunta en el alta, así que 11 de los 15 'ambas' de producción
-                nunca eligieron nada — afirmarlo sería ponerles en la boca algo
-                que no dijeron. Hasta que se les pregunte de verdad (ver
-                nextsteps), el aviso ofrece las dos salidas. */}
+            <p className="text-base font-semibold text-text-primary mt-0.5">
+              {avisoDireccion === 'sin_direccion' ? 'Cargá tu dirección de atención' : 'No pudimos ubicar tu dirección en el mapa'}
+            </p>
             <p className="text-xs text-text-secondary mt-0.5">
-              Tu perfil figura como presencial. Cargá la dirección para aparecer en el mapa, o pasalo a sólo videollamada en Configuración.
+              {avisoDireccion === 'sin_direccion'
+                ? (puedeRecetar(profProfile?.specialty)
+                    ? 'La necesitás para recetar y para aparecer en el mapa, aunque atiendas sólo por videollamada.'
+                    : 'La necesitás para aparecer en el mapa de pacientes, aunque atiendas sólo por videollamada.')
+                : 'Volvé a cargarla en tu perfil eligiendo una de las sugerencias, así los pacientes te encuentran en el mapa.'}
             </p>
           </div>
           <div className="flex items-center gap-1 text-amber-700 text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">

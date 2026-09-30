@@ -19,22 +19,19 @@ import TourPaciente from '../../components/patient/TourPaciente'
 import { professionalService, disponibleAhora } from '../../services/professionalService'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { emergencyService, getSosSettings } from '../../services/emergencyService'
-import { pickProForVertical } from '../../lib/verticals'
 import { useVerticales } from '../../hooks/useVerticales'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
-import { latLngToPixel, haversineKm, formatDistance } from '../../lib/geo'
+import { haversineKm, formatDistance } from '../../lib/geo'
+import { availabilityService } from '../../services/availabilityService'
+import { consultationsService } from '../../services/consultationsService'
+import { paymentsService } from '../../services/paymentsService'
+import { primerTurnoLibre } from '../../lib/agendaTurnos'
+import { cumplePrecioMinimo } from '../../lib/tarifas'
+import { atiendePresencial } from '../../lib/profileCompleteness'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
 
-// Fallback pixel offsets used when a pro has no geo coordinates yet
-const FALLBACK_SLOTS = [
-  { x: -120, y: -180 },
-  { x:  220, y:  -90 },
-  { x: -200, y:   80 },
-  { x:  150, y:  190 },
-  { x:   50, y: -240 },
-]
 
 export default function PatientDashboard({ profile }) {
   // Habilitación de cada vertical: sale de `vertical_settings`, no del código.
@@ -105,30 +102,34 @@ export default function PatientDashboard({ profile }) {
   // botón un instante de más que ocultarlo por un fetch lento o caído.
   const [sosEnabled, setSosEnabled] = useState(true)
 
-  // One pro per vertical, keyed by vertical id
-  const markersByVertical = useMemo(() => {
-    const result = {}
+  // Un pin por profesional, en su dirección real (2026-09-30). Antes era uno
+  // solo por vertical, y al que no tenía coordenadas se lo dibujaba en una
+  // posición inventada alrededor del paciente. Ahora el que no tiene
+  // coordenadas no va al mapa — `getMapaProfesionales` ya lo excluye.
+  const verticalDeEspecialidad = useMemo(() => {
+    const m = {}
     VERTICALS.forEach(v => {
-      if (v.comingSoon) return   // no map pin for coming-soon verticals
-      const pro = pickProForVertical(proPool, v.id, porVertical)
-      if (pro) result[v.id] = pro
+      if (v.comingSoon) return
+      ;(porVertical[v.id] || []).forEach(slug => { m[slug] = v.id })
     })
-    return result
-  }, [proPool, VERTICALS, porVertical])
+    return m
+  }, [VERTICALS, porVertical])
 
-  // Marker list for InteractiveMap — project real lat/lng onto overlay, fallback to fixed slots
   const mapMarkers = useMemo(() =>
-    VERTICALS
-      .map((v, i) => {
-        const pro = markersByVertical[v.id]
-        if (!pro) return null
-        const pixelPos = (userLocation && pro.latitude != null && pro.longitude != null)
-          ? latLngToPixel(userLocation, pro)
-          : FALLBACK_SLOTS[i]
-        return { id: i + 1, type: v.id, isOnDemand: disponibleAhora(pro), ...pixelPos }
+    proPool
+      .map(pro => {
+        const type = verticalDeEspecialidad[pro.specialty]
+        if (!type) return null
+        return {
+          id: pro.userId,
+          type,
+          lat: Number(pro.latitude),
+          lng: Number(pro.longitude),
+          isOnDemand: disponibleAhora(pro),
+        }
       })
-      .filter(Boolean),
-    [markersByVertical, userLocation, VERTICALS]
+      .filter(m => m && Number.isFinite(m.lat) && Number.isFinite(m.lng)),
+    [proPool, verticalDeEspecialidad]
   )
 
   // Only specialties bookable right now (no "próximamente") get the on-demand hero treatment
@@ -159,7 +160,7 @@ export default function PatientDashboard({ profile }) {
 
   // Load verified professionals for map markers
   useEffect(() => {
-    professionalService.getDashboardPool()
+    professionalService.getMapaProfesionales()
       .then(data => setProPool(data))
       .catch(() => {}) // silent — map just shows no markers
   }, [])
@@ -195,10 +196,21 @@ export default function PatientDashboard({ profile }) {
     return () => { cancelled = true; document.removeEventListener('visibilitychange', onVisible) }
   }, [profile?.id])
 
-  const handleMarkerClick = type => {
-    const pro = markersByVertical[type]
+  // Primer turno libre del profesional tocado: se calcula al tocarlo (son dos
+  // lecturas chicas) y no para todos los pines al cargar el mapa.
+  // `undefined` = calculando · `null` = no tiene turnos en 14 días.
+  const [primerTurno, setPrimerTurno] = useState(undefined)
+  const slotMinutesRef = useRef(null)
+  const turnoPedidoParaRef = useRef(null)
+
+  const handleMarkerClick = proId => {
+    const pro = proPool.find(p => p.userId === proId)
     if (!pro) return
+    const type = verticalDeEspecialidad[pro.specialty]
     const vert = VERTICALS.find(v => v.id === type)
+    if (!vert) return
+    const disponible = disponibleAhora(pro)
+    track('map_pro_click', { professional_id: pro.userId, disponible_ahora: disponible, flow: 'paciente' })
     setSelectedMapPro({
       name:       pro.profiles?.fullName || 'Profesional',
       specialty:  porSlug[pro.specialty] || pro.specialty,
@@ -213,11 +225,31 @@ export default function PatientDashboard({ profile }) {
       icon:       vert.icon,
       userId:     pro.userId,
       verticalId: type,
-      disponibleAhora: disponibleAhora(pro),
+      disponibleAhora: disponible,
+      tienePrecio: [pro.priceVideo, pro.pricePresencial, pro.sessionPrice].some(cumplePrecioMinimo),
+      atiendePresencial: atiendePresencial(pro),
       latitude:   pro.latitude ?? null,
       longitude:  pro.longitude ?? null,
     })
     setMapProFlow('details')
+    if (disponible) return
+    setPrimerTurno(undefined)
+    turnoPedidoParaRef.current = pro.userId
+    const slotMinutes = slotMinutesRef.current
+      ? Promise.resolve(slotMinutesRef.current)
+      : paymentsService.getPlatformSettings().then(s => s?.slotDurationMinutes ?? null).catch(() => null)
+    Promise.all([
+      availabilityService.getSchedule(pro.userId),
+      consultationsService.getByProfessional(pro.userId).catch(() => []),
+      slotMinutes,
+    ])
+      .then(([schedule, consultations, minutos]) => {
+        if (minutos) slotMinutesRef.current = minutos
+        // Si el paciente ya tocó otro pin, esta respuesta es de otro profesional.
+        if (turnoPedidoParaRef.current !== pro.userId) return
+        setPrimerTurno(primerTurnoLibre({ schedule, consultations, slotMinutes: minutos ?? undefined }))
+      })
+      .catch(() => { if (turnoPedidoParaRef.current === pro.userId) setPrimerTurno(null) })
   }
 
   // Real straight-line distance from the patient to the selected pro's office.
@@ -240,6 +272,17 @@ export default function PatientDashboard({ profile }) {
     // picks modality + date themselves ("agendar para otro día").
     const modalityParam = modality ? `&modality=${modality}` : ''
     navigate(`/paciente/reservar?vertical=${verticalId}&proId=${userId}${modalityParam}`)
+  }
+
+  // El verde se atiende ya: va al flujo de consulta inmediata con ESE
+  // profesional, igual que "Llamar ahora" del médico de cabecera.
+  const handleMapConsultaInmediata = () => {
+    if (!selectedMapPro) return
+    const { verticalId, userId } = selectedMapPro
+    track('map_pro_ondemand_click', { professional_id: userId, flow: 'paciente' })
+    setMapProFlow(null)
+    setSelectedMapPro(null)
+    navigate(`/paciente/ondemand/${verticalId}?pro=${userId}`)
   }
 
   const goToVertical = v => {
@@ -644,57 +687,93 @@ export default function PatientDashboard({ profile }) {
                   )}
                 </div>
               </div>
-              <h3 className="font-semibold text-[18px] text-gray-900 mb-4">¿Cómo preferís atenderte?</h3>
-              <div className="space-y-3">
-                {[
-                  {
-                    key: 'virtual',
-                    label: 'Virtual (En Vivo)',
-                    sub: 'Conectá por videollamada al instante.',
-                    modality: 'virtual',
-                    icon: VideoCamera,
-                    color: 'text-brand',
-                    bg: 'bg-blue-50',
-                  },
-                  {
-                    key: 'presencial',
-                    label: 'Presencial',
-                    // Real distance when we have both the patient's position and the
-                    // professional's office coordinates; plain copy otherwise.
-                    sub: selectedProDistance
-                      ? `Acudí al consultorio (a ${selectedProDistance} de vos).`
-                      : 'Acudí al consultorio del profesional.',
-                    modality: 'presencial',
-                    icon: MapPin,
-                    color: 'text-emerald-600',
-                    bg: 'bg-emerald-50',
-                  },
-                  {
-                    key: 'agendar',
-                    label: 'Agendar turno para otro día',
-                    sub: 'Elegí modalidad, fecha y horario.',
-                    modality: null,
-                    icon: CalendarBlank,
-                    color: 'text-brand-tertiary',
-                    bg: 'bg-brand-tertiary-muted',
-                  },
-                ].map(opt => (
-                  <div
-                    key={opt.key}
-                    onClick={() => handleMapModalitySelect(opt.modality)}
-                    className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:border-brand transition-all group"
+              {selectedMapPro.disponibleAhora ? (
+                <>
+                  <h3 className="font-semibold text-[18px] text-gray-900 mb-4">¿Cómo preferís atenderte?</h3>
+                  <div className="space-y-3">
+                    {[
+                      {
+                        key: 'ahora',
+                        label: 'Consulta inmediata',
+                        sub: 'Conectá por videollamada ahora.',
+                        onClick: handleMapConsultaInmediata,
+                        icon: VideoCamera,
+                        color: 'text-brand',
+                        bg: 'bg-blue-50',
+                      },
+                      selectedMapPro.tienePrecio && selectedMapPro.atiendePresencial && {
+                        key: 'presencial',
+                        label: 'Presencial',
+                        // Real distance when we have both the patient's position and the
+                        // professional's office coordinates; plain copy otherwise.
+                        sub: selectedProDistance
+                          ? `Acudí al consultorio (a ${selectedProDistance} de vos).`
+                          : 'Acudí al consultorio del profesional.',
+                        onClick: () => handleMapModalitySelect('presencial'),
+                        icon: MapPin,
+                        color: 'text-emerald-600',
+                        bg: 'bg-emerald-50',
+                      },
+                      selectedMapPro.tienePrecio && {
+                        key: 'agendar',
+                        label: 'Agendar turno para otro día',
+                        sub: 'Elegí modalidad, fecha y horario.',
+                        onClick: () => handleMapModalitySelect(null),
+                        icon: CalendarBlank,
+                        color: 'text-brand-tertiary',
+                        bg: 'bg-brand-tertiary-muted',
+                      },
+                    ].filter(Boolean).map(opt => (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={opt.onClick}
+                        className="w-full text-left bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:border-brand transition-all group"
+                      >
+                        <div className={`w-14 h-14 ${opt.bg} rounded-[16px] flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                          <opt.icon className={`w-6 h-6 ${opt.color}`} />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-[17px] text-gray-900">{opt.label}</h3>
+                          <p className="text-[13px] text-gray-500 font-medium mt-0.5">{opt.sub}</p>
+                        </div>
+                        <CaretRight className="w-5 h-5 text-gray-300 group-hover:text-brand transition-colors" />
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                /* Pin rojo: no está para consulta inmediata, se le saca turno. */
+                <div data-testid="mapa-pro-no-disponible">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-2.5 h-2.5 bg-red-500 rounded-full" />
+                    <p className="text-[14px] text-gray-600 font-medium">No está disponible para consulta inmediata.</p>
+                  </div>
+                  <button
+                    type="button"
+                    data-testid="mapa-pro-sacar-turno"
+                    onClick={() => handleMapModalitySelect(null)}
+                    className="w-full text-left bg-brand text-white p-5 rounded-2xl shadow-sm flex items-center gap-4 hover:bg-brand-hover active:scale-[0.98] transition-all"
                   >
-                    <div className={`w-14 h-14 ${opt.bg} rounded-[16px] flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                      <opt.icon className={`w-6 h-6 ${opt.color}`} />
+                    <div className="w-14 h-14 bg-white/15 rounded-[16px] flex items-center justify-center shrink-0">
+                      <CalendarBlank className="w-6 h-6" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-[17px] text-gray-900">{opt.label}</h3>
-                      <p className="text-[13px] text-gray-500 font-medium mt-0.5">{opt.sub}</p>
+                      <h3 className="font-semibold text-[17px]">
+                        {primerTurno ? 'Sacar el turno más cercano' : 'Ver agenda'}
+                      </h3>
+                      <p className="text-[13px] text-white/85 font-medium mt-0.5">
+                        {primerTurno === undefined
+                          ? 'Buscando el primer horario libre…'
+                          : primerTurno
+                            ? `${primerTurno.encabezado === 'Hoy' ? 'Hoy' : `${primerTurno.encabezado} ${primerTurno.diaDelMes} ${primerTurno.mesCorto}`}, ${primerTurno.startTime.slice(0, 5)} h`
+                            : 'Elegí fecha y horario.'}
+                      </p>
                     </div>
-                    <CaretRight className="w-5 h-5 text-gray-300 group-hover:text-brand transition-colors" />
-                  </div>
-                ))}
-              </div>
+                    <CaretRight className="w-5 h-5 text-white/70" />
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
