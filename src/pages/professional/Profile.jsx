@@ -6,7 +6,7 @@ import FileUpload from '../../components/FileUpload'
 import Modal from '../../components/Modal'
 import AddressAutocomplete from '../../components/common/AddressAutocomplete'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
-import { geocodeAddress } from '../../lib/geo'
+import { conCoordenadas } from '../../lib/geo'
 import { toast } from '../../components/Toast'
 import { isLikelyTooSmallForFace } from '../../lib/imageCompression'
 import { camposSensiblesQueCambian, enumerarCampos, requiereReverificacion } from '../../lib/reverificacion'
@@ -82,12 +82,10 @@ export default function ProfessionalProfile({ profile }) {
         await profilesService.uploadAvatar(profile.id, avatarFile)
         setAvatarFile(null)
       }
-      const payload = { ...profData, ...form }
-      if (payload.latitude == null && payload.address) {
-        const geo = await geocodeAddress(payload.address)
-        if (geo) { payload.latitude = geo.lat; payload.longitude = geo.lng }
-      }
-      if (payload.latitude == null) { delete payload.latitude; delete payload.longitude }
+      // Las coordenadas van SIEMPRE con la dirección que se guarda: antes, si
+      // no se podía geocodificar, se borraban del payload y quedaban las de la
+      // dirección anterior — el pin del mapa seguía en la vieja.
+      const payload = { ...profData, ...form, ...(await conCoordenadas(form)) }
       const guardado = await professionalService.upsert(profile.id, payload)
       // Quedarse con lo que devolvió el servidor y no con el payload:
       // `is_verified` y `reverification_pending` los decide el trigger, así que

@@ -182,17 +182,37 @@ export const professionalService = {
     }, {})
   },
 
-  async getDashboardPool() {
+  /**
+   * Los pines del mapa del inicio del paciente (2026-09-30, pedido de Nacho):
+   * TODOS los profesionales que el paciente puede contratar y que tienen dónde
+   * dibujarse — verificados, activos, con Mercado Pago conectado y con
+   * coordenadas. Ya no se filtra por modalidad: la dirección es obligatoria
+   * para recetar (Innovamed QBI248), así que los virtuales también la tienen y
+   * van al mapa en su dirección de atención (decisión de Mateo).
+   *
+   * El precio propio se exige sólo a quien NO está disponible ahora: al rojo
+   * se le saca turno (lo cobra él, a su precio); al verde se le pide una
+   * consulta inmediata, que cobra el precio de plataforma — igual que en
+   * `search({ onDemand })`.
+   *
+   * El verde/rojo lo decide `disponibleAhora()` en el front.
+   */
+  async getMapaProfesionales() {
     const ocultar = await ocultaDePrueba()
+    const vigentesDesde = new Date(Date.now() - ON_DEMAND_PRESENCE_TTL_MS).toISOString()
     let query = supabase
       .from('professional_profiles')
       .select('*, profiles!user_id(full_name, avatar_url, email)')
       .eq('is_verified', true)
       .eq('is_active', true)
+      .eq('mp_connected', true)
+      .not('latitude', 'is', null)
+      .not('longitude', 'is', null)
+      .or(
+        `price_video.gte.${PRECIO_MINIMO},price_presencial.gte.${PRECIO_MINIMO},session_price.gte.${PRECIO_MINIMO},` +
+        `and(is_on_demand.eq.true,on_demand_last_seen_at.gte.${vigentesDesde})`
+      )
     if (ocultar) query = query.eq('solo_pruebas', false)
-    // Son los marcadores del mapa del paciente: mostrar a alguien sin precio
-    // ahí es prometerle un profesional al que después no le puede reservar.
-    query = conPrecioCargado(query)
     const { data, error } = await query.order('average_rating', { ascending: false })
     if (error) throw error
     return toCamelCase(data)

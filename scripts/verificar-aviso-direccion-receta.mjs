@@ -10,7 +10,8 @@
 //  1. Todo link "tu perfil" de DatosRecetaFaltantes apunta a la pantalla que
 //     tiene el campo de dirección (/profesional/perfil).
 //  2. Esa pantalla sigue teniendo el campo.
-//  3. El dashboard avisa por la receta sin depender de atiendePresencial.
+//  3. El dashboard avisa a todos (receta + mapa), sin depender de
+//     atiendePresencial, también si la dirección no tiene coordenadas.
 //
 // Uso: node scripts/verificar-aviso-direccion-receta.mjs   (sale 1 si falla)
 import { readFileSync } from 'node:fs'
@@ -32,13 +33,14 @@ if (!/label="Dirección del consultorio"/.test(perfil)) {
 }
 
 const dashboard = leer('src/pages/professional/Dashboard.jsx')
-const cond = dashboard.match(/const faltaDireccionParaRecetar = ([\s\S]*?)\n\n/)
+// Desde el 2026-09-30 el aviso es para todos (receta + mapa del paciente).
+const cond = dashboard.match(/const avisoDireccion = ([\s\S]*?)\n\n/)
 if (!cond) {
-  fallas.push('Dashboard: no está el aviso faltaDireccionParaRecetar')
+  fallas.push('Dashboard: no está el aviso avisoDireccion')
 } else {
-  if (/atiendePresencial/.test(cond[1])) fallas.push('Dashboard: el aviso de la receta volvió a depender de atiendePresencial')
-  if (!/puedeRecetar/.test(cond[1])) fallas.push('Dashboard: el aviso de la receta no mira puedeRecetar')
-  if (!/\{faltaDireccionParaRecetar && \(/.test(dashboard)) fallas.push('Dashboard: el aviso está calculado pero no se muestra')
+  if (/atiendePresencial/.test(cond[1])) fallas.push('Dashboard: el aviso de la dirección volvió a depender de atiendePresencial')
+  if (!/latitude/.test(cond[1])) fallas.push('Dashboard: el aviso no mira si la dirección tiene coordenadas')
+  if (!/\{avisoDireccion && \(/.test(dashboard)) fallas.push('Dashboard: el aviso está calculado pero no se muestra')
 }
 
 // 4. El super admin ve qué le falta para recetar y puede cargar la dirección.
