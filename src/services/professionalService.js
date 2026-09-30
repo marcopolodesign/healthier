@@ -233,7 +233,11 @@ export const professionalService = {
       query = conPrecioCargado(query)
     }
 
-    if (filters.specialty) {
+    // `specialty` acepta un slug o una lista: una vertical (Clínica) agrupa
+    // varias especialidades y el pool on-demand las junta a todas.
+    if (Array.isArray(filters.specialty)) {
+      if (filters.specialty.length) query = query.in('specialty', filters.specialty)
+    } else if (filters.specialty) {
       query = query.eq('specialty', filters.specialty)
     }
     if (filters.onDemand) {

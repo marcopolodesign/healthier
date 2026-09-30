@@ -404,18 +404,19 @@ export default function OnDemand({ profile }) {
       if (!cancelled) { setPublicKey(data?.publicKey ?? null); setConfigLoading(false) }
     })
 
+    // TODAS las especialidades de la vertical, no sólo la primera: un clínico
+    // conectado como cardiólogo cuenta para Clínica (igual que en la app).
     const slugs = porVertical[verticalId] || []
-    const primarySlug = slugs[0]
 
     // Sin fallback a `search({ specialty })` a secas: ese catch hacía que un
     // error de red terminara matcheando contra TODOS los profesionales de la
     // especialidad, incluidos los que nunca se anotaron a on-demand. Un fallo
     // de lectura ahora es "no hay nadie", que es lo honesto.
-    const fetchPoolDeLaEspecialidad = () => primarySlug
+    const fetchPoolDeLaEspecialidad = () => slugs.length
       // `onlyLive` existía y nunca se pasaba: entraban al pool médicos que habían
       // tildado el switch hacía meses. Ahora "vivo" es haberlo declarado en la
       // última hora, no tener una pestaña abierta.
-      ? professionalService.search({ specialty: primarySlug, onDemand: true, onlyLive: true }).catch(() => null)
+      ? professionalService.search({ specialty: slugs, onDemand: true, onlyLive: true }).catch(() => null)
       : Promise.resolve([])
 
     /*
@@ -430,7 +431,7 @@ export default function OnDemand({ profile }) {
      */
     const fetchPros = direccionamientoDirecto
       ? professionalService.getByUserId(direccionamientoDirecto).then(pro => {
-          const especialidadCoincide = !primarySlug || pro?.specialty === primarySlug
+          const especialidadCoincide = !slugs.length || slugs.includes(pro?.specialty)
           const elegible = pro?.isVerified && pro?.isActive && pro?.isOnDemand && especialidadCoincide
             && pro?.onDemandLastSeenAt && (Date.now() - new Date(pro.onDemandLastSeenAt).getTime()) < ON_DEMAND_PRESENCE_TTL_MS
             && isPayable(pro)
