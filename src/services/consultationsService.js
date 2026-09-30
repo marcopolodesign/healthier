@@ -1,4 +1,5 @@
 import { supabase, toCamelCase, toSnakeCase, asegurarSesion } from '../lib/supabase'
+import { familyService } from './familyService'
 
 /**
  * Ids de consultas que agendó el propio profesional en esta sesión.
@@ -319,13 +320,21 @@ export const consultationsService = {
     return toCamelCase(row)
   },
 
-  async getByPatient(patientId) {
+  /**
+   * Las consultas del paciente y, por defecto, las de los familiares que
+   * administra (migración 181): el turno que un padre le saca al hijo tiene que
+   * aparecer en SUS turnos, porque es él quien entra a la sala. Cada fila trae
+   * `paciente` para poder decir "Para Juan". `{ conFamiliares: false }` para lo
+   * que es estrictamente de la salud propia (el resumen de salud).
+   */
+  async getByPatient(patientId, { conFamiliares = true } = {}) {
+    const ids = conFamiliares ? await familyService.idsDelGrupo(patientId) : [patientId]
     const { data, error } = await supabase
       .from('consultations')
       // `address, latitude, longitude` del consultorio: sin eso un turno
       // presencial no puede mostrar ni la dirección ni el camino hasta ahí.
-      .select('*, professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty, address, latitude, longitude)), encounters:clinical_encounters!consultation_id(id, medications:clinical_medications(rcta_status, rcta_pdf_url, rcta_prescription_id)), payment:payments!consultation_id(id, status, refund_type, refunded_at, refund_conversion_requested_at, refund_conversion_resolved_at, mp_payment_id, refund_request_status, refund_reject_reason)')
-      .eq('patient_id', patientId)
+      .select('*, paciente:profiles!patient_id(id, full_name), professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty, address, latitude, longitude)), encounters:clinical_encounters!consultation_id(id, medications:clinical_medications(rcta_status, rcta_pdf_url, rcta_prescription_id)), payment:payments!consultation_id(id, status, refund_type, refunded_at, refund_conversion_requested_at, refund_conversion_resolved_at, mp_payment_id, refund_request_status, refund_reject_reason)')
+      .in('patient_id', ids.length ? ids : [patientId])
       .order('scheduled_at', { ascending: false })
     if (error) throw error
     return toCamelCase(data)
@@ -403,10 +412,13 @@ export const consultationsService = {
    */
   async getLiveOnDemand(patientId) {
     if (!patientId) return null
+    // También la de un familiar: si el titular la pidió para el hijo y cerró la
+    // pestaña, la espera se rehidrata igual (migración 181).
+    const ids = await familyService.idsDelGrupo(patientId)
     const { data, error } = await supabase
       .from('consultations')
-      .select('*')
-      .eq('patient_id', patientId)
+      .select('*, paciente:profiles!patient_id(id, full_name)')
+      .in('patient_id', ids.length ? ids : [patientId])
       .eq('is_on_demand', true)
       .in('payment_status', ['in_process', 'exempt'])
       .in('status', ['pending', 'confirmed'])

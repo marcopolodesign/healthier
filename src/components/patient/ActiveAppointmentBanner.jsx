@@ -229,6 +229,9 @@ export default function ActiveAppointmentBanner({ profile }) {
   const recentlyCompleted = active.status === 'completed'
   const proximo = isUpcomingSoon(active, now)
   const proName = active.professional?.fullName ?? 'tu profesional'
+  // Turno de un familiar (migración 181): el banner lo muestra igual —el que
+  // entra a la sala es el titular— pero aclarando para quién es.
+  const paraFamiliar = active.patientId !== profile?.id ? active.paciente?.fullName : null
   const timeStr = active.scheduledAt
     ? new Date(active.scheduledAt).toLocaleTimeString('es-AR', {
         hour: '2-digit', minute: '2-digit', hour12: false,
@@ -292,7 +295,7 @@ export default function ActiveAppointmentBanner({ profile }) {
           {title}
         </p>
         <p className="text-[12px] text-text-secondary mt-0.5 truncate">
-          {proName}{!closing && !recentlyCompleted && !proximo && timeStr ? ` · ${timeStr} hs` : ''}
+          {paraFamiliar ? `Para ${paraFamiliar} · ` : ''}{proName}{!closing && !recentlyCompleted && !proximo && timeStr ? ` · ${timeStr} hs` : ''}
         </p>
       </div>
 

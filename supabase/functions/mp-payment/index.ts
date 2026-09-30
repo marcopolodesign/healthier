@@ -27,6 +27,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { puedeActuarComo } from '../_shared/familia.ts'
 import { ensureFreshMpToken, PAYMENT_REFRESH_MARGIN_MS } from '../_shared/mpRefresh.ts'
 import { ensureFreshPharmacyMpToken } from '../_shared/pharmacyMpRefresh.ts'
 
@@ -507,7 +508,9 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (consultation.patient_id !== user.id) {
+    // El que paga es el usuario logueado; la consulta puede ser de un familiar
+    // suyo (migración 181) — las tarjetas y los créditos son del titular.
+    if (!(await puedeActuarComo(serviceSupabase, user.id, consultation.patient_id))) {
       return new Response(
         JSON.stringify({ data: null, error: 'Forbidden: only the patient can pay for this consultation' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

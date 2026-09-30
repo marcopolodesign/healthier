@@ -29,6 +29,7 @@ import LandingSinCoberturaMedica from './pages/landing/SinCoberturaMedica'
 import LandingMedicoOnline from './pages/landing/MedicoOnline'
 import LandingProfesionales from './pages/landing/Profesionales'
 import Login from './pages/auth/Login'
+import AccesoFamiliar from './pages/auth/AccesoFamiliar'
 import Register from './pages/auth/Register'
 import RegisterProfessional from './pages/auth/RegisterProfessional'
 import CompleteProfile from './pages/auth/CompleteProfile'
@@ -78,6 +79,7 @@ import WaitingRoom from './pages/patient/WaitingRoom'
 import ConsultationReview from './pages/patient/ConsultationReview'
 import ConsultationSummary from './pages/patient/ConsultationSummary'
 import ReservarConsulta from './pages/patient/ReservarConsulta'
+import FamiliarDetalle from './pages/patient/FamiliarDetalle'
 import PatientRecetas from './pages/patient/Recetas'
 import PatientRecetaDetalle from './pages/patient/RecetaDetalle'
 import PaymentPage from './pages/patient/PaymentPage'
@@ -108,6 +110,7 @@ import SuperAdminProfesionalesProspects from './pages/super-admin/ProfesionalesP
 import SuperAdminProfesionales from './pages/super-admin/Profesionales'
 import SuperAdminProfesionalesRecorrido from './pages/super-admin/ProfesionalesRecorrido'
 import SuperAdminReferidos from './pages/super-admin/Referidos'
+import SuperAdminGruposFamiliares from './pages/super-admin/GruposFamiliares'
 import SuperAdminEmergencias from './pages/super-admin/Emergencias'
 import SuperAdminFarmacia from './pages/super-admin/Farmacia'
 
@@ -391,6 +394,10 @@ export default function App() {
               quieta aunque aparezca una sesión (ver AuthRedirectHandler). */}
           <Route path="/recuperar-contrasena" element={<RecuperarContrasena />} />
           <Route path="/restablecer-contrasena" element={<RestablecerContrasena onLogin={handleLogin} />} />
+          {/* Grupo familiar: el familiar sin contraseña entra con el código que
+              le genera su titular. Fuera de AUTH_PATHS por lo mismo que las de
+              arriba: navega sola al terminar. */}
+          <Route path="/acceso-familiar" element={<AccesoFamiliar onLogin={handleLogin} />} />
         </Route>
 
         {/* Patient — mobile shell */}
@@ -403,6 +410,7 @@ export default function App() {
           <Route path="/paciente/consultas"        element={<PatientConsultations profile={profile} />} />
           <Route path="/paciente/documentos"       element={<PatientDocuments    profile={profile} />} />
           <Route path="/paciente/perfil"           element={<PatientProfile      profile={profile} onProfileUpdate={setProfile} />} />
+          <Route path="/paciente/familiar/:id"     element={<FamiliarDetalle     profile={profile} />} />
           <Route path="/paciente/ondemand/:vertical" element={<OnDemand          profile={profile} />} />
           <Route path="/paciente/sos"              element={<Emergency           profile={profile} />} />
           {/* Legacy routes kept for backward compatibility */}
@@ -535,6 +543,7 @@ export default function App() {
           <Route path="/super-admin/settings" element={<SuperAdminSettings />} />
           <Route path="/super-admin/usuarios" element={<SuperAdminUsuarios />} />
           <Route path="/super-admin/usuarios/prospects" element={<SuperAdminUsuariosProspects />} />
+          <Route path="/super-admin/usuarios/grupos-familiares" element={<SuperAdminGruposFamiliares />} />
           <Route path="/super-admin/profesionales" element={<SuperAdminProfesionales />} />
           <Route path="/super-admin/profesionales/prospects" element={<SuperAdminProfesionalesProspects />} />
           <Route path="/super-admin/profesionales/recorrido" element={<SuperAdminProfesionalesRecorrido />} />

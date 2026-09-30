@@ -46,6 +46,7 @@
  */
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { puedeActuarComo } from "../_shared/familia.ts";
 import { ensureFreshMpToken, PAYMENT_REFRESH_MARGIN_MS, type MpAccountRow } from "../_shared/mpRefresh.ts";
 
 const MP_API_BASE = "https://api.mercadopago.com/v1";
@@ -458,7 +459,7 @@ Deno.serve(async (req) => {
       // El paciente dueño también puede disparar la captura: finalize() se
       // ejecuta desde ambos lados de la videollamada, y que el paciente
       // confirme el cobro de su propia consulta completada es seguro.
-      const isCaptureOwner = c.professional_id === user.id || c.patient_id === user.id;
+      const isCaptureOwner = c.professional_id === user.id || await puedeActuarComo(serviceSupabase, user.id, c.patient_id);
       if (!isCaptureOwner && !isAdmin) {
         return jsonResponse({ data: null, error: "Forbidden" }, 403);
       }
@@ -495,7 +496,8 @@ Deno.serve(async (req) => {
       if (consErr || !consultation) return jsonResponse({ data: null, error: "Consultation not found" }, 404);
 
       const c = consultation as ConsultationRow;
-      const isOwner = c.patient_id === user.id || c.professional_id === user.id;
+      // El titular cancela por su familiar (migración 181).
+      const isOwner = c.professional_id === user.id || await puedeActuarComo(serviceSupabase, user.id, c.patient_id);
       if (!isOwner && !isAdmin) {
         return jsonResponse({ data: null, error: "Forbidden" }, 403);
       }

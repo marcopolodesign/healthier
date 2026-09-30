@@ -76,7 +76,7 @@ export default function HealthSnapshot({ profile }) {
     if (!profile?.id) return
     Promise.all([
       historiaClinicaService.getPatientTimeline(profile.id),
-      consultationsService.getByPatient(profile.id),
+      consultationsService.getByPatient(profile.id, { conFamiliares: false }),
     ])
       .then(([tl, cons]) => {
         setTimeline(tl)
