@@ -15,6 +15,8 @@ import { buildPool, isPayable } from '../../lib/onDemandPool'
 import { explicarPagoMP } from '../../lib/mercadoPago'
 import { useVerticales } from '../../hooks/useVerticales'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { useGrupoFamiliar } from '../../hooks/useGrupoFamiliar'
+import SelectorParaQuien from '../../components/patient/SelectorParaQuien'
 import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
 
 // Real 10:00 pre-authorization window (spec Sección D1.3/D1.4) — mirrors the
@@ -47,6 +49,10 @@ export default function OnDemand({ profile }) {
   // dashboard). Ver el armado del pool más abajo, en el Step 1.
   const [searchParams] = useSearchParams()
   const direccionamientoDirecto = searchParams.get('pro')
+  // Grupo familiar (migración 181): la consulta inmediata puede ser para un
+  // familiar. `?para=<familiarId>` llega desde su tarjeta en el perfil.
+  const { familiares } = useGrupoFamiliar(profile?.id)
+  const [paraId, setParaId] = useState(() => searchParams.get('para'))
   const navigate = useNavigate()
   // Habilitación y precio salen de `vertical_settings`, no del código.
   const { verticalesById, cargando: cargandoVerticales } = useVerticales()
@@ -134,7 +140,8 @@ export default function OnDemand({ profile }) {
   const ensureConsultation = async () => {
     if (consultationId) return consultationId
     const created = await consultationsService.create({
-      patientId:      profile.id,
+      // El familiar elegido, si hay; el que paga sigue siendo quien está logueado.
+      patientId:      paraId || profile.id,
       professionalId: matchedPro.userId,
       vertical:       verticalId,
       modality:       'video',
@@ -737,6 +744,21 @@ export default function OnDemand({ profile }) {
               {paymentExempt ? 'Bonificado' : price != null ? `$${price.toLocaleString('es-AR')}` : '—'}
             </p>
           </div>
+
+          {/* ¿Para quién? — sólo si tiene grupo familiar. Una vez creada la
+              consulta ya no se cambia: queda a nombre de quien se eligió. */}
+          {familiares.length > 0 && !consultationId && (
+            <div className="mb-4">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">¿Para vos o para alguien de tu grupo familiar?</p>
+              <SelectorParaQuien
+                compacto
+                profile={profile}
+                familiares={familiares}
+                value={paraId || profile?.id}
+                onChange={id => setParaId(id === profile?.id ? null : id)}
+              />
+            </div>
+          )}
 
           {/* Método de pago */}
           <div className="mb-4">

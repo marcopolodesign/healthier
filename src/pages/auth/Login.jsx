@@ -157,6 +157,13 @@ export default function Login({ onLogin }) {
       </p>
 
       <p className="text-center text-sm text-text-secondary mt-2">
+        ¿Te sumaron a un grupo familiar?{' '}
+        <Link to="/acceso-familiar" className="text-brand font-medium hover:underline">
+          Entrar con código familiar
+        </Link>
+      </p>
+
+      <p className="text-center text-sm text-text-secondary mt-2">
         ¿Sos profesional?{' '}
         <Link
           to="/registro-profesional"

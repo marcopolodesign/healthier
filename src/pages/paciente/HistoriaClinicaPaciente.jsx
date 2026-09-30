@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, DownloadSimple, Stethoscope, Pill, Warning,
   Heartbeat, ClipboardText, CircleNotch, Heart,
 } from '@phosphor-icons/react'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
+import { familyService } from '../../services/familyService'
 
 const ENTRY_TYPE_LABEL = {
   soap_subjective: 'Subjetivo',
@@ -167,14 +168,28 @@ export default function HistoriaClinicaPaciente({ profile }) {
   const navigate = useNavigate()
   const [timeline, setTimeline] = useState(null)
   const [loading, setLoading] = useState(true)
+  // `?de=<familiarId>`: la HC de un familiar a cargo (migración 181). La RLS
+  // sólo deja leerla a su titular; acá se busca el vínculo para el nombre.
+  const [searchParams] = useSearchParams()
+  const deFamiliar = searchParams.get('de')
+  const [familiar, setFamiliar] = useState(null)
+  const pacienteId = deFamiliar || profile?.id
 
   useEffect(() => {
-    if (!profile?.id) return
-    historiaClinicaService.getPatientTimeline(profile.id)
+    if (!profile?.id || !deFamiliar) return
+    familyService.getFamiliar(profile.id, deFamiliar).then(setFamiliar).catch(() => {})
+  }, [profile?.id, deFamiliar])
+
+  useEffect(() => {
+    if (!pacienteId) return
+    setLoading(true)
+    historiaClinicaService.getPatientTimeline(pacienteId)
       .then(setTimeline)
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [profile?.id])
+  }, [pacienteId])
+
+  const nombreFamiliar = familiar?.familiar?.fullName || familiar?.fullName
 
   const handleDownload = () => window.print()
 
@@ -184,7 +199,7 @@ export default function HistoriaClinicaPaciente({ profile }) {
       <div className="hidden print:block print:mb-6">
         <h1 className="text-2xl font-black text-gray-900">Historia Clínica</h1>
         <p className="text-sm text-gray-500 mt-1">
-          {profile?.full_name || 'Paciente'} · Healthier · Impreso {new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
+          {deFamiliar ? (nombreFamiliar || 'Familiar') : (profile?.fullName || profile?.full_name || 'Paciente')} · Healthier · Impreso {new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
         </p>
         <hr className="mt-4 border-gray-300" />
       </div>
@@ -193,12 +208,14 @@ export default function HistoriaClinicaPaciente({ profile }) {
         {/* Header bar */}
         <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-xl border-b border-gray-100 px-6 pt-8 pb-4 flex items-center justify-between print:hidden">
           <button
-            onClick={() => navigate('/paciente/documentos')}
+            onClick={() => navigate(deFamiliar ? `/paciente/familiar/${deFamiliar}` : '/paciente/documentos')}
             className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50"
           >
             <ArrowLeft className="w-5 h-5 text-gray-700" />
           </button>
-          <h1 className="font-black text-[17px] text-gray-900">Historia Clínica</h1>
+          <h1 className="font-black text-[17px] text-gray-900 truncate px-2">
+            {deFamiliar ? `Historia Clínica · ${nombreFamiliar || 'Familiar'}` : 'Historia Clínica'}
+          </h1>
           <button
             onClick={handleDownload}
             className="flex items-center gap-1.5 bg-[#7CB38B] text-white text-[13px] font-bold px-4 py-2 rounded-full shadow-sm hover:bg-[#5f9470] active:scale-95 transition-all"

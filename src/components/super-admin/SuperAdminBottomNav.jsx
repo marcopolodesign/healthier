@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ChartBar, CurrencyDollar, ShieldCheck, Users, DotsThree, X,
-  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning, Path, EnvelopeSimple, UploadSimple } from '@phosphor-icons/react'
+  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning, Path, EnvelopeSimple, UploadSimple, UsersThree } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
 import { veSubidas } from '../../lib/permisos'
@@ -31,6 +31,7 @@ const MORE_GROUPS = [
     title: 'Pacientes',
     links: [
       { path: '/super-admin/usuarios/prospects', icon: UserCirclePlus, label: 'Prospectos', sub: 'Pacientes a recuperar' },
+      { path: '/super-admin/usuarios/grupos-familiares', icon: UsersThree, label: 'Grupos familiares', sub: 'Quién administra a quién' },
     ],
   },
   {

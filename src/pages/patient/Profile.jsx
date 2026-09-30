@@ -98,7 +98,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   // así que un familiar cargado a medias había que eliminarlo y rehacerlo
   // (Nacho, 2026-09-14). Paridad con app/family-add.tsx.
   const [editingFamiliarId, setEditingFamiliarId] = useState(null)
-  const [newFamiliar, setNewFamiliar] = useState({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '' })
+  const [newFamiliar, setNewFamiliar] = useState({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' })
 
   // Comprobantes — mismas consultas cobradas que muestra /paciente/comprobantes.
   // Acá va solo un resumen; la lista completa vive en esa página.
@@ -313,6 +313,9 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       nombre: f.fullName || '', vinculo: f.relationship || '', dni: f.dni || '',
       email: f.email || '', telefono: f.phone || '',
       obraSocial: f.insuranceName || '', numeroSocio: f.insuranceNum || '',
+      // Desde la migración 181 el familiar tiene perfil propio: la fecha de
+      // nacimiento y el sexo viven ahí (los pide la receta electrónica).
+      nacimiento: isoADdmmaaaa(f.familiar?.birthDate), sexo: f.familiar?.gender || '',
     })
     setShowAddFamiliar(true)
   }
@@ -320,11 +323,16 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   const cerrarHojaFamiliar = () => {
     setShowAddFamiliar(false)
     setEditingFamiliarId(null)
-    setNewFamiliar({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '' })
+    setNewFamiliar({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' })
   }
 
   const saveNuevoFamiliar = async () => {
     if (!newFamiliar.nombre.trim() || savingFamiliar) return
+    const nacimientoIso = ddmmaaaaAIso(newFamiliar.nacimiento)
+    if (nacimientoIso === undefined) {
+      toast.error('La fecha de nacimiento va como DD/MM/AAAA.')
+      return
+    }
     setSavingFamiliar(true)
     try {
       const datos = {
@@ -336,13 +344,17 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         insuranceName: newFamiliar.obraSocial || null,
         insuranceNum:  newFamiliar.numeroSocio || null,
       }
+      const perfil = { birthDate: nacimientoIso, gender: newFamiliar.sexo || null }
       if (editingFamiliarId) {
         const actualizado = await familyService.update(editingFamiliarId, datos)
-        setFamiliares(prev => prev.map(f => (f.id === editingFamiliarId ? actualizado : f)))
+        await familyService.updatePerfil(actualizado.familiarId, perfil)
+        setFamiliares(prev => prev.map(f => (f.id === editingFamiliarId
+          ? { ...actualizado, familiar: { ...actualizado.familiar, ...perfil } } : f)))
         toast.success('Familiar actualizado')
       } else {
         const created = await familyService.create(profile.id, datos)
-        setFamiliares(prev => [created, ...prev])
+        await familyService.updatePerfil(created.familiarId, perfil)
+        setFamiliares(prev => [{ ...created, familiar: { ...created.familiar, ...perfil } }, ...prev])
         toast.success('Familiar añadido')
       }
       cerrarHojaFamiliar()
@@ -523,7 +535,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       <div className="bg-bg-secondary rounded-2xl p-6 shadow-sm border border-border-default mb-6">
         <div className="flex justify-between items-center mb-6">
           <h3 className="font-semibold text-[18px] text-text-primary flex items-center gap-2"><Users className="w-5 h-5 text-emerald-500" /> Grupo Familiar</h3>
-          {!editing && <span onClick={() => { track('family_member_add_click', { flow: 'paciente' }); setEditingFamiliarId(null); setNewFamiliar({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '' }); setShowAddFamiliar(true) }} className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full cursor-pointer hover:bg-emerald-100 transition-colors">+ AÑADIR</span>}
+          {!editing && <span onClick={() => { track('family_member_add_click', { flow: 'paciente' }); setEditingFamiliarId(null); setNewFamiliar({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' }); setShowAddFamiliar(true) }} className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full cursor-pointer hover:bg-emerald-100 transition-colors">+ AÑADIR</span>}
         </div>
         {familiaresLoading
           ? <p className="text-sm text-text-tertiary text-center py-4">Cargando tu grupo familiar…</p>
@@ -532,12 +544,21 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
             : familiares.map(f => (
               <div key={f.id} className="bg-bg-primary rounded-2xl p-4 border border-border-default mb-3">
                 <div className="flex justify-between items-center gap-3">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-[16px] text-text-primary truncate">{f.fullName}</p>
+                  {/* Tocar el familiar abre su ficha: reservarle, subirle
+                      estudios, ver su HC y generarle el código de acceso. */}
+                  <button
+                    type="button"
+                    onClick={() => f.familiarId && navigate(`/paciente/familiar/${f.familiarId}`)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <p className="font-semibold text-[16px] text-text-primary truncate flex items-center gap-1">
+                      {f.fullName}
+                      {f.familiarId && <CaretRight className="w-4 h-4 text-text-tertiary shrink-0" />}
+                    </p>
                     {f.relationship && (
                       <span className="inline-block text-[12px] font-semibold text-emerald-700 bg-emerald-100 py-0.5 px-2 rounded-md mt-1">{f.relationship}</span>
                     )}
-                  </div>
+                  </button>
                   <div className="flex items-center gap-3 shrink-0">
                     <p className="text-[14px] text-text-tertiary">{f.insuranceName || '—'}</p>
                     <button
@@ -758,6 +779,25 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
                 <input type="text" value={newFamiliar[nm]} onChange={e => setNewFamiliar(p => ({ ...p, [nm]: e.target.value }))} className="bg-bg-primary border border-border-default rounded-2xl px-4 py-3.5 outline-none text-[15px] font-medium text-text-primary focus:border-brand" />
               </div>
             ))}
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-border-default space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col">
+                <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-widest mb-1.5 ml-1">Nacimiento</label>
+                <input type="text" inputMode="numeric" placeholder="DD/MM/AAAA" value={newFamiliar.nacimiento} onChange={e => setNewFamiliar(p => ({ ...p, nacimiento: e.target.value }))} className="bg-bg-primary border border-border-default rounded-2xl px-4 py-3.5 outline-none text-[15px] font-medium text-text-primary focus:border-brand" />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-widest mb-1.5 ml-1">Sexo</label>
+                <select value={newFamiliar.sexo} onChange={e => setNewFamiliar(p => ({ ...p, sexo: e.target.value }))} className="bg-bg-primary border border-border-default rounded-2xl px-4 py-3.5 outline-none text-[15px] font-medium text-text-primary focus:border-brand">
+                  <option value="">—</option>
+                  <option value="femenino">Femenino</option>
+                  <option value="masculino">Masculino</option>
+                  <option value="no_binario">No binario</option>
+                  <option value="prefiero_no_decir">Prefiero no decir</option>
+                </select>
+              </div>
+            </div>
+            <p className="text-[12px] text-text-tertiary -mt-2 ml-1">Tiene su propia historia clínica. La fecha y el sexo los pide la receta electrónica.</p>
           </div>
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-border-default space-y-5">
             <div className="grid grid-cols-2 gap-4">

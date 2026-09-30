@@ -707,6 +707,11 @@ export default function PatientConsultations({ profile }) {
                   <p className="text-[17px] font-light text-text-primary leading-snug">
                     {t.professional?.fullName || 'Profesional'}
                   </p>
+                  {/* Turno de un familiar (migración 181): lo sacó el titular y
+                      aparece en sus turnos, pero la consulta es del familiar. */}
+                  {t.patientId !== profile?.id && t.paciente?.fullName && (
+                    <p className="text-[12px] font-medium text-text-secondary -mt-1">Para {t.paciente.fullName}</p>
+                  )}
                   {/* Tags: modality pill + status pill */}
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${t.modality === 'video' ? 'bg-brand-muted text-brand' : 'bg-emerald-50 text-emerald-600'}`}>
