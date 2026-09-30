@@ -81,6 +81,28 @@ REVOKE ALL ON FUNCTION public.es_titular_de(uuid, uuid) FROM public, anon;
 GRANT EXECUTE ON FUNCTION public.es_titular_de(uuid, uuid) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.puedo_actuar_como(uuid) TO authenticated, service_role;
 
+-- ── 2b. El mail del familiar sigue al del titular ────────────
+-- `profiles.email` del familiar es el de su titular (para que los mails le
+-- lleguen a él). Si el titular cambia de correo, sus familiares lo siguen.
+-- 🔴 Consecuencia para quien busque perfiles por mail: el titular y sus
+-- familiares comparten `email`. Filtrar con `titular_id IS NULL`.
+CREATE OR REPLACE FUNCTION public.familiares_siguen_el_mail_del_titular()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  IF NEW.email IS DISTINCT FROM OLD.email AND NEW.titular_id IS NULL THEN
+    UPDATE public.profiles SET email = NEW.email WHERE titular_id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS profiles_familiares_siguen_el_mail ON public.profiles;
+CREATE TRIGGER profiles_familiares_siguen_el_mail
+  AFTER UPDATE OF email ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.familiares_siguen_el_mail_del_titular();
+
 -- ── 3. Alta del familiar como usuario sin contraseña ─────────
 CREATE OR REPLACE FUNCTION public._crear_cuenta_familiar(p_titular uuid, p_nombre text)
 RETURNS uuid
