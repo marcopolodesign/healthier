@@ -26,7 +26,12 @@ export default function PaymentPage({ profile }) {
     // acá se pierden, porque esta pantalla es la que crea la consulta.
     petName,
     petSpecies,
+    // Grupo familiar (migración 181): si la consulta es para un familiar, se
+    // crea a su nombre. El que paga —tarjetas, créditos— es quien está logueado.
+    patientId: paraFamiliarId,
+    patientName: paraFamiliarNombre,
   } = state
+  const pacienteId = paraFamiliarId || profile?.id
 
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [paying, setPaying]                 = useState(false)
@@ -89,7 +94,7 @@ export default function PaymentPage({ profile }) {
   const ensureConsultation = async () => {
     if (consultationId) return consultationId
     const created = await consultationsService.create({
-      patientId:      profile.id,
+      patientId:      pacienteId,
       professionalId,
       vertical:       verticalId,
       modality:       modality === 'virtual' ? 'video' : 'presencial',
@@ -137,7 +142,7 @@ export default function PaymentPage({ profile }) {
     setAdvancingDemo(true)
     try {
       const created = await consultationsService.create({
-        patientId:      profile.id,
+        patientId:      pacienteId,
         professionalId,
         vertical:       verticalId,
         modality:       modality === 'virtual' ? 'video' : 'presencial',
@@ -276,6 +281,12 @@ export default function PaymentPage({ profile }) {
             </div>
           </div>
           <div className="space-y-2">
+            {paraFamiliarId && paraFamiliarNombre && (
+              <div className="bg-white rounded-xl px-3 py-2.5 flex items-center justify-between border border-border-default">
+                <span className="text-[13px] text-text-secondary">Paciente</span>
+                <span className="text-[13px] font-semibold text-text-primary">{paraFamiliarNombre}</span>
+              </div>
+            )}
             <div className="bg-white rounded-xl px-3 py-2.5 flex items-center gap-2 border border-border-default">
               {modality === 'virtual'
                 ? <VideoCamera className="w-4 h-4 text-brand" />

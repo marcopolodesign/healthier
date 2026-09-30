@@ -230,11 +230,15 @@ export default function WaitingRoom({ profile }) {
 
         {/* En modo required el form es full-screen y tapa esto; queda como
             fondo para el instante previo a que monte. */}
+        {/* Consulta de un familiar (migración 181): los datos que faltan para
+            la receta son los SUYOS, y se guardan en su perfil. */}
         <PreconsultaForm
           isOpen
           required
           consultationId={consultationId}
-          profile={profile}
+          profile={consultation?.patientId && consultation.patientId !== profile?.id
+            ? { ...consultation.patient, id: consultation.patientId }
+            : profile}
           onClose={() => {}}
           onSubmitted={() => setPreconsultaDone(true)}
         />

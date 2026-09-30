@@ -9,6 +9,8 @@ import { availabilityService } from '../../services/availabilityService'
 import { consultationsService } from '../../services/consultationsService'
 import { paymentsService } from '../../services/paymentsService'
 import { useVerticales } from '../../hooks/useVerticales'
+import { useGrupoFamiliar } from '../../hooks/useGrupoFamiliar'
+import SelectorParaQuien from '../../components/patient/SelectorParaQuien'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../../components/Toast'
 import { track } from '../../utils/analytics'
@@ -53,10 +55,13 @@ function BarraContinuar({ label, onClick, disabled, hint }) {
 }
 
 // ── Step sequence logic ───────────────────────────────────────
-function getSteps(verticalId, skipPro) {
+// `para` = "¿Para quién es la consulta?" (grupo familiar, migración 181). Sólo
+// aparece si el paciente tiene familiares y no vino ya con uno elegido
+// (`?para=` desde la tarjeta del familiar). Veterinaria tiene su propio paso.
+function getSteps(verticalId, skipPro, conPara) {
   const base = verticalId === 'veterinaria'
     ? ['vertical', 'modality', 'pet', 'professional', 'datetime', 'confirm']
-    : ['vertical', 'modality', 'professional', 'datetime', 'confirm']
+    : ['vertical', 'modality', ...(conPara ? ['para'] : []), 'professional', 'datetime', 'confirm']
   return skipPro ? base.filter(s => s !== 'professional') : base
 }
 
@@ -95,6 +100,8 @@ export default function ReservarConsulta({ profile }) {
   const paramVerticalId = searchParams.get('vertical')
   const paramProId      = searchParams.get('proId')
   const paramModality   = searchParams.get('modality') // 'virtual' | 'presencial'
+  // `?para=<familiarId>` — viene de la tarjeta del familiar en el perfil.
+  const paramPara       = searchParams.get('para')
 
   // ── State ─────────────────────────────────────────────────
   const [selectedVertical, setSelectedVertical] = useState(
@@ -121,6 +128,15 @@ export default function ReservarConsulta({ profile }) {
   const [modality, setModality] = useState(paramModality || null) // 'virtual' | 'presencial'
   const [petName, setPetName]           = useState('')
   const [petSpecies, setPetSpecies]     = useState('')
+  // Para quién es la consulta: el propio paciente o un familiar suyo.
+  const { familiares } = useGrupoFamiliar(profile?.id)
+  const [paraId, setParaId]             = useState(paramPara || null)
+  const [paraNombre, setParaNombre]     = useState(null)
+  useEffect(() => {
+    if (!paramPara || paraNombre) return
+    const f = familiares.find(x => x.familiarId === paramPara)
+    if (f) setParaNombre(f.familiar?.fullName || f.fullName)
+  }, [familiares, paramPara, paraNombre])
   const [professionals, setProfessionals] = useState([])
   const [loadingPros, setLoadingPros]   = useState(false)
   const [selectedPro, setSelectedPro]   = useState(null)
@@ -148,7 +164,8 @@ export default function ReservarConsulta({ profile }) {
       .catch(() => {}) // silencioso — se queda con el default de 15
   }, [])
 
-  const steps = getSteps(selectedVertical?.id, !!paramProId)
+  const conPara = familiares.length > 0 && !paramPara
+  const steps = getSteps(selectedVertical?.id, !!paramProId, conPara)
 
   // Derived — datetime step
   const scheduledDays  = new Set(schedule.map(e => e.dayOfWeek))
@@ -254,6 +271,10 @@ export default function ReservarConsulta({ profile }) {
     })
     // Con un profesional ya elegido (marcador del mapa, perfil del profesional)
     // se saltea la lista y se va derecho a la fecha, en las DOS modalidades.
+    if (vertical.id !== 'veterinaria' && conPara) {
+      setStep('para')
+      return
+    }
     if (paramProId) {
       setStep(vertical.id === 'veterinaria' ? 'pet' : 'datetime')
       return
@@ -350,6 +371,10 @@ export default function ReservarConsulta({ profile }) {
         // acá, se pierde al crear la consulta del otro lado.
         petName:    selectedVertical.id === 'veterinaria' ? (petName || null)    : null,
         petSpecies: selectedVertical.id === 'veterinaria' ? (petSpecies || null) : null,
+        // Grupo familiar: la consulta es del familiar; el que paga sigue siendo
+        // quien está logueado.
+        patientId:   selectedVertical.id !== 'veterinaria' && paraId && paraId !== profile?.id ? paraId : null,
+        patientName: selectedVertical.id !== 'veterinaria' && paraId && paraId !== profile?.id ? paraNombre : null,
       },
     })
   }
@@ -562,6 +587,30 @@ export default function ReservarConsulta({ profile }) {
           </>
         )}
 
+        {/* ── STEP: Para quién (grupo familiar) ── */}
+        {step === 'para' && (
+          <>
+            <h1 className="font-serif font-bold text-3xl text-text-primary">
+              ¿Para vos o para alguien de tu grupo familiar?
+            </h1>
+            <p className="text-[14px] text-text-secondary -mt-2">
+              La consulta queda en la historia clínica de quien se atiende.
+            </p>
+            <SelectorParaQuien
+              profile={profile}
+              familiares={familiares}
+              value={paraId || profile?.id}
+              onChange={(id, nombre) => { setParaId(id); setParaNombre(nombre) }}
+            />
+            <button
+              onClick={() => setStep(paramProId && selectedPro ? 'datetime' : 'professional')}
+              className="w-full py-4 rounded-full font-semibold text-[15px] text-white bg-brand transition-all mt-2"
+            >
+              Continuar
+            </button>
+          </>
+        )}
+
         {/* ── STEP: Professional ── */}
         {step === 'professional' && (
           <>
@@ -762,6 +811,9 @@ export default function ReservarConsulta({ profile }) {
                 { label: 'Especialidad', value: selectedVertical.nombre },
                 ...(selectedVertical.id === 'veterinaria' && petName
                   ? [{ label: 'Mascota', value: `${petName}${petSpecies ? ` (${petSpecies})` : ''}` }]
+                  : []),
+                ...(paraId && paraId !== profile?.id && paraNombre
+                  ? [{ label: 'Paciente', value: paraNombre }]
                   : []),
                 { label: 'Profesional', value: selectedPro.name },
                 { label: 'Modalidad',   value: modality === 'virtual' ? 'Videoconsulta' : 'Presencial' },

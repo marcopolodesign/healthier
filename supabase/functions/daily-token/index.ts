@@ -8,6 +8,7 @@
 // 5. Add PHI handling disclosures to the patient consent screen (mobile/app/(auth)/consent.tsx)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { puedeActuarComo } from '../_shared/familia.ts'
 
 const DAILY_API_KEY = Deno.env.get('DAILY_API_KEY')!
 const DAILY_API_BASE = 'https://api.daily.co/v1'
@@ -62,7 +63,10 @@ Deno.serve(async (req) => {
       })
     }
 
+    // El titular entra a la sala en nombre de un familiar sin login propio
+    // (migración 181): para la videollamada, es el paciente.
     const isPatient = consultation.patient_id === user.id
+      || (consultation.professional_id !== user.id && await puedeActuarComo(supabase, user.id, consultation.patient_id))
     const isProfessional = consultation.professional_id === user.id
 
     if (!isPatient && !isProfessional) {

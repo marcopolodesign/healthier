@@ -43,6 +43,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { puedeActuarComo } from "../_shared/familia.ts";
 import { isRefundEligible } from "../_shared/businessHours.ts";
 import { ensureFreshMpToken, PAYMENT_REFRESH_MARGIN_MS, type MpAccountRow } from "../_shared/mpRefresh.ts";
 
@@ -116,7 +117,7 @@ Deno.serve(async (req) => {
 
       if (consErr || !consultation) return jsonResponse({ data: null, error: "Consultation not found" }, 404);
 
-      if (consultation.patient_id !== user.id && !isAdmin) {
+      if (!isAdmin && !(await puedeActuarComo(supabase, user.id, consultation.patient_id))) {
         return jsonResponse({ data: null, error: "Forbidden" }, 403);
       }
 
