@@ -140,6 +140,60 @@ async function existente(rol) {
   await browser.close()
 }
 
+// 5. El profesional edita su nombre en /profesional/perfil (entrando por "Mi perfil").
+async function proEditaNombre() {
+  const email = `qa-apellido-pro-edita-${stamp}@healthier.app`
+  const { data: u } = await admin.auth.admin.createUser({ email, email_confirm: true, user_metadata: { role: 'professional', first_name: 'Ana', last_name: 'Qaedita Ruiz', full_name: 'Ana Qaedita Ruiz' } })
+  await admin.from('profiles').update({ phone: '+54 9 11 5555-0106' }).eq('id', u.user.id)
+  await admin.from('professional_profiles').upsert({ user_id: u.user.id, specialty: 'clinica', license_type: 'MN', license_number: '999004', is_verified: true })
+  const verificado = async () => (await admin.from('professional_profiles').select('is_verified, reverification_pending').eq('user_id', u.user.id).single()).data
+  const browser = await chromium.launch()
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+  await entrarCon(page, email)
+  await page.waitForURL(/profesional/, { timeout: 15000 })
+  // Se entra como entra la persona: el nombre al pie del menú lleva a su perfil.
+  await page.getByText('Ana Qaedita Ruiz', { exact: true }).last().click()
+  await page.waitForURL(/profesional\/perfil/, { timeout: 10000 })
+  const nombre = page.getByLabel('Nombre', { exact: true })
+  const apellido = page.getByLabel('Apellido', { exact: true })
+  await nombre.waitFor({ timeout: 15000 })
+  ok((await nombre.inputValue()) === 'Ana' && (await apellido.inputValue()) === 'Qaedita Ruiz', 'pro perfil: muestra nombre y apellido guardados')
+
+  await apellido.fill('')
+  await page.getByRole('button', { name: 'Guardar cambios' }).click()
+  await page.waitForTimeout(1500)
+  const { data: p0 } = await admin.from('profiles').select('last_name').eq('id', u.user.id).single()
+  ok(p0.last_name === 'Qaedita Ruiz', 'pro perfil: apellido vacío no se guarda')
+
+  // Mismas palabras, otro orden: se guarda sin aviso y sigue verificado.
+  await nombre.fill('Ana Qaedita')
+  await apellido.fill('Ruiz')
+  const aviso = page.getByText(/tu perfil vuelve a/i).first()
+  ok(!(await aviso.isVisible()), 'pro perfil: reordenar no muestra el aviso de revisión')
+  await page.getByRole('button', { name: 'Guardar cambios' }).click()
+  await page.waitForTimeout(2500)
+  const { data: p1 } = await admin.from('profiles').select('full_name, last_name').eq('id', u.user.id).single()
+  const v1 = await verificado()
+  ok(p1.last_name === 'Ruiz' && v1.is_verified, `pro perfil: reordenado guardado (${p1.full_name}) y sigue verificado`)
+  await page.screenshot({ path: `${OUT}/pro-edita-1-reordenado.png` })
+
+  // Cambia una palabra: aviso + modal "Tu perfil vuelve a revisión" → Guardar igual.
+  await apellido.fill('Ruiz Otra')
+  ok(await aviso.isVisible(), 'pro perfil: cambiar una palabra muestra el aviso')
+  await page.getByRole('button', { name: 'Guardar cambios' }).click()
+  const guardarIgual = page.getByRole('button', { name: 'Guardar igual' })
+  await guardarIgual.waitFor({ timeout: 5000 }).catch(() => {})
+  await page.screenshot({ path: `${OUT}/pro-edita-2-modal.png` })
+  ok(await guardarIgual.isVisible(), 'pro perfil: aparece el modal de revisión')
+  await guardarIgual.click()
+  await page.waitForTimeout(2500)
+  const { data: p2 } = await admin.from('profiles').select('full_name').eq('id', u.user.id).single()
+  const v2 = await verificado()
+  ok(p2.full_name === 'Ana Qaedita Ruiz Otra' && !v2.is_verified && v2.reverification_pending, `pro perfil: guardado (${p2.full_name}) y quedó en revisión`)
+  await browser.close()
+}
+
+await proEditaNombre()
 await altaGoogle()
 await existente('patient')
 await existente('professional')
