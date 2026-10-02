@@ -26,7 +26,7 @@ import { track } from '../../utils/analytics'
 import { CLAVE_TOUR_PACIENTE } from '../../components/patient/TourPaciente'
 import { SUPPORT_PHONE_DISPLAY, supportWhatsAppLink } from '../../lib/support'
 import PhoneInput from '../../components/common/PhoneInput'
-import { nombreApellidoDe, validarNombreApellido } from '../../lib/nombreApellido'
+import { nombreApellidoDe, validarNombreApellido, armarNombreCompleto } from '../../lib/nombreApellido'
 
 // Mismas etiquetas y formato que /paciente/comprobantes, para que el resumen del
 // perfil y la página completa no digan cosas distintas de la misma consulta.
@@ -102,7 +102,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   // así que un familiar cargado a medias había que eliminarlo y rehacerlo
   // (Nacho, 2026-09-14). Paridad con app/family-add.tsx.
   const [editingFamiliarId, setEditingFamiliarId] = useState(null)
-  const [newFamiliar, setNewFamiliar] = useState({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' })
+  const [newFamiliar, setNewFamiliar] = useState({ nombre: '', apellido: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' })
 
   // Comprobantes — mismas consultas cobradas que muestra /paciente/comprobantes.
   // Acá va solo un resumen; la lista completa vive en esa página.
@@ -322,7 +322,10 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   const abrirEdicionFamiliar = f => {
     setEditingFamiliarId(f.id)
     setNewFamiliar({
-      nombre: f.fullName || '', vinculo: f.relationship || '', dni: f.dni || '',
+      // Nombre y apellido por separado (183): lo guardado en su perfil, o la
+      // propuesta partiendo el nombre que tenía — el titular la confirma.
+      ...(() => { const n = nombreApellidoDe({ ...f.familiar, fullName: f.familiar?.fullName || f.fullName }); return { nombre: n.nombre, apellido: n.apellido } })(),
+      vinculo: f.relationship || '', dni: f.dni || '',
       email: f.email || '', telefono: f.phone || '',
       obraSocial: f.insuranceName || '', numeroSocio: f.insuranceNum || '',
       // Desde la migración 181 el familiar tiene perfil propio: la fecha de
@@ -335,11 +338,16 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   const cerrarHojaFamiliar = () => {
     setShowAddFamiliar(false)
     setEditingFamiliarId(null)
-    setNewFamiliar({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' })
+    setNewFamiliar({ nombre: '', apellido: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' })
   }
 
   const saveNuevoFamiliar = async () => {
-    if (!newFamiliar.nombre.trim() || savingFamiliar) return
+    if (savingFamiliar) return
+    const errorNombreFamiliar = validarNombreApellido(newFamiliar.nombre, newFamiliar.apellido)
+    if (errorNombreFamiliar) {
+      toast.error(errorNombreFamiliar.replace('tu ', 'el '))
+      return
+    }
     const nacimientoIso = ddmmaaaaAIso(newFamiliar.nacimiento)
     if (nacimientoIso === undefined) {
       toast.error('La fecha de nacimiento va como DD/MM/AAAA.')
@@ -348,7 +356,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
     setSavingFamiliar(true)
     try {
       const datos = {
-        fullName:      newFamiliar.nombre.trim(),
+        fullName:      armarNombreCompleto(newFamiliar.nombre, newFamiliar.apellido),
         relationship:  newFamiliar.vinculo || null,
         dni:           newFamiliar.dni || null,
         email:         newFamiliar.email || null,
@@ -356,17 +364,17 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         insuranceName: newFamiliar.obraSocial || null,
         insuranceNum:  newFamiliar.numeroSocio || null,
       }
-      const perfil = { birthDate: nacimientoIso, gender: newFamiliar.sexo || null }
+      const perfil = { birthDate: nacimientoIso, gender: newFamiliar.sexo || null, nombre: newFamiliar.nombre, apellido: newFamiliar.apellido }
       if (editingFamiliarId) {
         const actualizado = await familyService.update(editingFamiliarId, datos)
         await familyService.updatePerfil(actualizado.familiarId, perfil)
         setFamiliares(prev => prev.map(f => (f.id === editingFamiliarId
-          ? { ...actualizado, familiar: { ...actualizado.familiar, ...perfil } } : f)))
+          ? { ...actualizado, familiar: { ...actualizado.familiar, ...perfil, firstName: perfil.nombre.trim(), lastName: perfil.apellido.trim() } } : f)))
         toast.success('Familiar actualizado')
       } else {
         const created = await familyService.create(profile.id, datos)
         await familyService.updatePerfil(created.familiarId, perfil)
-        setFamiliares(prev => [{ ...created, familiar: { ...created.familiar, ...perfil } }, ...prev])
+        setFamiliares(prev => [{ ...created, familiar: { ...created.familiar, ...perfil, firstName: perfil.nombre.trim(), lastName: perfil.apellido.trim() } }, ...prev])
         toast.success('Familiar añadido')
       }
       cerrarHojaFamiliar()
@@ -548,7 +556,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       <div className="bg-bg-secondary rounded-2xl p-6 shadow-sm border border-border-default mb-6">
         <div className="flex justify-between items-center mb-6">
           <h3 className="font-semibold text-[18px] text-text-primary flex items-center gap-2"><Users className="w-5 h-5 text-emerald-500" /> Grupo Familiar</h3>
-          {!editing && <span onClick={() => { track('family_member_add_click', { flow: 'paciente' }); setEditingFamiliarId(null); setNewFamiliar({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' }); setShowAddFamiliar(true) }} className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full cursor-pointer hover:bg-emerald-100 transition-colors">+ AÑADIR</span>}
+          {!editing && <span onClick={() => { track('family_member_add_click', { flow: 'paciente' }); setEditingFamiliarId(null); setNewFamiliar({ nombre: '', apellido: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' }); setShowAddFamiliar(true) }} className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full cursor-pointer hover:bg-emerald-100 transition-colors">+ AÑADIR</span>}
         </div>
         {familiaresLoading
           ? <p className="text-sm text-text-tertiary text-center py-4">Cargando tu grupo familiar…</p>
@@ -786,7 +794,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         </div>
         <div className="flex-1 overflow-y-auto scrollbar-hide p-6 space-y-6 pb-8 bg-bg-primary">
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-border-default space-y-5">
-            {[['Nombre Completo', 'nombre'], ['Vínculo', 'vinculo'], ['DNI', 'dni']].map(([lbl, nm]) => (
+            {[['Nombre', 'nombre'], ['Apellido', 'apellido'], ['Vínculo', 'vinculo'], ['DNI', 'dni']].map(([lbl, nm]) => (
               <div key={nm} className="flex flex-col">
                 <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-widest mb-1.5 ml-1">{lbl}</label>
                 <input type="text" value={newFamiliar[nm]} onChange={e => setNewFamiliar(p => ({ ...p, [nm]: e.target.value }))} className="bg-bg-primary border border-border-default rounded-2xl px-4 py-3.5 outline-none text-[15px] font-medium text-text-primary focus:border-brand" />

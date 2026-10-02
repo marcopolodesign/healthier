@@ -193,6 +193,37 @@ async function proEditaNombre() {
   await browser.close()
 }
 
+// 6. Grupo familiar: el titular agrega un familiar desde Perfil → "+ AÑADIR".
+async function familiar() {
+  const email = `qa-apellido-titular-${stamp}@healthier.app`
+  const { data: u } = await admin.auth.admin.createUser({ email, email_confirm: true, user_metadata: { role: 'patient', first_name: 'Laura', last_name: 'Qatitular', full_name: 'Laura Qatitular' } })
+  await admin.from('profiles').update({ phone: '+54 9 11 5555-0107' }).eq('id', u.user.id)
+  const browser = await chromium.launch()
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
+  await entrarCon(page, email)
+  await page.waitForURL(/paciente/, { timeout: 15000 })
+  await page.goto(`${BASE}/paciente/perfil`)
+  await page.getByText('+ AÑADIR').first().click()
+  const campo = (lbl) => page.locator('label', { hasText: new RegExp(`^${lbl}$`) }).locator('xpath=following-sibling::input[1]').last()
+  await campo('Nombre').fill('Benjamín QA')
+  await campo('Vínculo').fill('Hijo')
+  await page.getByRole('button', { name: 'Guardar', exact: true }).click()
+  await page.waitForTimeout(1500)
+  const { data: v0 } = await admin.from('family_members').select('id').eq('patient_id', u.user.id)
+  ok(v0.length === 0, 'familiar: sin apellido no se crea')
+  await page.screenshot({ path: `${OUT}/familiar-1-sin-apellido.png` })
+  await campo('Apellido').fill('Qatitular Gómez')
+  await page.getByRole('button', { name: 'Guardar', exact: true }).click()
+  await page.waitForTimeout(2500)
+  const { data: v1 } = await admin.from('family_members').select('full_name, familiar:profiles!familiar_id(full_name, first_name, last_name)').eq('patient_id', u.user.id)
+  const f = v1[0]
+  ok(f?.full_name === 'Benjamín QA Qatitular Gómez' && f?.familiar?.first_name === 'Benjamín QA' && f?.familiar?.last_name === 'Qatitular Gómez',
+    `familiar: guardado ${JSON.stringify(f)}`)
+  await page.screenshot({ path: `${OUT}/familiar-2-guardado.png` })
+  await browser.close()
+}
+
+await familiar()
 await proEditaNombre()
 await altaGoogle()
 await existente('patient')
