@@ -119,6 +119,7 @@ import PharmacyOrderDetail from './pages/pharmacy/PedidoDetail'
 import PharmacyCatalog from './pages/pharmacy/Catalogo'
 import PharmacyConfiguracion from './pages/pharmacy/Configuracion'
 import { tomarDestinoPostRegistro } from './lib/postSignupRedirect'
+import ConfirmarApellido from './components/ConfirmarApellido'
 import { ROLE_REDIRECTS } from './lib/roleRedirects'
 
 // ── Role guards ──────────────────────────────────────────
@@ -370,6 +371,8 @@ export default function App() {
       <ToastContainer />
       <VersionNueva />
       <AuthRedirectHandler profile={profile} authUser={authUser} />
+      {/* Quien ya tenía cuenta sin el apellido por separado lo confirma acá, una vez (migración 183). */}
+      <ConfirmarApellido profile={profile} onProfileUpdate={setProfile} />
       <CioPageTracker />
       <Routes>
         {/* Public */}

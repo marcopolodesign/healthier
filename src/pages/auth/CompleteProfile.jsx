@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, Briefcase, Heart } from '@phosphor-icons/react'
+import { Briefcase, Heart } from '@phosphor-icons/react'
 import PhoneInput from '../../components/common/PhoneInput'
+import NombreApellidoInputs from '../../components/common/NombreApellidoInputs'
+import { propuestaDeNombre, validarNombreApellido } from '../../lib/nombreApellido'
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
@@ -9,7 +11,14 @@ import { getStoredReferral, clearReferral, referralUtms } from '../../lib/referr
 
 export default function CompleteProfile({ authUser, onProfileComplete }) {
   const navigate = useNavigate()
-  const [fullName, setFullName] = useState(authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || '')
+  // Google manda nombre y apellido por separado (`given_name`/`family_name`)
+  // cuando los tiene; si no, se propone un corte del nombre completo. En los
+  // dos casos la persona lo ve en los campos y lo corrige antes de seguir.
+  const [nombres, setNombres] = useState(() => {
+    const meta = authUser?.user_metadata ?? {}
+    if (meta.given_name && meta.family_name) return { nombre: meta.given_name, apellido: meta.family_name }
+    return propuestaDeNombre(meta.full_name || meta.name || '')
+  })
   const [role, setRole] = useState('')
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
@@ -22,7 +31,8 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
   const submit = async (e) => {
     e.preventDefault()
     if (!role) { toast.error('Seleccioná un tipo de cuenta'); return }
-    if (!fullName.trim()) { toast.error('Ingresá tu nombre completo'); return }
+    const errorNombre = validarNombreApellido(nombres.nombre, nombres.apellido)
+    if (errorNombre) { toast.error(errorNombre); return }
     if (!phone.trim()) { toast.error('Ingresá tu teléfono'); return }
     setLoading(true)
     try {
@@ -35,7 +45,7 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
       // pestaña, etc.) y tira un error con mensaje claro — antes esto
       // explotaba con "Cannot read properties of null (reading 'id')" acá
       // mismo. El catch de abajo ya lo muestra vía toast.
-      const profile = await authService.completeGoogleProfile(authUser, role, fullName.trim(), utms, phone.trim() || null, referral?.professionalId ?? null)
+      const profile = await authService.completeGoogleProfile(authUser, role, nombres, utms, phone.trim() || null, referral?.professionalId ?? null)
       clearUtms()
       clearReferral()
       onProfileComplete(profile)
@@ -82,20 +92,7 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
           </div>
         </div>
 
-        <div>
-          <label className="form-label">Nombre completo</label>
-          <div className="relative">
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
-            <input
-              type="text"
-              required
-              value={fullName}
-              onChange={e => setFullName(e.target.value)}
-              placeholder="Juan Pérez"
-              className="form-input pl-9"
-            />
-          </div>
-        </div>
+        <NombreApellidoInputs nombre={nombres.nombre} apellido={nombres.apellido} onChange={setNombres} />
 
         <div>
           <label className="form-label">Teléfono (WhatsApp)</label>

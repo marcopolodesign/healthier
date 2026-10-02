@@ -59,6 +59,9 @@ function identidadDescartable() {
   const stamp = Date.now()
   const rand = Math.random().toString(36).slice(2, 8)
   return {
+    // Nombre y apellido por separado (migración 183): el alta no deja seguir sin apellido.
+    nombre: 'QA Alta',
+    apellido: 'Automatizada',
     fullName: 'QA Alta Automatizada',
     email: `${QA_PREFIX}${stamp}-${rand}@healthier.app`,
     // Formato argentino con celular (+54 9 ...) — el form no valida más que
@@ -106,13 +109,14 @@ test.describe('Alta de cuenta de paciente', () => {
     await page.goto('/registro')
     await page.getByRole('button', { name: /Continuar con email/i }).click()
 
-    await page.locator('input[type="text"]').fill(identidad.fullName)
+    await page.getByLabel('Nombre', { exact: true }).fill(identidad.nombre)
+    await page.getByLabel('Apellido', { exact: true }).fill(identidad.apellido)
     await page.locator('input[type="email"]').fill(identidad.email)
     await page.locator('input[type="tel"]').fill(identidad.phone)
     await page.locator('input[type="password"]').fill(identidad.password)
 
     // El texto del error real vive en el <p> del toast (ver src/components/Toast.jsx).
-    const toastError = page.locator('.fixed.top-4.right-4.z-50 p').first()
+    const toastError = page.locator('.fixed.top-4.right-4 p').first()
 
     await page.locator('button[type="submit"]').click()
 
@@ -162,7 +166,7 @@ test.describe('Alta de cuenta de paciente', () => {
     for (let intento = 0; intento < 20; intento++) {
       const r = await adminSb
         .from('profiles')
-        .select('id, role, full_name, email')
+        .select('id, role, full_name, first_name, last_name, email')
         .eq('email', identidad.email)
         .maybeSingle()
       if (r.data) { perfil = r.data; break }
@@ -182,6 +186,8 @@ test.describe('Alta de cuenta de paciente', () => {
 
     expect(perfil.role).toBe('patient')
     expect(perfil.full_name).toBe(identidad.fullName)
+    expect(perfil.first_name).toBe(identidad.nombre)
+    expect(perfil.last_name).toBe(identidad.apellido)
 
     // Assert 4 — la sesión sirve de verdad: con la anon key, un login nuevo
     // de ESTE usuario puede leer su propio perfil. Si esto falla, las

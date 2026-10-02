@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { User, Envelope, Lock, ArrowLeft } from '@phosphor-icons/react';
+import { Envelope, Lock, ArrowLeft } from '@phosphor-icons/react';
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { marcarDestinoPostRegistro } from '../../lib/postSignupRedirect'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
 import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
 import PhoneInput from '../../components/common/PhoneInput'
+import NombreApellidoInputs from '../../components/common/NombreApellidoInputs'
+import { validarNombreApellido } from '../../lib/nombreApellido'
 import { track } from '../../utils/analytics'
 
 export default function RegisterProfessional({ onLogin }) {
   const [step, setStep] = useState('choose')
-  const [form, setForm] = useState({ fullName: '', email: '', password: '', phone: '' })
+  const [form, setForm] = useState({ nombre: '', apellido: '', email: '', password: '', phone: '' })
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
@@ -22,6 +24,12 @@ export default function RegisterProfessional({ onLogin }) {
   const submit = async (e) => {
     e.preventDefault()
     track('sign_up_method_selected', { method: 'email', step: 1, flow: 'profesional' })
+    const errorNombre = validarNombreApellido(form.nombre, form.apellido)
+    if (errorNombre) {
+      toast.error(errorNombre)
+      track('sign_up_error', { step: 1, step_name: 'cuenta', error_type: 'falta_nombre_o_apellido', flow: 'profesional' })
+      return
+    }
     if (form.password.length < 6) {
       toast.error('La contraseña debe tener al menos 6 caracteres')
       track('sign_up_error', { step: 1, step_name: 'cuenta', error_type: 'password_corta', flow: 'profesional' })
@@ -34,7 +42,7 @@ export default function RegisterProfessional({ onLogin }) {
       // adelantarse al `navigate` de abajo. Ver `lib/postSignupRedirect.js`.
       marcarDestinoPostRegistro('/profesional/onboarding')
       const utms = getStoredUtms()
-      await authService.register(form.email, form.password, 'professional', form.fullName, utms, form.phone.trim() || null)
+      await authService.register(form.email, form.password, 'professional', { nombre: form.nombre, apellido: form.apellido }, utms, form.phone.trim() || null)
       clearUtms()
       track('sign_up_step_complete', { step: 1, step_name: 'cuenta', method: 'email', flow: 'profesional' })
       const { profile } = await authService.login(form.email, form.password)
@@ -109,20 +117,11 @@ export default function RegisterProfessional({ onLogin }) {
       </div>
 
       <form onSubmit={submit} className="space-y-4">
-        <div>
-          <label className="form-label">Nombre completo</label>
-          <div className="relative">
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
-            <input
-              type="text"
-              required
-              value={form.fullName}
-              onChange={e => setForm(p => ({ ...p, fullName: e.target.value }))}
-              placeholder="Dra. Juana Pérez"
-              className="form-input pl-9"
-            />
-          </div>
-        </div>
+        <NombreApellidoInputs
+          nombre={form.nombre}
+          apellido={form.apellido}
+          onChange={({ nombre, apellido }) => setForm(p => ({ ...p, nombre, apellido }))}
+        />
 
         <div>
           <label className="form-label">Email</label>

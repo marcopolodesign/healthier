@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { driver } from 'driver.js'
+import { usePasoBloqueante } from '../lib/pasoBloqueante'
 import 'driver.js/dist/driver.css'
 
 /**
@@ -69,6 +70,8 @@ export function useTourGuiado({ clave, pasos, ctx = {}, listo = true, autoArranq
   // Ya se ofreció solo en esta visita, haya terminado o no. Ver el efecto de
   // arranque automático.
   const ofrecidoSolo = useRef(false)
+  // Con un paso bloqueante abierto (confirmar apellido) el tour espera.
+  const bloqueado = usePasoBloqueante()
 
   // El `ctx` se arma con un literal en cada render, así que como dependencia
   // haría que `arrancar` cambie de identidad siempre y el efecto de abajo
@@ -153,7 +156,7 @@ export function useTourGuiado({ clave, pasos, ctx = {}, listo = true, autoArranq
   // El ref no toca el `arrancar()` manual del Centro de ayuda: ahí sí se
   // reconstruye a pedido, que es lo que se pidió.
   useEffect(() => {
-    if (!autoArranque || !listo || leerVisto(clave) || ofrecidoSolo.current) return
+    if (!autoArranque || !listo || bloqueado || leerVisto(clave) || ofrecidoSolo.current) return
     // Un tick para que la pantalla ya esté pintada: driver.js mide el elemento
     // al resaltarlo, y sobre un DOM a medio montar mide mal (o no lo encuentra
     // y manda el globo al centro, que es peor porque no se nota).
@@ -162,7 +165,7 @@ export function useTourGuiado({ clave, pasos, ctx = {}, listo = true, autoArranq
       arrancar()
     }, 600)
     return () => clearTimeout(t)
-  }, [arrancar, listo, autoArranque, clave])
+  }, [arrancar, listo, bloqueado, autoArranque, clave])
 
   useEffect(() => () => tourRef.current?.destroy(), [])
 
