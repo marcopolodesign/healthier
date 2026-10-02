@@ -10,6 +10,8 @@ import { callEdgeFunction } from '../lib/edgeFunction'
 import { PRESCRIPTION_TYPE_LABELS } from '../lib/pharmacyExcel'
 
 const PHARMACY_ID = medicationOrdersService.PHARMACY_ID
+const PRODUCT_IMAGES_BUCKET = 'pharmacy-products'
+export const PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024
 
 export const pharmacyAdminService = {
   PHARMACY_ID,
@@ -33,6 +35,36 @@ export const pharmacyAdminService = {
       .single()
     if (error) throw error
     return toCamelCase(data)
+  },
+
+  /**
+   * Sube la foto de un producto al bucket `pharmacy-products` y la deja en su
+   * `image_url`. Cada subida usa un nombre nuevo (id + hora) para que la
+   * foto reemplazada no quede servida desde la caché del CDN. Sólo el
+   * administrador de la farmacia tiene permiso (migración 182 + RLS de
+   * pharmacy_products). Los errores se tiran con el mensaje real.
+   */
+  async uploadProductImage(productId, file) {
+    const tipos = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
+    const ext = tipos[file?.type]
+    if (!ext) throw new Error('La foto tiene que ser JPG, PNG o WEBP.')
+    if (file.size > PRODUCT_IMAGE_MAX_BYTES) {
+      throw new Error(`La foto pesa ${(file.size / 1024 / 1024).toFixed(1)} MB y el máximo es 5 MB.`)
+    }
+    const path = `${productId}-${Date.now()}.${ext}`
+    const { error: upErr } = await supabase.storage
+      .from(PRODUCT_IMAGES_BUCKET)
+      .upload(path, file, { contentType: file.type, cacheControl: '31536000', upsert: false })
+    if (upErr) throw new Error(`No se pudo subir la foto: ${upErr.message}`)
+    const { data: pub } = supabase.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(path)
+    const { data, error } = await supabase
+      .from('pharmacy_products')
+      .update({ image_url: pub.publicUrl })
+      .eq('id', productId)
+      .select()
+    if (error) throw new Error(`La foto se subió pero no se pudo guardar en el producto: ${error.message}`)
+    if (!data?.length) throw new Error('La foto se subió pero el producto no se actualizó (sin permiso o no existe).')
+    return toCamelCase(data[0])
   },
 
   async deleteProduct(id) {

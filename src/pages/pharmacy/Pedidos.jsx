@@ -80,6 +80,7 @@ export default function PharmacyOrders({ profile }) {
             <p className="text-text-secondary">No hay pedidos todavía</p>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr>
@@ -100,7 +101,7 @@ export default function PharmacyOrders({ profile }) {
                     <p className="font-medium text-text-primary text-sm">{o.patient?.fullName || '—'}</p>
                     <p className="text-xs text-text-secondary">{o.patient?.email}</p>
                   </td>
-                  <td className="table-cell hidden md:table-cell text-text-secondary text-sm">
+                  <td className="table-cell max-md:hidden text-text-secondary text-sm">
                     <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5 shrink-0" />{o.deliveryAddress || '—'}</span>
                   </td>
                   <td className="table-cell">
@@ -113,7 +114,7 @@ export default function PharmacyOrders({ profile }) {
                       {etiquetaDePago(o.paymentStatus)}
                     </span>
                   </td>
-                  <td className="table-cell hidden sm:table-cell text-text-secondary">{formatARS(o.total)}</td>
+                  <td className="table-cell max-sm:hidden text-text-secondary">{formatARS(o.total)}</td>
                   {canEdit && (
                     <td className="table-cell">
                       {/* Entregar necesita el código del paciente (migración
@@ -142,6 +143,7 @@ export default function PharmacyOrders({ profile }) {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
