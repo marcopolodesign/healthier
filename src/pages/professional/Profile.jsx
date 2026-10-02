@@ -10,8 +10,10 @@ import { conCoordenadas } from '../../lib/geo'
 import { toast } from '../../components/Toast'
 import { isLikelyTooSmallForFace } from '../../lib/imageCompression'
 import { camposSensiblesQueCambian, enumerarCampos, requiereReverificacion } from '../../lib/reverificacion'
+import NombreApellidoInputs from '../../components/common/NombreApellidoInputs'
+import { nombreApellidoDe, validarNombreApellido, nombreNormalizado, armarNombreCompleto } from '../../lib/nombreApellido'
 
-export default function ProfessionalProfile({ profile }) {
+export default function ProfessionalProfile({ profile, onProfileUpdate }) {
   const { especialidades, activas, porSlug, subEspecialidadesDe } = useEspecialidades()
   const [profData, setProfData] = useState(null)
   const [form, setForm] = useState({
@@ -35,6 +37,15 @@ export default function ProfessionalProfile({ profile }) {
   const isKnownSub = !form.subSpecialty || subOptions.some(o => o.slug === form.subSpecialty)
   const [subCustom, setSubCustom] = useState(false)
   const showCustomSub = subCustom || (!!form.subSpecialty && !isKnownSub)
+  // Nombre y apellido (migración 183). Viven en `profiles`, no en el legajo.
+  const [nombres, setNombres] = useState(() => nombreApellidoDe(profile))
+  useEffect(() => { setNombres(nombreApellidoDe(profile)) }, [profile?.id, profile?.firstName, profile?.lastName])
+  const nombreArmado = armarNombreCompleto(nombres.nombre, nombres.apellido)
+  const cambiaNombre = nombres.nombre.trim() !== (profile?.firstName ?? '').trim()
+    || nombres.apellido.trim() !== (profile?.lastName ?? '').trim()
+  // Mismo criterio que la base (183): reordenar o cambiar mayúsculas no es
+  // cambiar la identidad; agregar, sacar o cambiar una palabra sí.
+  const cambiaIdentidad = nombreNormalizado(nombreArmado) !== nombreNormalizado(profile?.fullName)
   const [avatarFile, setAvatarFile] = useState(null)
   const [avatarPreview, setAvatarPreview] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -70,11 +81,17 @@ export default function ProfessionalProfile({ profile }) {
   // que primero se le dice, en vez de que se entere cuando su perfil ya dejó de
   // recibir consultas.
   const cambiosSensibles = requiereReverificacion(profData)
-    ? camposSensiblesQueCambian(profData, form)
+    ? [...camposSensiblesQueCambian(profData, form), ...(cambiaIdentidad ? ['Nombre completo'] : [])]
     : []
   const [confirmandoReverificacion, setConfirmandoReverificacion] = useState(false)
 
   const guardar = async () => {
+    const errorNombre = validarNombreApellido(nombres.nombre, nombres.apellido)
+    if (errorNombre) {
+      toast.error(errorNombre)
+      setConfirmandoReverificacion(false)
+      return
+    }
     setSaving(true)
     try {
       if (avatarFile) {
@@ -92,14 +109,27 @@ export default function ProfessionalProfile({ profile }) {
       // aparecer en el siguiente guardado, comparando contra datos viejos.
       // `profiles` es un join de sólo lectura que el upsert no devuelve — se
       // conserva el que ya estaba o el avatar del encabezado desaparece.
-      setProfData(prev => ({ ...guardado, profiles: prev?.profiles }))
-      if (guardado?.reverificationPending) {
+      let estado = guardado
+      // El nombre va DESPUÉS del legajo: el upsert de arriba reenvía
+      // `is_verified` tal como estaba, y si el cambio de nombre ya lo hubiera
+      // bajado, ese reenvío chocaría con "nadie se verifica a sí mismo" (132).
+      if (cambiaNombre) {
+        const perfil = await profilesService.update(profile.id, {
+          first_name: nombres.nombre.trim(),
+          last_name: nombres.apellido.trim(),
+        })
+        if (onProfileUpdate) onProfileUpdate(perfil)
+        // El trigger de identidad puede haber abierto la revisión: se relee.
+        estado = await professionalService.getByUserId(profile.id)
+      }
+      setProfData(prev => ({ ...estado, profiles: prev?.profiles }))
+      if (estado?.reverificationPending) {
         toast.info('Guardamos el cambio. Tu perfil quedó pendiente de verificación.')
       } else {
         toast.success('Perfil actualizado')
       }
-    } catch {
-      toast.error('Error al guardar')
+    } catch (err) {
+      toast.error(`Error al guardar: ${err.message}`)
     } finally {
       setSaving(false)
       setConfirmandoReverificacion(false)
@@ -147,6 +177,8 @@ export default function ProfessionalProfile({ profile }) {
               />
             </div>
           </div>
+
+          <NombreApellidoInputs nombre={nombres.nombre} apellido={nombres.apellido} onChange={setNombres} />
 
           <div>
             <label className="form-label">Especialidad</label>

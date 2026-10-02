@@ -51,7 +51,10 @@ const EN_CAMEL = Object.fromEntries(
  */
 export function camposSensiblesQueCambian(antes = {}, ahora = {}) {
   return Object.keys(EN_CAMEL)
-    .filter(campo => ahora[campo] !== undefined && (antes[campo] ?? null) !== (ahora[campo] ?? null))
+    // '' y null son el mismo "sin dato" (igual que `diff_de_campos` en la base):
+    // sin esto, guardar la bio de alguien sin sub-especialidad avisaba que
+    // estaba cambiando la sub-especialidad.
+    .filter(campo => ahora[campo] !== undefined && (antes[campo] || null) !== (ahora[campo] || null))
     .map(campo => EN_CAMEL[campo])
 }
 
