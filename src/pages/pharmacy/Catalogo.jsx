@@ -65,7 +65,7 @@ function Miniatura({ product, estado, onFalla, onSubir, subiendo }) {
         )}
       </span>
       {!subiendo && (
-        <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-brand text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-brand text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
           <Camera className="w-2.5 h-2.5" weight="bold" />
         </span>
       )}
