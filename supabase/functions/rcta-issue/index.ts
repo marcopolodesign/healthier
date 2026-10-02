@@ -155,7 +155,7 @@ Deno.serve(async (req: Request) => {
 
       const { data: quien, error: errQuien } = await supabase
         .from('profiles')
-        .select(`id, full_name, dni, gender, birth_date, phone,
+        .select(`id, full_name, first_name, last_name, dni, gender, birth_date, phone,
                  professional_profiles!professional_profiles_user_id_fkey(specialty, license_type, license_number, address)`)
         .eq('id', user.id)
         .single()
@@ -227,11 +227,11 @@ Deno.serve(async (req: Request) => {
       .select(`
         *,
         patient:profiles!patient_id(
-          id, full_name, dni, gender, birth_date, phone,
+          id, full_name, first_name, last_name, dni, gender, birth_date, phone,
           coverage_type, financiador_id, insurance_name, insurance_num
         ),
         professional:profiles!professional_id(
-          id, full_name, dni, gender, birth_date, phone,
+          id, full_name, first_name, last_name, dni, gender, birth_date, phone,
           professional_profiles!professional_profiles_user_id_fkey(specialty, license_type, license_number, address)
         ),
         encounter:clinical_encounters!encounter_id(
@@ -395,8 +395,8 @@ Deno.serve(async (req: Request) => {
     // ── Build QBI2 "Receta" request payload ───────────────────────────────────
     // Real contract: POST /apirecipe/Receta — see website/docs/rcta-integration.md
     const prof = med.professional?.professional_profiles ?? {}
-    const { nombre: pacienteNombre, apellido: pacienteApellido } = splitName(med.patient?.full_name)
-    const { nombre: medicoNombre, apellido: medicoApellido } = splitName(med.professional?.full_name)
+    const { nombre: pacienteNombre, apellido: pacienteApellido } = nombreYApellido(med.patient)
+    const { nombre: medicoNombre, apellido: medicoApellido } = nombreYApellido(med.professional)
     const nombreConsultorio = medicoApellido ? `Consultorio Dr. ${medicoApellido}` : null
 
     // ── El logo YA NO VIAJA EN EL PAYLOAD (2026-09-11) ────────────────────────
@@ -891,8 +891,18 @@ async function postReceta(url: string, apiKey: string, body: Record<string, unkn
   return { kind: 'ok', status: res.status, data }
 }
 
-// RCTA wants separate nombre/apellido — Healthier only stores full_name.
-// Best-effort split: last word = apellido, everything before it = nombre.
+// RCTA quiere nombre y apellido por separado. Desde la migración 183 el perfil
+// los tiene (`first_name` / `last_name`) y se usan tal cual. Los perfiles que
+// todavía no los confirmaron caen al corte de siempre sobre `full_name`.
+// deno-lint-ignore no-explicit-any
+function nombreYApellido(p: any) {
+  const nombre = (p?.first_name ?? '').trim()
+  const apellido = (p?.last_name ?? '').trim()
+  if (nombre && apellido) return { nombre, apellido }
+  return splitName(p?.full_name)
+}
+
+// Respaldo: la última palabra es el apellido, todo lo anterior el nombre.
 function splitName(fullName: string | null | undefined) {
   const parts = (fullName ?? '').trim().split(/\s+/).filter(Boolean)
   if (parts.length === 0) return { nombre: '', apellido: '' }

@@ -26,6 +26,7 @@ import { track } from '../../utils/analytics'
 import { CLAVE_TOUR_PACIENTE } from '../../components/patient/TourPaciente'
 import { SUPPORT_PHONE_DISPLAY, supportWhatsAppLink } from '../../lib/support'
 import PhoneInput from '../../components/common/PhoneInput'
+import { nombreApellidoDe, validarNombreApellido } from '../../lib/nombreApellido'
 
 // Mismas etiquetas y formato que /paciente/comprobantes, para que el resumen del
 // perfil y la página completa no digan cosas distintas de la misma consulta.
@@ -49,7 +50,9 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
   const [userData, setUserData] = useState({
-    nombre:           profile?.fullName      || '',
+    // Nombre y apellido por separado (migración 183): la receta usa el apellido.
+    nombre:           nombreApellidoDe(profile).nombre,
+    apellido:         nombreApellidoDe(profile).apellido,
     email:            profile?.email         || '',
     telefono:         profile?.phone         || '',
     domicilio:        profile?.address       || '',
@@ -73,7 +76,8 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   useEffect(() => {
     if (!profile || editing) return
     setUserData({
-      nombre:           profile.fullName      || '',
+      nombre:           nombreApellidoDe(profile).nombre,
+      apellido:         nombreApellidoDe(profile).apellido,
       email:            profile.email         || '',
       telefono:         profile.phone         || '',
       domicilio:        profile.address       || '',
@@ -149,9 +153,16 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         toast.error('Revisá la fecha de nacimiento: va como DD/MM/AAAA.')
         return
       }
+      const errorNombre = validarNombreApellido(userData.nombre, userData.apellido)
+      if (errorNombre) {
+        toast.error(errorNombre)
+        return
+      }
       try {
+        // `full_name` lo arma la base con los dos (migración 183).
         const guardado = await profilesService.update(profile.id, {
-          full_name: userData.nombre,
+          first_name: userData.nombre.trim(),
+          last_name: userData.apellido.trim(),
           phone: userData.telefono,
           address: userData.domicilio,
           // `dni` estaba en el formulario y se mostraba, pero NUNCA se
@@ -172,8 +183,9 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         // (2026-09-25). Control: tests/e2e/perfil-paciente.spec.js.
         if (onProfileUpdate) onProfileUpdate(guardado)
         toast.success('Perfil actualizado')
-      } catch {
-        toast.error('Error al guardar perfil')
+      } catch (err) {
+        toast.error(`Error al guardar perfil: ${err.message}`)
+        return
       }
     } else {
       track('profile_edit_click', { section: 'informacion_basica', flow: 'paciente' })
@@ -442,6 +454,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         <h3 className="font-semibold text-[18px] text-text-primary mb-6 flex items-center gap-2"><User className="w-5 h-5 text-brand" /> Información Básica</h3>
         <div className="space-y-5">
           {field('Nombre', 'nombre')}
+          {field('Apellido', 'apellido')}
           {phoneField('Teléfono', 'telefono')}
           <div className="flex flex-col">
             <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-widest mb-1.5 ml-1">Domicilio</label>

@@ -1,4 +1,5 @@
 import { supabase, toCamelCase, olvidarSesion } from '../lib/supabase'
+import { armarNombreCompleto } from '../lib/nombreApellido'
 
 // Shared insert payload for a new `profiles` row — used both by email/password
 // registration and by first-time Google sign-in completion.
@@ -18,12 +19,18 @@ import { supabase, toCamelCase, olvidarSesion } from '../lib/supabase'
 // la fila, porque la columna es write-once del lado de la base (migración 115) —
 // después de esto ya no se puede corregir desde el cliente. Sólo se incluye
 // cuando hay valor, por la misma razón que el avatar.
-function buildProfileRow(user, email, role, fullName, utms = {}, phone = null, referredByProfessionalId = null) {
+//
+// Nombre (migración 183): `nombre` y `apellido` van por separado — la receta
+// necesita el apellido explícito. `full_name` se manda igual (la base lo
+// vuelve a armar con los dos, pero así ninguna lectura lo ve vacío).
+function buildProfileRow(user, email, role, { nombre, apellido }, utms = {}, phone = null, referredByProfessionalId = null) {
   const avatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null
   return {
     id: user.id,
     email,
-    full_name: fullName,
+    first_name: nombre.trim(),
+    last_name: apellido.trim(),
+    full_name: armarNombreCompleto(nombre, apellido),
     role,
     ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
     ...(phone ? { phone } : {}),
@@ -38,12 +45,18 @@ function buildProfileRow(user, email, role, fullName, utms = {}, phone = null, r
 }
 
 export const authService = {
-  async register(email, password, role, fullName, utms = {}, phone = null, referredByProfessionalId = null) {
+  /** `nombres` = `{ nombre, apellido }`, los dos obligatorios (migración 183). */
+  async register(email, password, role, nombres, utms = {}, phone = null, referredByProfessionalId = null) {
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { full_name: fullName, role },
+        data: {
+          full_name: armarNombreCompleto(nombres.nombre, nombres.apellido),
+          first_name: nombres.nombre.trim(),
+          last_name: nombres.apellido.trim(),
+          role,
+        },
       },
     })
     if (authError) throw new Error(authError.message)
@@ -60,7 +73,7 @@ export const authService = {
     // el avatar, que es justamente lo que sólo conoce el cliente.
     const { error: profileError } = await supabase
       .from('profiles')
-      .upsert(buildProfileRow(authData.user, email, role, fullName, utms, phone, referredByProfessionalId), { onConflict: 'id' })
+      .upsert(buildProfileRow(authData.user, email, role, nombres, utms, phone, referredByProfessionalId), { onConflict: 'id' })
     if (profileError) throw new Error(profileError.message)
 
     return { user: authData.user, session: authData.session }
@@ -93,7 +106,7 @@ export const authService = {
     if (error) throw new Error(error.message)
   },
 
-  async completeGoogleProfile(user, role, fullName, utms = {}, phone = null, referredByProfessionalId = null) {
+  async completeGoogleProfile(user, role, nombres, utms = {}, phone = null, referredByProfessionalId = null) {
     if (!user?.id) {
       // Defensa además del guard en CompleteProfile.jsx — nunca dereferenciar
       // .id de un user nulo (esto es lo que producía el crash reportado:
@@ -102,7 +115,7 @@ export const authService = {
     }
     const { data, error } = await supabase
       .from('profiles')
-      .insert(buildProfileRow(user, user.email, role, fullName, utms, phone, referredByProfessionalId))
+      .insert(buildProfileRow(user, user.email, role, nombres, utms, phone, referredByProfessionalId))
       .select()
       .single()
     if (error) throw new Error(error.message)
@@ -186,6 +199,12 @@ export const authService = {
     const profile = toCamelCase(data)
     localStorage.setItem('userProfile', JSON.stringify(profile))
     return profile
+  },
+
+  /** Con qué se entró (`email`, `google`, `apple`…). Lee la sesión local, sin red. */
+  async getProvider() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.user?.app_metadata?.provider ?? null
   },
 
   async verifySession() {

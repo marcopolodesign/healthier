@@ -126,6 +126,7 @@ import DespachoMapa from './pages/dispatch/Mapa'
 import DespachoAmbulancias from './pages/dispatch/Ambulancias'
 import DespachoConfiguracion from './pages/dispatch/Configuracion'
 import { tomarDestinoPostRegistro } from './lib/postSignupRedirect'
+import ConfirmarApellido from './components/ConfirmarApellido'
 import { ROLE_REDIRECTS } from './lib/roleRedirects'
 
 // ── Role guards ──────────────────────────────────────────
@@ -377,6 +378,8 @@ export default function App() {
       <ToastContainer />
       <VersionNueva />
       <AuthRedirectHandler profile={profile} authUser={authUser} />
+      {/* Quien ya tenía cuenta sin el apellido por separado lo confirma acá, una vez (migración 183). */}
+      <ConfirmarApellido profile={profile} onProfileUpdate={setProfile} />
       <CioPageTracker />
       <Routes>
         {/* Public */}

@@ -56,7 +56,7 @@ export const ToastContainer = () => {
   }
 
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2">
+    <div className="fixed top-4 right-4 z-[300] space-y-2">
       {toasts.map(t => (
         <div key={t.id} className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg min-w-[300px] max-w-md border animate-slide-in-right ${styles[t.type]}`}>
           {icons[t.type]}
