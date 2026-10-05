@@ -15,6 +15,7 @@ demo y datos sembrados: nunca contra producción ni con datos de pacientes reale
 | `scripts/guia/capturas-app.mjs` | Saca las de la app (simulador de iOS, idb). |
 | `scripts/guia/sembrar.mjs` | Deja staging con datos para que cada pantalla se vea llena. |
 | `scripts/guia/mirar.mjs` | Recorre la guía publicada como la ve alguien sin sesión. |
+| `scripts/guia/probar-entradas.mjs` | Entra con cada rol y toca "Guía de uso" en su menú. |
 | `scripts/prueba-guia.mjs` | El control: falla si falta una guía, una captura o una marca. |
 
 ## 1 · Datos
@@ -64,4 +65,5 @@ desarrollo (la "i" abre el inspector).
 ```bash
 npm run test:guia                         # sin red: guías, capturas y marcas
 node scripts/guia/mirar.mjs --super       # en el browser, contra staging
+node scripts/guia/probar-entradas.mjs     # cada rol llega a su guía desde su menú
 ```
