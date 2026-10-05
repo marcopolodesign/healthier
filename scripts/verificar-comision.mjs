@@ -7,7 +7,9 @@
 //
 // Qué prueba:
 //   1. comision_efectiva: general / exento (0%) / intermedia (5%) / vencida →
-//      general / paciente referido por ese mismo profesional → 0%.
+//      general / paciente referido por ese mismo profesional → 0% / familiar
+//      cuyo titular fue referido por ese profesional → 0% (185) / familiar de
+//      un titular no referido → general.
 //   2. Seguridad: un profesional o un paciente NO pueden cargar una tasa (ni por
 //      RPC ni insertando en la tabla), no leen el historial ni llaman a
 //      comision_efectiva. El super admin sí carga, y el profesional la ve con
@@ -92,6 +94,18 @@ async function asegurarPacienteReferido(referrerId) {
   return fila
 }
 
+// Familiar del titular (181): el trigger crea su perfil al insertar el vínculo.
+async function asegurarFamiliar(titularId, nombre) {
+  const q = `family_members?select=familiar_id&patient_id=eq.${titularId}&full_name=eq.${encodeURIComponent(nombre)}`
+  let { data } = await rest(q)
+  if (!data?.[0]) {
+    const r = await rest('family_members', { method: 'POST', body: { patient_id: titularId, full_name: nombre, relationship: 'hijo' } })
+    if (!r.ok) throw new Error(`No se pudo crear el familiar: ${JSON.stringify(r.data)}`)
+    data = (await rest(q)).data
+  }
+  return data[0].familiar_id
+}
+
 const creados = { consultas: [], creditos: [] }
 async function cobrarConCreditos(pacienteEmail, pacienteId, professionalId, precio) {
   const { data: [cons] } = await rest('consultations', {
@@ -151,6 +165,16 @@ try {
   ok(Number(e.rate) === 0 && e.origen === 'referido', 'paciente traído por ese profesional → 0%', JSON.stringify(e))
   e = await efectiva(exento.id, referido.id)
   ok(e.origen !== 'referido', 'el referido de OTRO profesional no cuenta como referido', JSON.stringify(e))
+
+  // Grupo familiar (185): el familiar del titular referido también va sin comisión.
+  const famRef = await asegurarFamiliar(referido.id, 'Hijo Prueba Comisión')
+  e = await efectiva(general.id, famRef)
+  ok(Number(e.rate) === 0 && e.origen === 'referido', 'familiar de un titular traído por ese profesional → 0%', JSON.stringify(e))
+  const { data: famNoRef } = await rest(`family_members?select=familiar_id&patient_id=eq.${paciente.id}&limit=1`)
+  if (famNoRef?.[0]) {
+    e = await efectiva(general.id, famNoRef[0].familiar_id)
+    ok(Number(e.rate) === tasaGeneral && e.origen === 'general', 'familiar de un titular NO referido → la general', JSON.stringify(e))
+  } else ok(false, `${PACIENTE} no tiene familiares para probar el caso no referido`)
 
   await cargarCambio(exento.id, 0.05, dias(10))
   e = await efectiva(exento.id, paciente.id)

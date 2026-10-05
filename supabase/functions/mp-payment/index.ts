@@ -775,7 +775,7 @@ Deno.serve(async (req) => {
     // --- 3b. Comisión de Healthier para ESTE cobro (migración 184) ---
     // Una sola fuente para web, app y consulta inmediata: `comision_efectiva`
     // decide entre referido (0), la tasa propia vigente del profesional o la
-    // general. Mira al paciente de la consulta, no al titular que paga. Se usa
+    // general. Referido = el paciente o su titular (185) vinieron por su link. Se usa
     // la tasa vigente AHORA y queda guardada en el pago.
     const { data: comision, error: comisionErr } = await serviceSupabase
       .rpc('comision_efectiva', {
