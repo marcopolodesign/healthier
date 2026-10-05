@@ -8,7 +8,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Ambulance, MapPin, NavigationArrow, Phone,
-  CheckCircle, ArrowLeft, Warning, Pulse, UserCircle, Broadcast, WifiSlash,
+  CheckCircle, ArrowLeft, Warning, Pulse, UserCircle, Broadcast, WifiSlash, BookOpenText,
 } from '@phosphor-icons/react'
 import { emergencyService, EMERGENCY_TERMINAL_STATUSES } from '../../services/emergencyService'
 import { dispatchService } from '../../services/dispatchService'
@@ -210,6 +210,11 @@ export default function ProfessionalEmergencias({ profile }) {
             <ArrowLeft className="w-5 h-5 text-text-primary" />
           </button>
           <h1 className="text-xl font-medium text-text-primary">Emergencias</h1>
+          {/* La tripulación no tiene menú: la guía de uso se abre desde acá, en guardia. */}
+          <a href="/guia/emergencias#tripulacion" target="_blank" rel="noreferrer"
+             className="ml-auto flex items-center gap-2 px-4 py-3 rounded-full bg-bg-secondary text-sm text-text-primary">
+            <BookOpenText className="w-5 h-5" /> Guía de uso
+          </a>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
           <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center">

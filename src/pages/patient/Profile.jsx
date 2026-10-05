@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   User, PencilSimple, Check, Camera, ShieldCheck, Heartbeat,
   Phone, Users, CreditCard, Receipt, SignOut, ArrowLeft,
-  FileText, Trash, Bell, CaretRight, UserCircle, Compass, WhatsappLogo,
+  FileText, Trash, Bell, CaretRight, UserCircle, Compass, WhatsappLogo, BookOpenText,
 } from '@phosphor-icons/react'
 import { profilesService } from '../../services/profilesService'
 import { authService } from '../../services/authService'
@@ -737,6 +737,23 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-text-primary text-[15px]">Cómo funciona Healthier</p>
             <p className="text-xs text-text-secondary mt-0.5">Volvé a ver el recorrido paso a paso</p>
+          </div>
+          <CaretRight className="w-5 h-5 text-text-tertiary flex-shrink-0" />
+        </button>
+      )}
+
+      {/* La guía de uso del paciente: cada pantalla, explicada. */}
+      {!editing && (
+        <button
+          onClick={() => navigate('/guia/paciente')}
+          className="w-full bg-white rounded-2xl p-5 border border-border-default shadow-sm flex items-center gap-4 text-left hover:border-brand/40 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-full bg-brand-muted flex items-center justify-center flex-shrink-0">
+            <BookOpenText weight="fill" className="w-5 h-5 text-brand" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-text-primary text-[15px]">Guía de uso</p>
+            <p className="text-xs text-text-secondary mt-0.5">Todo lo que podés hacer, pantalla por pantalla</p>
           </div>
           <CaretRight className="w-5 h-5 text-text-tertiary flex-shrink-0" />
         </button>

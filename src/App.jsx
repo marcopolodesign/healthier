@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate, useLocation, useParams } from 'react-router-dom'
 import { ToastContainer, toast } from './components/Toast'
 import VersionNueva from './components/VersionNueva'
@@ -37,6 +37,8 @@ import RecuperarContrasena from './pages/auth/RecuperarContrasena'
 import RestablecerContrasena from './pages/auth/RestablecerContrasena'
 import TerminosYCondiciones from './pages/TerminosYCondiciones'
 import ReferralLanding from './pages/ReferralLanding'
+// La guía de uso se carga aparte: trae su CSS y sus textos, y no hace falta en la app.
+const PaginaGuia = lazy(() => import('./guia/Guia'))
 
 import PatientDashboard from './pages/patient/Dashboard'
 import PatientOnboarding from './pages/patient/Onboarding'
@@ -392,6 +394,10 @@ export default function App() {
         {/* Link de referido del profesional. Público: quien lo recibe por
             WhatsApp todavía no tiene cuenta. */}
         <Route path="/r/:codigo" element={<ReferralLanding profile={profile} />} />
+        {/* Guía de uso por rol. Pública salvo la del super admin, que la
+            propia página manda al login sin una sesión de super_admin. */}
+        <Route path="/guia" element={<Suspense fallback={null}><PaginaGuia profile={profile} /></Suspense>} />
+        <Route path="/guia/:rol" element={<Suspense fallback={null}><PaginaGuia profile={profile} /></Suspense>} />
 
         {/* Auth */}
         <Route element={<AuthLayout />}>

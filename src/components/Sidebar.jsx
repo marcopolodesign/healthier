@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, MapTrifold, Ambulance, UploadSimple, Barbell, UsersThree } from '@phosphor-icons/react';
+import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, MapTrifold, Ambulance, UploadSimple, Barbell, UsersThree, BookOpenText } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
 import { veSubidas } from '../lib/permisos'
+import { GUIA_DE_ROL, urlDeGuia } from '../guia/roles'
 import { toast } from './Toast'
 import { CompanyLogo } from './common/CompanyLogo'
 
@@ -252,6 +253,13 @@ export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onCl
                 <p className="text-sm font-medium text-text-primary leading-tight truncate">{profile?.fullName || 'Mi perfil'}</p>
               </div>
             </NavLink>
+          )}
+          {/* La guía de uso del rol, en otra pestaña para no perder lo que se estaba haciendo. */}
+          {GUIA_DE_ROL[role] && (
+            <a href={urlDeGuia(role)} target="_blank" rel="noreferrer" onClick={onClose} className="nav-pill-inactive" data-tour="nav-guia">
+              <BookOpenText className="h-[22px] w-[22px] shrink-0" />
+              Guía de uso
+            </a>
           )}
           <button
             onClick={handleLogout}
