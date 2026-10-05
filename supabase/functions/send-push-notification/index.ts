@@ -87,6 +87,22 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
+    // Cuentas de prueba (migración 186): un aviso de una consulta que junta una
+    // cuenta de prueba con una real no sale. La base ya impide crearla; esto es
+    // la segunda red para las filas cruzadas de antes. Si el chequeo falla, el
+    // aviso sale igual.
+    if (payloadIn.consultationId && !(payloadIn as { preview?: boolean }).preview) {
+      const { data: cruza, error: cruzaErr } = await supabase
+        .rpc('consulta_cruza_mundos', { p_consultation_id: payloadIn.consultationId })
+      if (cruzaErr) console.error('send-push-notification cruza_mundos:', cruzaErr.message)
+      if (cruza === true) {
+        console.warn(`send-push-notification ${tipo ?? ''}: no sale — junta una cuenta de prueba con una real`)
+        return new Response(JSON.stringify({ skipped: true, reason: 'cuenta de prueba con cuenta real' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
     /*
      * Dos formas de llamarla, a propósito:
      *

@@ -197,6 +197,37 @@ async function leerPerfil(sb: SupabaseClient, userId: string) {
   }
 }
 
+// ── Cuentas de prueba (migración 186) ─────────────────────────────────────
+//
+// Una cuenta de prueba sólo se cruza con cuentas de prueba. La base ya impide
+// crear una consulta que junte una de prueba con una real; esto es la segunda
+// red, para las filas cruzadas que quedaron de antes (2026-10-05: una médica
+// real recibió la cancelación de una consulta que pidió el paciente demo).
+async function cruzaMundos(sb: SupabaseClient, body: Body): Promise<boolean> {
+  try {
+    if (body.consultationId) {
+      const { data } = await sb.rpc('consulta_cruza_mundos', { p_consultation_id: body.consultationId })
+      return data === true
+    }
+    if (body.prescriptionId) {
+      const { data: med } = await sb
+        .from('clinical_medications')
+        .select('patient_id, professional_id')
+        .eq('rcta_prescription_id', body.prescriptionId)
+        .limit(1)
+        .maybeSingle()
+      if (!med?.patient_id || !med?.professional_id) return false
+      const { data } = await sb.rpc('cuentas_compatibles', { p_a: med.patient_id, p_b: med.professional_id })
+      return data === false
+    }
+  } catch (e) {
+    // Si el chequeo falla, el mail sale: no se puede dejar sin avisar a un
+    // paciente real por un error de esta red, que es la segunda.
+    console.error('send-email cruzaMundos:', e instanceof Error ? e.message : e)
+  }
+  return false
+}
+
 // ── Despacho ────────────────────────────────────────────────────────────────
 
 type Body = {
@@ -245,6 +276,11 @@ Deno.serve(async (req) => {
   // es la reserva de un turno. Lo usan las filas viejas de pg_net en vuelo.
   const tipo = body.tipo ?? (body.consultationId ? 'reserva' : null)
   if (!tipo) return json({ error: 'Falta `tipo`' }, 400)
+
+  if (!body.preview && await cruzaMundos(sb, body)) {
+    console.warn(`send-email ${tipo}: no sale — junta una cuenta de prueba con una real`)
+    return json({ skipped: true, reason: 'cuenta de prueba con cuenta real' })
+  }
 
   const porUsuario = async (construir: (u: { full_name: string | null; email: string | null; invitadoPor: string | null }) => T.Sent) => {
     if (!body.userId) return json({ error: 'Falta userId' }, 400)

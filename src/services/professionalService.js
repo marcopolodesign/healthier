@@ -1,35 +1,16 @@
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
-import { veProfesionalesDePrueba } from '../lib/featureFlags'
 import { aBlobSubible, extensionDe, TIPOS_DOCUMENTO } from '../lib/archivoSubible'
 import { subirConProgreso } from '../lib/subidaConProgreso'
 import { PRECIO_MINIMO } from '../lib/tarifas'
 
-/**
- * Esconde los profesionales de prueba (`solo_pruebas`, migración 153) de las
- * listas que ve el paciente, salvo para las cuentas de la allowlist.
- *
- * Va acá y no en una RLS porque el profesional de prueba tiene que seguir
- * viéndose a sí mismo, y el super admin también: es una regla de *listado*, no
- * de acceso. `getSession()` lee de localStorage, no pega a la red.
+/*
+ * Profesionales de prueba: ya NO se filtran acá. Desde la migración 186 lo
+ * decide la base (RLS restrictiva `professional_profiles_mismo_mundo`): una
+ * cuenta de prueba ve sólo profesionales de prueba y una real sólo reales, en
+ * la web, en la app y en cualquier Edge Function por igual. Antes vivía acá
+ * con una allowlist de mails, y un paciente demo terminó con una consulta
+ * asignada a una médica real (2026-10-05).
  */
-async function correoActual() {
-  const { data } = await supabase.auth.getSession()
-  return data?.session?.user?.email ?? null
-}
-
-/**
- * `true` si al usuario actual hay que esconderle los de prueba. Se resuelve
- * ANTES de armar la query: el builder de PostgREST es un thenable, así que
- * hacerle `await` lo ejecuta — no se puede pasar por una función async.
- */
-async function ocultaDePrueba() {
-  return !veProfesionalesDePrueba(await correoActual())
-}
-
-async function filtrarDePrueba(filas) {
-  if (!(await ocultaDePrueba())) return filas
-  return (filas ?? []).filter((f) => !f.solo_pruebas)
-}
 
 /**
  * Excluye del lado del servidor a quien no tiene NINGÚN precio cargado
@@ -38,7 +19,7 @@ async function filtrarDePrueba(filas) {
  * turno — hoy en producción hay verificados y activos así (Pogonza,
  * Weyermann, Oviedo, Zaidman) y aparecen en la app cobrando "$0". `null` es
  * un estado válido ("todavía no lo cargó", migración 142), así que esto no es
- * un chequeo de integridad: es sólo de *listado*, igual que `filtrarDePrueba`.
+ * un chequeo de integridad: es sólo de *listado*.
  *
  * NO se aplica al pool on-demand (`filters.onDemand`): ahí cobra el precio de
  * plataforma (`vertical_settings.ondemand_price`), no el del profesional.
@@ -198,7 +179,6 @@ export const professionalService = {
    * El verde/rojo lo decide `disponibleAhora()` en el front.
    */
   async getMapaProfesionales() {
-    const ocultar = await ocultaDePrueba()
     const vigentesDesde = new Date(Date.now() - ON_DEMAND_PRESENCE_TTL_MS).toISOString()
     let query = supabase
       .from('professional_profiles')
@@ -212,20 +192,17 @@ export const professionalService = {
         `price_video.gte.${PRECIO_MINIMO},price_presencial.gte.${PRECIO_MINIMO},session_price.gte.${PRECIO_MINIMO},` +
         `and(is_on_demand.eq.true,on_demand_last_seen_at.gte.${vigentesDesde})`
       )
-    if (ocultar) query = query.eq('solo_pruebas', false)
     const { data, error } = await query.order('average_rating', { ascending: false })
     if (error) throw error
     return toCamelCase(data)
   },
 
   async search(filters = {}) {
-    const ocultar = await ocultaDePrueba()
     let query = supabase
       .from('professional_profiles')
       .select('*, profiles!user_id(full_name, avatar_url, email)')
       .eq('is_verified', true)
       .eq('is_active', true)
-    if (ocultar) query = query.eq('solo_pruebas', false)
     // El on-demand cobra el precio de PLATAFORMA (`vertical_settings.ondemand_price`),
     // no el del profesional — así que un profesional sin precio propio cargado
     // igual puede atender consultas inmediatas y no se lo puede excluir acá.
@@ -284,7 +261,7 @@ export const professionalService = {
       p_especialidades: especialidades?.length ? especialidades : null,
     })
     if (error) throw error
-    return toCamelCase(await filtrarDePrueba(data ?? []))
+    return toCamelCase(data ?? [])
   },
 
   /**
