@@ -47,8 +47,8 @@ const ENTORNOS = {
 // Desde cuándo rige la regla en cada base (hora en que se aplicó la 186).
 // Lo cruzado de antes es material de prueba y se va con la limpieza.
 const VIGENTE_DESDE = {
-  produccion: '2026-10-05 23:59:00+00',
-  staging:    '2026-10-05 22:40:00+00',
+  produccion: '2026-10-05 22:43:00+00',
+  staging:    '2026-10-05 22:25:00+00',
 }
 
 async function sql(ref, query) {
