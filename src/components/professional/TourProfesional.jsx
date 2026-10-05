@@ -81,7 +81,7 @@ const PASOS_VERIFICADO = [
     // El aviso rojo existe sólo si NO está conectado; el verde, sólo si lo está.
     // El anclaje es el mismo, el texto no puede serlo.
     cuerpo: ({ mpConectado }) => mpConectado
-      ? 'Ya está conectado, así que cobrás el 80% de cada consulta directo en tu cuenta de Mercado Pago, en el momento en que el paciente paga. La plata nunca pasa por Healthier.'
+      ? 'Ya está conectado, así que cobrás tu parte de cada consulta directo en tu cuenta de Mercado Pago, en el momento en que el paciente paga. La plata nunca pasa por Healthier.'
       : 'Sin Mercado Pago conectado los pacientes no te pueden reservar. Es el paso que más turnos frena, así que conviene resolverlo primero.',
     titulo: 'Así cobrás',
   },
