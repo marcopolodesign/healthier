@@ -33,9 +33,13 @@ const CASOS = [
     tocar: (p) => p.locator('button', { hasText: 'Guía de uso' }) },
 ]
 
+// En producción, con sus cuentas demo (no hay consola de despacho todavía).
+const PROD = process.env.GUIA_BASE === 'produccion'
+const CUENTA_PROD = { 'paciente.completo@staging.healthier.app': 'paciente@healthier.app', 'clinica@staging.healthier.app': 'profesional@healthier.app', 'farmacia@staging.healthier.app': 'farmacia@healthier.app' }
+const casos = PROD ? CASOS.filter((c) => !c.desde.startsWith('/despacho')).map((c) => ({ ...c, quien: CUENTA_PROD[c.quien] ?? c.quien })) : CASOS
 const navegador = await chromium.launch()
 let fallas = 0
-for (const c of CASOS) {
+for (const c of casos) {
   const ctx = await navegador.newContext(c.vista)
   const s = await sesionDe(c.quien, env)
   await ctx.addInitScript(({ k, s }) => {

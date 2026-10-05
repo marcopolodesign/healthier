@@ -14,6 +14,15 @@ export function cargarEnv() {
       if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^['"]|['"]$/g, '')
     }
   }
+  // GUIA_BASE=produccion usa la base de producción (keys del .env del website):
+  // sólo para probar las entradas con las cuentas demo de prod, nunca para sembrar.
+  if (process.env.GUIA_BASE === 'produccion') {
+    let f = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../.env')
+    if (!fs.existsSync(f)) f = path.join(os.homedir(), 'Local/Healthier/website/.env')   // desde un worktree
+    const w = Object.fromEntries([...fs.readFileSync(f, 'utf8').matchAll(/^([A-Z0-9_]+)=(.*)$/gm)].map((m) => [m[1], m[2].replace(/^['"]|['"]$/g, '')]))
+    const ref = new URL(w.VITE_SUPABASE_URL).hostname.split('.')[0]
+    return { url: w.VITE_SUPABASE_URL, anon: w.VITE_SUPABASE_ANON_KEY, service: w.SUPABASE_SERVICE_ROLE_KEY, ref }
+  }
   const url = process.env.HEALTHIER_STAGING_SUPABASE_URL
   const anon = process.env.HEALTHIER_STAGING_SUPABASE_ANON_KEY
   const service = process.env.HEALTHIER_STAGING_SUPABASE_SERVICE_ROLE_KEY
