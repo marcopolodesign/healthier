@@ -24,7 +24,7 @@ export default function SuperAdminUsuarios() {
       const [profilesRes, consultationsRes] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, email, full_name, created_at, utm_source, utm_medium, utm_campaign')
+          .select('id, email, full_name, created_at, utm_source, utm_medium, utm_campaign, es_prueba')
           .eq('role', 'patient')
           .order('created_at', { ascending: false }),
         supabase
@@ -233,6 +233,13 @@ export default function SuperAdminUsuarios() {
                         <div>
                           <p className="font-medium text-text-primary">
                             {patient.full_name || '(Sin nombre)'}
+                            {/* Cuenta de prueba (migración 186): sólo se cruza con
+                                profesionales de prueba — no ve ni le llega nada de uno real. */}
+                            {patient.es_prueba && (
+                              <span className="ml-1.5 align-middle rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                                Prueba
+                              </span>
+                            )}
                           </p>
                           <p className="text-xs text-text-secondary mt-0.5">{patient.email}</p>
                         </div>
