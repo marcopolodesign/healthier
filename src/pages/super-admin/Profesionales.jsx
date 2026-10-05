@@ -26,6 +26,8 @@ import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
 import WhatsAppButton from '../../components/super-admin/WhatsAppButton'
+import ComisionProfesional, { ComisionBadge } from '../../components/super-admin/ComisionProfesional'
+import { comisionService } from '../../services/comisionService'
 
 // Documentos que puede gestionar el super admin desde el drawer (A6) — mismo
 // nombre de archivo que usa Onboarding.jsx al subir, para que un reemplazo
@@ -375,7 +377,7 @@ function SisaBadge({ status }) {
 
 // ── Detail drawer ─────────────────────────────────────────────────────────────
 
-function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
+function ProfessionalDrawer({ pro, duplicados = [], generalRate, onClose, onUpdated }) {
   const { porSlug, puedeRecetar } = useEspecialidades()
   const [detail, setDetail] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -713,6 +715,11 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
                   </div>
                 </div>
               </div>
+
+              {/* Comisión propia (migración 184): tasa, vencimiento y motivo, con historial. */}
+              {d?.profile?.id && (
+                <ComisionProfesional professionalId={d.profile.id} generalRate={generalRate} onChanged={onUpdated} />
+              )}
 
               {/* Credenciales y datos para recetar. Sin overflow-hidden: las
                   sugerencias de la dirección se abren hacia abajo y quedaban
@@ -1116,6 +1123,9 @@ export default function SuperAdminProfesionales() {
   }, [searchParams])
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null)
+  // Comisión propia de cada profesional (por profiles.id) y la general.
+  const [comisiones, setComisiones] = useState({})
+  const [generalRate, setGeneralRate] = useState(null)
 
   async function fetchData() {
     setLoading(true)
@@ -1131,6 +1141,8 @@ export default function SuperAdminProfesionales() {
 
       if (profResult.error) throw profResult.error
       setProfessionals(profResult.data ?? [])
+      comisionService.getComisionesDeProfesionales().then(setComisiones).catch(() => {})
+      paymentsService.getPlatformSettings().then(s => setGeneralRate(s?.commissionRate ?? null)).catch(() => {})
 
       const map = {}
       for (const row of consultResult.data ?? []) {
@@ -1243,6 +1255,7 @@ export default function SuperAdminProfesionales() {
                 <th className="table-header">Estado</th>
                 <th className="table-header">REFEPS</th>
                 <th className="table-header">MP</th>
+                <th className="table-header">Comisión</th>
                 <th className="table-header">Precio</th>
                 <th className="table-header">Firma</th>
                 <th className="table-header">Inmediata</th>
@@ -1275,7 +1288,7 @@ export default function SuperAdminProfesionales() {
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="py-16 text-center">
+                  <td colSpan={15} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-3 text-gray-400">
                       <User size={40} weight="thin" />
                       <p className="text-sm">No se encontraron profesionales</p>
@@ -1350,6 +1363,9 @@ export default function SuperAdminProfesionales() {
                             </div>
                           )
                           : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600">Sin conectar</span>}
+                      </td>
+                      <td className="table-cell">
+                        <ComisionBadge actual={comisiones[profileId]} />
                       </td>
                       <td className="table-cell">
                         <PrecioBadge pro={pro} />
@@ -1442,6 +1458,7 @@ export default function SuperAdminProfesionales() {
         <ProfessionalDrawer
           pro={selected}
           duplicados={duplicadosPorId.get(selected.id) ?? []}
+          generalRate={generalRate}
           onClose={() => setSelected(null)}
           onUpdated={() => {
             fetchData()

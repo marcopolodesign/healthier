@@ -83,7 +83,7 @@ export default function SuperAdminSettings() {
                 className="form-input"
               />
               <p className="text-xs text-text-muted mt-1">
-                El médico recibe {(100 - platformSettings.commissionRate * 100).toFixed(1)}% del precio. Mercado Pago le cobra su comisión sobre esa parte — Healthier cobra su porcentaje completo del bruto.
+                El médico recibe {(100 - platformSettings.commissionRate * 100).toFixed(1)}% del precio. Mercado Pago le cobra su comisión sobre esa parte — Healthier cobra su porcentaje completo del bruto. Es la general: no se aplica a profesionales con tasa propia (se carga en su ficha de Profesionales) ni a pacientes que el profesional trajo con su link (0%).
               </p>
             </div>
 

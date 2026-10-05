@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { TrendUp, TrendDown, CurrencyDollar, Clock, CheckCircle, ArrowClockwise, CaretDown, Users, Info, HandCoins } from '@phosphor-icons/react';
 import { paymentsService } from '../../services/paymentsService'
+import { comisionService, formatTasa } from '../../services/comisionService'
+import { textoComisionPropia } from '../../components/professional/AvisoComision'
 import { toast } from '../../components/Toast'
 
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -37,12 +39,35 @@ function paymentDate(p) {
   return p.consultation?.completedAt || p.consultation?.scheduledAt || p.createdAt
 }
 
+// Cobros sin comisión de Healthier (migración 184): la columna "Comisión"
+// sigue mostrando lo de Mercado Pago, así que se aclara por qué no hay más.
+const ETIQUETA_SIN_COMISION = { referido: 'Paciente referido', profesional: 'Sin comisión Healthier' }
+
+// La frase de arriba con la tasa REAL del profesional. El fee de Mercado Pago
+// lo sigue pagando el profesional sobre su parte (por eso no se habla de "neto").
+function TextoComision({ comision }) {
+  if (!comision) return null
+  const rate = Number(comision.rate)
+  const propia = textoComisionPropia(comision)
+  const queda = formatTasa(1 - rate)
+  return (
+    <p data-testid="ganancias-tasa">
+      {propia && <span className="font-semibold text-emerald-700">{propia}. </span>}
+      Te queda el <span className="font-semibold text-text-primary">{queda} del valor de la consulta</span>
+      {rate > 0 && <> y Healthier se lleva el {formatTasa(rate)}</>}. Mercado Pago cobra su comisión sobre
+      tu parte, así que el neto de abajo — lo que MP efectivamente te acredita — es un poco menor.
+    </p>
+  )
+}
+
 export default function Ganancias({ profile }) {
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
   const [range, setRange] = useState(1)
   const [showRangeMenu, setShowRangeMenu] = useState(false)
   const [settlementBalance, setSettlementBalance] = useState(0)
+  // Tasa real del profesional (migración 184) — antes el texto decía 20% fijo.
+  const [comision, setComision] = useState(null)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -53,6 +78,7 @@ export default function Ganancias({ profile }) {
     paymentsService.getMySettlementBalance()
       .then(({ pending }) => setSettlementBalance(pending))
       .catch(() => {})
+    comisionService.getMiComision().then(setComision).catch(() => {})
   }, [profile?.id])
 
   // ── Derived totals ──────────────────────────────────────────────────────────
@@ -169,11 +195,14 @@ export default function Ganancias({ profile }) {
                 — pero NO como "neto", porque de esa parte MP todavía descuenta lo
                 suyo. Prometer un número fijo y depositar otro es la forma más
                 rápida de que un médico desconfíe del resto de la pantalla. */}
-            <p className="text-sm text-text-secondary">
-              Te queda el <span className="font-semibold text-text-primary">80% del valor de la consulta</span> y
-              Healthier se lleva el 20%. Mercado Pago cobra su comisión sobre tu parte, así
-              que el neto de abajo — lo que MP efectivamente te acredita — es un poco menor.
-            </p>
+            <div className="text-sm text-text-secondary space-y-1">
+              <TextoComision comision={comision} />
+              {comision && (
+                <p data-testid="ganancias-referidos">
+                  Los pacientes que traés con tu link no pagan comisión de Healthier.
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -463,6 +492,9 @@ export default function Ganancias({ profile }) {
                       </td>
                       <td className="py-3 px-2 text-right text-sm text-text-tertiary">
                         -{formatARS(commission)}
+                        {ETIQUETA_SIN_COMISION[p.commissionSource] && Number(p.platformFee || 0) === 0 && (
+                          <span className="block text-[11px] text-emerald-700">{ETIQUETA_SIN_COMISION[p.commissionSource]}</span>
+                        )}
                       </td>
                       <td className="py-3 px-2 text-right">
                         <span className={`text-sm font-semibold ${isRefund ? 'text-red-500 line-through' : 'text-emerald-700'}`}>

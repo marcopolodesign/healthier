@@ -17,6 +17,8 @@ import { cumplePrecioMinimo } from '../../lib/tarifas'
 import { CAMPOS_SENSIBLES, enumerarCampos } from '../../lib/reverificacion'
 import { ID_CONSULTA as ID_SIMULACION } from '../../lib/simulacion'
 import ReferralLinkCard from '../../components/professional/ReferralLinkCard'
+import AvisoComision from '../../components/professional/AvisoComision'
+import { comisionService } from '../../services/comisionService'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
 import LlegadaBadge, { useLlegadas } from '../../components/professional/LlegadaPaciente'
 import OnDemandSwitch from '../../components/professional/OnDemandSwitch'
@@ -194,6 +196,9 @@ export default function ProfessionalDashboard({ profile }) {
   const [availableWalkIn, setAvailableWalkIn] = useState(false)
   const [togglingAvail, setTogglingAvail] = useState(false)
   const [schedules, setSchedules] = useState([])
+  // Comisión propia (migración 184): si Healthier no le cobra —o le cobra
+  // menos— hasta cierta fecha, se lo decimos en el inicio.
+  const [comision, setComision] = useState(null)
 
   // Pacientes que están yendo al consultorio ahora mismo (Realtime).
   const llegadas = useLlegadas(profile?.id)
@@ -233,6 +238,7 @@ export default function ProfessionalDashboard({ profile }) {
       setSchedules(sched)
     }).catch(() => toast.error('Error al cargar datos'))
     .finally(() => setLoading(false))
+    comisionService.getMiComision().then(setComision).catch(() => {})
 
     const unsubEmergency = emergencyService.subscribe(profile.id, (updated) => {
       setActiveEmergency(EMERGENCY_TERMINAL_STATUSES.includes(updated.status) ? null : updated)
@@ -759,6 +765,8 @@ export default function ProfessionalDashboard({ profile }) {
           </div>
         ))}
       </div>
+
+      <AvisoComision comision={comision} />
 
       {/* Earnings banner */}
       <Link to="/profesional/ganancias" data-tour="pro-ganancias" className="card flex items-center gap-4 hover:border-brand/40 transition-colors group">
