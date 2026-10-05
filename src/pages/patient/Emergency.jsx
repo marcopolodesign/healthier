@@ -5,6 +5,7 @@ import {
   User, CheckCircle, PhoneCall, MapPinLine, Ambulance, ShieldCheck,
 } from '@phosphor-icons/react'
 import { emergencyService, getSosSettings, SOS_FALLBACK } from '../../services/emergencyService'
+import { emergenciasVisible } from '../../lib/featureFlags'
 import { emergencyTrackingService, esReciente, FRESCURA_MINUTOS } from '../../services/emergencyTrackingService'
 import { getRoute, formatMeters, formatMinutes } from '../../lib/directions'
 import { mpService } from '../../services/mpService'
@@ -183,7 +184,7 @@ export default function Emergency({ profile }) {
           // servicio se haya deshabilitado después.
           setEmergency(active)
           setPhase(pantallaPara(active))
-        } else if (!settings.enabled) {
+        } else if (!settings.enabled || !emergenciasVisible(profile)) {
           setPhase('unavailable')
         } else {
           setPhase('pago')
