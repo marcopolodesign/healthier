@@ -20,6 +20,7 @@ import OnDemandCarousel from '../../components/patient/OnDemandCarousel'
 import { professionalService, disponibleAhora } from '../../services/professionalService'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { emergencyService, getSosSettings } from '../../services/emergencyService'
+import { emergenciasVisible } from '../../lib/featureFlags'
 import { useVerticales } from '../../hooks/useVerticales'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { haversineKm, formatDistance } from '../../lib/geo'
@@ -106,6 +107,9 @@ export default function PatientDashboard({ profile }) {
   // `getSosSettings()`): mientras se resuelve el fetch es mejor mostrar el
   // botón un instante de más que ocultarlo por un fetch lento o caído.
   const [sosEnabled, setSosEnabled] = useState(true)
+  // Además del toggle, en producción el S.O.S. sólo lo ven las cuentas de
+  // prueba y las internas (`emergenciasVisible`, featureFlags.js).
+  const sosVisible = sosEnabled && emergenciasVisible(profile)
 
   // Un pin por profesional, en su dirección real (2026-09-30). Antes era uno
   // solo por vertical, y al que no tenía coordenadas se lo dibujaba en una
@@ -418,7 +422,7 @@ export default function PatientDashboard({ profile }) {
   // curso (activeEmergencyBanner) se sigue mostrando siempre — deshabilitar el
   // servicio no puede dejar a un paciente con una emergencia activa sin forma
   // de volver a la pantalla de tracking.
-  const sosButton = sosEnabled && (
+  const sosButton = sosVisible && (
     <button
       data-tour="pac-sos"
       onClick={() => { track('sos_click', { flow: 'paciente' }); navigate('/paciente/sos') }}
@@ -465,7 +469,7 @@ export default function PatientDashboard({ profile }) {
           inmediata se perdería en silencio. */}
       <TourPaciente
         hayOnDemand={verticalesConOnDemand.some(v => v.disponible)}
-        sosActivo={sosEnabled}
+        sosActivo={sosVisible}
         listo={VERTICALS.length > 0}
       />
 

@@ -30,3 +30,23 @@ export function farmaciaVisible(profile) {
  * la aplica la base: prueba ↔ prueba, real ↔ real. Espejo en
  * `mobile/src/lib/featureFlags.ts`.
  */
+
+/**
+ * El S.O.S. del paciente todavía no sale en producción (Mateo, 2026-10-05):
+ * el único móvil de prod es de prueba, y desde la 186 la emergencia de un
+ * paciente real no se puede despachar a una tripulación de prueba. Se ve en
+ * staging, y en producción sólo para las cuentas de prueba
+ * (`profiles.es_prueba`) y las internas que usan los dos mundos
+ * (`ve_ambos_mundos`: Mateo y Nacho, migración 187). Espejo de
+ * `emergenciasVisible` en `mobile/src/lib/featureFlags.ts`.
+ *
+ * Esconde la ENTRADA a un S.O.S. nuevo. Una emergencia ya en curso se sigue
+ * mostrando siempre: esconderla dejaría al paciente sin volver al seguimiento.
+ */
+const LANZAMIENTO_ALLOWLIST = ['mateoaldao@gmail.com', 'arteaga.ignacio95@gmail.com']
+
+export function emergenciasVisible(profile) {
+  if (!esProduccion) return true
+  if (profile?.es_prueba || profile?.ve_ambos_mundos) return true
+  return LANZAMIENTO_ALLOWLIST.includes(String(profile?.email ?? '').trim().toLowerCase())
+}
