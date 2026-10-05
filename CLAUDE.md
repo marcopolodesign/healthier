@@ -220,6 +220,14 @@ npm run preview  # Preview production build
 
 ---
 
+## Guía de uso por rol (`/guia`)
+
+`/guia`, `/guia/paciente|profesional|farmacia|emergencias` son públicas (sin sesión);
+`/guia/super-admin` exige `super_admin`. Texto en `src/guia/contenido.js`, capturas en
+`public/guia-img/`, marcas en `src/guia/marcas.json`. **Si cambiás una pantalla que la
+guía muestra, regenerá su captura** (`scripts/guia/README.md`) y corré
+`npm run test:guia`, que falla si falta una guía, una captura o un número.
+
 ## Recent Changes
 
 ### 2026-08-27: La dirección del consultorio se le pide a quien atiende presencial

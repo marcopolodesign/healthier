@@ -1,0 +1,230 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   La guía de uso (/guia). Copia de la de Picnic con los tokens de Healthier:
+   marfil, sage, Everett Light en los títulos y General Sans en el texto.
+   Se carga sólo con la guía (la ruta es lazy), así que no pesa en la app.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.guia{
+  --papel:var(--color-bg-primary);--tinta:var(--color-text-primary);--suave:var(--color-text-secondary);
+  --tenue:var(--color-text-tertiary);--linea:var(--color-border-subtle);--linea-fuerte:var(--color-border-default);
+  --superficie:#fff;--caja:#EFEDE6;--acento:#4E8A5E;--acento-claro:var(--color-brand);
+  --shell:#2D2A26;--shell-hondo:#1E1C19;--ojo:var(--color-brand-secondary);
+  min-height:100vh;background:var(--papel);color:var(--tinta);font-family:var(--font-sans);font-size:15px;line-height:1.55;
+  overflow-x:clip}
+.guia a{color:inherit;text-decoration:none}
+.guia h1,.guia h2{font-family:var(--font-serif);font-weight:300}
+.guia b{font-weight:600}
+.g-ceja{margin:0 0 8px;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--suave);font-weight:600;
+  display:flex;align-items:center;gap:7px}
+.g-vos{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  background:var(--acento);color:#fff;border-radius:999px;padding:2px 8px;margin-left:7px}
+.g-icono{flex-shrink:0}
+
+/* ── Barra de arriba ─────────────────────────────────────────────────────── */
+.g-barra{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:18px;padding:12px 28px;
+  background:linear-gradient(140deg,var(--shell) 0%,var(--shell-hondo) 100%);color:#fff}
+.g-marca{display:flex;align-items:center;gap:12px}
+.g-marca small{font-size:12px;opacity:.7;padding-left:12px;border-left:1px solid rgba(255,255,255,.25);white-space:nowrap}
+.g-roles{display:flex;gap:4px;margin-left:auto;background:rgba(255,255,255,.1);padding:4px;border-radius:999px}
+.g-roles a{padding:6px 14px;border-radius:999px;font-size:13.5px;opacity:.85;display:flex;align-items:center;white-space:nowrap}
+.g-roles a:hover{opacity:1;background:rgba(255,255,255,.1)}
+.g-roles a.on{background:#fff;color:var(--shell);opacity:1;font-weight:600}
+.g-roles .g-vos{background:var(--acento-claro);margin-left:6px}
+.g-volver{font-size:13.5px;padding:8px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.35);white-space:nowrap}
+.g-volver:hover{background:rgba(255,255,255,.12)}
+
+/* ── Cuerpo ──────────────────────────────────────────────────────────────── */
+.g-cuerpo{max-width:1180px;margin:0 auto;padding:44px 28px 60px}
+.g-con-indice{display:grid;grid-template-columns:210px minmax(0,1fr);gap:48px;align-items:start}
+.g-indice{position:sticky;top:84px;display:flex;flex-direction:column;gap:2px;max-height:calc(100vh - 110px);overflow:auto;padding-right:6px}
+.g-indice-item{display:contents}
+.g-indice-grupo{margin:12px 0 2px 10px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--tenue);font-weight:700}
+.g-indice a{font-size:13px;color:var(--suave);padding:5px 10px;border-radius:8px;line-height:1.35}
+.g-indice a:hover{color:var(--tinta);background:var(--caja)}
+.g-indice a.on{color:var(--acento);background:#fff;font-weight:600}
+.g-imprimir{margin-top:14px;font-size:12.5px;padding:8px 10px;border-radius:9px;border:1px dashed var(--linea-fuerte);color:var(--suave);text-align:left;background:none;cursor:pointer}
+.g-imprimir:hover{color:var(--tinta);border-color:var(--tenue)}
+
+.g-heroe{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:36px;align-items:end;padding-bottom:34px;border-bottom:1px solid var(--linea-fuerte)}
+.g-heroe h1{font-size:46px;line-height:1.08;letter-spacing:-.025em;margin:4px 0 14px}
+.g-heroe h1 span{color:var(--acento)}
+.g-bajada{color:var(--suave);font-size:16px;margin:0;max-width:660px}
+.g-heroe-inicio{display:block;border:0;padding-bottom:20px}
+.g-heroe-inicio h1{font-size:54px;max-width:840px}
+.g-ficha{margin:0;background:var(--superficie);border:1px solid var(--linea);border-radius:18px;padding:6px 18px}
+.g-ficha div{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--linea)}
+.g-ficha div:last-child{border:0}
+.g-ficha dt{color:var(--suave);font-size:13px}
+.g-ficha dd{margin:0;font-weight:600;font-size:13.5px;text-align:right}
+
+.g-bloque{padding-top:56px;scroll-margin-top:70px}
+.g-bloque h2{font-size:30px;letter-spacing:-.018em;margin:0 0 8px;line-height:1.2}
+
+/* Tu día: un recorrido numerado con una línea que lo une */
+.g-dia{list-style:none;margin:22px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;position:relative}
+.g-dia li{position:relative;display:flex;flex-direction:column;gap:4px;background:var(--superficie);border:1px solid var(--linea);border-radius:16px;padding:16px}
+.g-dia li b{font-size:15px}
+.g-dia li span:last-child{color:var(--suave);font-size:13.5px;line-height:1.45}
+.g-num{width:30px;height:30px;border-radius:50%;background:var(--acento);color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px;margin-bottom:6px}
+.g-dia li:not(:last-child)::after{content:"";position:absolute;top:30px;right:-15px;width:16px;border-top:2px dashed var(--tenue)}
+
+/* El viaje de una consulta, un pedido o una emergencia */
+.g-viaje{margin-top:28px;background:var(--caja);border-radius:20px;padding:20px 22px}
+.g-viaje ol{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:10px}
+.g-viaje li{position:relative;display:flex;flex-direction:column;gap:3px;padding:14px 14px 16px;border-radius:14px;background:rgba(255,255,255,.55);color:var(--suave)}
+.g-viaje li b{color:var(--tinta);font-size:14px;line-height:1.3}
+.g-viaje li span{font-size:12.5px;line-height:1.4}
+.g-viaje li .g-icono{color:var(--tenue);margin-bottom:4px}
+.g-viaje li:not(:last-child)::after{content:"→";position:absolute;right:-10px;top:14px;color:var(--tenue);font-size:13px}
+.g-viaje li.vos{background:#fff;box-shadow:0 0 0 2px var(--acento)}
+.g-viaje li.vos .g-icono{color:var(--acento)}
+.g-viaje li .g-vos{position:absolute;top:-9px;right:10px;margin:0}
+
+/* Lo que podés hacer */
+.g-puede{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:20px}
+.g-puede a{display:flex;flex-direction:column;gap:4px;background:var(--superficie);border:1px solid var(--linea);border-radius:16px;padding:16px 18px;
+  transition:transform 160ms ease,box-shadow 160ms ease,border-color 160ms ease}
+.g-puede a:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(45,42,38,.08);border-color:transparent}
+.g-puede span{color:var(--suave);font-size:13.5px}
+.g-puede i{font-style:normal;color:var(--acento);font-size:13px;font-weight:600;margin-top:6px}
+
+/* Cada parte, con su captura */
+.g-n{margin:0 0 2px;font:700 13px var(--font-sans);color:var(--acento);letter-spacing:.04em}
+.g-n span{color:var(--tenue);font-weight:600;text-transform:uppercase;font-size:11.5px;letter-spacing:.08em}
+.g-parte-cuerpo{margin-top:22px;display:grid;gap:22px}
+.g-parte-movil .g-parte-cuerpo{grid-template-columns:320px minmax(0,1fr);align-items:start;gap:36px}
+
+.g-navegador{margin:0;border-radius:14px;overflow:hidden;background:#fff;border:1px solid var(--linea);box-shadow:0 22px 50px -18px rgba(45,42,38,.28);position:relative}
+.g-nav-barra{display:flex;align-items:center;gap:6px;padding:9px 12px;background:var(--caja);border-bottom:1px solid var(--linea)}
+.g-nav-barra i{width:10px;height:10px;border-radius:50%;background:#dcd8d1}
+.g-nav-barra span{margin-left:12px;font-size:12px;color:var(--tenue);background:#fff;padding:3px 12px;border-radius:7px}
+.g-telefono{margin:0;padding:10px;background:#1E1C19;border-radius:44px;box-shadow:0 26px 50px -20px rgba(45,42,38,.45);position:relative}
+.g-telefono .g-pantalla{border-radius:35px;overflow:hidden}
+.g-donde{position:absolute;right:12px;bottom:-30px;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--tenue);font-weight:600}
+.g-navegador .g-donde{position:static;padding:7px 12px;border-top:1px solid var(--linea);background:var(--caja);text-align:right}
+.g-telefono .g-donde{left:0;right:0;text-align:center}
+.g-parte-movil .g-parte-cuerpo{padding-bottom:20px}
+.g-agrandar{display:block;width:100%;padding:0;cursor:zoom-in;background:none;border:0}
+.g-pantalla{position:relative;line-height:0}
+.g-pantalla img{width:100%;height:auto;display:block;aspect-ratio:var(--ar);background:var(--caja)}
+.g-zona{position:absolute;left:var(--x);top:var(--y);width:var(--w);height:var(--h);border-radius:10px;transition:box-shadow 160ms ease,background 160ms ease}
+.g-zona.on{box-shadow:0 0 0 3px var(--acento);background:rgba(78,138,94,.10)}
+.g-pin{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--acento);color:#fff;
+  font:700 12.5px var(--font-sans);line-height:1;box-shadow:0 0 0 3px #fff,0 4px 10px rgba(0,0,0,.25);flex-shrink:0}
+.g-zona .g-pin{position:absolute;left:-9px;top:-9px;animation:g-latido 2.4s ease-in-out infinite}
+.g-zona.borde .g-pin{left:6px;top:6px}
+.g-zona.on .g-pin{animation:none;transform:scale(1.15)}
+@keyframes g-latido{0%,100%{box-shadow:0 0 0 3px #fff,0 0 0 3px rgba(78,138,94,.35)}50%{box-shadow:0 0 0 3px #fff,0 0 0 9px rgba(78,138,94,0)}}
+
+.g-leyenda > ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px 22px}
+.g-parte-movil .g-leyenda > ol{grid-template-columns:1fr}
+.g-leyenda li{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border-radius:12px;font-size:14.5px;transition:background 140ms}
+.g-leyenda li.on{background:var(--superficie)}
+.g-leyenda li .g-pin{box-shadow:none;margin-top:1px}
+.g-como{margin-top:16px;background:var(--superficie);border:1px solid var(--linea);border-radius:16px;padding:16px 20px}
+.g-como ol{margin:0;padding-left:22px;font-size:14.5px;list-style:decimal}
+.g-como ol li{margin:0 0 7px}
+.g-como ol li:last-child{margin:0}
+.g-como ol li::marker{color:var(--acento);font-weight:700}
+.g-tip{display:flex;gap:10px;align-items:baseline;margin:12px 0 0;padding:12px 16px;border-radius:14px;font-size:14px;background:#EEF5EF}
+.g-tip b{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--acento);flex-shrink:0}
+.g-ojo{background:#FCEEE9}
+.g-ojo b{color:#B85A40}
+
+/* ¿Qué pasa si…? */
+.g-faq{margin-top:18px;display:grid;gap:8px}
+.g-faq details{background:var(--superficie);border:1px solid var(--linea);border-radius:14px;padding:0 18px}
+.g-faq summary{cursor:pointer;padding:15px 0;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:12px}
+.g-faq summary::after{content:"+";color:var(--acento);font-size:20px;line-height:1;transition:transform 160ms}
+.g-faq details[open] summary::after{transform:rotate(45deg)}
+.g-faq summary::-webkit-details-marker{display:none}
+.g-faq details p{margin:0 0 16px;color:var(--suave)}
+
+.g-glosario{margin:18px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.g-glosario div{background:var(--superficie);border:1px solid var(--linea);border-radius:14px;padding:14px 16px}
+.g-glosario dt{font-weight:700;margin-bottom:3px}
+.g-glosario dd{margin:0;color:var(--suave);font-size:13.5px;line-height:1.45}
+
+.g-ayuda{margin-top:56px;display:flex;flex-direction:column;gap:4px;padding:24px 26px;border-radius:20px;color:#fff;
+  background:linear-gradient(140deg,var(--shell) 0%,var(--shell-hondo) 100%)}
+.g-ayuda b{font-size:18px}
+.g-ayuda span{opacity:.8}
+
+.g-pie{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-top:34px;padding-top:20px;border-top:1px solid var(--linea-fuerte);font-size:13.5px;color:var(--suave)}
+.g-pie a{color:var(--acento);font-weight:600}
+.g-pie-firma{margin-left:auto}
+
+/* El inicio de la guía: todas */
+.g-tarjetas-roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:10px}
+.g-tarjeta-rol{display:flex;flex-direction:column;gap:8px;background:var(--superficie);border:1px solid var(--linea);border-radius:20px;padding:22px;
+  transition:transform 180ms ease,box-shadow 180ms ease}
+.g-tarjeta-rol:hover{transform:translateY(-3px);box-shadow:0 18px 36px -16px rgba(45,42,38,.25)}
+.g-tarjeta-rol .g-icono{color:var(--acento);margin-bottom:6px}
+.g-tarjeta-rol b{font-size:18px;line-height:1.25;letter-spacing:-.01em}
+.g-para{font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave);font-weight:600}
+.g-ficha-mini{font-size:13px;color:var(--suave)}
+.g-abrir{margin-top:auto;padding-top:8px;color:var(--acento);font-weight:600;font-size:14px}
+.g-tarjeta-rol.propia{box-shadow:0 0 0 2px var(--acento)}
+
+/* La lupa */
+.g-lupa{position:fixed;inset:0;z-index:50;background:rgba(30,28,25,.86);display:grid;place-items:center;padding:30px;cursor:zoom-out}
+.g-lupa>div{width:min(1440px,100%);max-height:100%;overflow:auto;border-radius:12px}
+.g-lupa .g-lupa-movil{width:min(430px,100%)}
+.g-lupa-cerrar{position:fixed;top:16px;right:22px;color:#fff;font-size:14px}
+
+/* ── Teléfono y tablet ───────────────────────────────────────────────────── */
+@media (max-width:1000px){
+  .g-con-indice{display:block}
+  .g-indice{display:none}
+  .g-viaje ol{grid-auto-flow:row;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g-viaje li::after{display:none}
+  .g-roles{max-width:52vw;overflow-x:auto;scrollbar-width:none}
+}
+@media (max-width:720px){
+  .g-barra{flex-wrap:wrap;padding:10px 16px;gap:10px}
+  .g-roles{order:3;width:100%;max-width:none;overflow-x:auto;margin:0}
+  .g-volver{margin-left:auto}
+  .g-cuerpo{padding:28px 16px 48px}
+  .g-heroe{grid-template-columns:1fr;gap:22px}
+  .g-heroe h1{font-size:34px}
+  .g-heroe-inicio h1{font-size:38px}
+  .g-bloque{padding-top:44px;scroll-margin-top:124px}
+  .g-bloque h2{font-size:25px}
+  .g-dia{grid-template-columns:1fr}
+  .g-dia li{flex-direction:row;flex-wrap:wrap;align-items:center;column-gap:12px}
+  .g-dia li .g-num{margin:0}
+  .g-dia li span:last-child{flex-basis:100%}
+  .g-dia li::after{display:none}
+  .g-viaje ol{grid-template-columns:1fr}
+  .g-tarjetas-roles{grid-template-columns:1fr}
+  .g-parte-movil .g-parte-cuerpo{grid-template-columns:1fr}
+  .g-parte-movil .g-telefono{max-width:290px;width:100%;margin:0 auto}
+  .g-leyenda > ol{grid-template-columns:1fr}
+  .g-pie-firma{margin-left:0}
+  .g-zona .g-pin{width:20px;height:20px;font-size:11px;left:-6px;top:-6px}
+}
+
+/* ── Para guardarla como PDF ─────────────────────────────────────────────── */
+@media print{
+  .g-barra,.g-indice,.g-imprimir,.g-pie{display:none}
+  .g-con-indice{display:block}
+  .g-cuerpo{padding:0}
+  .g-parte,.g-faq details,.g-dia li{break-inside:avoid}
+  .g-faq details>p{display:block}
+  .g-zona .g-pin{animation:none}
+  .g-navegador,.g-telefono{box-shadow:none}
+}
+
+/* ── Entradas: cascada suave ─────────────────────────────────────────────── */
+.g-entra{opacity:0;transform:translateY(14px);filter:blur(6px);
+  transition:opacity 900ms cubic-bezier(.22,1,.36,1),transform 900ms cubic-bezier(.22,1,.36,1),filter 900ms cubic-bezier(.22,1,.36,1);
+  transition-delay:calc(var(--i,0) * 70ms)}
+.g-entra.visto{opacity:1;transform:none;filter:none}
+/* Las marcas llegan después de su captura, como un "pop" chiquito. */
+.g-zona.g-entra{transform:scale(.85);filter:none;transition-delay:calc(450ms + var(--i,0) * 110ms)}
+.g-zona.g-entra.visto{transform:none}
+.g-puede > a.g-entra.visto:hover,.g-tarjeta-rol.g-entra.visto:hover{transform:translateY(-2px)}
+@media (prefers-reduced-motion:reduce){
+  .g-entra,.g-zona.g-entra{opacity:1;transform:none;filter:none;transition:none}
+  .g-zona .g-pin{animation:none}
+}
+@media print{.g-entra{opacity:1;transform:none;filter:none;transition:none}}
