@@ -18,7 +18,7 @@ import { CAMPOS_SENSIBLES, enumerarCampos } from '../../lib/reverificacion'
 import { ID_CONSULTA as ID_SIMULACION } from '../../lib/simulacion'
 import ReferralLinkCard from '../../components/professional/ReferralLinkCard'
 import AvisoComision from '../../components/professional/AvisoComision'
-import { comisionService } from '../../services/comisionService'
+import { comisionService, formatTasa } from '../../services/comisionService'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
 import LlegadaBadge, { useLlegadas } from '../../components/professional/LlegadaPaciente'
 import OnDemandSwitch from '../../components/professional/OnDemandSwitch'
@@ -847,7 +847,7 @@ export default function ProfessionalDashboard({ profile }) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs text-emerald-700 font-medium uppercase tracking-wide">MercadoPago conectado</p>
-            <p className="text-sm text-text-secondary mt-0.5">Cobrás el 80% de cada consulta directo en tu cuenta de MP</p>
+            <p className="text-sm text-text-secondary mt-0.5">Cobrás {comision ? `el ${formatTasa(1 - Number(comision.rate))} de ` : ''}cada consulta directo en tu cuenta de MP</p>
           </div>
           <Link to="/profesional/configuracion" className="text-sm font-medium text-emerald-700 hover:text-emerald-800 shrink-0">
             Administrar
@@ -871,7 +871,7 @@ export default function ProfessionalDashboard({ profile }) {
               <li className="flex gap-3">
                 <CurrencyDollar className="h-5 w-5 text-brand shrink-0 mt-0.5" />
                 <p className="text-sm text-text-primary">
-                  <span className="font-semibold">Cobrás el 80% del valor de cada consulta.</span>{' '}
+                  <span className="font-semibold">Cobrás {comision ? `el ${formatTasa(1 - Number(comision.rate))} del valor` : 'el valor'} de cada consulta.</span>{' '}
                   Mercado Pago cobra su comisión sobre ese mismo pago, como en cualquier
                   venta tuya — en Ganancias ves el desglose y lo que te acredita.
                 </p>

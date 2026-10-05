@@ -61,5 +61,8 @@ export function formatTasa(rate) {
 /** "31/12" — el vencimiento se muestra corto, como en el pedido. */
 export function formatHasta(fecha) {
   if (!fecha) return null
-  return new Date(fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
+  // A mano: `toLocaleDateString('es-AR', {day:'2-digit'})` devuelve "4/11" en
+  // algunos motores. Se muestra en hora de Buenos Aires.
+  const [d, m] = new Date(fecha).toLocaleDateString('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'numeric' }).split('/')
+  return `${d.padStart(2, '0')}/${m.padStart(2, '0')}`
 }
