@@ -47,6 +47,7 @@ const LANZAMIENTO_ALLOWLIST = ['mateoaldao@gmail.com', 'arteaga.ignacio95@gmail.
 
 export function emergenciasVisible(profile) {
   if (!esProduccion) return true
-  if (profile?.es_prueba || profile?.ve_ambos_mundos) return true
+  // El perfil del contexto viene en camelCase (authService → toCamelCase).
+  if (profile?.esPrueba || profile?.veAmbosMundos || profile?.es_prueba || profile?.ve_ambos_mundos) return true
   return LANZAMIENTO_ALLOWLIST.includes(String(profile?.email ?? '').trim().toLowerCase())
 }
