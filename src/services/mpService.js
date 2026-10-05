@@ -161,11 +161,15 @@ export const mpService = {
    */
   // orderId is mutually exclusive with consultationId — a medication-order
   // charge (no Healthy Credits, no pre-auth, always charged immediately).
-  async createPayment({ consultationId, orderId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits = false, authorizeOnly = false, description, payerDocType, payerDocNumber }) {
+  // emergencyId es el tercer destino posible, también excluyente: la
+  // preautorización de una emergencia (siempre capture:false, la cobra la
+  // plataforma). El monto no viaja — lo pone el servidor desde la base.
+  async createPayment({ consultationId, orderId, emergencyId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits = false, authorizeOnly = false, description, payerDocType, payerDocNumber }) {
     try {
       const result = await callEdgeFunction('mp-payment', {
         consultationId: consultationId ?? null,
         orderId: orderId ?? null,
+        emergencyId: emergencyId ?? null,
         cardToken: cardToken ?? null,
         paymentMethodId: paymentMethodId ?? null,
         payerEmail: payerEmail ?? null,
@@ -221,6 +225,33 @@ export const mpService = {
   async cancelAuthorization(consultationId) {
     try {
       const result = await callEdgeFunction('mp-capture', { action: 'cancel-auth', consultationId })
+      return { data: toCamelCase(result), error: null }
+    } catch (err) {
+      return { data: null, error: err.message }
+    }
+  },
+
+  /**
+   * Cobra la preautorización de una emergencia — el traslado se hizo.
+   * (mp-capture action=capture-emergency). Idempotente del lado del servidor.
+   */
+  async capturarEmergencia(emergencyId) {
+    try {
+      const result = await callEdgeFunction('mp-capture', { action: 'capture-emergency', emergencyId })
+      return { data: toCamelCase(result), error: null }
+    } catch (err) {
+      return { data: null, error: err.message }
+    }
+  },
+
+  /**
+   * Libera la reserva de una emergencia sin cobrar nada — se canceló antes de
+   * despachar, o no hubo móvil. No es una devolución: nunca se capturó, así
+   * que el banco suelta la retención solo.
+   */
+  async liberarEmergencia(emergencyId) {
+    try {
+      const result = await callEdgeFunction('mp-capture', { action: 'cancel-auth-emergency', emergencyId })
       return { data: toCamelCase(result), error: null }
     } catch (err) {
       return { data: null, error: err.message }

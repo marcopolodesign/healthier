@@ -9,6 +9,9 @@ import { profilesService } from '../../services/profilesService'
 import { authService } from '../../services/authService'
 import { mpService } from '../../services/mpService'
 import { familyService } from '../../services/familyService'
+import { patientAddressesService } from '../../services/patientAddressesService'
+import AddressPickerSheet from '../../components/patient/AddressPickerSheet'
+import AddressFormSheet from '../../components/patient/AddressFormSheet'
 import { isoADdmmaaaa, ddmmaaaaAIso } from '../../lib/fechaNacimiento'
 import { consultationsService } from '../../services/consultationsService'
 import { professionalService } from '../../services/professionalService'
@@ -23,7 +26,7 @@ import { track } from '../../utils/analytics'
 import { CLAVE_TOUR_PACIENTE } from '../../components/patient/TourPaciente'
 import { SUPPORT_PHONE_DISPLAY, supportWhatsAppLink } from '../../lib/support'
 import PhoneInput from '../../components/common/PhoneInput'
-import { nombreApellidoDe, validarNombreApellido } from '../../lib/nombreApellido'
+import { nombreApellidoDe, validarNombreApellido, armarNombreCompleto } from '../../lib/nombreApellido'
 
 // Mismas etiquetas y formato que /paciente/comprobantes, para que el resumen del
 // perfil y la página completa no digan cosas distintas de la misma consulta.
@@ -99,7 +102,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   // así que un familiar cargado a medias había que eliminarlo y rehacerlo
   // (Nacho, 2026-09-14). Paridad con app/family-add.tsx.
   const [editingFamiliarId, setEditingFamiliarId] = useState(null)
-  const [newFamiliar, setNewFamiliar] = useState({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' })
+  const [newFamiliar, setNewFamiliar] = useState({ nombre: '', apellido: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' })
 
   // Comprobantes — mismas consultas cobradas que muestra /paciente/comprobantes.
   // Acá va solo un resumen; la lista completa vive en esa página.
@@ -269,10 +272,60 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
 
   useEffect(() => { loadFamiliares() }, [loadFamiliares])
 
+  // ── Domicilio (Mis direcciones, migración 173) ────────────
+  // El campo "Domicilio" ya no edita `profiles.address` directo: lee la
+  // dirección principal de `patient_addresses` y abre el mismo selector que
+  // usa el checkout de farmacia para elegir o agregar una nueva.
+  const [direcciones, setDirecciones] = useState([])
+  const [addrPickerOpen, setAddrPickerOpen] = useState(false)
+  const [addrFormOpen, setAddrFormOpen] = useState(false)
+  const [savingAddr, setSavingAddr] = useState(false)
+
+  const cargarDirecciones = useCallback(async () => {
+    if (!profile?.id) return
+    try {
+      setDirecciones(await patientAddressesService.list(profile.id))
+    } catch {
+      // Sin direcciones cargadas no rompe el perfil — se queda vacío y ofrece agregar.
+    }
+  }, [profile?.id])
+
+  useEffect(() => { cargarDirecciones() }, [cargarDirecciones])
+
+  const direccionPrincipal = direcciones.find(d => d.principal) ?? direcciones[0] ?? null
+
+  const elegirDireccionPrincipal = async a => {
+    setAddrPickerOpen(false)
+    if (a.id === direccionPrincipal?.id) return
+    try {
+      await patientAddressesService.setPrincipal(profile.id, a.id)
+      await cargarDirecciones()
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos actualizar el domicilio')
+    }
+  }
+
+  const agregarDireccion = async payload => {
+    setSavingAddr(true)
+    try {
+      const created = await patientAddressesService.create(profile.id, { ...payload, principal: direcciones.length === 0 })
+      setDirecciones(prev => [created, ...prev])
+      setAddrFormOpen(false)
+      toast.success('Dirección agregada')
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos guardar la dirección')
+    } finally {
+      setSavingAddr(false)
+    }
+  }
+
   const abrirEdicionFamiliar = f => {
     setEditingFamiliarId(f.id)
     setNewFamiliar({
-      nombre: f.fullName || '', vinculo: f.relationship || '', dni: f.dni || '',
+      // Nombre y apellido por separado (183): lo guardado en su perfil, o la
+      // propuesta partiendo el nombre que tenía — el titular la confirma.
+      ...(() => { const n = nombreApellidoDe({ ...f.familiar, fullName: f.familiar?.fullName || f.fullName }); return { nombre: n.nombre, apellido: n.apellido } })(),
+      vinculo: f.relationship || '', dni: f.dni || '',
       email: f.email || '', telefono: f.phone || '',
       obraSocial: f.insuranceName || '', numeroSocio: f.insuranceNum || '',
       // Desde la migración 181 el familiar tiene perfil propio: la fecha de
@@ -285,11 +338,16 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   const cerrarHojaFamiliar = () => {
     setShowAddFamiliar(false)
     setEditingFamiliarId(null)
-    setNewFamiliar({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' })
+    setNewFamiliar({ nombre: '', apellido: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' })
   }
 
   const saveNuevoFamiliar = async () => {
-    if (!newFamiliar.nombre.trim() || savingFamiliar) return
+    if (savingFamiliar) return
+    const errorNombreFamiliar = validarNombreApellido(newFamiliar.nombre, newFamiliar.apellido)
+    if (errorNombreFamiliar) {
+      toast.error(errorNombreFamiliar.replace('tu ', 'el '))
+      return
+    }
     const nacimientoIso = ddmmaaaaAIso(newFamiliar.nacimiento)
     if (nacimientoIso === undefined) {
       toast.error('La fecha de nacimiento va como DD/MM/AAAA.')
@@ -298,7 +356,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
     setSavingFamiliar(true)
     try {
       const datos = {
-        fullName:      newFamiliar.nombre.trim(),
+        fullName:      armarNombreCompleto(newFamiliar.nombre, newFamiliar.apellido),
         relationship:  newFamiliar.vinculo || null,
         dni:           newFamiliar.dni || null,
         email:         newFamiliar.email || null,
@@ -306,17 +364,17 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         insuranceName: newFamiliar.obraSocial || null,
         insuranceNum:  newFamiliar.numeroSocio || null,
       }
-      const perfil = { birthDate: nacimientoIso, gender: newFamiliar.sexo || null }
+      const perfil = { birthDate: nacimientoIso, gender: newFamiliar.sexo || null, nombre: newFamiliar.nombre, apellido: newFamiliar.apellido }
       if (editingFamiliarId) {
         const actualizado = await familyService.update(editingFamiliarId, datos)
         await familyService.updatePerfil(actualizado.familiarId, perfil)
         setFamiliares(prev => prev.map(f => (f.id === editingFamiliarId
-          ? { ...actualizado, familiar: { ...actualizado.familiar, ...perfil } } : f)))
+          ? { ...actualizado, familiar: { ...actualizado.familiar, ...perfil, firstName: perfil.nombre.trim(), lastName: perfil.apellido.trim() } } : f)))
         toast.success('Familiar actualizado')
       } else {
         const created = await familyService.create(profile.id, datos)
         await familyService.updatePerfil(created.familiarId, perfil)
-        setFamiliares(prev => [{ ...created, familiar: { ...created.familiar, ...perfil } }, ...prev])
+        setFamiliares(prev => [{ ...created, familiar: { ...created.familiar, ...perfil, firstName: perfil.nombre.trim(), lastName: perfil.apellido.trim() } }, ...prev])
         toast.success('Familiar añadido')
       }
       cerrarHojaFamiliar()
@@ -406,7 +464,26 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           {field('Nombre', 'nombre')}
           {field('Apellido', 'apellido')}
           {phoneField('Teléfono', 'telefono')}
-          {field('Domicilio', 'domicilio')}
+          <div className="flex flex-col">
+            <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-widest mb-1.5 ml-1">Domicilio</label>
+            {direccionPrincipal ? (
+              <button
+                type="button"
+                onClick={() => setAddrPickerOpen(true)}
+                className="px-1 py-1 text-[17px] font-medium text-text-primary text-left hover:text-brand transition-colors truncate"
+              >
+                {direccionPrincipal.direccion}{direccionPrincipal.pisoDepto ? `, ${direccionPrincipal.pisoDepto}` : ''}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAddrFormOpen(true)}
+                className="px-1 py-1 text-[15px] font-semibold text-brand text-left"
+              >
+                + Agregar domicilio
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -479,7 +556,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
       <div className="bg-bg-secondary rounded-2xl p-6 shadow-sm border border-border-default mb-6">
         <div className="flex justify-between items-center mb-6">
           <h3 className="font-semibold text-[18px] text-text-primary flex items-center gap-2"><Users className="w-5 h-5 text-emerald-500" /> Grupo Familiar</h3>
-          {!editing && <span onClick={() => { track('family_member_add_click', { flow: 'paciente' }); setEditingFamiliarId(null); setNewFamiliar({ nombre: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' }); setShowAddFamiliar(true) }} className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full cursor-pointer hover:bg-emerald-100 transition-colors">+ AÑADIR</span>}
+          {!editing && <span onClick={() => { track('family_member_add_click', { flow: 'paciente' }); setEditingFamiliarId(null); setNewFamiliar({ nombre: '', apellido: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' }); setShowAddFamiliar(true) }} className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full cursor-pointer hover:bg-emerald-100 transition-colors">+ AÑADIR</span>}
         </div>
         {familiaresLoading
           ? <p className="text-sm text-text-tertiary text-center py-4">Cargando tu grupo familiar…</p>
@@ -734,7 +811,7 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         </div>
         <div className="flex-1 overflow-y-auto scrollbar-hide p-6 space-y-6 pb-8 bg-bg-primary">
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-border-default space-y-5">
-            {[['Nombre Completo', 'nombre'], ['Vínculo', 'vinculo'], ['DNI', 'dni']].map(([lbl, nm]) => (
+            {[['Nombre', 'nombre'], ['Apellido', 'apellido'], ['Vínculo', 'vinculo'], ['DNI', 'dni']].map(([lbl, nm]) => (
               <div key={nm} className="flex flex-col">
                 <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-widest mb-1.5 ml-1">{lbl}</label>
                 <input type="text" value={newFamiliar[nm]} onChange={e => setNewFamiliar(p => ({ ...p, [nm]: e.target.value }))} className="bg-bg-primary border border-border-default rounded-2xl px-4 py-3.5 outline-none text-[15px] font-medium text-text-primary focus:border-brand" />
@@ -804,6 +881,22 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           </p>
         </div>
       </PatientSheet>
+
+      {/* Mis direcciones — mismo selector que usa el checkout de farmacia */}
+      <AddressPickerSheet
+        open={addrPickerOpen}
+        onClose={() => setAddrPickerOpen(false)}
+        addresses={direcciones}
+        selectedId={direccionPrincipal?.id}
+        onSelect={elegirDireccionPrincipal}
+        onAdd={() => { setAddrPickerOpen(false); setAddrFormOpen(true) }}
+      />
+      <AddressFormSheet
+        open={addrFormOpen}
+        onClose={() => setAddrFormOpen(false)}
+        onSave={agregarDireccion}
+        saving={savingAddr}
+      />
     </div>
   )
 }

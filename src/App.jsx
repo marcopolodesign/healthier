@@ -43,6 +43,8 @@ const PaginaGuia = lazy(() => import('./guia/Guia'))
 import PatientDashboard from './pages/patient/Dashboard'
 import PatientOnboarding from './pages/patient/Onboarding'
 import PatientSearch from './pages/patient/Search'
+import PatientBuscarDisponibles from './pages/patient/BuscarDisponibles'
+import PatientNotificaciones from './pages/patient/Notificaciones'
 import ProfessionalProfile from './pages/patient/ProfessionalProfile'
 import PatientConsultations from './pages/patient/Consultations'
 import PatientDocuments from './pages/patient/Documents'
@@ -59,6 +61,7 @@ import ProfessionalProfileEdit from './pages/professional/Profile'
 import ProfessionalVideoCall from './pages/professional/VideoCall'
 import AtencionEmergencia from './pages/professional/AtencionEmergencia'
 import NutriPlan from './pages/professional/NutriPlan'
+import ActivityPlan from './pages/professional/ActivityPlan'
 import ProfessionalEmergencias from './pages/professional/Emergencias'
 import HistoriaClinica from './pages/professional/HistoriaClinica'
 import ProfessionalHistorial from './pages/professional/Historial'
@@ -120,6 +123,10 @@ import PharmacyOrders from './pages/pharmacy/Pedidos'
 import PharmacyOrderDetail from './pages/pharmacy/PedidoDetail'
 import PharmacyCatalog from './pages/pharmacy/Catalogo'
 import PharmacyConfiguracion from './pages/pharmacy/Configuracion'
+import DespachoCola from './pages/dispatch/Cola'
+import DespachoMapa from './pages/dispatch/Mapa'
+import DespachoAmbulancias from './pages/dispatch/Ambulancias'
+import DespachoConfiguracion from './pages/dispatch/Configuracion'
 import { tomarDestinoPostRegistro } from './lib/postSignupRedirect'
 import ConfirmarApellido from './components/ConfirmarApellido'
 import { ROLE_REDIRECTS } from './lib/roleRedirects'
@@ -422,6 +429,12 @@ export default function App() {
           <Route path="/paciente/familiar/:id"     element={<FamiliarDetalle     profile={profile} />} />
           <Route path="/paciente/ondemand/:vertical" element={<OnDemand          profile={profile} />} />
           <Route path="/paciente/sos"              element={<Emergency           profile={profile} />} />
+          <Route path="/paciente/notificaciones"   element={<PatientNotificaciones profile={profile} />} />
+          {/* Lista de profesionales on demand disponibles AHORA MISMO — acceso
+              nuevo desde el Inicio (spec 2026-09-23). Distinta de
+              `/paciente/buscar` de abajo, que busca entre todos los
+              profesionales cobrables para agendar un turno, disponibles o no. */}
+          <Route path="/paciente/buscar-disponibles" element={<PatientBuscarDisponibles profile={profile} />} />
           {/* Legacy routes kept for backward compatibility */}
           <Route path="/paciente/buscar"           element={<PatientSearch       profile={profile} />} />
           <Route path="/paciente/profesional/:id"  element={<ProfessionalProfile profile={profile} />} />
@@ -482,8 +495,11 @@ export default function App() {
         } />
 
         {/* Professional — full-screen standalone routes (no sidebar) */}
+        {/* También la tripulación sin matrícula: el chofer y el enfermero van
+            al domicilio igual que el médico y mueven los mismos estados. La
+            pantalla no muestra historia clínica. */}
         <Route path="/profesional/emergencias" element={
-          <RequireRole profile={profile} allowed={['professional']}>
+          <RequireRole profile={profile} allowed={['professional', 'emergency_crew']}>
             <ProfessionalEmergencias profile={profile} />
           </RequireRole>
         } />
@@ -516,6 +532,7 @@ export default function App() {
           <Route path="/profesional/consulta/:id" element={<ConsultationDetail profile={profile} />} />
           <Route path="/profesional/perfil" element={<ProfessionalProfileEdit profile={profile} onProfileUpdate={setProfile} />} />
           <Route path="/profesional/nutriplan" element={<NutriPlan profile={profile} />} />
+          <Route path="/profesional/plan-actividad" element={<ActivityPlan profile={profile} />} />
           <Route path="/profesional/historia-clinica/:patientId" element={<HistoriaClinica profile={profile} />} />
           <Route path="/profesional/historial" element={<ProfessionalHistorial profile={profile} />} />
           <Route path="/profesional/paciente/:patientId" element={<ProfessionalPatientProfile profile={profile} />} />
@@ -573,6 +590,18 @@ export default function App() {
           <Route path="/farmacia/pedidos/:id" element={<PharmacyOrderDetail profile={profile} />} />
           <Route path="/farmacia/catalogo" element={<PharmacyCatalog profile={profile} />} />
           <Route path="/farmacia/configuracion" element={<PharmacyConfiguracion profile={profile} />} />
+        </Route>
+
+        {/* Despacho de emergencias */}
+        <Route element={
+          <RequireRole profile={profile} allowed={['emergency_admin', 'emergency_operator']}>
+            <AppLayout profile={profile} />
+          </RequireRole>
+        }>
+          <Route path="/despacho" element={<DespachoCola profile={profile} />} />
+          <Route path="/despacho/mapa" element={<DespachoMapa profile={profile} />} />
+          <Route path="/despacho/ambulancias" element={<DespachoAmbulancias profile={profile} />} />
+          <Route path="/despacho/configuracion" element={<DespachoConfiguracion profile={profile} />} />
         </Route>
 
         {/* Catch-all */}

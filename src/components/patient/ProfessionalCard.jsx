@@ -1,6 +1,7 @@
 import { Star, SealCheck, VideoCamera, MapPin, Lightning } from '@phosphor-icons/react'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { track } from '../../utils/analytics'
+import { inicialesDe } from '../../lib/format'
 
 /**
  * ProfessionalCard
@@ -27,7 +28,7 @@ export default function ProfessionalCard({ pro, onSelect, isSelected = false, mo
     ? (pro.pricePresencial ?? pro.priceVideo ?? null)
     : (pro.priceVideo ?? pro.pricePresencial ?? null)
 
-  const initial = name.charAt(0).toUpperCase()
+  const initial = inicialesDe(name)
 
   // Mismo evento que la otra ProfessionalCard (la de `/paciente/buscar`): un
   // solo nombre para "el paciente eligió médico", venga de la lista que venga,

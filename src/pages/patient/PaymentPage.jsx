@@ -6,6 +6,7 @@ import { mpService } from '../../services/mpService'
 import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
 import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
+import { inicialesDe } from '../../lib/format'
 
 export default function PaymentPage({ profile }) {
   const navigate  = useNavigate()
@@ -24,6 +25,7 @@ export default function PaymentPage({ profile }) {
     scheduledAt,
     // Veterinaria: se cargan en un paso propio del wizard. Si no se persisten
     // acá se pierden, porque esta pantalla es la que crea la consulta.
+    petId,
     petName,
     petSpecies,
     // Grupo familiar (migración 181): si la consulta es para un familiar, se
@@ -104,6 +106,7 @@ export default function PaymentPage({ profile }) {
       paymentStatus:  paymentExempt ? 'exempt' : 'pending_payment',
       priceAtBooking: price ?? null,
       scheduledAt:    scheduledAt ?? new Date().toISOString(),
+      petId:          petId ?? null,
       petName:        petName ?? null,
       petSpecies:     petSpecies ?? null,
     })
@@ -150,6 +153,7 @@ export default function PaymentPage({ profile }) {
         paymentStatus:  'demo',
         priceAtBooking: price ?? null,
         scheduledAt:    scheduledAt ?? new Date().toISOString(),
+        petId:          petId ?? null,
         petName:        petName ?? null,
         petSpecies:     petSpecies ?? null,
       })
@@ -266,13 +270,13 @@ export default function PaymentPage({ profile }) {
       <div className="px-4 py-6 pb-32 max-w-lg mx-auto space-y-4">
 
         {/* Resumen */}
-        <div className="bg-bg-secondary rounded-2xl border border-border-default p-4">
+        <div className="bg-bg-secondary rounded-2xl border border-border-subtle p-4">
           <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-3">Resumen</p>
           <div className="flex items-center gap-3 mb-4">
             <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-brand/10 flex items-center justify-center">
               {professionalAvatar
                 ? <img src={professionalAvatar} alt={professionalName} className="w-full h-full object-cover" />
-                : <span className="text-[18px] font-bold text-brand">{professionalName.charAt(0)}</span>
+                : <span className="text-[18px] font-bold text-brand">{inicialesDe(professionalName)}</span>
               }
             </div>
             <div>
@@ -282,12 +286,12 @@ export default function PaymentPage({ profile }) {
           </div>
           <div className="space-y-2">
             {paraFamiliarId && paraFamiliarNombre && (
-              <div className="bg-white rounded-xl px-3 py-2.5 flex items-center justify-between border border-border-default">
+              <div className="bg-white rounded-xl px-3 py-2.5 flex items-center justify-between border border-border-subtle">
                 <span className="text-[13px] text-text-secondary">Paciente</span>
                 <span className="text-[13px] font-semibold text-text-primary">{paraFamiliarNombre}</span>
               </div>
             )}
-            <div className="bg-white rounded-xl px-3 py-2.5 flex items-center gap-2 border border-border-default">
+            <div className="bg-white rounded-xl px-3 py-2.5 flex items-center gap-2 border border-border-subtle">
               {modality === 'virtual'
                 ? <VideoCamera className="w-4 h-4 text-brand" />
                 : <MapPin className="w-4 h-4 text-emerald-600" />
@@ -297,7 +301,7 @@ export default function PaymentPage({ profile }) {
               </span>
             </div>
             {price != null && (
-              <div className="bg-white rounded-xl px-3 py-2.5 flex items-center justify-between border border-border-default">
+              <div className="bg-white rounded-xl px-3 py-2.5 flex items-center justify-between border border-border-subtle">
                 <span className="text-[13px] text-text-secondary">Precio</span>
                 <span className="text-[15px] font-bold text-text-primary">${price.toLocaleString('es-AR')}</span>
               </div>
@@ -329,7 +333,7 @@ export default function PaymentPage({ profile }) {
         )}
 
         {/* Método de pago */}
-        <div className="bg-white rounded-2xl border border-border-default p-4">
+        <div className="bg-white rounded-2xl border border-border-subtle p-4">
           <div className="flex items-center gap-2 mb-3">
             <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Método de Pago</p>
             {isDemoMode && (
@@ -382,7 +386,7 @@ export default function PaymentPage({ profile }) {
             />
           )}
           {price != null && (
-            <div className="mt-4 pt-4 border-t border-border-default space-y-1.5">
+            <div className="mt-4 pt-4 border-t border-border-subtle space-y-1.5">
               {creditsApplied > 0 && (
                 <>
                   <div className="flex items-center justify-between text-[13px] text-text-secondary">

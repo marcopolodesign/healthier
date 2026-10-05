@@ -318,7 +318,7 @@ export default function HealthSnapshot({ profile }) {
           <div className="flex flex-col gap-2">
             {[
               { label: 'Historia Clínica completa', icon: ClipboardText, to: '/paciente/historia-clinica', colorClass: 'bg-brand/10 text-brand' },
-              { label: 'Análisis de laboratorio (BioVisor)', icon: Pulse, to: '/paciente/biovisor', colorClass: 'bg-brand-tertiary/10 text-brand-tertiary' },
+              { label: 'Análisis de sangre', icon: Pulse, to: '/paciente/biovisor', colorClass: 'bg-brand-tertiary/10 text-brand-tertiary' },
               { label: 'Plan nutricional', icon: Heartbeat, to: '/paciente/nutriplan', colorClass: 'bg-brand-secondary/10 text-brand-secondary' },
               { label: 'Reservar turno', icon: Calendar, to: '/paciente/reservar', colorClass: 'bg-indigo-500/10 text-indigo-500' },
             ].map((l, i) => (

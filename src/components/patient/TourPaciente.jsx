@@ -43,10 +43,10 @@ const PASOS = [
     cuerpo: 'Elegís la especialidad y te atiende por videollamada el primer profesional disponible, en minutos. El precio está a la vista antes de empezar.',
   },
   {
-    selector: '[data-tour="pac-especialidades"]',
-    lado: 'top',
-    titulo: 'O sacá un turno',
-    cuerpo: 'Si no es urgente, elegís la especialidad y agendás con el profesional que prefieras, el día y la hora que te queden bien.',
+    selector: '[data-tour="pac-avisos"]',
+    lado: 'bottom',
+    titulo: 'Tus avisos',
+    cuerpo: 'Acá te avisamos cuando se confirma un turno, cuando tenés una receta nueva o cuando se mueve un pedido de farmacia.',
   },
   {
     selector: '[data-tour="pac-mapa"]',
@@ -58,7 +58,7 @@ const PASOS = [
     selector: '[data-tour="pac-buscar"]',
     lado: 'top',
     titulo: '¿Te recomendaron a alguien?',
-    cuerpo: 'Buscalo por nombre y sacá turno directo con esa persona.',
+    cuerpo: 'Buscalo por nombre y fijate si está disponible para atenderte ahora mismo.',
   },
   {
     selector: '[data-tour="pac-sos"]',
@@ -71,7 +71,7 @@ const PASOS = [
     selector: '[data-tour="pac-nav-agenda"]',
     lado: 'top',
     titulo: 'Tus turnos',
-    cuerpo: 'En Agenda están tus consultas: las que vienen, el link para entrar a la videollamada y las que ya pasaron.',
+    cuerpo: 'En Turnos agendás con el profesional que prefieras, y ves tus consultas: las que vienen, el link para entrar a la videollamada y las que ya pasaron.',
   },
   {
     selector: '[data-tour="pac-nav-boveda"]',

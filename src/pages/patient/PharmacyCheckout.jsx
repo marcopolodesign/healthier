@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, MapPin, CircleNotch, Pill, Plus, Minus, Trash } from '@phosphor-icons/react'
+import { ArrowLeft, MapPin, CaretRight, CircleNotch, Pill, Plus, Minus, Trash } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
+import { patientAddressesService } from '../../services/patientAddressesService'
 import { usePharmacyCart } from '../../context/PharmacyCartContext'
 import { toast } from '../../components/Toast'
 import { formatARS as fmtPrice } from '../../lib/format'
+import AddressPickerSheet from '../../components/patient/AddressPickerSheet'
+import AddressFormSheet from '../../components/patient/AddressFormSheet'
 
 /**
  * Checkout de farmacia.
@@ -23,23 +26,52 @@ export default function PharmacyCheckout({ profile }) {
   const navigate = useNavigate()
   const { order, items, total, add, subtract, remove, loading, syncing } = usePharmacyCart()
 
-  const [address, setAddress] = useState('')
+  // "Mis direcciones" (migración 173) reemplaza al textarea de texto libre:
+  // el paciente elige entre las que ya cargó, en vez de reescribirla en cada
+  // pedido. Default: la principal, si no la más nueva — `list()` ya las
+  // devuelve en ese orden.
+  const [addresses, setAddresses] = useState([])
+  const [loadingAddresses, setLoadingAddresses] = useState(true)
+  const [selectedAddressId, setSelectedAddressId] = useState(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [formOpen, setFormOpen] = useState(false)
+  const [savingAddress, setSavingAddress] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [addressTouched, setAddressTouched] = useState(false)
 
-  // La dirección del pedido gana sobre la del perfil, pero sólo hasta que el
-  // paciente empieza a escribir: si no, cada respuesta del carrito le pisaría
-  // lo que está tipeando.
   useEffect(() => {
-    if (addressTouched) return
-    setAddress(order?.deliveryAddress || profile?.address || '')
-  }, [order?.deliveryAddress, profile?.address, addressTouched])
+    if (!profile?.id) return
+    patientAddressesService.list(profile.id)
+      .then(list => {
+        setAddresses(list)
+        setSelectedAddressId(prev => prev ?? list[0]?.id ?? null)
+      })
+      .catch(() => toast.error('No pudimos cargar tus direcciones'))
+      .finally(() => setLoadingAddresses(false))
+  }, [profile?.id])
+
+  const selectedAddress = addresses.find(a => a.id === selectedAddressId) ?? null
+
+  const handleAddAddress = async payload => {
+    setSavingAddress(true)
+    try {
+      const created = await patientAddressesService.create(profile.id, payload)
+      setAddresses(prev => [created, ...prev])
+      setSelectedAddressId(created.id)
+      setFormOpen(false)
+      toast.success('Dirección agregada')
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos guardar la dirección')
+    } finally {
+      setSavingAddress(false)
+    }
+  }
 
   const confirmAddress = async () => {
-    if (!address.trim()) { toast.error('Ingresá una dirección de entrega'); return }
+    if (!selectedAddress) { toast.error('Elegí una dirección de entrega'); return }
     setSaving(true)
     try {
-      const updated = await medicationOrdersService.updateDeliveryAddress(order.id, address.trim())
+      const texto = [selectedAddress.direccion, selectedAddress.pisoDepto].filter(Boolean).join(', ')
+      const updated = await medicationOrdersService.updateDeliveryAddress(order.id, texto)
       navigate('/paciente/farmacia/pago', { state: { orderId: updated.id } })
     } catch (err) {
       toast.error(err?.message || 'Error al guardar la dirección')
@@ -76,7 +108,7 @@ export default function PharmacyCheckout({ profile }) {
           <div className="h-40 rounded-2xl bg-bg-secondary animate-pulse" />
         ) : (
           <>
-            <div className={`bg-bg-secondary rounded-2xl border border-border-default p-4 ${syncing ? 'opacity-70' : ''}`}>
+            <div className={`bg-bg-secondary rounded-2xl border border-border-subtle p-4 ${syncing ? 'opacity-70' : ''}`}>
               <div className="flex items-baseline justify-between mb-2">
                 <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">Medicamentos</p>
                 <button onClick={() => navigate('/paciente/farmacia')} className="text-[11px] font-semibold text-brand">
@@ -85,7 +117,7 @@ export default function PharmacyCheckout({ profile }) {
               </div>
 
               {/* Listado compacto: una línea por medicamento. */}
-              <ul className="divide-y divide-border-default">
+              <ul className="divide-y divide-border-subtle">
                 {items.map(it => (
                   <li key={it.productId ?? it.itemId} className="flex items-center gap-2 py-2">
                     <Pill className="w-3.5 h-3.5 text-brand shrink-0" />
@@ -127,28 +159,44 @@ export default function PharmacyCheckout({ profile }) {
                 ))}
               </ul>
 
-              <div className="flex items-center justify-between pt-3 mt-1 border-t border-border-default">
+              <div className="flex items-center justify-between pt-3 mt-1 border-t border-border-subtle">
                 <span className="text-[13px] font-semibold text-text-secondary">Total</span>
                 <span className="text-[20px] font-black text-text-primary">{fmtPrice(total)}</span>
               </div>
             </div>
 
-            <div className="bg-bg-secondary rounded-2xl border border-border-default p-4">
+            <div className="bg-bg-secondary rounded-2xl border border-border-subtle p-4">
               <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-3 flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5" /> Dirección de entrega
               </p>
-              <textarea
-                className="form-input"
-                rows={2}
-                value={address}
-                onChange={e => { setAddressTouched(true); setAddress(e.target.value) }}
-                placeholder="Calle, número, piso, ciudad..."
-              />
+              {loadingAddresses ? (
+                <div className="h-14 rounded-xl bg-bg-primary animate-pulse" />
+              ) : selectedAddress ? (
+                <button
+                  onClick={() => setPickerOpen(true)}
+                  className="w-full flex items-center justify-between gap-3 rounded-xl border border-border-subtle bg-white px-4 py-3 text-left hover:bg-bg-surface transition-colors"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-text-primary">{selectedAddress.etiqueta}</p>
+                    <p className="text-[12px] text-text-secondary truncate">
+                      {selectedAddress.direccion}{selectedAddress.pisoDepto ? `, ${selectedAddress.pisoDepto}` : ''}
+                    </p>
+                  </div>
+                  <CaretRight className="w-4 h-4 text-text-tertiary shrink-0" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => setFormOpen(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl border-2 border-dashed border-border-subtle text-[13px] font-semibold text-brand hover:bg-brand-muted/40 transition-colors"
+                >
+                  <Plus className="w-4 h-4" /> Agregar dirección
+                </button>
+              )}
             </div>
 
             <button
               onClick={confirmAddress}
-              disabled={saving || syncing || !address.trim() || !order?.id}
+              disabled={saving || syncing || !selectedAddress || !order?.id}
               className="w-full py-5 rounded-full font-bold text-[16px] flex items-center justify-center gap-3 bg-brand text-white hover:bg-brand-hover active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {saving && <CircleNotch className="w-5 h-5 animate-spin" />}
@@ -157,6 +205,21 @@ export default function PharmacyCheckout({ profile }) {
           </>
         )}
       </div>
+
+      <AddressPickerSheet
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        addresses={addresses}
+        selectedId={selectedAddressId}
+        onSelect={a => { setSelectedAddressId(a.id); setPickerOpen(false) }}
+        onAdd={() => { setPickerOpen(false); setFormOpen(true) }}
+      />
+      <AddressFormSheet
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        onSave={handleAddAddress}
+        saving={savingAddress}
+      />
     </div>
   )
 }

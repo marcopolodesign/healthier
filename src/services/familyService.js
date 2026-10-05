@@ -16,7 +16,7 @@ import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
  * El titular actúa como el familiar: le reserva, le sube estudios y lee su HC.
  * Ver docs/grupo-familiar.md.
  */
-const SELECT_CON_PERFIL = '*, familiar:profiles!familiar_id(id, full_name, birth_date, gender, dni, avatar_url, insurance_name, insurance_num)'
+const SELECT_CON_PERFIL = '*, familiar:profiles!familiar_id(id, full_name, first_name, last_name, birth_date, gender, dni, avatar_url, insurance_name, insurance_num)'
 
 export const familyService = {
   async listForPatient(patientId) {
@@ -84,11 +84,19 @@ export const familyService = {
     return toCamelCase(data)
   },
 
-  /** Fecha de nacimiento y sexo: viven sólo en el perfil del familiar. */
-  async updatePerfil(familiarId, { birthDate, gender }) {
+  /**
+   * Fecha de nacimiento, sexo y nombre/apellido por separado: viven sólo en el
+   * perfil del familiar (la receta los lee de ahí — migración 183). El
+   * `full_name` del vínculo se sigue mandando en `create`/`update`.
+   */
+  async updatePerfil(familiarId, { birthDate, gender, nombre, apellido }) {
     const { error } = await supabase
       .from('profiles')
-      .update({ birth_date: birthDate || null, gender: gender || null })
+      .update({
+        birth_date: birthDate || null,
+        gender: gender || null,
+        ...(nombre !== undefined ? { first_name: nombre.trim(), last_name: apellido.trim() } : {}),
+      })
       .eq('id', familiarId)
     if (error) throw error
   },

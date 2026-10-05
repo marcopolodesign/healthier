@@ -2,6 +2,7 @@ import { CheckCircle, ShieldCheck, CalendarCheck, VideoCamera, FileText, Prescri
 import { AnimatedTagCascade } from '../common/AnimatedTagCascade'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { LAWS } from '../../lib/laws'
+import { nombreDePila } from '../../lib/format'
 
 // Illustrative clinical-note sections — teases the AI Scribe feature (Fase 3)
 // while doubling as the "tags cascading in" preview for Step 0. Not real data.
@@ -113,7 +114,7 @@ export default function OnboardingPreview({ step, form, profile, avatarPreview }
         <div className="animate-fade-in-up mt-auto mb-auto text-center">
           <CheckCircle className="h-12 w-12 text-brand mx-auto mb-4" weight="fill" />
           <h3 className="font-serif text-3xl text-text-primary mb-1">
-            Bienvenido, {profile?.fullName?.split(' ')[0] || ''}
+            Bienvenido, {nombreDePila(profile?.fullName, '')}
           </h3>
           <p className="text-text-tertiary text-sm">Bienvenido a Healthier</p>
         </div>

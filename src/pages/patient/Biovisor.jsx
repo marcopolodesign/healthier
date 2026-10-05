@@ -426,7 +426,7 @@ export default function PatientBiovisor({ profile }) {
           <ArrowLeft size={20} className="text-text-secondary" />
         </button>
         <div>
-          <h1 className="font-bold text-text-primary">BioVisor</h1>
+          <h1 className="font-bold text-text-primary">Análisis de sangre</h1>
           <p className="text-xs text-text-secondary">Mis parámetros de salud</p>
         </div>
       </div>

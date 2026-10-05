@@ -197,6 +197,28 @@ h2.st .ad{color:var(--danger)}
 .slide-dark .side{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.13)}
 .slide-dark .side li{color:rgba(255,255,255,.68)}
 .slide-dark .side li strong{color:#fff}
+
+/* ── Agregados de esta versión ── */
+.who-row{display:flex;flex-wrap:wrap;gap:.4rem}
+.two-col .txt .who-row{justify-content:flex-start}
+.role{display:inline-flex;align-items:center;gap:.35rem;font-size:.66rem;font-weight:700;letter-spacing:.04em;
+  padding:.24rem .7rem;border-radius:var(--radius-pill);border:1px solid;white-space:nowrap}
+.role::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.role.pac{color:#4f8a60;border-color:rgba(124,179,139,.45);background:var(--sage-muted)}
+.role.pro{color:#6d5fa3;border-color:rgba(155,142,196,.45);background:rgba(155,142,196,.1)}
+.role.far{color:#c2614a;border-color:rgba(232,146,124,.45);background:rgba(232,146,124,.1)}
+.role.adm{color:#9a6c1a;border-color:rgba(228,168,83,.45);background:rgba(228,168,83,.1)}
+.role.op{color:#2f7196;border-color:rgba(107,175,207,.45);background:rgba(107,175,207,.12)}
+.role.trp{color:#b8433f;border-color:rgba(217,83,79,.4);background:rgba(217,83,79,.08)}
+.role.sys{color:var(--text-secondary);border-color:var(--border);background:var(--surface)}
+.slide-sage .role{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.35);color:#fff}
+.shot.web img{height:auto;width:min(780px,86vw);max-height:56vh;object-fit:contain;object-position:top;border-radius:14px}
+.two-col .shot.web img{width:100%;max-height:54vh}
+.shots.par .shot.web img{width:min(560px,48vw);max-height:44vh}
+.two-col.wweb{grid-template-columns:.72fr 1.28fr;max-width:1080px;gap:2rem;padding:0 1.5rem}
+.two-col.wweb .shot.web img{max-height:60vh}
+.content.wide>.shot.web img{max-height:45vh}
+.tbl.tres .tr{grid-template-columns:.8fr 1.1fr 1.1fr 1.2fr}
 </style>
 </head>
 <body>
@@ -204,7 +226,7 @@ h2.st .ad{color:var(--danger)}
 <div id="nav">
   <span id="brand">Healthier</span>
   <div id="dots"></div>
-  <span id="counter">01 / 20</span>
+  <span id="counter">01 / 24</span>
 </div>
 
 <button class="arrow-btn hidden" id="btn-prev" aria-label="Anterior">
@@ -213,22 +235,20 @@ h2.st .ad{color:var(--danger)}
 <button class="arrow-btn" id="btn-next" aria-label="Siguiente">
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
 </button>
-<div class="progress-bar" style="width:5%"></div>
+<div class="progress-bar" style="width:4.2%"></div>
 
 <div id="deck">
-
 <!-- 1 ─────────────────────────────────────────────── -->
 <section class="slide slide-ivory active" data-slide="1">
   <div class="content">
     <span class="eyebrow danger">Emergencias · S.O.S · Documento interno</span>
-    <h1 class="hero">Un botón rojo,<br>y un médico que <span class="d">sale.</span></h1>
-    <p class="lead">El S.O.S. es lo único de Healthier donde alguien se mueve físicamente hacia el paciente. Este documento recorre las dos mitades —primero la del profesional, después la del paciente— con las pantallas reales de cada estado, capturadas contra staging.</p>
+    <h1 class="hero">Un botón rojo,<br>y una ambulancia que <span class="d">sale.</span></h1>
+    <p class="lead">El recorrido completo del S.O.S. contado desde el lugar de cada persona que participa —el paciente, quien coordina, la tripulación y la administración—, con las pantallas reales de cada paso capturadas en staging el 30 de septiembre de 2026.</p>
     <div class="pill-row">
-      <span class="pill">El triage</span>
-      <span class="pill">El despacho</span>
-      <span class="pill">El GPS en vivo</span>
-      <span class="pill">La llegada</span>
-      <span class="pill">Lo que hoy no funciona</span>
+      <span class="role pac">Paciente · app</span>
+      <span class="role op">Coordinación · app</span>
+      <span class="role trp">Tripulación y médico · app</span>
+      <span class="role adm">Super admin · web</span>
     </div>
     <p class="hint">→ Navegá con las flechas o la barra espaciadora</p>
   </div>
@@ -238,53 +258,33 @@ h2.st .ad{color:var(--danger)}
 <section class="slide slide-cream" data-slide="2">
   <div class="content wide">
     <span class="eyebrow">El mapa</span>
-    <h2 class="st">Cuatro estados,<br>y una sola <span class="a">fila.</span></h2>
-    <p class="lead">Toda la emergencia vive en una fila de la tabla <code>emergencies</code>. Su columna <strong>status</strong> es lo único que manda: las dos pantallas —la del paciente y la del profesional— dibujan lo que esa columna dice, y se enteran de los cambios por Realtime. No hay timers, no hay simulación.</p>
+    <h2 class="st">Siete estados,<br>cuatro <span class="a">personas.</span></h2>
+    <p class="lead">Toda la emergencia vive en una fila de la base, y cada persona la empuja un paso. Las pantallas de los demás cambian solas, sin recargar.</p>
     <div class="flow">
-      <div class="fs hot">
-        <span class="n d">01 · el paciente</span>
-        <span class="h">dispatched</span>
-        <span class="d">Se eligió un profesional y la fila se creó. El aviso le llega a él por push.</span>
-      </div>
-      <div class="fs">
-        <span class="n">02 · el profesional</span>
-        <span class="h">in_transit</span>
-        <span class="d">Aceptó y salió. Desde acá —y sólo desde acá— empieza a compartir su GPS.</span>
-      </div>
-      <div class="fs">
-        <span class="n">03 · el profesional</span>
-        <span class="h">arrived</span>
-        <span class="d">Llegó. Ve los síntomas que el paciente eligió en el triage.</span>
-      </div>
-      <div class="fs">
-        <span class="n">04 · cierre</span>
-        <span class="h">completed / cancelled</span>
-        <span class="d">Terminó o se canceló. Deja de compartirse la ubicación y las dos pantallas se vacían.</span>
-      </div>
+      <div class="fs hot"><span class="n d">01 · paciente</span><span class="h">Reserva</span><span class="d">Pide la ambulancia y se le reserva el monto en la tarjeta.</span></div>
+      <div class="fs hot"><span class="n d">02 · paciente</span><span class="h">En la cola</span><span class="d">Hace el triage. El pedido entra a la cola con su código.</span></div>
+      <div class="fs"><span class="n">03 · coordinación</span><span class="h">Asignada</span><span class="d">Se eligen ambulancia y médico. Le suena a la tripulación.</span></div>
+      <div class="fs"><span class="n">04 · tripulación</span><span class="h">En camino</span><span class="d">Sale y comparte su ubicación en vivo con el paciente.</span></div>
+      <div class="fs"><span class="n">05 · tripulación</span><span class="h">En el lugar</span><span class="d">Llegó. El médico atiende y registra.</span></div>
+      <div class="fs"><span class="n">06 · tripulación</span><span class="h">Completada</span><span class="d">Se cierra con la atención registrada. El móvil queda libre.</span></div>
     </div>
     <div class="note">
       <span class="k">↔</span>
-      <p>Los dos primeros saltos <strong>los hace una persona distinta</strong>: el paciente crea la fila, el profesional la mueve. Nada avanza solo — no hay vencimiento automático ni reasignación.</p>
+      <p>Hasta que se asigna el móvil, el paciente puede <strong>cancelar sin cargo</strong>. Después, cancelar tiene el costo del servicio, y con la ambulancia en el lugar ya no se cancela.</p>
     </div>
   </div>
 </section>
 
 <!-- 3 ─────────────────────────────────────────────── -->
 <section class="slide slide-white" data-slide="3">
-  <div class="two-col">
-    <div class="txt">
-      <span class="eyebrow danger">Lo primero que se dice</span>
-      <h2 class="st">Healthier no es<br>una <span class="ad">ambulancia.</span></h2>
-      <p class="lead">La primera pantalla del flujo, antes de cualquier síntoma, manda a llamar al <strong>107 (SAME)</strong> si hay riesgo de vida, y aclara que esto conecta con un profesional de Healthier — no con una urgencia.</p>
-      <p class="lead">El mismo teléfono vuelve a aparecer en las dos pantallas de "no se puede seguir". Es la salida honesta cuando el sistema no tiene nada que ofrecer.</p>
-      <div class="note d">
-        <span class="k">⚠</span>
-        <p>Esta aclaración <strong>existe sólo en la web</strong>. La app dice lo contrario — hay una slide entera sobre eso más adelante.</p>
-      </div>
-    </div>
-    <div class="shot">
-      <img src="screenshots-emergencias/pac-02-triage.jpg" alt="Pantalla de triage del paciente con el aviso del 107">
-      <span class="cap"><b>Paciente · Emergencia S.O.S</b>El aviso del SAME, arriba de todo</span>
+  <div class="content wide">
+    <span class="eyebrow">Quién participa</span>
+    <h2 class="st">Cuatro miradas,<br>una <span class="ad">emergencia.</span></h2>
+    <div class="fg four">
+      <div class="fc"><span class="n">Paciente · app</span><h3>Pide y sigue</h3><p>Toca el botón rojo, reserva el monto, hace el triage y ve venir a la ambulancia en el mapa.</p></div>
+      <div class="fc"><span class="n l" style="color:#2f7196">Coordinación · app</span><h3>Asigna</h3><p>Le llega cada pedido nuevo. Elige <strong>ambulancia y médico</strong> desde su teléfono.</p></div>
+      <div class="fc"><span class="n d">Tripulación · app</span><h3>Sale y atiende</h3><p>Médico, enfermero y chofer del móvil. El médico elegido atiende y deja la consulta registrada.</p></div>
+      <div class="fc"><span class="n g">Super admin · web</span><h3>Ve todo</h3><p>Elige quién coordina, prende el servicio, fija el precio y ve cada emergencia de la plataforma.</p></div>
     </div>
   </div>
 </section>
@@ -292,352 +292,325 @@ h2.st .ad{color:var(--danger)}
 <!-- 4 ─────────────────────────────────────────────── -->
 <section class="slide slide-sage" data-slide="4">
   <div class="content">
-    <span class="eyebrow onsage">Primera mitad</span>
+    <span class="eyebrow onsage">Primera mirada</span>
     <h2 class="st">El paciente.</h2>
-    <p class="lead">Desde el botón rojo del inicio hasta el médico parado en la puerta. Siete pantallas, y dos finales que no son el que uno espera.</p>
+    <p class="lead">Desde el botón rojo del inicio hasta la ambulancia parada en la puerta. Todo desde la app.</p>
   </div>
 </section>
 
 <!-- 5 ─────────────────────────────────────────────── -->
 <section class="slide slide-ivory" data-slide="5">
-  <div class="two-col r">
+  <div class="two-col">
     <div class="txt">
-      <span class="eyebrow">Dónde arranca</span>
-      <h2 class="st">Un botón rojo,<br>al final del <span class="a">inicio.</span></h2>
-      <p class="lead">"EMERGENCIA S.O.S · Solicitar atención de inmediato", abajo de todo en el inicio del paciente. Es la única entrada al flujo.</p>
+      <div class="who-row"><span class="role pac">Paciente · app</span></div>
+      <h2 class="st">Un botón rojo,<br>al final del <span class="ad">inicio.</span></h2>
+      <p class="lead">"EMERGENCIA S.O.S · Solicitar atención de inmediato". Es la entrada al recorrido.</p>
       <ul class="bl">
-        <li><span class="bi">1</span><span>El botón <strong>se esconde entero</strong> si el S.O.S. está deshabilitado desde <code>/super-admin/verticales</code>.</span></li>
-        <li><span class="bi">2</span><span>Si ya hay una emergencia en curso, arriba de todo aparece una chapa roja para <strong>volver al seguimiento</strong>.</span></li>
+        <li><span class="bi">1</span><span>El mismo botón está en la <strong>pantalla de bloqueo</strong>, así se puede pedir ayuda sin pasar por Face ID.</span></li>
+        <li><span class="bi">2</span><span>Se esconde entero si el S.O.S. está apagado desde el panel de administración.</span></li>
       </ul>
     </div>
-    <div class="shots">
-      <div class="shot">
-        <img src="screenshots-emergencias/pac-01-inicio.jpg" alt="Inicio del paciente con el botón de emergencia">
-        <span class="cap"><b>Inicio</b>La entrada al S.O.S.</span>
-      </div>
-      <div class="shot">
-        <img src="screenshots-emergencias/pac-09-inicio-aviso.jpg" alt="Inicio del paciente con una emergencia en curso">
-        <span class="cap"><b>Con una en curso</b>Vuelve al seguimiento</span>
-      </div>
+    <div class="shot">
+      <img src="screenshots-emergencias/em-pac-01-inicio.jpg" alt="Inicio del paciente con el botón de emergencia">
+      <span class="cap"><b>Inicio del paciente</b>El botón rojo, abajo de todo</span>
     </div>
   </div>
 </section>
 
 <!-- 6 ─────────────────────────────────────────────── -->
 <section class="slide slide-white" data-slide="6">
-  <div class="two-col">
+  <div class="two-col r">
     <div class="txt">
-      <span class="eyebrow">El triage</span>
-      <h2 class="st">Se eligen síntomas,<br>no <span class="a">gravedad.</span></h2>
-      <p class="lead">Quince síntomas en una sola lista, sin títulos de grupo y sin colores. El paciente tilda los que tiene y listo.</p>
-      <p class="lead">Por detrás cada síntoma pertenece a un grupo —rojo, amarillo o verde— y <strong>gana el más grave de los tildados</strong>. Pero eso no se le muestra mientras elige, a propósito: ver "Código Rojo" encima mientras uno tilda cambia lo que tilda.</p>
-      <div class="note">
-        <span class="k">→</span>
-        <p>El botón <strong>Continuar</strong> queda gris hasta que haya al menos un síntoma. Sin síntomas no hay código, y sin código no hay emergencia.</p>
-      </div>
+      <span class="eyebrow gold">Paso 1 · La reserva</span>
+      <h2 class="st">Se reserva,<br>no se <span class="ag">cobra.</span></h2>
+      <p class="lead">Lo primero es reservar el monto del servicio en la tarjeta con Mercado Pago. <strong>Todavía no se cobra nada</strong>: se cobra sólo si la ambulancia sale.</p>
+      <ul class="bl">
+        <li><span class="bi">$</span><span>El precio lo fija la administración desde el panel. En staging, $50.</span></li>
+        <li><span class="bi">⌖</span><span>La ubicación se toma del teléfono al pedir.</span></li>
+        <li><span class="bi">✓</span><span>El pedido recién existe cuando se toca "Reservar": abrir la pantalla no crea nada.</span></li>
+      </ul>
     </div>
     <div class="shot">
-      <img src="screenshots-emergencias/pac-03-triage-elegido.jpg" alt="Triage con dos síntomas críticos tildados">
-      <span class="cap"><b>Dos síntomas tildados</b>Los dos son del grupo rojo → Código Rojo</span>
+      <img src="screenshots-emergencias/em-pac-02-reserva.jpg" alt="Reservar S.O.S">
+      <span class="cap"><b>Reservar S.O.S</b>El monto y la tarjeta</span>
     </div>
   </div>
 </section>
 
 <!-- 7 ─────────────────────────────────────────────── -->
 <section class="slide slide-cream" data-slide="7">
-  <div class="two-col r">
+  <div class="two-col">
     <div class="txt">
-      <span class="eyebrow gold">Confirmar</span>
-      <h2 class="st">Recién acá aparece<br>el <span class="ag">código.</span></h2>
-      <p class="lead">La hoja de confirmación es donde el paciente ve por primera vez en qué categoría cayó: <strong>Síntomas críticos</strong>, y el precio del servicio.</p>
+      <span class="eyebrow danger">Paso 2 · El triage</span>
+      <h2 class="st">Síntomas<br>y un <span class="ad">código.</span></h2>
+      <p class="lead">Dos listas: primero los síntomas que ponen en riesgo la vida, después los urgentes. Con eso sale el código que ordena la cola.</p>
       <ul class="bl">
-        <li><span class="bi">$</span><span>El precio sale de <code>/super-admin/verticales</code>, no está escrito en el código.</span></li>
-        <li><span class="bi">✓</span><span>Dice, con todas las letras, que <strong>no se cobra ahora</strong>: se abona al finalizar la atención.</span></li>
-        <li><span class="bi">▢</span><span>Acá sólo se <strong>captura</strong> la tarjeta —la misma de Mercado Pago que usa el resto de la app—. Si no tiene ninguna guardada, la puede agregar sin salir de la pantalla.</span></li>
+        <li><span class="bi d">●</span><span><strong>Código Rojo</strong> — situación crítica.</span></li>
+        <li><span class="bi" style="background:rgba(228,168,83,.14);color:#9a6c1a">●</span><span><strong>Código Amarillo</strong> — atención urgente.</span></li>
+        <li><span class="bi">●</span><span><strong>Código Verde</strong> — no es inmediata; igual se envía respuesta, con prioridad más baja.</span></li>
       </ul>
+      <p class="lead">Reglas fijas, sin inteligencia artificial: el mismo síntoma da siempre el mismo código.</p>
     </div>
-    <div class="shot">
-      <img src="screenshots-emergencias/pac-04-confirmar.jpg" alt="Hoja de confirmación del S.O.S.">
-      <span class="cap"><b>Confirmar S.O.S</b>Código, precio y método de pago</span>
+    <div class="shots">
+      <div class="shot"><img src="screenshots-emergencias/em-pac-03-triage.jpg" alt="Triage con dos síntomas marcados"><span class="cap"><b>Triage Rápido</b>Dos síntomas críticos</span></div>
+      <div class="shot"><img src="screenshots-emergencias/em-pac-04-codigo.jpg" alt="Código Rojo"><span class="cap"><b>Código Rojo</b>Con los síntomas reportados</span></div>
     </div>
   </div>
 </section>
 
 <!-- 8 ─────────────────────────────────────────────── -->
-<section class="slide slide-dark" data-slide="8">
-  <div class="content wide">
-    <span class="eyebrow ondark">El despacho</span>
-    <h2 class="st">Uno al azar,<br>y si no hay, se <span class="a">dice.</span></h2>
-    <p class="lead">Al apretar <strong>SOLICITAR S.O.S</strong> pasan tres cosas, en este orden.</p>
-    <div class="fg three">
-      <div class="fc">
-        <span class="n d">01</span>
-        <h3>Se pide el GPS</h3>
-        <p>Con 8 segundos de techo. Si no llega, el flujo <strong>no se traba</strong>: sigue, y se le avisa que va a tener que pasar la ubicación por otro medio.</p>
-      </div>
-      <div class="fc">
-        <span class="n d">02</span>
-        <h3>Se elige un profesional</h3>
-        <p>Entre los de medicina general que estén <strong>verificados, activos y con consulta inmediata prendida</strong>. Se sortea uno. Sin zonas, sin ranking, sin olas.</p>
-      </div>
-      <div class="fc">
-        <span class="n d">03</span>
-        <h3>Se escribe la fila</h3>
-        <p>Con el código de despacho (UTM-XXXX), los síntomas tal como los eligió y las coordenadas. <strong>Antes</strong> de mostrar cualquier confirmación.</p>
-      </div>
+<section class="slide slide-white" data-slide="8">
+  <div class="two-col r">
+    <div class="txt">
+      <span class="eyebrow">Paso 3 · En la cola</span>
+      <h2 class="st">Mientras asignan,<br>el <span class="ad">107</span> a la vista.</h2>
+      <p class="lead">El paciente ve hace cuánto espera —un reloj real, sin prometer minutos— y la pantalla avanza sola cuando le asignan un móvil.</p>
+      <ul class="bl">
+        <li><span class="bi d">☎</span><span>"Si es riesgo de vida, llamá al 107 (SAME)" está siempre visible.</span></li>
+        <li><span class="bi">✕</span><span>Cancelar acá <strong>libera la reserva</strong>: no se cobra nada. La confirmación lo dice antes de tocar.</span></li>
+      </ul>
     </div>
-    <div class="note">
-      <span class="k">⚠</span>
-      <p><strong>Si no hay nadie elegible, no se inserta nada.</strong> No hay cola, no hay reintento automático y no queda una emergencia "esperando" que nadie ve. Se le dice al paciente y decide él — es una decisión tomada a propósito para este estadio del producto, con un pool de un solo clínico.</p>
+    <div class="shots">
+      <div class="shot"><img src="screenshots-emergencias/em-pac-05-espera.jpg" alt="Estamos asignando una ambulancia"><span class="cap"><b>En la cola</b>Tiempo de espera y el 107</span></div>
+      <div class="shot"><img src="screenshots-emergencias/em-pac-06-cancelar.jpg" alt="Confirmación de cancelar"><span class="cap"><b>Cancelar</b>Antes de asignar, sin cargo</span></div>
     </div>
   </div>
 </section>
 
 <!-- 9 ─────────────────────────────────────────────── -->
-<section class="slide slide-white" data-slide="9">
+<section class="slide slide-sage" data-slide="9">
+  <div class="content">
+    <span class="eyebrow onsage">Segunda mirada</span>
+    <h2 class="st">La coordinación.</h2>
+    <p class="lead">Una persona de la entidad de ambulancias recibe cada pedido y lo asigna desde su teléfono. La elige la administración.</p>
+  </div>
+</section>
+
+<!-- 10 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="10">
   <div class="two-col">
     <div class="txt">
-      <span class="eyebrow">Despachada</span>
-      <h2 class="st">El reloj corre<br>hacia <span class="a">arriba.</span></h2>
-      <p class="lead">Lo que se muestra es <strong>tiempo transcurrido</strong>, no un ETA inventado. Mientras el profesional no salga, no hay ninguna estimación que dar, y no se da.</p>
+      <div class="who-row"><span class="role op">Coordinación · app</span></div>
+      <h2 class="st">El rojo,<br>siempre <span class="ad">primero.</span></h2>
+      <p class="lead">Por cada pedido nuevo le llega un aviso —"🔴 Pedido ROJO en cola" o "🚑 Nuevo pedido de ambulancia"— y en su inicio aparece la tarjeta <strong>Coordinación de ambulancias</strong> con los que esperan.</p>
       <ul class="bl">
-        <li><span class="bi">◷</span><span>La barra de tres pasos marca dónde está: <strong>Despachada · En camino · Llegó</strong>.</span></li>
-        <li><span class="bi">☺</span><span>Se muestra quién es el profesional asignado, con su foto si la tiene.</span></li>
-        <li><span class="bi">☎</span><span>El botón <strong>Llamar</strong> marca su teléfono. Si no cargó ninguno, lo dice en vez de mostrar un botón muerto.</span></li>
+        <li><span class="bi">1</span><span>La cola se ordena por gravedad —rojo, amarillo, verde— y después por antigüedad.</span></li>
+        <li><span class="bi">2</span><span>Sólo entran pedidos con la reserva confirmada.</span></li>
+        <li><span class="bi">3</span><span>Se actualiza sola cada pocos segundos.</span></li>
       </ul>
-      <div class="note">
-        <span class="k">↻</span>
-        <p>Si cierra la app o recarga la página, al volver a entrar <strong>cae de nuevo en esta pantalla</strong>. La fila está en la base, no en la memoria del navegador.</p>
-      </div>
     </div>
-    <div class="shot">
-      <img src="screenshots-emergencias/pac-05-despachada.jpg" alt="Seguimiento — emergencia despachada">
-      <span class="cap"><b>Emergencia despachada</b>Todavía no salió: no hay punto en el mapa</span>
+    <div class="shots">
+      <div class="shot"><img src="screenshots-emergencias/em-coo-01-inicio.jpg" alt="Tarjeta de coordinación en el inicio"><span class="cap"><b>Su inicio</b>"1 pedido espera ambulancia"</span></div>
+      <div class="shot"><img src="screenshots-emergencias/em-coo-02-cola.jpg" alt="Cola de pedidos"><span class="cap"><b>La cola</b>Rojo arriba, amarillo abajo</span></div>
     </div>
   </div>
 </section>
 
-<!-- 10 ─────────────────────────────────────────────── -->
-<section class="slide slide-ivory" data-slide="10">
+<!-- 11 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="11">
   <div class="two-col r">
     <div class="txt">
-      <span class="eyebrow">En camino</span>
-      <h2 class="st">El punto del mapa<br>es el <span class="a">GPS real.</span></h2>
-      <p class="lead">Cuando el profesional acepta, su teléfono empieza a publicar su posición y el paciente ve <strong>dónde está, la ruta y cuánto falta</strong>, actualizándose solo.</p>
+      <span class="eyebrow">Paso 4 · La asignación</span>
+      <h2 class="st">Móvil y médico,<br>en un <span class="ad">toque.</span></h2>
+      <p class="lead">El pedido se abre con el mapa, la dirección y los síntomas. Se elige una ambulancia disponible y el médico que va a atender, y <strong>Asignar y avisar</strong> hace el resto.</p>
       <ul class="bl">
-        <li><span class="bi">●</span><span>La chapa verde <strong>"Ubicación en vivo"</strong> con los minutos y los kilómetros que faltan.</span></li>
-        <li><span class="bi">⌁</span><span>La ruta la calcula el servicio de mapas — no es una línea recta entre dos puntos.</span></li>
-        <li><span class="bi d">✕</span><span>Si el dato queda viejo, el marcador <strong>desaparece</strong> y en su lugar se dice que se perdió la señal. Nunca queda un punto quieto que parece en vivo.</span></li>
+        <li><span class="bi">✓</span><span>Se genera el código de despacho (UTM-####) y el móvil pasa a "en servicio".</span></li>
+        <li><span class="bi">🔔</span><span>Le avisa a toda la tripulación del móvil y al médico elegido: "🚨 Emergencia asignada".</span></li>
+        <li><span class="bi">✕</span><span>Si otra persona ya lo tomó, lo dice: "Este pedido ya no está en la cola".</span></li>
       </ul>
-      <div class="note">
-        <span class="k">◆</span>
-        <p>Esta pantalla <strong>era una simulación</strong> hasta el 2026-09-06: la "ambulancia" arrancaba en un punto inventado y se movía en línea recta con un contador de 4 minutos. Nadie estaba del otro lado.</p>
-      </div>
     </div>
-    <div class="shot">
-      <img src="screenshots-emergencias/pac-06-en-camino.jpg" alt="Seguimiento — profesional en camino con ruta en vivo">
-      <span class="cap"><b>En camino</b>Posición, ruta y "6 min · 2,4 km"</span>
+    <div class="shots">
+      <div class="shot"><img src="screenshots-emergencias/em-coo-03-asignar.jpg" alt="Asignar pedido — ambulancias"><span class="cap"><b>Asignar pedido</b>El paciente y las ambulancias</span></div>
+      <div class="shot"><img src="screenshots-emergencias/em-coo-03b-asignar.jpg" alt="Asignar pedido — médico"><span class="cap"><b>El médico</b>Móvil 2 y Dra. Ortega elegidos</span></div>
     </div>
   </div>
 </section>
 
-<!-- 11 ─────────────────────────────────────────────── -->
-<section class="slide slide-white" data-slide="11">
-  <div class="content wide">
-    <span class="eyebrow">Los dos finales del paciente</span>
-    <h2 class="st">Llegó, o se <span class="ad">canceló.</span></h2>
-    <div class="shots three">
-      <div class="shot">
-        <img src="screenshots-emergencias/pac-08-llego.jpg" alt="El profesional llegó a la ubicación">
-        <span class="cap"><b>Llegó a tu ubicación</b>Los tres pasos completos. La consulta sigue en persona.</span>
-      </div>
-      <div class="shot">
-        <img src="screenshots-emergencias/pac-07-cancelar.jpg" alt="Hoja de cancelación del S.O.S.">
-        <span class="cap"><b>Cancelar S.O.S</b>Dice qué implica: el profesional deja de venir.</span>
-      </div>
-      <div class="shot">
-        <img src="screenshots-emergencias/pac-10-sin-profesionales.jpg" alt="No hay profesionales disponibles">
-        <span class="cap"><b>Sin profesionales</b>Sin cola y sin reintento — con el 107 a mano.</span>
-      </div>
-    </div>
-    <p class="lead">Cuando el profesional cierra la emergencia, al paciente le aparece <strong>"Atención finalizada"</strong> y vuelve solo al inicio a los 2,5 segundos. Si cancela él, el aviso le llega al profesional; si cancela el profesional, el aviso le llega al paciente. Nunca se le avisa a quien apretó el botón.</p>
-  </div>
-</section>
-
-<!-- 12 ─────────────────────────────────────────────── -->
+<!-- 12 ────────────────────────────────────────────── -->
 <section class="slide slide-sage" data-slide="12">
   <div class="content">
-    <span class="eyebrow onsage">Segunda mitad</span>
-    <h2 class="st">El profesional.</h2>
-    <p class="lead">Una sola pantalla, pensada para usarse caminando por la calle: sin barra lateral, botones de 56px y fondo oscuro para leerla al sol.</p>
+    <span class="eyebrow onsage">Tercera mirada</span>
+    <h2 class="st">La tripulación.</h2>
+    <p class="lead">El móvil ya está asignado. De acá en más es quien maneja, quien atiende y quien cierra — todo desde la app, pensada para usarse en la calle.</p>
   </div>
 </section>
 
-<!-- 13 ─────────────────────────────────────────────── -->
+<!-- 13 ────────────────────────────────────────────── -->
 <section class="slide slide-ivory" data-slide="13">
-  <div class="content wide">
-    <span class="eyebrow coral">Cómo se entera</span>
-    <h2 class="st">Push primero,<br>pantalla <span class="ac">después.</span></h2>
-    <p class="lead">El aviso lo dispara <strong>un trigger de la base</strong>, no el navegador de quien pidió la emergencia: <em>"🚨 Emergencia asignada — Código ROJO (UTM-8842). Abrí la app para aceptarla."</em>, con link directo. Que avise la base es lo que hace que una emergencia pedida <strong>desde la app</strong> también le llegue — antes salía del website y desde la app no avisaba a nadie.</p>
-    <div class="shots par">
-      <div class="shot">
-        <img src="screenshots-emergencias/pro-01-guardia.jpg" alt="Pantalla de emergencias en guardia">
-        <span class="cap"><b>En guardia</b>Escuchando en tiempo real, sin nada asignado</span>
-      </div>
-      <div class="shot wide">
-        <img src="screenshots-emergencias/pro-05-dashboard-aviso.jpg" alt="Inicio del profesional con la barra de emergencia activa">
-        <span class="cap"><b>Su inicio</b>La barra roja con el código y el estado, que lo lleva a la pantalla</span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- 14 ─────────────────────────────────────────────── -->
-<section class="slide slide-white" data-slide="14">
-  <div class="two-col r">
-    <div class="txt">
-      <span class="eyebrow danger">Entrante</span>
-      <h2 class="st">Un solo botón,<br>y ocupa media <span class="ad">pantalla.</span></h2>
-      <p class="lead">La pantalla de emergencia entrante no tiene menú, ni pestañas, ni nada que leer de más: el código de triage en grande, los cuatro datos que importan, y <strong>Aceptar emergencia</strong>.</p>
-      <ul class="bl">
-        <li><span class="bi d">▲</span><span>El encabezado <strong>late</strong> y toma el color del triage: rojo, amarillo o verde.</span></li>
-        <li><span class="bi d">◷</span><span><strong>"Recibida hace 1min"</strong> se recalcula solo cada 30 segundos.</span></li>
-        <li><span class="bi d">✕</span><span><strong>No hay botón de rechazar.</strong> La emergencia ya está asignada a esta persona: si no la toma, nadie más la recibe.</span></li>
-      </ul>
-    </div>
-    <div class="shot">
-      <img src="screenshots-emergencias/pro-02-entrante.jpg" alt="Emergencia entrante — Código Rojo">
-      <span class="cap"><b>Nueva emergencia asignada</b>Código, paciente, cuándo llegó y dónde</span>
-    </div>
-  </div>
-</section>
-
-<!-- 15 ─────────────────────────────────────────────── -->
-<section class="slide slide-cream" data-slide="15">
   <div class="two-col">
     <div class="txt">
-      <span class="eyebrow">En camino</span>
-      <h2 class="st">Aceptar es empezar<br>a <span class="a">transmitir.</span></h2>
-      <p class="lead">Aceptar hace dos cosas a la vez: mueve la fila a <code>in_transit</code> y <strong>prende el GPS</strong>. Sólo en este estado — antes de aceptar no hay motivo para tenerlo abierto, y después de llegar tampoco.</p>
+      <div class="who-row"><span class="role trp">Tripulación · app</span><span class="role pro">Médico elegido</span></div>
+      <h2 class="st">Una tarjeta roja<br>y todo lo que hay que <span class="ad">saber.</span></h2>
+      <p class="lead">En el inicio aparece "Tenés una emergencia asignada". Al tocarla, un mapa completo con una hoja abajo que se agranda.</p>
       <ul class="bl">
-        <li><span class="bi">●</span><span>La chapa verde <strong>"El paciente está viendo dónde estás"</strong> es la misma verdad que el paciente ve del otro lado. Si el GPS falla, lo dice.</span></li>
-        <li><span class="bi">➤</span><span><strong>Navegar al paciente</strong> abre Google Maps con las coordenadas y la navegación ya arrancada.</span></li>
-        <li><span class="bi">☎</span><span><strong>Llamar al paciente</strong> queda apagado y explicado cuando el paciente no tiene teléfono cargado — que es el caso de la captura.</span></li>
+        <li><span class="bi">⌖</span><span><strong>Dónde:</strong> la dirección y "Navegar con Google Maps".</span></li>
+        <li><span class="bi">!</span><span><strong>Qué le pasa:</strong> los síntomas del triage, tal cual los marcó.</span></li>
+        <li><span class="bi">♥</span><span><strong>Signos vitales</strong> de Apple Health si el paciente lo conectó, y sus datos: edad, grupo sanguíneo, peso, contacto de emergencia.</span></li>
       </ul>
     </div>
-    <div class="shot">
-      <img src="screenshots-emergencias/pro-03-en-camino.jpg" alt="Profesional en camino, compartiendo ubicación">
-      <span class="cap"><b>En camino</b>Transmitiendo, con navegar y llamar</span>
+    <div class="shots">
+      <div class="shot"><img src="screenshots-emergencias/em-tri-01-inicio.jpg" alt="Inicio con emergencia asignada"><span class="cap"><b>Su inicio</b>ROJO · UTM-8062 · el paciente</span></div>
+      <div class="shot"><img src="screenshots-emergencias/em-tri-03-hoja.jpg" alt="Hoja de la emergencia abierta"><span class="cap"><b>La hoja</b>Dónde, qué le pasa, datos</span></div>
     </div>
   </div>
 </section>
 
-<!-- 16 ─────────────────────────────────────────────── -->
+<!-- 14 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="14">
+  <div class="content wide">
+    <span class="eyebrow">Paso 5 · En camino</span>
+    <h2 class="st">"Voy en camino",<br>y el paciente <span class="a">lo ve.</span></h2>
+    <p class="lead">Al tocar <strong>Voy en camino</strong>, el teléfono de la tripulación empieza a compartir su ubicación. Del otro lado, el paciente pasa de "Asignado" a "En camino" con el tiempo y la distancia reales, y le llega el aviso "El médico va en camino".</p>
+    <div class="shots three">
+      <div class="shot"><img src="screenshots-emergencias/em-tri-04-en-camino.jpg" alt="Tripulación en camino"><span class="cap"><b>Tripulación</b>11 min · 3,1 km en auto</span></div>
+      <div class="shot"><img src="screenshots-emergencias/em-pac-07-asignada.jpg" alt="Paciente con ambulancia asignada"><span class="cap"><b>Paciente · Asignado</b>Quién viene: Móvil 2, patente y entidad</span></div>
+      <div class="shot"><img src="screenshots-emergencias/em-pac-08-en-camino.jpg" alt="Paciente con ambulancia en camino"><span class="cap"><b>Paciente · En camino</b>8 min · 2,4 km · en vivo</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 15 ────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="15">
+  <div class="content wide">
+    <span class="eyebrow">Paso 6 · En el lugar</span>
+    <h2 class="st">Llegó,<br>y empieza la <span class="al">consulta.</span></h2>
+    <p class="lead">El botón <strong>Llegué</strong> se enciende a menos de 120 metros del paciente. Al paciente le aparece "¡La ambulancia llegó!". El médico toca <strong>Atender al paciente</strong> y se abre el mismo panel clínico de la videoconsulta, sin video.</p>
+    <div class="shots three">
+      <div class="shot"><img src="screenshots-emergencias/em-pac-09-llego.jpg" alt="La ambulancia llegó"><span class="cap"><b>Paciente</b>"¡La ambulancia llegó!"</span></div>
+      <div class="shot"><img src="screenshots-emergencias/em-tri-05-llego.jpg" alt="Atender al paciente"><span class="cap"><b>Médico</b>"Atender al paciente"</span></div>
+      <div class="shot"><img src="screenshots-emergencias/em-tri-06-atencion.jpg" alt="Panel de atención de emergencia"><span class="cap"><b>Atención de emergencia</b>Notas, historia clínica y recetario</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 ────────────────────────────────────────────── -->
 <section class="slide slide-white" data-slide="16">
   <div class="two-col r">
     <div class="txt">
-      <span class="eyebrow">Llegó</span>
-      <h2 class="st">Lo que el paciente<br>dijo, tal <span class="a">cual.</span></h2>
-      <p class="lead">Al marcar <strong>Llegué al paciente</strong>, la pantalla pasa a ser una ficha de lo que hay delante: los síntomas que el paciente tildó en el triage, sin traducir ni completar.</p>
+      <span class="eyebrow">Paso 7 · El cierre</span>
+      <h2 class="st">No se cierra<br>sin <span class="ad">registro.</span></h2>
+      <p class="lead">Con la atención cerrada, aparece <strong>Cerrar emergencia</strong>. La atención queda como una consulta presencial en la historia clínica del paciente, ligada a la emergencia.</p>
       <ul class="bl">
-        <li><span class="bi">✓</span><span>Si no hay síntomas registrados, dice <strong>"Sin síntomas registrados — llamá al paciente para relevarlos"</strong>. Nunca inventa una lista genérica por código: mostrar síntomas que nadie reportó es clínicamente engañoso.</span></li>
-        <li><span class="bi">✓</span><span>Al llegar se publica una última posición con ETA 0, para que al paciente no le quede el número de la penúltima.</span></li>
-        <li><span class="bi">✓</span><span><strong>Cerrar emergencia</strong> apaga el GPS, marca <code>completed</code> y lo devuelve a su inicio.</span></li>
+        <li><span class="bi">✓</span><span>Para cerrar hace falta la consulta cerrada, o un motivo escrito si se cerró sin atención (por ejemplo, traslado a guardia).</span></li>
+        <li><span class="bi">↺</span><span>El móvil vuelve solo a "disponible" y la tarjeta roja desaparece del inicio.</span></li>
+        <li><span class="bi">👤</span><span>Sólo el médico asignado carga la atención; el resto de la tripulación lo ve indicado.</span></li>
       </ul>
     </div>
-    <div class="shot">
-      <img src="screenshots-emergencias/pro-04-llegue.jpg" alt="Profesional llegó — síntomas reportados">
-      <span class="cap"><b>¡Llegaste!</b>Los síntomas del triage, y el cierre</span>
+    <div class="shots">
+      <div class="shot"><img src="screenshots-emergencias/em-tri-07-cerrar.jpg" alt="Cerrar emergencia"><span class="cap"><b>Atención cerrada</b>"Cerrar emergencia"</span></div>
+      <div class="shot"><img src="screenshots-emergencias/em-tri-08-cerrada.jpg" alt="Inicio después del cierre"><span class="cap"><b>Después</b>El inicio vuelve a la normalidad</span></div>
     </div>
   </div>
 </section>
 
-<!-- 17 ─────────────────────────────────────────────── -->
-<section class="slide slide-ivory" data-slide="17">
-  <div class="content wide">
-    <span class="eyebrow">Los dos lados</span>
-    <h2 class="st">El mismo momento,<br>contado <span class="a">dos veces.</span></h2>
-    <div class="tbl dos">
-      <div class="tr th"><span>Estado</span><span>Ve el paciente</span><span>Ve el profesional</span></div>
-      <div class="tr"><span>dispatched</span><span>"Emergencia despachada", el reloj corriendo y quién lo va a atender. Sin punto en el mapa.</span><span>Push + la pantalla roja de emergencia entrante con un solo botón.</span></div>
-      <div class="tr"><span>in_transit</span><span>El médico moviéndose en el mapa, la ruta y "6 min · 2,4 km".</span><span>"El paciente está viendo dónde estás", navegar y llamar.</span></div>
-      <div class="tr"><span>arrived</span><span>"Llegó a tu ubicación" y los tres pasos completos.</span><span>Los síntomas del triage y el botón de cerrar.</span></div>
-      <div class="tr"><span>completed</span><span>"Atención finalizada" y vuelve al inicio solo.</span><span>Vuelve a su inicio; la pantalla queda "En guardia".</span></div>
-      <div class="tr"><span>cancelled</span><span>Si lo canceló el profesional, le llega el aviso y vuelve al inicio.</span><span>Si lo canceló el paciente, le llega el aviso y la pantalla se vacía.</span></div>
+<!-- 17 ────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="17">
+  <div class="content">
+    <span class="eyebrow onsage">Cuarta mirada</span>
+    <h2 class="st">La administración.</h2>
+    <p class="lead">Desde el panel de super admin se prende el servicio, se fija el precio, se elige quién coordina y se ve cada emergencia.</p>
+  </div>
+</section>
+
+<!-- 18 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="18">
+  <div class="two-col wweb">
+    <div class="txt">
+      <div class="who-row"><span class="role adm">Super admin · web</span></div>
+      <h2 class="st">Quién coordina<br>lo elige <span class="ag">Healthier.</span></h2>
+      <p class="lead">La tarjeta <strong>Coordinador de ambulancias</strong> muestra quién coordina hoy y un buscador para cambiarlo. A esa persona le llega un aviso por cada pedido nuevo.</p>
+      <ul class="bl">
+        <li><span class="bi">!</span><span>Sin coordinador elegido, lo dice: "Los pedidos nuevos no le avisan a nadie hasta que elijas uno".</span></li>
+        <li><span class="bi">⚙</span><span>El interruptor del S.O.S. y su precio están en <strong>Verticales</strong>.</span></li>
+      </ul>
     </div>
-    <div class="note">
-      <span class="k">◆</span>
-      <p>Ninguno de los dos lados <strong>consulta</strong> para enterarse: los dos están suscriptos por Realtime a la misma fila. Por eso las dos pantallas cambian a la vez.</p>
+    <div class="shot web"><img src="screenshots-emergencias/em-adm-01-coordinador.jpg" alt="Coordinador de ambulancias en el panel"><span class="cap"><b>Super admin · Emergencias</b>"Operador de Guardia es el nuevo coordinador"</span></div>
+  </div>
+</section>
+
+<!-- 19 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="19">
+  <div class="content wide">
+    <div class="who-row"><span class="role adm">Super admin · web</span></div>
+    <h2 class="st">Todas las emergencias,<br>en una <span class="ag">tabla.</span></h2>
+    <p class="lead">Fecha, código de despacho, triage, estado, paciente, la entidad que despachó, el móvil, quién lo asignó, el cobro y la ubicación.</p>
+    <div class="shot web"><img src="screenshots-emergencias/em-adm-02-tabla.jpg" alt="Tabla de emergencias"><span class="cap"><b>Emergencias</b>La de esta prueba, UTM-8062, completada</span></div>
+  </div>
+</section>
+
+<!-- 20 ────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="20">
+  <div class="content wide">
+    <span class="eyebrow">Los cuatro lados</span>
+    <h2 class="st">El mismo momento,<br>contado <span class="a">cuatro veces.</span></h2>
+    <div class="tbl">
+      <div class="tr th"><span>Estado</span><span>Ve el paciente</span><span>Ve la coordinación</span><span>Ve la tripulación</span></div>
+      <div class="tr"><span>Reserva</span><span>"Reserva pendiente" y la pantalla de pago.</span><span>Nada todavía.</span><span>Nada.</span></div>
+      <div class="tr"><span>En la cola</span><span>"Estamos asignando una ambulancia", con el reloj.</span><span>El pedido en su cola, con aviso.</span><span>Nada.</span></div>
+      <div class="tr"><span>Asignada</span><span>"Asignado": quién viene.</span><span>Sale de la cola.</span><span>Aviso y tarjeta roja con la hoja.</span></div>
+      <div class="tr"><span>En camino</span><span>El móvil en el mapa, minutos y kilómetros.</span><span>—</span><span>Comparte su ubicación.</span></div>
+      <div class="tr"><span>En el lugar</span><span>"¡La ambulancia llegó!"</span><span>—</span><span>"Atender al paciente".</span></div>
+      <div class="tr"><span>Completada</span><span>El inicio vuelve a la normalidad.</span><span>—</span><span>El móvil queda disponible.</span></div>
     </div>
   </div>
 </section>
 
-<!-- 18 ─────────────────────────────────────────────── -->
-<section class="slide slide-rose" data-slide="18">
+<!-- 21 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="21">
   <div class="content wide">
-    <span class="eyebrow danger">Lo que hay que arreglar</span>
-    <h2 class="st">La app cuenta<br>otra <span class="ad">historia.</span></h2>
-    <p class="lead">El flujo del paciente en la app <strong>no es el mismo</strong> que el de la web. Estas tres capturas son de la app corriendo hoy.</p>
-    <div class="shots three">
-      <div class="shot">
-        <img src="screenshots-emergencias/app-01-triage.jpg" alt="Triage de la app — paso 1">
-        <span class="cap"><b>Triage en 3 pasos</b>Primero los críticos. Sin el aviso del 107.</span>
-      </div>
-      <div class="shot">
-        <img src="screenshots-emergencias/app-02-paso3.jpg" alt="Confirmación de la app — Código Rojo">
-        <span class="cap"><b>"Despacharemos una ambulancia de inmediato"</b>No hay ninguna ambulancia.</span>
-      </div>
-      <div class="shot">
-        <img src="screenshots-emergencias/app-03-pago.jpg" alt="Pago de emergencia de la app — maqueta">
-        <span class="cap"><b>Pago de emergencia</b>$45.00 fijo y una tarjeta inventada.</span>
-      </div>
-    </div>
-    <div class="note d">
-      <span class="k">⚠</span>
-      <p><strong>Las tres son de fondo, no de diseño.</strong> La app promete una ambulancia en tres lugares distintos y omite el 107; su pantalla de pago es una maqueta —el precio está escrito en el código, la tarjeta <code>•••• 4321</code> no existe y el botón sólo espera 1,5 segundos—; y como no manda ni el precio ni el método de pago, la emergencia creada desde la app queda sin esos datos en el panel de super admin.</p>
+    <span class="eyebrow">Los avisos</span>
+    <h2 class="st">A cada uno,<br>lo <span class="ad">suyo.</span></h2>
+    <div class="tbl">
+      <div class="tr th"><span>Momento</span><span>A quién</span><span>Qué le llega</span><span>Lo abre en</span></div>
+      <div class="tr"><span>Entra a la cola</span><span>Coordinación</span><span>"🔴 Pedido ROJO en cola" / "🚑 Nuevo pedido de ambulancia"</span><span>La cola</span></div>
+      <div class="tr"><span>Asignación</span><span>Tripulación y médico</span><span>"🚨 Emergencia asignada — Código ROJO (UTM-8062) · Móvil 2"</span><span>La emergencia</span></div>
+      <div class="tr"><span>En camino</span><span>Paciente</span><span>"El médico va en camino"</span><span>El mapa en vivo</span></div>
+      <div class="tr"><span>Llegó</span><span>Paciente</span><span>"El médico llegó"</span><span>La confirmación</span></div>
+      <div class="tr"><span>Cancelada</span><span>El otro lado</span><span>"Tu emergencia se canceló" / "La emergencia se canceló"</span><span>El inicio</span></div>
     </div>
   </div>
 </section>
 
-<!-- 19 ─────────────────────────────────────────────── -->
-<section class="slide slide-dark" data-slide="19">
+<!-- 22 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="22">
   <div class="content wide">
-    <span class="eyebrow ondark">Estado real</span>
-    <h2 class="st">Lo que hoy está<br><span class="a">apagado.</span></h2>
+    <span class="eyebrow gold">La plata</span>
+    <h2 class="st">Se reserva al pedir,<br>se cobra si el móvil <span class="ag">sale.</span></h2>
     <div class="fg three">
-      <div class="fc">
-        <span class="n d">En producción</span>
-        <h3>El S.O.S. está deshabilitado</h3>
-        <p>La vertical <code>sos</code> está en <strong>enabled: false</strong>, así que hoy ningún paciente ve el botón — ni en la web ni en la app. Se prende desde <code>/super-admin/verticales</code>.</p>
-      </div>
-      <div class="fc">
-        <span class="n g">Nunca se cobra</span>
-        <h3>El cobro no está construido</h3>
-        <p>Se guardan el precio y la tarjeta elegidos, y el super admin los ve. Pero <strong>no hay nada que cobre al cerrar la emergencia</strong>, aunque la pantalla de confirmación lo prometa.</p>
-      </div>
-      <div class="fc">
-        <span class="n l">Por diseño</span>
-        <h3>Un solo intento</h3>
-        <p>Si el profesional sorteado no acepta, la emergencia <strong>se queda quieta</strong>. No vence, no se reasigna y no le suena a nadie más. Con un pool de uno, da igual; con diez, no.</p>
-      </div>
-    </div>
-    <div class="note">
-      <span class="k">◆</span>
-      <p>Las tres son decisiones distintas: la primera es <strong>un interruptor</strong>, la segunda es <strong>trabajo que falta</strong>, y la tercera es <strong>una decisión tomada a propósito</strong> para este estadio — la misma lógica por la que el pool se sortea al azar en vez de repartirse con estado en el servidor.</p>
+      <div class="fc"><span class="n g">01</span><h3>Se reserva</h3><p>Al pedir, Mercado Pago retiene el monto en la tarjeta. El pedido no entra a la cola hasta que la reserva está confirmada.</p></div>
+      <div class="fc"><span class="n g">02</span><h3>Se libera si cancela antes</h3><p>Antes de que se asigne una ambulancia, cancelar suelta la reserva entera.</p></div>
+      <div class="fc"><span class="n g">03</span><h3>Se cobra si el móvil salió</h3><p>Con la ambulancia asignada, la reserva se convierte en cobro del servicio.</p></div>
     </div>
   </div>
 </section>
 
-<!-- 20 ─────────────────────────────────────────────── -->
-<section class="slide slide-sage" data-slide="20">
+<!-- 23 ────────────────────────────────────────────── -->
+<section class="slide slide-rose" data-slide="23">
+  <div class="content wide">
+    <span class="eyebrow danger">Lo que falta antes de abrirlo</span>
+    <h2 class="st">Hoy lo ven<br>dos <span class="ad">cuentas.</span></h2>
+    <p class="lead">En producción el recorrido está vivo sólo para las cuentas del equipo. En staging lo ve todo el mundo. Esto es lo que queda para abrirlo:</p>
+    <div class="fg three">
+      <div class="fc"><span class="n d">Cobro</span><h3>Cerrar desde la app no cobra</h3><p>La reserva se captura desde la consola web de despacho, que todavía no está en producción. Cerrar desde la app no la convierte en cobro.</p></div>
+      <div class="fc"><span class="n d">Cancelación</span><h3>"Cancelar y pagar" sólo en staging</h3><p>El cobro al cancelar con el móvil asignado está en staging. En producción, cancelar libera la reserva siempre.</p></div>
+      <div class="fc"><span class="n d">Web</span><h3>El S.O.S. de la web es el viejo</h3><p>La web de producción corre el recorrido anterior (sin reserva ni cola) y no respeta la lista de cuentas habilitadas.</p></div>
+      <div class="fc"><span class="n g">Aviso</span><h3>Al paciente no le avisa la asignación</h3><p>Se entera por la pantalla; el primer aviso le llega con "en camino".</p></div>
+      <div class="fc"><span class="n g">Pantalla</span><h3>El chip del mapa bajo la barra</h3><p>Entrando al mapa desde la tarjeta del inicio, el código de despacho queda tapado por la hora (captura del paso 5).</p></div>
+      <div class="fc"><span class="n l">Datos</span><h3>Datos de prueba en producción</h3><p>La entidad, el Móvil 1 y las cuentas de prueba siguen cargados hasta la limpieza.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 24 ────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="24">
   <div class="content">
     <span class="eyebrow onsage">En una línea</span>
-    <h2 class="st">Lo que funciona<br>funciona de verdad.</h2>
-    <p class="lead">El recorrido completo —triage, despacho, GPS en vivo, llegada y cierre— está construido contra datos reales en las dos puntas, y las dos pantallas se mueven juntas sin que nadie recargue nada. Lo que falta está acotado y es nombrable: <strong>prender la vertical, construir el cobro y alinear la app con lo que dice la web</strong>.</p>
+    <h2 class="st">Un botón rojo, una ambulancia,<br>una consulta registrada.</h2>
+    <p class="lead">Del pedido al cierre, cada persona ve lo que necesita en el momento en que lo necesita, y todo termina en la historia clínica del paciente.</p>
     <div class="pill-row">
-      <span class="pill">15 pantallas capturadas en staging</span>
-      <span class="pill">3 capturas de la app</span>
-      <span class="pill">2026-09-11</span>
+      <span class="pill">22 pantallas capturadas en staging</span>
+      <span class="pill">App + panel web</span>
+      <span class="pill">2026-09-30</span>
     </div>
   </div>
 </section>

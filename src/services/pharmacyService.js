@@ -26,6 +26,24 @@ export const pharmacyService = {
     return toCamelCase(data)
   },
 
+  /**
+   * Batch fetch por id — usada para completar `imageUrl`/nombre/precio de
+   * items que ya están en el carrito (base) pero que el caché local
+   * `productsById` de `PharmacyCartContext` todavía no tiene (carrito recién
+   * cargado, sin ningún `+`/`-` tocado en esta sesión). Ver el bug de fotos
+   * que faltaban en un carrito recién abierto (2026-09-23).
+   */
+  async getByIds(ids) {
+    const unique = [...new Set((ids ?? []).filter(Boolean))]
+    if (unique.length === 0) return []
+    const { data, error } = await supabase
+      .from('pharmacy_products')
+      .select('*')
+      .in('id', unique)
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
   async getFeatured() {
     const { data, error } = await supabase
       .from('pharmacy_products')

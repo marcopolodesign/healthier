@@ -10,6 +10,7 @@ import { conCoordenadas } from '../../lib/geo'
 import { toast } from '../../components/Toast'
 import { isLikelyTooSmallForFace } from '../../lib/imageCompression'
 import { camposSensiblesQueCambian, enumerarCampos, requiereReverificacion } from '../../lib/reverificacion'
+import { inicialesDe } from '../../lib/format'
 import NombreApellidoInputs from '../../components/common/NombreApellidoInputs'
 import { nombreApellidoDe, validarNombreApellido, nombreNormalizado, armarNombreCompleto } from '../../lib/nombreApellido'
 
@@ -164,7 +165,7 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
             <div className="w-16 h-16 rounded-full overflow-hidden bg-brand-muted flex items-center justify-center shrink-0">
               {currentAvatar
                 ? <img src={currentAvatar} alt="Avatar" className="w-full h-full object-cover" />
-                : <span className="text-brand font-bold text-2xl">{profile?.fullName?.[0]}</span>
+                : <span className="text-brand font-bold text-2xl">{inicialesDe(profile?.fullName)}</span>
               }
             </div>
             <div className="flex-1">

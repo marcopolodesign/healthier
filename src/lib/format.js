@@ -44,3 +44,34 @@ export function capitalizarNombreCatalogo(nombre) {
     })
     .join(' ')
 }
+
+/**
+ * El nombre de pila, salteando el título profesional.
+ *
+ * En la base TODOS los profesionales se guardan con el título adelante
+ * ("Dra. Valentina Ortega", "Lic. Camila Duarte"), así que un
+ * `fullName.split(' ')[0]` saluda con **"Hola, Dra."** y **"Hola, Lic."**.
+ * Pasaba en el website y en la app, y lo ve cada profesional cada vez que entra.
+ *
+ * Espejado en `mobile/src/lib/format.ts`.
+ */
+const TITULOS = new Set(['dr', 'dra', 'lic', 'licda', 'mg', 'mgtr', 'prof', 'ing', 'od', 'klgo', 'klga', 'tec'])
+
+export function nombreDePila(fullName, fallback = 'Profesional') {
+  const partes = String(fullName ?? '').trim().split(/\s+/).filter(Boolean)
+  const sinTitulo = partes.filter((p, i) => !(i === 0 && TITULOS.has(p.toLowerCase().replace(/\.$/, ''))))
+  return sinTitulo[0] || partes[0] || fallback
+}
+
+/**
+ * La inicial (o las iniciales) de una persona, salteando el título.
+ *
+ * Sin esto, "Dra. Valentina Ortega" queda como **D** en el avatar y "Lic. Camila
+ * Duarte" como **L**: todos los profesionales terminan con la misma letra.
+ */
+export function inicialesDe(fullName, cantidad = 1) {
+  const partes = String(fullName ?? '').trim().split(/\s+/).filter(Boolean)
+  const sinTitulo = partes.filter((p, i) => !(i === 0 && TITULOS.has(p.toLowerCase().replace(/\.$/, ''))))
+  const usar = (sinTitulo.length ? sinTitulo : partes).slice(0, cantidad)
+  return usar.map(p => p.charAt(0).toUpperCase()).join('') || '?'
+}

@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Healthier — La farmacia, paso a paso</title>
+<style>
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Light.woff2') format('woff2');font-weight:300;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Regular.woff2') format('woff2');font-weight:400 600;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-RegularItalic.woff2') format('woff2');font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+:root{
+  --sage:#7CB38B;--sage-hover:#5f9470;--sage-muted:rgba(124,179,139,.1);--sage-muted2:rgba(124,179,139,.18);
+  --coral:#E8927C;--lavender:#9B8EC4;--danger:#D9534F;--gold:#E4A853;--sky:#6BAFCF;--green:#6BBF7B;
+  --bg-primary:#F6F5F0;--bg-secondary:#FDFCF9;--surface:#fff;
+  --text-primary:#2D2A26;--text-secondary:#6B6560;--text-tertiary:#A8A29E;
+  --border:#D8D4CE;--border-hover:#C4BFB8;
+  --radius-pill:999px;--radius-card:1.5rem;--radius-card-sm:1rem;
+  --shadow-card:0 1px 4px rgba(45,42,38,.06);--shadow-hover:0 8px 28px rgba(124,179,139,.14);
+  --t:all .36s cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-primary)}
+body{font-family:'Everett',-apple-system,BlinkMacSystemFont,sans-serif;color:var(--text-primary);-webkit-font-smoothing:antialiased}
+button{all:unset;cursor:pointer}
+
+/* DECK */
+#deck{position:fixed;inset:0;overflow:hidden}
+.slide{
+  position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;
+  padding:4.5rem 2rem 3.5rem;opacity:0;pointer-events:none;
+  transition:opacity .42s cubic-bezier(.4,0,.2,1),transform .42s cubic-bezier(.4,0,.2,1);
+  transform:translateY(20px);overflow:hidden;
+}
+.slide.active{opacity:1;pointer-events:auto;transform:translateY(0)}
+@media(prefers-reduced-motion:reduce){.slide{transition:opacity .15s}}
+.slide-ivory{background:var(--bg-primary)}
+.slide-cream{background:var(--bg-secondary)}
+.slide-white{background:var(--surface)}
+.slide-sage{background:var(--sage);color:#fff}
+.slide-dark{background:#1d1e1a;color:#f9f8f5}
+.slide-rose{background:#FBF2F1}
+
+/* NAV */
+#nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;
+  padding:.75rem 1.5rem;height:52px;background:rgba(246,245,240,.82);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);transition:background .3s,border-color .3s}
+#brand{font-size:.8rem;font-weight:700;color:var(--sage);letter-spacing:-.01em;min-width:4rem}
+#dots{display:flex;align-items:center;gap:.35rem;flex:1;justify-content:center;flex-wrap:wrap}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--border);transition:var(--t);cursor:pointer}
+.dot.active{background:var(--sage);width:18px;border-radius:3px}
+#counter{font-size:.75rem;font-weight:600;color:var(--text-tertiary);letter-spacing:.04em;min-width:4rem;text-align:right}
+.arrow-btn{position:fixed;top:50%;z-index:99;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.7);backdrop-filter:blur(8px);
+  border:1px solid var(--border);color:var(--text-secondary);transition:var(--t);opacity:.55}
+.arrow-btn:hover{opacity:1;background:#fff;color:var(--text-primary)}
+#btn-prev{left:.75rem}#btn-next{right:.75rem}
+.arrow-btn.hidden{opacity:0;pointer-events:none}
+.progress-bar{position:fixed;bottom:0;left:0;height:2px;background:var(--sage);transition:width .4s cubic-bezier(.4,0,.2,1);z-index:100}
+
+/* LAYOUT */
+.content{width:100%;max-width:880px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:1.3rem;text-align:center}
+.content.wide{max-width:1080px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:2.5rem;align-items:center;width:100%;max-width:1000px}
+.two-col.r{direction:rtl}.two-col.r>*{direction:ltr}
+.two-col .txt{display:flex;flex-direction:column;gap:.9rem;text-align:left;align-items:flex-start}
+.two-col .txt h2.st{text-align:left}
+@media(max-width:900px){.two-col{grid-template-columns:1fr;gap:1.2rem}}
+
+/* TYPOGRAPHY */
+.eyebrow{display:inline-flex;align-items:center;gap:.4rem;font-size:.72rem;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;background:var(--sage-muted);color:var(--sage);padding:.3rem .85rem;border-radius:var(--radius-pill)}
+.eyebrow.coral{background:rgba(232,146,124,.12);color:#c2614a}
+.eyebrow.lavender{background:rgba(155,142,196,.12);color:#6d5fa3}
+.eyebrow.gold{background:rgba(228,168,83,.12);color:#9a6c1a}
+.eyebrow.danger{background:rgba(217,83,79,.1);color:#b8433f}
+.eyebrow.onsage{background:rgba(255,255,255,.18);color:#fff}
+.eyebrow.ondark{background:rgba(255,255,255,.1);color:#cfe6d6}
+h1.hero{font-size:clamp(2.2rem,5vw,3.8rem);font-weight:700;line-height:1.1;letter-spacing:-.02em;max-width:18ch}
+h1.hero .a{color:var(--sage)}
+h1.hero .d{color:var(--danger)}
+h2.st{font-size:clamp(1.55rem,3.2vw,2.35rem);font-weight:700;line-height:1.15;letter-spacing:-.02em;max-width:24ch}
+h2.st .a{color:var(--sage)}
+h2.st .ac{color:var(--coral)}
+h2.st .al{color:var(--lavender)}
+h2.st .ag{color:var(--gold)}
+h2.st .ad{color:var(--danger)}
+.lead{font-size:clamp(.88rem,1.55vw,1.02rem);color:var(--text-secondary);line-height:1.6;max-width:56ch}
+.lead strong{color:var(--text-primary);font-weight:600}
+.two-col .lead{max-width:44ch}
+.slide-sage .lead,.slide-dark .lead{color:rgba(255,255,255,.82)}
+.slide-sage .lead strong,.slide-dark .lead strong{color:#fff}
+
+/* SCREENSHOTS */
+.shots{display:flex;gap:1.1rem;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+.shot{display:flex;flex-direction:column;gap:.5rem;align-items:center}
+.shot img{height:52vh;max-height:470px;width:auto;border-radius:20px;border:1px solid var(--border);
+  box-shadow:0 12px 34px rgba(45,42,38,.16);background:#fff;display:block}
+.shot .cap{font-size:.7rem;color:var(--text-tertiary);text-align:center;max-width:24ch;line-height:1.4}
+.shot .cap b{color:var(--text-secondary);font-weight:600;display:block}
+.slide-dark .shot .cap{color:rgba(255,255,255,.5)}
+.slide-dark .shot .cap b{color:rgba(255,255,255,.8)}
+.shots.three .shot img{height:44vh;max-height:400px}
+.shots.four .shot img{height:38vh;max-height:340px}
+.two-col > .shot img{height:56vh;max-height:520px}
+.two-col .shots{flex-wrap:nowrap;gap:.8rem}
+.two-col .shots .shot img{height:42vh;max-height:380px}
+.shot.wide img{height:auto;width:min(720px,84vw);max-height:44vh;object-fit:contain;border-radius:14px}
+.shots.par{gap:1.4rem;align-items:center}
+.shots.par .shot img{height:42vh;max-height:390px}
+.shots.par .shot.wide img{height:auto;width:min(620px,52vw);max-height:34vh}
+
+/* LISTAS */
+.bl{display:flex;flex-direction:column;gap:.5rem;list-style:none;text-align:left}
+.bl li{display:flex;align-items:flex-start;gap:.6rem;font-size:.84rem;color:var(--text-secondary);line-height:1.5}
+.bl .bi{width:20px;height:20px;border-radius:50%;background:var(--sage-muted);display:flex;align-items:center;
+  justify-content:center;color:var(--sage);flex-shrink:0;margin-top:.1rem;font-size:.62rem;font-weight:700}
+.bl .bi.d{background:rgba(217,83,79,.12);color:var(--danger)}
+.bl li strong{color:var(--text-primary);font-weight:600}
+.slide-dark .bl li{color:rgba(255,255,255,.75)}
+.slide-dark .bl li strong{color:#fff}
+.slide-dark .bl .bi{background:rgba(124,179,139,.22);color:var(--sage)}
+
+/* FEATURE GRID */
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.8rem;width:100%;max-width:920px}
+.fg.four{grid-template-columns:repeat(4,1fr)}
+.fg.three{grid-template-columns:repeat(3,1fr)}
+@media(max-width:860px){.fg.four,.fg.three{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.fg.four,.fg.three{grid-template-columns:1fr}}
+.fc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:1rem 1.15rem;
+  text-align:left;box-shadow:var(--shadow-card);transition:var(--t)}
+.fc:hover{box-shadow:var(--shadow-hover);border-color:rgba(124,179,139,.3);transform:translateY(-2px)}
+.fc h3{font-size:.86rem;font-weight:700;margin-bottom:.25rem}
+.fc p{font-size:.76rem;color:var(--text-secondary);line-height:1.5}
+.fc .n{font-size:.6rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--sage);display:block;margin-bottom:.3rem}
+.fc .n.d{color:var(--danger)}.fc .n.g{color:#9a6c1a}.fc .n.l{color:#6d5fa3}.fc .n.c{color:#c2614a}
+.slide-dark .fc{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12)}
+.slide-dark .fc p{color:rgba(255,255,255,.68)}
+.slide-sage .fc{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.22)}
+.slide-sage .fc h3{color:#fff}
+.slide-sage .fc p{color:rgba(255,255,255,.8)}
+.slide-sage .fc .n{color:rgba(255,255,255,.75)}
+
+.pill-row{display:flex;flex-wrap:wrap;gap:.45rem;justify-content:center}
+.pill{font-size:.76rem;font-weight:500;padding:.32rem .85rem;border-radius:var(--radius-pill);
+  border:1px solid var(--border);background:var(--surface);color:var(--text-secondary)}
+.hint{font-size:.78rem;color:var(--text-tertiary);margin-top:.6rem}
+
+/* Línea de tiempo */
+.flow{display:flex;align-items:stretch;gap:.55rem;width:100%;max-width:960px;flex-wrap:wrap;justify-content:center}
+.fs{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);
+  padding:.8rem .95rem;text-align:left;position:relative;box-shadow:var(--shadow-card)}
+.fs .n{font-size:.6rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--sage);display:block;margin-bottom:.28rem}
+.fs .h{font-size:.83rem;font-weight:700;line-height:1.25;display:block;margin-bottom:.2rem}
+.fs .d{font-size:.72rem;color:var(--text-secondary);line-height:1.45}
+.fs .n.d{color:var(--danger)}.fs .n.g{color:#9a6c1a}.fs .n.l{color:#6d5fa3}
+.fs.hot{border-color:rgba(217,83,79,.4);background:rgba(217,83,79,.05)}
+.fs.off{opacity:.6;border-style:dashed}
+.slide-dark .fs{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.13)}
+.slide-dark .fs .d{color:rgba(255,255,255,.66)}
+@media(max-width:760px){.flow{flex-direction:column}}
+
+/* Tabla */
+.tbl{width:100%;max-width:960px;border:1px solid var(--border);border-radius:var(--radius-card-sm);
+  overflow:hidden;background:var(--surface);box-shadow:var(--shadow-card)}
+.tbl .tr{display:grid;grid-template-columns:.85fr 1.2fr 1.2fr 1.3fr;gap:.75rem;padding:.55rem .95rem;text-align:left;align-items:center}
+.tbl .tr+.tr{border-top:1px solid var(--border)}
+.tbl .th{background:var(--sage-muted);font-size:.61rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--sage)}
+.tbl .tr span{font-size:.73rem;color:var(--text-secondary);line-height:1.4}
+.tbl .tr span:first-child{font-weight:700;color:var(--text-primary)}
+.tbl.dos .tr{grid-template-columns:.8fr 1.4fr 1.4fr}
+@media(max-width:760px){.tbl .tr,.tbl.dos .tr{grid-template-columns:1fr 1fr}.tbl .th{display:none}}
+
+/* Aviso */
+.note{display:flex;gap:.7rem;align-items:flex-start;max-width:680px;text-align:left;
+  background:rgba(228,168,83,.09);border:1px solid rgba(228,168,83,.3);border-radius:var(--radius-card-sm);padding:.8rem 1rem}
+.note.d{background:rgba(217,83,79,.07);border-color:rgba(217,83,79,.3)}
+.note .k{font-size:.95rem;flex-shrink:0;line-height:1.4}
+.note p{font-size:.78rem;color:var(--text-secondary);line-height:1.55}
+.note p strong{color:var(--text-primary)}
+.slide-dark .note{background:rgba(228,168,83,.1);border-color:rgba(228,168,83,.28)}
+.slide-dark .note p{color:rgba(255,255,255,.72)}
+.slide-dark .note p strong{color:#fff}
+
+/* Dos columnas etiquetadas */
+.sides{display:grid;grid-template-columns:1fr 1fr;gap:.85rem;width:100%;max-width:920px}
+@media(max-width:760px){.sides{grid-template-columns:1fr}}
+.side{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:1rem 1.15rem;text-align:left;box-shadow:var(--shadow-card)}
+.side .who{font-size:.61rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--sage);display:block;margin-bottom:.5rem}
+.side .who.c{color:#c2614a}.side .who.d{color:var(--danger)}
+.side ul{list-style:none;display:flex;flex-direction:column;gap:.4rem}
+.side li{font-size:.77rem;color:var(--text-secondary);line-height:1.5;padding-left:.85rem;position:relative}
+.side li::before{content:'';position:absolute;left:0;top:.5rem;width:4px;height:4px;border-radius:50%;background:var(--border-hover)}
+.side li strong{color:var(--text-primary);font-weight:600}
+.slide-dark .side{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.13)}
+.slide-dark .side li{color:rgba(255,255,255,.68)}
+.slide-dark .side li strong{color:#fff}
+
+/* ── Agregados de esta versión ── */
+.who-row{display:flex;flex-wrap:wrap;gap:.4rem}
+.two-col .txt .who-row{justify-content:flex-start}
+.role{display:inline-flex;align-items:center;gap:.35rem;font-size:.66rem;font-weight:700;letter-spacing:.04em;
+  padding:.24rem .7rem;border-radius:var(--radius-pill);border:1px solid;white-space:nowrap}
+.role::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.role.pac{color:#4f8a60;border-color:rgba(124,179,139,.45);background:var(--sage-muted)}
+.role.pro{color:#6d5fa3;border-color:rgba(155,142,196,.45);background:rgba(155,142,196,.1)}
+.role.far{color:#c2614a;border-color:rgba(232,146,124,.45);background:rgba(232,146,124,.1)}
+.role.adm{color:#9a6c1a;border-color:rgba(228,168,83,.45);background:rgba(228,168,83,.1)}
+.role.op{color:#2f7196;border-color:rgba(107,175,207,.45);background:rgba(107,175,207,.12)}
+.role.trp{color:#b8433f;border-color:rgba(217,83,79,.4);background:rgba(217,83,79,.08)}
+.role.sys{color:var(--text-secondary);border-color:var(--border);background:var(--surface)}
+.slide-sage .role{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.35);color:#fff}
+.shot.web img{height:auto;width:min(780px,86vw);max-height:56vh;object-fit:contain;object-position:top;border-radius:14px}
+.two-col .shot.web img{width:100%;max-height:54vh}
+.shots.par .shot.web img{width:min(560px,48vw);max-height:44vh}
+.two-col.wweb{grid-template-columns:.72fr 1.28fr;max-width:1080px;gap:2rem;padding:0 1.5rem}
+.two-col.wweb .shot.web img{max-height:60vh}
+.content.wide>.shot.web img{max-height:45vh}
+.tbl.tres .tr{grid-template-columns:.8fr 1.1fr 1.1fr 1.2fr}
+</style>
+</head>
+<body>
+
+<div id="nav">
+  <span id="brand">Healthier</span>
+  <div id="dots"></div>
+  <span id="counter">01 / 25</span>
+</div>
+
+<button class="arrow-btn hidden" id="btn-prev" aria-label="Anterior">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+</button>
+<button class="arrow-btn" id="btn-next" aria-label="Siguiente">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+</button>
+<div class="progress-bar" style="width:4.0%"></div>
+
+<div id="deck">
+<!-- 1 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory active" data-slide="1">
+  <div class="content">
+    <span class="eyebrow coral">Farmacia · Documento interno</span>
+    <h1 class="hero">De la receta<br>a la puerta de <span class="a">casa.</span></h1>
+    <p class="lead">El recorrido completo de un pedido de medicamentos contado desde el lugar de cada persona que participa —la farmacia, el profesional, el paciente y la administración—, con las pantallas reales de cada paso capturadas en staging el 30 de septiembre de 2026.</p>
+    <div class="pill-row">
+      <span class="role far">Farmacia · web</span>
+      <span class="role pro">Profesional · web</span>
+      <span class="role pac">Paciente · app y web</span>
+      <span class="role adm">Super admin · web</span>
+    </div>
+    <p class="hint">→ Navegá con las flechas o la barra espaciadora</p>
+  </div>
+</section>
+
+<!-- 2 ─────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="2">
+  <div class="content wide">
+    <span class="eyebrow">El mapa</span>
+    <h2 class="st">Un pedido,<br>cuatro <span class="a">etapas.</span></h2>
+    <p class="lead">El profesional sólo receta. El paciente decide si compra. La farmacia prepara, envía y entrega contra un código.</p>
+    <div class="flow">
+      <div class="fs"><span class="n l">00 · profesional</span><span class="h">Receta</span><span class="d">Emite la receta electrónica en la consulta.</span></div>
+      <div class="fs"><span class="n">01 · paciente</span><span class="h">Confirmado</span><span class="d">Arma el carrito, elige dirección y paga.</span></div>
+      <div class="fs"><span class="n c" style="color:#c2614a">02 · farmacia</span><span class="h">En preparación</span><span class="d">Lo toma y lo arma.</span></div>
+      <div class="fs"><span class="n c" style="color:#c2614a">03 · farmacia</span><span class="h">Enviado</span><span class="d">Sale. El paciente recibe su código.</span></div>
+      <div class="fs"><span class="n c" style="color:#c2614a">04 · farmacia</span><span class="h">Entregado</span><span class="d">Se confirma con el código del paciente.</span></div>
+    </div>
+    <div class="note">
+      <span class="k">↔</span>
+      <p>La plata va <strong>directo a la cuenta de Mercado Pago de la farmacia</strong>, y la comisión de Healthier se descuenta en el mismo cobro.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 3 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="3">
+  <div class="content wide">
+    <span class="eyebrow">Quién participa</span>
+    <h2 class="st">Cuatro miradas,<br>un <span class="a">pedido.</span></h2>
+    <div class="fg four">
+      <div class="fc"><span class="n c">Farmacia · web</span><h3>Prepara y entrega</h3><p>Tres niveles: <strong>Administrador</strong> (pedidos, catálogo y cobro), <strong>Operador</strong> (mueve pedidos) y <strong>Sólo lectura</strong>.</p></div>
+      <div class="fc"><span class="n l">Profesional · web</span><h3>Receta</h3><p>Emite la receta electrónica. <strong>Nunca crea un pedido</strong> ni elige farmacia.</p></div>
+      <div class="fc"><span class="n">Paciente · app y web</span><h3>Decide y compra</h3><p>Es el único que arma y paga el pedido. El carrito es el mismo en el celular y en la compu.</p></div>
+      <div class="fc"><span class="n g">Super admin · web</span><h3>Ve todo</h3><p>Pedidos, lo facturado y si la farmacia está en condiciones de cobrar.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 ─────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="4">
+  <div class="content">
+    <span class="eyebrow onsage">Antes del primer pedido</span>
+    <h2 class="st">La farmacia se prepara.</h2>
+    <p class="lead">Sube su catálogo y conecta su cuenta de Mercado Pago. Todo desde su propio panel web.</p>
+  </div>
+</section>
+
+<!-- 5 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="5">
+  <div class="content wide">
+    <div class="who-row"><span class="role far">Farmacia · Administrador · web</span></div>
+    <h2 class="st">El catálogo<br>entra por <span class="ac">Excel.</span></h2>
+    <p class="lead">SKU, nombre, presentación, precio, stock y si pide receta. Antes de importar se ve una vista previa con las filas válidas y las que tienen error. Con stock en cero, el producto pasa a "Agotado" solo.</p>
+    <div class="shot web"><img src="screenshots-farmacia/fa-far-05-catalogo.jpg" alt="Catálogo de la farmacia"><span class="cap"><b>Catálogo</b>172 productos · Exportar e Importar Excel</span></div>
+  </div>
+</section>
+
+<!-- 6 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="6">
+  <div class="two-col wweb">
+    <div class="txt">
+      <div class="who-row"><span class="role far">Farmacia · Administrador · web</span></div>
+      <h2 class="st">Sin Mercado Pago<br>no <span class="ac">cobra.</span></h2>
+      <p class="lead">La tarjeta de Mercado Pago dice si la farmacia está en condiciones de cobrar. <strong>Conectar</strong> la lleva a autorizar su propia cuenta; los pedidos se liquidan directo ahí.</p>
+      <ul class="bl">
+        <li><span class="bi">%</span><span>La comisión de Healthier se define por farmacia. Hoy, 20%.</span></li>
+        <li><span class="bi">!</span><span>En staging la farmacia de prueba figura "No conectado".</span></li>
+      </ul>
+    </div>
+    <div class="shot web"><img src="screenshots-farmacia/fa-far-06-config.jpg" alt="Configuración de la farmacia"><span class="cap"><b>Configuración</b>Mercado Pago y datos de la farmacia</span></div>
+  </div>
+</section>
+
+<!-- 7 ─────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="7">
+  <div class="content">
+    <span class="eyebrow onsage">Todo empieza en la consulta</span>
+    <h2 class="st">El profesional receta.</h2>
+    <p class="lead">No elige farmacia, no arma pedidos, no ve precios. La decisión de comprar es del paciente.</p>
+  </div>
+</section>
+
+<!-- 8 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="8">
+  <div class="content wide">
+    <div class="who-row"><span class="role pro">Profesional · web</span></div>
+    <h2 class="st">Del vademécum,<br>nunca a <span class="al">texto libre.</span></h2>
+    <p class="lead">En el recetario de la consulta, el medicamento se elige del vademécum oficial, con su presentación. La receta sale con la firma y la matrícula del profesional, y al paciente le llega por mail y por aviso.</p>
+    <div class="shot web"><img src="screenshots-farmacia/fa-pro-01-recetario.jpg" alt="Recetario con búsqueda en el vademécum"><span class="cap"><b>Recetario</b>Buscando "amixen" en el vademécum (modo práctica)</span></div>
+  </div>
+</section>
+
+<!-- 9 ─────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="9">
+  <div class="content">
+    <span class="eyebrow onsage">La compra</span>
+    <h2 class="st">El paciente decide.</h2>
+    <p class="lead">Llega a la farmacia desde su receta o desde el inicio. Arma el carrito, elige dónde recibirlo y paga.</p>
+  </div>
+</section>
+
+<!-- 10 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="10">
+  <div class="two-col">
+    <div class="txt">
+      <div class="who-row"><span class="role pac">Paciente · app</span></div>
+      <h2 class="st">Dos puertas:<br>la receta o la <span class="a">farmacia.</span></h2>
+      <p class="lead">En el inicio están <strong>Mis recetas</strong> y <strong>Farmacias</strong>. Cuando se emite una receta y la farmacia tiene los medicamentos, le llega el aviso "Tu receta ya está disponible en farmacia".</p>
+      <ul class="bl">
+        <li><span class="bi">✓</span><span>Sólo compra quien ya se atendió en Healthier.</span></li>
+      </ul>
+    </div>
+    <div class="shots">
+      <div class="shot"><img src="screenshots-farmacia/fa-pac-01-inicio.jpg" alt="Inicio del paciente"><span class="cap"><b>Inicio</b>Mis recetas y Farmacias</span></div>
+      <div class="shot"><img src="screenshots-farmacia/fa-pac-02-recetas.jpg" alt="Mis recetas"><span class="cap"><b>Mis recetas</b>Cada receta con su profesional</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="11">
+  <div class="two-col r">
+    <div class="txt">
+      <div class="who-row"><span class="role pac">Paciente · app</span><span class="role sys">Healthier · automático</span></div>
+      <h2 class="st">Una receta,<br>un botón: <span class="a">Comprar todos.</span></h2>
+      <p class="lead">Healthier cruza cada medicamento recetado con el catálogo en stock y muestra cómo se llama en la farmacia, con su precio. Un toque y queda todo en el carrito.</p>
+      <ul class="bl">
+        <li><span class="bi">!</span><span>Si falta alguno: "La farmacia no lo tiene disponible por ahora", y el botón compra los que hay.</span></li>
+        <li><span class="bi">$</span><span>El precio siempre sale del catálogo, nunca del teléfono.</span></li>
+      </ul>
+    </div>
+    <div class="shots">
+      <div class="shot"><img src="screenshots-farmacia/fa-pac-03-receta.jpg" alt="Tu receta"><span class="cap"><b>Tu receta</b>"En la farmacia está como…"</span></div>
+      <div class="shot"><img src="screenshots-farmacia/fa-pac-04-carrito.jpg" alt="Tu carrito"><span class="cap"><b>Tu carrito</b>"Recetado por Dra. Valentina Ortega"</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 12 ────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="12">
+  <div class="two-col">
+    <div class="txt">
+      <div class="who-row"><span class="role pac">Paciente · app</span></div>
+      <h2 class="st">O entra a la tienda<br>y <span class="a">elige.</span></h2>
+      <p class="lead">Arriba, lo que le recetaron. Después, categorías, destacados y sugeridos según su última consulta.</p>
+      <ul class="bl">
+        <li><span class="bi">⌕</span><span>Buscador por nombre o droga, filtros por categoría y receta, y orden por precio.</span></li>
+        <li><span class="bi">🛒</span><span>El carrito queda guardado: se empieza en el celular y se termina en la compu.</span></li>
+      </ul>
+    </div>
+    <div class="shot"><img src="screenshots-farmacia/fa-pac-farmacia.jpg" alt="Farmacia en la app"><span class="cap"><b>Farmacia</b>"Recetados para vos" arriba de todo</span></div>
+  </div>
+</section>
+
+<!-- 13 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="13">
+  <div class="two-col r">
+    <div class="txt">
+      <span class="eyebrow">Checkout</span>
+      <h2 class="st">Dirección, tarjeta<br>y <span class="a">listo.</span></h2>
+      <p class="lead">Dos pantallas: dónde entregar y con qué pagar. El total lo recalcula el servidor con el precio del catálogo.</p>
+      <ul class="bl">
+        <li><span class="bi">⌖</span><span>Direcciones guardadas, o una nueva.</span></li>
+        <li><span class="bi">$</span><span>Tarjeta guardada o nueva, procesado por Mercado Pago. Un paciente bonificado confirma sin pagar.</span></li>
+        <li><span class="bi">🔔</span><span>Al aprobarse el pago: mail y aviso "Pedido confirmado".</span></li>
+      </ul>
+    </div>
+    <div class="shots">
+      <div class="shot"><img src="screenshots-farmacia/fa-pac-05-checkout.jpg" alt="Tu pedido"><span class="cap"><b>Tu pedido</b>Medicamentos y dirección</span></div>
+      <div class="shot"><img src="screenshots-farmacia/fa-pac-06-pago.jpg" alt="Confirmar pago"><span class="cap"><b>Confirmar pago</b>Mercado Pago</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 14 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="14">
+  <div class="two-col">
+    <div class="txt">
+      <div class="who-row"><span class="role pac">Paciente · app</span></div>
+      <h2 class="st">Un seguimiento<br>en cuatro <span class="a">pasos.</span></h2>
+      <p class="lead">Confirmado, en preparación, en camino y entregado. Cada paso con una línea que dice qué está pasando, y una tarjeta en el inicio mientras el pedido está en curso.</p>
+    </div>
+    <div class="shot"><img src="screenshots-farmacia/fa-pac-07-pedido.jpg" alt="Pedido confirmado"><span class="cap"><b>Tu pedido</b>"La farmacia ya lo recibió y lo va a preparar"</span></div>
+  </div>
+</section>
+
+<!-- 15 ────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="15">
+  <div class="content">
+    <span class="eyebrow onsage">El trabajo</span>
+    <h2 class="st">La farmacia lo prepara.</h2>
+    <p class="lead">Cada pedido pagado aparece en su panel. Un botón por fila lo lleva al paso siguiente.</p>
+  </div>
+</section>
+
+<!-- 16 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="16">
+  <div class="content wide">
+    <div class="who-row"><span class="role far">Farmacia · Administrador u Operador · web</span></div>
+    <h2 class="st">Un botón,<br>el paso <span class="ac">siguiente.</span></h2>
+    <p class="lead">Paciente, dirección, estado, pago y total. "Marcar en preparación" → "Marcar enviado" → "Entregar con código". Filtros por estado y por pago.</p>
+    <div class="shot web"><img src="screenshots-farmacia/fa-far-01-pedidos.jpg" alt="Pedidos de la farmacia"><span class="cap"><b>Pedidos</b>El de esta prueba, arriba: pendiente y pagado</span></div>
+  </div>
+</section>
+
+<!-- 17 ────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="17">
+  <div class="two-col wweb">
+    <div class="txt">
+      <div class="who-row"><span class="role far">Farmacia · web</span></div>
+      <h2 class="st">Qué preparar<br>y para <span class="ac">quién.</span></h2>
+      <p class="lead">El detalle trae el paciente con su teléfono, la dirección de entrega y los medicamentos, marcando cuáles requieren receta.</p>
+      <ul class="bl">
+        <li><span class="bi">✕</span><span>Puede cancelar con un motivo, que le llega al paciente.</span></li>
+      </ul>
+    </div>
+    <div class="shot web"><img src="screenshots-farmacia/fa-far-02-detalle.jpg" alt="Detalle del pedido"><span class="cap"><b>Detalle</b>"Marcar en preparación"</span></div>
+  </div>
+</section>
+
+<!-- 18 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="18">
+  <div class="content wide">
+    <span class="eyebrow coral">En la puerta</span>
+    <h2 class="st">Sale el pedido,<br>se entrega <span class="ac">contra código.</span></h2>
+    <p class="lead">Al marcarlo "Enviado", el paciente recibe el aviso "Tu pedido está en camino" y, dentro del pedido, un código de cuatro dígitos. Quien entrega se lo pide y lo carga: si coincide, el pedido queda entregado. <strong>No hace falta DNI.</strong></p>
+    <div class="shots par">
+      <div class="shot"><img src="screenshots-farmacia/fa-pac-08-codigo.jpg" alt="Código de entrega del paciente"><span class="cap"><b>Paciente · app</b>Código 9294, sólo en la app</span></div>
+      <div class="shot web"><img src="screenshots-farmacia/fa-far-03-codigo.jpg" alt="La farmacia carga el código"><span class="cap"><b>Farmacia · web</b>Carga el código y "Confirmar entrega"</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 19 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="19">
+  <div class="content wide">
+    <span class="eyebrow">Entregado</span>
+    <h2 class="st">Los dos lados,<br>al <span class="a">mismo tiempo.</span></h2>
+    <p class="lead">Cinco intentos para el código; si se agotan, se resuelve con soporte. Nadie puede marcar "Entregado" sin el código, salvo la administración de Healthier. Al paciente le llega "Pedido entregado".</p>
+    <div class="shots par">
+      <div class="shot web"><img src="screenshots-farmacia/fa-far-04-entregado.jpg" alt="Pedido entregado en el panel"><span class="cap"><b>Farmacia</b>Entregado · pagado</span></div>
+      <div class="shot"><img src="screenshots-farmacia/fa-pac-09-entregado.jpg" alt="Pedido entregado en la app"><span class="cap"><b>Paciente</b>"Llegó a destino"</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 20 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="20">
+  <div class="two-col wweb">
+    <div class="txt">
+      <div class="who-row"><span class="role adm">Super admin · web</span></div>
+      <h2 class="st">La administración<br>lo ve <span class="ag">todo.</span></h2>
+      <p class="lead">La pantalla Farmacia del panel muestra la actividad sin entrar al panel de la farmacia: pedidos, pagados, facturación total, si la farmacia tiene Mercado Pago conectado, la cantidad por estado y los últimos pedidos.</p>
+    </div>
+    <div class="shot web"><img src="screenshots-farmacia/fa-adm-01-farmacia.jpg" alt="Farmacia en el panel de super admin"><span class="cap"><b>Super admin · Farmacia</b>Pedidos, pagados, GMV y Mercado Pago</span></div>
+  </div>
+</section>
+
+<!-- 21 ────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="21">
+  <div class="content wide">
+    <span class="eyebrow">Los estados</span>
+    <h2 class="st">Cada uno lo lee<br>en su <span class="a">idioma.</span></h2>
+    <div class="tbl">
+      <div class="tr th"><span>Etapa</span><span>La farmacia ve</span><span>El paciente ve</span><span>Qué significa</span></div>
+      <div class="tr"><span>1 · Confirmado</span><span>Pendiente</span><span>Pedido confirmado</span><span>La farmacia ya lo recibió y lo va a preparar.</span></div>
+      <div class="tr"><span>2 · Preparación</span><span>En preparación</span><span>La farmacia lo está preparando</span><span>Están armando el pedido.</span></div>
+      <div class="tr"><span>3 · Envío</span><span>Enviado</span><span>En camino</span><span>Salió hacia la dirección de entrega.</span></div>
+      <div class="tr"><span>4 · Entrega</span><span>Entregado</span><span>Entregado</span><span>Se confirmó con el código.</span></div>
+      <div class="tr"><span>Cancelado</span><span>Cancelado</span><span>Cancelado</span><span>Con el motivo que escribió la farmacia.</span></div>
+    </div>
+    <div class="pill-row"><span class="pill">Pago: Pagado</span><span class="pill">Pago: Bonificado</span><span class="pill">Pago: No pagado</span></div>
+  </div>
+</section>
+
+<!-- 22 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="22">
+  <div class="content wide">
+    <span class="eyebrow">Los avisos</span>
+    <h2 class="st">El paciente nunca<br>tiene que <span class="a">preguntar.</span></h2>
+    <div class="tbl">
+      <div class="tr th"><span>Momento</span><span>Aviso</span><span>Mail</span><span>Lo abre en</span></div>
+      <div class="tr"><span>Receta emitida</span><span>"Tu receta ya está disponible en farmacia"</span><span>Tu receta, con link a la farmacia</span><span>Farmacia</span></div>
+      <div class="tr"><span>Pago aprobado</span><span>"Pedido confirmado"</span><span>"Pedido confirmado · Farmacia Healthier"</span><span>Seguir mi pedido</span></div>
+      <div class="tr"><span>En preparación</span><span>— (a propósito, para no saturar)</span><span>—</span><span>—</span></div>
+      <div class="tr"><span>Enviado</span><span>"Tu pedido está en camino"</span><span>"En camino · pedido #…"</span><span>El pedido, con el código</span></div>
+      <div class="tr"><span>Entregado</span><span>"Pedido entregado"</span><span>"Tu pedido fue entregado"</span><span>El pedido</span></div>
+      <div class="tr"><span>Cancelado</span><span>"Tu pedido se canceló"</span><span>"Pedido cancelado"</span><span>El pedido, con el motivo</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 23 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="23">
+  <div class="content wide">
+    <span class="eyebrow gold">La plata</span>
+    <h2 class="st">Cobra la farmacia.<br>Healthier, su <span class="ag">comisión.</span></h2>
+    <div class="fg three">
+      <div class="fc"><span class="n g">01</span><h3>Cobro directo</h3><p>Al confirmar el pedido, sin reservas en la tarjeta y sin Healthy Credits.</p></div>
+      <div class="fc"><span class="n g">02</span><h3>A la cuenta de la farmacia</h3><p>Se cobra con su propio Mercado Pago: la plata entra directo ahí.</p></div>
+      <div class="fc"><span class="n g">03</span><h3>La comisión, en el mismo cobro</h3><p>Mercado Pago descuenta la comisión de Healthier en el momento. Hoy, 20%.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 24 ────────────────────────────────────────────── -->
+<section class="slide slide-rose" data-slide="24">
+  <div class="content wide">
+    <span class="eyebrow danger">Lo que falta antes de abrirlo</span>
+    <h2 class="st">Hoy lo ve<br>el <span class="ad">equipo.</span></h2>
+    <p class="lead">En producción la farmacia está viva sólo para las cuentas del equipo. En staging la ve todo el mundo. Esto es lo que queda:</p>
+    <div class="fg three">
+      <div class="fc"><span class="n d">Cobro</span><h3>El Mercado Pago de la farmacia</h3><p>Sin conectar en producción ni en staging: el cobro real nunca se recorrió de punta a punta. Esta prueba marcó el pago desde la base.</p></div>
+      <div class="fc"><span class="n d">Devolución</span><h3>Cancelar no devuelve la plata</h3><p>El mail y el aviso dicen que la devolución sale sola, pero cancelar sólo cambia el estado.</p></div>
+      <div class="fc"><span class="n d">Aviso</span><h3>A la farmacia no le avisa nada</h3><p>No le llega aviso de pedido nuevo y su lista no se actualiza sola. Además ve los carritos sin pagar como "Pendiente".</p></div>
+      <div class="fc"><span class="n g">Stock</span><h3>El stock no baja</h3><p>Vender no descuenta del catálogo.</p></div>
+      <div class="fc"><span class="n g">Acceso</span><h3>"Comprar todos" fuera de la lista</h3><p>Desde la receta en la web, y en la app en <code>main</code>, se puede comprar aunque la cuenta no esté habilitada.</p></div>
+      <div class="fc"><span class="n l">A decidir</span><h3>Retiro y más farmacias</h3><p>Hoy hay una sola farmacia, sólo envío. El aviso de receta dice "retirá o pedí delivery", pero no hay retiro.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 25 ────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="25">
+  <div class="content">
+    <span class="eyebrow onsage">En una línea</span>
+    <h2 class="st">El médico receta.<br>El paciente decide.<br>La farmacia entrega.</h2>
+    <p class="lead">Healthier está en el medio: cruza la receta con el catálogo, cobra por cuenta de la farmacia y confirma la entrega con un código.</p>
+    <div class="pill-row">
+      <span class="pill">18 pantallas capturadas en staging</span>
+      <span class="pill">App + panel web</span>
+      <span class="pill">2026-09-30</span>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+const slides=[...document.querySelectorAll('.slide')];
+const TOTAL=slides.length;
+const dotsEl=document.getElementById('dots');
+const counter=document.getElementById('counter');
+const progress=document.querySelector('.progress-bar');
+const btnPrev=document.getElementById('btn-prev');
+const btnNext=document.getElementById('btn-next');
+let current=1;
+
+slides.forEach((_,i)=>{
+  const d=document.createElement('span');
+  d.className='dot'+(i===0?' active':'');
+  d.addEventListener('click',()=>goTo(i+1));
+  dotsEl.appendChild(d);
+});
+
+function pad(n){return String(n).padStart(2,'0')}
+
+function goTo(n){
+  if(n<1||n>TOTAL||n===current) return;
+  slides[current-1].classList.remove('active');
+  current=n;
+  slides[current-1].classList.add('active');
+  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===current-1));
+  counter.textContent=`${pad(current)} / ${pad(TOTAL)}`;
+  progress.style.width=`${(current/TOTAL)*100}%`;
+  btnPrev.classList.toggle('hidden',current===1);
+  btnNext.classList.toggle('hidden',current===TOTAL);
+  history.replaceState(null,'',`#${current}`);
+
+  const s=slides[current-1];
+  const dark=s.classList.contains('slide-dark')||s.classList.contains('slide-sage');
+  const nav=document.getElementById('nav');
+  nav.style.background=dark?'rgba(0,0,0,.25)':'rgba(246,245,240,.82)';
+  nav.style.borderBottomColor=dark?'rgba(255,255,255,.12)':'var(--border)';
+  counter.style.color=dark?'rgba(255,255,255,.45)':'var(--text-tertiary)';
+  document.getElementById('brand').style.color=dark?'#fff':'var(--sage)';
+  document.querySelectorAll('.dot').forEach(d=>{
+    d.style.background=dark
+      ?(d.classList.contains('active')?'#fff':'rgba(255,255,255,.28)')
+      :(d.classList.contains('active')?'var(--sage)':'var(--border)');
+  });
+}
+
+btnNext.addEventListener('click',()=>goTo(current+1));
+btnPrev.addEventListener('click',()=>goTo(current-1));
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='Enter'){e.preventDefault();goTo(current+1)}
+  else if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();goTo(current-1)}
+  else if(e.key==='Home'){e.preventDefault();goTo(1)}
+  else if(e.key==='End'){e.preventDefault();goTo(TOTAL)}
+  else if(e.key==='f'||e.key==='F'){
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  }
+});
+
+document.getElementById('deck').addEventListener('click',e=>{
+  if(e.target.closest('button')||e.target.closest('a')||e.target.closest('img')) return;
+  const x=e.clientX/window.innerWidth;
+  if(x<0.25) goTo(current-1); else if(x>0.75) goTo(current+1);
+});
+
+let tx=0;
+document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX},{passive:true});
+document.addEventListener('touchend',e=>{
+  const dx=tx-e.changedTouches[0].clientX;
+  if(Math.abs(dx)>50) dx>0?goTo(current+1):goTo(current-1);
+},{passive:true});
+
+counter.textContent=`01 / ${pad(TOTAL)}`;
+const hash=parseInt(location.hash.replace('#',''));
+if(hash>=1&&hash<=TOTAL&&hash!==1) goTo(hash);
+</script>
+
+</body>
+</html>

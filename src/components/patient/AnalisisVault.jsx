@@ -87,7 +87,7 @@ export default function AnalisisVault({ profile }) {
           <p className="font-semibold text-text-primary text-[15px]">Subir un análisis</p>
           <p className="text-xs text-text-secondary mt-1">
             Queda guardado en tu historia y tu profesional puede verlo. Después, si querés,
-            lo analizás en el BioVisor para extraer tus biomarcadores.
+            lo analizamos para extraer tus valores.
           </p>
         </div>
 
@@ -137,7 +137,7 @@ export default function AnalisisVault({ profile }) {
             onClick={() => irAlBiovisor(recienSubido)}
             className="btn-primary w-full py-3 text-sm flex items-center justify-center gap-2"
           >
-            <Sparkle size={16} weight="fill" /> Analizar en BioVisor
+            <Sparkle size={16} weight="fill" /> Analizar
           </button>
         </div>
       )}
@@ -196,7 +196,7 @@ export default function AnalisisVault({ profile }) {
                   className="w-full py-2.5 rounded-xl border border-brand/40 text-brand font-medium text-xs flex items-center justify-center gap-1.5 hover:bg-brand/5 transition-colors"
                 >
                   <Sparkle size={14} weight="fill" />
-                  {analizado ? 'Ver en BioVisor' : 'Analizar en BioVisor'}
+                  {analizado ? 'Ver resultados' : 'Analizar'}
                 </button>
               </div>
             )

@@ -1,6 +1,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
-import { construir, type Datos, type Tipo } from '../_shared/push/textos.ts'
+import { AVISOS, construir, type Datos, type Tipo } from '../_shared/push/textos.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,6 +18,8 @@ async function datosDelAviso(
   const datos: Datos = {
     motivo: (p.motivo as string) ?? null,
     permanente: Boolean(p.permanente),
+    monto: p.monto == null ? null : Number(p.monto),
+    aCreditos: Boolean(p.aCreditos),
   }
 
   if (p.consultationId) {
@@ -59,6 +61,7 @@ async function datosDelAviso(
   }
 
   if (p.prescriptionId) {
+    datos.prescriptionId = p.prescriptionId as string
     const { data } = await supabase
       .from('clinical_medications')
       .select('medication_name, nombre_droga')
@@ -113,6 +116,31 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ preview: { title, body, url } }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
+    }
+
+    /*
+     * La campanita del paciente (migración 167). Se guarda ACÁ, con el texto ya
+     * resuelto, para que la campanita y el push digan exactamente lo mismo. Y
+     * antes de mirar los tokens: quien no tiene el push activado es justamente
+     * el que más necesita verla. Sólo los avisos del catálogo dirigidos al
+     * paciente — la forma vieja con título suelto son pruebas y avisos al
+     * profesional, que no tienen campanita.
+     */
+    if (tipo && AVISOS[tipo]?.para === 'paciente') {
+      const uuid = (v: unknown) =>
+        typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v) ? v : null
+      const { error: notifErr } = await supabase.from('notificaciones').insert({
+        user_id: userId,
+        tipo,
+        titulo: title,
+        cuerpo: body ?? null,
+        url: url ?? null,
+        consultation_id: uuid(payloadIn.consultationId),
+        order_id: uuid(payloadIn.orderId),
+        prescription_id: payloadIn.prescriptionId ? String(payloadIn.prescriptionId) : null,
+      })
+      // Que falle la campanita no puede frenar el push.
+      if (notifErr) console.error(`[push] no se guardó la notificación: ${notifErr.message}`)
     }
 
     // ── Web push (VAPID) — suscripciones del website ──

@@ -18,7 +18,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const ALLOWED_REDIRECT_PREFIX = 'https://gethealthier.vercel.app/'
+// El website de ESTE entorno. En staging va el secret `WEBSITE_URL`
+// (gethealthier-staging); sin él, producción. Antes estaba fijo y en staging
+// "Añadir tarjeta" daba "redirectTo inválido".
+const ALLOWED_REDIRECT_PREFIX = `${(Deno.env.get('WEBSITE_URL') ?? 'https://gethealthier.vercel.app').replace(/\/$/, '')}/`
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
