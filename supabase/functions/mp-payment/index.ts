@@ -759,7 +759,7 @@ Deno.serve(async (req) => {
     // --- 3. Platform settings ---
     const { data: settings, error: settingsErr } = await serviceSupabase
       .from('platform_settings')
-      .select('commission_rate, mp_fee_estimate_rate')
+      .select('mp_fee_estimate_rate')
       .eq('id', 1)
       .single()
 
@@ -770,7 +770,29 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-    const { commission_rate: commissionRate, mp_fee_estimate_rate: mpFeeEstimateRate } = settings as PlatformSettings
+    const { mp_fee_estimate_rate: mpFeeEstimateRate } = settings as PlatformSettings
+
+    // --- 3b. Comisión de Healthier para ESTE cobro (migración 184) ---
+    // Una sola fuente para web, app y consulta inmediata: `comision_efectiva`
+    // decide entre referido (0), la tasa propia vigente del profesional o la
+    // general. Mira al paciente de la consulta, no al titular que paga. Se usa
+    // la tasa vigente AHORA y queda guardada en el pago.
+    const { data: comision, error: comisionErr } = await serviceSupabase
+      .rpc('comision_efectiva', {
+        p_professional_id: consultation.professional_id,
+        p_patient_id: consultation.patient_id,
+      })
+      .single()
+    if (comisionErr || !comision) {
+      console.error('mp-payment: comision_efectiva falló:', comisionErr?.message)
+      return new Response(
+        JSON.stringify({ data: null, error: 'Platform settings unavailable' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    const commissionRate = Number((comision as { rate: number }).rate)
+    const commissionSource = (comision as { origen: string }).origen
+    const comisionAplicada = { commission_rate_applied: commissionRate, commission_source: commissionSource }
 
     // --- 4. Credits ---
     let creditsUsed = 0
@@ -825,6 +847,7 @@ Deno.serve(async (req) => {
         net_to_professional: netToProfessional,
         manual_settlement_amount: netToProfessional,
         currency: 'ARS',
+        ...comisionAplicada,
         status: 'approved',
         status_detail: 'credits_full_cover',
       })
@@ -893,7 +916,7 @@ Deno.serve(async (req) => {
     }
     const sellerAccessToken = refreshResult.accessToken
 
-    // ── Split 20/80 flat (decisión de Mateo, 2026-07-29) ──────────────────────
+    // ── Split flat (decisión de Mateo, 2026-07-29) — tasa por profesional desde la 184 ──
     //
     // Healthier cobra su comisión COMPLETA sobre el bruto. El fee de Mercado
     // Pago lo paga el profesional: en un marketplace el que cobra es el
@@ -1076,6 +1099,7 @@ Deno.serve(async (req) => {
         net_to_professional: netToProfessional,
         manual_settlement_amount: manualSettlementAmount,
         currency: 'ARS',
+        ...comisionAplicada,
         status: 'rejected',
         status_detail: mpData.status_detail ?? mpData.message ?? mpData.error ?? 'mp_request_failed',
         collector_id: account.mp_user_id,
@@ -1114,6 +1138,7 @@ Deno.serve(async (req) => {
       net_to_professional: netToProfessional,
       manual_settlement_amount: manualSettlementAmount,
       currency: 'ARS',
+      ...comisionAplicada,
       status: paymentsStatus,
       status_detail: mpData.status_detail ?? '',
       collector_id: account.mp_user_id,

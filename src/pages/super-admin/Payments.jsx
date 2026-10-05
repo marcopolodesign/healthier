@@ -12,6 +12,9 @@ import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialo
 // es un path, no una URL: un <a href> tira 404. SignedDocLink firma al hacer
 // click, en vez de firmar todas las filas de la tabla al cargar la página.
 import SignedDocLink from '../../components/SignedDocLink'
+import { formatTasa } from '../../services/comisionService'
+
+const ORIGEN_COMISION = { general: 'general', profesional: 'tasa propia', referido: 'referido' }
 
 const METHOD_LABELS = { card: 'Tarjeta', credits: 'Créditos', mixed: 'Mixto' }
 // 'authorized' / 'cancelled' come from the on-demand pre-authorization flow
@@ -698,7 +701,16 @@ export default function SuperAdminPayments() {
                       <td className="table-cell text-right text-text-tertiary">{p.creditsUsed > 0 ? formatARS(p.creditsUsed) : '—'}</td>
                       <td className="table-cell text-right">{formatARS(p.chargedAmount)}</td>
                       <td className="table-cell text-right text-text-tertiary">{formatARS(p.mpFeeActual ?? p.mpFeeEstimated)}</td>
-                      <td className="table-cell text-right text-text-tertiary">{formatARS(commission)}</td>
+                      <td className="table-cell text-right text-text-tertiary">
+                        {formatARS(commission)}
+                        {/* Tasa aplicada en ESTE cobro y de dónde salió (migración 184).
+                            Los pagos anteriores no la guardaron. */}
+                        {p.commissionRateApplied != null && (
+                          <span data-testid="tasa-aplicada" className={`block text-[10px] whitespace-nowrap ${p.commissionSource === 'general' ? 'text-text-muted' : 'text-emerald-700 font-medium'}`}>
+                            {formatTasa(p.commissionRateApplied)} · {ORIGEN_COMISION[p.commissionSource] ?? p.commissionSource}
+                          </span>
+                        )}
+                      </td>
                       <td className="table-cell text-right font-semibold">
                         {formatARS(p.mpNetReceivedAmount ?? p.netToProfessional)}
                         {p.mpNetReceivedAmount == null && (
