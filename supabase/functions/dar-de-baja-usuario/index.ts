@@ -12,8 +12,8 @@
 // Si el paso 2 falla, el perfil ya quedó dado de baja; reintentar es seguro
 // (el paso 1 no pisa el mail original guardado).
 //
-// Sólo la puede llamar un super_admin. Devuelve el resultado de cada id con el
-// error real, para que el panel lo muestre tal cual.
+// Sólo la puede llamar un super_admin. Devuelve `{ resultados }` con el error
+// real de cada id, para que el panel lo muestre tal cual.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const cors = {
@@ -40,26 +40,30 @@ Deno.serve(async (req: Request) => {
     const { ids } = await req.json().catch(() => ({ ids: null }))
     if (!Array.isArray(ids) || ids.length === 0) return json({ error: 'Faltan los ids a dar de baja' }, 400)
 
-    const resultados = []
-    for (const id of ids) {
-      const { data, error } = await admin.rpc('dar_de_baja_perfil', { p_target: id, p_actor: caller.id })
-      if (error) { resultados.push({ id, ok: false, error: error.message }); continue }
+    // De a varios a la vez: una baja masiva desde el panel no puede quedar
+    // esperando 2×N llamadas en fila.
+    const darDeBaja = async (id: string) => {
+      const { data: alias, error } = await admin.rpc('dar_de_baja_perfil', { p_target: id, p_actor: caller.id })
+      if (error) return { id, ok: false, error: error.message }
 
       const { error: authErr } = await admin.auth.admin.updateUserById(id, {
-        email: data.alias,
+        email: alias,
         email_confirm: true,
         ban_duration: '876000h',
       })
       // Un perfil sin auth.users (filas viejas) igual queda dado de baja.
       if (authErr && !/not.?found/i.test(authErr.message)) {
-        resultados.push({ id, ok: false, error: `El perfil quedó dado de baja, pero no se pudo liberar el mail: ${authErr.message}` })
-        continue
+        return { id, ok: false, error: `El perfil quedó dado de baja, pero no se pudo liberar el mail: ${authErr.message}` }
       }
-      resultados.push({ id, ok: true })
+      return { id, ok: true }
     }
 
-    const fallidos = resultados.filter(r => !r.ok)
-    return json({ resultados, ok: fallidos.length === 0 }, fallidos.length === resultados.length ? 422 : 200)
+    const resultados = []
+    for (let i = 0; i < ids.length; i += 5) {
+      resultados.push(...await Promise.all(ids.slice(i, i + 5).map(darDeBaja)))
+    }
+    // Siempre 200 con el resultado de cada id: el panel arma el mensaje.
+    return json({ resultados })
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500)
   }

@@ -16,7 +16,7 @@
  *   3. El perfil queda con alias, sin teléfono ni foto, `deleted_at`; el mail de
  *      `auth.users` es el alias y está baneado; no puede entrar con su mail; la
  *      HC sigue entera; un DELETE del perfil choca contra el RESTRICT.
- *   4. Se quiere registrar con el mismo mail → `consultar` dice que está dado
+ *   4. Se quiere registrar con el mismo mail → `cuenta_dada_de_baja` dice que está dado
  *      de baja; `solicitar` manda el mail (queda en email_log).
  *   5. `confirmar` con el token del mail → entra con su mail y la contraseña
  *      nueva, el perfil vuelve como estaba y la HC sigue con el mismo id.
@@ -104,7 +104,7 @@ try {
   const sinPermiso = await funcion('dar-de-baja-usuario', { ids: [userId] }, await sesionDe('paciente@healthier.app'))
   ok(sinPermiso.status === 403, `un paciente no puede dar de baja (HTTP ${sinPermiso.status})`)
   const baja = await funcion('dar-de-baja-usuario', { ids: [userId] }, tokenSuper)
-  ok(baja.status === 200 && baja.json?.ok, `el super admin lo da de baja (HTTP ${baja.status} ${JSON.stringify(baja.json)})`)
+  ok(baja.status === 200 && baja.json?.resultados?.every(r => r.ok), `el super admin lo da de baja (HTTP ${baja.status} ${JSON.stringify(baja.json)})`)
 
   // 3 ─ Cómo quedó
   const [perfil] = await sql(`select email, phone, avatar_url, deleted_at, deleted_by from public.profiles where id = '${userId}'`)
@@ -127,10 +127,11 @@ try {
   ok(!leidoPorCliente?.length, 'bajas_de_usuarios no la lee un cliente')
 
   // 4 ─ Vuelve con el mismo mail
-  const consulta = await funcion('reactivar-cuenta', { accion: 'consultar', email: EMAIL.toUpperCase() })
-  ok(consulta.json?.dadoDeBaja === true, 'el registro detecta la cuenta dada de baja')
-  const otraConsulta = await funcion('reactivar-cuenta', { accion: 'consultar', email: `nadie.${ts}@staging.healthier.app` })
-  ok(otraConsulta.json?.dadoDeBaja === false, 'un mail cualquiera no figura como dado de baja')
+  // Como lo pregunta el registro: sin sesión, por el RPC.
+  const { data: dadoDeBaja } = await nuevoAnon().rpc('cuenta_dada_de_baja', { p_email: ` ${EMAIL.toUpperCase()} ` })
+  ok(dadoDeBaja === true, 'el registro detecta la cuenta dada de baja')
+  const { data: otro } = await nuevoAnon().rpc('cuenta_dada_de_baja', { p_email: `nadie.${ts}@staging.healthier.app` })
+  ok(otro === false, 'un mail cualquiera no figura como dado de baja')
   const pedido = await funcion('reactivar-cuenta', { accion: 'solicitar', email: EMAIL })
   const [log] = await sql(`select estado, destinatario, error from public.email_log where usuario_id = '${userId}' and tipo = 'reactivar-cuenta' order by created_at desc limit 1`)
     .catch(() => [])
