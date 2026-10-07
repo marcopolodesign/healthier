@@ -18,6 +18,11 @@
 --    expone `dni`.
 -- No se agrega nacionalidad al registro (decisión de Mateo).
 --
+-- Las cuentas de prueba (`profiles.es_prueba`, migración 186) dejan de salir
+-- en cio.people (Mateo, 2026-10-07): ni las demo ni las que crean las pruebas
+-- automáticas (p. ej. `qa-alta-…@healthier.app` del alta E2E) tienen que entrar
+-- a Customer.io ni a sus métricas.
+--
 -- Además: cio.base_url() pasa a https://www.healthier.com.ar (regla de Mateo
 -- del 2026-10-07: todo link que se redacta va con el dominio propio).
 --
@@ -172,4 +177,4 @@ create or replace view cio.people with (security_invoker = false) as
    FROM profiles p
      LEFT JOIN professional_profiles pp ON pp.user_id = p.id
      CROSS JOIN LATERAL ( SELECT cio.to_e164_ar(p.phone) AS e164) tel
-  WHERE p.deleted_at IS NULL AND p.titular_id IS NULL;
+  WHERE p.deleted_at IS NULL AND p.titular_id IS NULL AND NOT p.es_prueba;

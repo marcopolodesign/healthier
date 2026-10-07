@@ -45,6 +45,11 @@ select 'documento_extranjero es NULL sólo sin DNI', count(*) = 0, count(*)
   from cio.people
  where (documento_extranjero is null) <> (not tiene_dni)
 union all
+select 'ninguna cuenta de prueba sale en cio.people', count(*) = 0, count(*)
+  from cio.people
+ where email ilike '%@healthier.app' or email ilike '%@staging.healthier.app'
+    or email ilike 'qa-alta-%' or email ilike '%.test'
+union all
 select 'base_url es el dominio propio', cio.base_url() = 'https://www.healthier.com.ar', null
 union all
 select 'ningún link de reserva apunta a vercel', count(*) = 0, count(*)
