@@ -17,7 +17,13 @@ export const esProduccion = String(import.meta.env.VITE_SUPABASE_URL ?? '').incl
  * (decisión del 2026-08-29, confirmada por Mateo el 2026-09-02). En staging se
  * ve entera, y en producción la ven sólo estas cuentas para poder probarla.
  */
-const FARMACIA_ALLOWLIST = ['paciente@healthier.app', 'mateoaldao@gmail.com']
+const FARMACIA_ALLOWLIST = [
+  'paciente@healthier.app',
+  'mateoaldao@gmail.com',
+  // Uri (sus dos cuentas) — sólo farmacia, no emergencias
+  'uri.armanazqui@gmail.com',
+  'uarmanazqui@gmail.com',
+]
 
 export function farmaciaVisible(profile) {
   if (!esProduccion) return true
