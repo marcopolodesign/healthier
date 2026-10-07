@@ -81,6 +81,14 @@ export default function OnDemandSwitch({ profileId, value, onChange }) {
   }, [profileId])
 
   // Tick de un minuto sólo para recalcular "vencido" en pantalla — no pega a la red.
+  // Prendido desde afuera (el modal "¿Estás disponible…?" del inicio): sin esto
+  // la tarjeta no tenía la vigencia recién escrita y decía "Ya no te ven" justo
+  // después de activar.
+  useEffect(() => {
+    if (cargado && value && !lastSeenAt) cargarEstado()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+
   useEffect(() => {
     const iv = setInterval(() => setTick(t => t + 1), 60_000)
     return () => clearInterval(iv)
