@@ -162,6 +162,28 @@ try {
   const [hc2] = await sql(`select count(*) n from public.clinical_notes where id = '${nota.id}' and patient_id = '${userId}'`)
   ok(Number(hc2.n) === 1, 'la HC sigue con el mismo paciente después de reactivar')
 
+  // 6b ─ Un profesional dado de baja no lo ve un paciente (sí el staff). Corre
+  // en un bloque que termina siempre con error, así que no deja nada cambiado.
+  const visibilidad = await sql(`do $$
+    declare pac uuid; sa uuid; pro uuid; a int; b int; c int; d int;
+    begin
+      select id into pac from profiles where email = 'paciente@healthier.app' and titular_id is null limit 1;
+      select id into sa from profiles where email = 'superadmin@healthier.app' limit 1;
+      select id into pro from profiles where email = 'profesional@healthier.app' limit 1;
+      perform set_config('request.jwt.claims', json_build_object('sub', pac, 'role', 'authenticated')::text, true);
+      set local role authenticated; select count(*) into a from professional_profiles where user_id = pro; reset role;
+      update profiles set deleted_at = now() where id = pro;
+      set local role authenticated; select count(*) into b from professional_profiles where user_id = pro; reset role;
+      perform set_config('request.jwt.claims', json_build_object('sub', sa, 'role', 'authenticated')::text, true);
+      set local role authenticated; select count(*) into c from professional_profiles where user_id = pro; reset role;
+      update profiles set deleted_at = null where id = pro;
+      perform set_config('request.jwt.claims', json_build_object('sub', pac, 'role', 'authenticated')::text, true);
+      set local role authenticated; select count(*) into d from professional_profiles where user_id = pro; reset role;
+      raise exception 'VISIBILIDAD %/%/%/%', a, b, c, d;
+    end $$;`).then(() => '', e => e.message)
+  ok(/VISIBILIDAD 1\/0\/1\/1/.test(visibilidad),
+    `profesional dado de baja: el paciente no lo ve, el super admin sí, y vuelve al reactivarlo (${visibilidad.match(/VISIBILIDAD [\d/]+/)?.[0] ?? visibilidad})`)
+
   // 6 ─ Alta con un mail que ya existe
   const { error: dup } = await nuevoAnon().auth.signUp({ email: EMAIL, password: 'Otra-123456' })
   ok(dup?.code === 'user_already_exists' || /already registered/i.test(dup?.message ?? ''),

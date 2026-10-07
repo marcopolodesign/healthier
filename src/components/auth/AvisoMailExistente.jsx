@@ -62,7 +62,7 @@ export default function AvisoMailExistente({ code, email, onCrearNueva }) {
         <WarningCircle weight="fill" className="h-4 w-4 mt-0.5 shrink-0 text-brand-secondary" />
         <span>
           Ese mail tenía una cuenta en Healthier que fue dada de baja. Podés recuperarla con tu historial
-          de consultas e historia clínica: te mandamos un link a <strong>{email}</strong>.
+          de consultas e historia clínica: te vamos a mandar un link a <strong>{email}</strong>.
         </span>
       </p>
       {error && <p className="text-danger pl-6">{error}</p>}
