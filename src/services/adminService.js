@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { bajaService } from './bajaService'
 
 export const adminService = {
   async promoteUser(email, role = 'admin') {
@@ -9,13 +10,18 @@ export const adminService = {
     if (error) throw new Error(error.message || 'Error al cambiar el rol del usuario')
   },
 
-  /** Borra uno o más perfiles (profiles.id) — cascada a professional_profiles,
-   *  consultas, etc. según las FK de la base. Falla (y hay que dejar que el
-   *  error llegue al usuario) si el perfil tiene historia clínica: la Ley
-   *  26.529 exige retención de 10 años y hay triggers que lo bloquean a propósito. */
+  /** "Eliminar" del super admin: es una baja lógica (migración 188), nunca un
+   *  DELETE. El perfil y su historia clínica se conservan (Ley 26.529), el mail
+   *  pasa a un alias y se libera, y la persona queda sin acceso hasta que
+   *  recupere la cuenta. Si alguno falla, tira con el error real de cada uno. */
   async deleteProfiles(ids) {
-    const { error } = await supabase.from('profiles').delete().in('id', ids)
-    if (error) throw new Error(error.message || 'Error al eliminar')
+    const { resultados = [] } = await bajaService.darDeBaja(ids)
+    const fallidos = resultados.filter(r => !r.ok)
+    if (fallidos.length) {
+      const detalle = fallidos.map(f => f.error).join(' · ')
+      const hechos = resultados.length - fallidos.length
+      throw new Error(hechos ? `Se dieron de baja ${hechos}, fallaron ${fallidos.length}: ${detalle}` : detalle)
+    }
   },
 
   /** Devuelve un magic link que loguea como `targetUserId` — la Edge Function

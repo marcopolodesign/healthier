@@ -49,3 +49,9 @@ verify_jwt = false
 
 [functions.mp-refresh-tokens]
 verify_jwt = false
+
+# reactivar-cuenta (migración 188): la llama alguien SIN sesión desde el
+# registro, para recuperar una cuenta dada de baja. La seguridad está en el
+# token de un solo uso que sólo llega al mail original, no en el gateway.
+[functions.reactivar-cuenta]
+verify_jwt = false

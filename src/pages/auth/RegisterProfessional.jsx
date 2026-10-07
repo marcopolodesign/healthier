@@ -10,19 +10,22 @@ import PhoneInput from '../../components/common/PhoneInput'
 import NombreApellidoInputs from '../../components/common/NombreApellidoInputs'
 import { validarNombreApellido } from '../../lib/nombreApellido'
 import { track } from '../../utils/analytics'
+import AvisoMailExistente from '../../components/auth/AvisoMailExistente'
 
 export default function RegisterProfessional({ onLogin }) {
   const [step, setStep] = useState('choose')
   const [form, setForm] = useState({ nombre: '', apellido: '', email: '', password: '', phone: '' })
   const [loading, setLoading] = useState(false)
+  const [aviso, setAviso] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
     track('sign_up_start', { step: 1, step_name: 'cuenta', flow: 'profesional', app_path: '/registro-profesional' })
   }, [])
 
-  const submit = async (e) => {
-    e.preventDefault()
+  const submit = async (e, { ignorarBaja = false } = {}) => {
+    e?.preventDefault()
+    setAviso(null)
     track('sign_up_method_selected', { method: 'email', step: 1, flow: 'profesional' })
     const errorNombre = validarNombreApellido(form.nombre, form.apellido)
     if (errorNombre) {
@@ -42,16 +45,18 @@ export default function RegisterProfessional({ onLogin }) {
       // adelantarse al `navigate` de abajo. Ver `lib/postSignupRedirect.js`.
       marcarDestinoPostRegistro('/profesional/onboarding')
       const utms = getStoredUtms()
-      await authService.register(form.email, form.password, 'professional', { nombre: form.nombre, apellido: form.apellido }, utms, form.phone.trim() || null)
+      await authService.register(form.email, form.password, 'professional', { nombre: form.nombre, apellido: form.apellido }, utms, form.phone.trim() || null, null, { ignorarBaja })
       clearUtms()
       track('sign_up_step_complete', { step: 1, step_name: 'cuenta', method: 'email', flow: 'profesional' })
       const { profile } = await authService.login(form.email, form.password)
       onLogin(profile)
       navigate('/profesional/onboarding')
     } catch (err) {
-      const error_type = /already registered/i.test(err.message) ? 'email_ya_registrado' : 'server_error'
+      const error_type = err.code === 'MAIL_YA_REGISTRADO' ? 'email_ya_registrado'
+        : err.code === 'CUENTA_DADA_DE_BAJA' ? 'email_dado_de_baja' : 'server_error'
       track('sign_up_error', { step: 1, step_name: 'cuenta', error_type, flow: 'profesional' })
-      toast.error(err.message)
+      if (err.code) setAviso(err.code)
+      else toast.error(err.message)
     } finally {
       setLoading(false)
     }
@@ -161,6 +166,10 @@ export default function RegisterProfessional({ onLogin }) {
             />
           </div>
         </div>
+
+        {aviso && (
+          <AvisoMailExistente code={aviso} email={form.email.trim()} onCrearNueva={() => submit(null, { ignorarBaja: true })} />
+        )}
 
         <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-2 disabled:opacity-40 disabled:cursor-not-allowed">
           {loading ? 'Creando cuenta...' : 'Crear cuenta'}

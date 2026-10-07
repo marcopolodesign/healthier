@@ -1109,6 +1109,7 @@ export default function SuperAdminProfesionales() {
         supabase
           .from('professional_profiles')
           .select('id, specialty, is_verified, is_active, verification_source, sisa_status, mp_connected, mp_account_label, has_signature, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, price_video, price_presencial, session_price, license_number, address, latitude, longitude, profiles!user_id(id, full_name, email, phone, dni, gender, created_at, utm_source, avatar_url)')
+          .eq('dado_de_baja', false) // bajas lógicas (188) fuera
           .order('created_at', { ascending: false }),
         supabase.from('consultations').select('professional_id'),
       ])
@@ -1162,8 +1163,8 @@ export default function SuperAdminProfesionales() {
     { key: 'sin-mp', label: 'Sin MP' },
   ]
 
-  // El id borrable es el del profile (profiles.id), no el de professional_profiles —
-  // deleteProfiles cascadea profiles → professional_profiles/consultas/etc.
+  // El id a dar de baja es el del profile (profiles.id), no el de professional_profiles.
+  // "Eliminar" es una baja lógica (migración 188): no se borra nada.
   const selection = useBulkSelection(filtered.map(p => p.profiles?.id).filter(Boolean))
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -1416,7 +1417,7 @@ export default function SuperAdminProfesionales() {
       <ConfirmDeleteDialog
         open={confirmOpen}
         title={`Eliminar ${selection.count} profesional${selection.count === 1 ? '' : 'es'}`}
-        message="Esta acción no se puede deshacer. Si tiene historia clínica escrita, la ley 26.529 impide borrarlo."
+        message="Se da de baja: pierde el acceso y su mail queda libre. Su historia clínica se conserva (ley 26.529) y, si vuelve con el mismo mail, puede recuperar la cuenta."
         loading={deleting}
         onConfirm={() => deleteSelected(selection.selectedIds)}
         onCancel={() => setConfirmOpen(false)}

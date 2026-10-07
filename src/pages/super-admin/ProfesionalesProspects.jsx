@@ -228,6 +228,7 @@ export default function SuperAdminProfesionalesProspects() {
           .from('profiles')
           .select('id, email, full_name, phone, created_at, onboarding_step, onboarding_draft, utm_source, utm_medium, utm_campaign, referrer_url')
           .eq('role', 'professional')
+          .is('deleted_at', null) // bajas lógicas (188) fuera
           .order('created_at', { ascending: false }),
         supabase.from('professional_profiles').select('user_id'),
       ]);
@@ -525,7 +526,7 @@ export default function SuperAdminProfesionalesProspects() {
       <ConfirmDeleteDialog
         open={confirmOpen}
         title={`Eliminar ${selection.count} prospecto${selection.count === 1 ? '' : 's'}`}
-        message="Esta acción no se puede deshacer."
+        message="Se da de baja: pierde el acceso y su mail queda libre. Su historia clínica se conserva (ley 26.529) y, si vuelve con el mismo mail, puede recuperar la cuenta."
         loading={deleting}
         onConfirm={() => deleteSelected(selection.selectedIds)}
         onCancel={() => setConfirmOpen(false)}

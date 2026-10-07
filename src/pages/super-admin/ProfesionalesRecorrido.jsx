@@ -163,6 +163,7 @@ export default function SuperAdminProfesionalesRecorrido() {
           .from('profiles')
           .select('id, email, full_name, phone, created_at, onboarding_step, utm_source, utm_campaign')
           .eq('role', 'professional')
+          .is('deleted_at', null) // bajas lógicas (188) fuera
           .order('created_at', { ascending: false }),
         supabase
           .from('professional_profiles')
