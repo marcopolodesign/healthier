@@ -425,6 +425,27 @@ Deno.serve(async (req) => {
         )
       }
 
+      // Recuperar una cuenta dada de baja (migración 188). El mail va al
+      // correo ORIGINAL guardado en `bajas_de_usuarios` (el perfil tiene el
+      // alias), y el token se lee acá con service role: la tabla no tiene una
+      // sola policy, igual que email_change_requests.
+      case 'reactivar-cuenta': {
+        if (!body.userId) return json({ error: 'Falta userId' }, 400)
+        const { data: baja } = await sb
+          .from('bajas_de_usuarios')
+          .select('email_original, reactivacion_token')
+          .eq('user_id', body.userId)
+          .is('reactivado_at', null)
+          .maybeSingle()
+        if (!baja?.reactivacion_token) return json({ error: 'No hay un pedido de recuperación vigente' }, 404)
+        const u = await leerPerfil(sb, body.userId)
+        const sent = T.reactivarCuenta({
+          name: primerNombre(u?.full_name) ?? 'qué tal',
+          token: baja.reactivacion_token,
+        })
+        return await salida({ usuarioId: body.userId }, [{ to: baja.email_original, ...sent }])
+      }
+
       case 'pro-verificado':
         return await porUsuario(u => T.profesionalVerificado({ name: u.full_name ?? 'profesional' }))
 

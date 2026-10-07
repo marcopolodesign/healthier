@@ -26,6 +26,7 @@ export default function SuperAdminUsuarios() {
           .from('profiles')
           .select('id, email, full_name, created_at, utm_source, utm_medium, utm_campaign, es_prueba')
           .eq('role', 'patient')
+          .is('deleted_at', null) // bajas lógicas (188) fuera
           .order('created_at', { ascending: false }),
         supabase
           .from('consultations')
@@ -287,7 +288,7 @@ export default function SuperAdminUsuarios() {
       <ConfirmDeleteDialog
         open={confirmOpen}
         title={`Eliminar ${selection.count} usuario${selection.count === 1 ? '' : 's'}`}
-        message="Esta acción no se puede deshacer. Si el usuario tiene historia clínica, la ley 26.529 impide borrarlo."
+        message="Se da de baja: pierde el acceso y su mail queda libre. Su historia clínica se conserva (ley 26.529) y, si vuelve con el mismo mail, puede recuperar la cuenta."
         loading={deleting}
         onConfirm={() => deleteSelected(selection.selectedIds)}
         onCancel={() => setConfirmOpen(false)}

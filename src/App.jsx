@@ -35,6 +35,7 @@ import RegisterProfessional from './pages/auth/RegisterProfessional'
 import CompleteProfile from './pages/auth/CompleteProfile'
 import RecuperarContrasena from './pages/auth/RecuperarContrasena'
 import RestablecerContrasena from './pages/auth/RestablecerContrasena'
+import ReactivarCuenta from './pages/auth/ReactivarCuenta'
 import TerminosYCondiciones from './pages/TerminosYCondiciones'
 import ReferralLanding from './pages/ReferralLanding'
 // La guía de uso se carga aparte: trae su CSS y sus textos, y no hace falta en la app.
@@ -410,6 +411,8 @@ export default function App() {
               quieta aunque aparezca una sesión (ver AuthRedirectHandler). */}
           <Route path="/recuperar-contrasena" element={<RecuperarContrasena />} />
           <Route path="/restablecer-contrasena" element={<RestablecerContrasena onLogin={handleLogin} />} />
+          {/* Recuperar una cuenta dada de baja (migración 188), desde el link del mail. */}
+          <Route path="/reactivar-cuenta" element={<ReactivarCuenta onLogin={handleLogin} />} />
           {/* Grupo familiar: el familiar sin contraseña entra con el código que
               le genera su titular. Fuera de AUTH_PATHS por lo mismo que las de
               arriba: navega sola al terminar. */}

@@ -532,6 +532,31 @@ export function cambioDeCorreoCodigo(d: {
   }
 }
 
+/**
+ * Recuperar una cuenta dada de baja (migración 188). Llega cuando alguien se
+ * quiere registrar con el mail de una cuenta que se dio de baja y elige
+ * recuperarla. El link vale una hora y una sola vez; va al mail original, así
+ * que sólo la recupera quien tiene esa casilla.
+ */
+export function reactivarCuenta(d: { name: string; token: string }): Sent {
+  const body = [
+    p(`Hola <strong style="color:${C.ink}">${esc(d.name)}</strong>, pediste recuperar tu cuenta de Healthier. Con este link elegís una contraseña nueva y vuelve todo: tu historial de consultas y tu historia clínica.`),
+    button(`${APP_URL}/reactivar-cuenta?token=${encodeURIComponent(d.token)}`, 'Recuperar mi cuenta', 'sage'),
+    note('El link vale por <strong>una hora</strong> y sirve una sola vez.', 'amber'),
+  ].join('')
+
+  return {
+    subject: 'Recuperá tu cuenta de Healthier',
+    html: renderEmail({
+      preheader: 'Elegí una contraseña nueva y tu cuenta vuelve, con tu historia clínica.',
+      eyebrow: 'Recuperar cuenta', accent: 'sage',
+      title: 'Recuperá tu cuenta',
+      body,
+      footnote: 'Si no lo pediste vos, ignorá este mail: sin el link la cuenta sigue dada de baja.',
+    }),
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 10 · Profesional verificado / con observaciones
 // ═══════════════════════════════════════════════════════════════════════════

@@ -11,19 +11,22 @@ import PhoneInput from '../../components/common/PhoneInput'
 import NombreApellidoInputs from '../../components/common/NombreApellidoInputs'
 import { validarNombreApellido } from '../../lib/nombreApellido'
 import { track } from '../../utils/analytics'
+import AvisoMailExistente from '../../components/auth/AvisoMailExistente'
 
 export default function Register({ onLogin }) {
   const [step, setStep] = useState('choose')
   const [form, setForm] = useState({ nombre: '', apellido: '', email: '', password: '', phone: '' })
   const [loading, setLoading] = useState(false)
+  const [aviso, setAviso] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
     track('sign_up_start', { step: 1, step_name: 'cuenta', flow: 'paciente', app_path: '/registro' })
   }, [])
 
-  const submit = async (e) => {
-    e.preventDefault()
+  const submit = async (e, { ignorarBaja = false } = {}) => {
+    e?.preventDefault()
+    setAviso(null)
     track('sign_up_method_selected', { method: 'email', step: 1, flow: 'paciente' })
     const errorNombre = validarNombreApellido(form.nombre, form.apellido)
     if (errorNombre) {
@@ -47,7 +50,7 @@ export default function Register({ onLogin }) {
       // profesional viaja aparte y no depende de eso.
       const referral = getStoredReferral()
       const utms = { ...referralUtms(referral), ...getStoredUtms() }
-      await authService.register(form.email, form.password, 'patient', { nombre: form.nombre, apellido: form.apellido }, utms, form.phone.trim() || null, referral?.professionalId ?? null)
+      await authService.register(form.email, form.password, 'patient', { nombre: form.nombre, apellido: form.apellido }, utms, form.phone.trim() || null, referral?.professionalId ?? null, { ignorarBaja })
       clearUtms()
       clearReferral()
       track('sign_up_step_complete', { step: 1, step_name: 'cuenta', method: 'email', flow: 'paciente' })
@@ -55,9 +58,11 @@ export default function Register({ onLogin }) {
       onLogin(profile)
       navigate('/paciente/onboarding')
     } catch (err) {
-      const error_type = /already registered/i.test(err.message) ? 'email_ya_registrado' : 'server_error'
+      const error_type = err.code === 'MAIL_YA_REGISTRADO' ? 'email_ya_registrado'
+        : err.code === 'CUENTA_DADA_DE_BAJA' ? 'email_dado_de_baja' : 'server_error'
       track('sign_up_error', { step: 1, step_name: 'cuenta', error_type, flow: 'paciente' })
-      toast.error(err.message)
+      if (err.code) setAviso(err.code)
+      else toast.error(err.message)
     } finally {
       setLoading(false)
     }
@@ -167,6 +172,10 @@ export default function Register({ onLogin }) {
             />
           </div>
         </div>
+
+        {aviso && (
+          <AvisoMailExistente code={aviso} email={form.email.trim()} onCrearNueva={() => submit(null, { ignorarBaja: true })} />
+        )}
 
         <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-2 disabled:opacity-40 disabled:cursor-not-allowed">
           {loading ? 'Creando cuenta...' : 'Crear cuenta'}

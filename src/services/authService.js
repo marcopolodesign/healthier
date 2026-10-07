@@ -1,5 +1,6 @@
 import { supabase, toCamelCase, olvidarSesion } from '../lib/supabase'
 import { armarNombreCompleto } from '../lib/nombreApellido'
+import { bajaService } from './bajaService'
 
 // Shared insert payload for a new `profiles` row — used both by email/password
 // registration and by first-time Google sign-in completion.
@@ -44,9 +45,19 @@ function buildProfileRow(user, email, role, { nombre, apellido }, utms = {}, pho
   }
 }
 
+function errorDeAlta(code, mensaje) {
+  return Object.assign(new Error(mensaje), { code })
+}
+
 export const authService = {
   /** `nombres` = `{ nombre, apellido }`, los dos obligatorios (migración 183). */
-  async register(email, password, role, nombres, utms = {}, phone = null, referredByProfessionalId = null) {
+  async register(email, password, role, nombres, utms = {}, phone = null, referredByProfessionalId = null, { ignorarBaja = false } = {}) {
+    // Mail de una cuenta dada de baja (migración 188): antes de crear otra, se
+    // le ofrece recuperar la suya, con su historia clínica.
+    if (!ignorarBaja && await bajaService.estaDadoDeBaja(email)) {
+      throw errorDeAlta('CUENTA_DADA_DE_BAJA', 'Ese mail tenía una cuenta en Healthier que fue dada de baja.')
+    }
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -59,6 +70,13 @@ export const authService = {
         },
       },
     })
+    // Con autoconfirm prendido Supabase contesta `user_already_exists`; sin él,
+    // devuelve un usuario sin `identities`. En los dos casos el upsert de abajo
+    // fallaba con un error de RLS que no le decía nada a nadie.
+    if (authError?.code === 'user_already_exists' || /already registered/i.test(authError?.message ?? '')
+        || (!authError && authData?.user && authData.user.identities?.length === 0)) {
+      throw errorDeAlta('MAIL_YA_REGISTRADO', 'Ese mail ya está registrado — iniciá sesión o recuperá la contraseña.')
+    }
     if (authError) throw new Error(authError.message)
 
     // Upsert, no insert: en la base hay un trigger (`crear_perfil_al_registrarse`

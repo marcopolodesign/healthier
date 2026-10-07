@@ -20,7 +20,7 @@ export default function SuperAdminAdmins() {
   useEffect(() => { authService.getCurrentUser().then(u => setCurrentUserId(u?.id ?? null)) }, [])
 
   const load = () => {
-    supabase.from('profiles').select('*').in('role', ['admin', 'super_admin']).order('created_at', { ascending: false })
+    supabase.from('profiles').select('*').in('role', ['admin', 'super_admin']).is('deleted_at', null).order('created_at', { ascending: false })
       .then(({ data, error }) => {
         if (error) throw error
         setAdmins(toCamelCase(data))
@@ -145,7 +145,7 @@ export default function SuperAdminAdmins() {
       <ConfirmDeleteDialog
         open={confirmOpen}
         title={`Eliminar ${selection.count} administrador${selection.count === 1 ? '' : 'es'}`}
-        message="Esta acción no se puede deshacer."
+        message="Se da de baja: pierde el acceso y su mail queda libre. Su historia clínica se conserva (ley 26.529) y, si vuelve con el mismo mail, puede recuperar la cuenta."
         loading={deleting}
         onConfirm={() => deleteSelected(selection.selectedIds)}
         onCancel={() => setConfirmOpen(false)}

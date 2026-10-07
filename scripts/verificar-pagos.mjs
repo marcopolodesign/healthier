@@ -39,7 +39,9 @@ const ENTORNOS = {
 // Las tres que tienen que ser PÚBLICAS (verify_jwt=false): a ninguna le puede
 // llegar un JWT de Supabase. Validan por su cuenta — HMAC en el `state` del
 // OAuth, firma del webhook.
-const PUBLICAS = ['mp-connect', 'mp-webhook', 'pharmacy-mp-connect', 'mp-refresh-tokens']
+// `reactivar-cuenta` (188) no es de pagos, pero también es pública a propósito:
+// la llama alguien sin sesión desde el registro y valida con su propio token.
+const PUBLICAS = ['mp-connect', 'mp-webhook', 'pharmacy-mp-connect', 'mp-refresh-tokens', 'reactivar-cuenta']
 
 let fallas = 0
 const ok   = (m) => console.log(`   ✅ ${m}`)
