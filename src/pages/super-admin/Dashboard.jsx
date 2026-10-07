@@ -75,7 +75,7 @@ export default function SuperAdminDashboard() {
           supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('dado_de_baja', false).eq('is_verified', true),
           supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('dado_de_baja', false).eq('is_verified', false),
           supabase.from('walk_in_queue').select('*', { count: 'exact', head: true }).eq('status', 'waiting'),
-          supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('is_available_walkin', true),
+          supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('dado_de_baja', false).eq('is_available_walkin', true),
           // Pacientes sentados en la sala de espera AHORA — misma ventana de
           // frescura (90s) que usa el panel del profesional, ver
           // WAITING_PRESENCE_TTL_MS en consultationsService.
@@ -86,17 +86,17 @@ export default function SuperAdminDashboard() {
           supabase.from('consultations').select('*', { count: 'exact', head: true }).gte('created_at', monthStart),
           supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'patient').is('deleted_at', null).gte('created_at', monthStart),
           supabase.from('consultations').select('id, status, scheduled_at, price_at_booking').order('scheduled_at', { ascending: false }).limit(500),
-          supabase.from('professional_profiles').select('*, profiles!user_id(full_name)').eq('is_verified', true).order('average_rating', { ascending: false }).limit(5),
+          supabase.from('professional_profiles').select('*, profiles!user_id(full_name)').eq('dado_de_baja', false).eq('is_verified', true).order('average_rating', { ascending: false }).limit(5),
           supabase.from('reviews').select('rating'),
           supabase.from('consultations').select('id, status, scheduled_at, modality, profiles!patient_id(full_name), professional:profiles!professional_id(full_name)').order('created_at', { ascending: false }).limit(8),
-          supabase.from('profiles').select('utm_source, role'),
+          supabase.from('profiles').select('utm_source, role').is('deleted_at', null),
           paymentsService.getPaymentsSummary().catch(() => ({ grossTotal: 0, platformFeeTotal: 0, mpFeeTotal: 0, netProfessionalTotal: 0 })),
           // Pendientes de verificación — mismo criterio que el filtro "Pendientes"
           // de /super-admin/profesionales: no verificado y no rechazado.
           supabase.from('professional_profiles').select('id, created_at, specialty, profiles!user_id(full_name, email)')
-            .eq('is_verified', false).is('rejected_at', null)
+            .eq('dado_de_baja', false).eq('is_verified', false).is('rejected_at', null)
             .order('created_at', { ascending: false }).limit(5),
-          supabase.from('professional_profiles').select('user_id'),
+          supabase.from('professional_profiles').select('user_id').eq('dado_de_baja', false),
           supabase.from('profiles').select('id, full_name, email, created_at').eq('role', 'professional').is('deleted_at', null)
             .order('created_at', { ascending: false }).limit(50),
           // Mismo criterio que /super-admin/usuarios/prospects: onboarding

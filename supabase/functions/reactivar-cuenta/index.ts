@@ -6,11 +6,13 @@
 // la cuenta sólo se devuelve con el link que llega al mail original, y ese
 // link lo arma `send-email` con un token de un solo uso que vence en una hora.
 //
+// Si el mail es de una cuenta dada de baja lo responde el RPC
+// `cuenta_dada_de_baja` (una sola consulta, sin pasar por acá).
+//
 // Acciones (body `{ accion, ... }`):
-//   · consultar  { email }           → { dadoDeBaja }  (el registro decide qué mostrar)
 //   · solicitar  { email }           → manda el mail con el link. Responde ok
 //                                      aunque el mail no tenga baja, para no
-//                                      confirmar nada que `consultar` no diga.
+//                                      confirmar nada que el RPC no diga.
 //   · confirmar  { token, password } → devuelve el mail a auth.users, saca el
 //                                      baneo, pone la contraseña nueva y
 //                                      `reactivar_perfil` deshace la baja.
@@ -39,7 +41,7 @@ Deno.serve(async (req: Request) => {
       const { data, error } = await admin
         .from('bajas_de_usuarios')
         .select('user_id, email_original')
-        .ilike('email_original', email.replace(/[\\%_]/g, c => `\\${c}`))
+        .eq('email_original', email)
         .is('reactivado_at', null)
         .order('dado_de_baja_at', { ascending: false })
         .limit(1)
@@ -49,11 +51,6 @@ Deno.serve(async (req: Request) => {
     }
 
     switch (body.accion) {
-      case 'consultar': {
-        if (!email) return json({ error: 'Falta el mail' }, 400)
-        return json({ dadoDeBaja: Boolean(await bajaVigente()) })
-      }
-
       case 'solicitar': {
         if (!email) return json({ error: 'Falta el mail' }, 400)
         const baja = await bajaVigente()

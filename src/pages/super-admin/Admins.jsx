@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ShieldCheck, UserPlus, Trash } from '@phosphor-icons/react';
 import { supabase, toCamelCase } from '../../lib/supabase'
 import { adminService } from '../../services/adminService'
+import { MENSAJE_BAJA } from '../../services/bajaService'
 import { authService } from '../../services/authService'
 import Modal from '../../components/Modal'
 import { toast } from '../../components/Toast'
@@ -145,7 +146,7 @@ export default function SuperAdminAdmins() {
       <ConfirmDeleteDialog
         open={confirmOpen}
         title={`Eliminar ${selection.count} administrador${selection.count === 1 ? '' : 'es'}`}
-        message="Se da de baja: pierde el acceso y su mail queda libre. Su historia clínica se conserva (ley 26.529) y, si vuelve con el mismo mail, puede recuperar la cuenta."
+        message={MENSAJE_BAJA}
         loading={deleting}
         onConfirm={() => deleteSelected(selection.selectedIds)}
         onCancel={() => setConfirmOpen(false)}

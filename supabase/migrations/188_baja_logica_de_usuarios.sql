@@ -47,7 +47,7 @@ comment on column public.professional_profiles.dado_de_baja is
 -- ────────────────────────────────────────────────────────────
 create table if not exists public.bajas_de_usuarios (
   user_id               uuid primary key references public.profiles(id) on delete restrict,
-  email_original        text not null,
+  email_original        text not null,  -- en minúscula: se busca con igualdad
   datos_originales      jsonb not null default '{}'::jsonb,
   dado_de_baja_at       timestamptz not null default now(),
   dado_de_baja_por      uuid references public.profiles(id) on delete set null,
@@ -62,9 +62,13 @@ create table if not exists public.bajas_de_usuarios (
 comment on table public.bajas_de_usuarios is
   'Bajas lógicas de usuarios (188): el mail real y los datos que se le sacaron al perfil. Sin policies: sólo service role. Sirve para reactivar la cuenta si la persona vuelve con el mismo mail.';
 
-create index if not exists bajas_de_usuarios_email_vigente
-  on public.bajas_de_usuarios (lower(email_original))
+drop index if exists public.bajas_de_usuarios_email_vigente;
+create index bajas_de_usuarios_email_vigente
+  on public.bajas_de_usuarios (email_original)
   where reactivado_at is null;
+create index if not exists bajas_de_usuarios_token
+  on public.bajas_de_usuarios (reactivacion_token)
+  where reactivacion_token is not null;
 
 alter table public.bajas_de_usuarios enable row level security;
 revoke all on public.bajas_de_usuarios from anon, authenticated;
@@ -153,6 +157,30 @@ create policy professional_profiles_sin_bajas
     or (select public.veo_bajas())
   );
 
+-- `dado_de_baja` lo mantiene un trigger sobre profiles.deleted_at: así vale
+-- para cualquier camino que dé de baja o reactive (el super admin, y también
+-- `delete-account`, la baja que pide la persona desde la app).
+create or replace function public.profesional_sigue_la_baja()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+begin
+  update public.professional_profiles
+     set dado_de_baja = (new.deleted_at is not null)
+   where user_id = new.id;
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_profesional_sigue_la_baja on public.profiles;
+create trigger profiles_profesional_sigue_la_baja
+  after update of deleted_at on public.profiles
+  for each row
+  when (new.deleted_at is distinct from old.deleted_at)
+  execute function public.profesional_sigue_la_baja();
+
 -- Los que ya estaban dados de baja desde la app (117).
 update public.professional_profiles pp
    set dado_de_baja = true
@@ -162,8 +190,9 @@ update public.professional_profiles pp
 -- ────────────────────────────────────────────────────────────
 -- 5. Dar de baja (sólo service role)
 -- ────────────────────────────────────────────────────────────
-create or replace function public.dar_de_baja_perfil(p_target uuid, p_actor uuid)
-returns jsonb
+drop function if exists public.dar_de_baja_perfil(uuid, uuid);
+create function public.dar_de_baja_perfil(p_target uuid, p_actor uuid)
+returns text
 language plpgsql
 security definer
 set search_path to 'public'
@@ -187,7 +216,7 @@ begin
   -- Ya estaba dado de baja: no se pisa el mail original guardado con el alias.
   if v_perfil.deleted_at is null then
     insert into public.bajas_de_usuarios (user_id, email_original, datos_originales, dado_de_baja_por)
-    values (p_target, v_perfil.email,
+    values (p_target, lower(trim(v_perfil.email)),
             jsonb_build_object('phone', v_perfil.phone, 'avatar_url', v_perfil.avatar_url),
             p_actor)
     on conflict (user_id) do update
@@ -205,16 +234,12 @@ begin
      where id = p_target;
   end if;
 
-  update public.professional_profiles set dado_de_baja = true where user_id = p_target;
-
   -- Cierra todas las sesiones: sin refresh token no puede renovar el acceso.
   delete from auth.sessions where user_id = p_target;
   delete from auth.refresh_tokens where user_id = p_target::text;
 
-  return jsonb_build_object(
-    'alias', v_alias,
-    'email_original', (select email_original from public.bajas_de_usuarios where user_id = p_target)
-  );
+  -- El alias: es el mail que la Edge Function le pone a auth.users.
+  return v_alias;
 end;
 $$;
 
@@ -224,8 +249,9 @@ grant execute on function public.dar_de_baja_perfil(uuid, uuid) to service_role;
 -- ────────────────────────────────────────────────────────────
 -- 6. Reactivar (sólo service role)
 -- ────────────────────────────────────────────────────────────
-create or replace function public.reactivar_perfil(p_target uuid)
-returns jsonb
+drop function if exists public.reactivar_perfil(uuid);
+create function public.reactivar_perfil(p_target uuid)
+returns void
 language plpgsql
 security definer
 set search_path to 'public'
@@ -247,13 +273,9 @@ begin
          deleted_at = null, deleted_by = null
    where id = p_target;
 
-  update public.professional_profiles set dado_de_baja = false where user_id = p_target;
-
   update public.bajas_de_usuarios
      set reactivado_at = now(), reactivacion_token = null, reactivacion_vence_at = null
    where user_id = p_target;
-
-  return jsonb_build_object('email', v_baja.email_original);
 end;
 $$;
 
@@ -274,3 +296,22 @@ $$;
 
 revoke all on function public.auth_user_por_email(text) from public, anon, authenticated;
 grant execute on function public.auth_user_por_email(text) to service_role;
+
+-- El registro pregunta si el mail es de una cuenta dada de baja, para ofrecer
+-- recuperarla en vez de crear otra. Sólo devuelve sí/no: lo mismo que ya dice
+-- el alta de Supabase sobre un mail tomado.
+create or replace function public.cuenta_dada_de_baja(p_email text)
+returns boolean
+language sql
+stable
+security definer
+set search_path to 'public'
+as $$
+  select exists (
+    select 1 from public.bajas_de_usuarios
+     where email_original = lower(trim(p_email)) and reactivado_at is null
+  );
+$$;
+
+revoke all on function public.cuenta_dada_de_baja(text) from public;
+grant execute on function public.cuenta_dada_de_baja(text) to anon, authenticated, service_role;

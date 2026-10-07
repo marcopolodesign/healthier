@@ -15,6 +15,7 @@ import { professionalService, ON_DEMAND_PRESENCE_TTL_MS } from '../../services/p
 import { profilesService } from '../../services/profilesService'
 import { paymentsService } from '../../services/paymentsService'
 import { adminService } from '../../services/adminService'
+import { MENSAJE_BAJA } from '../../services/bajaService'
 import { formatSettlementPlazo, formatARS } from '../../lib/format'
 import { cumplePrecioMinimo } from '../../lib/tarifas'
 import { CAMPOS_SENSIBLES } from '../../lib/reverificacion'
@@ -1433,7 +1434,7 @@ export default function SuperAdminProfesionales() {
       <ConfirmDeleteDialog
         open={confirmOpen}
         title={`Eliminar ${selection.count} profesional${selection.count === 1 ? '' : 'es'}`}
-        message="Se da de baja: pierde el acceso y su mail queda libre. Su historia clínica se conserva (ley 26.529) y, si vuelve con el mismo mail, puede recuperar la cuenta."
+        message={MENSAJE_BAJA}
         loading={deleting}
         onConfirm={() => deleteSelected(selection.selectedIds)}
         onCancel={() => setConfirmOpen(false)}

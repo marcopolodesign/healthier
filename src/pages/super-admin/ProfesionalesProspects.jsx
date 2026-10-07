@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../components/Toast';
 import { adminService } from '../../services/adminService';
+import { MENSAJE_BAJA } from '../../services/bajaService';
 import WhatsAppButton from '../../components/super-admin/WhatsAppButton';
 import { useBulkSelection } from '../../hooks/useBulkSelection';
 import BulkActionBar from '../../components/super-admin/BulkActionBar';
@@ -526,7 +527,7 @@ export default function SuperAdminProfesionalesProspects() {
       <ConfirmDeleteDialog
         open={confirmOpen}
         title={`Eliminar ${selection.count} prospecto${selection.count === 1 ? '' : 's'}`}
-        message="Se da de baja: pierde el acceso y su mail queda libre. Su historia clínica se conserva (ley 26.529) y, si vuelve con el mismo mail, puede recuperar la cuenta."
+        message={MENSAJE_BAJA}
         loading={deleting}
         onConfirm={() => deleteSelected(selection.selectedIds)}
         onCancel={() => setConfirmOpen(false)}

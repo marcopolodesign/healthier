@@ -3,6 +3,7 @@ import { MagnifyingGlass, Users, DownloadSimple, Trash } from '@phosphor-icons/r
 import { supabase } from '../../lib/supabase';
 import { toast } from '../../components/Toast';
 import { adminService } from '../../services/adminService';
+import { MENSAJE_BAJA } from '../../services/bajaService';
 import { useBulkSelection } from '../../hooks/useBulkSelection';
 import BulkActionBar from '../../components/super-admin/BulkActionBar';
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog';
@@ -288,7 +289,7 @@ export default function SuperAdminUsuarios() {
       <ConfirmDeleteDialog
         open={confirmOpen}
         title={`Eliminar ${selection.count} usuario${selection.count === 1 ? '' : 's'}`}
-        message="Se da de baja: pierde el acceso y su mail queda libre. Su historia clínica se conserva (ley 26.529) y, si vuelve con el mismo mail, puede recuperar la cuenta."
+        message={MENSAJE_BAJA}
         loading={deleting}
         onConfirm={() => deleteSelected(selection.selectedIds)}
         onCancel={() => setConfirmOpen(false)}

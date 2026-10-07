@@ -15,7 +15,7 @@ export const adminService = {
    *  pasa a un alias y se libera, y la persona queda sin acceso hasta que
    *  recupere la cuenta. Si alguno falla, tira con el error real de cada uno. */
   async deleteProfiles(ids) {
-    const { resultados = [] } = await bajaService.darDeBaja(ids)
+    const resultados = await bajaService.darDeBaja(ids)
     const fallidos = resultados.filter(r => !r.ok)
     if (fallidos.length) {
       const detalle = fallidos.map(f => f.error).join(' · ')
