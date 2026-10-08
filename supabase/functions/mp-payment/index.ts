@@ -55,6 +55,8 @@ interface PaymentBody {
   payerDocNumber?: string
   /** window.MP_DEVICE_SESSION_ID — lo genera el SDK de MP en el browser. */
   deviceId?: string
+  /** Sólo con la service key: el paciente en cuyo nombre se cobra (ondemand-despacho). */
+  actuarComo?: string
 }
 
 interface PlatformSettings {
@@ -135,22 +137,39 @@ Deno.serve(async (req) => {
       )
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } } }
-    )
+    // --- Parse body ---
+    const body: PaymentBody = await req.json()
 
-    const { data: { user }, error: authErr } = await supabase.auth.getUser()
-    if (authErr || !user) {
+    /*
+     * Cobro en nombre del paciente — SÓLO con la service key (migración 191).
+     *
+     * En la Teleclínica por despacho el paciente deja el token de su tarjeta al
+     * tocar "Pagar", pero la pre-autorización recién se puede crear cuando un
+     * profesional acepta: el que dispara el cobro es `ondemand-despacho`, del
+     * lado del servidor, no el paciente. Todo lo demás de este archivo (dueño de
+     * la tarjeta, familiar, split, monto desde la base) se sigue validando igual
+     * contra `actuarComo`, que pasa a ser "el usuario logueado".
+     */
+    let user: { id: string } | null = null
+    const esServicio = authHeader === `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+    if (esServicio && body.actuarComo) {
+      user = { id: body.actuarComo }
+    } else {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_ANON_KEY')!,
+        { global: { headers: { Authorization: authHeader } } }
+      )
+      const { data: { user: logueado } } = await supabase.auth.getUser()
+      user = logueado
+    }
+    if (!user) {
       return new Response(
         JSON.stringify({ data: null, error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // --- Parse body ---
-    const body: PaymentBody = await req.json()
     const { consultationId, orderId, emergencyId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits, description, authorizeOnly, payerDocType, payerDocNumber, deviceId } = body
 
     // --- Emergencia: PREAUTORIZACIÓN de monto fijo ------------------------

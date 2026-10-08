@@ -22,6 +22,7 @@ import { comisionService, formatTasa } from '../../services/comisionService'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
 import LlegadaBadge, { useLlegadas } from '../../components/professional/LlegadaPaciente'
 import OnDemandSwitch from '../../components/professional/OnDemandSwitch'
+import PedidosOndemand from '../../components/professional/PedidosOndemand'
 import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import Modal from '../../components/Modal'
 import { useWaitingPresence } from '../../hooks/useWaitingPresence'
@@ -703,7 +704,13 @@ export default function ProfessionalDashboard({ profile }) {
       </Modal>
 
       {/* Pedidos de consulta inmediata esperando a que alguien los tome.
-          Va primero a propósito: es lo único de esta pantalla que caduca. */}
+          Va primero a propósito: es lo único de esta pantalla que caduca.
+          Sólo con la consulta inmediata prendida: la RLS ya filtra, esto
+          evita el poll cuando no hay nada que ver. */}
+      <PedidosOndemand
+        activo={onDemandOn === true}
+        onTomada={() => consultationsService.getByProfessional(profile.id).then(setConsultations).catch(() => {})}
+      />
 
       {/* Emergency banner */}
       {activeEmergency && (

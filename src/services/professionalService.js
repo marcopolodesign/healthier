@@ -305,14 +305,20 @@ export const professionalService = {
     if (error) throw error
   },
 
-  async getPublicProfile(professionalId) {
+  /**
+   * Perfil público para el paciente. Acepta el id de la ficha o el id de
+   * usuario (la Teleclínica sólo tiene el segundo). Sin mail ni teléfono: el
+   * paciente no ve los datos de contacto del profesional.
+   */
+  async getPublicProfile(idFichaOUsuario) {
     const { data, error } = await supabase
       .from('professional_profiles')
-      .select('*, profiles!user_id(full_name, avatar_url, email)')
-      .eq('id', professionalId)
-      .single()
+      .select('*, profiles!user_id(full_name, avatar_url)')
+      .or(`id.eq.${idFichaOUsuario},user_id.eq.${idFichaOUsuario}`)
+      .limit(1)
+      .maybeSingle()
     if (error) throw error
-    return toCamelCase(data)
+    return data ? toCamelCase(data) : null
   },
 
   async setVerified(userId, isVerified, isActive = true) {
