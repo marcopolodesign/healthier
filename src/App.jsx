@@ -114,6 +114,7 @@ import SuperAdminMails from './pages/super-admin/Mails'
 import SuperAdminCoberturas from './pages/super-admin/Coberturas'
 import SuperAdminConsultorios from './pages/super-admin/Consultorios'
 import SuperAdminFederador from './pages/super-admin/Federador'
+import SuperAdminTeleclinica from './pages/super-admin/Teleclinica'
 import SuperAdminSubidas from './pages/super-admin/Subidas'
 import { veSubidas } from './lib/permisos'
 import SuperAdminUsuarios from './pages/super-admin/Usuarios'
@@ -593,6 +594,7 @@ export default function App() {
           <Route path="/super-admin/coberturas" element={<SuperAdminCoberturas />} />
           <Route path="/super-admin/federador" element={<SuperAdminFederador />} />
           <Route path="/super-admin/consultorios" element={<SuperAdminConsultorios />} />
+          <Route path="/super-admin/teleclinica" element={<SuperAdminTeleclinica />} />
           <Route path="/super-admin/subidas" element={<RequierePermiso permitido={veSubidas(profile)}><SuperAdminSubidas /></RequierePermiso>} />
           <Route path="/super-admin/farmacia" element={<SuperAdminFarmacia />} />
         </Route>
