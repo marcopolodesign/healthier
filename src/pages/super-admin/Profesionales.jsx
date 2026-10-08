@@ -270,7 +270,7 @@ function VerifiedBadge({ pro }) {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
         <ShieldCheck className="h-3 w-3" />
-        Verificado{pro.verification_source === 'sisa' ? ' · SISA' : pro.verification_source === 'manual' ? ' · Manual' : ''}
+        Verificado{pro.verification_source === 'sisa' ? ' · REFEPS' : pro.verification_source === 'manual' ? ' · Manual' : ''}
       </span>
     )
   }
@@ -358,10 +358,11 @@ function DisponibilidadInmediata({ activo, ultimoLatido }) {
 function SisaBadge({ status }) {
   if (!status) return null
   const map = {
-    habilitada:  { label: 'SISA: Habilitada',  cls: 'bg-emerald-50 text-emerald-700', Icon: ShieldCheck },
-    suspendida:  { label: 'SISA: Suspendida',  cls: 'bg-red-50 text-red-700',         Icon: ShieldSlash },
-    not_found:   { label: 'SISA: No encontrado', cls: 'bg-gray-100 text-gray-600',    Icon: ShieldWarning },
-    error:       { label: 'SISA: Error',        cls: 'bg-red-50 text-red-600',         Icon: Warning },
+    habilitada:  { label: 'REFEPS: Habilitada',    cls: 'bg-emerald-50 text-emerald-700', Icon: ShieldCheck },
+    suspendida:  { label: 'REFEPS: No habilitada', cls: 'bg-red-50 text-red-700',         Icon: ShieldSlash },
+    no_coincide: { label: 'REFEPS: Otra matrícula', cls: 'bg-amber-50 text-amber-700',    Icon: ShieldWarning },
+    not_found:   { label: 'REFEPS: No encontrado', cls: 'bg-gray-100 text-gray-600',      Icon: ShieldWarning },
+    error:       { label: 'REFEPS: Error',         cls: 'bg-red-50 text-red-600',         Icon: Warning },
   }
   const s = map[status] ?? map.error
   const Icon = s.Icon
@@ -500,8 +501,8 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
       )
       const result = await res.json()
 
-      if (result.code === 'SISA_NOT_CONFIGURED') {
-        toast.warning('Credenciales SISA no configuradas — contactar sisa@msal.gov.ar')
+      if (result.code === 'REFEPS_NOT_CONFIGURED') {
+        toast.warning('Falta cargar la credencial del Ministerio de Salud en este entorno')
         return
       }
       if (result.code === 'MISSING_DNI') {
@@ -510,22 +511,24 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
         return
       }
       if (!res.ok) {
-        toast.error(`Error SISA: ${result.error ?? 'desconocido'}`)
+        toast.error(`REFEPS: ${result.error ?? 'error desconocido'}`)
         return
       }
 
       if (result.sisaStatus === 'habilitada') {
-        toast.success(`SISA: Habilitado ✓ — ${result.sisaMatricula ?? ''}`)
+        toast.success(`REFEPS: matrícula ${result.sisaMatricula ?? ''} habilitada`)
       } else if (result.sisaStatus === 'suspendida') {
-        toast.warning('SISA: Matrícula suspendida')
+        toast.warning('REFEPS: la matrícula figura no habilitada')
+      } else if (result.sisaStatus === 'no_coincide') {
+        toast.warning('REFEPS: está registrado, pero no con la matrícula que declaró')
       } else {
-        toast.warning('SISA: Profesional no encontrado en el padrón')
+        toast.warning('REFEPS: el DNI no figura en el registro')
       }
 
       await loadDetail()
       onUpdated()
     } catch {
-      toast.error('Error al conectar con SISA')
+      toast.error('No se pudo consultar REFEPS')
     } finally {
       setVerifying(false)
     }
@@ -808,7 +811,7 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
                       </div>
                       {d?.sisa_matricula && (
                         <div className="col-span-2">
-                          <p className="text-xs text-gray-400 mb-0.5">Matrícula SISA</p>
+                          <p className="text-xs text-gray-400 mb-0.5">Matrícula en REFEPS</p>
                           <p className="font-medium text-emerald-700">{d.sisa_matricula}</p>
                         </div>
                       )}
@@ -864,7 +867,7 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
               <div className="rounded-xl border border-gray-200 overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100 text-sm font-semibold text-gray-700">
                   <ShieldCheck className="h-4 w-4 text-gray-400" />
-                  Verificación SISA
+                  Matrícula en REFEPS
                 </div>
                 <div className="p-4 space-y-3">
                   {d?.sisa_status && (
@@ -875,25 +878,36 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
                       {d.sisa_verified_at && (
                         <p>Consultado el {fmt(d.sisa_verified_at)}</p>
                       )}
-                      {d.sisa_raw?.profesionales?.[0] && (
-                        <div className="bg-gray-50 rounded-lg p-2 text-[11px] font-mono text-gray-600 mt-1">
-                          {JSON.stringify(d.sisa_raw.profesionales[0], null, 2)
-                            .split('\n').slice(0, 8).join('\n')}
-                        </div>
+                      {d.sisa_raw?.fuente && <p>Fuente: {d.sisa_raw.fuente}</p>}
+                      {d.sisa_raw?.nombre && <p>Registrado como {d.sisa_raw.nombre}</p>}
+                      {d.sisa_raw?.matricula_declarada !== undefined && (
+                        <p>Declaró: {d.sisa_raw.matricula_declarada || 'sin matrícula'}</p>
+                      )}
+                      {d.sisa_raw?.matriculas?.length > 0 && (
+                        <ul className="bg-gray-50 rounded-lg p-2 mt-1 space-y-1 text-[11px] text-gray-600">
+                          {d.sisa_raw.matriculas.map((m, i) => (
+                            <li key={i} className="flex justify-between gap-2">
+                              <span>{m.profesion} · {m.matricula}{m.jurisdiccion ? ` · ${m.jurisdiccion}` : ''}</span>
+                              <span className={m.habilitada ? 'text-emerald-700' : 'text-red-600'}>
+                                {m.habilitada ? 'Habilitada' : 'No habilitada'}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </div>
                   )}
                   <button type="button" onClick={handleSisaVerify} disabled={verifying}
                     className="w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 px-4 rounded-xl bg-brand/10 text-brand hover:bg-brand/20 transition-colors disabled:opacity-60">
                     {verifying
-                      ? <><CircleNotch className="h-4 w-4 animate-spin" /> Consultando SISA…</>
-                      : <><ShieldCheck className="h-4 w-4" /> Verificar vía SISA</>}
+                      ? <><CircleNotch className="h-4 w-4 animate-spin" /> Consultando REFEPS…</>
+                      : <><ShieldCheck className="h-4 w-4" /> Verificar en REFEPS</>}
                   </button>
                   <p className="text-[11px] text-gray-400 text-center">
-                    Requiere DNI del profesional + credenciales SISA en Supabase secrets
+                    Consulta automática al registro del Ministerio de Salud con el DNI del profesional. Si la matrícula declarada figura habilitada, queda verificado.
                   </p>
 
-                  {/* Manual-check companion — REFEPS doesn't support pre-filled URLs */}
+                  {/* Respaldo manual, por si el bus del Ministerio no responde */}
                   <div className="pt-3 mt-1 border-t border-gray-100">
                     <RefepsCheckLink fullName={name} dni={d?.profile?.dni} />
                   </div>
@@ -1227,7 +1241,7 @@ export default function SuperAdminProfesionales() {
                 <th className="table-header">Profesional</th>
                 <th className="table-header">Especialidad</th>
                 <th className="table-header">Estado</th>
-                <th className="table-header">SISA</th>
+                <th className="table-header">REFEPS</th>
                 <th className="table-header">MP</th>
                 <th className="table-header">Precio</th>
                 <th className="table-header">Firma</th>
