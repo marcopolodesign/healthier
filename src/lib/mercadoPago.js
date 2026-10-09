@@ -78,6 +78,9 @@ const MOTIVOS_MP = {
   pending_review_manual: { motivo: 'Mercado Pago está revisando el pago.', accion: 'Puede tardar hasta 2 días hábiles. Para empezar la consulta ahora, probá con otra tarjeta.', reintentable: false, enRevision: true },
   pending_contingency:   { motivo: 'Mercado Pago está procesando el pago.', accion: 'Esperá unos minutos y volvé a intentar.', reintentable: true, enRevision: true },
   pending_challenge:     { motivo: 'Mercado Pago necesita que confirmes el pago.', accion: 'Revisá tu app de Mercado Pago o el mail que te mandaron.', reintentable: true, enRevision: true },
+
+  // — Falla del lado de Mercado Pago, no de la tarjeta —
+  internal_error: { motivo: 'Mercado Pago no respondió.', accion: 'Volvé a intentar en unos minutos.', reintentable: true },
 }
 
 const MOTIVO_DESCONOCIDO = {
@@ -103,4 +106,29 @@ export function explicarPagoMP({ status, statusDetail } = {}) {
     // termina hablando con soporte de MP o con nosotros.
     codigo: statusDetail || status || null,
   }
+}
+
+/**
+ * Un error de pago que llegó como texto (de la Edge Function o de Mercado
+ * Pago) pasado a castellano. Antes se le mostraba al paciente tal cual:
+ * "Card Token not found", "internal_error", "Professional does not have a
+ * linked MercadoPago account" (Teleclínica, 2026-10-08).
+ */
+const ERRORES_CRUDOS = [
+  [/card.?token|token.*not found|security.?code/i, { motivo: 'No pudimos validar la tarjeta.', accion: 'Volvé a ingresar el código de seguridad y probá de nuevo.', reintentable: true }],
+  [/linked mercadopago|reconnect|connection expired/i, { motivo: 'El profesional todavía no puede cobrar por Healthier.', accion: 'Cancelá y volvé a buscar: te va a atender otro profesional.', reintentable: false }],
+  [/internal_error|timeout|failed to fetch|network|\b5\d\d\b/i, MOTIVOS_MP.internal_error],
+]
+
+export function explicarErrorDePago(mensaje) {
+  const texto = String(mensaje ?? '')
+  if (MOTIVOS_MP[texto]) return { ...MOTIVOS_MP[texto], codigo: texto }
+  const hallado = ERRORES_CRUDOS.find(([re]) => re.test(texto))
+  if (hallado) return { ...hallado[1], codigo: texto || null }
+  // Un mensaje que ya escribimos nosotros en castellano se respeta; uno en
+  // inglés o en código cae en el genérico.
+  const pareceNuestro = /[áéíóúñ¿]|^(no |tu |la |el |ya )/i.test(texto)
+  return pareceNuestro
+    ? { motivo: texto, accion: 'Revisá los datos y volvé a intentar.', reintentable: true, codigo: null }
+    : { ...MOTIVO_DESCONOCIDO, accion: 'Volvé a intentar o probá con otra tarjeta.', reintentable: true, codigo: texto || null }
 }

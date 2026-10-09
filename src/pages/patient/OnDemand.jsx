@@ -12,7 +12,7 @@ import { ondemandService, BUSQUEDA_MAX_MS } from '../../services/ondemandService
 import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
-import { explicarPagoMP } from '../../lib/mercadoPago'
+import { explicarPagoMP, explicarErrorDePago } from '../../lib/mercadoPago'
 import { useVerticales } from '../../hooks/useVerticales'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { useGrupoFamiliar } from '../../hooks/useGrupoFamiliar'
@@ -178,7 +178,7 @@ export default function OnDemand({ profile }) {
       if (charge) track('add_payment_info', { payment_type: getPaymentMethod(charge), value: price, currency: 'ARS', flow: 'paciente' })
       await pedir(charge ? { ...charge, deviceId: window.MP_DEVICE_SESSION_ID || null } : null)
     } catch (err) {
-      setErrorPago({ motivo: err?.message || 'No pudimos iniciar la búsqueda.', accion: 'Revisá los datos y volvé a intentar.', reintentable: true })
+      setErrorPago(err?.message ? explicarErrorDePago(err.message) : { motivo: 'No pudimos iniciar la búsqueda.', accion: 'Revisá los datos y volvé a intentar.', reintentable: true })
     } finally {
       setPaying(false)
     }
@@ -264,10 +264,12 @@ export default function OnDemand({ profile }) {
         track('purchase', { transaction_id: pedido.consultationId, value: price, currency: 'ARS', payment_method: getPaymentMethod(charge), items: consultaItem(), flow: 'paciente' })
         setPhase('asignado')
       } else {
-        setErrorPago(explicarPagoMP({ status: data?.status, statusDetail: data?.statusDetail }))
+        setErrorPago(data?.statusDetail || !error
+          ? explicarPagoMP({ status: data?.status, statusDetail: data?.statusDetail })
+          : explicarErrorDePago(error))
       }
     } catch (err) {
-      setErrorPago({ motivo: err?.message || 'No pudimos procesar el pago.', accion: 'Revisá los datos y volvé a intentar.', reintentable: true })
+      setErrorPago(err?.message ? explicarErrorDePago(err.message) : { motivo: 'No pudimos procesar el pago.', accion: 'Revisá los datos y volvé a intentar.', reintentable: true })
     } finally {
       setPaying(false)
     }
@@ -375,7 +377,7 @@ export default function OnDemand({ profile }) {
         </div>
         <div className="w-full max-w-md mx-auto bg-white rounded-[32px] p-6 shadow-[0_0_40px_rgba(0,0,0,0.06)] border border-gray-100 relative z-10 mt-8">
           <p className="text-[13px] text-gray-500 leading-snug mb-5">
-            Antes de entrar te hacemos unas preguntas rápidas para que {proName} llegue preparado. El pago se hace efectivo cuando termina la consulta.
+            Antes de entrar te hacemos unas preguntas rápidas para que {proName} tenga todo a mano al empezar. El pago se hace efectivo cuando termina la consulta.
           </p>
           <button
             data-testid="enter-call-btn"
@@ -395,7 +397,7 @@ export default function OnDemand({ profile }) {
   // ── Checkout (y "tu tarjeta fue rechazada" después de aceptar) ──────────────
   const rechazado = phase === 'pago_rechazado'
   const explicacionRechazo = rechazado && !errorPago
-    ? explicarPagoMP({ status: 'rejected', statusDetail: pedido?.pagoDetalle })
+    ? (pedido?.pagoDetalle ? explicarErrorDePago(pedido.pagoDetalle) : explicarPagoMP({ status: 'rejected' }))
     : null
   const alPagar = rechazado
     ? () => pagarDeNuevo(() => cardSelectorRef.current?.getSavedCardCharge())

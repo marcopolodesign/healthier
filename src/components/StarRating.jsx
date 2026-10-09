@@ -21,8 +21,10 @@ export default function StarRating({ value = 0, onChange, size = 'md', readOnly 
             onMouseLeave={() => !readOnly && setHover(0)}
             className={`${readOnly ? 'cursor-default' : 'cursor-pointer hover:scale-110 transition-transform'}`}
           >
+            {/* Phosphor rellena con `weight`, no con la clase `fill-*`: con
+                la clase sola las estrellas llenas salían huecas. */}
             {filled
-              ? <Star className={`${cls} text-yellow-400 fill-yellow-400`} />
+              ? <Star className={`${cls} text-yellow-400`} weight="fill" />
               : <Star className={`${cls} text-gray-300`} />
             }
           </button>
