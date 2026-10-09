@@ -109,6 +109,10 @@ export default function AppLayout({ profile, profSpecialty }) {
           // reagendar o cargar un seguimiento le devolvía "Nueva reserva de …"
           // como si lo hubiera reservado el paciente.
           if (fueAgendadaPorElProfesional(payload.new.id)) return
+          // Una consulta inmediata la crea el propio profesional al tocar
+          // "Aceptar", y `PedidosOndemand` ya le avisa qué pasó. Este toast
+          // tapaba el aviso de "la tarjeta del paciente fue rechazada".
+          if (payload.new.is_on_demand) return
           const updated = await consultationsService.getByProfessional(profile.id)
           const newCons = updated.find(c => c.id === payload.new.id)
           const name = newCons?.profiles?.fullName || 'Nuevo paciente'

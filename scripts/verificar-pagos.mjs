@@ -32,8 +32,8 @@ const env = Object.fromEntries(
 )
 
 const ENTORNOS = {
-  produccion: { ref: 'aixjejdoofervrkggbkd', url: 'https://aixjejdoofervrkggbkd.supabase.co' },
-  staging:    { ref: 'itjhrvlzuqvyhqtffumc', url: 'https://itjhrvlzuqvyhqtffumc.supabase.co' },
+  produccion: { ref: 'aixjejdoofervrkggbkd', url: 'https://aixjejdoofervrkggbkd.supabase.co', web: 'https://www.healthier.com.ar', clave: 'APP_USR-' },
+  staging:    { ref: 'itjhrvlzuqvyhqtffumc', url: 'https://itjhrvlzuqvyhqtffumc.supabase.co', web: 'https://gethealthier-staging.vercel.app', clave: 'TEST-' },
 }
 
 // Las tres que tienen que ser PÚBLICAS (verify_jwt=false): a ninguna le puede
@@ -48,7 +48,7 @@ const ok   = (m) => console.log(`   ✅ ${m}`)
 const mal  = (m) => { fallas++; console.log(`   ❌ ${m}`) }
 const nota = (m) => console.log(`   ·  ${m}`)
 
-async function revisar(nombre, { ref, url }) {
+async function revisar(nombre, { ref, url, web, clave }) {
   console.log(`\n═══ ${nombre.toUpperCase()} ═══`)
 
   // ── 1) Los flags del gateway ──────────────────────────────────────────────
@@ -103,6 +103,23 @@ async function revisar(nombre, { ref, url }) {
     ok('llega a la función, que valida la firma (correcto)')
   } else {
     nota(`responde ${wh.status}: ${cuerpo.slice(0, 80)}`)
+  }
+
+  // ── 4) La web tokeniza con la clave de SU entorno ─────────────────────────
+  // El 2026-10-08 la web de staging tenía VITE_MP_IS_PROD=true y la public key
+  // de producción: cada pago de prueba fallaba con "Card Token not found" (el
+  // token de producción no existe para el sandbox) y nada avisaba.
+  console.log('\n▸ Public key de Mercado Pago en la web')
+  try {
+    const html = await (await fetch(`${web}/?v=${Date.now()}`)).text()
+    const js = html.match(/assets\/index-[^"']+\.js/)?.[0]
+    const bundle = js ? await (await fetch(`${web}/${js}`)).text() : ''
+    const claves = [...new Set(bundle.match(/(TEST|APP_USR)-[0-9a-f]{8}-[0-9a-f-]{20,}/g) ?? [])]
+    if (!claves.length) mal('no encontré ninguna public key de Mercado Pago en el bundle')
+    else if (claves.every(c => c.startsWith(clave))) ok(`usa ${clave}… (${claves.length} clave)`)
+    else mal(`la web usa ${claves.map(c => c.slice(0, 16)).join(', ')} — en ${nombre} tiene que ser ${clave}…`)
+  } catch (e) {
+    mal(`no pude leer la web (${e.message})`)
   }
 }
 

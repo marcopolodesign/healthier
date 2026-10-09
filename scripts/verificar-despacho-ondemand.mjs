@@ -122,6 +122,22 @@ for (const pro of [proA, proB]) {
   }).eq('user_id', pro.id)
   nota(`${pro.email} elegible (${antes.specialty})`)
 }
+// Vendedor simulado: la cuenta TEST de la plataforma, sólo mientras corre.
+// Desde la 193, sin fila en `mp_accounts` no se es elegible aunque el flag
+// `mp_connected` diga que sí.
+async function vendedorSimulado(pro) {
+  const { data: yaTenia } = await admin.from('mp_accounts').select('id').eq('professional_id', pro.id).maybeSingle()
+  if (yaTenia || !MP_TEST_TOKEN) return
+  const yo = await fetch('https://api.mercadopago.com/users/me', { headers: { Authorization: `Bearer ${MP_TEST_TOKEN}` } }).then(r => r.json())
+  await admin.from('mp_accounts').insert({
+    professional_id: pro.id, mp_user_id: String(yo.id), access_token: MP_TEST_TOKEN,
+    active: true, live_mode: false, mp_nickname: 'vendedor-simulado-control', connected_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 86400000).toISOString(),
+  })
+  restaurar.push(() => admin.from('mp_accounts').delete().eq('professional_id', pro.id).eq('mp_nickname', 'vendedor-simulado-control'))
+  nota(`vendedor simulado para ${pro.email} (cuenta TEST ${yo.id})`)
+}
+for (const pro of [proA, proB]) await vendedorSimulado(pro)
 const { data: exentoAntes } = await admin.from('profiles').select('payment_exempt').eq('id', paciente.id).single()
 restaurar.push(() => admin.from('profiles').update({ payment_exempt: exentoAntes.payment_exempt }).eq('id', paciente.id))
 
@@ -129,6 +145,17 @@ restaurar.push(() => admin.from('profiles').update({ payment_exempt: exentoAntes
 await admin.from('ondemand_requests').update({ status: 'cancelled' }).eq('patient_id', paciente.id).eq('status', 'pending')
 
 try {
+  // ── Elegibilidad: el flag solo no alcanza (193) ──────────────────────────
+  bloque('Elegibilidad')
+  {
+    const elegible = async (pro) => (await admin.rpc('puede_tomar_ondemand', { p_user: pro.id, p_especialidades: ['medicina_general'] })).data
+    ;(await elegible(proB)) === true ? ok('con cuenta de MP activa, es elegible') : mal('con cuenta de MP no es elegible')
+    await admin.from('mp_accounts').update({ active: false }).eq('professional_id', proB.id)
+    ;(await elegible(proB)) === false
+      ? ok('con mp_connected=true pero sin cuenta activa, NO es elegible') : mal('sin cuenta activa sigue siendo elegible')
+    await admin.from('mp_accounts').update({ active: true }).eq('professional_id', proB.id)
+  }
+
   // ── 0. RLS ────────────────────────────────────────────────────────────────
   bloque('RLS')
   {
@@ -203,7 +230,20 @@ try {
     const { data: fila } = await admin.from('ondemand_requests').select('status, consultation_id').eq('id', data.requestId).single()
     fila.status === (modo === 'vence' ? 'expired' : 'cancelled') && !fila.consultation_id
       ? ok(`(${modo}) el pedido quedó ${fila.status}, sin consulta`) : mal(`(${modo}) quedó ${JSON.stringify(fila)}`)
-    const { count: tokenDespues } = await admin.from('ondemand_request_cobros').select('request_id', { count: 'exact', head: true }).eq('request_id', data.requestId)
+    const contarToken = async () => (await admin.from('ondemand_request_cobros').select('request_id', { count: 'exact', head: true }).eq('request_id', data.requestId)).count
+    if (modo === 'vence') {
+      // 193: el token de un vencido se guarda para "Seguir buscando".
+      ;(await contarToken()) === 1 ? ok('(vence) el token se guarda para seguir buscando') : mal('(vence) el token se borró al vencer')
+      const sigue = await llamar(paciente, { action: 'extender', requestId: data.requestId })
+      sigue.data?.sinToken === false
+        ? ok('(vence) "Seguir buscando" no pide la tarjeta de nuevo') : mal(`(vence) seguir buscando: ${JSON.stringify(sigue)}`)
+      // Pasado el techo de 20 minutos, el cron lo borra.
+      await admin.from('ondemand_requests').update({
+        created_at: new Date(Date.now() - 21 * 60000).toISOString(), expires_at: new Date(Date.now() - 1000).toISOString(),
+      }).eq('id', data.requestId)
+      await admin.rpc('expire_ondemand_requests')
+    }
+    const tokenDespues = await contarToken()
     tokenDespues === 0 ? ok(`(${modo}) el token se borró`) : mal(`(${modo}) el token sigue guardado`)
     // Y nadie lo puede aceptar ya.
     const tarde = await llamar(proA, { action: 'aceptar', requestId: data.requestId })
@@ -217,19 +257,6 @@ try {
   if (!MP_TEST_TOKEN || !MP_PUBLIC_KEY) {
     mal('faltan MP_ACCESS_TOKEN_SANDBOX / VITE_MP_PUBLIC_KEY_SANDBOX (website/.env)')
   } else {
-    // Vendedor simulado: la cuenta TEST de la plataforma, sólo mientras corre.
-    const { data: yaTenia } = await admin.from('mp_accounts').select('id').eq('professional_id', proA.id).maybeSingle()
-    if (!yaTenia) {
-      const { data: yo } = await fetch('https://api.mercadopago.com/users/me', { headers: { Authorization: `Bearer ${MP_TEST_TOKEN}` } })
-        .then(async r => ({ data: await r.json() }))
-      await admin.from('mp_accounts').insert({
-        professional_id: proA.id, mp_user_id: String(yo.id), access_token: MP_TEST_TOKEN,
-        active: true, live_mode: false, mp_nickname: 'vendedor-simulado-control', connected_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 86400000).toISOString(),
-      })
-      restaurar.push(() => admin.from('mp_accounts').delete().eq('professional_id', proA.id).eq('mp_nickname', 'vendedor-simulado-control'))
-      nota(`vendedor simulado para ${proA.email} (cuenta TEST ${yo.id})`)
-    }
     // Sólo A elegible, para que lo tome él.
     await admin.from('professional_profiles').update({ is_on_demand: false }).eq('user_id', proB.id)
 
