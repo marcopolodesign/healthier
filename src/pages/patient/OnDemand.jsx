@@ -409,7 +409,7 @@ export default function OnDemand({ profile }) {
         </div>
         <div className="w-full max-w-md mx-auto bg-white rounded-[32px] p-6 shadow-[0_0_40px_rgba(0,0,0,0.06)] border border-gray-100 relative z-10 mt-8">
           <p className="text-[13px] text-gray-500 leading-snug mb-5">
-            Antes de entrar te hacemos unas preguntas rápidas para que {proName} tenga todo a mano al empezar.{pedido?.estadoPago === 'sin_pago' ? ' Esta consulta es bonificada.' : ' El pago se hace efectivo cuando termina la consulta.'}
+            {proName} ya tiene lo que nos contaste.{pedido?.estadoPago === 'sin_pago' ? ' Esta consulta es bonificada.' : ' El pago se hace efectivo cuando termina la consulta.'}
           </p>
           <button
             data-testid="enter-call-btn"
