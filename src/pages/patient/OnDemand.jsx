@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, VideoCamera, Clock, CircleNotch, Check, ShieldCheck, CreditCard, Warning,
-  ArrowClockwise, UserCircle, User, CaretDown,
+  ArrowClockwise, UserCircle, User, CaretDown, ClipboardText,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
 import { professionalService } from '../../services/professionalService'
@@ -10,6 +10,8 @@ import { mpService } from '../../services/mpService'
 import { consultationsService } from '../../services/consultationsService'
 import { ondemandService, BUSQUEDA_MAX_MS } from '../../services/ondemandService'
 import PatientSheet from '../../components/patient/PatientSheet'
+import PreconsultaForm from '../../components/patient/PreconsultaForm'
+import { resumenPreconsulta } from '../../lib/resumenPreconsulta'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import { explicarPagoMP, explicarErrorDePago } from '../../lib/mercadoPago'
@@ -54,11 +56,24 @@ function formatCountdown(totalSeconds) {
 export default function OnDemand({ profile }) {
   const { vertical: verticalId } = useParams()
   const [searchParams] = useSearchParams()
-  const { familiares } = useGrupoFamiliar(profile?.id)
+  const { familiares, cargando: cargandoFamiliares } = useGrupoFamiliar(profile?.id)
   const [paraId, setParaId] = useState(() => searchParams.get('para'))
   const nombreFamiliar = f => f.familiar?.fullName || f.fullName || 'Tu familiar'
   const familiarElegido = paraId && paraId !== profile?.id ? familiares.find(f => f.familiarId === paraId) : null
   const etiquetaParaQuien = familiarElegido ? `Para ${nombreFamiliar(familiarElegido)}` : 'Para mí'
+  // La preconsulta va ANTES del pago (Mateo, 2026-10-09): viaja en el pedido,
+  // el profesional la ve para decidir si lo toma y la sala ya no la pide.
+  // Es de la persona atendida: si cambia "para quién", se vuelve a contestar.
+  const [preconsulta, setPreconsulta] = useState(null)
+  // El perfil propio actualizado si la preconsulta guardó DNI/nacimiento/sexo:
+  // así "Cambiar" no los vuelve a pedir.
+  const [perfilPropio, setPerfilPropio] = useState(null)
+  const [showPreconsulta, setShowPreconsulta] = useState(false)
+  const resumenPre = resumenPreconsulta(preconsulta)
+  const perfilAtendido = familiarElegido ? { ...(familiarElegido.familiar ?? {}), id: familiarElegido.familiarId } : (perfilPropio ?? profile)
+  // Con `?para=` el familiar se conoce cuando carga el grupo: hasta entonces
+  // no se abre la preconsulta, o los datos de la receta irían al titular.
+  const preconsultaLista = !cargandoFamiliares && (!paraId || paraId === profile?.id || Boolean(familiarElegido))
   const navigate = useNavigate()
   const { verticalesById, cargando: cargandoVerticales } = useVerticales()
   const { porSlug } = useEspecialidades()
@@ -167,15 +182,17 @@ export default function OnDemand({ profile }) {
   }, [phase, pedido?.expiresAt, pedido?.status])
 
   // ── "Pagar" — deja el token y arranca la búsqueda ───────────────────────────
-  const pedir = async (pago) => {
-    const res = await ondemandService.pedir({ vertical: verticalId, paraId: paraId && paraId !== profile.id ? paraId : null, pago, bonificar: puedeBonificar && bonificar })
+  const pedir = async (pago, pre = preconsulta) => {
+    const res = await ondemandService.pedir({ vertical: verticalId, paraId: paraId && paraId !== profile.id ? paraId : null, pago, bonificar: puedeBonificar && bonificar, preconsulta: pre })
     if (res?.sinProfesionales) { setPhase('no_match'); return }
     track('ondemand_requested', { value: price, currency: 'ARS', flow: 'paciente' })
     const p = await ondemandService.getPedido(res.requestId)
     await aplicarPedido(p ?? { id: res.requestId, status: 'pending', expiresAt: res.expiresAt })
   }
 
-  const conPago = async (obtenerCharge) => {
+  const conPago = (obtenerCharge) => conPagoCon(preconsulta, obtenerCharge)
+  const conPagoCon = async (pre, obtenerChargeOCargo) => {
+    const obtenerCharge = typeof obtenerChargeOCargo === 'function' ? obtenerChargeOCargo : async () => obtenerChargeOCargo
     if (paying) return
     setPaying(true)
     setErrorPago(null)
@@ -183,7 +200,7 @@ export default function OnDemand({ profile }) {
     try {
       const charge = await obtenerCharge()
       if (charge) track('add_payment_info', { payment_type: getPaymentMethod(charge), value: price, currency: 'ARS', flow: 'paciente' })
-      await pedir(charge ? { ...charge, deviceId: window.MP_DEVICE_SESSION_ID || null } : null)
+      await pedir(charge ? { ...charge, deviceId: window.MP_DEVICE_SESSION_ID || null } : null, pre)
     } catch (err) {
       setErrorPago(err?.message ? explicarErrorDePago(err.message) : { motivo: 'No pudimos iniciar la búsqueda.', accion: 'Revisá los datos y volvé a intentar.', reintentable: true })
     } finally {
@@ -193,11 +210,19 @@ export default function OnDemand({ profile }) {
 
   const handlePay = () => {
     if (addCardMode) return
+    if (!preconsulta) { setShowPreconsulta(true); return }
     if (paymentExempt) return conPago(async () => null)
     if (!selectedCardId) return
     return conPago(() => cardSelectorRef.current?.getSavedCardCharge())
   }
-  const handleNewCardCharge = (chargeInfo) => conPago(async () => chargeInfo)
+  // La tarjeta nueva también pasa por la preconsulta. El token es de un solo
+  // uso: si falta la preconsulta, se guarda y el pago sigue solo al terminarla,
+  // sin volver a tipear la tarjeta.
+  const cargoPendienteRef = useRef(null)
+  const handleNewCardCharge = (chargeInfo) => {
+    if (!preconsulta) { cargoPendienteRef.current = chargeInfo; setShowPreconsulta(true); return }
+    return conPago(async () => chargeInfo)
+  }
 
   // ── Cancelar la búsqueda — nadie aceptó todavía, no se cobró nada ───────────
   const cancelarBusqueda = async () => {
@@ -441,7 +466,7 @@ export default function OnDemand({ profile }) {
               <select
                 aria-label="¿Para quién es la consulta?"
                 value={paraId || profile?.id || ''}
-                onChange={e => setParaId(e.target.value === profile?.id ? null : e.target.value)}
+                onChange={e => { setParaId(e.target.value === profile?.id ? null : e.target.value); setPreconsulta(null) }}
                 className="absolute inset-0 opacity-0 cursor-pointer"
               >
                 <option value={profile?.id}>Para mí</option>
@@ -469,6 +494,32 @@ export default function OnDemand({ profile }) {
                 className="switch-bonificar"
               />
             </label>
+          )}
+
+          {!rechazado && (
+            resumenPre ? (
+              <div className="mb-4 flex items-start gap-3 px-4 py-3 rounded-2xl border border-gray-200 bg-white" data-testid="ondemand-preconsulta-resumen">
+                <ClipboardText className="w-5 h-5 text-brand shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Qué te pasa</p>
+                  <p className="text-[15px] font-semibold text-gray-900 truncate">{resumenPre.motivo}</p>
+                  {resumenPre.detalle && <p className="text-[12px] text-gray-500 truncate">{resumenPre.detalle}</p>}
+                </div>
+                <button onClick={() => setShowPreconsulta(true)} className="text-[13px] font-semibold text-brand shrink-0">Cambiar</button>
+              </div>
+            ) : (
+              <button
+                data-testid="ondemand-preconsulta"
+                onClick={() => setShowPreconsulta(true)}
+                className="mb-4 w-full flex items-center gap-3 px-4 py-4 rounded-2xl border-2 border-dashed border-brand/50 bg-brand-muted/30 text-left"
+              >
+                <ClipboardText className="w-6 h-6 text-brand shrink-0" />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[15px] font-semibold text-gray-900">Contanos qué te pasa</span>
+                  <span className="block text-[12px] text-gray-500">Tres preguntas cortas. El profesional las lee antes de aceptar.</span>
+                </span>
+              </button>
+            )
           )}
 
           {rechazado ? (
@@ -561,12 +612,14 @@ export default function OnDemand({ profile }) {
             <button
               data-testid="ondemand-pagar"
               onClick={alPagar}
-              disabled={paying || (missingCard && !mostrarExento) || (isDemoMode && !mostrarExento)}
+              disabled={paying || (!!preconsulta || rechazado) && ((missingCard && !mostrarExento) || (isDemoMode && !mostrarExento))}
               className={`w-full py-5 rounded-[20px] font-semibold text-[17px] transition-all flex justify-center items-center gap-2
-                ${paying || (missingCard && !mostrarExento) ? 'bg-gray-100 text-gray-400' : 'bg-brand text-white hover:bg-brand-hover active:scale-95'}`}
+                ${paying || ((!!preconsulta || rechazado) && missingCard && !mostrarExento) ? 'bg-gray-100 text-gray-400' : 'bg-brand text-white hover:bg-brand-hover active:scale-95'}`}
             >
               {paying
                 ? <><CircleNotch className="w-5 h-5 animate-spin" /> {rechazado ? 'Autorizando…' : 'Procesando…'}</>
+                : !rechazado && !preconsulta
+                  ? <><ClipboardText className="w-5 h-5" /> Contanos qué te pasa</>
                 : errorPago
                   ? <><ArrowClockwise className="w-5 h-5" /> Reintentar</>
                   : mostrarExento
@@ -576,6 +629,24 @@ export default function OnDemand({ profile }) {
           )}
         </div>
       </div>
+
+      <PreconsultaForm
+        isOpen={showPreconsulta && preconsultaLista}
+        consultationId={null}
+        pedirDatos
+        permitirOmitir={false}
+        profile={perfilAtendido}
+        onClose={() => setShowPreconsulta(false)}
+        onProfileUpdate={(p) => { if (!familiarElegido && p) setPerfilPropio(p) }}
+        onSubmitted={(payload) => {
+          setShowPreconsulta(false)
+          if (!payload) return
+          setPreconsulta(payload)
+          const cargo = cargoPendienteRef.current
+          cargoPendienteRef.current = null
+          if (cargo) conPagoCon(payload, cargo)
+        }}
+      />
 
       <PatientSheet open={showExitConfirm} onClose={() => setShowExitConfirm(false)} maxWidth="max-w-md">
         <div className="px-6 pt-2 pb-8">

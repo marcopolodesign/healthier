@@ -20,8 +20,8 @@ const despacho = (body) => callEdgeFunction('ondemand-despacho', body)
 
 export const ondemandService = {
   /** @returns {Promise<{ requestId?: string, expiresAt?: string, sinProfesionales?: boolean }>} */
-  pedir({ vertical, paraId = null, pago = null, bonificar = false }) {
-    return despacho({ action: 'pedir', vertical, paraId, pago, bonificar })
+  pedir({ vertical, paraId = null, pago = null, bonificar = false, preconsulta = null }) {
+    return despacho({ action: 'pedir', vertical, paraId, pago, bonificar, preconsulta })
   },
 
   cancelar(requestId) {
@@ -76,7 +76,7 @@ export const ondemandService = {
   async getPedidosAbiertos() {
     const { data, error } = await supabase
       .from('ondemand_requests')
-      .select('id, vertical, especialidades, created_at, expires_at, status')
+      .select('id, vertical, especialidades, created_at, expires_at, status, preconsulta_data')
       .eq('status', 'pending')
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: true })
