@@ -14,7 +14,8 @@
     "emails": "tsx scripts/preview-emails.ts && tsx scripts/push-textos.ts",
     "emails:auth": "tsx scripts/aplicar-mails-de-auth.ts",
     "push": "tsx scripts/push-textos.ts",
-    "test:guia": "node scripts/prueba-guia.mjs"
+    "test:guia": "node scripts/prueba-guia.mjs",
+    "test:cobertura": "node --test scripts/test-cobertura-sugerida.mjs"
   },
   "dependencies": {
     "@daily-co/daily-js": "^0.87.0",

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   User, PencilSimple, Check, Camera, ShieldCheck, Heartbeat,
@@ -9,6 +9,9 @@ import { profilesService } from '../../services/profilesService'
 import { authService } from '../../services/authService'
 import { mpService } from '../../services/mpService'
 import { familyService } from '../../services/familyService'
+import { coberturaService } from '../../services/coberturaService'
+import { tieneCobertura } from '../../lib/coberturaSugerida'
+import CoberturaSugeridaConfirmar from '../../components/CoberturaSugeridaConfirmar'
 import { patientAddressesService } from '../../services/patientAddressesService'
 import AddressPickerSheet from '../../components/patient/AddressPickerSheet'
 import AddressFormSheet from '../../components/patient/AddressFormSheet'
@@ -95,6 +98,12 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   // Grupo familiar — persistido en `family_members` (migración 068)
   const [familiares, setFamiliares] = useState([])
   const [familiaresLoading, setFamiliaresLoading] = useState(true)
+  // Obra social sugerida por DNI (listado de obras sociales) para el perfil
+  // propio y para cada familiar SIN obra social cargada. Se ofrece, no se
+  // escribe: la persona toca "Usar". Ver lib/coberturaSugerida.js.
+  const [sugeridaPropia, setSugeridaPropia] = useState(null)
+  const [sugeridasFamiliares, setSugeridasFamiliares] = useState({})
+  const consultadas = useRef(new Set())
   const [savingFamiliar, setSavingFamiliar] = useState(false)
   const [deletingFamiliarId, setDeletingFamiliarId] = useState(null)
   const [showAddFamiliar, setShowAddFamiliar] = useState(false)
@@ -271,6 +280,55 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   }, [profile?.id])
 
   useEffect(() => { loadFamiliares() }, [loadFamiliares])
+
+  const buscarSugerida = useCallback(async (pacienteId, perfil) => {
+    const clave = `${pacienteId}:${perfil?.dni}`
+    if (!perfil?.dni || tieneCobertura(perfil) || consultadas.current.has(clave)) return null
+    consultadas.current.add(clave)
+    const r = await coberturaService.sugerida(pacienteId === profile?.id ? null : pacienteId)
+    return r.estado === 'encontrada' ? r.sugerencia : null
+  }, [profile?.id])
+
+  useEffect(() => {
+    if (!profile?.id) return
+    buscarSugerida(profile.id, profile).then(s => s && setSugeridaPropia(s))
+  }, [profile, buscarSugerida])
+
+  useEffect(() => {
+    for (const f of familiares) {
+      if (!f.familiarId) continue
+      buscarSugerida(f.familiarId, { dni: f.dni, insuranceName: f.insuranceName, ...f.familiar })
+        .then(s => s && setSugeridasFamiliares(prev => ({ ...prev, [f.familiarId]: s })))
+    }
+  }, [familiares, buscarSugerida])
+
+  const usarSugeridaPropia = async s => {
+    try {
+      const guardado = await profilesService.update(profile.id, {
+        coverage_type: 'financiador',
+        financiador_id: s.financiadorId,
+        insurance_name: s.financiadorNombre,
+        cobertura_origen: 'listado',
+      })
+      onProfileUpdate?.(guardado)
+      setUserData(p => ({ ...p, obraSocial: s.financiadorNombre }))
+      setSugeridaPropia(null)
+      toast.success('Obra social guardada')
+    } catch (e) {
+      toast.error(`No pudimos guardar la obra social: ${e.message}`)
+    }
+  }
+
+  const usarSugeridaFamiliar = async (f, s) => {
+    try {
+      await familyService.usarCoberturaSugerida(f.id, f.familiarId, s)
+      setFamiliares(prev => prev.map(x => (x.id === f.id ? { ...x, insuranceName: s.financiadorNombre } : x)))
+      setSugeridasFamiliares(prev => ({ ...prev, [f.familiarId]: null }))
+      toast.success('Obra social guardada')
+    } catch (e) {
+      toast.error(`No pudimos guardar la obra social: ${e.message}`)
+    }
+  }
 
   // ── Domicilio (Mis direcciones, migración 173) ────────────
   // El campo "Domicilio" ya no edita `profiles.address` directo: lee la
@@ -537,6 +595,13 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
             {field('Obra Social', 'obraSocial')}
             {field('N° Afiliado', 'numeroSocio')}
           </div>
+          {!editing && !userData.obraSocial && (
+            <CoberturaSugeridaConfirmar
+              sugerencia={sugeridaPropia}
+              onUsar={usarSugeridaPropia}
+              onDescartar={() => setSugeridaPropia(null)}
+            />
+          )}
         </div>
       </div>
 
@@ -597,6 +662,14 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
                     )}
                   </div>
                 </div>
+                {!f.insuranceName && (
+                  <CoberturaSugeridaConfirmar
+                    sugerencia={sugeridasFamiliares[f.familiarId]}
+                    quien="su"
+                    onUsar={s => usarSugeridaFamiliar(f, s)}
+                    onDescartar={() => setSugeridasFamiliares(prev => ({ ...prev, [f.familiarId]: null }))}
+                  />
+                )}
               </div>
             ))
         }
