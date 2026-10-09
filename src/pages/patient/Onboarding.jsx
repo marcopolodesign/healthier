@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Check, UserCircle, ShieldCheck, Heartbeat, ShieldPlus } from '@phosphor-icons/react';
 import { profilesService } from '../../services/profilesService'
 import FinanciadorPicker from '../../components/FinanciadorPicker'
+import CoberturaSugeridaAviso from '../../components/CoberturaSugeridaAviso'
+import { coberturaService } from '../../services/coberturaService'
+import { precargarCobertura, avisoSinMatch, origenDeCobertura } from '../../lib/coberturaSugerida'
 import { toast } from '../../components/Toast'
 import { PATIENT_CONSENT_ITEMS } from '../../lib/consentItems'
 import { track } from '../../utils/analytics'
@@ -60,6 +63,29 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
     emergencyRel:    profile?.emergencyRel    || '',
   })
 
+  // Obra social sugerida por DNI desde el listado de obras sociales. Se pide
+  // apenas se guarda el DNI y se PRECARGA sólo si el paciente no tenía nada
+  // cargado (lib/coberturaSugerida.js). Si falla, el alta sigue igual.
+  const [sugerida, setSugerida] = useState({ estado: null, id: null, nombre: null })
+  const medicalRef = useRef(medical)
+  medicalRef.current = medical
+
+  const buscarCobertura = async () => {
+    setSugerida({ estado: 'buscando', id: null, nombre: null })
+    const r = await coberturaService.sugerida()
+    // Se decide contra lo que el paciente tenga cargado AL LLEGAR la respuesta
+    // (puede haber elegido algo mientras tanto): por eso la ref, no `medical`.
+    const actual = medicalRef.current
+    const patch = precargarCobertura(actual, r)
+    if (patch) setMedical(prev => (precargarCobertura(prev, r) ? { ...prev, ...patch } : prev))
+    const sinMatch = avisoSinMatch(actual, r)
+    setSugerida({
+      estado: patch ? 'precargada' : sinMatch ? 'sin_match' : null,
+      id: patch ? patch.financiadorId : null,
+      nombre: sinMatch,
+    })
+  }
+
   const saveStep1 = async () => {
     // DNI obligatorio: sin él el paciente no puede recibir una receta
     // electrónica, y descubrirlo recién en la consulta es peor.
@@ -95,6 +121,8 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
       onProfileUpdate?.(updated)
       track('sign_up_step_complete', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], flow: 'paciente', has_allergies: !!health.allergies.trim() })
       setStep(3)
+      buscarCobertura() // sin await: no frena el paso
+
     } catch (err) {
       track('sign_up_error', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], error_type: 'server_error', flow: 'paciente' })
       toast.error(`No pudimos guardar: ${err.message}`)
@@ -129,6 +157,7 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
         emergency_name:  medical.emergencyName  || null,
         emergency_phone: medical.emergencyPhone || null,
         emergency_rel:   medical.emergencyRel   || null,
+        cobertura_origen: origenDeCobertura(medical, sugerida.id),
       })
       onProfileUpdate?.(updated) // ver saveStep1
       track('sign_up_step_complete', { step: step + 1, step_name: STEP_NAME_BY_INTERNAL_STEP[step], flow: 'paciente' })
@@ -325,6 +354,10 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
                 <p className="text-xs font-semibold text-text-tertiary uppercase tracking-widest mb-3">Obra social / prepaga</p>
                 {/* Del catálogo de Innovamed, nunca texto libre: la receta
                     electrónica necesita el idFinanciador (regla RCTA). */}
+                <CoberturaSugeridaAviso
+                  estado={sugerida.estado === 'precargada' && medical.financiadorId !== sugerida.id ? null : sugerida.estado}
+                  nombre={sugerida.nombre}
+                />
                 <FinanciadorPicker
                   coverageType={medical.coverageType}
                   financiadorId={medical.financiadorId}

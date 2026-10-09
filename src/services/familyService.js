@@ -89,6 +89,30 @@ export const familyService = {
    * perfil del familiar (la receta los lee de ahí — migración 183). El
    * `full_name` del vínculo se sigue mandando en `create`/`update`.
    */
+  /**
+   * El titular confirma la obra social que sugirió el listado de obras sociales
+   * para el familiar (components/CoberturaSugeridaConfirmar). Va al vínculo
+   * (`insurance_name`, que la base copia al perfil) y al perfil del familiar el
+   * financiador del catálogo, para que sus recetas salgan con cobertura.
+   */
+  async usarCoberturaSugerida(vinculoId, familiarId, sugerencia) {
+    const { error: e1 } = await supabase
+      .from('family_members')
+      .update({ insurance_name: sugerencia.financiadorNombre })
+      .eq('id', vinculoId)
+    if (e1) throw e1
+    const { error: e2 } = await supabase
+      .from('profiles')
+      .update({
+        coverage_type: 'financiador',
+        financiador_id: sugerencia.financiadorId,
+        insurance_name: sugerencia.financiadorNombre,
+        cobertura_origen: 'listado',
+      })
+      .eq('id', familiarId)
+    if (e2) throw e2
+  },
+
   async updatePerfil(familiarId, { birthDate, gender, nombre, apellido }) {
     const { error } = await supabase
       .from('profiles')
