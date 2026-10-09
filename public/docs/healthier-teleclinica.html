@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Healthier — Teleclínica, paso a paso</title>
+<style>
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Light.woff2') format('woff2');font-weight:300;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Regular.woff2') format('woff2');font-weight:400 600;font-style:normal;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-RegularItalic.woff2') format('woff2');font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:'Everett';src:url('../fonts/Everett-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+:root{
+  --sage:#7CB38B;--sage-hover:#5f9470;--sage-muted:rgba(124,179,139,.1);--sage-muted2:rgba(124,179,139,.18);
+  --coral:#E8927C;--lavender:#9B8EC4;--danger:#D9534F;--gold:#E4A853;--sky:#6BAFCF;--green:#6BBF7B;
+  --bg-primary:#F6F5F0;--bg-secondary:#FDFCF9;--surface:#fff;
+  --text-primary:#2D2A26;--text-secondary:#6B6560;--text-tertiary:#A8A29E;
+  --border:#D8D4CE;--border-hover:#C4BFB8;
+  --radius-pill:999px;--radius-card:1.5rem;--radius-card-sm:1rem;
+  --shadow-card:0 1px 4px rgba(45,42,38,.06);--shadow-hover:0 8px 28px rgba(124,179,139,.14);
+  --t:all .36s cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-primary)}
+body{font-family:'Everett',-apple-system,BlinkMacSystemFont,sans-serif;color:var(--text-primary);-webkit-font-smoothing:antialiased}
+button{all:unset;cursor:pointer}
+
+/* DECK */
+#deck{position:fixed;inset:0;overflow:hidden}
+.slide{
+  position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;
+  padding:4.5rem 2rem 3.5rem;opacity:0;pointer-events:none;
+  transition:opacity .42s cubic-bezier(.4,0,.2,1),transform .42s cubic-bezier(.4,0,.2,1);
+  transform:translateY(20px);overflow:hidden;
+}
+.slide.active{opacity:1;pointer-events:auto;transform:translateY(0)}
+@media(prefers-reduced-motion:reduce){.slide{transition:opacity .15s}}
+.slide-ivory{background:var(--bg-primary)}
+.slide-cream{background:var(--bg-secondary)}
+.slide-white{background:var(--surface)}
+.slide-sage{background:var(--sage);color:#fff}
+.slide-dark{background:#1d1e1a;color:#f9f8f5}
+.slide-rose{background:#FBF2F1}
+
+/* NAV */
+#nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;
+  padding:.75rem 1.5rem;height:52px;background:rgba(246,245,240,.82);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);transition:background .3s,border-color .3s}
+#brand{font-size:.8rem;font-weight:700;color:var(--sage);letter-spacing:-.01em;min-width:4rem}
+#dots{display:flex;align-items:center;gap:.35rem;flex:1;justify-content:center;flex-wrap:wrap}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--border);transition:var(--t);cursor:pointer}
+.dot.active{background:var(--sage);width:18px;border-radius:3px}
+#counter{font-size:.75rem;font-weight:600;color:var(--text-tertiary);letter-spacing:.04em;min-width:4rem;text-align:right}
+.arrow-btn{position:fixed;top:50%;z-index:99;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.7);backdrop-filter:blur(8px);
+  border:1px solid var(--border);color:var(--text-secondary);transition:var(--t);opacity:.55}
+.arrow-btn:hover{opacity:1;background:#fff;color:var(--text-primary)}
+#btn-prev{left:.75rem}#btn-next{right:.75rem}
+.arrow-btn.hidden{opacity:0;pointer-events:none}
+.progress-bar{position:fixed;bottom:0;left:0;height:2px;background:var(--sage);transition:width .4s cubic-bezier(.4,0,.2,1);z-index:100}
+
+/* LAYOUT */
+.content{width:100%;max-width:880px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:1.3rem;text-align:center}
+.content.wide{max-width:1080px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:2.5rem;align-items:center;width:100%;max-width:1000px}
+.two-col.r{direction:rtl}.two-col.r>*{direction:ltr}
+.two-col .txt{display:flex;flex-direction:column;gap:.9rem;text-align:left;align-items:flex-start}
+.two-col .txt h2.st{text-align:left}
+@media(max-width:900px){.two-col{grid-template-columns:1fr;gap:1.2rem}}
+
+/* TYPOGRAPHY */
+.eyebrow{display:inline-flex;align-items:center;gap:.4rem;font-size:.72rem;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;background:var(--sage-muted);color:var(--sage);padding:.3rem .85rem;border-radius:var(--radius-pill)}
+.eyebrow.coral{background:rgba(232,146,124,.12);color:#c2614a}
+.eyebrow.lavender{background:rgba(155,142,196,.12);color:#6d5fa3}
+.eyebrow.gold{background:rgba(228,168,83,.12);color:#9a6c1a}
+.eyebrow.danger{background:rgba(217,83,79,.1);color:#b8433f}
+.eyebrow.onsage{background:rgba(255,255,255,.18);color:#fff}
+.eyebrow.ondark{background:rgba(255,255,255,.1);color:#cfe6d6}
+h1.hero{font-size:clamp(2.2rem,5vw,3.8rem);font-weight:700;line-height:1.1;letter-spacing:-.02em;max-width:18ch}
+h1.hero .a{color:var(--sage)}
+h1.hero .d{color:var(--danger)}
+h2.st{font-size:clamp(1.55rem,3.2vw,2.35rem);font-weight:700;line-height:1.15;letter-spacing:-.02em;max-width:24ch}
+h2.st .a{color:var(--sage)}
+h2.st .ac{color:var(--coral)}
+h2.st .al{color:var(--lavender)}
+h2.st .ag{color:var(--gold)}
+h2.st .ad{color:var(--danger)}
+.lead{font-size:clamp(.88rem,1.55vw,1.02rem);color:var(--text-secondary);line-height:1.6;max-width:56ch}
+.lead strong{color:var(--text-primary);font-weight:600}
+.two-col .lead{max-width:44ch}
+.slide-sage .lead,.slide-dark .lead{color:rgba(255,255,255,.82)}
+.slide-sage .lead strong,.slide-dark .lead strong{color:#fff}
+
+/* SCREENSHOTS */
+.shots{display:flex;gap:1.1rem;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+.shot{display:flex;flex-direction:column;gap:.5rem;align-items:center}
+.shot img{height:52vh;max-height:470px;width:auto;border-radius:20px;border:1px solid var(--border);
+  box-shadow:0 12px 34px rgba(45,42,38,.16);background:#fff;display:block}
+.shot .cap{font-size:.7rem;color:var(--text-tertiary);text-align:center;max-width:24ch;line-height:1.4}
+.shot .cap b{color:var(--text-secondary);font-weight:600;display:block}
+.slide-dark .shot .cap{color:rgba(255,255,255,.5)}
+.slide-dark .shot .cap b{color:rgba(255,255,255,.8)}
+.shots.three .shot img{height:44vh;max-height:400px}
+.shots.four .shot img{height:38vh;max-height:340px}
+.two-col > .shot img{height:56vh;max-height:520px}
+.two-col .shots{flex-wrap:nowrap;gap:.8rem}
+.two-col .shots .shot img{height:42vh;max-height:380px}
+.shot.wide img{height:auto;width:min(720px,84vw);max-height:44vh;object-fit:contain;border-radius:14px}
+.shots.par{gap:1.4rem;align-items:center}
+.shots.par .shot img{height:42vh;max-height:390px}
+.shots.par .shot.wide img{height:auto;width:min(620px,52vw);max-height:34vh}
+
+/* LISTAS */
+.bl{display:flex;flex-direction:column;gap:.5rem;list-style:none;text-align:left}
+.bl li{display:flex;align-items:flex-start;gap:.6rem;font-size:.84rem;color:var(--text-secondary);line-height:1.5}
+.bl .bi{width:20px;height:20px;border-radius:50%;background:var(--sage-muted);display:flex;align-items:center;
+  justify-content:center;color:var(--sage);flex-shrink:0;margin-top:.1rem;font-size:.62rem;font-weight:700}
+.bl .bi.d{background:rgba(217,83,79,.12);color:var(--danger)}
+.bl li strong{color:var(--text-primary);font-weight:600}
+.slide-dark .bl li{color:rgba(255,255,255,.75)}
+.slide-dark .bl li strong{color:#fff}
+.slide-dark .bl .bi{background:rgba(124,179,139,.22);color:var(--sage)}
+
+/* FEATURE GRID */
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.8rem;width:100%;max-width:920px}
+.fg.four{grid-template-columns:repeat(4,1fr)}
+.fg.three{grid-template-columns:repeat(3,1fr)}
+@media(max-width:860px){.fg.four,.fg.three{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.fg.four,.fg.three{grid-template-columns:1fr}}
+.fc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:1rem 1.15rem;
+  text-align:left;box-shadow:var(--shadow-card);transition:var(--t)}
+.fc:hover{box-shadow:var(--shadow-hover);border-color:rgba(124,179,139,.3);transform:translateY(-2px)}
+.fc h3{font-size:.86rem;font-weight:700;margin-bottom:.25rem}
+.fc p{font-size:.76rem;color:var(--text-secondary);line-height:1.5}
+.fc .n{font-size:.6rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--sage);display:block;margin-bottom:.3rem}
+.fc .n.d{color:var(--danger)}.fc .n.g{color:#9a6c1a}.fc .n.l{color:#6d5fa3}.fc .n.c{color:#c2614a}
+.slide-dark .fc{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12)}
+.slide-dark .fc p{color:rgba(255,255,255,.68)}
+.slide-sage .fc{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.22)}
+.slide-sage .fc h3{color:#fff}
+.slide-sage .fc p{color:rgba(255,255,255,.8)}
+.slide-sage .fc .n{color:rgba(255,255,255,.75)}
+
+.pill-row{display:flex;flex-wrap:wrap;gap:.45rem;justify-content:center}
+.pill{font-size:.76rem;font-weight:500;padding:.32rem .85rem;border-radius:var(--radius-pill);
+  border:1px solid var(--border);background:var(--surface);color:var(--text-secondary)}
+.hint{font-size:.78rem;color:var(--text-tertiary);margin-top:.6rem}
+
+/* Línea de tiempo */
+.flow{display:flex;align-items:stretch;gap:.55rem;width:100%;max-width:960px;flex-wrap:wrap;justify-content:center}
+.fs{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card-sm);
+  padding:.8rem .95rem;text-align:left;position:relative;box-shadow:var(--shadow-card)}
+.fs .n{font-size:.6rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--sage);display:block;margin-bottom:.28rem}
+.fs .h{font-size:.83rem;font-weight:700;line-height:1.25;display:block;margin-bottom:.2rem}
+.fs .d{font-size:.72rem;color:var(--text-secondary);line-height:1.45}
+.fs .n.d{color:var(--danger)}.fs .n.g{color:#9a6c1a}.fs .n.l{color:#6d5fa3}
+.fs.hot{border-color:rgba(217,83,79,.4);background:rgba(217,83,79,.05)}
+.fs.off{opacity:.6;border-style:dashed}
+.slide-dark .fs{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.13)}
+.slide-dark .fs .d{color:rgba(255,255,255,.66)}
+@media(max-width:760px){.flow{flex-direction:column}}
+
+/* Tabla */
+.tbl{width:100%;max-width:960px;border:1px solid var(--border);border-radius:var(--radius-card-sm);
+  overflow:hidden;background:var(--surface);box-shadow:var(--shadow-card)}
+.tbl .tr{display:grid;grid-template-columns:.85fr 1.2fr 1.2fr 1.3fr;gap:.75rem;padding:.55rem .95rem;text-align:left;align-items:center}
+.tbl .tr+.tr{border-top:1px solid var(--border)}
+.tbl .th{background:var(--sage-muted);font-size:.61rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--sage)}
+.tbl .tr span{font-size:.73rem;color:var(--text-secondary);line-height:1.4}
+.tbl .tr span:first-child{font-weight:700;color:var(--text-primary)}
+.tbl.dos .tr{grid-template-columns:.8fr 1.4fr 1.4fr}
+@media(max-width:760px){.tbl .tr,.tbl.dos .tr{grid-template-columns:1fr 1fr}.tbl .th{display:none}}
+
+/* Aviso */
+.note{display:flex;gap:.7rem;align-items:flex-start;max-width:680px;text-align:left;
+  background:rgba(228,168,83,.09);border:1px solid rgba(228,168,83,.3);border-radius:var(--radius-card-sm);padding:.8rem 1rem}
+.note.d{background:rgba(217,83,79,.07);border-color:rgba(217,83,79,.3)}
+.note .k{font-size:.95rem;flex-shrink:0;line-height:1.4}
+.note p{font-size:.78rem;color:var(--text-secondary);line-height:1.55}
+.note p strong{color:var(--text-primary)}
+.slide-dark .note{background:rgba(228,168,83,.1);border-color:rgba(228,168,83,.28)}
+.slide-dark .note p{color:rgba(255,255,255,.72)}
+.slide-dark .note p strong{color:#fff}
+
+/* Dos columnas etiquetadas */
+.sides{display:grid;grid-template-columns:1fr 1fr;gap:.85rem;width:100%;max-width:920px}
+@media(max-width:760px){.sides{grid-template-columns:1fr}}
+.side{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);
+  padding:1rem 1.15rem;text-align:left;box-shadow:var(--shadow-card)}
+.side .who{font-size:.61rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--sage);display:block;margin-bottom:.5rem}
+.side .who.c{color:#c2614a}.side .who.d{color:var(--danger)}
+.side ul{list-style:none;display:flex;flex-direction:column;gap:.4rem}
+.side li{font-size:.77rem;color:var(--text-secondary);line-height:1.5;padding-left:.85rem;position:relative}
+.side li::before{content:'';position:absolute;left:0;top:.5rem;width:4px;height:4px;border-radius:50%;background:var(--border-hover)}
+.side li strong{color:var(--text-primary);font-weight:600}
+.slide-dark .side{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.13)}
+.slide-dark .side li{color:rgba(255,255,255,.68)}
+.slide-dark .side li strong{color:#fff}
+
+/* ── Agregados de esta versión ── */
+.who-row{display:flex;flex-wrap:wrap;gap:.4rem}
+.two-col .txt .who-row{justify-content:flex-start}
+.role{display:inline-flex;align-items:center;gap:.35rem;font-size:.66rem;font-weight:700;letter-spacing:.04em;
+  padding:.24rem .7rem;border-radius:var(--radius-pill);border:1px solid;white-space:nowrap}
+.role::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.role.pac{color:#4f8a60;border-color:rgba(124,179,139,.45);background:var(--sage-muted)}
+.role.pro{color:#6d5fa3;border-color:rgba(155,142,196,.45);background:rgba(155,142,196,.1)}
+.role.far{color:#c2614a;border-color:rgba(232,146,124,.45);background:rgba(232,146,124,.1)}
+.role.adm{color:#9a6c1a;border-color:rgba(228,168,83,.45);background:rgba(228,168,83,.1)}
+.role.op{color:#2f7196;border-color:rgba(107,175,207,.45);background:rgba(107,175,207,.12)}
+.role.trp{color:#b8433f;border-color:rgba(217,83,79,.4);background:rgba(217,83,79,.08)}
+.role.sys{color:var(--text-secondary);border-color:var(--border);background:var(--surface)}
+.slide-sage .role{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.35);color:#fff}
+.shot.web img{height:auto;width:min(780px,86vw);max-height:56vh;object-fit:contain;object-position:top;border-radius:14px}
+.two-col .shot.web img{width:100%;max-height:54vh}
+.shots.par .shot.web img{width:min(560px,48vw);max-height:44vh}
+.two-col.wweb{grid-template-columns:.72fr 1.28fr;max-width:1080px;gap:2rem;padding:0 1.5rem}
+.two-col.wweb .shot.web img{max-height:60vh}
+.content.wide>.shot.web img{max-height:45vh}
+.tbl.tres .tr{grid-template-columns:.8fr 1.1fr 1.1fr 1.2fr}
+/* Teleclínica: en el teléfono las slides largas se scrollean en vez de cortarse */
+@media(max-width:760px){.slide{justify-content:flex-start;overflow-y:auto;-webkit-overflow-scrolling:touch}}
+.shots.par.dos{flex-wrap:nowrap}
+.shots.par.dos .shot.web img{width:min(440px,40vw);max-height:46vh}
+@media(max-width:760px){.shots.par.dos{flex-wrap:wrap}.shots.par.dos .shot.web img{width:86vw}}
+</style>
+</head>
+<body>
+
+<div id="nav">
+  <span id="brand">Healthier</span>
+  <div id="dots"></div>
+  <span id="counter">01 / 25</span>
+</div>
+
+<button class="arrow-btn hidden" id="btn-prev" aria-label="Anterior">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+</button>
+<button class="arrow-btn" id="btn-next" aria-label="Siguiente">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+</button>
+<div class="progress-bar" style="width:4.0%"></div>
+
+<div id="deck">
+<!-- 1 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory active" data-slide="1">
+  <div class="content">
+    <span class="eyebrow">Teleclínica · Documento interno</span>
+    <h1 class="hero">Pagás, esperás un minuto<br>y te atiende el <span class="a">primero.</span></h1>
+    <p class="lead">El flujo nuevo de la consulta inmediata, contado desde el lugar del paciente y del profesional, con las pantallas reales capturadas en staging el 8 de octubre de 2026. Producción todavía corre el modelo anterior.</p>
+    <div class="pill-row">
+      <span class="role pac">Paciente · app y web</span>
+      <span class="role pro">Profesional · web y app</span>
+      <span class="role adm">Super admin · web</span>
+    </div>
+    <p class="hint">→ Navegá con las flechas o la barra espaciadora</p>
+  </div>
+</section>
+
+<!-- 2 ─────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="2">
+  <div class="content wide">
+    <span class="eyebrow">Qué cambia</span>
+    <h2 class="st">Ya no se elige médico.<br>Le suena a <span class="a">todos.</span></h2>
+    <div class="fg three">
+      <div class="fc"><span class="n">Antes</span><h3>El paciente elegía</h3><p>Veía un médico disponible, se reservaba la plata contra ese médico y lo esperaba a <strong>él</strong>. Si no contestaba, esperaba de más.</p></div>
+      <div class="fc"><span class="n">Ahora</span><h3>Le suena a todos los conectados</h3><p>El paciente paga primero, sin saber quién lo va a atender. El pedido les llega a <strong>todos</strong> los profesionales de esa especialidad que están conectados.</p></div>
+      <div class="fc"><span class="n">El primero</span><h3>Se lo queda quien acepta</h3><p>El primero que toca <strong>Aceptar</strong> se lo queda. A los demás se les va de la lista y, si llegaron a tocar, les avisa que otro lo tomó.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="3">
+  <div class="content wide">
+    <span class="eyebrow">El mapa</span>
+    <h2 class="st">Un pedido,<br>seis <span class="a">pasos.</span></h2>
+    <div class="flow">
+      <div class="fs"><span class="n">01 · paciente</span><span class="h">Elige Teleclínica</span><span class="d">Desde el inicio, "Empezar" en Clínica.</span></div>
+      <div class="fs"><span class="n">02 · paciente</span><span class="h">Paga</span><span class="d">Elige tarjeta y pone el código de seguridad. Todavía no se cobra.</span></div>
+      <div class="fs"><span class="n">03 · paciente</span><span class="h">Buscando</span><span class="d">Sin nombre ni foto. Cuenta regresiva de 4 minutos.</span></div>
+      <div class="fs"><span class="n l">04 · profesional</span><span class="h">Acepta</span><span class="d">Le llegó junto con los otros conectados. El primero gana.</span></div>
+      <div class="fs"><span class="n">05 · paciente</span><span class="h">Te atiende</span><span class="d">Nombre, foto y "Ver perfil". Ahí se reserva la plata.</span></div>
+      <div class="fs"><span class="n">06 · los dos</span><span class="h">La consulta</span><span class="d">Preconsulta del paciente, sala del profesional.</span></div>
+    </div>
+    <div class="note">
+      <span class="k">$</span>
+      <p>La plata se <strong>reserva cuando alguien acepta</strong>, se <strong>cobra cuando termina la consulta</strong> y se <strong>libera</strong> si se cancela. Si nadie acepta, no se toca la tarjeta.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 4 ─────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="4">
+  <div class="content">
+    <span class="eyebrow onsage">El paciente</span>
+    <h2 class="st">Paga primero,<br>después conoce a su médico.</h2>
+    <p class="lead">Así se ve en la app. La web hace exactamente lo mismo, con las mismas pantallas adaptadas a la compu.</p>
+  </div>
+</section>
+
+<!-- 5 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="5">
+  <div class="two-col">
+    <div class="txt">
+      <div class="who-row"><span class="role pac">Paciente · app</span></div>
+      <h2 class="st">Empieza en<br>el <span class="a">inicio.</span></h2>
+      <p class="lead">La tarjeta de Clínica dice el precio y tiene <strong>Empezar</strong>. Adentro elige para quién es la consulta —para sí o para alguien de su grupo familiar— y con qué tarjeta paga.</p>
+      <ul class="bl">
+        <li><span class="bi">✓</span><span>Las especialidades sin nadie conectado ofrecen "Sacá un turno" en vez de Empezar.</span></li>
+      </ul>
+    </div>
+    <div class="shots">
+      <div class="shot"><img src="screenshots-teleclinica/tc-pac-01-inicio.jpg" alt="Inicio del paciente con la tarjeta de Clínica"><span class="cap"><b>Inicio</b>Clínica · $1.000 · Empezar</span></div>
+      <div class="shot"><img src="screenshots-teleclinica/tc-pac-02-checkout.jpg" alt="Elegir para quién y con qué tarjeta"><span class="cap"><b>Tele-Clínica</b>Para quién y con qué tarjeta</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="6">
+  <div class="two-col r">
+    <div class="txt">
+      <div class="who-row"><span class="role pac">Paciente · app</span></div>
+      <h2 class="st">"Pagar" no cobra.<br>Deja todo <span class="a">listo.</span></h2>
+      <p class="lead">Con el código de seguridad de la tarjeta toca <strong>Pagar $1.000</strong>. La pantalla lo dice claro: no se cobra nada hasta que un profesional acepte; ahí se reserva el monto y el cobro se hace efectivo cuando termina la consulta.</p>
+      <ul class="bl">
+        <li><span class="bi">🔒</span><span>La tarjeta queda guardada del lado de Healthier, protegida, sólo mientras dura la búsqueda.</span></li>
+      </ul>
+    </div>
+    <div class="shot"><img src="screenshots-teleclinica/tc-pac-03-pagar.jpg" alt="Botón Pagar con el aviso de cobro"><span class="cap"><b>Pagar</b>"No se te cobra nada hasta que un profesional acepte"</span></div>
+  </div>
+</section>
+
+<!-- 7 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="7">
+  <div class="two-col">
+    <div class="txt">
+      <div class="who-row"><span class="role pac">Paciente · app y web</span></div>
+      <h2 class="st">Buscando,<br>sin <span class="a">nombre.</span></h2>
+      <p class="lead"><strong>"Buscando un médico disponible"</strong>: no hay nombre ni foto, porque todavía no se sabe quién va a atender. Corre una cuenta regresiva de 4 minutos y puede cancelar cuando quiera, sin costo.</p>
+    </div>
+    <div class="shots par">
+      <div class="shot"><img src="screenshots-teleclinica/tc-pac-04-buscando.jpg" alt="Buscando un médico disponible en la app"><span class="cap"><b>App</b>Cuenta regresiva · Cancelar</span></div>
+      <div class="shot web"><img src="screenshots-teleclinica/tc-wpac-03-buscando.jpg" alt="Buscando un médico disponible en la web"><span class="cap"><b>Web</b>"Todavía no te cobramos nada"</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 ─────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="8">
+  <div class="two-col r">
+    <div class="txt">
+      <div class="who-row"><span class="role pac">Paciente · app</span></div>
+      <h2 class="st">Te atiende<br>la <span class="a">Dra.</span></h2>
+      <p class="lead">Apenas un profesional acepta, la pantalla cambia sola: <strong>"Te atiende Valentina Ortega"</strong>, con su foto (o sus iniciales si no cargó una) y la especialidad. De ahí puede entrar a la consulta, ver el perfil o cancelar.</p>
+      <ul class="bl">
+        <li><span class="bi">↻</span><span>Si recarga la página, vuelve a esta misma pantalla.</span></li>
+      </ul>
+    </div>
+    <div class="shot"><img src="screenshots-teleclinica/tc-pac-08-te-atiende.jpg" alt="Te atiende Valentina Ortega"><span class="cap"><b>Te atiende</b>Entrar a la consulta · Ver perfil · Cancelar. Capturada como consulta bonificada: ese día los pagos de prueba no respondían.</span></div>
+  </div>
+</section>
+
+<!-- 9 ─────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="9">
+  <div class="two-col">
+    <div class="txt">
+      <div class="who-row"><span class="role pac">Paciente · app</span></div>
+      <h2 class="st">El perfil<br><span class="a">completo.</span></h2>
+      <p class="lead">"Ver perfil" abre la ficha entera del profesional: especialidad, calificación, la presentación que escribió, su matrícula, cuánto cobra por video y presencial, y las reseñas de otros pacientes.</p>
+      <ul class="bl">
+        <li><span class="bi">✓</span><span>Desde Teleclínica el perfil se muestra sin botones de reservar: ya tiene profesional.</span></li>
+        <li><span class="bi">✓</span><span>Nunca muestra el mail, el teléfono ni el WhatsApp del profesional.</span></li>
+      </ul>
+    </div>
+    <div class="shots">
+      <div class="shot"><img src="screenshots-teleclinica/tc-pac-09-perfil.jpg" alt="Perfil del profesional"><span class="cap"><b>Perfil</b>Matrícula y valores</span></div>
+      <div class="shot"><img src="screenshots-teleclinica/tc-pac-10-perfil-resenas.jpg" alt="Reseñas del profesional"><span class="cap"><b>Reseñas</b>Con la fecha de cada una</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="10">
+  <div class="two-col r">
+    <div class="txt">
+      <div class="who-row"><span class="role pac">Paciente · app</span></div>
+      <h2 class="st">Entra contando<br>qué le <span class="a">pasa.</span></h2>
+      <p class="lead"><strong>Entrar a la consulta</strong> abre la preconsulta: tres pasos cortos para que el profesional llegue sabiendo el motivo. Después espera en la sala hasta que el profesional lo hace pasar.</p>
+    </div>
+    <div class="shot"><img src="screenshots-teleclinica/tc-pac-11-preconsulta.jpg" alt="Preconsulta: qué te pasa"><span class="cap"><b>Preconsulta</b>"¿Qué te pasa?" · Paso 1 de 3</span></div>
+  </div>
+</section>
+
+<!-- 11 ────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="11">
+  <div class="two-col">
+    <div class="txt">
+      <div class="who-row"><span class="role pac">Paciente · app</span></div>
+      <h2 class="st">Si nadie acepta,<br>no se <span class="a">cobra.</span></h2>
+      <p class="lead">Cuando terminan los 4 minutos sin que nadie acepte: <strong>"Nadie pudo atenderte ahora. No te cobramos nada."</strong> Puede seguir buscando o volver al inicio. La tarjeta no se tocó.</p>
+      <ul class="bl">
+        <li><span class="bi">↻</span><span>Si sigue buscando después de que venció, se le pide de nuevo el código de seguridad: los datos de la tarjeta se borran al vencer.</span></li>
+      </ul>
+    </div>
+    <div class="shots">
+      <div class="shot"><img src="screenshots-teleclinica/tc-pac-05-nadie.jpg" alt="Nadie pudo atenderte ahora"><span class="cap"><b>Sin respuesta</b>Seguir buscando · Volver al inicio</span></div>
+      <div class="shot"><img src="screenshots-teleclinica/tc-pac-06-seguir.jpg" alt="Volvé a ingresar el código de tu tarjeta"><span class="cap"><b>Seguir buscando</b>Pide el código otra vez</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 12 ────────────────────────────────────────────── -->
+<section class="slide slide-rose" data-slide="12">
+  <div class="two-col r">
+    <div class="txt">
+      <div class="who-row"><span class="role pac">Paciente · app y web</span></div>
+      <h2 class="st">Aceptó, pero la tarjeta<br>no <span class="ad">pasó.</span></h2>
+      <p class="lead">La tarjeta recién se prueba cuando alguien acepta. Si ahí se rechaza, el profesional <strong>igual se queda con la consulta</strong> y al paciente se le dice quién aceptó y que elija otra tarjeta. La consulta lo espera.</p>
+      <ul class="bl">
+        <li><span class="bi">!</span><span>No se puede validar antes: Mercado Pago no revisa fondos ni código hasta que se reserva la plata.</span></li>
+      </ul>
+    </div>
+    <div class="shots par">
+      <div class="shot"><img src="screenshots-teleclinica/tc-pac-07-rechazada.jpg" alt="Tarjeta rechazada en la app"><span class="cap"><b>App</b>"Elegí otra tarjeta"</span></div>
+      <div class="shot web"><img src="screenshots-teleclinica/tc-wpac-04-rechazada.jpg" alt="Tarjeta rechazada en la web"><span class="cap"><b>Web</b>"Te está esperando"</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 13 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="13">
+  <div class="content wide">
+    <div class="who-row"><span class="role pac">Paciente · web</span></div>
+    <h2 class="st">En la compu,<br>el mismo <span class="a">camino.</span></h2>
+    <p class="lead">El paciente que entra desde la web ve las mismas etapas. Si empieza en un lado, la búsqueda sigue viva al recargar.</p>
+    <div class="shots par dos">
+      <div class="shot web"><img src="screenshots-teleclinica/tc-wpac-02-checkout.jpg" alt="Checkout en la web"><span class="cap"><b>Pagar</b>Para quién, tarjeta y código</span></div>
+      <div class="shot web"><img src="screenshots-teleclinica/tc-wpac-05-te-atiende.jpg" alt="Te atiende en la web"><span class="cap"><b>Te atiende</b>Ver perfil · Entrar a la consulta</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 14 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="14">
+  <div class="content wide">
+    <div class="who-row"><span class="role pac">Paciente · web</span></div>
+    <h2 class="st">El perfil,<br>también en la <span class="a">web.</span></h2>
+    <div class="shot web"><img src="screenshots-teleclinica/tc-wpac-06-perfil.jpg" alt="Perfil del profesional en la web"><span class="cap"><b>Perfil</b>Presentación, matrícula, valores y reseñas</span></div>
+  </div>
+</section>
+
+<!-- 15 ────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="15">
+  <div class="content">
+    <span class="eyebrow onsage">El profesional</span>
+    <h2 class="st">Le suena a varios.<br>Gana el primero.</h2>
+    <p class="lead">Para recibir pedidos tiene que tener prendida la consulta inmediata, estar verificado y tener Mercado Pago conectado.</p>
+  </div>
+</section>
+
+<!-- 16 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="16">
+  <div class="content wide">
+    <div class="who-row"><span class="role pro">Profesional · web</span></div>
+    <h2 class="st">"Un paciente busca<br>atención <span class="al">ahora."</span></h2>
+    <p class="lead">El pedido aparece arriba de todo en su inicio, en vivo, con la especialidad, hace cuánto espera el paciente y cuánto le queda. No ve el nombre del paciente hasta aceptar. Además le llega un aviso al celular.</p>
+    <div class="shot web"><img src="screenshots-teleclinica/tc-wpro-01-pedido.jpg" alt="Pedido de consulta inmediata en el inicio del profesional"><span class="cap"><b>Inicio · web</b>Consulta inmediata · Clínica · Aceptar</span></div>
+  </div>
+</section>
+
+<!-- 17 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="17">
+  <div class="two-col">
+    <div class="txt">
+      <div class="who-row"><span class="role pro">Profesional · app</span></div>
+      <h2 class="st">En el celular,<br>lo <span class="al">mismo.</span></h2>
+      <p class="lead">En la app el pedido aparece en el inicio con un botón grande de <strong>Aceptar</strong>. Al aceptar, la consulta pasa a su lista de hoy como <strong>Confirmada</strong>, con el botón <strong>Sala</strong>.</p>
+    </div>
+    <div class="shots">
+      <div class="shot"><img src="screenshots-teleclinica/tc-apro-01-pedido.jpg" alt="Pedido en la app del profesional"><span class="cap"><b>Inicio · app</b>"Paciente esperando · quedan 3:54"</span></div>
+      <div class="shot"><img src="screenshots-teleclinica/tc-apro-02-consultas.jpg" alt="Consultas de hoy con la consulta confirmada"><span class="cap"><b>Consultas de hoy</b>Confirmada · Sala</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 18 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="18">
+  <div class="content wide">
+    <div class="who-row"><span class="role pro">Profesional · web</span></div>
+    <h2 class="st">Si otro llegó antes,<br>se <span class="al">entera.</span></h2>
+    <p class="lead">La toma es de a uno: aunque dos toquen Aceptar casi juntos, la consulta es de uno solo. Al que llegó tarde el pedido se le va de la lista y, si alcanzó a tocar, le aparece <strong>"Otro profesional ya tomó esta consulta."</strong></p>
+    <div class="shot web"><img src="screenshots-teleclinica/tc-wpro-02-otro-tomo.jpg" alt="Otro profesional ya tomó esta consulta"><span class="cap"><b>Llegó tarde</b>El pedido desaparece y se avisa</span></div>
+  </div>
+</section>
+
+<!-- 19 ────────────────────────────────────────────── -->
+<section class="slide slide-rose" data-slide="19">
+  <div class="content wide">
+    <div class="who-row"><span class="role pro">Profesional · web y app</span></div>
+    <h2 class="st">Tomó la consulta,<br>pero la tarjeta <span class="ad">no pasó.</span></h2>
+    <p class="lead">La consulta ya es suya y queda en su lista, pero sin confirmar. Le llega el aviso <strong>"La tarjeta del paciente fue rechazada: le pedimos otra y te avisamos."</strong> Cuando el paciente paga con otra tarjeta, la consulta se confirma sola; si cancela, se cancela.</p>
+    <div class="shot web"><img src="screenshots-teleclinica/tc-wpro-03-rechazo.jpg" alt="Aviso de tarjeta rechazada al profesional"><span class="cap"><b>Aviso</b>"Le pedimos otra y te avisamos"</span></div>
+  </div>
+</section>
+
+<!-- 20 ────────────────────────────────────────────── -->
+<section class="slide slide-ivory" data-slide="20">
+  <div class="two-col wweb">
+    <div class="txt">
+      <div class="who-row"><span class="role pro">Profesional · web y app</span></div>
+      <h2 class="st">Y de ahí,<br>a la <span class="al">sala.</span></h2>
+      <p class="lead">En la web, al aceptar con el pago reservado, entra directo a la sala: ve los datos del paciente y espera a que termine la preconsulta para hacerlo pasar. En la app llega desde <strong>Sala</strong> y ve el mismo panel.</p>
+    </div>
+    <div class="shots par">
+      <div class="shot web"><img src="screenshots-teleclinica/tc-wpro-04-sala.jpg" alt="Sala del profesional en la web"><span class="cap"><b>Web</b>"Esperando al paciente…"</span></div>
+      <div class="shot"><img src="screenshots-teleclinica/tc-apro-03-sala.jpg" alt="Sala del profesional en la app"><span class="cap"><b>App</b>El mismo panel</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 21 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="21">
+  <div class="two-col wweb">
+    <div class="txt">
+      <div class="who-row"><span class="role adm">Super admin · web</span></div>
+      <h2 class="st">La administración<br>ve cada <span class="ag">pedido.</span></h2>
+      <p class="lead">La pantalla <strong>Teleclínica</strong> del panel muestra, por pedido: la especialidad, el paciente, a cuántos profesionales les sonó, quién lo tomó, cuánto tardó en aceptarse y qué pasó con el pago. Arriba, los totales de la semana.</p>
+      <ul class="bl">
+        <li><span class="bi">◷</span><span>Estados: Buscando, Tomado, Nadie aceptó, Cancelado.</span></li>
+        <li><span class="bi">$</span><span>Pago: Sin reservar, Reservado, Cobrado, Liberado, Bonificada, Tarjeta rechazada.</span></li>
+      </ul>
+    </div>
+    <div class="shot web"><img src="screenshots-teleclinica/tc-adm-01-teleclinica.jpg" alt="Teleclínica en el panel de super admin"><span class="cap"><b>Super admin · Teleclínica</b>A quién le sonó, quién lo tomó, demora y pago</span></div>
+  </div>
+</section>
+
+<!-- 22 ────────────────────────────────────────────── -->
+<section class="slide slide-cream" data-slide="22">
+  <div class="content wide">
+    <span class="eyebrow gold">La plata</span>
+    <h2 class="st">Se reserva, se cobra<br>o se <span class="ag">libera.</span></h2>
+    <div class="fg four">
+      <div class="fc"><span class="n g">Al pagar</span><h3>Nada</h3><p>Se guarda la tarjeta para la búsqueda. No se reserva ni se cobra un peso.</p></div>
+      <div class="fc"><span class="n g">Al aceptar</span><h3>Se reserva</h3><p>El monto queda retenido en la tarjeta, a nombre del profesional que aceptó.</p></div>
+      <div class="fc"><span class="n g">Al terminar</span><h3>Se cobra</h3><p>La reserva se hace efectiva. La plata va a la cuenta del profesional y Healthier se queda con su comisión en el mismo cobro.</p></div>
+      <div class="fc"><span class="n g">Si se cancela</span><h3>Se libera</h3><p>La reserva se suelta y al paciente no se le cobra. Si nadie aceptó, nunca hubo reserva.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 23 ────────────────────────────────────────────── -->
+<section class="slide slide-white" data-slide="23">
+  <div class="content wide">
+    <span class="eyebrow">Los casos</span>
+    <h2 class="st">Qué ve cada uno,<br>en cada <span class="a">caso.</span></h2>
+    <div class="tbl">
+      <div class="tr th"><span>Caso</span><span>El paciente ve</span><span>El profesional ve</span><span>La tarjeta</span></div>
+      <div class="tr"><span>Alguien acepta</span><span>"Te atiende…" con foto y perfil</span><span>Entra a la sala</span><span>Reservada; se cobra al terminar</span></div>
+      <div class="tr"><span>Dos aceptan juntos</span><span>Un solo profesional</span><span>El segundo: "Otro profesional ya tomó esta consulta"</span><span>Una sola reserva</span></div>
+      <div class="tr"><span>Nadie acepta</span><span>"Nadie pudo atenderte ahora. No te cobramos nada."</span><span>El pedido se le va de la lista</span><span>Intacta</span></div>
+      <div class="tr"><span>Tarjeta rechazada</span><span>"… ya aceptó, pero tu tarjeta fue rechazada"</span><span>Aviso: "le pedimos otra y te avisamos"</span><span>Se reintenta con otra</span></div>
+      <div class="tr"><span>El paciente cancela</span><span>Vuelve al inicio</span><span>La consulta queda cancelada</span><span>Se libera</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 24 ────────────────────────────────────────────── -->
+<section class="slide slide-rose" data-slide="24">
+  <div class="content wide">
+    <span class="eyebrow danger">Lo que falta antes de producción</span>
+    <h2 class="st">Hoy vive<br>en <span class="ad">staging.</span></h2>
+    <p class="lead">Esto es lo que quedó abierto, más lo que apareció al capturar este documento:</p>
+    <div class="fg three">
+      <div class="fc"><span class="n d">Decisión</span><h3>El paso a producción</h3><p>Falta el OK. Producción sigue con el modelo de elegir del pool.</p></div>
+      <div class="fc"><span class="n d">Aviso</span><h3>"Tarjeta rechazada" se pierde</h3><p>Al profesional le aparece y enseguida lo tapa "Nueva reserva de…". Tampoco le queda una marca de "esperando el pago" en su lista.</p></div>
+      <div class="fc"><span class="n d">Mensajes</span><h3>Errores en inglés o en código</h3><p>Al reintentar el pago el paciente puede ver textos como "Card Token not found" o "internal_error" tal cual.</p></div>
+      <div class="fc"><span class="n g">Búsqueda</span><h3>Seguir buscando pide el código</h3><p>Pasado el minuto del vencimiento, la tarjeta se borra y hay que cargar el código de nuevo.</p></div>
+      <div class="fc"><span class="n g">Detalles</span><h3>Copy y estrellas</h3><p>"llegue preparado" para una doctora; en el perfil web las estrellas salen vacías con 5.0; en la app "autorizar.." con dos puntos.</p></div>
+      <div class="fc"><span class="n l">A decidir</span><h3>Médico de cabecera y obras sociales</h3><p>El link de un médico ya no lo elige: le suena a todos. Y no existe el dato de qué obras sociales acepta cada profesional.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 25 ────────────────────────────────────────────── -->
+<section class="slide slide-sage" data-slide="25">
+  <div class="content">
+    <span class="eyebrow onsage">En una línea</span>
+    <h2 class="st">El paciente paga.<br>Le suena a todos.<br>Atiende el primero.</h2>
+    <p class="lead">Y la tarjeta sólo se toca cuando hay alguien del otro lado.</p>
+    <div class="pill-row">
+      <span class="pill">24 pantallas capturadas en staging</span>
+      <span class="pill">App + web</span>
+      <span class="pill">2026-10-08</span>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+const slides=[...document.querySelectorAll('.slide')];
+const TOTAL=slides.length;
+const dotsEl=document.getElementById('dots');
+const counter=document.getElementById('counter');
+const progress=document.querySelector('.progress-bar');
+const btnPrev=document.getElementById('btn-prev');
+const btnNext=document.getElementById('btn-next');
+let current=1;
+
+slides.forEach((_,i)=>{
+  const d=document.createElement('span');
+  d.className='dot'+(i===0?' active':'');
+  d.addEventListener('click',()=>goTo(i+1));
+  dotsEl.appendChild(d);
+});
+
+function pad(n){return String(n).padStart(2,'0')}
+
+function goTo(n){
+  if(n<1||n>TOTAL||n===current) return;
+  slides[current-1].classList.remove('active');
+  current=n;
+  slides[current-1].classList.add('active');
+  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===current-1));
+  counter.textContent=`${pad(current)} / ${pad(TOTAL)}`;
+  progress.style.width=`${(current/TOTAL)*100}%`;
+  btnPrev.classList.toggle('hidden',current===1);
+  btnNext.classList.toggle('hidden',current===TOTAL);
+  history.replaceState(null,'',`#${current}`);
+
+  const s=slides[current-1];
+  const dark=s.classList.contains('slide-dark')||s.classList.contains('slide-sage');
+  const nav=document.getElementById('nav');
+  nav.style.background=dark?'rgba(0,0,0,.25)':'rgba(246,245,240,.82)';
+  nav.style.borderBottomColor=dark?'rgba(255,255,255,.12)':'var(--border)';
+  counter.style.color=dark?'rgba(255,255,255,.45)':'var(--text-tertiary)';
+  document.getElementById('brand').style.color=dark?'#fff':'var(--sage)';
+  document.querySelectorAll('.dot').forEach(d=>{
+    d.style.background=dark
+      ?(d.classList.contains('active')?'#fff':'rgba(255,255,255,.28)')
+      :(d.classList.contains('active')?'var(--sage)':'var(--border)');
+  });
+}
+
+btnNext.addEventListener('click',()=>goTo(current+1));
+btnPrev.addEventListener('click',()=>goTo(current-1));
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='Enter'){e.preventDefault();goTo(current+1)}
+  else if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();goTo(current-1)}
+  else if(e.key==='Home'){e.preventDefault();goTo(1)}
+  else if(e.key==='End'){e.preventDefault();goTo(TOTAL)}
+  else if(e.key==='f'||e.key==='F'){
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  }
+});
+
+document.getElementById('deck').addEventListener('click',e=>{
+  if(e.target.closest('button')||e.target.closest('a')||e.target.closest('img')) return;
+  const x=e.clientX/window.innerWidth;
+  if(x<0.25) goTo(current-1); else if(x>0.75) goTo(current+1);
+});
+
+let tx=0;
+document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX},{passive:true});
+document.addEventListener('touchend',e=>{
+  const dx=tx-e.changedTouches[0].clientX;
+  if(Math.abs(dx)>50) dx>0?goTo(current+1):goTo(current-1);
+},{passive:true});
+
+counter.textContent=`01 / ${pad(TOTAL)}`;
+const hash=parseInt(location.hash.replace('#',''));
+if(hash>=1&&hash<=TOTAL&&hash!==1) goTo(hash);
+</script>
+
+</body>
+</html>
