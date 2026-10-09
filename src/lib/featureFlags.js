@@ -57,3 +57,15 @@ export function emergenciasVisible(profile) {
   if (profile?.esPrueba || profile?.veAmbosMundos || profile?.es_prueba || profile?.ve_ambos_mundos) return true
   return LANZAMIENTO_ALLOWLIST.includes(String(profile?.email ?? '').trim().toLowerCase())
 }
+
+/**
+ * El interruptor "Bonificar" del checkout de Teleclínica: para recorrer el flujo
+ * sin pagar. Sólo la cuenta de Mateo (2026-10-09). Esto sólo decide si se
+ * MUESTRA: la Edge Function `ondemand-despacho` tiene su propia lista y le
+ * ignora el pedido de bonificar a cualquier otra cuenta.
+ */
+const BONIFICAR_ALLOWLIST = ['mateoaldao@gmail.com']
+
+export function puedeBonificarTeleclinica(profile) {
+  return BONIFICAR_ALLOWLIST.includes(String(profile?.email ?? '').trim().toLowerCase())
+}

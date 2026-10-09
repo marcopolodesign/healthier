@@ -20,8 +20,8 @@ const despacho = (body) => callEdgeFunction('ondemand-despacho', body)
 
 export const ondemandService = {
   /** @returns {Promise<{ requestId?: string, expiresAt?: string, sinProfesionales?: boolean }>} */
-  pedir({ vertical, paraId = null, pago = null }) {
-    return despacho({ action: 'pedir', vertical, paraId, pago })
+  pedir({ vertical, paraId = null, pago = null, bonificar = false }) {
+    return despacho({ action: 'pedir', vertical, paraId, pago, bonificar })
   },
 
   cancelar(requestId) {
