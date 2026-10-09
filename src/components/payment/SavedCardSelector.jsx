@@ -397,7 +397,7 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
           className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl border border-dashed border-[#D8D4CE] text-[#6B6560] hover:border-[#7CB38B]/60 hover:text-[#7CB38B] hover:bg-[#7CB38B]/5 transition-all disabled:opacity-50"
         >
           <Plus size={16} />
-          <span className="text-sm font-medium">Pagar con una tarjeta nueva</span>
+          <span className="text-sm font-medium">Agregar nueva tarjeta</span>
         </button>
       ) : (
         <div className="border border-[#D8D4CE] rounded-2xl p-4 bg-white space-y-4">
