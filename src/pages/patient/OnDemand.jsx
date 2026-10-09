@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, VideoCamera, Clock, CircleNotch, Check, ShieldCheck, CreditCard, Warning,
-  ArrowClockwise, UserCircle,
+  ArrowClockwise, UserCircle, User, CaretDown,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
 import { professionalService } from '../../services/professionalService'
@@ -16,7 +16,7 @@ import { explicarPagoMP, explicarErrorDePago } from '../../lib/mercadoPago'
 import { useVerticales } from '../../hooks/useVerticales'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { useGrupoFamiliar } from '../../hooks/useGrupoFamiliar'
-import SelectorParaQuien from '../../components/patient/SelectorParaQuien'
+import { puedeBonificarTeleclinica } from '../../lib/featureFlags'
 import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
 
 /*
@@ -56,6 +56,9 @@ export default function OnDemand({ profile }) {
   const [searchParams] = useSearchParams()
   const { familiares } = useGrupoFamiliar(profile?.id)
   const [paraId, setParaId] = useState(() => searchParams.get('para'))
+  const nombreFamiliar = f => f.familiar?.fullName || f.fullName || 'Tu familiar'
+  const familiarElegido = paraId && paraId !== profile?.id ? familiares.find(f => f.familiarId === paraId) : null
+  const etiquetaParaQuien = familiarElegido ? `Para ${nombreFamiliar(familiarElegido)}` : 'Para mí'
   const navigate = useNavigate()
   const { verticalesById, cargando: cargandoVerticales } = useVerticales()
   const { porSlug } = useEspecialidades()
@@ -79,7 +82,11 @@ export default function OnDemand({ profile }) {
   const [showExitConfirm, setShowExitConfirm] = useState(false)
 
   const isDemoMode = !configLoading && !publicKey
-  const paymentExempt = Boolean(profile?.paymentExempt)
+  // Interruptor de bonificación: sólo se ve en la cuenta de Mateo, y el
+  // servidor vuelve a chequear la cuenta antes de bonificar.
+  const puedeBonificar = puedeBonificarTeleclinica(profile)
+  const [bonificar, setBonificar] = useState(false)
+  const paymentExempt = Boolean(profile?.paymentExempt) || (puedeBonificar && bonificar)
   const missingCard = !paymentExempt && !selectedCardId
   const IconComp = vertical?.icon
   const price = vertical?.onDemandPrice ?? null
@@ -161,7 +168,7 @@ export default function OnDemand({ profile }) {
 
   // ── "Pagar" — deja el token y arranca la búsqueda ───────────────────────────
   const pedir = async (pago) => {
-    const res = await ondemandService.pedir({ vertical: verticalId, paraId: paraId && paraId !== profile.id ? paraId : null, pago })
+    const res = await ondemandService.pedir({ vertical: verticalId, paraId: paraId && paraId !== profile.id ? paraId : null, pago, bonificar: puedeBonificar && bonificar })
     if (res?.sinProfesionales) { setPhase('no_match'); return }
     track('ondemand_requested', { value: price, currency: 'ARS', flow: 'paciente' })
     const p = await ondemandService.getPedido(res.requestId)
@@ -422,6 +429,48 @@ export default function OnDemand({ profile }) {
 
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-10">
         <div className="w-full sm:max-w-lg mx-auto">
+          {/* Para quién va primero, como un menú: "Para mí ⌄" (Mateo, 2026-10-09). */}
+          {familiares.length > 0 && !rechazado && (
+            <label className="relative mb-4 flex items-center gap-3 px-4 py-3 rounded-2xl border border-gray-200 bg-white cursor-pointer">
+              <User className="w-5 h-5 text-brand shrink-0" />
+              <span className="flex-1 min-w-0">
+                <span className="block text-[10px] font-semibold text-gray-400 uppercase tracking-widest">La consulta es</span>
+                <span className="block text-[15px] font-semibold text-gray-900 truncate">{etiquetaParaQuien}</span>
+              </span>
+              <CaretDown className="w-4 h-4 text-gray-500 shrink-0" />
+              <select
+                aria-label="¿Para quién es la consulta?"
+                value={paraId || profile?.id || ''}
+                onChange={e => setParaId(e.target.value === profile?.id ? null : e.target.value)}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+              >
+                <option value={profile?.id}>Para mí</option>
+                {familiares.map(f => (
+                  <option key={f.familiarId} value={f.familiarId}>
+                    {nombreFamiliar(f)}{f.relationship ? ` · ${f.relationship}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {puedeBonificar && !rechazado && (
+            <label className="mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-dashed border-brand/40 bg-brand-muted/30 cursor-pointer">
+              <span className="min-w-0">
+                <span className="block text-[14px] font-semibold text-gray-900">Bonificar esta consulta</span>
+                <span className="block text-[12px] text-gray-500">Sólo lo ve tu cuenta. Para recorrer el flujo sin pagar.</span>
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                data-testid="ondemand-bonificar"
+                checked={bonificar}
+                onChange={e => { setBonificar(e.target.checked); setErrorPago(null) }}
+                className="switch-bonificar"
+              />
+            </label>
+          )}
+
           {rechazado ? (
             <div className="mb-4 p-4 rounded-[24px] border border-danger/30 bg-danger/5 flex items-start gap-3" role="alert">
               <Warning className="w-5 h-5 text-danger shrink-0 mt-0.5" weight="fill" />
@@ -444,19 +493,6 @@ export default function OnDemand({ profile }) {
               <p className="text-[22px] text-gray-900 shrink-0">
                 {mostrarExento ? 'Bonificada' : `$${price.toLocaleString('es-AR')}`}
               </p>
-            </div>
-          )}
-
-          {familiares.length > 0 && !rechazado && (
-            <div className="mb-4">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">¿Para vos o para alguien de tu grupo familiar?</p>
-              <SelectorParaQuien
-                compacto
-                profile={profile}
-                familiares={familiares}
-                value={paraId || profile?.id}
-                onChange={id => setParaId(id === profile?.id ? null : id)}
-              />
             </div>
           )}
 

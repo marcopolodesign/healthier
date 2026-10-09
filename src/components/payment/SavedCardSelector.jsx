@@ -347,26 +347,30 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
         * que además exige el número de tarjeta montado y por eso no sirve acá.
         * Ver el comentario largo en `getSavedCardCharge`. */}
       {selectedCard && !showAddCard && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-[#D8D4CE] bg-[#F6F5F0]">
-          <LockKey size={18} className="text-[#6B6560] shrink-0" />
-          <div className="flex-1 min-w-0">
-            <label className="text-xs font-semibold text-[#2D2A26] block mb-1">Código de seguridad (CVV)</label>
-            {idRecienGuardada && selectedCardId === idRecienGuardada && (
-              <p className="text-xs text-[#6B6560] mb-2">
-                Guardamos tu tarjeta. Ingresá el código de seguridad para confirmar el pago.
-              </p>
-            )}
-            <input
-              type="password"
-              inputMode="numeric"
-              maxLength={4}
-              value={cvv}
-              disabled={disabled}
-              onChange={(e) => { setCvv(e.target.value.replace(/\D/g, '')); setCvvError(null) }}
-              placeholder="•••"
-              className="w-24 px-3 py-2 rounded-lg border border-[#D8D4CE] bg-white text-sm font-mono tracking-widest outline-none focus:border-[#7CB38B] disabled:opacity-50"
-            />
-          </div>
+        <div className="flex flex-col gap-2 px-4 py-3 rounded-2xl border border-[#D8D4CE] bg-[#F6F5F0]">
+          {/* En columna y a lo ancho: con el campo chiquito al costado, el
+              paciente no se daba cuenta de que tenía que completarlo (Mateo,
+              2026-10-09). */}
+          <label htmlFor="cvv-tarjeta-guardada" className="flex items-center gap-2 text-sm font-semibold text-[#2D2A26]">
+            <LockKey size={16} className="text-[#6B6560] shrink-0" />
+            Código de seguridad de {brandLabel(selectedCard.cardBrand)} terminada en {selectedCard.lastFour ?? '????'}
+          </label>
+          {idRecienGuardada && selectedCardId === idRecienGuardada && (
+            <p className="text-xs text-[#6B6560]">
+              Guardamos tu tarjeta. Ingresá el código de seguridad para confirmar el pago.
+            </p>
+          )}
+          <input
+            id="cvv-tarjeta-guardada"
+            type="password"
+            inputMode="numeric"
+            maxLength={4}
+            value={cvv}
+            disabled={disabled}
+            onChange={(e) => { setCvv(e.target.value.replace(/\D/g, '')); setCvvError(null) }}
+            placeholder="•••"
+            className="w-full px-4 py-3 rounded-xl border border-[#D8D4CE] bg-white text-base font-mono tracking-widest outline-none focus:border-[#7CB38B] disabled:opacity-50"
+          />
         </div>
       )}
       {cvvError && (

@@ -44,6 +44,13 @@ const BUSQUEDA_MS = 4 * 60 * 1000
 const BUSQUEDA_MAX_MS = 20 * 60 * 1000
 /** Mismo criterio que ON_DEMAND_PRESENCE_TTL_MS. */
 const PRESENCIA_MS = 60 * 60 * 1000
+/**
+ * Quién puede pedir una consulta inmediata bonificada desde el interruptor del
+ * checkout (para recorrer el flujo sin pagar). Se decide ACÁ, con el mail del
+ * JWT: el front sólo muestra el interruptor, y si otra cuenta manda
+ * `bonificar: true` se ignora. Pedido de Mateo, 2026-10-09.
+ */
+const BONIFICAR_ALLOWLIST = ['mateoaldao@gmail.com']
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -133,7 +140,8 @@ Deno.serve(async (req) => {
         return json({ data: null, error: 'Esta especialidad no tiene consulta inmediata por ahora.' }, 422)
       }
 
-      const exento = Boolean(perfil?.payment_exempt)
+      const puedeBonificar = BONIFICAR_ALLOWLIST.includes(String(user.email ?? '').trim().toLowerCase())
+      const exento = Boolean(perfil?.payment_exempt) || (body.bonificar === true && puedeBonificar)
       if (!exento) {
         if (!pago?.cardToken || !pago?.paymentMethodId) {
           return json({ data: null, error: 'Falta la tarjeta.' }, 422)
