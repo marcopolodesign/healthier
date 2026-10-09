@@ -354,12 +354,12 @@ h2.st .ad{color:var(--danger)}
     <div class="txt">
       <div class="who-row"><span class="role pac">Paciente · app</span></div>
       <h2 class="st">Te atiende<br>la <span class="a">Dra.</span></h2>
-      <p class="lead">Apenas un profesional acepta, la pantalla cambia sola: <strong>"Te atiende Valentina Ortega"</strong>, con su foto (o sus iniciales si no cargó una) y la especialidad. De ahí puede entrar a la consulta, ver el perfil o cancelar.</p>
+      <p class="lead">Apenas un profesional acepta, se reserva la plata y la pantalla cambia sola: <strong>"Te atiende Valentina Ortega"</strong>, con su foto (o sus iniciales si no cargó una), la especialidad y <strong>"Reserva confirmada"</strong>. De ahí puede entrar a la consulta, ver el perfil o cancelar —y si cancela, la reserva se libera.</p>
       <ul class="bl">
         <li><span class="bi">↻</span><span>Si recarga la página, vuelve a esta misma pantalla.</span></li>
       </ul>
     </div>
-    <div class="shot"><img src="screenshots-teleclinica/tc-pac-08-te-atiende.jpg" alt="Te atiende Valentina Ortega"><span class="cap"><b>Te atiende</b>Entrar a la consulta · Ver perfil · Cancelar. Capturada como consulta bonificada: ese día los pagos de prueba no respondían.</span></div>
+    <div class="shot"><img src="screenshots-teleclinica/tc-pac-08-te-atiende.jpg" alt="Te atiende Valentina Ortega"><span class="cap"><b>Te atiende</b>"Reserva confirmada" · Entrar · Ver perfil · Cancelar</span></div>
   </div>
 </section>
 
@@ -402,12 +402,12 @@ h2.st .ad{color:var(--danger)}
       <h2 class="st">Si nadie acepta,<br>no se <span class="a">cobra.</span></h2>
       <p class="lead">Cuando terminan los 4 minutos sin que nadie acepte: <strong>"Nadie pudo atenderte ahora. No te cobramos nada."</strong> Puede seguir buscando o volver al inicio. La tarjeta no se tocó.</p>
       <ul class="bl">
-        <li><span class="bi">↻</span><span>Si sigue buscando después de que venció, se le pide de nuevo el código de seguridad: los datos de la tarjeta se borran al vencer.</span></li>
+        <li><span class="bi">↻</span><span>"Seguir buscando" vuelve a buscar con la misma tarjeta, sin pedir el código de nuevo, hasta 20 minutos desde que pidió.</span></li>
       </ul>
     </div>
     <div class="shots">
       <div class="shot"><img src="screenshots-teleclinica/tc-pac-05-nadie.jpg" alt="Nadie pudo atenderte ahora"><span class="cap"><b>Sin respuesta</b>Seguir buscando · Volver al inicio</span></div>
-      <div class="shot"><img src="screenshots-teleclinica/tc-pac-06-seguir.jpg" alt="Volvé a ingresar el código de tu tarjeta"><span class="cap"><b>Seguir buscando</b>Pide el código otra vez</span></div>
+      <div class="shot"><img src="screenshots-teleclinica/tc-pac-06-seguir.jpg" alt="Buscando de nuevo"><span class="cap"><b>Seguir buscando</b>Otra vuelta de 4 minutos, misma tarjeta</span></div>
     </div>
   </div>
 </section>
@@ -424,7 +424,7 @@ h2.st .ad{color:var(--danger)}
       </ul>
     </div>
     <div class="shots par">
-      <div class="shot"><img src="screenshots-teleclinica/tc-pac-07-rechazada.jpg" alt="Tarjeta rechazada en la app"><span class="cap"><b>App</b>"Elegí otra tarjeta"</span></div>
+      <div class="shot"><img src="screenshots-teleclinica/tc-pac-07-rechazada.jpg" alt="Tarjeta rechazada en la app"><span class="cap"><b>App</b>El motivo, en castellano, y "Elegí otra tarjeta"</span></div>
       <div class="shot web"><img src="screenshots-teleclinica/tc-wpac-04-rechazada.jpg" alt="Tarjeta rechazada en la web"><span class="cap"><b>Web</b>"Te está esperando"</span></div>
     </div>
   </div>
@@ -501,7 +501,7 @@ h2.st .ad{color:var(--danger)}
   <div class="content wide">
     <div class="who-row"><span class="role pro">Profesional · web y app</span></div>
     <h2 class="st">Tomó la consulta,<br>pero la tarjeta <span class="ad">no pasó.</span></h2>
-    <p class="lead">La consulta ya es suya y queda en su lista, pero sin confirmar. Le llega el aviso <strong>"La tarjeta del paciente fue rechazada: le pedimos otra y te avisamos."</strong> Cuando el paciente paga con otra tarjeta, la consulta se confirma sola; si cancela, se cancela.</p>
+    <p class="lead">La consulta ya es suya y queda en su lista, pero sin confirmar. Le aparece el aviso <strong>"La tarjeta del paciente fue rechazada: le pedimos otra y te avisamos."</strong> Cuando el paciente paga con otra tarjeta, la consulta se confirma sola; si cancela, se cancela.</p>
     <div class="shot web"><img src="screenshots-teleclinica/tc-wpro-03-rechazo.jpg" alt="Aviso de tarjeta rechazada al profesional"><span class="cap"><b>Aviso</b>"Le pedimos otra y te avisamos"</span></div>
   </div>
 </section>
@@ -572,13 +572,10 @@ h2.st .ad{color:var(--danger)}
   <div class="content wide">
     <span class="eyebrow danger">Lo que falta antes de producción</span>
     <h2 class="st">Hoy vive<br>en <span class="ad">staging.</span></h2>
-    <p class="lead">Esto es lo que quedó abierto, más lo que apareció al capturar este documento:</p>
+    <p class="lead">Los detalles que aparecieron al armar este documento ya están arreglados en staging. Queda:</p>
     <div class="fg three">
       <div class="fc"><span class="n d">Decisión</span><h3>El paso a producción</h3><p>Falta el OK. Producción sigue con el modelo de elegir del pool.</p></div>
-      <div class="fc"><span class="n d">Aviso</span><h3>"Tarjeta rechazada" se pierde</h3><p>Al profesional le aparece y enseguida lo tapa "Nueva reserva de…". Tampoco le queda una marca de "esperando el pago" en su lista.</p></div>
-      <div class="fc"><span class="n d">Mensajes</span><h3>Errores en inglés o en código</h3><p>Al reintentar el pago el paciente puede ver textos como "Card Token not found" o "internal_error" tal cual.</p></div>
-      <div class="fc"><span class="n g">Búsqueda</span><h3>Seguir buscando pide el código</h3><p>Pasado el minuto del vencimiento, la tarjeta se borra y hay que cargar el código de nuevo.</p></div>
-      <div class="fc"><span class="n g">Detalles</span><h3>Copy y estrellas</h3><p>"llegue preparado" para una doctora; en el perfil web las estrellas salen vacías con 5.0; en la app "autorizar.." con dos puntos.</p></div>
+      <div class="fc"><span class="n g">Profesional</span><h3>Una marca de "esperando el pago"</h3><p>Si la tarjeta se rechaza, hoy se entera por el aviso del momento; en su lista no queda una marca que lo diga.</p></div>
       <div class="fc"><span class="n l">A decidir</span><h3>Médico de cabecera y obras sociales</h3><p>El link de un médico ya no lo elige: le suena a todos. Y no existe el dato de qué obras sociales acepta cada profesional.</p></div>
     </div>
   </div>
