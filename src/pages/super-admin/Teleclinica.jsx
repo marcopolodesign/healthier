@@ -5,6 +5,7 @@ import { formatDate } from '../../lib/format'
 import MetricCard from '../../components/super-admin/MetricCard'
 import { ondemandService } from '../../services/ondemandService'
 import { useVerticales } from '../../hooks/useVerticales'
+import { resumenPreconsulta } from '../../lib/resumenPreconsulta'
 
 /**
  * Teleclínica — /super-admin/teleclinica
@@ -105,6 +106,7 @@ export default function SuperAdminTeleclinica() {
                 <th className="px-4 py-3 font-semibold">Fecha</th>
                 <th className="px-4 py-3 font-semibold">Especialidad</th>
                 <th className="px-4 py-3 font-semibold">Paciente</th>
+                <th className="px-4 py-3 font-semibold">Motivo</th>
                 <th className="px-4 py-3 font-semibold">Avisados</th>
                 <th className="px-4 py-3 font-semibold">Estado</th>
                 <th className="px-4 py-3 font-semibold">Lo tomó</th>
@@ -118,6 +120,10 @@ export default function SuperAdminTeleclinica() {
                   <td className="px-4 py-3 text-text-secondary whitespace-nowrap tabular-nums">{formatDate(r.createdAt)}</td>
                   <td className="px-4 py-3 text-text-primary whitespace-nowrap">{verticalesById[r.vertical]?.nombre ?? r.vertical}</td>
                   <td className="px-4 py-3 text-text-secondary">{r.paciente?.fullName ?? '—'}</td>
+                  <td className="px-4 py-3 text-text-secondary">
+                    {resumenPreconsulta(r.preconsultaData)?.motivo ?? '—'}
+                    {resumenPreconsulta(r.preconsultaData)?.alarma && <span className="ml-1 text-danger font-semibold">· alarma</span>}
+                  </td>
                   <td className="px-4 py-3 tabular-nums">{r.avisados ?? '—'}</td>
                   <td className={`px-4 py-3 font-semibold whitespace-nowrap ${ESTADOS[r.status]?.clase ?? ''}`}>{ESTADOS[r.status]?.label ?? r.status}</td>
                   <td className="px-4 py-3 text-text-primary">{r.profesional?.fullName ?? '—'}</td>

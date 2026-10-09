@@ -168,11 +168,41 @@ try {
     !tokens?.length ? ok('un profesional no ve ningún token de tarjeta') : mal(`un profesional ve ${tokens.length} tokens`)
   }
 
+  // ── Preconsulta armada a mano: se guarda saneada ───────────────────────
+  // La tarjeta del pedido la pintan TODOS los profesionales elegibles: una
+  // forma rara no puede llegar a sus pantallas (revisión del 2026-10-09).
+  bloque('Preconsulta saneada')
+  {
+    await admin.from('profiles').update({ payment_exempt: true }).eq('id', paciente.id)
+    const basura = { main_complaint: 'Dolor (R10.4)', symptom: { label: { x: 1 } }, answers: [null, 'a', { labels: [{}, 'Hoy'], red_flag: 'si' }], extra: 'x'.repeat(5000) }
+    const { data } = await llamar(paciente, { action: 'pedir', vertical: VERTICAL, preconsulta: basura })
+    if (!data?.requestId) mal(`no se pudo pedir: ${JSON.stringify(data)}`)
+    else {
+      creados.pedidos.push(data.requestId)
+      const { data: fila } = await admin.from('ondemand_requests').select('preconsulta_data').eq('id', data.requestId).single()
+      const pc = fila.preconsulta_data
+      pc && pc.symptom.label === null && pc.answers.length === 1 && pc.answers[0].labels.join() === 'Hoy' && pc.answers[0].red_flag === false && !('extra' in pc)
+        ? ok('una preconsulta con forma rara se guarda saneada') : mal(`se guardó ${JSON.stringify(pc)}`)
+      await llamar(paciente, { action: 'cancelar', requestId: data.requestId })
+    }
+  }
+
   // ── 1. Toma atómica ──────────────────────────────────────────────────────
   bloque('1. Dos aceptan a la vez → uno gana')
   await admin.from('profiles').update({ payment_exempt: true }).eq('id', paciente.id)
   {
-    const { data, error } = await llamar(paciente, { action: 'pedir', vertical: VERTICAL })
+    // La preconsulta va antes del pago (2026-10-09): viaja en el pedido.
+    const PRECONSULTA = {
+      version: 2,
+      symptom: { id: 'fiebre', label: 'Fiebre', icd10_code: 'R50.9', icd10_display: 'Fiebre, no especificada', free_text: null },
+      answers: [{ question_id: 'duracion', question_label: '¿Desde cuándo?', values: ['2-3d'], labels: ['Hace 2 o 3 días'], red_flag: false }],
+      medication: { taking: false, detail: null },
+      has_red_flags: false,
+      main_complaint: 'Fiebre (R50.9)',
+      symptoms: '¿Desde cuándo? Hace 2 o 3 días',
+      current_medications: 'No toma medicación',
+    }
+    const { data, error } = await llamar(paciente, { action: 'pedir', vertical: VERTICAL, preconsulta: PRECONSULTA })
     if (error || !data?.requestId) { mal(`no se pudo pedir: ${error ?? JSON.stringify(data)}`) }
     else {
       creados.pedidos.push(data.requestId)
@@ -180,8 +210,10 @@ try {
       nota(`pedido ${data.requestId.slice(0, 8)} · avisados=${fila.avisados} · pago=${fila.estado_pago}`)
       fila.avisados >= 2 ? ok(`el aviso salió a ${fila.avisados} profesionales`) : mal(`el aviso salió sólo a ${fila.avisados}`)
 
-      const [vA, vB] = await Promise.all([proA, proB].map(p => p.c.from('ondemand_requests').select('id').eq('id', data.requestId)))
+      const [vA, vB] = await Promise.all([proA, proB].map(p => p.c.from('ondemand_requests').select('id, preconsulta_data').eq('id', data.requestId)))
       vA.data?.length && vB.data?.length ? ok('los dos profesionales ven el pedido') : mal('alguno de los dos no ve el pedido')
+      vA.data?.[0]?.preconsulta_data?.main_complaint === PRECONSULTA.main_complaint
+        ? ok('el profesional ve la preconsulta en el pedido, antes de aceptar') : mal('el pedido no trae la preconsulta')
 
       const [rA, rB] = await Promise.all([proA, proB].map(p => llamar(p, { action: 'aceptar', requestId: data.requestId })))
       const ganadores = [rA, rB].filter(r => r.data?.tomada)
@@ -190,13 +222,15 @@ try {
         ? ok('exactamente uno lo tomó y el otro recibió "ya lo tomó otro"')
         : mal(`resultado inesperado: A=${JSON.stringify(rA)} B=${JSON.stringify(rB)}`)
 
-      const { data: consultas } = await admin.from('consultations').select('id, professional_id, status, payment_status')
+      const { data: consultas } = await admin.from('consultations').select('id, professional_id, status, payment_status, preconsulta_data')
         .eq('patient_id', paciente.id).eq('is_on_demand', true).gte('created_at', inicio)
       consultas?.length === 1 ? ok('se creó UNA sola consulta') : mal(`se crearon ${consultas?.length} consultas`)
       consultas?.forEach(c => creados.consultas.push(c.id))
       if (consultas?.[0]) {
         consultas[0].payment_status === 'exempt' && consultas[0].status === 'confirmed'
           ? ok('bonificada: nace confirmada y exenta') : mal(`estado ${consultas[0].status}/${consultas[0].payment_status}`)
+        consultas[0].preconsulta_data?.main_complaint === PRECONSULTA.main_complaint
+          ? ok('la preconsulta pasó a la consulta: la sala no la vuelve a pedir') : mal('la consulta no tiene la preconsulta del pedido')
       }
       const perdedor = rA.data?.tomada ? proB : proA
       const { data: yaNo } = await perdedor.c.from('ondemand_requests').select('id').eq('id', data.requestId)

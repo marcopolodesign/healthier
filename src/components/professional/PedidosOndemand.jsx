@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Lightning, Clock, CircleNotch } from '@phosphor-icons/react'
+import { Lightning, Clock, CircleNotch, Warning } from '@phosphor-icons/react'
 import { ondemandService } from '../../services/ondemandService'
 import { useVerticales } from '../../hooks/useVerticales'
 import { toast } from '../Toast'
+import { resumenPreconsulta } from '../../lib/resumenPreconsulta'
 
 /**
  * Pedidos de consulta inmediata sonando (Teleclínica por despacho, migración 191).
@@ -35,28 +36,46 @@ function haceCuanto(iso) {
 
 function PedidoCard({ pedido, nombreVertical, onAceptar, aceptando }) {
   const left = useSegundosRestantes(pedido.expiresAt)
+  const pre = resumenPreconsulta(pedido.preconsultaData)
   if (left <= 0) return null
   const mm = String(Math.floor(left / 60)).padStart(2, '0')
   const ss = String(left % 60).padStart(2, '0')
   return (
-    <div className="rounded-2xl border-2 border-brand bg-brand-muted/40 p-4 flex items-center gap-3" data-testid="pedido-ondemand">
-      <div className="w-11 h-11 rounded-full bg-brand flex items-center justify-center shrink-0">
-        <Lightning className="h-5 w-5 text-white" weight="fill" />
+    <div className="rounded-2xl border-2 border-brand bg-brand-muted/40 p-4 flex flex-col gap-3" data-testid="pedido-ondemand">
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-full bg-brand flex items-center justify-center shrink-0">
+          <Lightning className="h-5 w-5 text-white" weight="fill" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[15px] font-semibold text-text-primary truncate">Consulta inmediata · {nombreVertical}</p>
+          <p className="text-xs text-text-secondary truncate">Paciente esperando · {haceCuanto(pedido.createdAt)}</p>
+        </div>
+        <span className={`hidden sm:flex items-center gap-1 text-xs font-mono tabular-nums shrink-0 ${left <= 30 ? 'text-danger' : 'text-text-secondary'}`}>
+          <Clock className="h-3.5 w-3.5" /> {mm}:{ss}
+        </span>
+        <button
+          onClick={() => onAceptar(pedido.id)}
+          disabled={aceptando}
+          className="btn-primary text-[15px] px-5 py-3 shrink-0 disabled:opacity-60"
+        >
+          {aceptando ? <CircleNotch className="h-4 w-4 animate-spin" /> : 'Aceptar'}
+        </button>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[15px] font-semibold text-text-primary truncate">Consulta inmediata · {nombreVertical}</p>
-        <p className="text-xs text-text-secondary truncate">Paciente esperando · {haceCuanto(pedido.createdAt)}</p>
-      </div>
-      <span className={`hidden sm:flex items-center gap-1 text-xs font-mono tabular-nums shrink-0 ${left <= 30 ? 'text-danger' : 'text-text-secondary'}`}>
-        <Clock className="h-3.5 w-3.5" /> {mm}:{ss}
-      </span>
-      <button
-        onClick={() => onAceptar(pedido.id)}
-        disabled={aceptando}
-        className="btn-primary text-[15px] px-5 py-3 shrink-0 disabled:opacity-60"
-      >
-        {aceptando ? <CircleNotch className="h-4 w-4 animate-spin" /> : 'Aceptar'}
-      </button>
+      {/* La preconsulta viaja en el pedido: el profesional ve qué le pasa al
+          paciente (sin su nombre) antes de decidir si lo toma. */}
+      {pre && (
+        <div className="rounded-xl bg-white/80 border border-brand/20 px-3 py-2.5" data-testid="pedido-preconsulta">
+          <p className="text-sm text-text-primary">
+            <span className="font-semibold">Motivo:</span> {pre.motivo}
+            {pre.alarma && (
+              <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-danger/10 text-danger text-[11px] font-semibold px-2 py-0.5 align-middle">
+                <Warning className="h-3 w-3" weight="fill" /> Señal de alarma
+              </span>
+            )}
+          </p>
+          {pre.detalle && <p className="text-xs text-text-secondary mt-0.5">{pre.detalle}</p>}
+        </div>
+      )}
     </div>
   )
 }

@@ -50,18 +50,22 @@ function OptionButton({ selected, label, onClick }) {
  *   onClose        – dismiss sin enviar (ignorado cuando `required`)
  *   consultationId – string | null — UUID de la consulta; si es null se saltea el guardado
  *   onSubmitted    – se llama tras enviar (o saltear, si no es required)
+ *   pedirDatos     – pregunta los datos de la receta que falten (por defecto, = required).
+ *                    Teleclínica lo pide fuera de la sala: ahí la preconsulta va antes
+ *                    del pago y la sala ya no la vuelve a mostrar.
+ *   permitirOmitir – muestra "Omitir por ahora" (por defecto, si no es required).
  *   required       – el paciente no puede saltear ni cerrar, y un guardado fallido
  *                    mantiene el formulario abierto en vez de dejar pasar. Lo usa la
  *                    sala de espera: anunciar presencia convoca al profesional, así
  *                    que esto tiene que estar contestado ANTES.
  */
-export default function PreconsultaForm({ isOpen, onClose, consultationId, onSubmitted, required = false, profile = null, onProfileUpdate }) {
+export default function PreconsultaForm({ isOpen, onClose, consultationId, onSubmitted, required = false, profile = null, onProfileUpdate, pedirDatos = required, permitirOmitir = !required }) {
   // Datos que Innovamed exige para emitir una receta y que el paciente puede no
   // tener cargados. Se pregunta SOLO lo que falta: quien ya los tiene no ve este
   // paso. Y se pregunta acá porque es el único momento obligatorio antes de la
   // consulta — pedirlos al registrarse agrega fricción a alguien que todavía no
   // sabe si va a usar la app.
-  const faltantes = required ? faltanDatosPaciente(profile) : []
+  const faltantes = pedirDatos ? faltanDatosPaciente(profile) : []
   const pideDatos = faltantes.length > 0
   const [datos, setDatos] = useState({ dni: '', gender: '', birthDate: '' })
   const [submitting, setSubmitting] = useState(false)
@@ -151,18 +155,38 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
     }
   }
 
+  // Los datos del paciente van al perfil, no a la consulta: son suyos y
+  // sirven para todas las recetas futuras. Se piden una sola vez.
+  const guardarDatosDelPaciente = async () => {
+    if (!pideDatos || !profile?.id) return
+    const patch = Object.fromEntries(
+      faltantes.map(f => [f.campo, String(datos[f.campo]).trim()]),
+    )
+    try {
+      const actualizado = await profilesService.update(profile.id, patch)
+      onProfileUpdate?.(actualizado)
+    } catch (e) {
+      // No bloquea la consulta: el profesional va a ver qué falta al recetar.
+      console.warn('[PreconsultaForm] no se pudieron guardar los datos del paciente:', e)
+    }
+  }
+
   const handleSubmit = async () => {
     if (submitting || !symptomStepOk || !answeredAll || !medicationOk) return
     setSubmitting(true)
     setSaveError(null)
 
+    const payload = buildPayload()
+
+    // Sin consulta todavía (Teleclínica: la preconsulta va antes del pago y
+    // viaja en el pedido): se devuelven las respuestas a quien abrió el
+    // formulario. Los datos para la receta igual se guardan en el perfil.
     if (!consultationId) {
+      await guardarDatosDelPaciente()
       setSubmitting(false)
-      onSubmitted()
+      onSubmitted(payload)
       return
     }
-
-    const payload = buildPayload()
 
     try {
       const { error } = await supabase
@@ -171,20 +195,7 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
         .eq('id', consultationId)
       if (error) throw error
 
-      // Los datos del paciente van al perfil, no a la consulta: son suyos y
-      // sirven para todas las recetas futuras. Se piden una sola vez.
-      if (pideDatos && profile?.id) {
-        const patch = Object.fromEntries(
-          faltantes.map(f => [f.campo, String(datos[f.campo]).trim()]),
-        )
-        try {
-          const actualizado = await profilesService.update(profile.id, patch)
-          onProfileUpdate?.(actualizado)
-        } catch (e) {
-          // No bloquea la consulta: el profesional va a ver qué falta al recetar.
-          console.warn('[PreconsultaForm] no se pudieron guardar los datos del paciente:', e)
-        }
-      }
+      await guardarDatosDelPaciente()
 
       consultationEventsService.log(consultationId, CONSULTATION_EVENTS.PRECONSULTA_SUBMITTED, {
         symptom: payload.symptom?.id,
@@ -450,7 +461,7 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
             </p>
           )}
 
-          {!required && step === 0 && (
+          {permitirOmitir && step === 0 && (
             <button
               onClick={() => onSubmitted()}
               disabled={submitting}

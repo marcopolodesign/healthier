@@ -59,6 +59,45 @@ function json(body: unknown, status = 200) {
   })
 }
 
+const texto = (v: unknown, max = 300): string | null =>
+  typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null
+
+/** La preconsulta (payload v2 de PreconsultaForm) con sólo los campos y tipos esperados. */
+function sanearPreconsulta(raw: unknown): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const p = raw as Record<string, unknown>
+  const sym = (p.symptom && typeof p.symptom === 'object' ? p.symptom : {}) as Record<string, unknown>
+  const answers = (Array.isArray(p.answers) ? p.answers : [])
+    .filter((a): a is Record<string, unknown> => !!a && typeof a === 'object')
+    .slice(0, 20)
+    .map(a => ({
+      question_id: texto(a.question_id, 80),
+      question_label: texto(a.question_label),
+      values: (Array.isArray(a.values) ? a.values : []).map(v => texto(v, 80)).filter(Boolean).slice(0, 10),
+      labels: (Array.isArray(a.labels) ? a.labels : []).map(v => texto(v)).filter(Boolean).slice(0, 10),
+      red_flag: a.red_flag === true,
+    }))
+  const med = (p.medication && typeof p.medication === 'object' ? p.medication : {}) as Record<string, unknown>
+  const mainComplaint = texto(p.main_complaint)
+  if (!mainComplaint) return null
+  return {
+    version: 2,
+    symptom: {
+      id: texto(sym.id, 80),
+      label: texto(sym.label),
+      icd10_code: texto(sym.icd10_code, 20),
+      icd10_display: texto(sym.icd10_display),
+      free_text: texto(sym.free_text, 1000),
+    },
+    answers,
+    medication: { taking: med.taking === true, detail: texto(med.detail, 1000) },
+    has_red_flags: answers.some(a => a.red_flag),
+    main_complaint: mainComplaint,
+    symptoms: texto(p.symptoms, 4000),
+    current_medications: texto(p.current_medications, 1000),
+  }
+}
+
 interface Pago {
   cardToken: string
   paymentMethodId: string
@@ -115,6 +154,13 @@ Deno.serve(async (req) => {
       const vertical = String(body.vertical ?? '')
       const paraId: string | null = body.paraId || null
       const pago: Pago | null = body.pago ?? null
+      // La preconsulta va ANTES del pago (Mateo, 2026-10-09): el profesional la ve
+      // en el pedido para decidir si lo toma, y `accept_ondemand_request` la copia
+      // a la consulta, así el paciente no la vuelve a llenar en la sala.
+      // Se rearma campo por campo: el JSON viene del cliente y la tarjeta del
+      // pedido la ven TODOS los profesionales elegibles, así que una forma rara
+      // no puede llegar a sus pantallas.
+      const preconsulta = sanearPreconsulta(body.preconsulta)
 
       if (paraId && !(await puedeActuarComo(db, user.id, paraId))) {
         return json({ data: null, error: 'No podés pedir una consulta para esa persona.' }, 403)
@@ -174,6 +220,7 @@ Deno.serve(async (req) => {
           price_at_request: ajuste.ondemand_price,
           payment_method_id: pago?.savedCardId ?? null,
           estado_pago: exento ? 'sin_pago' : 'pendiente',
+          preconsulta_data: preconsulta,
           expires_at: new Date(Date.now() + BUSQUEDA_MS).toISOString(),
         })
         .select('id, expires_at, avisados')
@@ -209,7 +256,7 @@ Deno.serve(async (req) => {
     // ── cancelar / extender (paciente) ───────────────────────────────────────
     if (action === 'cancelar' || action === 'extender') {
       const { data: pedido } = await db.from('ondemand_requests')
-        .select('id, patient_id, status, created_at').eq('id', body.requestId).maybeSingle()
+        .select('id, patient_id, status, created_at, estado_pago').eq('id', body.requestId).maybeSingle()
       if (!pedido || pedido.patient_id !== user.id) return json({ data: null, error: 'Pedido no encontrado' }, 404)
 
       if (action === 'cancelar') {
@@ -229,6 +276,16 @@ Deno.serve(async (req) => {
       if (nuevo <= Date.now()) return json({ data: null, error: 'Ya buscamos todo el tiempo que podíamos.' }, 409)
       // Un pedido recién vencido (el cron corre cada minuto) también se puede
       // revivir mientras no lo haya tomado nadie.
+      // Sin tarjeta guardada (y sin bonificar) no se revive: sonaría un pedido
+      // que nadie puede cobrar. El paciente vuelve a pagar con un pedido nuevo.
+      if (pedido.estado_pago !== 'sin_pago') {
+        const { count: conToken } = await db.from('ondemand_request_cobros').select('request_id', { count: 'exact', head: true }).eq('request_id', pedido.id)
+        if (!conToken) {
+          await db.from('ondemand_requests').update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+            .eq('id', pedido.id).in('status', ['pending', 'expired'])
+          return json({ data: { sinToken: true }, error: null })
+        }
+      }
       const { data: hecho } = await db.from('ondemand_requests')
         .update({ status: 'pending', expires_at: new Date(nuevo).toISOString() })
         .eq('id', pedido.id).in('status', ['pending', 'expired'])
