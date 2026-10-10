@@ -19,6 +19,9 @@ nombre y apellido o directamente a otra vertical"*. Migración **195**.
 6. **Pero sí puede rechazar** una derivación a su nombre (motivo opcional, mientras no haya
    turno): pasa a *rechazada*, se le avisa al paciente (push + mail) y el paciente ve "El Dr. X
    no puede tomarla" con la opción de reservar con otro profesional de la misma especialidad.
+8. **Por nombre sólo se deriva a profesionales que se pueden reservar** (verificados, con
+   Mercado Pago conectado y precio cargado — `buscar_profesionales_cobrables`). Decidido por
+   Mateo el 2026-10-10: derivar a alguien a quien el paciente no puede pagarle no sirve.
 7. **Vence a los 30 días.** Avisos de una derivación a especialidad: sólo al paciente; el
    profesional se entera cuando le reservan.
 
