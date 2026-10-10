@@ -30,7 +30,11 @@ export default function Derivaciones({ profile }) {
       derivacionesService.listarHechas(profile.id),
       derivacionesService.listarRecibidas(profile.id),
     ])
-      .then(([h, r]) => { setHechas(h); setRecibidas(r) })
+      .then(([h, r]) => {
+        setHechas(h); setRecibidas(r)
+        // Al que sólo recibe (el push lo trae acá) no se le abre una lista vacía.
+        if (!h.length && r.length) setTab('recibidas')
+      })
       .catch(err => toast.error(err?.message ?? 'Error al cargar las derivaciones'))
       .finally(() => setLoading(false))
   }, [profile?.id])

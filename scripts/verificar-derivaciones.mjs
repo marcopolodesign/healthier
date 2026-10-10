@@ -194,8 +194,14 @@ async function main() {
   const { data: dTras } = await admin.from('derivaciones').select('estado, consulta_reservada_id').eq('id', d1).single()
   check(dTras?.estado === 'reservada' && dTras?.consulta_reservada_id === buena.data?.id, 'la derivación pasa a "reservada" con el turno', JSON.stringify(dTras))
   check(!(await leeHc(B.cliente, p1.id)), 'ya con turno y sin consentimiento: B sigue sin ver la HC')
+  // El turno nace sin pagar (el cobro va después): un reintento no puede chocar.
+  const reintento = await consulta(p1.cliente, p1.id, B.id, { derivacion_id: d1, vertical: 'nutricion' })
+  const { data: dReintento } = await admin.from('derivaciones').select('consulta_reservada_id').eq('id', d1).single()
+  check(!reintento.error && dReintento?.consulta_reservada_id === reintento.data?.id,
+    'si el turno quedó sin pagar, se puede reservar de nuevo y la derivación apunta al nuevo', reintento.error?.message)
+  if (reintento.data) await admin.from('consultations').update({ status: 'confirmed', payment_status: 'paid' }).eq('id', reintento.data.id)
   const otra = await consulta(p1.cliente, p1.id, B.id, { derivacion_id: d1, vertical: 'nutricion' })
-  check(Boolean(otra.error), 'una derivación reservada no se usa dos veces', otra.error?.message)
+  check(Boolean(otra.error), 'con el turno pagado, la derivación no se usa dos veces', otra.error?.message)
 
   // 6 ─ con consentimiento
   console.log('\n6. Con consentimiento')

@@ -450,7 +450,16 @@ begin
   if not found or d.patient_id is distinct from new.patient_id then
     raise exception 'La derivación no corresponde a este paciente.' using errcode = '22023';
   end if;
-  if d.estado <> 'pendiente' or d.vence_at < now() then
+  -- Una reserva que quedó sin pagar (el pago falló o se abandonó) no bloquea:
+  -- el turno nace `pending_payment` antes del cobro, y sin esto un reintento
+  -- de pago o una reserva nueva chocaba contra la derivación ya "reservada".
+  if d.vence_at < now() or not (
+       d.estado = 'pendiente'
+       or (d.estado = 'reservada' and exists (
+             select 1 from public.consultations c
+              where c.id = d.consulta_reservada_id
+                and c.status = 'pending' and c.payment_status = 'pending_payment'))
+     ) then
     raise exception 'La derivación ya no está vigente.' using errcode = '22023';
   end if;
   if d.profesional_destino_id is not null then
@@ -490,7 +499,7 @@ begin
   if tg_op = 'INSERT' or new.derivacion_id is distinct from old.derivacion_id then
     update public.derivaciones
        set estado = 'reservada', consulta_reservada_id = new.id, reservada_at = now()
-     where id = new.derivacion_id and estado = 'pendiente';
+     where id = new.derivacion_id and estado in ('pendiente', 'reservada');
   elsif new.status = 'cancelled' and old.status is distinct from 'cancelled' then
     update public.derivaciones
        set estado = case when vence_at < now() then 'vencida' else 'pendiente' end,
