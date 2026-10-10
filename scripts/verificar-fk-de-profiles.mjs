@@ -52,6 +52,9 @@ const PROTEGIDAS = [
   'family_members.patient_id', 'family_members.familiar_id',
   'reviews.patient_id', 'reviews.professional_id',
   'rcta_issue_log.patient_id', 'rcta_issue_log.professional_id',
+  // Derivaciones (migración 195): son parte de la historia clínica.
+  'derivaciones.patient_id', 'derivaciones.derivado_por', 'derivaciones.profesional_destino_id',
+  'derivacion_consentimientos.respondido_por',
 ]
 // Tablas enteras que tampoco pueden borrar ni anular nada.
 const TABLAS_PROTEGIDAS = /^(clinical_.*|payments|medication_orders)$/

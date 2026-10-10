@@ -625,6 +625,69 @@ export function profesionalSinPrecio(pr: { name: string }): Sent {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 10ter · Derivación (migración 195)
+// ═══════════════════════════════════════════════════════════════════════════
+export type Derivacion = {
+  id: string
+  patientName: string
+  patientFullName: string
+  derivadoPor: string
+  derivadoPorEspecialidad: string | null
+  /** El profesional destino, o null si la derivación es a una especialidad. */
+  destinoNombre: string | null
+  destinoEspecialidad: string | null
+  /** "Cardiología" / "Nutrición" — sólo cuando es a una especialidad. */
+  especialidad: string | null
+  motivo: string
+}
+
+export function derivacionPaciente(d: Derivacion): Sent {
+  const aQuien = d.destinoNombre ?? d.especialidad ?? 'otro profesional'
+  const body = [
+    p(`Hola <strong style="color:${C.ink}">${esc(d.patientName)}</strong>, <strong style="color:${C.ink}">${esc(d.derivadoPor)}</strong> te derivó a <strong style="color:${C.ink}">${esc(aQuien)}</strong>.`),
+    sectionLabel('El motivo'),
+    quote(d.motivo),
+    ...(d.destinoNombre
+      ? [personCard({ name: d.destinoNombre, subtitle: d.destinoEspecialidad, note: 'Reservás directo en su agenda' })]
+      : [p(`Podés elegir cualquier profesional de ${esc(aQuien)} y reservar como siempre.`)]),
+    note('Antes de reservar te vamos a preguntar si querés compartir tu historia clínica con quien te atienda. Si decís que no, sólo va a ver la nota de derivación.', 'sage'),
+    button(`${APP_URL}/paciente/derivaciones/${d.id}`, 'Ver la derivación y reservar', 'sage'),
+  ].join('')
+
+  return {
+    subject: `${d.derivadoPor} te derivó a ${aQuien}`,
+    html: renderEmail({
+      preheader: `Mirá el motivo y reservá tu turno.`,
+      eyebrow: 'Derivación', accent: 'sage',
+      title: `Te derivaron a ${aQuien}`,
+      body,
+      footnote: 'La consulta se paga como cualquier otra, al precio del profesional que elijas.',
+    }),
+  }
+}
+
+export function derivacionProfesional(d: Derivacion & { destinoNombre: string }): Sent {
+  const body = [
+    p(`Hola <strong style="color:${C.ink}">${esc(d.destinoNombre)}</strong>, <strong style="color:${C.ink}">${esc(d.derivadoPor)}</strong>${d.derivadoPorEspecialidad ? ` (${esc(d.derivadoPorEspecialidad)})` : ''} te derivó a <strong style="color:${C.ink}">${esc(d.patientFullName)}</strong>.`),
+    sectionLabel('El motivo'),
+    quote(d.motivo),
+    p('No tenés que aceptar nada: el paciente reserva directo en tu agenda y te llega el aviso del turno como siempre.'),
+    note('Vas a ver la historia clínica completa sólo si el paciente acepta compartirla. La nota de derivación la ves siempre.', 'sage'),
+    button(`${APP_URL}/profesional/derivaciones/${d.id}`, 'Ver la derivación', 'sage'),
+  ].join('')
+
+  return {
+    subject: `Te derivaron a ${d.patientFullName}`,
+    html: renderEmail({
+      preheader: `${d.derivadoPor} te derivó un paciente.`,
+      eyebrow: 'Derivación', accent: 'sage',
+      title: 'Te derivaron un paciente',
+      body,
+    }),
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 11 · Receta electrónica emitida
 // ═══════════════════════════════════════════════════════════════════════════
 export function recetaEmitida(r: { patientName: string; professionalName: string; medicamentos: string[]; pdfUrl: string | null; prescriptionId: string }): Sent {

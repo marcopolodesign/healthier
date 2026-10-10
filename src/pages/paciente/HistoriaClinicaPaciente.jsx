@@ -2,10 +2,13 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, DownloadSimple, Stethoscope, Pill, Warning,
-  Heartbeat, ClipboardText, CircleNotch, Heart,
+  Heartbeat, ClipboardText, CircleNotch, Heart, ShareFat,
 } from '@phosphor-icons/react'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { familyService } from '../../services/familyService'
+import { derivacionesService, destinoLabel } from '../../services/derivacionesService'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
+import DerivacionEstado from '../../components/DerivacionEstado'
 
 const ENTRY_TYPE_LABEL = {
   soap_subjective: 'Subjetivo',
@@ -174,6 +177,13 @@ export default function HistoriaClinicaPaciente({ profile }) {
   const deFamiliar = searchParams.get('de')
   const [familiar, setFamiliar] = useState(null)
   const pacienteId = deFamiliar || profile?.id
+  const { porSlug } = useEspecialidades()
+  const [derivaciones, setDerivaciones] = useState([])
+
+  useEffect(() => {
+    if (!pacienteId) return
+    derivacionesService.listarDelPaciente(pacienteId).then(setDerivaciones).catch(() => {}) // aditivo
+  }, [pacienteId])
 
   useEffect(() => {
     if (!profile?.id || !deFamiliar) return
@@ -241,6 +251,33 @@ export default function HistoriaClinicaPaciente({ profile }) {
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {timeline.allergies.map(a => <AllergyChip key={a.id} allergy={a} />)}
+                  </div>
+                </div>
+              )}
+
+              {/* Derivaciones: a quién te derivaron, por qué y cómo va. */}
+              {derivaciones.length > 0 && (
+                <div className="mb-5">
+                  <p className="text-[12px] font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                    <ShareFat className="w-3.5 h-3.5" /> Derivaciones ({derivaciones.length})
+                  </p>
+                  <div className="space-y-3">
+                    {derivaciones.map(d => (
+                      <button
+                        key={d.id}
+                        onClick={() => navigate(`/paciente/derivaciones/${d.id}`)}
+                        className="w-full text-left bg-white rounded-[20px] border border-gray-100 shadow-sm px-5 py-4 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-[14px] font-semibold text-gray-900">Derivación a {destinoLabel(d, porSlug)}</p>
+                          <DerivacionEstado derivacion={d} />
+                        </div>
+                        <p className="text-[12px] text-gray-500 mt-0.5">
+                          {formatDate(d.createdAt)}{d.derivado?.fullName ? ` · por ${d.derivado.fullName}` : ''}
+                        </p>
+                        <p className="text-[13px] text-gray-600 mt-1.5 line-clamp-2">{d.motivo}</p>
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}

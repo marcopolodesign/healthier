@@ -3,13 +3,18 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, User, Heartbeat, Phone,
   Drop, ShieldCheck, ClipboardText, CircleNotch,
-  CalendarPlus, UserPlus, Trash, Clock, CalendarBlank,
+  CalendarPlus, UserPlus, Trash, Clock, CalendarBlank, ShareFat,
 } from '@phosphor-icons/react'
 import { profilesService } from '../../services/profilesService'
 import { consultationsService } from '../../services/consultationsService'
 import PatientConsultationList from '../../components/professional/PatientConsultationList'
 import { followupsService } from '../../services/followupsService'
 import { professionalService } from '../../services/professionalService'
+import { derivacionesService, destinoLabel, derivacionVigente } from '../../services/derivacionesService'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
+import DerivarModal from '../../components/professional/DerivarModal'
+import DerivadoPorCard from '../../components/professional/DerivadoPorCard'
+import DerivacionEstado from '../../components/DerivacionEstado'
 import { toast } from '../../components/Toast'
 
 function InfoRow({ label, value }) {
@@ -67,6 +72,12 @@ export default function ProfessionalPatientProfile({ profile }) {
   const [recommendedProId, setRecommendedProId] = useState('')
   const [savingFollowup, setSavingFollowup] = useState(false)
 
+  // ── Derivaciones de este paciente que hice o recibí ──────────────────────
+  const { porSlug } = useEspecialidades()
+  const [derivarOpen, setDerivarOpen] = useState(false)
+  const [derivaciones, setDerivaciones] = useState([])
+  const [cancelandoId, setCancelandoId] = useState(null)
+
   useEffect(() => {
     profilesService.getById(patientId)
       .then(setPatient)
@@ -95,6 +106,33 @@ export default function ProfessionalPatientProfile({ profile }) {
       .then(pros => setOtherPros(pros.filter(p => p.userId !== profile.id)))
       .catch(() => {})
   }, [profile?.id, patientId])
+
+  const cargarDerivaciones = () => {
+    if (!profile?.id || !patientId) return
+    Promise.all([
+      derivacionesService.listarHechas(profile.id, { patientId }),
+      derivacionesService.listarRecibidas(profile.id, { patientId }),
+    ])
+      .then(([hechas, recibidas]) => {
+        const porId = new Map([...hechas, ...recibidas].map(d => [d.id, d]))
+        setDerivaciones([...porId.values()].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
+      })
+      .catch(() => {})
+  }
+  useEffect(cargarDerivaciones, [profile?.id, patientId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const cancelarDerivacion = async (id) => {
+    setCancelandoId(id)
+    try {
+      await derivacionesService.cancelar(id)
+      toast.success('Derivación cancelada')
+      cargarDerivaciones()
+    } catch (err) {
+      toast.error(err?.message ?? 'No pudimos cancelar la derivación')
+    } finally {
+      setCancelandoId(null)
+    }
+  }
 
   const saveFollowup = async () => {
     if (!followUpDate && !recommendedProId) {
@@ -192,7 +230,19 @@ export default function ProfessionalPatientProfile({ profile }) {
             </span>
           )}
         </div>
+        <button
+          onClick={() => setDerivarOpen(true)}
+          className="btn-secondary shrink-0 px-4 py-2 flex items-center gap-2 text-sm"
+        >
+          <ShareFat className="h-4 w-4" />
+          Derivar
+        </button>
       </div>
+
+      {/* Si este paciente me lo derivaron (vigente o ya reservada), de quién y por qué. */}
+      {derivaciones.filter(d => d.profesionalDestinoId === profile?.id && d.estado !== 'cancelada').map(d => (
+        <DerivadoPorCard key={d.id} derivacion={d} />
+      ))}
 
       {/* ── Información básica ── */}
       {/* El DNI vive acá y no en "perfil clínico": es el dato de identidad con el
@@ -401,6 +451,61 @@ export default function ProfessionalPatientProfile({ profile }) {
           </div>
         )}
       </Section>
+
+      {/* ── Derivaciones: las que hice y las que me hicieron para este paciente ── */}
+      <Section icon={ShareFat} title={`Derivaciones${derivaciones.length ? ` (${derivaciones.length})` : ''}`} iconColor="text-brand-tertiary" bgColor="bg-brand-tertiary/10">
+        <button
+          onClick={() => setDerivarOpen(true)}
+          className="btn-secondary w-full py-2.5 flex items-center justify-center gap-2"
+        >
+          <ShareFat className="h-4 w-4" />
+          Derivar
+        </button>
+        {derivaciones.length === 0 ? (
+          <p className="text-sm text-text-secondary">Todavía no hay derivaciones de este paciente.</p>
+        ) : (
+          <div className="space-y-2">
+            {derivaciones.map(d => {
+              const hecha = d.derivadoPor === profile?.id
+              return (
+                <div key={d.id} className="rounded-xl border border-border-default bg-bg-surface p-3 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <Link to={`/profesional/derivaciones/${d.id}`} className="min-w-0 hover:text-brand">
+                      <p className="text-sm font-medium text-text-primary truncate">
+                        {hecha ? `A ${destinoLabel(d, porSlug)}` : `De ${d.derivado?.fullName ?? 'otro profesional'}`}
+                      </p>
+                    </Link>
+                    <DerivacionEstado derivacion={d} />
+                  </div>
+                  <p className="text-xs text-text-secondary line-clamp-2">{d.motivo}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-text-tertiary">
+                      {new Date(d.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </span>
+                    {hecha && derivacionVigente(d) && (
+                      <button
+                        onClick={() => cancelarDerivacion(d.id)}
+                        disabled={cancelandoId === d.id}
+                        className="text-xs font-semibold text-danger hover:underline disabled:opacity-50"
+                      >
+                        {cancelandoId === d.id ? 'Cancelando…' : 'Cancelar'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Section>
+
+      <DerivarModal
+        open={derivarOpen}
+        onClose={() => setDerivarOpen(false)}
+        onDone={cargarDerivaciones}
+        patientId={patientId}
+        excluirProId={profile?.id}
+      />
 
       {/* ── Historia clínica link ── */}
       <Link

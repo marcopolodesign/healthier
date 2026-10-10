@@ -6,6 +6,7 @@ import { availabilityService } from '../../services/availabilityService'
 import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
 import StatusBadge from '../../components/StatusBadge'
+import DerivadoChip from '../../components/professional/DerivadoChip'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
 import { useWaitingPresence } from '../../hooks/useWaitingPresence'
 import LlegadaBadge, { useLlegadas } from '../../components/professional/LlegadaPaciente'
@@ -185,6 +186,7 @@ export default function Agenda({ profile }) {
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-text-primary text-sm truncate">{patientName}</p>
                 <p className="text-xs text-text-secondary">{isVideo ? 'Videoconsulta' : 'Presencial'} · {time}</p>
+                <DerivadoChip derivacion={c.derivacion} />
               </div>
               {waiting ? <PatientWaitingBadge since={since} />
                 : llegadas[c.id] ? <LlegadaBadge arrival={llegadas[c.id]} />

@@ -60,6 +60,24 @@ async function datosDelAviso(
     }
   }
 
+  if (p.derivacionId) {
+    datos.derivacionId = p.derivacionId as string
+    const { data } = await supabase
+      .from('derivaciones')
+      .select(`vertical_destino, especialidad_destino,
+        derivado:profiles!derivado_por(full_name),
+        destino:profiles!profesional_destino_id(full_name),
+        paciente:profiles!patient_id(full_name)`)
+      .eq('id', p.derivacionId)
+      .maybeSingle()
+    if (data) {
+      const nombre = (x: unknown) => (x as { full_name?: string } | null)?.full_name ?? null
+      datos.derivadoPor = nombre(data.derivado)
+      datos.patientName = nombre(data.paciente)
+      datos.destino = nombre(data.destino) ?? await nombreDeEspecialidad(supabase, data.especialidad_destino, data.vertical_destino)
+    }
+  }
+
   if (p.prescriptionId) {
     datos.prescriptionId = p.prescriptionId as string
     const { data } = await supabase
@@ -72,6 +90,24 @@ async function datosDelAviso(
   }
 
   return datos
+}
+
+const NOMBRE_VERTICAL: Record<string, string> = {
+  clinica: 'Clínica', pediatria: 'Pediatría', nutricion: 'Nutrición', mente: 'Psicología',
+  fisico: 'Kinesiología', veterinaria: 'Veterinaria', preparador: 'Preparador físico',
+}
+
+/** "Cardiología", o el área si la derivación no eligió especialidad. */
+async function nombreDeEspecialidad(
+  supabase: ReturnType<typeof createClient>,
+  slug: string | null,
+  vertical: string | null,
+): Promise<string | null> {
+  if (slug) {
+    const { data } = await supabase.from('specialties').select('label').eq('slug', slug).maybeSingle()
+    if (data?.label) return data.label as string
+  }
+  return vertical ? (NOMBRE_VERTICAL[vertical] ?? vertical) : null
 }
 
 Deno.serve(async (req: Request) => {

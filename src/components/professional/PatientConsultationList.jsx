@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { VideoCamera, MapPin, CircleNotch, CalendarBlank } from '@phosphor-icons/react'
 import StatusBadge from '../StatusBadge'
+import DerivadoChip from './DerivadoChip'
 
 /**
  * Los turnos de un paciente con este profesional.
@@ -77,6 +78,8 @@ export default function PatientConsultationList({ consultations, loading, emptyH
                     c.durationMinutes != null ? `${c.durationMinutes} min` : null,
                   ].filter(Boolean).join(' · ')}
                 </p>
+
+                <DerivadoChip derivacion={c.derivacion} />
 
                 {/* La nota de cierre es lo único que dice qué pasó en el turno, así
                     que se muestra acá y no sólo adentro. */}

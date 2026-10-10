@@ -3,12 +3,13 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, FileText, VideoCamera, ClipboardText, User,
   Clock, CalendarPlus, Key, ShieldCheck, Tag, PencilSimple, Check, X,
-  FirstAidKit, Pill, Sparkle, Info, FilePdf, LockSimple, PawPrint, Ambulance, ArrowRight,
+  FirstAidKit, Pill, Sparkle, Info, FilePdf, LockSimple, PawPrint, Ambulance, ArrowRight, ShareFat,
 } from '@phosphor-icons/react'
 import InfoTooltip from '../../components/common/InfoTooltip'
 import { consultationsService } from '../../services/consultationsService'
 import { emergencyService } from '../../services/emergencyService'
 import { professionalService } from '../../services/professionalService'
+import { derivacionesService } from '../../services/derivacionesService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import { clinicalService } from '../../services/clinicalService'
 import StatusBadge from '../../components/StatusBadge'
@@ -21,6 +22,8 @@ import FacturaConsulta from '../../components/professional/FacturaConsulta'
 import FinanciadorPicker from '../../components/FinanciadorPicker'
 import Recetario from '../../components/professional/Recetario'
 import ScribeSession from '../../components/professional/ScribeSession'
+import DerivarModal from '../../components/professional/DerivarModal'
+import DerivadoPorCard from '../../components/professional/DerivadoPorCard'
 import { toast } from '../../components/Toast'
 
 export default function ConsultationDetail({ profile }) {
@@ -34,6 +37,9 @@ export default function ConsultationDetail({ profile }) {
   const [entering, setEntering] = useState(false)
 
   const [reagendarOpen, setReagendarOpen] = useState(false)
+  const [derivarOpen, setDerivarOpen] = useState(false)
+  // La derivación detrás de este turno (si el paciente reservó desde una).
+  const [derivacion, setDerivacion] = useState(null)
   const [reagendarDate, setReagendarDate] = useState('')
   const [savingReagendar, setSavingReagendar] = useState(false)
 
@@ -59,6 +65,13 @@ export default function ConsultationDetail({ profile }) {
   }, [id])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (!consultation?.derivacionId) { setDerivacion(null); return }
+    derivacionesService.getForConsultation(consultation.derivacionId)
+      .then(setDerivacion)
+      .catch(() => {})
+  }, [consultation?.derivacionId])
 
   // Consulta que salió de una emergencia (migración 177): el código del
   // despacho es lo que el médico del móvil reconoce, no la fecha del turno.
@@ -669,6 +682,9 @@ export default function ConsultationDetail({ profile }) {
       {/* Cobro de esta consulta */}
       <ConsultationPaymentCard payment={consultation.payment} />
 
+      {/* Si el paciente llegó por una derivación: de quién, por qué y qué se puede ver. */}
+      <DerivadoPorCard derivacion={derivacion} />
+
       {/* Navigation shortcuts */}
       <div className="grid grid-cols-2 gap-3">
         <Link
@@ -695,6 +711,17 @@ export default function ConsultationDetail({ profile }) {
         >
           <CalendarPlus className="h-5 w-5" />
           Agendar próxima consulta
+        </button>
+      )}
+
+      {/* Derivar al paciente a otro profesional o a otra especialidad. */}
+      {!esEmergencia && (
+        <button
+          onClick={() => setDerivarOpen(true)}
+          className="btn-secondary w-full py-3 flex items-center justify-center gap-2"
+        >
+          <ShareFat className="h-5 w-5" />
+          Derivar
         </button>
       )}
 
@@ -739,6 +766,14 @@ export default function ConsultationDetail({ profile }) {
         hcDraft={consultation.hcDraft}
         sinFactura={esEmergencia}
         onFinalized={() => navigate('/profesional/dashboard')}
+      />
+
+      <DerivarModal
+        open={derivarOpen}
+        onClose={() => setDerivarOpen(false)}
+        patientId={consultation.patientId}
+        consultaOrigenId={consultation.id}
+        excluirProId={profile.id}
       />
 
       <Modal open={reagendarOpen} onClose={() => setReagendarOpen(false)} title="Agendar próxima consulta">
