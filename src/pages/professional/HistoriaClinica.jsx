@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Plus, Stethoscope, CircleNotch, Check,
-  User, Pill, TestTube, HeartStraight, Syringe, CalendarBlank, FileArrowDown,
+  User, Pill, TestTube, HeartStraight, Syringe, CalendarBlank, FileArrowDown, ShareFat,
 } from '@phosphor-icons/react'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { consultationsService } from '../../services/consultationsService'
@@ -14,6 +14,8 @@ import { diagnosticReportService } from '../../services/diagnosticReportService'
 import SignedDocLink from '../../components/SignedDocLink'
 import { toast } from '../../components/Toast'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { derivacionesService, destinoLabel } from '../../services/derivacionesService'
+import DerivacionEstado from '../../components/DerivacionEstado'
 import { rangoDe, textoRango, estadoDe, estaAnalizado } from '../../lib/biomarcadores'
 
 const SAGE = '#7CB38B'
@@ -317,6 +319,38 @@ function ConsultaSinEncuentroCard({ consulta }) {
   )
 }
 
+/**
+ * Una derivación del paciente en la línea de tiempo: a quién, por qué, de quién
+ * y cómo va. Sólo aparecen las que este profesional hizo o recibió (la RLS).
+ */
+function DerivacionCard({ derivacion, porSlug }) {
+  const d = derivacion
+  return (
+    <div className="card p-0 overflow-hidden">
+      <div className="px-4 py-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-lg bg-brand-tertiary/10 flex items-center justify-center shrink-0">
+            <ShareFat size={16} className="text-brand-tertiary" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold text-text-primary text-sm truncate">Derivación a {destinoLabel(d, porSlug)}</p>
+            <p className="text-xs text-text-tertiary">
+              {new Date(d.createdAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+              {d.derivado?.fullName ? ` · por ${d.derivado.fullName}` : ''}
+              {' · '}
+              <Link to={`/profesional/derivaciones/${d.id}`} className="text-brand hover:underline">ver derivación</Link>
+            </p>
+          </div>
+        </div>
+        <DerivacionEstado derivacion={d} />
+      </div>
+      <div className="border-t border-border-default px-4 py-3">
+        <p className="text-sm text-text-primary whitespace-pre-wrap">{d.motivo}</p>
+      </div>
+    </div>
+  )
+}
+
 export default function HistoriaClinica({ profile }) {
   const { patientId } = useParams()
   const navigate = useNavigate()
@@ -327,6 +361,8 @@ export default function HistoriaClinica({ profile }) {
   const [labReports, setLabReports] = useState([])
   const [consultas, setConsultas] = useState([])
   const [loadingConsultas, setLoadingConsultas] = useState(true)
+  const [derivaciones, setDerivaciones] = useState([])
+  const { porSlug } = useEspecialidades()
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('notas')
 
@@ -365,6 +401,19 @@ export default function HistoriaClinica({ profile }) {
       .then(setConsultas)
       .catch(() => {})
       .finally(() => setLoadingConsultas(false))
+  }, [profile?.id, patientId])
+
+  // Derivaciones de este paciente que hice o recibí: entran a la línea de tiempo.
+  useEffect(() => {
+    if (!profile?.id || !patientId) return
+    Promise.all([
+      derivacionesService.listarHechas(profile.id, { patientId }),
+      derivacionesService.listarRecibidas(profile.id, { patientId }),
+    ])
+      .then(([hechas, recibidas]) => {
+        setDerivaciones([...new Map([...hechas, ...recibidas].map(d => [d.id, d])).values()])
+      })
+      .catch(() => {}) // aditivo: sin derivaciones la historia se ve igual
   }, [profile?.id, patientId])
 
   async function handleSubmit(e) {
@@ -445,6 +494,12 @@ export default function HistoriaClinica({ profile }) {
           fecha: new Date(c.scheduledAt || c.createdAt).getTime(),
           data: c,
         })),
+      ...derivaciones.map(d => ({
+        tipo: 'derivacion',
+        id: d.id,
+        fecha: new Date(d.createdAt).getTime(),
+        data: d,
+      })),
     ]
     return items.sort((a, b) => b.fecha - a.fecha)
   })()
@@ -566,10 +621,11 @@ export default function HistoriaClinica({ profile }) {
             </div>
           ) : (
             <div className="space-y-3">
-              {timeline.map(item => item.tipo === 'encuentro'
-                ? <EncounterCard key={item.id} encounter={item.data} notaDeCierre={item.notaDeCierre} />
-                : <ConsultaSinEncuentroCard key={item.id} consulta={item.data} />
-              )}
+              {timeline.map(item => {
+                if (item.tipo === 'encuentro') return <EncounterCard key={item.id} encounter={item.data} notaDeCierre={item.notaDeCierre} />
+                if (item.tipo === 'derivacion') return <DerivacionCard key={item.id} derivacion={item.data} porSlug={porSlug} />
+                return <ConsultaSinEncuentroCard key={item.id} consulta={item.data} />
+              })}
             </div>
           )}
         </>

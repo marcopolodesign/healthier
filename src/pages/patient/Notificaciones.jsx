@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Bell, CalendarBlank, VideoCamera, FileText, Package, CurrencyCircleDollar,
+  ArrowLeft, Bell, CalendarBlank, VideoCamera, FileText, Package, CurrencyCircleDollar, ShareFat,
 } from '@phosphor-icons/react'
 import { notificacionesService } from '../../services/notificacionesService'
 import { track } from '../../utils/analytics'
@@ -14,6 +14,7 @@ function iconoDe(tipo) {
   if (tipo?.startsWith('receta')) return FileText
   if (tipo?.startsWith('pedido')) return Package
   if (tipo?.startsWith('devolucion')) return CurrencyCircleDollar
+  if (tipo === 'derivacion-nueva') return ShareFat
   return Bell
 }
 

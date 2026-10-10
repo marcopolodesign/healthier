@@ -28,6 +28,7 @@ import Modal from '../../components/Modal'
 import { useWaitingPresence } from '../../hooks/useWaitingPresence'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../../components/Toast'
+import DerivadoChip from '../../components/professional/DerivadoChip'
 import { useNavigate } from 'react-router-dom'
 import { nombreDePila } from '../../lib/format'
 
@@ -952,6 +953,7 @@ export default function ProfessionalDashboard({ profile }) {
                     <p className="font-medium text-text-primary text-sm truncate">{patientName}</p>
                     <p className="text-xs text-text-secondary mt-0.5 capitalize">{date} · {time}</p>
                     <p className="text-xs text-text-tertiary mt-0.5">{c.modality === 'video' ? 'Videoconsulta' : 'Presencial'}</p>
+                    <DerivadoChip derivacion={c.derivacion} />
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button
@@ -1077,6 +1079,7 @@ export default function ProfessionalDashboard({ profile }) {
                       <p className="text-xs text-text-secondary">
                         {c.scheduledAt ? new Date(c.scheduledAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '—'}
                       </p>
+                      <DerivadoChip derivacion={c.derivacion} />
                     </div>
                   </Link>
                   {/* El presencial que ya está viniendo pisa al estado: "llega

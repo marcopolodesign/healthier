@@ -23,6 +23,9 @@ export default function PaymentPage({ profile }) {
     modality = 'virtual',
     price,
     scheduledAt,
+    // Turno reservado desde una derivación: la consulta se inserta con
+    // `derivacion_id` y un trigger de la base valida que corresponda.
+    derivacionId,
     // Veterinaria: se cargan en un paso propio del wizard. Si no se persisten
     // acá se pierden, porque esta pantalla es la que crea la consulta.
     petId,
@@ -109,6 +112,7 @@ export default function PaymentPage({ profile }) {
       petId:          petId ?? null,
       petName:        petName ?? null,
       petSpecies:     petSpecies ?? null,
+      derivacionId:   derivacionId ?? null,
     })
     setConsultationId(created.id)
     return created.id
@@ -156,6 +160,7 @@ export default function PaymentPage({ profile }) {
         petId:          petId ?? null,
         petName:        petName ?? null,
         petSpecies:     petSpecies ?? null,
+        derivacionId:   derivacionId ?? null,
       })
       navigate(`/paciente/turno-confirmado/${created.id}`)
     } catch (err) {

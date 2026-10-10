@@ -4,7 +4,7 @@ import {
   ArrowLeft, PhoneSlash, ClipboardText, ArrowsOut, ArrowsIn,
   Plus, Check, CircleNotch, User, Microphone, MicrophoneSlash,
   Camera, CameraSlash, Warning, Sparkle, ClockCounterClockwise,
-  IdentificationCard, Pill,
+  IdentificationCard, Pill, ShareFat,
   Key, SealCheck, PaperPlaneTilt, AppleLogo, ArrowSquareOut, CaretRight, Barbell,
 } from '@phosphor-icons/react'
 import DailyIframe from '@daily-co/daily-js'
@@ -22,6 +22,7 @@ import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import ScribeSession from '../../components/professional/ScribeSession'
 import Recetario from '../../components/professional/Recetario'
+import { DerivarForm } from '../../components/professional/DerivarModal'
 import FinanciadorPicker from '../../components/FinanciadorPicker'
 import { toast } from '../../components/Toast'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
@@ -283,6 +284,9 @@ const PANEL_TABS = [
   // Electrónica" y sólo cubría medicamentos; ahora adentro hay un selector
   // de 2 tarjetas (medicamentos / estudios), ver `Recetario.jsx`.
   { id: 'receta',   kind: 'view',    label: 'Recetario', icon: Pill },
+  // Derivar al paciente (migración 195): se hace con la consulta abierta, y es
+  // también la puerta de la app, que embebe este panel en un WebView.
+  { id: 'derivar',  kind: 'view',    label: 'Derivar', icon: ShareFat },
   // Código de cierre EN la llamada, no sólo después de colgar (migración 099,
   // pedido de Mateo 2026-08-06).
   { id: 'cerrar',   kind: 'view',    label: 'Cerrar Consulta',    icon: Key },
@@ -1184,6 +1188,15 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
               } : null}
             />
           </div>
+        )}
+
+        {activeView === 'derivar' && patientId && (
+          <DerivarForm
+            patientId={patientId}
+            consultaOrigenId={consultation?.id ?? null}
+            excluirProId={professionalId}
+            onDone={() => setActiveView('chart')}
+          />
         )}
 
         {activeView === 'cerrar' && (vistaCerrar ?? <CerrarTab {...codigoCierre} />)}

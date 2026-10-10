@@ -9,6 +9,7 @@ import { availabilityService } from '../../services/availabilityService'
 import { consultationsService } from '../../services/consultationsService'
 import { paymentsService } from '../../services/paymentsService'
 import { petsService } from '../../services/petsService'
+import { derivacionesService } from '../../services/derivacionesService'
 import { useVerticales } from '../../hooks/useVerticales'
 import { useGrupoFamiliar } from '../../hooks/useGrupoFamiliar'
 import SelectorParaQuien from '../../components/patient/SelectorParaQuien'
@@ -104,6 +105,18 @@ export default function ReservarConsulta({ profile }) {
   const paramModality   = searchParams.get('modality') // 'virtual' | 'presencial'
   // `?para=<familiarId>` — viene de la tarjeta del familiar en el perfil.
   const paramPara       = searchParams.get('para')
+  // `?derivacion=<id>` (+ `&especialidad=<slug>`) — viene de la pantalla de la
+  // derivación. El turno se crea con `derivacion_id` y la base valida que el
+  // profesional sea el destino (o de esa vertical / especialidad).
+  const paramDerivacionId = searchParams.get('derivacion')
+  const paramEspecialidad = searchParams.get('especialidad')
+  const [derivacion, setDerivacion] = useState(null)
+  useEffect(() => {
+    if (!paramDerivacionId) return
+    derivacionesService.getById(paramDerivacionId)
+      .then(setDerivacion)
+      .catch(() => {}) // aditivo: el banner no es necesario para reservar
+  }, [paramDerivacionId])
 
   // ── State ─────────────────────────────────────────────────
   const [selectedVertical, setSelectedVertical] = useState(
@@ -267,7 +280,9 @@ export default function ReservarConsulta({ profile }) {
   // ── Load professionals when entering that step ────────────
   useEffect(() => {
     if (step !== 'professional' || !selectedVertical) return
-    const slugs = porVertical[selectedVertical.id] || []
+    const deLaVertical = porVertical[selectedVertical.id] || []
+    // Derivación a una especialidad puntual: sólo se ofrecen los de esa.
+    const slugs = paramEspecialidad && deLaVertical.includes(paramEspecialidad) ? [paramEspecialidad] : deLaVertical
     if (!slugs.length) { setProfessionals([]); return }
     setLoadingPros(true)
     professionalService.search({})
@@ -394,6 +409,7 @@ export default function ReservarConsulta({ profile }) {
         verticalId:         selectedVertical.id,
         modality,
         price,
+        derivacionId:       paramDerivacionId || null,
         /*
          * 🔴 El turno se arma en la hora de **Buenos Aires**, no en la del
          * equipo del paciente.
@@ -481,6 +497,13 @@ export default function ReservarConsulta({ profile }) {
       </div>
 
       <div className="px-4 py-6 pb-32 max-w-lg mx-auto space-y-4">
+
+        {paramDerivacionId && (
+          <div className="rounded-2xl bg-brand-tertiary/10 border border-brand-tertiary/30 px-4 py-3 text-sm text-text-primary">
+            Turno por derivación{derivacion?.derivado?.fullName ? ` de ${derivacion.derivado.fullName}` : ''}
+            {paramEspecialidad && porSlug[paramEspecialidad] ? ` · ${porSlug[paramEspecialidad]}` : ''}
+          </div>
+        )}
 
         {/* ── STEP: Vertical ── */}
         {step === 'vertical' && (

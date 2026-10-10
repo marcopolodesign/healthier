@@ -244,6 +244,8 @@ type Body = {
   motivo?: string | null
   /** receta */
   prescriptionId?: string
+  /** derivacion */
+  derivacionId?: string
   /** cambio-correo */
   requestId?: string
   destino?: 'actual' | 'nuevo'
@@ -446,6 +448,17 @@ Deno.serve(async (req) => {
         return await salida({ usuarioId: body.userId }, [{ to: baja.email_original, ...sent }])
       }
 
+      // ── Derivaciones (migración 195) ───────────────────────────────────────
+      case 'derivacion': {
+        const d = await leerDerivacion(sb, body.derivacionId)
+        if (!d) return json({ error: 'Derivación no encontrada' }, 404)
+        const envios = [{ to: d.patientEmail, ...T.derivacionPaciente(d.base) }]
+        if (d.base.destinoNombre && d.destinoEmail) {
+          envios.push({ to: d.destinoEmail, ...T.derivacionProfesional({ ...d.base, destinoNombre: d.base.destinoNombre }) })
+        }
+        return await salida({ usuarioId: d.patientId }, envios)
+      }
+
       case 'pro-verificado':
         return await porUsuario(u => T.profesionalVerificado({ name: u.full_name ?? 'profesional' }))
 
@@ -464,6 +477,60 @@ Deno.serve(async (req) => {
     return json({ error: msg }, 500)
   }
 })
+
+const NOMBRE_VERTICAL: Record<string, string> = {
+  clinica: 'Clínica', pediatria: 'Pediatría', nutricion: 'Nutrición', mente: 'Psicología',
+  fisico: 'Kinesiología', veterinaria: 'Veterinaria', preparador: 'Preparador físico',
+}
+
+async function leerDerivacion(sb: SupabaseClient, id: string | undefined) {
+  if (!id) return null
+  const { data } = await sb
+    .from('derivaciones')
+    .select(`id, patient_id, motivo, vertical_destino, especialidad_destino, derivado_por, profesional_destino_id,
+      paciente:profiles!patient_id(full_name, email),
+      derivado:profiles!derivado_por(full_name),
+      destino:profiles!profesional_destino_id(full_name, email)`)
+    .eq('id', id)
+    .maybeSingle()
+  if (!data) return null
+
+  const uno = <X,>(x: unknown) => (Array.isArray(x) ? x[0] : x) as X | null
+  const paciente = uno<{ full_name: string | null; email: string | null }>(data.paciente)
+  const derivado = uno<{ full_name: string | null }>(data.derivado)
+  const destino = uno<{ full_name: string | null; email: string | null }>(data.destino)
+
+  const slugs = [data.especialidad_destino].filter(Boolean) as string[]
+  const pros = [data.derivado_por, data.profesional_destino_id].filter(Boolean) as string[]
+  const { data: pps } = await sb.from('professional_profiles').select('user_id, specialty').in('user_id', pros)
+  for (const pp of pps ?? []) if (pp.specialty) slugs.push(pp.specialty)
+  const { data: esp } = slugs.length
+    ? await sb.from('specialties').select('slug, label').in('slug', slugs)
+    : { data: [] }
+  const label = (slug: string | null | undefined) =>
+    slug ? ((esp ?? []).find((e: { slug: string }) => e.slug === slug)?.label ?? slug) : null
+  const especialidadDe = (userId: string | null) =>
+    label((pps ?? []).find((pp: { user_id: string }) => pp.user_id === userId)?.specialty)
+
+  return {
+    patientId: data.patient_id as string,
+    patientEmail: paciente?.email ?? null,
+    destinoEmail: destino?.email ?? null,
+    base: {
+      id: data.id as string,
+      patientName: primerNombre(paciente?.full_name) ?? 'qué tal',
+      patientFullName: paciente?.full_name ?? 'un paciente',
+      derivadoPor: derivado?.full_name ?? 'Tu profesional',
+      derivadoPorEspecialidad: especialidadDe(data.derivado_por),
+      destinoNombre: destino?.full_name ?? null,
+      destinoEspecialidad: especialidadDe(data.profesional_destino_id),
+      especialidad: data.profesional_destino_id
+        ? null
+        : (label(data.especialidad_destino) ?? NOMBRE_VERTICAL[data.vertical_destino] ?? data.vertical_destino),
+      motivo: data.motivo as string,
+    } satisfies T.Derivacion,
+  }
+}
 
 async function requiereConsulta(sb: SupabaseClient, id: string | undefined) {
   if (!id) return null

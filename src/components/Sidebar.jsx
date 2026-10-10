@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, MapTrifold, Ambulance, UploadSimple, Barbell, UsersThree, BookOpenText, Lightning, IdentificationCard } from '@phosphor-icons/react';
+import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, MapTrifold, Ambulance, UploadSimple, Barbell, UsersThree, BookOpenText, Lightning, IdentificationCard, ShareFat } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
 import { veSubidas } from '../lib/permisos'
 import { GUIA_DE_ROL, urlDeGuia } from '../guia/roles'
@@ -24,6 +24,7 @@ const NAV_BY_ROLE = {
     { to: '/profesional/dashboard',      icon: House,                label: 'Inicio' },
     { to: '/profesional/agenda',         icon: Calendar,             label: 'Mi agenda' },
     { to: '/profesional/pacientes',      icon: Users,                label: 'Pacientes' },
+    { to: '/profesional/derivaciones',   icon: ShareFat,             label: 'Derivaciones' },
     { to: '/profesional/historial',      icon: ClockCounterClockwise, label: 'Historial' },
     { to: '/profesional/ganancias',      icon: TrendUp,              label: 'Ganancias' },
     { to: '/profesional/configuracion',  icon: Gear,                 label: 'Configuración' },
@@ -45,6 +46,7 @@ const NAV_BY_ROLE = {
       items: [
         { to: '/super-admin/consultas',    icon: CalendarCheck, label: 'Consultas' },
         { to: '/super-admin/emergencias',  icon: Siren,         label: 'Emergencias' },
+        { to: '/super-admin/derivaciones', icon: ShareFat,      label: 'Derivaciones' },
       ],
     },
     {

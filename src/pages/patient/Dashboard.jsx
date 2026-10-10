@@ -12,6 +12,7 @@ import WhatsAppMark from '../../components/icons/WhatsAppMark'
 import InteractiveMap from '../../components/patient/InteractiveMap'
 import ActiveAppointmentBanner from '../../components/patient/ActiveAppointmentBanner'
 import ActivePharmacyOrderCard from '../../components/patient/ActivePharmacyOrderCard'
+import DerivacionCard from '../../components/patient/DerivacionCard'
 import MedicoCabeceraCard from '../../components/patient/MedicoCabeceraCard'
 import MedicoCabeceraModal from '../../components/patient/MedicoCabeceraModal'
 import TourPaciente from '../../components/patient/TourPaciente'
@@ -503,6 +504,12 @@ export default function PatientDashboard({ profile }) {
             así que no ocupa lugar para el que nunca compró. */}
         <div className="px-6 patient-column pt-5 w-full empty:hidden">
           <ActivePharmacyOrderCard profile={profile} />
+        </div>
+
+        {/* "Tu médico te derivó a …" — una por derivación viva. Sale sola y no
+            deja hueco cuando no hay ninguna. */}
+        <div className="px-6 patient-column pt-5 w-full empty:hidden">
+          <DerivacionCard profile={profile} />
         </div>
 
         {/* "Tu médico de cabecera" — sólo si vino referido y no la cerró. */}

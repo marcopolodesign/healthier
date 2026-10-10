@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ChartBar, CurrencyDollar, ShieldCheck, Users, DotsThree, X,
-  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning, Path, EnvelopeSimple, UploadSimple, UsersThree, BookOpenText, Lightning } from '@phosphor-icons/react'
+  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning, Path, EnvelopeSimple, UploadSimple, UsersThree, BookOpenText, Lightning, ShareFat } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
 import { veSubidas } from '../../lib/permisos'
@@ -25,6 +25,7 @@ const MORE_GROUPS = [
     title: 'Consultas y emergencias',
     links: [
       { path: '/super-admin/emergencias', icon: Siren, label: 'Emergencias', sub: 'S.O.S en curso' },
+      { path: '/super-admin/derivaciones', icon: ShareFat, label: 'Derivaciones', sub: 'Entre profesionales' },
     ],
   },
   {

@@ -68,6 +68,8 @@ import HistoriaClinica from './pages/professional/HistoriaClinica'
 import ProfessionalHistorial from './pages/professional/Historial'
 import ProfessionalPatientProfile from './pages/professional/PatientProfile'
 import ProfessionalPacientes from './pages/professional/Pacientes'
+import ProfessionalDerivaciones from './pages/professional/Derivaciones'
+import ProfessionalDerivacionDetalle from './pages/professional/DerivacionDetalle'
 import ProfessionalGanancias from './pages/professional/Ganancias'
 import ProfessionalConfiguracion from './pages/professional/Configuracion'
 import ProfessionalAyuda from './pages/professional/Ayuda'
@@ -87,6 +89,7 @@ import ConsultationSummary from './pages/patient/ConsultationSummary'
 import ReservarConsulta from './pages/patient/ReservarConsulta'
 import FamiliarDetalle from './pages/patient/FamiliarDetalle'
 import PatientRecetas from './pages/patient/Recetas'
+import PatientDerivacion from './pages/patient/Derivacion'
 import PatientRecetaDetalle from './pages/patient/RecetaDetalle'
 import PaymentPage from './pages/patient/PaymentPage'
 import PatientAIChat from './pages/patient/PatientAIChat'
@@ -119,6 +122,7 @@ import SuperAdminProfesionales from './pages/super-admin/Profesionales'
 import SuperAdminProfesionalesRecorrido from './pages/super-admin/ProfesionalesRecorrido'
 import SuperAdminReferidos from './pages/super-admin/Referidos'
 import SuperAdminGruposFamiliares from './pages/super-admin/GruposFamiliares'
+import SuperAdminDerivaciones from './pages/super-admin/Derivaciones'
 import SuperAdminEmergencias from './pages/super-admin/Emergencias'
 import SuperAdminFarmacia from './pages/super-admin/Farmacia'
 
@@ -474,6 +478,7 @@ export default function App() {
           <Route path="/paciente/consulta/review/:consultationId" element={<ConsultationReview profile={profile} />} />
           <Route path="/paciente/consulta/resumen/:id" element={<ConsultationSummary profile={profile} />} />
           <Route path="/paciente/recetas"             element={<PatientRecetas     profile={profile} />} />
+          <Route path="/paciente/derivaciones/:id"    element={<PatientDerivacion  profile={profile} />} />
           <Route path="/paciente/receta/:prescriptionId" element={<PatientRecetaDetalle profile={profile} />} />
           <Route path="/paciente/historia-clinica" element={<HistoriaClinicaPaciente profile={profile} />} />
           <Route path="/paciente/ia"              element={<PatientAIChat           profile={profile} />} />
@@ -542,6 +547,8 @@ export default function App() {
           <Route path="/profesional/historial" element={<ProfessionalHistorial profile={profile} />} />
           <Route path="/profesional/paciente/:patientId" element={<ProfessionalPatientProfile profile={profile} />} />
           <Route path="/profesional/pacientes" element={<ProfessionalPacientes profile={profile} />} />
+          <Route path="/profesional/derivaciones" element={<ProfessionalDerivaciones profile={profile} />} />
+          <Route path="/profesional/derivaciones/:id" element={<ProfessionalDerivacionDetalle profile={profile} />} />
           <Route path="/profesional/ganancias" element={<ProfessionalGanancias profile={profile} />} />
           <Route path="/profesional/configuracion" element={<ProfessionalConfiguracion profile={profile} />} />
           <Route path="/profesional/ayuda" element={<ProfessionalAyuda profile={profile} />} />
@@ -580,6 +587,7 @@ export default function App() {
           <Route path="/super-admin/profesionales/recorrido" element={<SuperAdminProfesionalesRecorrido />} />
           <Route path="/super-admin/profesionales/referidos" element={<SuperAdminReferidos />} />
           <Route path="/super-admin/emergencias" element={<SuperAdminEmergencias />} />
+          <Route path="/super-admin/derivaciones" element={<SuperAdminDerivaciones />} />
           <Route path="/super-admin/mails" element={<SuperAdminMails />} />
           <Route path="/super-admin/teleclinica" element={<SuperAdminTeleclinica />} />
           <Route path="/super-admin/coberturas" element={<SuperAdminCoberturas />} />

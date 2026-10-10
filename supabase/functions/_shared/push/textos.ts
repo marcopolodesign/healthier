@@ -44,6 +44,12 @@ export type Datos = {
   /** Devoluciones */
   monto?: number | null
   aCreditos?: boolean
+  /** Derivaciones (migración 195) */
+  derivacionId?: string
+  derivadoPor?: string | null
+  /** A quién se derivó: el nombre del profesional o la especialidad. */
+  destino?: string | null
+  patientName?: string | null
 }
 
 const pesos = (n?: number | null) =>
@@ -231,6 +237,16 @@ export const AVISOS = {
     }),
   },
 
+  'derivacion-nueva': {
+    para: 'paciente' as Destinatario,
+    cuando: 'Un profesional lo deriva a otro profesional o a una especialidad.',
+    build: (d: Datos): Aviso => ({
+      title: 'Tu profesional te derivó',
+      body: `${d.derivadoPor ?? 'Tu profesional'} te derivó a ${d.destino ?? 'otro profesional'}. Entrá para ver el motivo y reservar.`,
+      url: `/paciente/derivaciones/${d.derivacionId}`,
+    }),
+  },
+
   // ── Al profesional ────────────────────────────────────────────────────────
   'pro-consulta-nueva': {
     para: 'profesional' as Destinatario,
@@ -241,6 +257,16 @@ export const AVISOS = {
         ? 'Un paciente está buscando atención ahora.'
         : 'Un paciente reservó un turno con vos.',
       url: '/profesional/dashboard',
+    }),
+  },
+
+  'pro-derivacion-recibida': {
+    para: 'profesional' as Destinatario,
+    cuando: 'Otro profesional le deriva un paciente a él (no se manda si la derivación es a una especialidad).',
+    build: (d: Datos): Aviso => ({
+      title: 'Te derivaron un paciente',
+      body: `${d.derivadoPor ?? 'Un profesional'} te derivó a ${d.patientName ?? 'un paciente'}. Va a reservar un turno en tu agenda.`,
+      url: `/profesional/derivaciones/${d.derivacionId}`,
     }),
   },
 

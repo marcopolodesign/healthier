@@ -1,5 +1,6 @@
 import { supabase, toCamelCase, toSnakeCase, asegurarSesion } from '../lib/supabase'
 import { familyService } from './familyService'
+import { DERIVACION_EMBED } from './derivacionesService'
 
 /**
  * Ids de consultas que agendó el propio profesional en esta sesión.
@@ -359,7 +360,8 @@ export const consultationsService = {
         id, scheduled_at, started_at, completed_at, created_at, status, modality, payment_status,
         closing_notes, preconsulta_data, price_at_booking, duration_minutes, cancel_reason,
         consultation_type:consultation_types!consultation_type_id(name),
-        payment:payments!consultation_id(status, gross_amount, mp_net_received_amount, net_to_professional)
+        payment:payments!consultation_id(status, gross_amount, mp_net_received_amount, net_to_professional),
+        ${DERIVACION_EMBED}
       `)
       .eq('patient_id', patientId)
       .eq('professional_id', professionalId)
@@ -371,7 +373,7 @@ export const consultationsService = {
   async getByProfessional(professionalId) {
     const { data, error } = await supabase
       .from('consultations')
-      .select('*, profiles!patient_id(full_name, avatar_url, email)')
+      .select(`*, profiles!patient_id(full_name, avatar_url, email), ${DERIVACION_EMBED}`)
       .eq('professional_id', professionalId)
       .order('scheduled_at', { ascending: false })
     if (error) throw error
@@ -388,7 +390,7 @@ export const consultationsService = {
       // todavía no tiene la propia. Son columnas separadas a propósito: la de
       // la consulta es la que manda al emitir, la del perfil es sólo el punto
       // de partida.
-      .select('*, patient:profiles!patient_id(id, full_name, avatar_url, email, phone, dni, gender, birth_date, coverage_type, financiador_id, insurance_name, insurance_num), professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty, address, latitude, longitude)), consultation_type:consultation_types!consultation_type_id(id, name, price, modality), payment:payments!consultation_id(id, mp_payment_id, method, gross_amount, credits_used, charged_amount, platform_fee, mp_fee_estimated, mp_fee_actual, net_to_professional, mp_net_received_amount, mp_money_release_date, status, refund_type, refunded_at, refund_request_status, authorized_at, captured_at, created_at)')
+      .select('*, patient:profiles!patient_id(id, full_name, avatar_url, email, phone, dni, gender, birth_date, coverage_type, financiador_id, insurance_name, insurance_num), professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty, address, latitude, longitude)), consultation_type:consultation_types!consultation_type_id(id, name, price, modality), payment:payments!consultation_id(id, mp_payment_id, method, gross_amount, credits_used, charged_amount, platform_fee, mp_fee_estimated, mp_fee_actual, net_to_professional, mp_net_received_amount, mp_money_release_date, status, refund_type, refunded_at, refund_request_status, authorized_at, captured_at, created_at), ' + DERIVACION_EMBED)
       .eq('id', id)
       .single()
     if (error) throw error
