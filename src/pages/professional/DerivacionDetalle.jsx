@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, CircleNotch, User, ShareFat, ClipboardText, CalendarCheck } from '@phosphor-icons/react'
-import { derivacionesService, destinoLabel, derivacionVigente } from '../../services/derivacionesService'
+import { derivacionesService, textoHistoriaClinica, destinoLabel, derivacionVigente } from '../../services/derivacionesService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import DerivacionEstado, { consentimientoLabel } from '../../components/DerivacionEstado'
 import { toast } from '../../components/Toast'
@@ -27,6 +27,7 @@ export default function DerivacionDetalle({ profile }) {
   const [d, setD] = useState(null)
   const [loading, setLoading] = useState(true)
   const [cancelando, setCancelando] = useState(false)
+  const [veHc, setVeHc] = useState(null)
 
   const cargar = () =>
     derivacionesService.getById(id)
@@ -35,6 +36,10 @@ export default function DerivacionDetalle({ profile }) {
       .finally(() => setLoading(false))
 
   useEffect(() => { cargar() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!d?.patientId) return
+    derivacionesService.veHistoriaClinica(d.patientId).then(setVeHc).catch(() => setVeHc(null))
+  }, [d?.patientId, d?.consentimientoHc])
 
   const cancelar = async () => {
     setCancelando(true)
@@ -58,11 +63,10 @@ export default function DerivacionDetalle({ profile }) {
 
   const soyQuienDerivo = d.derivadoPor === profile?.id
   const recibo = !soyQuienDerivo
-  const consentimiento = d.consentimientoHc === true
-    ? 'Sí, el paciente compartió su historia clínica'
-    : d.consentimientoHc === false
-      ? 'No: sólo ves la nota de derivación'
-      : 'El paciente todavía no respondió'
+  // Al que derivó le importa qué respondió el paciente; al que recibe, qué va a poder ver.
+  const consentimiento = soyQuienDerivo
+    ? `Compartir con quien lo atienda: ${consentimientoLabel(d)}`
+    : textoHistoriaClinica(d, veHc)
 
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl mx-auto pb-12">
@@ -95,8 +99,8 @@ export default function DerivacionDetalle({ profile }) {
           <p className="text-sm text-text-primary mt-1 whitespace-pre-line">“{d.motivo}”</p>
         </div>
         <Dato label="Historia clínica">{consentimiento}</Dato>
-        {d.estado === 'reservada' && d.reservadaAt && (
-          <Dato label="Turno reservado">{formatDate(d.reservadaAt)}</Dato>
+        {d.estado === 'reservada' && d.consultaReservada?.scheduledAt && (
+          <Dato label="Turno">{formatDate(d.consultaReservada.scheduledAt)}</Dato>
         )}
       </div>
 
@@ -111,7 +115,7 @@ export default function DerivacionDetalle({ profile }) {
           <ShareFat className="h-5 w-5" />
           Ficha del paciente
         </Link>
-        {(soyQuienDerivo || d.consentimientoHc === true) && (
+        {(soyQuienDerivo || veHc) && (
           <Link to={`/profesional/historia-clinica/${d.patientId}`} className="btn-secondary w-full py-3 flex items-center justify-center gap-2">
             <ClipboardText className="h-5 w-5" />
             Historia clínica
