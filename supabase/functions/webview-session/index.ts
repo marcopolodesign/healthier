@@ -18,17 +18,19 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// El website de ESTE entorno. En staging va el secret `WEBSITE_URL`
-// (gethealthier-staging); sin él, producción. Antes estaba fijo y en staging
-// "Añadir tarjeta" daba "redirectTo inválido".
-const ALLOWED_REDIRECT_PREFIX = `${(Deno.env.get('WEBSITE_URL') ?? 'https://gethealthier.vercel.app').replace(/\/$/, '')}/`
+// El website de ESTE entorno. En staging va el secret `WEBSITE_URL`; sin él,
+// producción. Antes estaba fijo y en staging "Añadir tarjeta" daba
+// "redirectTo inválido". Admite varios separados por coma: staging se ve en
+// staging.healthier.com.ar y en gethealthier-staging.vercel.app (2026-10-09).
+const ALLOWED_REDIRECT_PREFIXES = (Deno.env.get('WEBSITE_URL') ?? 'https://gethealthier.vercel.app')
+  .split(',').map(u => u.trim()).filter(Boolean).map(u => `${u.replace(/\/$/, '')}/`)
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
     const { redirectTo } = await req.json()
-    if (typeof redirectTo !== 'string' || !redirectTo.startsWith(ALLOWED_REDIRECT_PREFIX)) {
+    if (typeof redirectTo !== 'string' || !ALLOWED_REDIRECT_PREFIXES.some(p => redirectTo.startsWith(p))) {
       return new Response(JSON.stringify({ error: 'redirectTo inválido' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })

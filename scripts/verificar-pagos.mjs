@@ -33,7 +33,7 @@ const env = Object.fromEntries(
 
 const ENTORNOS = {
   produccion: { ref: 'aixjejdoofervrkggbkd', url: 'https://aixjejdoofervrkggbkd.supabase.co', web: 'https://www.healthier.com.ar', clave: 'APP_USR-' },
-  staging:    { ref: 'itjhrvlzuqvyhqtffumc', url: 'https://itjhrvlzuqvyhqtffumc.supabase.co', web: 'https://gethealthier-staging.vercel.app', clave: 'TEST-' },
+  staging:    { ref: 'itjhrvlzuqvyhqtffumc', url: 'https://itjhrvlzuqvyhqtffumc.supabase.co', web: 'https://staging.healthier.com.ar', clave: 'TEST-' },
 }
 
 // Las tres que tienen que ser PÚBLICAS (verify_jwt=false): a ninguna le puede
