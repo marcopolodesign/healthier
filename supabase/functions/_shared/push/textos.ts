@@ -247,6 +247,16 @@ export const AVISOS = {
     }),
   },
 
+  'derivacion-rechazada': {
+    para: 'paciente' as Destinatario,
+    cuando: 'El profesional al que lo derivaron no puede tomar la derivación.',
+    build: (d: Datos): Aviso => ({
+      title: 'Elegí otro profesional',
+      body: `${d.destino ?? 'El profesional'} no puede tomar tu derivación. Podés reservar con otro de la misma especialidad.`,
+      url: `/paciente/derivaciones/${d.derivacionId}`,
+    }),
+  },
+
   // ── Al profesional ────────────────────────────────────────────────────────
   'pro-consulta-nueva': {
     para: 'profesional' as Destinatario,

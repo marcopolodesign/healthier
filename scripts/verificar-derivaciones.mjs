@@ -26,6 +26,10 @@
  *      consentimiento. Si el turno se cancela, la derivación vuelve a pendiente.
  *   8. Cancelar: B no puede; A sí, mientras está pendiente.
  *   9. Avisos: llega la notificación al paciente y queda el mail registrado.
+ *  10. Rechazo: sólo el destino rechaza (con motivo); después el paciente
+ *      reserva con OTRO de la misma especialidad (no con el que rechazó ni con
+ *      uno de otra); el que rechazó no ve la HC; le llega el aviso al paciente.
+ *  11. Vence a los 30 días.
  * Al final borra todo lo que creó, aunque algo falle. No cobra nada.
  */
 import { readFileSync } from 'node:fs'
@@ -109,10 +113,11 @@ const leeHc = async (cliente, patientId) => {
 
 async function main() {
   console.log('\n═══ DERIVACIONES — STAGING ═══')
-  const [A, B, C, superadmin] = await Promise.all([
+  const [A, B, C, D, superadmin] = await Promise.all([
     pro('clinica@staging.healthier.app'),
     pro('nutricion@staging.healthier.app'),
     pro('pediatria@staging.healthier.app'),
+    pro('nutricionista2@staging.healthier.app'),   // otra de nutrición, para después de un rechazo
     sesionDe('superadmin@healthier.app'),
   ])
   const p1 = await crearPaciente('p1')
@@ -253,6 +258,53 @@ async function main() {
   }
   check(notif.length === 1 && notif[0].url === `/paciente/derivaciones/${d1}`, 'al paciente le llega la notificación con el link a la derivación', JSON.stringify(notif))
   check(mails.length >= 1, 'el mail al paciente queda registrado', JSON.stringify(mails))
+
+  // 10 ─ rechazo
+  console.log('\n10. El destino rechaza')
+  const { data: d3, error: eD3 } = await derivar(A.cliente, { p_patient_id: p2.id, p_profesional_destino_id: B.id, p_motivo: 'Plan alimentario' })
+  if (eD3) throw new Error(`A no pudo derivar a B: ${eD3.message}`)
+  creados.derivaciones.push(d3)
+  const rechazar = (cliente) => cliente.rpc('rechazar_derivacion', { p_derivacion_id: d3, p_motivo: 'No tengo agenda este mes' })
+  check(Boolean((await rechazar(A.cliente)).error), 'el que derivó no puede rechazarla')
+  check(Boolean((await rechazar(C.cliente)).error), 'otro profesional no puede rechazarla')
+  check(Boolean((await rechazar(p2.cliente)).error), 'el paciente no puede rechazarla')
+  const eRech = (await rechazar(B.cliente)).error
+  check(!eRech, 'el destino la rechaza', eRech?.message)
+  const { data: dRech } = await admin.from('derivaciones').select('estado, motivo_rechazo, rechazada_at').eq('id', d3).single()
+  check(dRech?.estado === 'rechazada' && dRech?.motivo_rechazo === 'No tengo agenda este mes' && dRech?.rechazada_at,
+    'queda "rechazada" con el motivo', JSON.stringify(dRech))
+  check(Boolean((await rechazar(B.cliente)).error), 'no se rechaza dos veces')
+  check(await ve(superadmin, d3), 'el super admin la ve rechazada')
+  await p2.cliente.rpc('responder_consentimiento_derivacion', { p_derivacion_id: d3, p_acepta: true })
+  check(!(await leeHc(B.cliente, p2.id)), 'el que la rechazó no ve la HC aunque el paciente la haya compartido')
+  const conB = await consulta(p2.cliente, p2.id, B.id, { derivacion_id: d3, vertical: 'nutricion' })
+  check(Boolean(conB.error), 'no se reserva con el que la rechazó', conB.error?.message)
+  const conC = await consulta(p2.cliente, p2.id, C.id, { derivacion_id: d3, vertical: 'pediatria' })
+  check(Boolean(conC.error), 'ni con uno de otra especialidad', conC.error?.message)
+  const conD = await consulta(p2.cliente, p2.id, D.id, { derivacion_id: d3, vertical: 'nutricion' })
+  check(!conD.error, 'con otro de la misma especialidad sí', conD.error?.message)
+  const { data: dTomada } = await admin.from('derivaciones').select('estado, consulta_reservada_id').eq('id', d3).single()
+  check(dTomada?.estado === 'reservada' && dTomada?.consulta_reservada_id === conD.data?.id, 'y la derivación pasa a "reservada"', JSON.stringify(dTomada))
+  check(await leeHc(D.cliente, p2.id), 'el que la tomó ve la HC (el paciente la compartió)')
+  if (conD.data) {
+    await p2.cliente.from('consultations').update({ status: 'cancelled' }).eq('id', conD.data.id)
+    const { data: dVuelve } = await admin.from('derivaciones').select('estado').eq('id', d3).single()
+    check(dVuelve?.estado === 'rechazada', 'si cancela ese turno, vuelve a "rechazada" (no a pendiente con el que la rechazó)', JSON.stringify(dVuelve))
+  }
+  let avisoRech = [], mailRech = []
+  for (let i = 0; i < 10 && (!avisoRech.length || !mailRech.length); i++) {
+    await esperar(1500)
+    avisoRech = (await admin.from('notificaciones').select('url').eq('user_id', p2.id).eq('tipo', 'derivacion-rechazada')).data ?? []
+    mailRech = (await admin.from('email_log').select('estado').eq('tipo', 'derivacion-rechazada').eq('destinatario', p2.email)).data ?? []
+  }
+  check(avisoRech.length === 1 && avisoRech[0].url === `/paciente/derivaciones/${d3}`, 'al paciente le llega el aviso del rechazo', JSON.stringify(avisoRech))
+  check(mailRech.length >= 1, 'y el mail queda registrado', JSON.stringify(mailRech))
+
+  // 11 ─ vencimiento
+  console.log('\n11. Vencimiento')
+  const { data: dv } = await admin.from('derivaciones').select('created_at, vence_at').eq('id', d1).single()
+  const dias = (new Date(dv.vence_at) - new Date(dv.created_at)) / 864e5
+  check(Math.round(dias) === 30, 'vence a los 30 días', `${dias.toFixed(1)} días`)
 }
 
 async function limpiar() {

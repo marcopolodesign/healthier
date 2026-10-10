@@ -240,7 +240,7 @@ export default function ProfessionalPatientProfile({ profile }) {
       </div>
 
       {/* Si este paciente me lo derivaron (vigente o ya reservada), de quién y por qué. */}
-      {derivaciones.filter(d => d.profesionalDestinoId === profile?.id && d.estado !== 'cancelada').map(d => (
+      {derivaciones.filter(d => d.profesionalDestinoId === profile?.id && !['cancelada', 'rechazada'].includes(d.estado)).map(d => (
         <DerivadoPorCard key={d.id} derivacion={d} />
       ))}
 

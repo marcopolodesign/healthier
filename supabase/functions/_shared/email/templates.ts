@@ -639,6 +639,8 @@ export type Derivacion = {
   /** "Cardiología" / "Nutrición" — sólo cuando es a una especialidad. */
   especialidad: string | null
   motivo: string
+  /** Si el profesional destino la rechazó, por qué (opcional). */
+  motivoRechazo?: string | null
 }
 
 export function derivacionPaciente(d: Derivacion): Sent {
@@ -662,6 +664,26 @@ export function derivacionPaciente(d: Derivacion): Sent {
       title: `Te derivaron a ${aQuien}`,
       body,
       footnote: 'La consulta se paga como cualquier otra, al precio del profesional que elijas.',
+    }),
+  }
+}
+
+export function derivacionRechazada(d: Derivacion & { destinoNombre: string; destinoEspecialidad: string | null }): Sent {
+  const area = d.destinoEspecialidad ?? 'la misma especialidad'
+  const body = [
+    p(`Hola <strong style="color:${C.ink}">${esc(d.patientName)}</strong>, <strong style="color:${C.ink}">${esc(d.destinoNombre)}</strong> no puede tomar la derivación que te hizo ${esc(d.derivadoPor)}.`),
+    ...(d.motivoRechazo ? [quote(d.motivoRechazo)] : []),
+    p(`La derivación sigue en pie: podés reservar con otro profesional de ${esc(area)}, al precio de quien elijas.`),
+    button(`${APP_URL}/paciente/derivaciones/${d.id}`, 'Elegir otro profesional', 'sage'),
+  ].join('')
+
+  return {
+    subject: `${d.destinoNombre} no puede tomar tu derivación`,
+    html: renderEmail({
+      preheader: `Podés reservar con otro profesional de ${area}.`,
+      eyebrow: 'Derivación', accent: 'sage',
+      title: 'Elegí otro profesional',
+      body,
     }),
   }
 }

@@ -64,7 +64,7 @@ async function datosDelAviso(
     datos.derivacionId = p.derivacionId as string
     const { data } = await supabase
       .from('derivaciones')
-      .select(`vertical_destino, especialidad_destino,
+      .select(`vertical_destino, especialidad_destino, motivo_rechazo,
         derivado:profiles!derivado_por(full_name),
         destino:profiles!profesional_destino_id(full_name),
         paciente:profiles!patient_id(full_name)`)
@@ -74,6 +74,7 @@ async function datosDelAviso(
       const nombre = (x: unknown) => (x as { full_name?: string } | null)?.full_name ?? null
       datos.derivadoPor = nombre(data.derivado)
       datos.patientName = nombre(data.paciente)
+      datos.motivo = datos.motivo ?? data.motivo_rechazo ?? null
       datos.destino = nombre(data.destino) ?? await nombreDeEspecialidad(supabase, data.especialidad_destino, data.vertical_destino)
     }
   }

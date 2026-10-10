@@ -43,7 +43,9 @@ export default function DerivacionCard({ profile }) {
                 {paraOtro ? `Derivación para ${d.paciente?.fullName?.split(' ')[0] ?? 'tu familiar'}` : 'Derivación'}
               </span>
               <p className="text-[15px] font-semibold text-text-primary leading-tight mt-1 truncate">
-                {d.derivado?.fullName ?? 'Tu médico'} te derivó a {destinoLabel(d, porSlug)}
+                {d.estado === 'rechazada'
+                  ? `${d.destino?.fullName ?? 'El profesional'} no puede tomarla — elegí otro profesional`
+                  : `${d.derivado?.fullName ?? 'Tu médico'} te derivó a ${destinoLabel(d, porSlug)}`}
               </p>
               <p className="text-[12px] text-text-secondary mt-0.5 line-clamp-1">{d.motivo}</p>
             </div>

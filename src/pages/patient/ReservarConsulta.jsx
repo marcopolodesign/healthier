@@ -110,6 +110,8 @@ export default function ReservarConsulta({ profile }) {
   // profesional sea el destino (o de esa vertical / especialidad).
   const paramDerivacionId = searchParams.get('derivacion')
   const paramEspecialidad = searchParams.get('especialidad')
+  // `?excluir=<userId>` — el profesional que rechazó la derivación: no se le ofrece.
+  const paramExcluir = searchParams.get('excluir')
   const [derivacion, setDerivacion] = useState(null)
   useEffect(() => {
     if (!paramDerivacionId) return
@@ -294,7 +296,7 @@ export default function ReservarConsulta({ profile }) {
       // criterio que ya aplicaba el auto-match de videoconsulta.
       .then(data => setProfessionals(
         data
-          .filter(p => slugs.includes(p.specialty) && p.mpConnected !== false)
+          .filter(p => slugs.includes(p.specialty) && p.mpConnected !== false && p.userId !== paramExcluir)
           .map(p => normalizeProCard(p, modality)),
       ))
       .catch(() => setProfessionals([]))
