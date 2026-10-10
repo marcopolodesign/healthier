@@ -227,7 +227,8 @@ export default function ReservarConsulta({ profile }) {
       .catch(() => {}) // silencioso — se queda con el default de 15
   }, [])
 
-  const conPara = familiares.length > 0 && !paramPara
+  // Con una derivación el turno es del paciente derivado: no se pregunta para quién.
+  const conPara = familiares.length > 0 && !paramPara && !paramDerivacionId
   const steps = getSteps(selectedVertical?.id, !!paramProId, conPara)
 
   // Derived — datetime step

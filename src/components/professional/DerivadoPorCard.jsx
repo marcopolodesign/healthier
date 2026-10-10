@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { derivacionesService, textoHistoriaClinica } from '../../services/derivacionesService'
 import { ShareFat, ArrowRight } from '@phosphor-icons/react'
 
 /**
@@ -7,12 +9,15 @@ import { ShareFat, ArrowRight } from '@phosphor-icons/react'
  * compartió la historia clínica, para que se sepa qué se va a poder ver.
  */
 export default function DerivadoPorCard({ derivacion, conLink = true }) {
+  const [veHc, setVeHc] = useState(null)
+  useEffect(() => {
+    if (!derivacion?.patientId) return
+    derivacionesService.veHistoriaClinica(derivacion.patientId).then(setVeHc).catch(() => setVeHc(null))
+  }, [derivacion?.patientId])
+
   if (!derivacion) return null
   const quien = derivacion.derivado?.fullName ?? 'otro profesional'
-
-  let hc = 'El paciente todavía no respondió si comparte su historia clínica: por ahora sólo ves la nota de derivación.'
-  if (derivacion.consentimientoHc === true) hc = 'El paciente compartió su historia clínica.'
-  if (derivacion.consentimientoHc === false) hc = 'El paciente no compartió su historia clínica: sólo ves la nota de derivación.'
+  const hc = textoHistoriaClinica(derivacion, veHc)
 
   return (
     <div className="card border border-brand-tertiary/30 space-y-2">

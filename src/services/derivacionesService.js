@@ -15,7 +15,7 @@ const SELECT = `*,
   destino:profiles!profesional_destino_id(id, full_name, avatar_url),
   paciente:profiles!patient_id(id, full_name, avatar_url)`
 
-// Mismo select + el turno vinculado, para el listado del super admin.
+// Mismo select + el turno vinculado (el detalle y el listado del super admin).
 const SELECT_ADMIN = `${SELECT},
   consulta_reservada:consultations!consulta_reservada_id(id, scheduled_at, status)`
 
@@ -48,6 +48,21 @@ export function destinoLabel(d, porSlug = {}) {
   return esp ? `${vertical} · ${esp}` : vertical
 }
 
+/**
+ * Qué historia clínica ve el profesional que recibe. `veHc` es el acceso real
+ * (`veHistoriaClinica`): sin consentimiento igual la ve si ya tenía otra
+ * consulta con el paciente, y el cartel no puede decir lo contrario.
+ */
+export function textoHistoriaClinica(d, veHc) {
+  if (d?.consentimientoHc === true) return 'El paciente compartió su historia clínica.'
+  const base = d?.consentimientoHc === false
+    ? 'El paciente no compartió su historia clínica en esta derivación'
+    : 'El paciente todavía no respondió si comparte su historia clínica'
+  return veHc
+    ? `${base}, pero la ves porque ya tenías otra consulta con él.`
+    : `${base}: sólo ves la nota de derivación.`
+}
+
 async function leer(query) {
   const { data, error } = await query
   if (error) throw error
@@ -68,6 +83,17 @@ export const derivacionesService = {
     return data
   },
 
+  /**
+   * Si el profesional actual ve la historia clínica del paciente — la misma
+   * regla que aplica la base (`profesional_ve_hc`, migración 195). Puede verla
+   * sin consentimiento de la derivación si ya tenía otra consulta con él.
+   */
+  async veHistoriaClinica(patientId) {
+    const { data, error } = await supabase.rpc('profesional_ve_hc', { p_paciente: patientId })
+    if (error) throw error
+    return data === true
+  },
+
   async responderConsentimiento(derivacionId, acepta) {
     const { error } = await supabase.rpc('responder_consentimiento_derivacion', {
       p_derivacion_id: derivacionId,
@@ -82,7 +108,7 @@ export const derivacionesService = {
   },
 
   async getById(id) {
-    const { data, error } = await supabase.from('derivaciones').select(SELECT).eq('id', id).maybeSingle()
+    const { data, error } = await supabase.from('derivaciones').select(SELECT_ADMIN).eq('id', id).maybeSingle()
     if (error) throw error
     return data ? toCamelCase(data) : null
   },
