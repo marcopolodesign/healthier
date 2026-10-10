@@ -173,7 +173,7 @@ set search_path = public
 as $$
   select exists (
     select 1 from public.derivaciones d
-     where d.estado in ('pendiente', 'reservada')
+     where d.estado in ('pendiente', 'reservada', 'rechazada')
        and (
          (d.patient_id = other_user_id and (d.profesional_destino_id = auth.uid() or d.derivado_por = auth.uid()))
          or (d.patient_id = auth.uid() and (d.profesional_destino_id = other_user_id or d.derivado_por = other_user_id))
