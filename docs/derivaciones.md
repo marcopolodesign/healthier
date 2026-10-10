@@ -14,18 +14,24 @@ nombre y apellido o directamente a otra vertical"*. Migración **195**.
    **sólo si el paciente da su consentimiento** (queda registrado en
    `derivacion_consentimientos`). Se puede cambiar después.
 4. **Cobro:** la consulta del derivado se paga como cualquier otra, precio normal.
-5. **El que recibe no acepta nada:** se le avisa y el paciente reserva directo en su agenda
+5. **El que recibe no tiene que aceptar:** se le avisa y el paciente reserva directo en su agenda
    (o, si es a una vertical, elige profesional de esa vertical como en la búsqueda).
+6. **Pero sí puede rechazar** una derivación a su nombre (motivo opcional, mientras no haya
+   turno): pasa a *rechazada*, se le avisa al paciente (push + mail) y el paciente ve "El Dr. X
+   no puede tomarla" con la opción de reservar con otro profesional de la misma especialidad.
+7. **Vence a los 30 días.** Avisos de una derivación a especialidad: sólo al paciente; el
+   profesional se entera cuando le reservan.
 
-## Defaults míos (a confirmar con Mateo)
+## Otras reglas
 
-- **Vence a los 60 días** si no se reservó (`vence_at`, cron diario `vencer-derivaciones`).
-- **El destinatario no puede rechazarla** (consecuencia de la decisión 5).
+- Vencimiento: cron diario `vencer-derivaciones` (pendientes y rechazadas sin turno).
 - **Avisos:** al paciente push + mail; al profesional destino (si es uno concreto) push + mail.
   Si es a una vertical, el profesional se entera al reservarse el turno con el aviso de
   siempre, y el turno muestra "Derivado por".
-- Si el turno derivado se cancela, la derivación vuelve a *pendiente* (si no venció).
-- Cancelar: sólo el que derivó (o el super admin), mientras esté pendiente.
+- Si el turno derivado se cancela, la derivación vuelve a *pendiente* (o a *rechazada* si
+  venía de un rechazo), salvo que haya vencido.
+- Un turno creado y **sin pagar** no bloquea: el paciente puede reintentar o reservar otro.
+- Cancelar: sólo el que derivó (o el super admin), mientras no tenga turno.
 
 ## Modelo
 
@@ -41,11 +47,12 @@ nombre y apellido o directamente a otra vertical"*. Migración **195**.
 | `vertical_destino` | destino vertical (`clinica`, `pediatria`, `nutricion`, `mente`, `fisico`, `veterinaria`, `preparador`) |
 | `especialidad_destino` | slug de `specialties` dentro de esa vertical (opcional) |
 | `motivo` | texto, obligatorio |
-| `estado` | `pendiente` · `reservada` · `vencida` · `cancelada` |
+| `estado` | `pendiente` · `reservada` · `rechazada` · `vencida` · `cancelada` |
 | `consentimiento_hc` | `null` = no respondió · `true` · `false` |
 | `consentimiento_at` / `consentimiento_por` | |
 | `consulta_reservada_id` / `reservada_at` | la consulta que se reservó desde la derivación |
-| `vence_at` | default now() + 60 días |
+| `rechazada_at` / `motivo_rechazo` | si el destino la rechazó |
+| `vence_at` | default now() + 30 días |
 | `cancelada_at` / `cancelada_por` | |
 | `created_at` | |
 
@@ -84,6 +91,7 @@ supabase.rpc('crear_derivacion', {
 
 supabase.rpc('responder_consentimiento_derivacion', { p_derivacion_id, p_acepta: true|false })
 supabase.rpc('cancelar_derivacion', { p_derivacion_id })
+supabase.rpc('rechazar_derivacion', { p_derivacion_id, p_motivo: null | texto })  // sólo el destino
 ```
 
 Los errores vienen en castellano en `error.message` — mostrarlos tal cual.
@@ -112,6 +120,7 @@ la derivación pasa a `reservada`.
 - Push `derivacion-nueva` al paciente → `/paciente/derivaciones/<id>`.
 - Push `pro-derivacion-recibida` al profesional destino → `/profesional/derivaciones/<id>`.
 - Mail `derivacion` (`send-email`) al paciente y, si hay destino concreto, al profesional.
+- Rechazo: push `derivacion-rechazada` + mail `derivacion-rechazada` al paciente.
 
 ### Pantallas
 
@@ -128,4 +137,5 @@ la derivación pasa a `reservada`.
 - `node scripts/verificar-derivaciones.mjs` (staging): RLS de quién ve qué, que sin
   consentimiento el destinatario no ve la HC (antes y después de reservar), que con
   consentimiento sí, y que la reserva queda vinculada (y que una consulta con otro
-  profesional no se puede colgar de la derivación).
+  profesional no se puede colgar de la derivación), el rechazo (sólo el destino; después se
+  reserva con otro de la misma especialidad y no con él) y el vencimiento a 30 días.

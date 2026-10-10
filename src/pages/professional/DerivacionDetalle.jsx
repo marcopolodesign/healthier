@@ -4,6 +4,7 @@ import { ArrowLeft, CircleNotch, User, ShareFat, ClipboardText, CalendarCheck } 
 import { derivacionesService, textoHistoriaClinica, destinoLabel, derivacionVigente } from '../../services/derivacionesService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import DerivacionEstado, { consentimientoLabel } from '../../components/DerivacionEstado'
+import Modal from '../../components/Modal'
 import { toast } from '../../components/Toast'
 import { formatDate } from '../../lib/format'
 
@@ -27,6 +28,9 @@ export default function DerivacionDetalle({ profile }) {
   const [d, setD] = useState(null)
   const [loading, setLoading] = useState(true)
   const [cancelando, setCancelando] = useState(false)
+  const [rechazoOpen, setRechazoOpen] = useState(false)
+  const [motivoRechazo, setMotivoRechazo] = useState('')
+  const [rechazando, setRechazando] = useState(false)
   const [veHc, setVeHc] = useState(null)
 
   const cargar = () =>
@@ -54,6 +58,21 @@ export default function DerivacionDetalle({ profile }) {
     }
   }
 
+  const rechazar = async () => {
+    setRechazando(true)
+    try {
+      await derivacionesService.rechazar(d.id, motivoRechazo)
+      toast.success('Derivación rechazada. Le avisamos al paciente.')
+      setRechazoOpen(false)
+      setMotivoRechazo('')
+      await cargar()
+    } catch (err) {
+      toast.error(err?.message ?? 'No pudimos rechazar la derivación')
+    } finally {
+      setRechazando(false)
+    }
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center h-64"><CircleNotch className="h-6 w-6 animate-spin text-brand" /></div>
   }
@@ -63,6 +82,7 @@ export default function DerivacionDetalle({ profile }) {
 
   const soyQuienDerivo = d.derivadoPor === profile?.id
   const recibo = !soyQuienDerivo
+  const soyDestino = d.profesionalDestinoId === profile?.id
   // Al que derivó le importa qué respondió el paciente; al que recibe, qué va a poder ver.
   const consentimiento = soyQuienDerivo
     ? `Compartir con quien lo atienda: ${consentimientoLabel(d)}`
@@ -92,13 +112,24 @@ export default function DerivacionDetalle({ profile }) {
           <Dato label="Derivado por">{soyQuienDerivo ? 'Vos' : d.derivado?.fullName}</Dato>
           <Dato label="Derivado a">{recibo && d.profesionalDestinoId === profile?.id ? 'Vos' : destinoLabel(d, porSlug)}</Dato>
           <Dato label="Fecha">{formatDate(d.createdAt)}</Dato>
-          <Dato label="Vence">{d.estado === 'pendiente' ? formatDate(d.venceAt) : '—'}</Dato>
+          <Dato label="Vence">{['pendiente', 'rechazada'].includes(d.estado) ? formatDate(d.venceAt) : '—'}</Dato>
         </div>
         <div>
           <span className="text-[11px] font-semibold text-text-tertiary uppercase tracking-widest">Motivo</span>
           <p className="text-sm text-text-primary mt-1 whitespace-pre-line">“{d.motivo}”</p>
         </div>
         <Dato label="Historia clínica">{consentimiento}</Dato>
+        {d.estado === 'rechazada' && (
+          <div className="rounded-xl bg-orange-50 border border-orange-200 p-3 text-sm text-orange-800">
+            <p className="font-semibold">
+              {soyDestino ? 'Rechazaste esta derivación' : `${d.destino?.fullName ?? 'El profesional'} la rechazó`}
+            </p>
+            {d.motivoRechazo && <p className="mt-1 whitespace-pre-line">“{d.motivoRechazo}”</p>}
+            {soyQuienDerivo && (
+              <p className="mt-1 text-xs">El paciente puede reservar con otro profesional de la misma especialidad.</p>
+            )}
+          </div>
+        )}
         {d.estado === 'reservada' && d.consultaReservada?.scheduledAt && (
           <Dato label="Turno">{formatDate(d.consultaReservada.scheduledAt)}</Dato>
         )}
@@ -121,12 +152,39 @@ export default function DerivacionDetalle({ profile }) {
             Historia clínica
           </Link>
         )}
+        {soyDestino && d.estado === 'pendiente' && (
+          <button onClick={() => setRechazoOpen(true)} className="btn-secondary w-full py-3 text-danger">
+            Rechazar
+          </button>
+        )}
         {soyQuienDerivo && derivacionVigente(d) && (
           <button onClick={cancelar} disabled={cancelando} className="btn-danger w-full py-3">
             {cancelando ? 'Cancelando…' : 'Cancelar derivación'}
           </button>
         )}
       </div>
+
+      <Modal open={rechazoOpen} onClose={() => !rechazando && setRechazoOpen(false)} title="Rechazar derivación" size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="form-label">¿Por qué no podés tomarla? <span className="normal-case font-normal text-text-tertiary">(opcional, lo ve el paciente)</span></label>
+            <textarea
+              value={motivoRechazo}
+              onChange={e => setMotivoRechazo(e.target.value)}
+              rows={3}
+              className="form-textarea"
+            />
+          </div>
+          <div className="flex gap-3">
+            <button type="button" onClick={() => setRechazoOpen(false)} disabled={rechazando} className="btn-secondary flex-1 py-2.5">
+              Volver
+            </button>
+            <button type="button" onClick={rechazar} disabled={rechazando} className="btn-danger flex-1 py-2.5">
+              {rechazando ? 'Rechazando…' : 'Rechazar derivación'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

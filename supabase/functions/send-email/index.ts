@@ -459,6 +459,16 @@ Deno.serve(async (req) => {
         return await salida({ usuarioId: d.patientId }, envios)
       }
 
+      case 'derivacion-rechazada': {
+        const d = await leerDerivacion(sb, body.derivacionId)
+        if (!d) return json({ error: 'Derivación no encontrada' }, 404)
+        if (!d.base.destinoNombre) return json({ error: 'La derivación no es a un profesional' }, 400)
+        return await salida({ usuarioId: d.patientId }, [{
+          to: d.patientEmail,
+          ...T.derivacionRechazada({ ...d.base, destinoNombre: d.base.destinoNombre }),
+        }])
+      }
+
       case 'pro-verificado':
         return await porUsuario(u => T.profesionalVerificado({ name: u.full_name ?? 'profesional' }))
 
@@ -487,7 +497,7 @@ async function leerDerivacion(sb: SupabaseClient, id: string | undefined) {
   if (!id) return null
   const { data } = await sb
     .from('derivaciones')
-    .select(`id, patient_id, motivo, vertical_destino, especialidad_destino, derivado_por, profesional_destino_id,
+    .select(`id, patient_id, motivo, motivo_rechazo, vertical_destino, especialidad_destino, derivado_por, profesional_destino_id,
       paciente:profiles!patient_id(full_name, email),
       derivado:profiles!derivado_por(full_name),
       destino:profiles!profesional_destino_id(full_name, email)`)
@@ -528,6 +538,7 @@ async function leerDerivacion(sb: SupabaseClient, id: string | undefined) {
         ? null
         : (label(data.especialidad_destino) ?? NOMBRE_VERTICAL[data.vertical_destino] ?? data.vertical_destino),
       motivo: data.motivo as string,
+      motivoRechazo: (data.motivo_rechazo as string | null) ?? null,
     } satisfies T.Derivacion,
   }
 }

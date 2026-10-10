@@ -81,7 +81,14 @@ export default function Derivacion({ profile }) {
   const reservar = () => {
     const params = new URLSearchParams({ derivacion: d.id })
     if (d.patientId !== profile?.id) params.set('para', d.patientId)
-    if (d.profesionalDestinoId) {
+    if (d.estado === 'rechazada' && d.profesionalDestinoId) {
+      // Rechazada: cualquier OTRO profesional de la misma especialidad del que la rechazó.
+      const slug = especialidades.destino
+      const vertical = verticalForSpecialty(slug, catalogo)
+      if (vertical) params.set('vertical', vertical)
+      if (slug) params.set('especialidad', slug)
+      params.set('excluir', d.profesionalDestinoId)
+    } else if (d.profesionalDestinoId) {
       params.set('proId', d.profesionalDestinoId)
       // Con el área del profesional el wizard arranca en la modalidad, igual
       // que desde su perfil; sin ella le pregunta el área al paciente.
@@ -150,6 +157,20 @@ export default function Derivacion({ profile }) {
               </div>
             )}
 
+            {d.estado === 'rechazada' && (
+              <div className="rounded-2xl bg-orange-50 border border-orange-200 p-4">
+                <p className="text-[15px] font-semibold text-orange-800">
+                  {d.destino?.fullName ?? 'El profesional'} no puede tomarla
+                </p>
+                {d.motivoRechazo && (
+                  <p className="text-[14px] text-orange-800 mt-1 whitespace-pre-line">“{d.motivoRechazo}”</p>
+                )}
+                <p className="text-[13px] text-orange-800/80 mt-1">
+                  Podés reservar con otro profesional de la misma especialidad.
+                </p>
+              </div>
+            )}
+
             <div>
               <span className="text-[10px] font-semibold tracking-widest uppercase text-text-tertiary block mb-1.5">Motivo</span>
               <blockquote className="border-l-2 border-brand/40 pl-4 text-[15px] text-text-primary leading-relaxed whitespace-pre-line">
@@ -206,7 +227,9 @@ export default function Derivacion({ profile }) {
                   disabled={!respondida}
                   className="btn-primary w-full py-4 disabled:opacity-50"
                 >
-                  Reservar turno
+                  {d.estado === 'rechazada'
+                    ? `Reservar con otro profesional${especialidades.destino ? ` de ${porSlug[especialidades.destino] ?? especialidades.destino}` : ''}`
+                    : 'Reservar turno'}
                 </button>
                 {!respondida && (
                   <p className="text-[12px] text-text-tertiary text-center">

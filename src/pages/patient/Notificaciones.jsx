@@ -14,7 +14,7 @@ function iconoDe(tipo) {
   if (tipo?.startsWith('receta')) return FileText
   if (tipo?.startsWith('pedido')) return Package
   if (tipo?.startsWith('devolucion')) return CurrencyCircleDollar
-  if (tipo === 'derivacion-nueva') return ShareFat
+  if (tipo === 'derivacion-nueva' || tipo === 'derivacion-rechazada') return ShareFat
   return Bell
 }
 

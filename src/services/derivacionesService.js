@@ -27,13 +27,15 @@ export const DERIVACION_EMBED =
 export const ESTADOS_DERIVACION = {
   pendiente: { label: 'Pendiente', clase: 'bg-amber-50 text-amber-700 border-amber-200' },
   reservada: { label: 'Reservada', clase: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  rechazada: { label: 'Rechazada', clase: 'bg-orange-50 text-orange-700 border-orange-200' },
   vencida: { label: 'Vencida', clase: 'bg-gray-100 text-gray-600 border-gray-200' },
   cancelada: { label: 'Cancelada', clase: 'bg-red-50 text-red-700 border-red-200' },
 }
 
-/** Una derivación está viva si sigue pendiente y no pasó su vencimiento. */
+/** Una derivación está viva si sigue pendiente o rechazada (el paciente puede reservar con
+ *  otro profesional de la misma especialidad) y no pasó su vencimiento. */
 export function derivacionVigente(d) {
-  return d?.estado === 'pendiente' && (!d.venceAt || new Date(d.venceAt) > new Date())
+  return ['pendiente', 'rechazada'].includes(d?.estado) && (!d.venceAt || new Date(d.venceAt) > new Date())
 }
 
 /**
@@ -102,6 +104,15 @@ export const derivacionesService = {
     if (error) throw error
   },
 
+  /** Sólo el profesional destino, mientras esté pendiente. El motivo lo ve el paciente. */
+  async rechazar(derivacionId, motivo = null) {
+    const { error } = await supabase.rpc('rechazar_derivacion', {
+      p_derivacion_id: derivacionId,
+      p_motivo: motivo?.trim() || null,
+    })
+    if (error) throw error
+  },
+
   async cancelar(derivacionId) {
     const { error } = await supabase.rpc('cancelar_derivacion', { p_derivacion_id: derivacionId })
     if (error) throw error
@@ -122,7 +133,7 @@ export const derivacionesService = {
   listarPendientesVisibles() {
     return leer(
       supabase.from('derivaciones').select(SELECT)
-        .eq('estado', 'pendiente')
+        .in('estado', ['pendiente', 'rechazada'])
         .gt('vence_at', new Date().toISOString())
         .order('created_at', { ascending: false }),
     )

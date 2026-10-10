@@ -7,8 +7,11 @@
 -- Decisiones suyas que esta migración implementa:
 --   · Se deriva a un profesional concreto (verificado) O a una especialidad, con
 --     motivo obligatorio. Desde el cierre de la consulta o desde la ficha.
---   · El que recibe NO acepta: se le avisa y el paciente reserva directo. La
---     consulta del derivado se paga como cualquier otra.
+--   · El que recibe no tiene que aceptar: se le avisa y el paciente reserva
+--     directo. Sí puede RECHAZAR una derivación a su nombre (motivo opcional):
+--     se le avisa al paciente, que puede reservar con otro de la misma
+--     especialidad. La consulta del derivado se paga como cualquier otra.
+--   · Vence a los 30 días si no se reservó.
 --   · El destinatario ve la nota de derivación siempre; la historia clínica
 --     completa SÓLO si el paciente da su consentimiento, que queda registrado.
 --
@@ -40,16 +43,21 @@ create table if not exists public.derivaciones (
   especialidad_destino    text,
   motivo                  text not null,
   estado                  text not null default 'pendiente'
-                          check (estado in ('pendiente', 'reservada', 'vencida', 'cancelada')),
+                          check (estado in ('pendiente', 'reservada', 'rechazada', 'vencida', 'cancelada')),
   -- null = el paciente todavía no respondió. false = dijo que no.
   consentimiento_hc       boolean,
   consentimiento_at       timestamptz,
   consentimiento_por      uuid references public.profiles(id) on delete restrict,
   consulta_reservada_id   uuid references public.consultations(id) on delete set null,
   reservada_at            timestamptz,
-  vence_at                timestamptz not null default (now() + interval '60 days'),
+  vence_at                timestamptz not null default (now() + interval '30 days'),
   cancelada_at            timestamptz,
   cancelada_por           uuid references public.profiles(id) on delete restrict,
+  -- El profesional destino puede rechazarla (Mateo, 2026-10-10). Queda viva:
+  -- el paciente puede reservar con otro de la misma especialidad.
+  rechazada_at            timestamptz,
+  motivo_rechazo          text,
+  mail_rechazo_enviado_at timestamptz,
   mail_enviado_at         timestamptz,
   created_at              timestamptz not null default now(),
   updated_at              timestamptz not null default now(),
@@ -416,8 +424,8 @@ begin
   if not found or not (d.derivado_por = v_yo or public.get_my_role() = 'super_admin') then
     raise exception 'No encontramos esa derivación.' using errcode = '42501';
   end if;
-  if d.estado <> 'pendiente' then
-    raise exception 'Sólo se puede cancelar una derivación pendiente.' using errcode = '22023';
+  if d.estado not in ('pendiente', 'rechazada') then
+    raise exception 'Sólo se puede cancelar una derivación que no tiene turno.' using errcode = '22023';
   end if;
   update public.derivaciones
      set estado = 'cancelada', cancelada_at = now(), cancelada_por = v_yo
@@ -426,6 +434,33 @@ end;
 $$;
 revoke all on function public.cancelar_derivacion(uuid) from public, anon;
 grant execute on function public.cancelar_derivacion(uuid) to authenticated;
+
+-- 4d · Rechazar. Sólo el profesional destino, mientras no haya turno. Motivo opcional.
+create or replace function public.rechazar_derivacion(p_derivacion_id uuid, p_motivo text default null)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_yo uuid := auth.uid();
+  d    public.derivaciones%rowtype;
+begin
+  select * into d from public.derivaciones where id = p_derivacion_id;
+  if not found or d.profesional_destino_id is distinct from v_yo then
+    raise exception 'No encontramos esa derivación.' using errcode = '42501';
+  end if;
+  if d.estado <> 'pendiente' then
+    raise exception 'Sólo se puede rechazar una derivación que todavía no tiene turno.' using errcode = '22023';
+  end if;
+  update public.derivaciones
+     set estado = 'rechazada', rechazada_at = now(),
+         motivo_rechazo = nullif(btrim(coalesce(p_motivo, '')), '')
+   where id = p_derivacion_id;
+end;
+$$;
+revoke all on function public.rechazar_derivacion(uuid, text) from public, anon;
+grant execute on function public.rechazar_derivacion(uuid, text) to authenticated;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 5 · La reserva queda vinculada
@@ -454,7 +489,7 @@ begin
   -- el turno nace `pending_payment` antes del cobro, y sin esto un reintento
   -- de pago o una reserva nueva chocaba contra la derivación ya "reservada".
   if d.vence_at < now() or not (
-       d.estado = 'pendiente'
+       d.estado in ('pendiente', 'rechazada')
        or (d.estado = 'reservada' and exists (
              select 1 from public.consultations c
               where c.id = d.consulta_reservada_id
@@ -462,9 +497,23 @@ begin
      ) then
     raise exception 'La derivación ya no está vigente.' using errcode = '22023';
   end if;
-  if d.profesional_destino_id is not null then
+  if d.profesional_destino_id is not null and d.rechazada_at is null then
     if new.professional_id is distinct from d.profesional_destino_id then
       raise exception 'La derivación es para otro profesional.' using errcode = '22023';
+    end if;
+  elsif d.profesional_destino_id is not null then
+    -- Rechazada: cualquier otro profesional de la misma especialidad que el
+    -- que la rechazó (él no).
+    if new.professional_id = d.profesional_destino_id then
+      raise exception 'Este profesional no puede tomar la derivación.' using errcode = '22023';
+    end if;
+    if not exists (
+      select 1
+        from public.professional_profiles a, public.professional_profiles b
+       where a.user_id = new.professional_id and b.user_id = d.profesional_destino_id
+         and a.specialty = b.specialty
+    ) then
+      raise exception 'Ese profesional no es de la especialidad de la derivación.' using errcode = '22023';
     end if;
   else
     select pp.specialty, s.vertical_id into v_esp, v_vert
@@ -499,10 +548,12 @@ begin
   if tg_op = 'INSERT' or new.derivacion_id is distinct from old.derivacion_id then
     update public.derivaciones
        set estado = 'reservada', consulta_reservada_id = new.id, reservada_at = now()
-     where id = new.derivacion_id and estado in ('pendiente', 'reservada');
+     where id = new.derivacion_id and estado in ('pendiente', 'reservada', 'rechazada');
   elsif new.status = 'cancelled' and old.status is distinct from 'cancelled' then
     update public.derivaciones
-       set estado = case when vence_at < now() then 'vencida' else 'pendiente' end,
+       set estado = case when vence_at < now() then 'vencida'
+                         when rechazada_at is not null then 'rechazada'
+                         else 'pendiente' end,
            consulta_reservada_id = null, reservada_at = null
      where id = new.derivacion_id and consulta_reservada_id = new.id;
   end if;
@@ -548,6 +599,31 @@ create trigger derivaciones_avisar_nueva
   after insert on public.derivaciones
   for each row execute function public.avisar_derivacion_nueva();
 
+
+-- Rechazo: al paciente, push + mail, una sola vez.
+create or replace function public.avisar_derivacion_rechazada()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform public.enviar_push_tipo(new.patient_id, 'derivacion-rechazada',
+    jsonb_build_object('derivacionId', new.id));
+  if new.mail_rechazo_enviado_at is null then
+    perform public.enviar_mail(jsonb_build_object('tipo', 'derivacion-rechazada', 'derivacionId', new.id));
+    update public.derivaciones set mail_rechazo_enviado_at = now() where id = new.id;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists derivaciones_avisar_rechazada on public.derivaciones;
+create trigger derivaciones_avisar_rechazada
+  after update of estado on public.derivaciones
+  for each row when (new.estado = 'rechazada' and old.estado is distinct from 'rechazada' and new.rechazada_at is not null and old.rechazada_at is null)
+  execute function public.avisar_derivacion_rechazada();
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 7 · Vencimiento
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -560,7 +636,7 @@ as $$
 declare v_n integer;
 begin
   update public.derivaciones set estado = 'vencida'
-   where estado = 'pendiente' and vence_at < now();
+   where estado in ('pendiente', 'rechazada') and vence_at < now();
   get diagnostics v_n = row_count;
   return v_n;
 end;

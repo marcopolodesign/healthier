@@ -3,7 +3,7 @@ import { ESTADOS_DERIVACION, derivacionVigente } from '../services/derivacionesS
 /** Badge del estado de una derivación. Una pendiente pasada de fecha se muestra vencida
  *  aunque el cron diario todavía no la haya marcado. */
 export default function DerivacionEstado({ derivacion }) {
-  const estado = derivacion.estado === 'pendiente' && !derivacionVigente(derivacion) ? 'vencida' : derivacion.estado
+  const estado = ['pendiente', 'rechazada'].includes(derivacion.estado) && !derivacionVigente(derivacion) ? 'vencida' : derivacion.estado
   const cfg = ESTADOS_DERIVACION[estado] ?? ESTADOS_DERIVACION.pendiente
   return (
     <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border ${cfg.clase}`}>

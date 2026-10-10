@@ -25,9 +25,10 @@ export default function SuperAdminDerivaciones() {
   }, [])
 
   // Una pendiente pasada de fecha cuenta como vencida aunque el cron no la haya marcado todavía.
-  const estadoReal = d => (d.estado === 'pendiente' && !derivacionVigente(d) ? 'vencida' : d.estado)
+  const estadoReal = d => (['pendiente', 'rechazada'].includes(d.estado) && !derivacionVigente(d) ? 'vencida' : d.estado)
   const pendientes = filas.filter(d => estadoReal(d) === 'pendiente').length
   const reservadas = filas.filter(d => d.estado === 'reservada').length
+  const rechazadas = filas.filter(d => estadoReal(d) === 'rechazada').length
   const cerradas = filas.filter(d => ['vencida', 'cancelada'].includes(estadoReal(d))).length
   const conConsentimiento = filas.filter(d => d.consentimientoHc === true).length
   const pctConsentimiento = filas.length ? Math.round((conConsentimiento / filas.length) * 100) : 0
@@ -41,10 +42,11 @@ export default function SuperAdminDerivaciones() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         <MetricCard label="Total" value={loading ? '—' : filas.length} />
         <MetricCard label="Pendientes" value={loading ? '—' : pendientes} />
         <MetricCard label="Reservadas" value={loading ? '—' : reservadas} tone="ok" />
+        <MetricCard label="Rechazadas" value={loading ? '—' : rechazadas} tone={rechazadas ? 'bad' : 'neutral'} />
         <MetricCard label="Compartieron HC" value={loading ? '—' : `${pctConsentimiento}%`} hint={loading ? undefined : `${conConsentimiento} de ${filas.length}`} />
         <MetricCard label="Vencidas / canceladas" value={loading ? '—' : cerradas} />
       </div>
@@ -80,7 +82,12 @@ export default function SuperAdminDerivaciones() {
                     <td className="table-cell"><p className="truncate max-w-[180px]">{d.derivado?.fullName || '—'}</p></td>
                     <td className="table-cell"><p className="truncate max-w-[200px]">{destinoLabel(d, porSlug)}</p></td>
                     <td className="table-cell"><p className="truncate max-w-[240px]" title={d.motivo}>{d.motivo}</p></td>
-                    <td className="table-cell"><DerivacionEstado derivacion={d} /></td>
+                    <td className="table-cell" title={d.motivoRechazo || undefined}>
+                      <DerivacionEstado derivacion={d} />
+                      {d.estado === 'rechazada' && d.motivoRechazo && (
+                        <p className="text-xs text-text-tertiary truncate max-w-[160px] mt-0.5">{d.motivoRechazo}</p>
+                      )}
+                    </td>
                     <td className="table-cell">{consentimientoLabel(d)}</td>
                     <td className="table-cell whitespace-nowrap">
                       {d.consultaReservada ? formatDate(d.consultaReservada.scheduledAt) : '—'}
