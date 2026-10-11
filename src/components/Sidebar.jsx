@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, MapTrifold, Ambulance, UploadSimple, Barbell, UsersThree, BookOpenText, Lightning, IdentificationCard, ShareFat } from '@phosphor-icons/react';
+import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, MapTrifold, Ambulance, UploadSimple, Barbell, UsersThree, BookOpenText, Lightning, IdentificationCard, IdentificationBadge, Buildings, ShareFat } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
 import { veSubidas } from '../lib/permisos'
 import { GUIA_DE_ROL, urlDeGuia } from '../guia/roles'
@@ -56,6 +56,7 @@ const NAV_BY_ROLE = {
         { to: '/super-admin/usuarios',                 icon: Users,          label: 'Pacientes' },
         { to: '/super-admin/usuarios/grupos-familiares', icon: UsersThree,   label: 'Grupos familiares' },
         { to: '/super-admin/coberturas',               icon: IdentificationCard, label: 'Coberturas por DNI' },
+        { to: '/super-admin/federador',                icon: IdentificationBadge, label: 'Federador' },
       ],
     },
     {
@@ -65,6 +66,7 @@ const NAV_BY_ROLE = {
         { to: '/super-admin/profesionales/recorrido',            icon: Path,           label: 'Recorrido' },
         { to: '/super-admin/profesionales?filter=pendientes',    icon: ShieldWarning,  label: 'Pendientes verificación' },
         { to: '/super-admin/profesionales?filter=verificados',   icon: ShieldCheck,    label: 'Verificados' },
+        { to: '/super-admin/consultorios',                       icon: Buildings,      label: 'Consultorios' },
         { to: '/super-admin/profesionales/referidos',            icon: ShareNetwork,   label: 'Referidos' },
       ],
     },
