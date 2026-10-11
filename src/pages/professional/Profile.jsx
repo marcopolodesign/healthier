@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Warning } from '@phosphor-icons/react'
+import { Warning, SealCheck } from '@phosphor-icons/react'
 import { professionalService } from '../../services/professionalService'
+import { consultorioHabilitado } from '../../services/ministerioService'
 import { profilesService } from '../../services/profilesService'
 import FileUpload from '../../components/FileUpload'
 import Modal from '../../components/Modal'
@@ -235,6 +236,19 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
               setForm(p => ({ ...p, address, latitude, longitude }))
             }
           />
+          {/* Verificación del consultorio contra REFES (migración 196). Nunca
+              bloquea: sin match, lo revisa Healthier y se sigue atendiendo igual. */}
+          {profData?.address && form.address === profData.address && profData.refesEstado && (
+            consultorioHabilitado(profData) ? (
+              <p className="flex items-center gap-1.5 text-sm text-brand -mt-2" data-testid="consultorio-estado">
+                <SealCheck className="h-4 w-4" weight="fill" /> Consultorio habilitado — los pacientes lo ven en tu perfil.
+              </p>
+            ) : profData.refesEstado !== 'rechazado_manual' ? (
+              <p className="text-sm text-text-tertiary -mt-2" data-testid="consultorio-estado">
+                Estamos verificando tu consultorio en el registro de establecimientos de salud. Mientras tanto atendés igual.
+              </p>
+            ) : null
+          )}
 
         </div>
 
