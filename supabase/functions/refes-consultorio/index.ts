@@ -28,6 +28,7 @@ import {
   busFhir, BusError, credencialBus, diagnostico, quienLlama, proximoIntento,
   MAX_INTENTOS, CORS, json,
 } from '../_shared/msalBus.ts'
+import { parsearDireccion, type Dir } from './direccion.ts'
 
 const SYS_REFES = 'https://sisa.msal.gov.ar/REFES'
 
@@ -155,29 +156,7 @@ async function procesar(db: any, id: string, cred: ReturnType<typeof credencialB
   }
 }
 
-// ── Dirección ─────────────────────────────────────────────────────────────────
-// Llegan dos formatos: el que escribe el profesional ("Av. Santa Fe 1234,
-// Recoleta, CABA") y el de Nominatim ("1900, Avenida Santa Fe, Barrio Norte,
-// Recoleta, …, C1123AAN, Argentina").
-type Dir = { calle: string; altura: string | null; cp: string | null; provincia: string | null; original: string }
-
-export function parsearDireccion(s: string): Dir | null {
-  const original = s.trim()
-  if (!original) return null
-  const partes = original.split(',').map(x => x.trim()).filter(Boolean)
-  const cp = original.match(/\b[A-Z]?(\d{4})[A-Z]{0,3}\b/)?.[1] ?? null
-  const caba = /\b(caba|c\.a\.b\.a|capital federal|ciudad aut[oó]noma de buenos aires)\b/i.test(original)
-  const provincia = caba ? 'Ciudad Autónoma de Buenos Aires' : null
-
-  let calle = '', altura: string | null = null
-  if (/^\d+$/.test(partes[0] ?? '') && partes[1]) { altura = partes[0]; calle = partes[1] }
-  else {
-    const m = (partes[0] ?? '').match(/^(.*?)\s+(\d{1,5})\b/)
-    if (m) { calle = m[1]; altura = m[2] } else calle = partes[0] ?? ''
-  }
-  return { calle, altura, cp, provincia, original }
-}
-
+// ── Dirección: ver direccion.ts ──
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
   .replace(/\b(av|avda|avenida|calle|pje|pasaje|bv|boulevard|bulevar|gral|general|dr|doctor)\b\.?/g, ' ')
   .replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
