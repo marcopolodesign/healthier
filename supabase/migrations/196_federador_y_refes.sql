@@ -222,7 +222,11 @@ security definer
 set search_path to 'public'
 as $$
 begin
-  if pg_trigger_depth() > 1 or public.es_operador_de_plataforma() then
+  -- Sin claims de request = conexión directa a la base (migración, cron,
+  -- soporte por SQL), no un usuario por la API.
+  if pg_trigger_depth() > 1
+     or public.es_operador_de_plataforma()
+     or nullif(current_setting('request.jwt.claims', true), '') is null then
     return new;
   end if;
   if tg_table_name = 'profiles' then
