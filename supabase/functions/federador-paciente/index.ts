@@ -102,7 +102,7 @@ async function procesar(db: any, id: string, cred: ReturnType<typeof credencialB
 
     // ── 1 · ¿Ya está? ─────────────────────────────────────────────────────────
     const q = new URLSearchParams({ identifier: `${SYS_DNI}|${dni}`, birthdate: p.birth_date })
-    if (genero !== 'other') q.set('gender', genero)
+    if (genero === 'male' || genero === 'female') q.set('gender', genero)
     const r = await busFhir(cred, 'Patient/*.read', `${FED}?${q}`)
     if (r.status !== 200 || r.body?.resourceType !== 'Bundle') {
       throw new BusError('FEDERADOR_BUSQUEDA', `El Federador respondió ${r.status}: ${diagnostico(r)}`, r.status)
@@ -189,6 +189,7 @@ function generoFhir(g: string | null) {
   const v = String(g ?? '').toLowerCase()
   if (v.startsWith('masc') || v === 'male' || v === 'm') return 'male'
   if (v.startsWith('fem') || v === 'female' || v === 'f') return 'female'
+  if (v.startsWith('prefiero') || v === 'unknown') return 'unknown'
   return v ? 'other' : null
 }
 
