@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { UserCircle, Lightning, ArrowLeft, IdentificationCard, VideoCamera, MapPin } from '@phosphor-icons/react'
+import { UserCircle, Lightning, ArrowLeft, IdentificationCard, VideoCamera, MapPin, SealCheck } from '@phosphor-icons/react'
 import { professionalService, disponibleAhora } from '../../services/professionalService'
 import { reviewsService } from '../../services/reviewsService'
+import { consultorioHabilitado } from '../../services/ministerioService'
 import StarRating from '../../components/StarRating'
 import { toast } from '../../components/Toast'
 import { verticalForSpecialty } from '../../lib/verticals'
@@ -108,6 +109,13 @@ export default function ProfessionalProfile() {
                 {professional.averageRating ? Number(professional.averageRating).toFixed(1) : 'Sin calificaciones'}
                 {professional.totalReviews > 0 && ` · ${professional.totalReviews} reseñas`}
               </span>
+              {/* El consultorio figura en el Registro Federal de Establecimientos
+                  (REFES), automático o aprobado por el super admin. Migración 196. */}
+              {consultorioHabilitado(professional) && (
+                <span className="inline-flex items-center gap-1 text-xs bg-brand-muted text-brand px-3 py-1 rounded-full" data-testid="perfil-consultorio-habilitado">
+                  <SealCheck className="h-3.5 w-3.5" weight="fill" /> Consultorio habilitado
+                </span>
+              )}
               {disponibleAhora(professional) && !sinAcciones && (
                 <span className="inline-flex items-center gap-1 text-xs bg-accent-muted text-accent px-3 py-1 rounded-full">
                   <Lightning className="h-3.5 w-3.5" /> Disponible ahora
