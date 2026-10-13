@@ -32,6 +32,10 @@ const EJEMPLO: Datos = {
   hasRoom: false,
   tieneReceta: true,
   permanente: false,
+  vertical: 'clinica',
+  receta: true,
+  indicaciones: true,
+  status: 'completed',
 }
 
 const esc = (s: string) => s
