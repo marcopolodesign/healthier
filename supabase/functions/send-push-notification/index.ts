@@ -20,13 +20,17 @@ async function datosDelAviso(
     permanente: Boolean(p.permanente),
     monto: p.monto == null ? null : Number(p.monto),
     aCreditos: Boolean(p.aCreditos),
+    // Migración 198: el área del pedido inmediato y qué cargó el profesional.
+    vertical: (p.vertical as string) ?? null,
+    receta: Boolean(p.receta),
+    indicaciones: Boolean(p.indicaciones),
   }
 
   if (p.consultationId) {
     datos.consultationId = p.consultationId as string
     const { data } = await supabase
       .from('consultations')
-      .select('scheduled_at, is_on_demand, daily_room_url, professional:profiles!professional_id(full_name)')
+      .select('scheduled_at, is_on_demand, daily_room_url, status, professional:profiles!professional_id(full_name)')
       .eq('id', p.consultationId)
       .maybeSingle()
     if (data) {
@@ -34,6 +38,13 @@ async function datosDelAviso(
       datos.isOnDemand = Boolean(data.is_on_demand)
       datos.hasRoom = Boolean(data.daily_room_url)
       datos.professionalName = (data.professional as { full_name?: string } | null)?.full_name ?? null
+      datos.status = (data.status as string) ?? null
+      if (p.tipo === 'consulta-novedades') {
+        const { count: resenas } = await supabase
+          .from('reviews').select('id', { count: 'exact', head: true })
+          .eq('consultation_id', p.consultationId)
+        datos.yaCalifico = (resenas ?? 0) > 0
+      }
       // Para el post-consulta: decir "y tu receta" sólo si de verdad hay una.
       const { data: enc } = await supabase
         .from('clinical_encounters').select('id').eq('consultation_id', p.consultationId)

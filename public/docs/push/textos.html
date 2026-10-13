@@ -1,7 +1,7 @@
 <!doctype html><html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Los avisos de Healthier</title>
-<meta name="description" content="Las 23 notificaciones que manda Healthier, como se ven en el teléfono.">
+<meta name="description" content="Las 31 notificaciones que manda Healthier, como se ven en el teléfono.">
 <style>
   @font-face{font-family:'Everett';src:url('/fonts/Everett-Light.woff2') format('woff2');
     font-weight:300;font-style:normal;font-display:swap}
@@ -90,7 +90,7 @@
 <div class="marca">
   <img src="/email/healthier-logo.png" alt="Healthier" width="118">
   <h1>Los avisos del teléfono</h1>
-  <p>23 notificaciones · para revisar qué dicen</p>
+  <p>31 notificaciones · para revisar qué dicen</p>
 </div>
 
 <header class="top"><div class="wrap"><nav><a href="#g-al-paciente-turnos-y-consultas">Al paciente · turnos y consultas</a><a href="#g-al-paciente-recetas-y-farmacia">Al paciente · recetas y farmacia</a><a href="#g-al-paciente-emergencias">Al paciente · emergencias</a><a href="#g-al-profesional">Al profesional</a></nav></div></header>
@@ -111,7 +111,7 @@
         <div class="notif">
           <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
           <p class="titulo">Te agendaron un turno</p>
-          <p class="texto">Tu profesional agendó una consulta para el 13/9 a las 09:34.</p>
+          <p class="texto">Tu profesional agendó una consulta para el 14/10 a las 17:00.</p>
         </div>
       </div>
       <div class="detalle">
@@ -120,6 +120,42 @@
         <label class="obs">
           <span>Observaciones</span>
           <textarea data-slug="turno-agendado" data-titulo="Te agendaron un turno" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="ondemand-aceptado">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Te encontramos un profesional</p>
+          <p class="texto">Dra. Valentina Ortiz aceptó tu consulta. Entrá cuando estés listo.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>Consulta inmediata: un profesional aceptó el pedido. Reemplaza a &quot;Te agendaron un turno&quot; y &quot;Turno confirmado&quot;, que en una consulta inmediata no van.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/ondemand/clinica</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="ondemand-aceptado" data-titulo="Te encontramos un profesional" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="consulta-novedades">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Tu profesional ya cargó tu receta y tus indicaciones</p>
+          <p class="texto">Dra. Valentina Ortiz dejó tu receta y tus indicaciones. Presentá la receta desde el celular en cualquier farmacia.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El profesional carga indicaciones o emite la receta de una consulta. Un solo aviso por tanda (90 s de calma o 5 min como techo); si la consulta se está cerrando, lo cuenta el aviso del cierre.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/consulta/review/3f8c1a92-5d44-4e21-9c77-0a1b2c3d4e5f</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="consulta-novedades" data-titulo="Tu profesional ya cargó tu receta y tus indicaciones" rows="2"
                     placeholder="Qué cambiarías de este texto…"></textarea>
         </label>
       </div>
@@ -165,7 +201,7 @@
         <div class="notif">
           <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
           <p class="titulo">Recordatorio de turno</p>
-          <p class="texto">Mañana tenés una consulta con Dra. Valentina Ortiz a las 09:34.</p>
+          <p class="texto">Mañana tenés una consulta con Dra. Valentina Ortiz a las 17:00.</p>
         </div>
       </div>
       <div class="detalle">
@@ -183,7 +219,7 @@
         <div class="notif">
           <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
           <p class="titulo">Tu consulta comienza pronto</p>
-          <p class="texto">Tu consulta con Dra. Valentina Ortiz es a las 09:34. ¡Preparate!</p>
+          <p class="texto">Tu consulta con Dra. Valentina Ortiz es a las 17:00. ¡Preparate!</p>
         </div>
       </div>
       <div class="detalle">
@@ -228,6 +264,78 @@
         <label class="obs">
           <span>Observaciones</span>
           <textarea data-slug="post-consulta" data-titulo="Tu resumen ya está listo" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="devolucion-hecha">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Te devolvimos el pago</p>
+          <p class="texto">El importe vuelve a tu medio de pago. Puede tardar entre 5 y 10 días hábiles en verse.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>Se hace la devolución de un pago (a la tarjeta o como crédito en Healthier).</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/comprobantes</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="devolucion-hecha" data-titulo="Te devolvimos el pago" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="devolucion-rechazada">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">No pudimos hacer la devolución</p>
+          <p class="texto">La farmacia no tenía stock del antibiótico. Si tenés dudas, escribinos desde la app.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>Healthier rechaza un pedido de devolución.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/comprobantes</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="devolucion-rechazada" data-titulo="No pudimos hacer la devolución" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="derivacion-nueva">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Tu profesional te derivó</p>
+          <p class="texto">Tu profesional te derivó a otro profesional. Entrá para ver el motivo y reservar.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>Un profesional lo deriva a otro profesional o a una especialidad.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/derivaciones/undefined</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="derivacion-nueva" data-titulo="Tu profesional te derivó" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="derivacion-rechazada">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Elegí otro profesional</p>
+          <p class="texto">El profesional no puede tomar tu derivación. Podés reservar con otro de la misma especialidad.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El profesional al que lo derivaron no puede tomar la derivación.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/derivaciones/undefined</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="derivacion-rechazada" data-titulo="Elegí otro profesional" rows="2"
                     placeholder="Qué cambiarías de este texto…"></textarea>
         </label>
       </div>
@@ -406,6 +514,24 @@
         </label>
       </div>
     </article>
+    <article class="aviso" id="pro-derivacion-recibida">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Te derivaron un paciente</p>
+          <p class="texto">Un profesional te derivó a un paciente. Va a reservar un turno en tu agenda.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>Otro profesional le deriva un paciente a él (no se manda si la derivación es a una especialidad).</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/profesional/derivaciones/undefined</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="pro-derivacion-recibida" data-titulo="Te derivaron un paciente" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
     <article class="aviso" id="pro-pago-recibido">
       <div class="tel">
         <div class="notif">
@@ -465,7 +591,7 @@
         <div class="notif">
           <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
           <p class="titulo">Tenés una consulta en una hora</p>
-          <p class="texto">Tu próxima consulta es a las 09:34.</p>
+          <p class="texto">Tu próxima consulta es a las 17:00.</p>
         </div>
       </div>
       <div class="detalle">
@@ -474,6 +600,24 @@
         <label class="obs">
           <span>Observaciones</span>
           <textarea data-slug="pro-recordatorio-1h" data-titulo="Tenés una consulta en una hora" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="pro-disponibilidad-por-vencer">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">¿Seguís disponible?</p>
+          <p class="texto">En 10 minutos dejás de aparecer para los pacientes. Abrí Healthier para seguir disponible.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>Al latido de consulta inmediata le quedan 10 minutos de vigencia (cron).</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/profesional/dashboard</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="pro-disponibilidad-por-vencer" data-titulo="¿Seguís disponible?" rows="2"
                     placeholder="Qué cambiarías de este texto…"></textarea>
         </label>
       </div>

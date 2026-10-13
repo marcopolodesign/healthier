@@ -50,6 +50,14 @@ export type Datos = {
   /** A quién se derivó: el nombre del profesional o la especialidad. */
   destino?: string | null
   patientName?: string | null
+  /** Teleclínica (migración 198): el área del pedido, para volver a su pantalla. */
+  vertical?: string | null
+  /** Novedades de la consulta (migración 198): qué cargó el profesional. */
+  receta?: boolean
+  indicaciones?: boolean
+  /** Estado de la consulta y si el paciente ya la calificó: deciden a qué pantalla lleva. */
+  status?: string | null
+  yaCalifico?: boolean
 }
 
 const pesos = (n?: number | null) =>
@@ -85,6 +93,39 @@ export const AVISOS = {
         : 'Tu profesional agendó una consulta de seguimiento.',
       url: '/paciente/consultas',
     }),
+  },
+
+  'ondemand-aceptado': {
+    para: 'paciente' as Destinatario,
+    cuando: 'Consulta inmediata: un profesional aceptó el pedido. Reemplaza a "Te agendaron un turno" y "Turno confirmado", que en una consulta inmediata no van.',
+    build: (d: Datos): Aviso => ({
+      title: 'Te encontramos un profesional',
+      body: `${d.professionalName ?? 'Un profesional'} aceptó tu consulta. Entrá cuando estés listo.`,
+      // La pantalla del pedido retoma el aceptado: "Te atiende" + "Entrar a la
+      // consulta", o el reintento de tarjeta si la reserva se rechazó.
+      url: d.vertical ? `/paciente/ondemand/${d.vertical}` : `/paciente/sala-espera/${d.consultationId}`,
+    }),
+  },
+
+  'consulta-novedades': {
+    para: 'paciente' as Destinatario,
+    cuando: 'El profesional carga indicaciones o emite la receta de una consulta. Un solo aviso por tanda (90 s de calma o 5 min como techo); si la consulta se está cerrando, lo cuenta el aviso del cierre.',
+    build: (d: Datos): Aviso => {
+      const que = d.receta && d.indicaciones ? 'tu receta y tus indicaciones'
+        : d.receta ? 'tu receta' : 'tus indicaciones'
+      const quien = d.professionalName ?? 'Tu profesional'
+      // "Gracias por tu consulta" mientras no la calificó; después, el resumen.
+      const cierre = (d.status === 'closing' || d.status === 'completed') && !d.yaCalifico
+      return {
+        title: `Tu profesional ya cargó ${que}`,
+        body: d.receta
+          ? `${quien} dejó ${que}. Presentá la receta desde el celular en cualquier farmacia.`
+          : `${quien} dejó ${que} de la consulta.`,
+        url: cierre
+          ? `/paciente/consulta/review/${d.consultationId}`
+          : `/paciente/consulta/resumen/${d.consultationId}`,
+      }
+    },
   },
 
   'turno-confirmado': {
