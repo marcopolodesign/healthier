@@ -62,8 +62,55 @@ export async function searchAddresses(query, signal) {
  * es estricto: "Arenales 3709 1A Palermo" no aparece y "Arenales 3709,
  * Palermo" sí. Se prueban en orden y todas salen de la misma dirección — no se
  * inventa nada (2026-09-30, con las direcciones reales que no se ubicaban).
+ *
+ * Cada candidata es `{ q, exigir? }`. `exigir` es una zona de la misma
+ * dirección (barrio, localidad) que tiene que aparecer en el resultado: las
+ * versiones recortadas ("Zárate 99, Villa Progreso", sin la localidad) podrían
+ * caer en otra ciudad si Nominatim devolviera cualquier "Zárate 99", y una
+ * ubicación equivocada es peor que ninguna.
  */
-export function variantesDeDireccion(direccion) {
+const CP_AR = /^(?:[A-Z]\d{4}[A-Z]{3}|CP\.?\s*\d{4}|\d{4})$/i
+const PAIS_O_PROVINCIA = /^(?:argentina|república argentina|republica argentina|provincia de buenos aires)$|\bprovince\b$/i
+
+/** Sin acentos ni mayúsculas, para comparar zonas. */
+export const sinAcentos = t =>
+  String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+
+/**
+ * Parte la dirección en calle + zonas, quitando lo que Google Places agrega y
+ * Nominatim no entiende: el CP ("B1502HQG", "CP 1502", "1502"), "Buenos Aires
+ * Province", "Argentina". Entiende el nombre doble de las calles numeradas del
+ * conurbano ("Calle 99 - Zárate Villa Progreso" = "Zárate 99" en el barrio
+ * Villa Progreso).
+ */
+export function partesDeDireccion(direccion) {
+  const partes = String(direccion ?? '')
+    .split(',')
+    .map((p, i) => {
+      const t = p.replace(/\s+/g, ' ').trim()
+      if (i === 0) return t
+      // "Cdad. Autónoma de Buenos Aires" es "Buenos Aires" para Nominatim.
+      return t.replace(/^[A-Z]\d{4}[A-Z]{3}\s+/, '').replace(/^(?:cdad|ciudad)\.?\s+aut[oó]noma de buenos aires$/i, 'Buenos Aires')
+    })
+    .filter((p, i) => p && (i === 0 || (!CP_AR.test(p) && !PAIS_O_PROVINCIA.test(p))))
+  if (partes.length === 0) return { calles: [], zonas: [] }
+  const [calle, ...resto] = partes
+  const doble = calle.match(/^(?:calle|cl\.?)?\s*(\d{1,4})\s*[-–—]\s*(.+)$/i)
+  if (!doble) return { calles: [calle], zonas: resto }
+  const [, numero, nombres] = doble
+  const palabras = nombres.split(/\s+/)
+  const calles = []
+  const zonas = []
+  // "Zárate Villa Progreso": el nombre es la primera palabra y lo demás el
+  // barrio; si el nombre fuera de dos palabras ("Doctor Zárate"), el segundo intento.
+  for (let k = 1; k <= (palabras.length >= 4 ? 2 : 1); k++) {
+    calles.push(`${palabras.slice(0, k).join(' ')} ${numero}`)
+    zonas.push(palabras.slice(k).join(' '))
+  }
+  return { calles, zonas, resto, doble: true }
+}
+
+export function candidatasDeDireccion(direccion) {
   const original = direccion?.trim() ?? ''
   const normalizada = original
     .replace(/\bGral\.?\s/gi, 'General ')
@@ -79,16 +126,52 @@ export function variantesDeDireccion(direccion) {
     .replace(/\s+,/g, ',').replace(/\s{2,}/g, ' ').replace(/[.,\s]+$/, '')
   const variantes = [original, normalizada, normalizada.split(',').slice(0, 2).join(',').trim()]
   if (!/buenos aires|caba|capital federal/i.test(normalizada)) variantes.push(`${normalizada}, Buenos Aires`)
-  return [...new Set(variantes.filter(v => v.length >= 3))]
+  const candidatas = [...new Set(variantes.filter(v => v.length >= 3))].map(q => ({ q }))
+
+  // Las de abajo recortan la dirección, así que exigen su zona en el resultado.
+  const { calles, zonas, doble, resto } = partesDeDireccion(original)
+  const agregar = (q, exigir) => {
+    if (q.length >= 3 && !candidatas.some(c => c.q === q)) candidatas.push(exigir ? { q, exigir } : { q })
+  }
+  if (doble) {
+    calles.forEach((calle, i) => {
+      const barrio = zonas[i]
+      if (!barrio) return
+      if (resto.length) agregar(`${calle}, ${barrio}, ${resto[0]}`)
+      agregar(`${calle}, ${barrio}`, barrio)
+    })
+    calles.forEach(calle => resto.forEach(z => agregar(`${calle}, ${z}`, z)))
+  } else if (calles[0]) {
+    // La misma dirección sin CP / provincia, y con cada zona por separado
+    // (localidad o partido) — nunca con una que no esté escrita.
+    const limpia = [calles[0], ...zonas].join(', ')
+    if (zonas.length) agregar(limpia)
+    zonas.forEach(z => agregar(`${calles[0]}, ${z}`, z))
+  }
+  return candidatas.slice(0, 8)
 }
 
+export function variantesDeDireccion(direccion) {
+  return candidatasDeDireccion(direccion).map(c => c.q)
+}
+
+const pausa = ms => new Promise(r => setTimeout(r, ms))
+
 // Geocode a single address string — returns { lat, lng } or null.
-export async function geocodeAddress(address) {
+// Nominatim pide 1 pedido por segundo: entre candidatas hay una pausa, y un
+// 429 no se confunde con "no existe" (devuelve null igual, pero sin seguir).
+export async function geocodeAddress(address, { pausaMs = 1100 } = {}) {
   if (!address || address.trim().length < 3) return null
-  for (const q of variantesDeDireccion(address)) {
+  let primera = true
+  for (const { q, exigir } of candidatasDeDireccion(address)) {
+    if (!primera && pausaMs) await pausa(pausaMs)
+    primera = false
     try {
       const results = await searchAddresses(q)
-      if (results.length > 0) return { lat: results[0].lat, lng: results[0].lng }
+      const hit = exigir
+        ? results.find(r => sinAcentos(r.displayName).includes(sinAcentos(exigir)))
+        : results[0]
+      if (hit) return { lat: hit.lat, lng: hit.lng }
     } catch {
       return null
     }
