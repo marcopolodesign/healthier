@@ -15,7 +15,8 @@
 //    borra lo que creó.
 // 4. (--paso=referido o todo) El mismo paciente, marcado SÓLO durante la
 //    prueba como referido por el profesional normal, le paga desde el wizard
-//    → 0% "referido". Se le devuelve el `referred_by_professional_id` que tenía.
+//    → 0% "referido". Se le devuelve el `referred_by_professional_id` que tenía
+//    (por SQL: un trigger congela la atribución; necesita SUPABASE_ACCESS_TOKEN).
 //
 // Las dos cuentas de staging se llaman "Valentina Ortega": se distinguen por
 // la cantidad de reseñas (RESENAS_EXENTO / RESENAS_NORMAL, por defecto las de
@@ -221,7 +222,15 @@ try {
       await page.screenshot({ path: `${OUT}/11-super-pagos-referido.png` })
       await page.context().close()
     } finally {
-      await rest(`profiles?id=eq.${pac.id}`, { method: 'PATCH', body: JSON.stringify({ referred_by_professional_id: pac.referred_by_professional_id }) })
+      // La atribución está congelada por trigger (`congelar_atribucion_de_referido`):
+      // un PATCH no la borra. Se vuelve atrás por SQL con los triggers apagados.
+      const valor = pac.referred_by_professional_id ? `'${pac.referred_by_professional_id}'` : 'null'
+      const r = await fetch(`https://api.supabase.com/v1/projects/${env.ref}/database/query`, {
+        method: 'POST', headers: { Authorization: `Bearer ${process.env.SUPABASE_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: `begin; set local session_replication_role = replica; update public.profiles set referred_by_professional_id = ${valor} where id = '${pac.id}'; commit;` }),
+      })
+      const [vuelto] = await rest(`profiles?select=referred_by_professional_id&id=eq.${pac.id}`)
+      ok(r.ok && vuelto?.referred_by_professional_id === pac.referred_by_professional_id, `${PACIENTE} vuelve a su atribución original (${pac.referred_by_professional_id})`)
     }
   }
 } finally {
