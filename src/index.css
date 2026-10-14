@@ -1191,3 +1191,92 @@
   &:checked { background: var(--color-brand); }
   &:checked::before { transform: translateX(1.25rem); }
 }
+
+/*
+ * Fondo de marca + sonar de "Buscando un médico disponible" (Teleclínica,
+ * Mateo + Felipe 2026-10-13). El fondo es el de la app (splash y Face ID,
+ * `mobile/src/components/common/BrandBackground.tsx`): blanco con dos manchas
+ * verdes —arriba a la izquierda y abajo a la derecha— con trama de puntos, que
+ * se mueven lento (5,2 s y 3,8 s, ida y vuelta). El sonar: tres anillos de
+ * 3,0 s desfasados 1,0 s, escala 0,35→1, opacidad 0,5→0. Sólo transform y
+ * opacity. Con "Reducir movimiento" todo queda quieto.
+ */
+@keyframes fondo-marca-tl {
+  from { transform: translate(-22px, -17px) scale(1); }
+  to   { transform: translate(22px, 17px) scale(1.08); }
+}
+@keyframes fondo-marca-br {
+  from { transform: translate(22px, 17px) scale(1); }
+  to   { transform: translate(-22px, -17px) scale(1.08); }
+}
+@keyframes sonar-anillo {
+  from { transform: scale(.35); opacity: .5; }
+  to   { transform: scale(1); opacity: 0; }
+}
+
+@utility fondo-marca {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #fff;
+  pointer-events: none;
+  & > span {
+    position: absolute;
+    inset: -48px;
+    will-change: transform;
+  }
+  & > span::before, & > span::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+  & > .mancha-tl { animation: fondo-marca-tl 5.2s ease-in-out infinite alternate; }
+  & > .mancha-br { animation: fondo-marca-br 6.1s ease-in-out infinite alternate; }
+  & > .mancha-tl::before {
+    background: radial-gradient(110% 70% at 48px 48px, rgba(124,179,139,.85), rgba(124,179,139,.3) 55%, rgba(124,179,139,0));
+  }
+  & > .mancha-br::before {
+    background: radial-gradient(110% 70% at calc(100% - 48px) calc(100% - 48px), rgba(124,179,139,.8), rgba(124,179,139,.28) 55%, rgba(124,179,139,0));
+  }
+  & > span::after {
+    background-image: radial-gradient(#fff 1.05px, transparent 1.3px);
+    background-size: 6px 6px;
+    opacity: .55;
+  }
+  & > .mancha-tl::after {
+    mask-image: radial-gradient(95% 60% at 48px 48px, #000, transparent);
+  }
+  & > .mancha-br::after {
+    mask-image: radial-gradient(95% 60% at calc(100% - 48px) calc(100% - 48px), #000, transparent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    & > span { animation: none !important; }
+  }
+}
+
+@utility sonar {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  & > i {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    border: 1px solid var(--color-brand);
+    background: var(--color-brand-muted);
+    opacity: 0;
+    will-change: transform, opacity;
+    animation: sonar-anillo 3s cubic-bezier(.33, 1, .68, 1) infinite;
+  }
+  & > i:nth-child(2) { animation-delay: 1s; }
+  & > i:nth-child(3) { animation-delay: 2s; }
+  @media (prefers-reduced-motion: reduce) {
+    & > i { animation: none; }
+    & > i:nth-child(1) { transform: scale(.55); opacity: .45; }
+    & > i:nth-child(2) { transform: scale(.78); opacity: .28; }
+    & > i:nth-child(3) { transform: scale(1); opacity: .14; }
+  }
+}

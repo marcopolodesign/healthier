@@ -7,6 +7,7 @@ import PreconsultaForm from '../../components/patient/PreconsultaForm'
 import { toast } from '../../components/Toast'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 import { inicialesDe } from '../../lib/format'
+import { textoSalaHabilitada } from '../../lib/salaEspera'
 
 /**
  * The pre-consulta payload is written by PreconsultaForm as snake_case JSON, but
@@ -166,6 +167,14 @@ export default function WaitingRoom({ profile }) {
 
   const canEnter = admitted || doctorReady
 
+  // Habilitado: el paciente puede estar en otra pestaña — que el título lo diga.
+  useEffect(() => {
+    if (!canEnter) return
+    const antes = document.title
+    document.title = 'Te está esperando · Healthier'
+    return () => { document.title = antes }
+  }, [canEnter])
+
   const handleEnter = useCallback(() => {
     if (!canEnter || entering) return
     setEntering(true)
@@ -173,6 +182,7 @@ export default function WaitingRoom({ profile }) {
   }, [canEnter, entering, navigate, consultationId])
 
   const doctorName   = consultation?.professional?.fullName ?? 'el profesional'
+  const textoHabilitado = textoSalaHabilitada(consultation?.professional?.fullName)
   const doctorAvatar = consultation?.professional?.avatarUrl ?? null
   const initial      = inicialesDe(doctorName)
 
@@ -313,19 +323,20 @@ export default function WaitingRoom({ profile }) {
           : <Clock className="w-9 h-9 text-brand" />}
       </div>
 
-      {/* Status title */}
-      <h1 className="text-[24px] font-bold text-text-primary text-center leading-tight mb-2">
-        {canEnter ? '¡Ya podés entrar!' : 'Sala de espera'}
-      </h1>
-
-      {/* Countdown or waiting message */}
-      <p className="text-[14px] text-text-secondary text-center leading-relaxed mb-6 max-w-xs">
-        {canEnter
-          ? `${doctorName} te habilitó. Entrá cuando quieras.`
-          : countdown
-            ? `La consulta comienza en ${countdown}`
-            : `Ya le avisamos a ${doctorName}. Esperando que se conecte${dots}`}
-      </p>
+      {/* Status title + mensaje — habilitado: "<profesional> te está esperando"
+          (Mateo + Felipe, 2026-10-13), mismo texto que la app. */}
+      <div key={canEnter ? 'habilitado' : 'esperando'} className={`flex flex-col items-center ${canEnter ? 'animate-fade-in' : ''}`} aria-live="polite">
+        <h1 className="text-[28px] font-medium text-text-primary text-center leading-[34px] mb-2 max-w-sm" data-testid="sala-titulo">
+          {canEnter ? textoHabilitado.titulo : 'Sala de espera'}
+        </h1>
+        <p className="text-[15px] text-text-secondary text-center leading-5 mb-6 max-w-xs">
+          {canEnter
+            ? textoHabilitado.sub
+            : countdown
+              ? `La consulta comienza en ${countdown}`
+              : `Ya le avisamos a ${doctorName}. Esperando que se conecte${dots}`}
+        </p>
+      </div>
 
       {/* Animated dots */}
       {!canEnter && (
