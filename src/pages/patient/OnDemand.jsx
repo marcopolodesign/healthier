@@ -10,6 +10,7 @@ import { mpService } from '../../services/mpService'
 import { consultationsService } from '../../services/consultationsService'
 import { ondemandService, BUSQUEDA_MAX_MS } from '../../services/ondemandService'
 import PatientSheet from '../../components/patient/PatientSheet'
+import BuscandoMedico from '../../components/teleclinica/BuscandoMedico'
 import PreconsultaForm from '../../components/patient/PreconsultaForm'
 import { resumenPreconsulta } from '../../lib/resumenPreconsulta'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
@@ -19,6 +20,7 @@ import { useVerticales } from '../../hooks/useVerticales'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { useGrupoFamiliar } from '../../hooks/useGrupoFamiliar'
 import { puedeBonificarTeleclinica } from '../../lib/featureFlags'
+import { bonificarPorDefecto, teleclinicaBonificada, camposBonificar } from '../../lib/bonificar'
 import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
 
 /*
@@ -46,12 +48,6 @@ import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytic
  */
 
 const BUSQUEDA_SEGUNDOS_INICIAL = 4 * 60
-
-function formatCountdown(totalSeconds) {
-  const m = Math.floor(totalSeconds / 60)
-  const s = totalSeconds % 60
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
 
 export default function OnDemand({ profile }) {
   const { vertical: verticalId } = useParams()
@@ -98,10 +94,13 @@ export default function OnDemand({ profile }) {
 
   const isDemoMode = !configLoading && !publicKey
   // Interruptor de bonificación: sólo se ve en la cuenta de Mateo, y el
-  // servidor vuelve a chequear la cuenta antes de bonificar.
+  // servidor vuelve a chequear la cuenta antes de bonificar. Para esa cuenta
+  // manda el interruptor (arranca prendido si el perfil ya es exento); apagado,
+  // se cobra. Antes el perfil exento ganaba y apagarlo no cambiaba nada.
   const puedeBonificar = puedeBonificarTeleclinica(profile)
-  const [bonificar, setBonificar] = useState(false)
-  const paymentExempt = Boolean(profile?.paymentExempt) || (puedeBonificar && bonificar)
+  const [bonificarElegido, setBonificar] = useState(null)
+  const bonificar = bonificarElegido ?? bonificarPorDefecto(profile?.paymentExempt)
+  const paymentExempt = teleclinicaBonificada({ paymentExempt: profile?.paymentExempt, puedeBonificar, bonificar })
   const missingCard = !paymentExempt && !selectedCardId
   const IconComp = vertical?.icon
   const price = vertical?.onDemandPrice ?? null
@@ -183,7 +182,7 @@ export default function OnDemand({ profile }) {
 
   // ── "Pagar" — deja el token y arranca la búsqueda ───────────────────────────
   const pedir = async (pago, pre = preconsulta) => {
-    const res = await ondemandService.pedir({ vertical: verticalId, paraId: paraId && paraId !== profile.id ? paraId : null, pago, bonificar: puedeBonificar && bonificar, preconsulta: pre })
+    const res = await ondemandService.pedir({ vertical: verticalId, paraId: paraId && paraId !== profile.id ? paraId : null, pago, ...camposBonificar({ puedeBonificar, bonificar }), preconsulta: pre })
     if (res?.sinProfesionales) { setPhase('no_match'); return }
     track('ondemand_requested', { value: price, currency: 'ARS', flow: 'paciente' })
     const p = await ondemandService.getPedido(res.requestId)
@@ -338,29 +337,9 @@ export default function OnDemand({ profile }) {
     </>)
   }
 
-  // ── Buscando — sin nombre ni foto ─────────────────────────────────────────
+  // ── Buscando — sin nombre ni foto: sonar sobre el fondo de marca ────────
   if (phase === 'buscando') {
-    return pantallaCentrada(<>
-      <div className="relative w-40 h-40 flex items-center justify-center mb-8">
-        <div className="absolute inset-0 border-2 border-brand/20 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]" />
-        <div className="w-20 h-20 rounded-full bg-brand-muted flex items-center justify-center z-10">
-          {IconComp && <IconComp className="w-8 h-8 text-brand" />}
-        </div>
-      </div>
-      <h2 className="text-[26px] font-light text-gray-900 mb-2 text-center leading-tight" data-testid="ondemand-buscando">Buscando un médico disponible</h2>
-      <p className="text-gray-500 text-[15px] text-center mb-6">Les avisamos a los profesionales de {vertical.nombre} que están conectados. El primero que acepte te atiende.</p>
-      <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-full px-4 py-2 mb-6">
-        <Clock className="w-4 h-4 text-gray-500" />
-        <span className="font-mono tabular-nums text-[15px] text-gray-900">{formatCountdown(secondsLeft)}</span>
-      </div>
-      <div className="flex items-start gap-3 p-4 bg-brand-muted/30 rounded-[20px] border border-brand/20 mb-6 w-full">
-        <ShieldCheck className="w-5 h-5 text-brand shrink-0 mt-0.5" weight="fill" />
-        <p className="text-[13px] text-gray-600 leading-snug">Todavía no te cobramos nada. Si nadie acepta, no se cobra.</p>
-      </div>
-      <button onClick={cancelarBusqueda} disabled={ocupado} className="text-gray-500 font-semibold text-[15px] py-2 disabled:opacity-50">
-        {ocupado ? 'Cancelando…' : 'Cancelar'}
-      </button>
-    </>)
+    return <BuscandoMedico vertical={vertical} segundos={secondsLeft} ocupado={ocupado} onCancelar={cancelarBusqueda} />
   }
 
   // ── Nadie aceptó a tiempo ─────────────────────────────────────────────────
