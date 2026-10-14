@@ -208,6 +208,15 @@ begin
      or new.closing_notes is not distinct from old.closing_notes then
     return new;
   end if;
+  -- Las notas que llegan EN el cierre (completar_cierre_de_consulta escribe
+  -- notas y `completed` en el mismo UPDATE) ya las cuenta el post-consulta.
+  -- Sin esto, avisar_cierre_al_paciente borra lo pendiente ANTES (los
+  -- triggers corren por orden alfabético) y este las vuelve a marcar: el
+  -- paciente recibía "Tu resumen ya está listo" y 90 s después "Tu
+  -- profesional ya cargó tus indicaciones" (release 2026-10-14).
+  if new.status = 'completed' and old.status is distinct from 'completed' then
+    return new;
+  end if;
   perform public.marcar_aviso_de_consulta(new.id, false, true);
   return new;
 end; $$;

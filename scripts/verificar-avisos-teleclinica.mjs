@@ -225,6 +225,32 @@ try {
   ultima.length === 2 && nuevo?.titulo === 'Tu profesional ya cargó tus indicaciones'
     ? ok(`después del cierre: "${nuevo.titulo}"`) : mal(`después del cierre: ${JSON.stringify(ultima.map(n => n.titulo))}`)
   nuevo?.url === `/paciente/consulta/review/${consultaId}` ? ok('y lleva a "Gracias por tu consulta"') : mal(`url: ${nuevo?.url}`)
+
+  // ── 6. El cierre real del profesional: notas + completed en UNA escritura ──
+  // `completar_cierre_de_consulta` guarda el resumen y pasa a `completed` en el
+  // mismo UPDATE. El bloque 5 escribe las dos cosas por separado y no lo veía:
+  // el release del 2026-10-14 mandaba "Tu resumen ya está listo" y, 90 s
+  // después, "Tu profesional ya cargó tus indicaciones" con el mismo resumen.
+  bloque('6. Cierre del profesional con resumen')
+  const { data: orig } = await admin.from('consultations')
+    .select('patient_id, professional_id, modality, is_on_demand').eq('id', consultaId).single()
+  const { data: otra, error: eOtra } = await admin.from('consultations').insert({
+    ...orig, scheduled_at: new Date().toISOString(), status: 'confirmed',
+  }).select('id').single()
+  if (eOtra) throw new Error(`consulta para el bloque 6: ${eOtra.message}`)
+  await admin.from('consultations').update({ status: 'in_progress' }).eq('id', otra.id)
+  await admin.from('consultations').update({ status: 'closing', closing_started_at: new Date().toISOString() }).eq('id', otra.id)
+  const { error: eCierre } = await pro.c.rpc('completar_cierre_de_consulta', {
+    p_consultation_id: otra.id, p_closing_notes: 'Reposo y control en 48 h', p_motivo_sin_codigo: 'control automático',
+  })
+  if (eCierre) throw new Error(`completar_cierre_de_consulta: ${eCierre.message}`)
+  await campanita(paciente.id, otra.id, { esperarTipo: 'post-consulta' })
+  const { data: quedo } = await admin.from('avisos_consulta_pendientes').select('consultation_id').eq('consultation_id', otra.id).maybeSingle()
+  !quedo ? ok('el resumen del cierre no queda pendiente (lo cuenta "Tu resumen ya está listo")') : mal('el resumen del cierre quedó pendiente: va a llegar un segundo aviso')
+  await soltarAgrupados(otra.id)
+  await esperar(3000)
+  const dobles = (await campanita(paciente.id, otra.id)).filter(n => n.tipo === 'consulta-novedades')
+  dobles.length === 0 ? ok('un solo aviso al cerrar') : mal(`además del resumen llegó: ${dobles.map(n => n.titulo).join(' | ')}`)
 } catch (err) {
   mal(String(err?.message ?? err))
 } finally {
