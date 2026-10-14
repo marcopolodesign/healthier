@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Star, SealCheck, Warning, Pill, FileText, CircleNotch } from '@phosphor-icons/react'
+import { Star, SealCheck, Warning, Pill, FileText } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
 import { contenidoDeCierre, estadoDelCierre, estaCerrada } from '../../lib/cierreConsulta'
 import { consultationsService } from '../../services/consultationsService'
@@ -44,9 +44,12 @@ export default function ConsultationReview({ profile }) {
   const [done, setDone] = useState(false)
   const [falloResena, setFalloResena] = useState(false)
 
-  // Estado y contenido en vivo: Realtime, más un sondeo y un refresco al volver a
-  // la pestaña. Los sockets se caen en silencio; sin el respaldo "Estamos
-  // preparando…" quedaba clavado para siempre.
+  // Estado y contenido en vivo. Realtime (`postgres_changes`) sobre la consulta y
+  // sobre lo que el profesional va cargando —notas de tipo Indicación, receta y
+  // encuentro; esas tablas se publican con la migración 197—, más un sondeo de
+  // respaldo cada 10 s y un refresco al volver a la pestaña: antes de que la 197
+  // llegue a una base, o con el socket caído en silencio, el sondeo lo cubre igual.
+  // Al (re)conectar se vuelve a leer: lo que pasó con el canal caído no se reenvía.
   const statusRef = useRef(null)
   statusRef.current = consultation?.status
 
@@ -68,8 +71,9 @@ export default function ConsultationReview({ profile }) {
         .catch(() => {})
     }
     leer(true)
+    const sufijo = Math.random().toString(36).slice(2, 8)
     const ch = supabase
-      .channel(`cierre-estado-${consultationId}-${Math.random().toString(36).slice(2, 8)}`)
+      .channel(`cierre-estado-${consultationId}-${sufijo}`)
       .on('postgres_changes', {
         event: 'UPDATE', schema: 'public', table: 'consultations', filter: `id=eq.${consultationId}`,
       }, ({ new: fila }) => {
@@ -77,20 +81,29 @@ export default function ConsultationReview({ profile }) {
         if (fila?.status) setConsultation(prev => (prev ? { ...prev, status: fila.status } : prev))
         leer() // al cambiar de estado llegan también las notas de cierre y la receta
       })
-      .subscribe()
+      .subscribe(st => { if (st === 'SUBSCRIBED') leer() })
+    // Lo clínico: cualquier cambio de las filas de ESTE paciente vuelve a leer.
+    let clinico = null
+    if (profile?.id) {
+      clinico = supabase.channel(`cierre-clinico-${consultationId}-${sufijo}`)
+      for (const table of ['clinical_entries', 'clinical_medications', 'clinical_encounters']) {
+        clinico = clinico.on('postgres_changes', { event: '*', schema: 'public', table, filter: `patient_id=eq.${profile.id}` }, () => { if (vivo) leer() })
+      }
+      clinico.subscribe()
+    }
     const alVolver = () => { if (document.visibilityState === 'visible') leer() }
     document.addEventListener('visibilitychange', alVolver)
-    // Mientras cierra se sigue sondeando: el contenido llega de a poco.
+    // Mientras no esté completada se sigue sondeando: el contenido llega de a poco.
     const iv = setInterval(() => {
-      const st = statusRef.current
-      if (estaCerrada(st) && st !== 'completed') return
+      if (estaCerrada(statusRef.current)) return
       leer()
-    }, 8000)
+    }, 10000)
     return () => {
       vivo = false
       clearInterval(iv)
       document.removeEventListener('visibilitychange', alVolver)
       supabase.removeChannel(ch)
+      if (clinico) supabase.removeChannel(clinico)
     }
   }, [consultationId, profile?.id])
 
@@ -200,11 +213,14 @@ export default function ConsultationReview({ profile }) {
 
         {/* 2 · Lo que dejó el profesional, en vivo */}
         {seccion === 'preparando' && (
-          <div data-testid="cierre-preparando" className="flex items-center gap-3 bg-brand-muted border border-border-default rounded-[24px] p-4 mb-8">
-            <CircleNotch className="w-6 h-6 text-brand animate-spin flex-shrink-0" />
-            <div className="min-w-0">
-              <p className="font-bold text-[16px] leading-snug text-text-primary">Estamos preparando tus indicaciones y tu receta</p>
-              <p className="text-[14px] leading-5 text-text-secondary mt-1">Te avisamos cuando estén listas, aunque salgas de acá.</p>
+          <div data-testid="cierre-preparando" className="mb-8 space-y-2">
+            <div className="flex items-center gap-2 mb-1">
+              <FileText className="w-[18px] h-[18px] text-brand" />
+              <h2 className="text-[20px] leading-6 text-text-primary">Tus documentos</h2>
+            </div>
+            <div className="bg-bg-secondary border border-border-default rounded-[20px] p-4 shadow-sm min-h-[76px]">
+              <p className="text-[15px] leading-5 font-semibold text-text-primary">Tu profesional los está preparando</p>
+              <p className="text-[14px] leading-5 text-text-secondary mt-0.5">Los vas a ver acá apenas termine de cargarlos. Si salís, te avisamos.</p>
             </div>
           </div>
         )}
@@ -217,7 +233,7 @@ export default function ConsultationReview({ profile }) {
         )}
 
         {seccion === 'contenido' && (
-          <div data-testid="cierre-contenido">
+          <div data-testid="cierre-contenido" className="animate-[fadeIn_200ms_ease-out] motion-reduce:animate-none">
             {contenido.indicaciones.length > 0 && (
               <div className="mb-8 space-y-2">
                 <div className="flex items-center gap-2 mb-1">
@@ -255,10 +271,10 @@ export default function ConsultationReview({ profile }) {
               </div>
             )}
             {consultation?.status === 'closing' && (
-              <p className="flex items-center gap-2 text-[14px] leading-5 text-text-secondary mb-8">
-                <CircleNotch className="w-4 h-4 text-brand animate-spin flex-shrink-0" />
-                Tu profesional sigue cargando datos. Se actualiza solo.
-              </p>
+              <div data-testid="cierre-sigue" className="mb-8 bg-bg-secondary border border-border-default rounded-[20px] p-4 shadow-sm min-h-[76px]">
+                <p className="text-[15px] leading-5 font-semibold text-text-primary">Tu profesional sigue cargando</p>
+                <p className="text-[14px] leading-5 text-text-secondary mt-0.5">Si suma una receta u otro documento, aparece acá.</p>
+              </div>
             )}
           </div>
         )}

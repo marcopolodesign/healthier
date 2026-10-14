@@ -71,6 +71,15 @@ prueba('ConsultationReview: el inicio se alcanza sólo desde volverAlInicio', ()
 prueba('ConsultationReview: si la reseña falla se muestra el error real y no "Gracias"', () => {
   assert.match(cierre, /catch \(err\)[\s\S]{0,300}toast\.error\(err\?\.message/)
 })
+prueba('ConsultationReview: sin spinner suelto (CircleNotch) ni "Se actualiza solo"', () => {
+  assert.doesNotMatch(cierre, /CircleNotch/)
+  assert.doesNotMatch(cierre, /Se actualiza solo/)
+})
+prueba('ConsultationReview: escucha en vivo la consulta y las tablas clínicas, y sondea cada 10 s de respaldo', () => {
+  for (const t of ['consultations', 'clinical_entries', 'clinical_medications', 'clinical_encounters']) assert.match(cierre, new RegExp(t))
+  assert.match(cierre, /\}, 10000\)/)
+})
+prueba('ConsultationReview: al (re)conectar el canal se vuelve a leer', () => assert.match(cierre, /SUBSCRIBED'\) leer\(\)/))
 prueba('ConsultationReview: el comentario aparece recién con estrellas', () => assert.match(cierre, /rating > 0 && \(/))
 prueba('ConsultationReview: sin textos por debajo de 14px', () => {
   const chicos = [...cierre.matchAll(/text-\[(\d+)px\]/g)].map(m => +m[1]).filter(n => n < 14)
