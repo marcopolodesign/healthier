@@ -29,6 +29,7 @@ import { toast } from '../../components/Toast'
 import DerivadoChip from '../../components/professional/DerivadoChip'
 import { useNavigate } from 'react-router-dom'
 import { nombreDePila } from '../../lib/format'
+import { agendaDelDia, esBonificada, sumarGanancias } from '../../lib/agendaProfesional'
 
 const CODE_COLORS = { ROJO: 'bg-red-600', AMARILLO: 'bg-amber-500', VERDE: 'bg-emerald-600' }
 
@@ -137,12 +138,11 @@ function TarjetaPractica({ enFila = false }) {
 
 function getThisMonthEarnings(earningsData) {
   const now = new Date()
-  return earningsData
-    .filter(c => {
-      const d = new Date(c.completedAt || c.scheduledAt)
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-    })
-    .reduce((sum, c) => sum + (c.priceAtBooking || 0), 0)
+  // Una bonificada (payment_status = 'exempt') no suma plata.
+  return sumarGanancias(earningsData.filter(c => {
+    const d = new Date(c.completedAt || c.scheduledAt)
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+  }))
 }
 
 const MP_ERROR_MESSAGES = {
@@ -266,10 +266,7 @@ export default function ProfessionalDashboard({ profile }) {
     }
   }, [profile?.id])
 
-  const today = consultations.filter(c => {
-    if (!c.scheduledAt) return false
-    return new Date(c.scheduledAt).toDateString() === new Date().toDateString()
-  })
+  const today = agendaDelDia(consultations)
 
   const waitingInfo = useWaitingPresence(consultations, profile?.id)
   const [admittingId, setAdmittingId] = useState(null)
@@ -1069,7 +1066,7 @@ export default function ProfessionalDashboard({ profile }) {
                         {c.profiles?.fullName || c.profiles?.full_name || 'Paciente'}
                       </p>
                       <p className="text-xs text-text-secondary">
-                        {c.scheduledAt ? new Date(c.scheduledAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                        {c.scheduledAt ? new Date(c.scheduledAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '—'}{esBonificada(c) && ' · Bonificada'}
                       </p>
                       <DerivadoChip derivacion={c.derivacion} />
                     </div>

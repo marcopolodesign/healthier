@@ -9,6 +9,7 @@ import StatusBadge from '../../components/StatusBadge'
 import DerivadoChip from '../../components/professional/DerivadoChip'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
 import { useWaitingPresence } from '../../hooks/useWaitingPresence'
+import { agendaDelDia, esBonificada } from '../../lib/agendaProfesional'
 import LlegadaBadge, { useLlegadas } from '../../components/professional/LlegadaPaciente'
 
 const DAYS = [
@@ -62,11 +63,7 @@ export default function Agenda({ profile }) {
   useEffect(() => {
     if (!profile?.id) return
     consultationsService.getByProfessional(profile.id).then(all => {
-      const today = all.filter(c => {
-        if (!c.scheduledAt) return false
-        return new Date(c.scheduledAt).toDateString() === new Date().toDateString()
-      })
-      setTodayConsultations(today)
+      setTodayConsultations(agendaDelDia(all))
     }).catch(() => toast.error('Error al cargar las consultas de hoy'))
   }, [profile?.id])
 
@@ -185,7 +182,7 @@ export default function Agenda({ profile }) {
               <div className={`w-2 h-2 rounded-full shrink-0 ${isVideo ? 'bg-brand' : 'bg-green-500'}`} />
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-text-primary text-sm truncate">{patientName}</p>
-                <p className="text-xs text-text-secondary">{isVideo ? 'Videoconsulta' : 'Presencial'} · {time}</p>
+                <p className="text-xs text-text-secondary">{isVideo ? 'Videoconsulta' : 'Presencial'} · {time}{esBonificada(c) && ' · Bonificada'}</p>
                 <DerivadoChip derivacion={c.derivacion} />
               </div>
               {waiting ? <PatientWaitingBadge since={since} />
