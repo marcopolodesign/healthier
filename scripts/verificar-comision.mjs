@@ -76,7 +76,10 @@ async function efectiva(professionalId, patientId) {
 const dias = (n) => new Date(Date.now() + n * 86400000).toISOString()
 
 async function asegurarPacienteReferido(referrerId) {
-  let p = await rest(`profiles?select=id,referred_by_professional_id&email=eq.${encodeURIComponent(PACIENTE_REFERIDO)}`)
+  // `titular_id=is.null`: los familiares (181) heredan el mail del titular en
+  // `profiles.email`; sin el filtro, a veces volvía el familiar y el cobro salía
+  // con la sesión de otra persona ("Missing required fields for card charge").
+  let p = await rest(`profiles?select=id,referred_by_professional_id&email=eq.${encodeURIComponent(PACIENTE_REFERIDO)}&titular_id=is.null`)
   if (!p.data?.[0]) {
     const r = await fetch(`${env.url}/auth/v1/admin/users`, {
       method: 'POST', headers: svcHeaders,
@@ -84,7 +87,7 @@ async function asegurarPacienteReferido(referrerId) {
     })
     if (!r.ok) throw new Error(`No se pudo crear ${PACIENTE_REFERIDO}: ${await r.text()}`)
     await new Promise(res => setTimeout(res, 800))
-    p = await rest(`profiles?select=id,referred_by_professional_id&email=eq.${encodeURIComponent(PACIENTE_REFERIDO)}`)
+    p = await rest(`profiles?select=id,referred_by_professional_id&email=eq.${encodeURIComponent(PACIENTE_REFERIDO)}&titular_id=is.null`)
   }
   const fila = p.data[0]
   if (!fila.referred_by_professional_id) {
