@@ -52,6 +52,17 @@ test('los dos lugares de edición usan conCoordenadas y avisan si no se ubicó',
   assert.match(admin, /no pudimos ubicarla en el mapa/)
 })
 
+test('los pedidos a Nominatim hacen cola (un bloqueo por ráfaga se leía como "no existe")', () => {
+  const t = readFileSync(join(SRC, 'lib/geo.js'), 'utf8')
+  assert.match(t, /await turnoNominatim\(signal\)/)
+})
+
+test('el pedido del browser no lleva headers propios (preflight CORS de Nominatim)', () => {
+  const t = readFileSync(join(SRC, 'lib/geo.js'), 'utf8')
+  assert.doesNotMatch(t, /headers:\s*\{[^}]*User-Agent/, 'User-Agent en el fetch del browser dispara un preflight que Nominatim rechaza')
+  assert.match(t, /typeof window === 'undefined'/)
+})
+
 test('Melody: se quitan CP, "Province" y el nombre doble, y sale "Zárate 99, Villa Progreso"', () => {
   const v = variantesDeDireccion(MELODY)
   assert.ok(v.includes('Zárate 99, Villa Progreso'), v.join(' | '))

@@ -27,6 +27,42 @@ export function formatDistance(km) {
   return `${km.toFixed(1).replace('.', ',')} km`
 }
 
+// Nominatim pide un pedido por segundo; pasado eso bloquea la IP un rato y el
+// browser lo ve como "Failed to fetch" (sin CORS), igual que una dirección que
+// no existe. Autocompletar + guardar en ráfaga lo disparaba y la dirección
+// quedaba "sin ubicar" por un bloqueo, no por la dirección (2026-10-14, probado
+// en staging). Todos los pedidos de la página hacen cola acá.
+// Node (scripts y tests) sí tiene que identificarse; el browser no puede ni debe.
+const HEADERS_SERVIDOR = typeof window === 'undefined'
+  ? { 'User-Agent': 'Healthier-MVP/1.0 (mateoaldao@gmail.com)' }
+  : undefined
+const ESPERA_NOMINATIM_MS = 1100
+let ultimoPedido = 0
+let cola = Promise.resolve()
+const abortado = () => new DOMException('Aborted', 'AbortError')
+
+/**
+ * Cola en serie: cada pedido sale 1,1 s después del anterior. Un pedido
+ * cancelado (el autocompletado cancela el de cada tecla) sale de la cola sin
+ * reservar ni hacer esperar a nadie — si reservara turno, tipear 70 letras
+ * dejaba el guardado esperando un minuto (visto en staging).
+ */
+function turnoNominatim(signal) {
+  const mio = cola.then(async () => {
+    if (signal?.aborted) throw abortado()
+    const espera = ultimoPedido + ESPERA_NOMINATIM_MS - Date.now()
+    if (espera > 0) {
+      await new Promise((resolve, reject) => {
+        const t = setTimeout(resolve, espera)
+        signal?.addEventListener('abort', () => { clearTimeout(t); reject(abortado()) }, { once: true })
+      })
+    }
+    ultimoPedido = Date.now()
+  })
+  cola = mio.catch(() => {})
+  return mio
+}
+
 // Nominatim address autocomplete — Argentine addresses only.
 // Returns [{ displayName, lat, lng }]
 export async function searchAddresses(query, signal) {
@@ -37,16 +73,16 @@ export async function searchAddresses(query, signal) {
     countrycodes: 'ar',
     limit: '5',
     addressdetails: '1',
+    // Por query y no por header: un header propio (User-Agent) vuelve el pedido
+    // "no simple" para CORS, el browser manda un preflight y Nominatim lo rechaza
+    // a ratos — "Failed to fetch" en 20 ms, que se leía como "no existe"
+    // (staging, 2026-10-14). Nominatim identifica al sitio por el Referer.
+    'accept-language': 'es',
   })
+  await turnoNominatim(signal)
   const res = await fetch(
     `https://nominatim.openstreetmap.org/search?${params}`,
-    {
-      signal,
-      headers: {
-        'User-Agent': 'Healthier-MVP/1.0 (mateoaldao@gmail.com)',
-        'Accept-Language': 'es',
-      },
-    }
+    { signal, headers: HEADERS_SERVIDOR }
   )
   if (!res.ok) return []
   const data = await res.json()
@@ -155,26 +191,25 @@ export function variantesDeDireccion(direccion) {
   return candidatasDeDireccion(direccion).map(c => c.q)
 }
 
-const pausa = ms => new Promise(r => setTimeout(r, ms))
-
 // Geocode a single address string — returns { lat, lng } or null.
-// Nominatim pide 1 pedido por segundo: entre candidatas hay una pausa, y un
-// 429 no se confunde con "no existe" (devuelve null igual, pero sin seguir).
-export async function geocodeAddress(address, { pausaMs = 1100 } = {}) {
+// El ritmo de Nominatim lo cuida `turnoNominatim`; un pedido que falla por red
+// (bloqueo momentáneo) se reintenta una vez antes de pasar a la siguiente.
+export async function geocodeAddress(address) {
   if (!address || address.trim().length < 3) return null
-  let primera = true
   for (const { q, exigir } of candidatasDeDireccion(address)) {
-    if (!primera && pausaMs) await pausa(pausaMs)
-    primera = false
-    try {
-      const results = await searchAddresses(q)
-      const hit = exigir
-        ? results.find(r => sinAcentos(r.displayName).includes(sinAcentos(exigir)))
-        : results[0]
-      if (hit) return { lat: hit.lat, lng: hit.lng }
-    } catch {
-      return null
+    let results = null
+    for (let intento = 0; intento < 2 && results === null; intento++) {
+      try {
+        results = await searchAddresses(q)
+      } catch {
+        await new Promise(r => setTimeout(r, 2500))
+      }
     }
+    if (!results) continue
+    const hit = exigir
+      ? results.find(r => sinAcentos(r.displayName).includes(sinAcentos(exigir)))
+      : results[0]
+    if (hit) return { lat: hit.lat, lng: hit.lng }
   }
   return null
 }
@@ -182,8 +217,7 @@ export async function geocodeAddress(address, { pausaMs = 1100 } = {}) {
 // Nominatim reverse geocode — returns a short street address string.
 export async function reverseGeocode(lat, lng) {
   const res = await fetch(
-    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
-    { headers: { 'User-Agent': 'Healthier-MVP/1.0 (mateoaldao@gmail.com)' } }
+    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
   )
   if (!res.ok) return null
   const data = await res.json()
