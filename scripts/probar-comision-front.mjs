@@ -13,6 +13,13 @@
 //    Credits —le carga el saldo justo antes— y pasa igual por mp-payment.
 //    Después mira la fila de `payments` y la columna en /super-admin/pagos, y
 //    borra lo que creó.
+// 4. (--paso=referido o todo) El mismo paciente, marcado SÓLO durante la
+//    prueba como referido por el profesional normal, le paga desde el wizard
+//    → 0% "referido". Se le devuelve el `referred_by_professional_id` que tenía.
+//
+// Las dos cuentas de staging se llaman "Valentina Ortega": se distinguen por
+// la cantidad de reseñas (RESENAS_EXENTO / RESENAS_NORMAL, por defecto las de
+// clinica@ y profesional@ al 2026-10-14).
 import { chromium } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { cargarEnv, sesionDe, llaveSesion } from './guia/sesion.mjs'
@@ -44,6 +51,11 @@ const rest = async (path, opts = {}) => {
   const t = await r.text(); return t ? JSON.parse(t) : null
 }
 const PACIENTE = 'paciente.completo@staging.healthier.app'
+const NORMAL = 'profesional@healthier.app'
+const RESENAS_EXENTO = process.env.RESENAS_EXENTO ?? '(4 reseñas)'
+const RESENAS_NORMAL = process.env.RESENAS_NORMAL ?? '(1 reseñas)'
+const tarjetaExento = l => l.filter({ hasText: RESENAS_EXENTO })
+const tarjetaNormal = l => l.filter({ hasText: RESENAS_NORMAL })
 
 /** Reserva + pago desde el front. `nombre` filtra la tarjeta del profesional. */
 async function reservarYPagar(browser, { filtro, captura }) {
@@ -159,12 +171,12 @@ try {
       creados.creditos.push(c.id)
     }
 
-    const exento = await reservarYPagar(browser, { filtro: l => l.filter({ hasNotText: 'Dra.' }), captura: '7-exento' })
+    const exento = await reservarYPagar(browser, { filtro: tarjetaExento, captura: '7-exento' })
     if (exento) creados.consultas.push(exento.consultation_id)
     ok(exento?.professional?.email === PRO && Number(exento.commission_rate_applied) === 0 && exento.commission_source === 'profesional' && Number(exento.net_to_professional) === Number(exento.gross_amount),
       `pago con el exento: ${JSON.stringify(exento && { pro: exento.professional?.email, rate: exento.commission_rate_applied, src: exento.commission_source, bruto: exento.gross_amount, neto: exento.net_to_professional, estado: exento.status })}`)
 
-    const normal = await reservarYPagar(browser, { filtro: l => l.filter({ hasText: 'Dra.' }), captura: '8-normal' })
+    const normal = await reservarYPagar(browser, { filtro: tarjetaNormal, captura: '8-normal' })
     if (normal) creados.consultas.push(normal.consultation_id)
     const [{ commission_rate: general }] = await rest('platform_settings?select=commission_rate&id=eq.1')
     ok(normal && Number(normal.commission_rate_applied) === Number(general) && normal.commission_source === 'general' && Number(normal.net_to_professional) === Math.round(Number(normal.gross_amount) * (1 - Number(general)) * 100) / 100,
@@ -182,6 +194,35 @@ try {
     await tasas.first().scrollIntoViewIfNeeded().catch(() => {})
     await page.screenshot({ path: `${OUT}/9-super-pagos.png` })
     await page.context().close()
+  }
+  if (PASO === 'referido' || PASO === 'todo') {
+    const [pac] = await rest(`profiles?select=id,referred_by_professional_id&email=eq.${encodeURIComponent(PACIENTE)}&role=eq.patient&order=created_at.asc&limit=1`)
+    const [pro] = await rest(`profiles?select=id&email=eq.${encodeURIComponent(NORMAL)}&role=eq.professional&limit=1`)
+    const saldo = Number(await rest('rpc/get_credit_balance', { method: 'POST', body: JSON.stringify({ p_patient: pac.id }) }))
+    if (saldo < 18000) {
+      const [c] = await rest('patient_credits', { method: 'POST', body: JSON.stringify({ patient_id: pac.id, amount: 18000 - saldo, reason: 'adjustment', note: 'probar-comision-front.mjs' }) })
+      creados.creditos.push(c.id)
+    }
+    await rest(`profiles?id=eq.${pac.id}`, { method: 'PATCH', body: JSON.stringify({ referred_by_professional_id: pro.id }) })
+    try {
+      const ref = await reservarYPagar(browser, { filtro: tarjetaNormal, captura: '10-referido' })
+      if (ref) creados.consultas.push(ref.consultation_id)
+      ok(ref?.professional?.email === NORMAL && Number(ref.commission_rate_applied) === 0 && ref.commission_source === 'referido' && Number(ref.net_to_professional) === Number(ref.gross_amount),
+        `pago de un paciente referido: ${JSON.stringify(ref && { pro: ref.professional?.email, rate: ref.commission_rate_applied, src: ref.commission_source, bruto: ref.gross_amount, neto: ref.net_to_professional, estado: ref.status })}`)
+      const page = await abrirComo(browser, SUPER)
+      await page.goto(`${BASE}/super-admin/dashboard`)
+      await page.getByRole('link', { name: /^Pagos$/ }).first().click()
+      await page.waitForURL(/super-admin\/pagos/)
+      const tasas = page.getByTestId('tasa-aplicada')
+      await tasas.first().waitFor({ timeout: 20000 }).catch(() => {})
+      const textos = await tasas.allInnerTexts()
+      ok(/referido/i.test(textos[0] ?? ''), `super admin / Pagos (último cobro): ${JSON.stringify(textos[0])}`)
+      await tasas.first().scrollIntoViewIfNeeded().catch(() => {})
+      await page.screenshot({ path: `${OUT}/11-super-pagos-referido.png` })
+      await page.context().close()
+    } finally {
+      await rest(`profiles?id=eq.${pac.id}`, { method: 'PATCH', body: JSON.stringify({ referred_by_professional_id: pac.referred_by_professional_id }) })
+    }
   }
 } finally {
   await browser.close()
