@@ -26,7 +26,7 @@ export function nombreCorto(fullName) {
 export function textoSalaHabilitada(fullName) {
   const n = nombreCorto(fullName)
   return {
-    titulo: n ? `${n} te está esperando` : 'Tu profesional te está esperando',
+    titulo: n ? `${n}\nte está esperando` : 'Tu profesional te está esperando',
     sub: 'Ya te habilitó. Entrá cuando quieras.',
   }
 }

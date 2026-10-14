@@ -326,7 +326,7 @@ export default function WaitingRoom({ profile }) {
       {/* Status title + mensaje — habilitado: "<profesional> te está esperando"
           (Mateo + Felipe, 2026-10-13), mismo texto que la app. */}
       <div key={canEnter ? 'habilitado' : 'esperando'} className={`flex flex-col items-center ${canEnter ? 'animate-fade-in' : ''}`} aria-live="polite">
-        <h1 className="text-[28px] font-medium text-text-primary text-center leading-[34px] mb-2 max-w-sm" data-testid="sala-titulo">
+        <h1 className="text-[28px] font-medium text-text-primary text-center leading-[34px] mb-2 max-w-sm whitespace-pre-line" data-testid="sala-titulo">
           {canEnter ? textoHabilitado.titulo : 'Sala de espera'}
         </h1>
         <p className="text-[15px] text-text-secondary text-center leading-5 mb-6 max-w-xs">
