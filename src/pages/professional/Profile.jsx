@@ -15,9 +15,15 @@ import { inicialesDe } from '../../lib/format'
 import NombreApellidoInputs from '../../components/common/NombreApellidoInputs'
 import { nombreApellidoDe, validarNombreApellido, nombreNormalizado, armarNombreCompleto } from '../../lib/nombreApellido'
 
+const MENSAJE_SIN_UBICAR =
+  'No pudimos ubicar tu dirección en el mapa, y los pacientes no te ven hasta que se ubique. Elegí una sugerencia de la lista o ajustala (calle, número y localidad).'
+
 export default function ProfessionalProfile({ profile, onProfileUpdate }) {
   const { especialidades, activas, porSlug, subEspecialidadesDe } = useEspecialidades()
   const [profData, setProfData] = useState(null)
+  // La dirección guardada no se pudo ubicar en el mapa: sin coordenadas el
+  // paciente no ve al profesional. Se avisa al guardar y queda el aviso (2026-10-14).
+  const [direccionSinUbicar, setDireccionSinUbicar] = useState(false)
   const [form, setForm] = useState({
     specialty: '', subSpecialty: '', bio: '',
     address: '', latitude: null, longitude: null,
@@ -57,6 +63,7 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
     if (!profile?.id) return
     professionalService.getByUserId(profile.id).then(p => {
       setProfData(p)
+      if (p) setDireccionSinUbicar(Boolean(p.address?.trim()) && (p.latitude == null || p.longitude == null))
       if (p) setForm({
         specialty:    p.specialty    || '',
         subSpecialty: p.subSpecialty || '',
@@ -105,6 +112,8 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
       // dirección anterior — el pin del mapa seguía en la vieja.
       const payload = { ...profData, ...form, ...(await conCoordenadas(form)) }
       const guardado = await professionalService.upsert(profile.id, payload)
+      const sinUbicar = Boolean(payload.address) && (payload.latitude == null || payload.longitude == null)
+      setDireccionSinUbicar(sinUbicar)
       // Quedarse con lo que devolvió el servidor y no con el payload:
       // `is_verified` y `reverification_pending` los decide el trigger, así que
       // lo que se mandó no es lo que quedó. Sin esto el aviso volvería a
@@ -130,6 +139,7 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
       } else {
         toast.success('Perfil actualizado')
       }
+      if (sinUbicar) toast.warning(MENSAJE_SIN_UBICAR)
     } catch (err) {
       toast.error(`Error al guardar: ${err.message}`)
     } finally {
@@ -232,10 +242,17 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
           <AddressAutocomplete
             label="Dirección del consultorio"
             value={{ address: form.address, latitude: form.latitude, longitude: form.longitude }}
-            onChange={({ address, latitude, longitude }) =>
+            onChange={({ address, latitude, longitude }) => {
               setForm(p => ({ ...p, address, latitude, longitude }))
-            }
+              // Elegir una sugerencia trae sus coordenadas: el aviso ya no corresponde.
+              if (latitude != null && longitude != null) setDireccionSinUbicar(false)
+            }}
           />
+          {direccionSinUbicar && (
+            <p className="flex items-start gap-1.5 text-sm text-warning -mt-2" data-testid="direccion-sin-ubicar" role="alert">
+              <Warning className="h-4 w-4 shrink-0 mt-0.5" /> {MENSAJE_SIN_UBICAR}
+            </p>
+          )}
           {/* Verificación del consultorio contra REFES (migración 196). Nunca
               bloquea: sin match, lo revisa Healthier y se sigue atendiendo igual. */}
           {profData?.address && form.address === profData.address && profData.refesEstado && (

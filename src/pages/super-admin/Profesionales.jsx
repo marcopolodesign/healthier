@@ -461,12 +461,16 @@ function ProfessionalDrawer({ pro, duplicados = [], onClose, onUpdated }) {
     // profesional atienda sólo por video (Innovamed QBI248). Se la carga el
     // super admin cuando el profesional no llega (Mateo, 2026-09-28).
     if (direccion.address.trim() !== (detail?.address ?? '')) {
+      const ubicada = await conCoordenadas(direccion)
       const { error } = await supabase
         .from('professional_profiles')
         // Con coordenadas: sin ellas el profesional no sale en el mapa del paciente.
-        .update(await conCoordenadas(direccion))
+        .update(ubicada)
         .eq('id', pro.id)
       if (error) { toast.error(`Error al guardar la dirección: ${error.message}`); return }
+      if (ubicada.address && ubicada.latitude == null) {
+        toast.warning('Guardamos la dirección pero no pudimos ubicarla en el mapa: el profesional no sale a los pacientes hasta que se elija una sugerencia o se ajuste.')
+      }
     }
 
     // Save license to professional_profiles

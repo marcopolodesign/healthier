@@ -2,6 +2,7 @@ import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 import { aBlobSubible, extensionDe, TIPOS_DOCUMENTO } from '../lib/archivoSubible'
 import { subirConProgreso } from '../lib/subidaConProgreso'
 import { PRECIO_MINIMO } from '../lib/tarifas'
+import { conCoordenadas } from '../lib/geo'
 
 /*
  * Profesionales de prueba: ya NO se filtran acá. Desde la migración 186 lo
@@ -88,6 +89,13 @@ export const professionalService = {
     // callers often spread the whole record back in (e.g. Configuracion.jsx's saveTarifas/saveCuenta),
     // and sending it here 400s the whole upsert since it isn't a real column.
     const { profiles, ...rest } = profileData
+    // Red de seguridad: una dirección que llega SIN `latitude` (ni null, que
+    // significa "ya se intentó y no se pudo") nunca se guarda sin intentar
+    // ubicarla. Los lugares donde se edita la dirección ya llaman a
+    // `conCoordenadas`; esto cubre al que se agregue después.
+    if (rest.address && rest.latitude === undefined) {
+      Object.assign(rest, await conCoordenadas({ address: rest.address }))
+    }
     const payload = { ...toSnakeCase(rest), user_id: userId }
     const { data, error } = await supabase
       .from('professional_profiles')
