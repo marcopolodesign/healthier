@@ -25,6 +25,7 @@ import ScribeSession from '../../components/professional/ScribeSession'
 import DerivarModal from '../../components/professional/DerivarModal'
 import DerivadoPorCard from '../../components/professional/DerivadoPorCard'
 import { toast } from '../../components/Toast'
+import { esBonificada } from '../../lib/agendaProfesional'
 
 export default function ConsultationDetail({ profile }) {
   const { id } = useParams()
@@ -680,7 +681,14 @@ export default function ConsultationDetail({ profile }) {
       )}
 
       {/* Cobro de esta consulta */}
-      <ConsultationPaymentCard payment={consultation.payment} />
+      {esBonificada(consultation) ? (
+        <div className="card flex items-center justify-between gap-3" data-testid="cobro-bonificada">
+          <h2 className="font-semibold text-text-primary">Cobro</h2>
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700">Bonificada</span>
+        </div>
+      ) : (
+        <ConsultationPaymentCard payment={consultation.payment} />
+      )}
 
       {/* Si el paciente llegó por una derivación: de quién, por qué y qué se puede ver. */}
       <DerivadoPorCard derivacion={derivacion} />

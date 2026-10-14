@@ -4,6 +4,7 @@ import { ClockCounterClockwise, MagnifyingGlass, Users, VideoCamera, MapPin, Car
 import { consultationsService } from '../../services/consultationsService'
 import StatusBadge from '../../components/StatusBadge'
 import { toast } from '../../components/Toast'
+import { enHistorial } from '../../lib/agendaProfesional'
 
 const STATUS_FILTERS = [
   { value: 'all',       label: 'Todas' },
@@ -33,15 +34,7 @@ export default function Historial({ profile }) {
     if (!profile?.id) return
     consultationsService.getByProfessional(profile.id)
       .then(data => {
-        const now = new Date()
-        const past = data.filter(c => {
-          const isPast = c.scheduledAt && new Date(c.scheduledAt) < now
-          // 'expired' y 'no_show' los escribe el cron una vez vencida la fecha —
-          // son siempre turnos cerrados (ver docs/estados-consulta.md).
-          const isTerminal = ['completed', 'cancelled', 'expired', 'no_show'].includes(c.status)
-          return isTerminal || isPast
-        })
-        setAll(past)
+        setAll(data.filter(c => enHistorial(c)))
       })
       .catch(() => toast.error('Error al cargar historial'))
       .finally(() => setLoading(false))
