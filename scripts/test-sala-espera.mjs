@@ -17,7 +17,7 @@ ok(nombreCorto('Dra. María Guadalupe Fernández Etcheverry') === 'Dra. María E
 ok(nombreCorto('Dra. Maximiliana Fernández-Etcheverry') === 'Dra. Fernández-Etcheverry', 'más de 24 caracteres → tratamiento + apellido')
 ok(nombreCorto('') === null && nombreCorto(null) === null, 'sin nombre → null')
 ok(textoSalaHabilitada(null).titulo === 'Tu profesional te está esperando', 'sin nombre: "Tu profesional te está esperando"')
-ok(textoSalaHabilitada('Dra. Valentina Ortega').titulo === 'Dra. Valentina Ortega te está esperando', 'con nombre')
+ok(textoSalaHabilitada('Dra. Valentina Ortega').titulo === 'Dra. Valentina Ortega\nte está esperando', 'con nombre, cortado antes de "te está esperando"')
 ok(textoSalaHabilitada('x').sub === 'Ya te habilitó. Entrá cuando quieras.', 'subtítulo')
 
 const sala = readFileSync(new URL('../src/pages/patient/WaitingRoom.jsx', import.meta.url), 'utf8')
