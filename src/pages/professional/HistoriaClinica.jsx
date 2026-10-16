@@ -362,7 +362,7 @@ export default function HistoriaClinica({ profile }) {
   const [consultas, setConsultas] = useState([])
   const [loadingConsultas, setLoadingConsultas] = useState(true)
   const [derivaciones, setDerivaciones] = useState([])
-  const { porSlug } = useEspecialidades()
+  const { porSlug, usaHistoriaClinica, cargando: cargandoEsp } = useEspecialidades()
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('notas')
 
@@ -375,6 +375,14 @@ export default function HistoriaClinica({ profile }) {
   const licenseType = pp?.licenseType ?? 'MN'
   const licenseNumber = pp?.licenseNumber ?? '0'
   const specialty = pp?.specialty ?? 'otra'
+
+  // Su vertical no tiene historia clínica (migración 200, ej. Odontología):
+  // la pantalla no se ofrece en ningún lado; si llega por la URL, a la ficha.
+  useEffect(() => {
+    if (!cargandoEsp && pp?.specialty && !usaHistoriaClinica(pp.specialty) && patientId) {
+      navigate(`/profesional/paciente/${patientId}`, { replace: true })
+    }
+  }, [cargandoEsp, pp?.specialty, usaHistoriaClinica, patientId, navigate])
 
   useEffect(() => {
     Promise.all([

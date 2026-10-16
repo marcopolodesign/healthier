@@ -73,7 +73,9 @@ export default function ProfessionalPatientProfile({ profile }) {
   const [savingFollowup, setSavingFollowup] = useState(false)
 
   // ── Derivaciones de este paciente que hice o recibí ──────────────────────
-  const { porSlug } = useEspecialidades()
+  const { porSlug, usaHistoriaClinica } = useEspecialidades()
+  // Herramienta de su vertical (migración 200).
+  const verHistoriaClinica = usaHistoriaClinica(profile?.professionalProfiles?.[0]?.specialty)
   const [derivarOpen, setDerivarOpen] = useState(false)
   const [derivaciones, setDerivaciones] = useState([])
   const [cancelandoId, setCancelandoId] = useState(null)
@@ -508,13 +510,15 @@ export default function ProfessionalPatientProfile({ profile }) {
       />
 
       {/* ── Historia clínica link ── */}
-      <Link
-        to={`/profesional/historia-clinica/${patientId}`}
-        className="btn-secondary w-full py-3 flex items-center justify-center gap-2"
-      >
-        <ClipboardText className="h-5 w-5" />
-        Ver historia clínica
-      </Link>
+      {verHistoriaClinica && (
+        <Link
+          to={`/profesional/historia-clinica/${patientId}`}
+          className="btn-secondary w-full py-3 flex items-center justify-center gap-2"
+        >
+          <ClipboardText className="h-5 w-5" />
+          Ver historia clínica
+        </Link>
+      )}
     </div>
   )
 }

@@ -102,7 +102,15 @@ async function tokenDePrueba(titular) {
   return j.id
 }
 
-const VERTICAL = 'clinica'
+// `VERTICAL=psiquiatria node scripts/verificar-despacho-ondemand.mjs` corre lo
+// mismo para otra vertical (2026-10-16, Psiquiatría separada de Clínica en la
+// migración 200): los dos profesionales de prueba toman, SÓLO durante la
+// corrida, la especialidad principal de esa vertical, y se restaura al final.
+const VERTICAL = process.env.VERTICAL || 'clinica'
+const { data: espVertical } = await admin.from('specialties').select('slug').eq('vertical_id', VERTICAL).is('parent_id', null).eq('active', true)
+const SLUGS = (espVertical ?? []).map(e => e.slug)
+const SLUG = SLUGS.includes('medicina_general') ? 'medicina_general' : SLUGS[0]
+if (!SLUG) throw new Error(`la vertical ${VERTICAL} no tiene especialidades`)
 const inicio = new Date().toISOString()
 const creados = { pedidos: [], consultas: [] }
 const restaurar = []
@@ -119,6 +127,7 @@ for (const pro of [proA, proB]) {
   restaurar.push(() => admin.from('professional_profiles').update(antes).eq('user_id', pro.id))
   await admin.from('professional_profiles').update({
     is_on_demand: true, on_demand_last_seen_at: new Date().toISOString(), mp_connected: true, is_verified: true, is_active: true,
+    ...(SLUGS.includes(antes.specialty) ? {} : { specialty: SLUG }),
   }).eq('user_id', pro.id)
   nota(`${pro.email} elegible (${antes.specialty})`)
 }
@@ -148,7 +157,7 @@ try {
   // ── Elegibilidad: el flag solo no alcanza (193) ──────────────────────────
   bloque('Elegibilidad')
   {
-    const elegible = async (pro) => (await admin.rpc('puede_tomar_ondemand', { p_user: pro.id, p_especialidades: ['medicina_general'] })).data
+    const elegible = async (pro) => (await admin.rpc('puede_tomar_ondemand', { p_user: pro.id, p_especialidades: [SLUG] })).data
     ;(await elegible(proB)) === true ? ok('con cuenta de MP activa, es elegible') : mal('con cuenta de MP no es elegible')
     await admin.from('mp_accounts').update({ active: false }).eq('professional_id', proB.id)
     ;(await elegible(proB)) === false
@@ -160,8 +169,8 @@ try {
   bloque('RLS')
   {
     const { error } = await paciente.c.from('ondemand_requests').insert({
-      patient_id: paciente.id, vertical: VERTICAL, specialty: 'medicina_general',
-      especialidades: ['medicina_general'], expires_at: new Date(Date.now() + 60000).toISOString(),
+      patient_id: paciente.id, vertical: VERTICAL, specialty: SLUG,
+      especialidades: SLUGS, expires_at: new Date(Date.now() + 60000).toISOString(),
     })
     error ? ok('el paciente NO puede insertar un pedido a mano (sólo por la función)') : mal('el paciente insertó un pedido salteando el pago')
     const { data: tokens } = await proA.c.from('ondemand_request_cobros').select('*')

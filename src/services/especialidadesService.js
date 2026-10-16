@@ -16,7 +16,10 @@ export const especialidadesService = {
   async getAll() {
     const { data, error } = await supabase
       .from('specialties')
-      .select('*')
+      // Las herramientas de la vertical (migración 200) viajan con cada
+      // especialidad: `useEspecialidades` las combina en puedeRecetar /
+      // usaHistoriaClinica.
+      .select('*, vertical:vertical_settings(herramienta_historia_clinica, herramienta_receta)')
       .order('sort_order', { ascending: true })
     if (error) throw error
     return (data ?? []).map(toCamelCase)
