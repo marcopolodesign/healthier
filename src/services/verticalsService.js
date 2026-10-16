@@ -1,19 +1,22 @@
 import { supabase, toCamelCase } from '../lib/supabase'
 
 /**
- * Configuración operativa de las verticales (migración 078).
+ * Las verticales (migración 078 + 199).
  *
- * Sólo dos cosas viven en la base: si la vertical está habilitada y cuánto sale
- * su consulta inmediata. La identidad visual (nombre, ícono, colores, imagen)
- * se queda en `src/lib/verticals.js` — ver el comentario de la migración para el
- * porqué de esa división.
+ * Desde la 199 viven acá también la identidad (nombre, color de fondo, clave de
+ * ícono, imagen) y se pueden CREAR desde /super-admin/verticales. La fila 'sos'
+ * (migración 087) comparte la tabla con `tipo = 'servicio'`: `getAll()` la
+ * devuelve igual (el panel la edita) y `useVerticales()` la filtra.
  */
+const COLUMNAS = 'id, nombre, color, icon, image_url, tipo, enabled, ondemand_price, sort_order'
+const BUCKET = 'verticales'
+
 export const verticalsService = {
-  /** Config de todas las verticales, ordenada. Lectura pública por RLS. */
+  /** Todas las filas, ordenadas. Lectura pública por RLS. */
   async getAll() {
     const { data, error } = await supabase
       .from('vertical_settings')
-      .select('id, enabled, ondemand_price, sort_order')
+      .select(COLUMNAS)
       .order('sort_order', { ascending: true })
     if (error) throw error
     return (data ?? []).map(toCamelCase)
@@ -22,13 +25,12 @@ export const verticalsService = {
   /**
    * Config de una sola fila por id. Usado por consumidores que no son
    * verticales clínicas (p. ej. `emergencyService.getSosSettings()`, fila
-   * 'sos' de la migración 087) — esta tabla es la única dueña de las lecturas
-   * de `vertical_settings`, no cada servicio con su propio `supabase.from()`.
+   * 'sos' de la migración 087).
    */
   async getById(id) {
     const { data, error } = await supabase
       .from('vertical_settings')
-      .select('id, enabled, ondemand_price, sort_order')
+      .select(COLUMNAS)
       .eq('id', id)
       .maybeSingle()
     if (error) throw error
@@ -36,27 +38,85 @@ export const verticalsService = {
   },
 
   /**
-   * Habilitar/deshabilitar y fijar precio. super_admin únicamente — lo impone la
-   * RLS, no este método.
+   * Editar una vertical. super_admin únicamente — lo impone la RLS.
+   * `undefined` = no tocar; `null` en precio/imagen = sacarlo.
    */
-  async update(id, { enabled, ondemandPrice }) {
+  async update(id, { enabled, ondemandPrice, nombre, color, icon, imageUrl, sortOrder }) {
     const { data: { user } } = await supabase.auth.getUser()
 
     const patch = { updated_at: new Date().toISOString(), updated_by: user?.id ?? null }
     if (enabled !== undefined) patch.enabled = enabled
-    // `null` es un valor válido a propósito: es "sin precio definido", distinto
-    // de "no lo toques" (undefined).
     if (ondemandPrice !== undefined) {
       patch.ondemand_price = ondemandPrice === null || ondemandPrice === '' ? null : Number(ondemandPrice)
     }
+    if (nombre !== undefined) patch.nombre = nombre.trim()
+    if (color !== undefined) patch.color = color ? color.toUpperCase() : null
+    if (icon !== undefined) patch.icon = icon
+    if (imageUrl !== undefined) patch.image_url = imageUrl
+    if (sortOrder !== undefined) patch.sort_order = sortOrder
 
     const { data, error } = await supabase
       .from('vertical_settings')
       .update(patch)
       .eq('id', id)
-      .select('id, enabled, ondemand_price, sort_order')
+      .select(COLUMNAS)
       .single()
     if (error) throw error
     return toCamelCase(data)
+  },
+
+  /**
+   * Alta de una vertical nueva + su especialidad homónima (mismo slug que el
+   * id). Sin la especialidad, la vertical no aparecería en el onboarding del
+   * profesional ni tendría a quién mandarle consultas: el pool sale de
+   * `specialties.vertical_id`.
+   *
+   * Arranca deshabilitada para el paciente salvo que venga con precio y
+   * `enabled: true`.
+   */
+  async create({ id, nombre, color, icon, imageUrl = null, ondemandPrice = null, enabled = false, sortOrder }) {
+    const { data: { user } } = await supabase.auth.getUser()
+    const fila = {
+      id,
+      nombre: nombre.trim(),
+      color: color ? color.toUpperCase() : null,
+      icon,
+      image_url: imageUrl,
+      ondemand_price: ondemandPrice === null || ondemandPrice === '' ? null : Number(ondemandPrice),
+      enabled: Boolean(enabled && ondemandPrice),
+      sort_order: sortOrder ?? 50,
+      tipo: 'vertical',
+      updated_by: user?.id ?? null,
+    }
+    const { data, error } = await supabase
+      .from('vertical_settings')
+      .insert(fila)
+      .select(COLUMNAS)
+      .single()
+    if (error) throw error
+
+    // La especialidad: si ya existe ese slug (alguien la creó a mano), se la
+    // cuelga de la vertical en vez de duplicarla.
+    const { data: existente } = await supabase
+      .from('specialties').select('id').eq('slug', id).maybeSingle()
+    const esp = existente
+      ? await supabase.from('specialties').update({ vertical_id: id, active: true }).eq('id', existente.id)
+      : await supabase.from('specialties').insert({ slug: id, label: nombre.trim(), vertical_id: id, active: true, sort_order: 100 })
+    if (esp.error) throw esp.error
+
+    return toCamelCase(data)
+  },
+
+  /** Sube la foto de la tarjeta al bucket público y devuelve su URL. */
+  async uploadImage(verticalId, file) {
+    const ext = (file.name?.split('.').pop() || 'jpg').toLowerCase()
+    const path = `${verticalId}/${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
+      cacheControl: '31536000',
+      contentType: file.type || undefined,
+      upsert: false,
+    })
+    if (error) throw error
+    return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
   },
 }
