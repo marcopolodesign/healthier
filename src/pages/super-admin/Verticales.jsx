@@ -641,8 +641,11 @@ export default function SuperAdminVerticales() {
         verticalsService.update(a.id, { sortOrder: nuevoA }),
         verticalsService.update(b.id, { sortOrder: nuevoB }),
       ])
-      alGuardarIdentidad()
-      await cargar()
+      setEditando(null)
+      invalidarEspecialidades()
+      // Se espera a la base Y al caché de la lista que se ve: si no, el botón
+      // se libera con la lista vieja en pantalla y un clic rápido deshace.
+      await Promise.all([cargar(), invalidarVerticales()])
     } catch (err) {
       toast.error(err?.message || 'No pudimos reordenar')
     } finally {
