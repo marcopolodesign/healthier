@@ -8,8 +8,8 @@
  *
  * Qué controla (sólo lee, no escribe nada):
  *   1. La regla, con casos fijos: DNI > 90.000.000 → true; argentino → false;
- *      sin documento → NULL (no false); puntos/espacios/guiones no cambian
- *      nada; CUIT/CUIL de 11 dígitos se mira por el DNI del medio.
+ *      sin documento o largo raro → NULL (no false); separadores y el prefijo
+ *      "DNI" no cambian nada; CUIT/CUIL se mira por el DNI del medio.
  *   2. Que la columna sea GENERADA (si alguien la cambia a una columna común,
  *      vuelve a depender del front y se desfasa en silencio).
  *   3. Que ninguna fila quedó con un valor viejo (pasa si se cambia la función
@@ -35,8 +35,9 @@ const CASOS = [
   [null, null], ['', null], ['   ', null],
   ['12345678', false], ['12.345.678', false], ['90000000', false],
   ['90000001', true], ['94.123.456', true], ['95 123 456', true],
-  ['AB123456', true],
+  ['AB123456', true], ['12,345,678', false], ['DNI 12345678', false],
   ['20-12345678-9', false], ['20-94123456-3', true],
+  ['123456789', null], ['123.456.789-09', null],
 ]
 
 async function sql(ref, query) {
@@ -55,8 +56,11 @@ const lit = v => (v === null ? 'null' : `'${v.replace(/'/g, "''")}'`)
 async function chequear(nombre, { ref }) {
   const fallas = []
 
-  const valores = CASOS.map(([dni]) => `(${lit(dni)})`).join(',')
-  const filas = await sql(ref, `select public.documento_es_extranjero(d) as r from (values ${valores}) v(d)`)
+  const valores = CASOS.map(([dni]) => `${lit(dni)}::text`).join(',')
+  const filas = await sql(ref, `
+    select public.documento_es_extranjero(d) as r
+      from unnest(array[${valores}]) with ordinality v(d, ord)
+     order by ord`)
   CASOS.forEach(([dni, esperado], i) => {
     if (filas[i]?.r !== esperado) fallas.push(`regla: ${JSON.stringify(dni)} dio ${filas[i]?.r}, se esperaba ${esperado}`)
   })
@@ -70,14 +74,19 @@ async function chequear(nombre, { ref }) {
   const [viejas] = await sql(ref, `
     select count(*)::int as n from public.profiles
      where es_extranjero is distinct from public.documento_es_extranjero(dni)`)
-  if (viejas.n > 0) fallas.push(`${viejas.n} filas con es_extranjero desactualizado (correr: update public.profiles set dni = dni where dni is not null)`)
+  if (viejas.n > 0) fallas.push(`${viejas.n} filas con es_extranjero desactualizado (correr: update public.profiles set es_extranjero = default where dni is not null — nunca set dni = dni)`)
 
+  // Lo que lee Customer.io: la columna existe, cio_reader la puede leer, y
+  // trae lo mismo que profiles (que la vista no la saque de otro lado).
   const [cio] = await sql(ref, `
-    select count(*)::int as n,
-           count(*) filter (where documento_extranjero is distinct from es_extranjero)::int as distintas
-      from cio.people`).catch(e => [{ error: e.message }])
+    select has_column_privilege('cio_reader', 'cio.people', 'es_extranjero', 'select') as puede,
+           (select count(*)::int from cio.people c join public.profiles p using (id)
+             where c.es_extranjero is distinct from p.es_extranjero
+                or c.documento_extranjero is distinct from p.es_extranjero) as distintas`)
+    .catch(e => [{ error: e.message }])
   if (cio.error) fallas.push(`cio.people sin es_extranjero: ${cio.error.slice(0, 120)}`)
-  else if (cio.distintas > 0) fallas.push(`cio.people: ${cio.distintas} filas con documento_extranjero ≠ es_extranjero`)
+  else if (!cio.puede) fallas.push('cio_reader no puede leer cio.people.es_extranjero')
+  else if (cio.distintas > 0) fallas.push(`cio.people: ${cio.distintas} filas que no coinciden con profiles.es_extranjero`)
 
   console.log(fallas.length ? `✗ ${nombre}` : `✓ ${nombre} — regla, columna generada, filas al día y cio.people`)
   fallas.forEach(f => console.log(`   · ${f}`))

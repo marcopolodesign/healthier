@@ -9,13 +9,22 @@
 -- Regla de Mateo: documento mayor a 90.000.000 → extranjero. Los DNI de
 -- extranjeros residentes en Argentina arrancan en 9x millones.
 --
---   · Se normaliza: se sacan puntos, espacios y guiones ("94.123.456" cuenta).
+--   · Se normaliza: se saca todo lo que no sea letra o número ("94.123.456",
+--     "12,345,678", "DNI 12345678" cuentan como el número).
 --   · Sin documento → NULL ("no sabemos"), nunca false. La mayoría de los
 --     profesionales carga el DNI recién al enviar el legajo.
---   · No numérico (pasaporte u otro) → true. Es lo que ya hacía
+--   · Con letras (pasaporte u otro) → true. Es lo que ya hacía
 --     `cio.documento_extranjero` (migración 189); se mantiene.
---   · 11 dígitos → es un CUIT/CUIL escrito en el campo del DNI: el DNI son los
---     8 del medio. Sin esto un "20-12345678-9" quedaba como extranjero.
+--   · Hasta 8 dígitos → DNI: > 90.000.000 es extranjero.
+--   · 11 dígitos con prefijo de CUIT/CUIL (20, 23, 24, 27, 30, 33, 34) → el DNI
+--     son los 8 del medio. Sin esto un "20-12345678-9" quedaba como extranjero.
+--   · Cualquier otro largo (un dígito de más, un documento de otro país) →
+--     NULL: no sabemos, y un dato inventado ensucia la medición.
+--
+-- Cambio respecto de la 189 (que usaba >= 90.000.000 y miraba el número crudo):
+-- el corte pasa a > 90.000.000 (regla de Mateo) y los CUIT/largos raros dejan
+-- de dar true. En producción al 2026-10-16 no cambia ningún profesional (ninguno
+-- tiene más de 8 dígitos ni letras); 2 pacientes con CUIL pasan de true a false/NULL.
 --
 -- Es una COLUMNA GENERADA, no un dato que escribe el front: la web, la app y el
 -- panel no pueden dejarla desfasada del documento. Vale para todos los roles
@@ -23,7 +32,12 @@
 --
 -- 🔴 Si algún día cambia la regla: `create or replace` de la función NO
 -- recalcula lo guardado. Después de cambiarla hay que correr
--- `update public.profiles set dni = dni where dni is not null;`.
+-- `update public.profiles set es_extranjero = default where dni is not null;`
+-- — NUNCA `set dni = dni`: dispara los triggers `update of dni` (federador,
+-- reverificación) para toda la tabla.
+--
+-- El `add column ... stored` reescribe `profiles` con lock exclusivo: con ~400
+-- filas es instantáneo; si la tabla crece, hacerlo fuera de horario.
 --
 -- Customer.io (cio.people): `documento_extranjero` (189) pasa a leer esta misma
 -- columna — una sola regla en toda la base — y se agrega `es_extranjero` al
@@ -43,30 +57,39 @@ as $$
   select case
     when d = '' then null
     when d !~ '^[0-9]+$' then true
-    when length(d) = 11 then substr(d, 3, 8)::bigint > 90000000
-    else d::numeric > 90000000
+    when length(d) <= 8 then d::bigint > 90000000
+    when length(d) = 11 and left(d, 2) in ('20','23','24','27','30','33','34')
+      then substr(d, 3, 8)::bigint > 90000000
+    else null
   end
-  from (select regexp_replace(coalesce(p_dni, ''), '[.\s-]', '', 'g') as d) n
+  from (
+    select regexp_replace(
+             regexp_replace(upper(coalesce(p_dni, '')), '[^0-9A-Z]', '', 'g'),
+             '^(DNI|DU|LE|LC)(?=[0-9]+$)', '') as d
+  ) n
 $$;
 
 comment on function public.documento_es_extranjero(text) is
-  'true si el documento es de extranjero (DNI > 90.000.000, o no numérico), false si es DNI argentino, NULL sin documento. 11 dígitos = CUIT/CUIL: se mira el DNI del medio. Migración 201.';
+  'true si el documento es de extranjero (DNI > 90.000.000, o con letras), false si es DNI argentino, NULL sin documento o con un largo que no es DNI ni CUIT/CUIL. CUIT/CUIL: se mira el DNI del medio. Migración 201.';
 
 alter table public.profiles
   add column if not exists es_extranjero boolean
   generated always as (public.documento_es_extranjero(dni)) stored;
 
 comment on column public.profiles.es_extranjero is
-  'Derivado de dni (migración 201): > 90.000.000 o no numérico → true; DNI argentino → false; sin DNI → NULL. Lo lee Hyppo por cio.people.';
+  'Derivado de dni (migración 201): > 90.000.000 o con letras → true, DNI argentino → false, sin DNI o largo raro → NULL. Lo lee Hyppo por cio.people.';
 
--- La función de la 189 queda, por si algo la llama, pero con la regla única.
+-- La función de la 189 queda (la usa supabase/tests/cio_189.sql, que corre
+-- como cio_reader) pero con la regla única. cio_reader no tiene USAGE sobre
+-- `public` a propósito (migración 140), así que el envoltorio es SECURITY
+-- DEFINER: es una función pura sobre su argumento, no lee ninguna tabla.
 create or replace function cio.documento_extranjero(p_dni text)
 returns boolean
 language sql
 immutable
+security definer
+set search_path = ''
 as $$ select public.documento_es_extranjero(p_dni) $$;
-
-grant execute on function public.documento_es_extranjero(text) to cio_reader;
 
 -- cio.people: misma definición que en las dos bases al 2026-10-16 (verificado
 -- con md5 de pg_get_viewdef, idéntico en staging y producción). Cambia sólo
