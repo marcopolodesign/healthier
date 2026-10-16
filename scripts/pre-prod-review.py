@@ -357,9 +357,9 @@ def main():
     print()
 
     accion = {
-        "alto": "pasa por Mateo aunque la revisión salga limpia.",
-        "medio": "sale si no quedan Importantes sin arreglar o justificar; avisarle a Mateo.",
-        "bajo": "puede salir sin preguntar si /code-review y /security-review están en verde.",
+        "alto": "preguntarle a Mateo con revisión + plan de pase + pruebas; OK explícito aunque esté limpio.",
+        "medio": "preguntarle a Mateo con la revisión; sin Importantes abiertos.",
+        "bajo": "preguntarle a Mateo igual, con la revisión adjunta (nada sale solo).",
         "nada": "no hay nada que pasar.",
     }[nivel_txt]
     print(f"NIVEL: {nivel_txt.upper()} → {accion}")

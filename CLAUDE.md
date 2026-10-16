@@ -14,8 +14,9 @@ This document provides context for Claude Code when working on this React/Supaba
 >    o `--commits a,b,c` — revisar lo que de verdad sale.
 > 2. `/code-review high` y `/security-review` sobre ese diff, con las reglas de **[`REVIEW.md`](REVIEW.md)**.
 > 3. **Importantes** se arreglan o se justifican; **Ya existía** no frena.
-> 4. **Alto → preguntarle a Mateo** siempre. **Medio** → sale sin Importantes abiertos, avisando.
->    **Bajo** → sale sin preguntar con las dos revisiones en verde.
+> 4. **Nada sale sin preguntarle a Mateo, en ningún nivel.** **Alto** → revisión + plan de pase en
+>    orden + pruebas desde el front, y su OK explícito aunque esté limpio. **Medio** → revisión, sin
+>    Importantes abiertos. **Bajo** → también se pregunta, con la revisión adjunta.
 > 5. **Máximo 3 rondas.** Si en la tercera quedan Importantes, se frena y se pregunta.
 > Si marca "pisa prod", no se promueve la rama entera: cherry-pick.
 

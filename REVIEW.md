@@ -83,9 +83,14 @@ detectar credenciales.
 Los decide **qué toca** el diff, no quién lo escribió. El nivel del pase es el más alto de
 todos sus archivos.
 
-- **Alto** → siempre pasa por Mateo, aunque la revisión salga limpia.
-- **Medio** → sale si no quedan Importantes sin arreglar o justificar. Se le avisa a Mateo.
-- **Bajo** → sale sin preguntar si la revisión está en verde.
+**Ningún nivel sale solo: todo pase a prod se le pregunta a Mateo** (Mateo, 2026-10-16). El
+nivel cambia qué se le muestra y con cuánto cuidado:
+
+- **Alto** → se le pregunta con la revisión, el plan de pase en orden y las pruebas desde el
+  front. Pide su OK explícito aunque la revisión salga limpia.
+- **Medio** → se le pregunta con la revisión; no se le pide el OK con Importantes abiertos sin
+  arreglar o justificar.
+- **Bajo** → también se le pregunta, sólo con la revisión adjunta (una línea alcanza).
 
 Formato: `nivel  glob  [:: regex]`. Gana **la primera regla que coincide**. Con `:: regex`,
 la regla sólo aplica si alguna línea agregada o quitada del archivo coincide. Lo que no
