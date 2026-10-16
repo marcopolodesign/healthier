@@ -11,6 +11,26 @@ import { supabase, toCamelCase } from '../lib/supabase'
 const COLUMNAS = 'id, nombre, color, icon, image_url, tipo, enabled, ondemand_price, sort_order, herramienta_historia_clinica, herramienta_receta'
 const BUCKET = 'verticales'
 
+const normalizar = t => (t ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
+/**
+ * La especialidad que ya existe con ese slug o ese nombre (sin tildes ni
+ * mayúsculas), o null. El catálogo es chico: se trae entero y se compara acá,
+ * así un nombre con comas o paréntesis no rompe el filtro de PostgREST.
+ */
+export async function especialidadHomonima(slug, nombre) {
+  const { data, error } = await supabase.from('specialties').select('slug, label, vertical_id')
+  if (error) throw error
+  const n = normalizar(nombre)
+  return (data ?? []).find(e => e.slug === slug || normalizar(e.label) === n) ?? null
+}
+
+export function mensajeChoque(esp, nombreVertical) {
+  const donde = esp.vertical_id ?? esp.verticalId
+  const en = donde ? ` (en ${nombreVertical ?? donde})` : ''
+  return `Ya existe la especialidad "${esp.label}"${en}. Una vertical nueva no puede llevársela: elegí otro nombre, o mové la especialidad desde la pestaña Especialidades.`
+}
+
 export const verticalsService = {
   /** Todas las filas, ordenadas. Lectura pública por RLS. */
   async getAll() {
@@ -77,6 +97,13 @@ export const verticalsService = {
    * `enabled: true`.
    */
   async create({ id, nombre, color, icon, imageUrl = null, ondemandPrice = null, enabled = false, sortOrder, herramientaHistoriaClinica = true, herramientaReceta = true }) {
+    // Una vertical nueva NO se lleva una especialidad que ya existe: si se
+    // re-apuntara, todos los profesionales de esa especialidad se mudarían de
+    // vertical sin aviso (ej. "Cardiología" sacaría a los cardiólogos de
+    // Clínica). Se chequea ANTES de insertar nada, por slug y por nombre.
+    const choque = await especialidadHomonima(id, nombre)
+    if (choque) throw new Error(mensajeChoque(choque))
+
     const { data: { user } } = await supabase.auth.getUser()
     const fila = {
       id,
@@ -99,14 +126,11 @@ export const verticalsService = {
       .single()
     if (error) throw error
 
-    // La especialidad: si ya existe ese slug (alguien la creó a mano), se la
-    // cuelga de la vertical en vez de duplicarla.
-    const { data: existente } = await supabase
-      .from('specialties').select('id').eq('slug', id).maybeSingle()
-    const esp = existente
-      ? await supabase.from('specialties').update({ vertical_id: id, active: true }).eq('id', existente.id)
-      : await supabase.from('specialties').insert({ slug: id, label: nombre.trim(), vertical_id: id, active: true, sort_order: 100 })
-    if (esp.error) throw esp.error
+    const esp = await supabase.from('specialties')
+      .insert({ slug: id, label: nombre.trim(), vertical_id: id, active: true, sort_order: 100 })
+    if (esp.error) {
+      throw new Error(`Se creó la vertical, pero no su especialidad (${esp.error.message}). Creala a mano en la pestaña Especialidades, colgada de ${nombre.trim()}.`)
+    }
 
     return toCamelCase(data)
   },
