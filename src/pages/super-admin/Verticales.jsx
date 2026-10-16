@@ -589,6 +589,7 @@ export default function SuperAdminVerticales() {
   const [loading, setLoading] = useState(true)
   // Qué vertical tiene el editor abierto: su id, 'nueva' para el alta, o null.
   const [editando, setEditando] = useState(null)
+  const [moviendo, setMoviendo] = useState(false)
   // Identidad ya mezclada (nombre, fondo, ícono, foto) — mismo hook que el
   // paciente, así lo que se ve acá es lo que va a ver él.
   const { verticales } = useVerticales()
@@ -627,15 +628,25 @@ export default function SuperAdminVerticales() {
   // carrusel entre las que tienen (o no) a alguien en línea, y el del onboarding.
   const mover = async (idx, dir) => {
     const a = lista[idx], b = lista[idx + dir]
-    if (!a || !b) return
+    if (!a || !b || moviendo) return
+    // El orden se lee de la base (`config`), no del caché de useVerticales,
+    // que queda viejo hasta que se invalida: dos clics seguidos escribían el
+    // mismo par de valores. Con valores iguales, se desempata.
+    const sa = porId[a.id]?.sortOrder ?? a.sortOrder
+    const sb = porId[b.id]?.sortOrder ?? b.sortOrder
+    const [nuevoA, nuevoB] = sa === sb ? [sb + dir, sa] : [sb, sa]
+    setMoviendo(true)
     try {
       await Promise.all([
-        verticalsService.update(a.id, { sortOrder: b.sortOrder }),
-        verticalsService.update(b.id, { sortOrder: a.sortOrder }),
+        verticalsService.update(a.id, { sortOrder: nuevoA }),
+        verticalsService.update(b.id, { sortOrder: nuevoB }),
       ])
       alGuardarIdentidad()
+      await cargar()
     } catch (err) {
       toast.error(err?.message || 'No pudimos reordenar')
+    } finally {
+      setMoviendo(false)
     }
   }
 
@@ -718,8 +729,8 @@ export default function SuperAdminVerticales() {
                     onGuardado={alGuardar}
                     onEditar={() => setEditando(e => (e === v.id ? null : v.id))}
                     editando={editando === v.id}
-                    onSubir={i > 0 ? () => mover(i, -1) : undefined}
-                    onBajar={i < lista.length - 1 ? () => mover(i, 1) : undefined}
+                    onSubir={i > 0 && !moviendo ? () => mover(i, -1) : undefined}
+                    onBajar={i < lista.length - 1 && !moviendo ? () => mover(i, 1) : undefined}
                   />
                   {editando === v.id && (
                     <EditorVertical

@@ -45,7 +45,9 @@ export function derivacionVigente(d) {
 export function destinoLabel(d, porSlug = {}) {
   if (!d) return ''
   if (d.destino?.fullName) return d.destino.fullName
-  const vertical = VERTICALS_BY_ID[d.verticalDestino]?.nombre ?? d.verticalDestino
+  // Las verticales creadas desde el super admin (migración 199) no están en el
+  // mapa del código; su especialidad homónima tiene el mismo slug y el nombre.
+  const vertical = VERTICALS_BY_ID[d.verticalDestino]?.nombre ?? porSlug[d.verticalDestino] ?? d.verticalDestino
   const esp = d.especialidadDestino ? (porSlug[d.especialidadDestino] ?? d.especialidadDestino) : null
   return esp ? `${vertical} · ${esp}` : vertical
 }
