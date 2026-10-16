@@ -14,6 +14,7 @@ import { diagnosticReportService } from '../../services/diagnosticReportService'
 import SignedDocLink from '../../components/SignedDocLink'
 import { toast } from '../../components/Toast'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { useMiEspecialidad } from '../../hooks/useMiEspecialidad'
 import { derivacionesService, destinoLabel } from '../../services/derivacionesService'
 import DerivacionEstado from '../../components/DerivacionEstado'
 import { rangoDe, textoRango, estadoDe, estaAnalizado } from '../../lib/biomarcadores'
@@ -378,11 +379,12 @@ export default function HistoriaClinica({ profile }) {
 
   // Su vertical no tiene historia clínica (migración 200, ej. Odontología):
   // la pantalla no se ofrece en ningún lado; si llega por la URL, a la ficha.
+  const miEspecialidad = useMiEspecialidad(profile?.id)
   useEffect(() => {
-    if (!cargandoEsp && pp?.specialty && !usaHistoriaClinica(pp.specialty) && patientId) {
+    if (!cargandoEsp && miEspecialidad && !usaHistoriaClinica(miEspecialidad) && patientId) {
       navigate(`/profesional/paciente/${patientId}`, { replace: true })
     }
-  }, [cargandoEsp, pp?.specialty, usaHistoriaClinica, patientId, navigate])
+  }, [cargandoEsp, miEspecialidad, usaHistoriaClinica, patientId, navigate])
 
   useEffect(() => {
     Promise.all([
