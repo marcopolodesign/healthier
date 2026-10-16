@@ -28,7 +28,7 @@ export async function especialidadHomonima(slug, nombre) {
 export function mensajeChoque(esp, nombreVertical) {
   const donde = esp.vertical_id ?? esp.verticalId
   const en = donde ? ` (en ${nombreVertical ?? donde})` : ''
-  return `Ya existe la especialidad "${esp.label}"${en}. Una vertical nueva no puede llevársela: elegí otro nombre, o mové la especialidad desde la pestaña Especialidades.`
+  return `Ya existe la especialidad "${esp.label}"${en}. Una vertical nueva no puede llevarse una especialidad que ya existe (se mudarían sus profesionales): elegí otro nombre.`
 }
 
 export const verticalsService = {
