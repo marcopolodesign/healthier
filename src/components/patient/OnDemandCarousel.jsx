@@ -75,6 +75,18 @@ export default function OnDemandCarousel({ verticals, header }) {
 
   useEffect(() => { updateFromScroll() }, [updateFromScroll])
 
+  // Cuando llega la presencia el orden cambia (las disponibles pasan
+  // adelante). React reusa los nodos y el snap del browser se queda pegado a
+  // la tarjeta que estaba centrada, así que la primera —la que tiene a alguien
+  // en línea— quedaba corrida a la izquierda. Al cambiar el orden, al inicio.
+  const orden = verticals.map(v => v.id).join(',')
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollLeft = 0
+    updateFromScroll()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orden])
+
   const onScroll = () => {
     if (rafRef.current) return
     rafRef.current = requestAnimationFrame(() => {
