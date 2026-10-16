@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
       .slice(0, MAX_ALIMENTOS)
     if (!alimentos.length) return json({ data: null, error: 'Faltan los alimentos de la comida' }, 400)
 
-    const prompt = `Inventá una receta saludable para ${comida} usando estos ingredientes: ${alimentos.join(', ')}. Respondé en español argentino. Formato: nombre del plato, tiempo de preparación, y pasos numerados. Máximo 200 palabras.`
+    const prompt = `Inventá una receta saludable para ${comida} usando estos ingredientes: ${alimentos.join(', ')}. Respondé en español argentino. Formato: nombre del plato, tiempo de preparación, y pasos numerados. Texto plano: sin markdown, sin asteriscos ni numerales. Máximo 200 palabras.`
 
     const res = await fetch(GEMINI_URL, {
       method: 'POST',
