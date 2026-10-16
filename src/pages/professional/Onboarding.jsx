@@ -1,12 +1,13 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Check, Stethoscope, User, FileText, ClipboardText, LockKey, MagnifyingGlass, LinkSimple } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import { profilesService } from '../../services/profilesService'
 import { professionalOnboardingService } from '../../services/professionalOnboardingService'
 import { uploadLogService } from '../../services/uploadLogService'
-import { PROFESSION_CATEGORIES, specialtiesForCategory, categoryForSpecialty } from '../../lib/verticals'
+import { categoriasDeOnboarding, specialtiesForCategory, categoryForSpecialty } from '../../lib/verticals'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { useVerticales } from '../../hooks/useVerticales'
 import { AnimatedTagCascade } from '../../components/common/AnimatedTagCascade'
 import FileUpload from '../../components/FileUpload'
 import { OPCIONES_SEXO } from '../../lib/datosReceta'
@@ -63,6 +64,15 @@ async function conReintento(fn, etiqueta, intentos = 3) {
 
 export default function Onboarding({ profile }) {
   const { especialidades, porSlug, subEspecialidadesDe } = useEspecialidades()
+  // Las áreas del paso 1 son las verticales (las crea el super admin,
+  // migración 199) — ver `categoriasDeOnboarding` en lib/verticals.js.
+  // Sin catálogo todavía, ninguna área (si no, "Otra" aparecería sola un
+  // instante).
+  const { verticales } = useVerticales()
+  const categorias = useMemo(
+    () => (especialidades.length ? categoriasDeOnboarding(verticales, especialidades) : []),
+    [verticales, especialidades]
+  )
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const isResubmit = searchParams.get('resubmit') === '1'
@@ -121,7 +131,6 @@ export default function Onboarding({ profile }) {
           licenseNumber: p.licenseNumber || '',
           cuitNumber:    p.cuitNumber    || '',
         })
-        if (p.specialty) setCategoryId(categoryForSpecialty(p.specialty))
       })
       return
     }
@@ -132,7 +141,6 @@ export default function Onboarding({ profile }) {
     const d = profile.onboardingDraft
     if (d) {
       setForm(f => ({ ...f, ...d }))
-      if (d.specialty) setCategoryId(categoryForSpecialty(d.specialty))
     }
   }, [isResubmit, profile?.id, profile?.dni, profile?.gender, profile?.onboardingDraft])
 
@@ -160,9 +168,18 @@ export default function Onboarding({ profile }) {
   // sin decir por qué. Si no hay nada que elegir, se elige solo.
   useEffect(() => {
     if (!categoryId || form.specialty) return
-    const opciones = specialtiesForCategory(categoryId, porSlug)
+    const opciones = specialtiesForCategory(categoryId, porSlug, categorias)
     if (opciones.length === 1) setForm(p => ({ ...p, specialty: opciones[0].value }))
-  }, [categoryId, form.specialty, porSlug])
+  }, [categoryId, form.specialty, porSlug, categorias])
+
+  // Reenvío o borrador con una especialidad ya guardada: el área se deduce
+  // recién cuando llegaron verticales y catálogo (antes salía de una lista
+  // del código y se podía calcular al instante).
+  useEffect(() => {
+    if (categoryId || !form.specialty || categorias.length === 0) return
+    const area = categoryForSpecialty(form.specialty, categorias)
+    if (area) setCategoryId(area)
+  }, [categoryId, form.specialty, categorias])
 
   // Qué falta para poder avanzar, en palabras. Es la validación del paso Y el
   // texto que se le muestra: un botón gris sin explicación deja al profesional
@@ -171,7 +188,7 @@ export default function Onboarding({ profile }) {
   const faltaParaAvanzar = () => {
     if (step === 0) {
       const falta = []
-      if (!categoryId) falta.push('elegir tu profesión')
+      if (!categoryId) falta.push('elegir tu área')
       if (!form.specialty) falta.push('elegir tu especialidad')
       if (!(form.licenseNumber ?? '').trim()) falta.push('el número de matrícula')
       return falta
@@ -465,11 +482,14 @@ export default function Onboarding({ profile }) {
           {step === 0 && (
             <>
               <div>
-                <label className="form-label">¿Cuál es tu profesión? <span className="text-danger">*</span></label>
+                <label className="form-label">¿En qué área atendés? <span className="text-danger">*</span></label>
+                <p className="text-sm text-text-tertiary -mt-1 mb-3">
+                  Elegí el área general. Después indicás tu especialidad (por ejemplo, Clínica → Cardiología).
+                </p>
                 <div className="mb-4">
                   <AnimatedTagCascade
                     animate={false}
-                    items={PROFESSION_CATEGORIES.map(c => ({ value: c.id, label: c.label, icon: c.icon }))}
+                    items={categorias.map(c => ({ value: c.id, label: c.label, icon: c.icon }))}
                     value={categoryId}
                     onSelect={id => {
                       if (id === categoryId) return
@@ -482,7 +502,10 @@ export default function Onboarding({ profile }) {
                 </div>
 
                 {categoryId && (() => {
-                  const catSpecialties = specialtiesForCategory(categoryId, porSlug)
+                  const catSpecialties = specialtiesForCategory(categoryId, porSlug, categorias)
+                  // Un área con una sola especialidad ya la eligió sola (efecto
+                  // de arriba): no se pregunta lo mismo dos veces (Felipe).
+                  if (catSpecialties.length <= 1) return null
                   return (
                     <>
                       {/* Sin esta etiqueta la segunda fila de chips se leía como
