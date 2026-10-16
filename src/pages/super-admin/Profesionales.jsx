@@ -428,7 +428,7 @@ function ProfessionalDrawer({ pro, duplicados = [], generalRate, onClose, onUpda
         .from('professional_profiles')
         .select(`
           *,
-          profile:profiles!user_id(id, full_name, email, phone, dni, gender, created_at, avatar_url)
+          profile:profiles!user_id(id, full_name, email, phone, dni, es_extranjero, gender, created_at, avatar_url)
         `)
         .eq('id', pro.id)
         .single(),
@@ -811,6 +811,9 @@ function ProfessionalDrawer({ pro, duplicados = [], generalRate, onClose, onUpda
                       <div>
                         <p className="text-xs text-gray-400 mb-0.5">DNI</p>
                         <p className="font-medium text-gray-800">{d?.profile?.dni ?? <span className="text-amber-600">Sin cargar</span>}</p>
+                        {d?.profile?.es_extranjero && (
+                          <p className="text-[11px] text-sky-700 mt-0.5">Extranjero</p>
+                        )}
                       </div>
                       <div>
                         <p className="text-xs text-gray-400 mb-0.5">Matrícula</p>
@@ -1157,7 +1160,7 @@ export default function SuperAdminProfesionales() {
       const [profResult, consultResult] = await Promise.all([
         supabase
           .from('professional_profiles')
-          .select('id, specialty, is_verified, is_active, verification_source, sisa_status, mp_connected, mp_account_label, has_signature, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, price_video, price_presencial, session_price, license_number, address, latitude, longitude, profiles!user_id(id, full_name, email, phone, dni, gender, created_at, utm_source, avatar_url)')
+          .select('id, specialty, is_verified, is_active, verification_source, sisa_status, mp_connected, mp_account_label, has_signature, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, price_video, price_presencial, session_price, license_number, address, latitude, longitude, profiles!user_id(id, full_name, email, phone, dni, es_extranjero, gender, created_at, utm_source, avatar_url)')
           .eq('dado_de_baja', false) // bajas lógicas (188) fuera
           .order('created_at', { ascending: false }),
         supabase.from('consultations').select('professional_id'),
@@ -1196,6 +1199,7 @@ export default function SuperAdminProfesionales() {
     if (filter === 'pendientes' && (p.is_verified || p.rejected_at)) return false
     if (filter === 'rechazados' && !p.rejected_at) return false
     if (filter === 'sin-mp' && p.mp_connected) return false
+    if (filter === 'extranjeros' && !p.profiles?.es_extranjero) return false
     if (search.trim()) {
       const q = search.toLowerCase()
       const name = p.profiles?.full_name?.toLowerCase() ?? ''
@@ -1212,6 +1216,7 @@ export default function SuperAdminProfesionales() {
     { key: 'pendientes', label: 'Pendientes' },
     { key: 'rechazados', label: 'Rechazados' },
     { key: 'sin-mp', label: 'Sin MP' },
+    { key: 'extranjeros', label: 'Extranjeros' },
   ]
 
   // El id a dar de baja es el del profile (profiles.id), no el de professional_profiles.
@@ -1355,6 +1360,15 @@ export default function SuperAdminProfesionales() {
                               {/* Misma matrícula u mismo nombre que otra cuenta (Federico
                                   Beber, 2026-09-25) — ver `calcularDuplicados` más arriba. */}
                               <DuplicadoBadge tiene={duplicadosPorId.has(pro.id)} />
+                              {/* DNI > 90.000.000 (extranjero residente) o no numérico
+                                  — columna generada `profiles.es_extranjero`, migración
+                                  201. Lo pidió Hyppo para medir los anuncios a médicos
+                                  que vivieron afuera. Sin DNI no se muestra nada. */}
+                              {pro.profiles?.es_extranjero && (
+                                <span className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700">
+                                  Extranjero
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs text-gray-400 truncate">{email}</p>
                           </div>
