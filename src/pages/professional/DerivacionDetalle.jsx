@@ -24,7 +24,8 @@ function Dato({ label, children }) {
 export default function DerivacionDetalle({ profile }) {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { porSlug } = useEspecialidades()
+  const { porSlug, usaHistoriaClinica } = useEspecialidades()
+  const verHistoriaClinica = usaHistoriaClinica(profile?.professionalProfiles?.[0]?.specialty)
   const [d, setD] = useState(null)
   const [loading, setLoading] = useState(true)
   const [cancelando, setCancelando] = useState(false)
@@ -146,7 +147,7 @@ export default function DerivacionDetalle({ profile }) {
           <ShareFat className="h-5 w-5" />
           Ficha del paciente
         </Link>
-        {(soyQuienDerivo || veHc) && (
+        {(soyQuienDerivo || veHc) && verHistoriaClinica && (
           <Link to={`/profesional/historia-clinica/${d.patientId}`} className="btn-secondary w-full py-3 flex items-center justify-center gap-2">
             <ClipboardText className="h-5 w-5" />
             Historia clínica

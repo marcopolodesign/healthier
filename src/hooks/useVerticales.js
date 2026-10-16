@@ -92,6 +92,11 @@ function mezclar(config) {
         comingSoon: !c.enabled,
         onDemandPrice: c.ondemandPrice ?? null,
         sortOrder: c.sortOrder ?? 999,
+        // Qué ve el profesional de esta vertical (migración 200).
+        herramientas: {
+          historiaClinica: c.herramientaHistoriaClinica !== false,
+          receta: c.herramientaReceta !== false,
+        },
       }
     })
     .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999))
