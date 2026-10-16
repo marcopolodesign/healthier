@@ -23,6 +23,7 @@ import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { emergencyService, getSosSettings } from '../../services/emergencyService'
 import { emergenciasVisible } from '../../lib/featureFlags'
 import { useVerticales } from '../../hooks/useVerticales'
+import { ordenarCarrusel } from '../../lib/carruselVerticales'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { haversineKm, formatDistance } from '../../lib/geo'
 import { availabilityService } from '../../services/availabilityService'
@@ -32,9 +33,6 @@ import { primerTurnoLibre } from '../../lib/agendaTurnos'
 import { cumplePrecioMinimo } from '../../lib/tarifas'
 import { atiendePresencial } from '../../lib/profileCompleteness'
 
-// Orden fijo del carrusel on demand (spec 2026-09-23) — no el orden de
-// `VERTICALS`, que trae también las que no tienen consulta inmediata.
-const ORDEN_ONDEMAND = ['clinica', 'pediatria', 'mente', 'nutricion']
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
@@ -156,17 +154,12 @@ export default function PatientDashboard({ profile }) {
       .catch(() => {}) // aditivo — sin datos, el carrusel muestra el estado "sin nadie en línea"
   }, [])
 
-  const verticalesConOnDemand = useMemo(() => {
-    return ORDEN_ONDEMAND
-      .map(id => VERTICALS.find(v => v.id === id))
-      .filter(v => v && !v.comingSoon)
-      // Siempre las cuatro (Mateo, 2026-09-23): la que no tiene a nadie en
-      // línea se muestra apagada y manda a sacar turno.
-      .map(v => {
-        const slugs = porVertical[v.id] || []
-        return { ...v, disponible: onDemandLivePros.some(p => slugs.includes(p.specialty)) }
-      })
-  }, [VERTICALS, porVertical, onDemandLivePros])
+  const verticalesConOnDemand = useMemo(
+    // Habilitadas, y PRIMERO las que tienen a alguien en línea (Mateo,
+    // 2026-10-16) — ver lib/carruselVerticales.js.
+    () => ordenarCarrusel(VERTICALS, porVertical, onDemandLivePros, disponibleAhora),
+    [VERTICALS, porVertical, onDemandLivePros]
+  )
 
   // Geolocation
   useEffect(() => {

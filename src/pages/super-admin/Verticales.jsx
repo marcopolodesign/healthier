@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { CircleNotch, Check, Warning, Siren, Plus, PencilSimple, CaretUp, CaretDown, TreeStructure, Trash, Pill } from '@phosphor-icons/react'
-import { VERTICALS } from '../../lib/verticals'
 import { verticalsService } from '../../services/verticalsService'
 import { especialidadesService } from '../../services/especialidadesService'
-import { invalidarVerticales } from '../../hooks/useVerticales'
+import { useVerticales, invalidarVerticales } from '../../hooks/useVerticales'
+import EditorVertical from '../../components/super-admin/EditorVertical'
 import { useEspecialidades, invalidarEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../../components/Toast'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
@@ -19,9 +19,10 @@ import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialo
  * "Guardar" que aplicara siete filas a la vez, que es justo lo que hace que
  * nadie toque nada por miedo.
  *
- * Lo que se edita acá sale de `vertical_settings` (migración 078). El nombre, el
- * ícono y los colores vienen del código: crear una vertical nueva necesita
- * diseño, habilitarla no.
+ * Lo que se edita acá sale de `vertical_settings` (migración 078). Desde la 199
+ * también el nombre, el color de fondo, el ícono y la foto, y se pueden crear
+ * verticales nuevas ("Nueva vertical"): cada alta crea su especialidad
+ * homónima, así aparece sola en el onboarding del profesional.
  *
  * La sección "Servicio de emergencias" de abajo edita la fila 'sos' de la misma
  * tabla (migración 087) — mismo componente `FilaVertical`, reusado con un
@@ -37,7 +38,22 @@ const formatARS = n =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
     .format(Number(n ?? 0))
 
-function FilaVertical({ vertical, config, onGuardado, danger = false, priceLabel = 'Precio on-demand', toggleLabel }) {
+/** 48×48: la foto de la tarjeta, o el color con el ícono en blanco. */
+function MiniaturaVertical({ vertical }) {
+  const ref = useRef(null)
+  useEffect(() => { ref.current?.style.setProperty('--card-color', vertical.fondo || '#7CB38B') }, [vertical.fondo])
+  const Icono = vertical.icon
+  if (vertical.img) {
+    return <img src={vertical.img} alt="" className="w-12 h-12 rounded-xl object-cover shrink-0" />
+  }
+  return (
+    <div ref={ref} className="od-card-color w-12 h-12 rounded-xl flex items-center justify-center shrink-0">
+      {Icono && <Icono className="h-5 w-5 text-white" />}
+    </div>
+  )
+}
+
+function FilaVertical({ vertical, config, onGuardado, danger = false, priceLabel = 'Precio on-demand', toggleLabel, onEditar, editando = false, onSubir, onBajar }) {
   const [enabled, setEnabled] = useState(config?.enabled ?? false)
   const [precio, setPrecio] = useState(config?.ondemandPrice ?? '')
   const [guardando, setGuardando] = useState(false)
@@ -77,9 +93,23 @@ function FilaVertical({ vertical, config, onGuardado, danger = false, priceLabel
   return (
     <div className={`card flex flex-col sm:flex-row sm:items-center gap-4 ${enabled ? '' : 'opacity-75'} ${danger ? 'border-danger/20' : ''}`}>
       <div className="flex items-center gap-3 flex-1 min-w-0">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${danger ? 'bg-danger/10' : 'bg-bg-surface'}`}>
-          <Icono className={`h-5 w-5 ${danger ? 'text-danger' : 'text-text-secondary'}`} weight={danger ? 'fill' : 'regular'} />
-        </div>
+        {(onSubir || onBajar) && (
+          <div className="flex flex-col shrink-0">
+            <button type="button" onClick={onSubir} disabled={!onSubir} aria-label="Subir" className="disabled:opacity-20 text-text-tertiary hover:text-text-primary">
+              <CaretUp className="h-3.5 w-3.5" />
+            </button>
+            <button type="button" onClick={onBajar} disabled={!onBajar} aria-label="Bajar" className="disabled:opacity-20 text-text-tertiary hover:text-text-primary">
+              <CaretDown className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+        {danger ? (
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-danger/10">
+            <Icono className="h-5 w-5 text-danger" weight="fill" />
+          </div>
+        ) : (
+          <MiniaturaVertical vertical={vertical} />
+        )}
         <div className="min-w-0">
           <p className="font-semibold text-text-primary">{vertical.nombre}</p>
           <p className="text-xs text-text-tertiary">
@@ -125,6 +155,19 @@ function FilaVertical({ vertical, config, onGuardado, danger = false, priceLabel
           </div>
         </div>
 
+        {onEditar && (
+          <div className="pt-5">
+            <button
+              type="button"
+              onClick={onEditar}
+              aria-expanded={editando}
+              className="btn-secondary py-2 px-3 text-sm flex items-center gap-1.5"
+            >
+              <PencilSimple className="h-4 w-4" /> {editando ? 'Cerrar' : 'Editar'}
+            </button>
+          </div>
+        )}
+
         <div className="pt-5">
           <button
             type="button"
@@ -166,6 +209,7 @@ function slugify(label) {
 }
 
 function FormNuevaEspecialidad({ parent, onCreated, onCancel }) {
+  const { verticales: VERTICALS } = useVerticales()
   const [label, setLabel] = useState('')
   const [slug, setSlug] = useState('')
   const [slugTocado, setSlugTocado] = useState(false)
@@ -243,6 +287,7 @@ function FormNuevaEspecialidad({ parent, onCreated, onCancel }) {
 }
 
 function EspecialidadRow({ especialidad, siblings, sub = false, onReload, onAddSub, addingSubTo, selection, onDeleteOne }) {
+  const { verticales: VERTICALS } = useVerticales()
   const [editando, setEditando] = useState(false)
   const [label, setLabel] = useState(especialidad.label)
   const [verticalId, setVerticalId] = useState(especialidad.verticalId ?? '')
@@ -526,29 +571,63 @@ export default function SuperAdminVerticales() {
   const [tab, setTab] = useState('verticales')
   const [config, setConfig] = useState(null)
   const [loading, setLoading] = useState(true)
+  // Qué vertical tiene el editor abierto: su id, 'nueva' para el alta, o null.
+  const [editando, setEditando] = useState(null)
+  // Identidad ya mezclada (nombre, fondo, ícono, foto) — mismo hook que el
+  // paciente, así lo que se ve acá es lo que va a ver él.
+  const { verticales } = useVerticales()
 
-  useEffect(() => {
-    verticalsService.getAll()
-      .then(setConfig)
-      .catch(() => toast.error('No pudimos cargar las verticales'))
-      .finally(() => setLoading(false))
-  }, [])
+  const cargar = () => verticalsService.getAll()
+    .then(setConfig)
+    .catch(() => toast.error('No pudimos cargar las verticales'))
+    .finally(() => setLoading(false))
+
+  useEffect(() => { cargar() }, [])
 
   const alGuardar = actualizado => {
     setConfig(prev => (prev ?? []).map(c => (c.id === actualizado.id ? actualizado : c)))
-    // El caché del hook lo comparten las cinco pantallas del paciente: si no se
-    // invalida, siguen mostrando lo viejo hasta que alguien recargue.
+    // El caché del hook lo comparten las pantallas del paciente y el
+    // onboarding: si no se invalida, siguen mostrando lo viejo.
     invalidarVerticales()
   }
 
+  const alGuardarIdentidad = () => {
+    setEditando(null)
+    invalidarVerticales()
+    // El alta crea además la especialidad homónima (onboarding).
+    invalidarEspecialidades()
+    cargar()
+  }
+
   const porId = Object.fromEntries((config ?? []).map(c => [c.id, c]))
+  const lista = useMemo(
+    () => verticales.filter(v => porId[v.id]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [verticales, config]
+  )
+
+  // Reordenar = intercambiar sort_order con la vecina. Es el orden del
+  // carrusel entre las que tienen (o no) a alguien en línea, y el del onboarding.
+  const mover = async (idx, dir) => {
+    const a = lista[idx], b = lista[idx + dir]
+    if (!a || !b) return
+    try {
+      await Promise.all([
+        verticalsService.update(a.id, { sortOrder: b.sortOrder }),
+        verticalsService.update(b.id, { sortOrder: a.sortOrder }),
+      ])
+      alGuardarIdentidad()
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos reordenar')
+    }
+  }
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-3xl">
+    <div className="space-y-6 animate-fade-in max-w-5xl">
       <div>
         <h1 className="text-2xl font-bold text-text-primary">Verticales</h1>
         <p className="text-text-secondary mt-1">
-          Qué especialidades ve el paciente y cuánto sale su consulta inmediata.
+          Qué verticales ve el paciente, cómo se ven y cuánto sale su consulta inmediata. Son también las áreas que elige el profesional al registrarse.
         </p>
       </div>
 
@@ -585,19 +664,54 @@ export default function SuperAdminVerticales() {
             </p>
           </div>
 
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-text-secondary">
+              {lista.filter(v => porId[v.id]?.enabled).length} habilitadas / {lista.length} en total
+            </p>
+            <button
+              type="button"
+              onClick={() => setEditando(e => (e === 'nueva' ? null : 'nueva'))}
+              className="btn-secondary text-sm py-1.5 px-3 flex items-center gap-1.5"
+            >
+              <Plus className="h-4 w-4" /> Nueva vertical
+            </button>
+          </div>
+
+          {editando === 'nueva' && (
+            <EditorVertical
+              vertical={null}
+              existentes={lista}
+              onGuardado={alGuardarIdentidad}
+              onCancelar={() => setEditando(null)}
+            />
+          )}
+
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3].map(i => <div key={i} className="h-24 card animate-pulse" />)}
             </div>
           ) : (
             <div className="space-y-3">
-              {VERTICALS.map(v => (
-                <FilaVertical
-                  key={v.id}
-                  vertical={v}
-                  config={porId[v.id]}
-                  onGuardado={alGuardar}
-                />
+              {lista.map((v, i) => (
+                <div key={v.id} className="space-y-3">
+                  <FilaVertical
+                    vertical={v}
+                    config={porId[v.id]}
+                    onGuardado={alGuardar}
+                    onEditar={() => setEditando(e => (e === v.id ? null : v.id))}
+                    editando={editando === v.id}
+                    onSubir={i > 0 ? () => mover(i, -1) : undefined}
+                    onBajar={i < lista.length - 1 ? () => mover(i, 1) : undefined}
+                  />
+                  {editando === v.id && (
+                    <EditorVertical
+                      vertical={v}
+                      existentes={lista}
+                      onGuardado={alGuardarIdentidad}
+                      onCancelar={() => setEditando(null)}
+                    />
+                  )}
+                </div>
               ))}
             </div>
           )}

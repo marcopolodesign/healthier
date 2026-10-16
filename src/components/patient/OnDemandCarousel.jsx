@@ -4,27 +4,13 @@ import { lerpColor } from '../../lib/color'
 import { track } from '../../utils/analytics'
 
 /**
- * Colores del degradé de "Atención inmediata" — spec 2026-09-23. A propósito
- * SEPARADOS de la identidad visual de `lib/verticals.js` (que sigue pintando
- * el mapa, las etiquetas de Consultas, etc.): éste es el lenguaje de color
- * nuevo del carrusel on demand, no un reskin de la app entera.
+ * Color de fondo de cada vertical: desde la migración 199 lo fija el super
+ * admin (`vertical_settings.color`) y llega como `v.fondo` desde
+ * `useVerticales()`. Antes eran cuatro hex fijos acá (spec 2026-09-23), que hoy
+ * son los presets de esas cuatro.
  */
-const GRADIENT_COLOR = {
-  clinica:   '#7CB38B',
-  pediatria: '#D9699C',
-  mente:     '#9B8EC4', // Psicología
-  nutricion: '#E8927C',
-}
 const FALLBACK_COLOR = '#7CB38B'
-
-// Clases literales (Tailwind las detecta por string, no por valor calculado)
-// para el fondo de una tarjeta sin foto (hoy sólo Psicología no tiene una).
-const VERTICAL_BG_CLASS = {
-  clinica:   'bg-[#7CB38B]',
-  pediatria: 'bg-[#D9699C]',
-  mente:     'bg-[#9B8EC4]',
-  nutricion: 'bg-[#E8927C]',
-}
+const fondoDe = v => v?.fondo || FALLBACK_COLOR
 
 const CARD_W = 290
 const GAP = 6
@@ -40,10 +26,9 @@ const GAP = 6
  * `--gradient-color` — todo vía refs, nunca con `setState` por tarjeta (eso
  * re-renderizaría React en cada frame del scroll).
  *
- * `verticals` ya viene filtrado a las que tienen ≥1 profesional on demand
- * disponible ahora, en el orden fijo del spec (Clínica, Pediatría,
- * Psicología, Nutrición). Con la lista vacía se muestra la tarjeta única de
- * "no hay nadie en línea".
+ * `verticals` son todas las habilitadas, con las que tienen a alguien en línea
+ * PRIMERO (`disponible`) y el resto detrás, apagadas — lo arma Dashboard.jsx.
+ * Con la lista vacía se muestra la tarjeta única de "no hay nadie en línea".
  *
  * `header` (opcional) se pinta arriba de todo, DENTRO del área del degradé —
  * es donde Dashboard.jsx cuelga `<PatientHeader>` para que "Hola, {nombre}" y
@@ -61,7 +46,7 @@ export default function OnDemandCarousel({ verticals, header }) {
   // y no en `style={{}}` de JSX — CLAUDE.md: nunca `style=` en el markup,
   // sólo `el.style.setProperty(...)` sobre un ref.
   useEffect(() => {
-    const color = GRADIENT_COLOR[verticals[0]?.id] || FALLBACK_COLOR
+    const color = fondoDe(verticals[0])
     bgRef.current?.style.setProperty('--gradient-color', color)
   }, [verticals])
 
@@ -81,8 +66,8 @@ export default function OnDemandCarousel({ verticals, header }) {
     const lower = Math.floor(clamped)
     const upper = Math.min(verticals.length - 1, lower + 1)
     const t = clamped - lower
-    const colorA = GRADIENT_COLOR[verticals[lower]?.id] || FALLBACK_COLOR
-    const colorB = GRADIENT_COLOR[verticals[upper]?.id] || colorA
+    const colorA = fondoDe(verticals[lower])
+    const colorB = verticals[upper] ? fondoDe(verticals[upper]) : colorA
     bgRef.current?.style.setProperty('--gradient-color', lerpColor(colorA, colorB, t))
 
     setActiveIndex(Math.round(clamped))
@@ -124,8 +109,8 @@ export default function OnDemandCarousel({ verticals, header }) {
           {header}
           <div>
             <span className="text-[11px] font-semibold tracking-widest uppercase text-white/75">Atención inmediata</span>
-            <h2 className="text-[26px] tracking-tight font-light leading-tight mt-1.5 text-white">Tu atención virtual inmediata</h2>
-            <p className="text-[13px] text-white/90 mt-2">Sin turno · Te atiende el primero disponible, en minutos</p>
+            <h2 className="text-[26px] tracking-tight font-normal leading-tight mt-1.5 text-white">Tu atención virtual inmediata</h2>
+            <p className="text-[14px] text-white/90 mt-2">Sin turno · Te atiende el primero disponible, en minutos</p>
           </div>
           <div className="w-full max-w-[290px] mx-auto bg-white/10 border border-white/20 rounded-[28px] p-7 flex flex-col items-center text-center gap-4">
             <p className="text-white font-medium text-[16px] leading-snug">Ahora no hay profesionales en línea</p>
@@ -149,8 +134,8 @@ export default function OnDemandCarousel({ verticals, header }) {
           {header}
           <div>
             <span className="text-[11px] font-semibold tracking-widest uppercase text-white/75">Atención inmediata</span>
-            <h2 className="text-[26px] tracking-tight font-light leading-tight mt-1.5 text-white">Tu atención virtual inmediata</h2>
-            <p className="text-[13px] text-white/90 mt-2">Sin turno · Te atiende el primero disponible, en minutos</p>
+            <h2 className="text-[26px] tracking-tight font-normal leading-tight mt-1.5 text-white">Tu atención virtual inmediata</h2>
+            <p className="text-[14px] text-white/90 mt-2">Sin turno · Te atiende el primero disponible, en minutos</p>
           </div>
         </div>
 
@@ -167,9 +152,16 @@ export default function OnDemandCarousel({ verticals, header }) {
               className={`od-card snap-center shrink-0 relative w-[290px] h-[340px] rounded-[28px] overflow-hidden shadow-[0_18px_40px_rgba(0,0,0,0.18)] ${v.disponible === false ? 'od-card-offline' : ''}`}
             >
               {v.img ? (
-                <img src={v.img} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+                <img src={v.img} alt="" loading="lazy" className={`absolute inset-0 w-full h-full object-cover ${v.disponible === false ? 'od-media-offline' : ''}`} />
               ) : (
-                <span className={`absolute inset-0 ${VERTICAL_BG_CLASS[v.id] || 'bg-brand'}`} />
+                // Sin foto (ej. una vertical recién creada): el color pleno +
+                // el ícono como marca de agua, recortado abajo a la derecha.
+                <span
+                  ref={el => { if (el) el.style.setProperty('--card-color', fondoDe(v)) }}
+                  className={`absolute inset-0 od-card-color ${v.disponible === false ? 'od-media-offline' : ''}`}
+                >
+                  {v.icon && <v.icon weight="light" className="absolute -right-6 -bottom-6 h-40 w-40 text-white/[0.18]" aria-hidden="true" />}
+                </span>
               )}
               <span className="absolute inset-0 bg-gradient-to-b from-transparent via-black/25 to-black/75" />
               {v.onDemandPrice != null && (
@@ -179,8 +171,14 @@ export default function OnDemandCarousel({ verticals, header }) {
               )}
               <span className="absolute inset-x-0 bottom-0 p-[18px] flex flex-col items-start gap-2.5">
                 <span className="text-[22px] font-medium text-white">{v.nombre}</span>
-                {v.disponible === false && <span className="-mt-1.5 text-[12px] text-white/90">Sin profesionales en línea ahora</span>}
-                <span className="px-[18px] py-2 rounded-full bg-white text-text-primary text-[14px] font-medium">{v.disponible === false ? 'Sacá un turno' : 'Empezar'}</span>
+                {v.disponible === false && <span className="-mt-1.5 text-[14px] text-white/85">Sin profesionales en línea ahora</span>}
+                {/* Relleno blanco sólo para "Empezar" (atiende ahora); la
+                    apagada va con contorno — Felipe, 2026-10-16. */}
+                {v.disponible === false ? (
+                  <span className="px-[18px] py-2 rounded-full border-[1.5px] border-white text-white text-[14px] font-medium">Sacá un turno</span>
+                ) : (
+                  <span className="px-[18px] py-2 rounded-full bg-white text-text-primary text-[14px] font-medium">Empezar</span>
+                )}
               </span>
             </button>
           ))}
