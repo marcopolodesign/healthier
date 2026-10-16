@@ -357,6 +357,16 @@ function DisponibilidadInmediata({ activo, ultimoLatido }) {
   )
 }
 
+// La matrícula declarada primero (es la que decide el estado), después el resto.
+// Mismo criterio que sisa-verify: sólo dígitos, sin ceros adelante.
+function ordenarMatriculasRefeps(matriculas, declarada) {
+  const digitos = v => String(v ?? '').replace(/\D/g, '').replace(/^0+/, '')
+  const dec = digitos(declarada)
+  return matriculas
+    .map(m => ({ m, declarada: !!dec && digitos(m.matricula) === dec }))
+    .sort((a, b) => (b.declarada - a.declarada) || (b.m.habilitada - a.m.habilitada))
+}
+
 function SisaBadge({ status }) {
   if (!status) return null
   const map = {
@@ -895,11 +905,21 @@ function ProfessionalDrawer({ pro, duplicados = [], generalRate, onClose, onUpda
                         <p>Declaró: {d.sisa_raw.matricula_declarada || 'sin matrícula'}</p>
                       )}
                       {d.sisa_raw?.matriculas?.length > 0 && (
-                        <ul className="bg-gray-50 rounded-lg p-2 mt-1 space-y-1 text-[11px] text-gray-600">
-                          {d.sisa_raw.matriculas.map((m, i) => (
+                        <ul className="bg-gray-50 rounded-lg p-2 mt-1 space-y-2 text-[11px] text-gray-600">
+                          {ordenarMatriculasRefeps(d.sisa_raw.matriculas, d.sisa_raw.matricula_declarada).map(({ m, declarada }, i) => (
                             <li key={i} className="flex justify-between gap-2">
-                              <span>{m.profesion} · {m.matricula}{m.jurisdiccion ? ` · ${m.jurisdiccion}` : ''}</span>
-                              <span className={m.habilitada ? 'text-emerald-700' : 'text-red-600'}>
+                              <span>
+                                <span className={declarada ? 'font-semibold text-gray-800' : ''}>
+                                  {m.profesion} · {m.matricula}{m.jurisdiccion ? ` · ${m.jurisdiccion}` : ''}
+                                  {declarada && ' · la que declaró'}
+                                </span>
+                                {(m.emisor || m.desde) && (
+                                  <span className="block text-gray-400">
+                                    {[m.emisor, m.desde && `desde ${m.desde.slice(0, 4)}`].filter(Boolean).join(' · ')}
+                                  </span>
+                                )}
+                              </span>
+                              <span className={`shrink-0 ${m.habilitada ? 'text-emerald-700' : 'text-red-600'}`}>
                                 {m.habilitada ? 'Habilitada' : 'No habilitada'}
                               </span>
                             </li>
