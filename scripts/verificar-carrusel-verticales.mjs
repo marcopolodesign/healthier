@@ -9,7 +9,9 @@
 //     especialidad no aparece, u "Otra" no queda al final).
 //  3. Contra una base (`staging` | `produccion`): hay una vertical sin nombre o
 //     color, o una vertical sin ninguna especialidad activa (no se la podría
-//     elegir en el onboarding), o la fila 'sos' se lista como vertical.
+//     elegir en el onboarding), o la fila 'sos' se lista como vertical; y lo de
+//     la migración 200: Odontología sin HC ni receta, Psiquiatría separada,
+//     Entrenamiento en Preparación física.
 //
 //   node scripts/verificar-carrusel-verticales.mjs            # sólo 1 y 2
 //   node scripts/verificar-carrusel-verticales.mjs staging    # 1, 2 y 3
@@ -79,7 +81,14 @@ if (entorno) {
     check(vs.every(v => v.nombre && /^#[0-9A-Fa-f]{6}$/.test(v.color ?? '')), `${vs.length} verticales con nombre y color`)
     const esp = await get('specialties?select=slug,vertical_id&active=eq.true&parent_id=is.null')
     const conEsp = new Set(esp.map(e => e.vertical_id))
-    const huerfanas = vs.filter(v => !conEsp.has(v.id) && v.id !== 'preparador')
+    const huerfanas = vs.filter(v => !conEsp.has(v.id))
+    // Migración 200: herramientas y catálogo movido.
+    const h = await get('vertical_settings?select=id,herramienta_historia_clinica,herramienta_receta&id=eq.odontologia')
+    check(h?.[0]?.herramienta_historia_clinica === false && h?.[0]?.herramienta_receta === false, 'Odontología sin historia clínica ni receta')
+    const mov = Object.fromEntries((await get('specialties?select=slug,vertical_id&slug=in.(psiquiatria,entrenamiento,kinesiologia)')).map(e => [e.slug, e.vertical_id]))
+    check(mov.psiquiatria === 'psiquiatria', 'Psiquiatría es vertical propia (no cuelga de Clínica)')
+    check(mov.entrenamiento === 'preparador', 'Entrenamiento Físico está en Preparación física')
+    check(mov.kinesiologia === 'fisico', 'Kinesiología tiene su especialidad')
     check(huerfanas.length === 0, `toda vertical tiene especialidad${huerfanas.length ? ` (faltan: ${huerfanas.map(v => v.id).join(', ')})` : ''}`)
   }
 }

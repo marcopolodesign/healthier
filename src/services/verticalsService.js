@@ -8,7 +8,7 @@ import { supabase, toCamelCase } from '../lib/supabase'
  * (migración 087) comparte la tabla con `tipo = 'servicio'`: `getAll()` la
  * devuelve igual (el panel la edita) y `useVerticales()` la filtra.
  */
-const COLUMNAS = 'id, nombre, color, icon, image_url, tipo, enabled, ondemand_price, sort_order'
+const COLUMNAS = 'id, nombre, color, icon, image_url, tipo, enabled, ondemand_price, sort_order, herramienta_historia_clinica, herramienta_receta'
 const BUCKET = 'verticales'
 
 export const verticalsService = {
@@ -41,7 +41,7 @@ export const verticalsService = {
    * Editar una vertical. super_admin únicamente — lo impone la RLS.
    * `undefined` = no tocar; `null` en precio/imagen = sacarlo.
    */
-  async update(id, { enabled, ondemandPrice, nombre, color, icon, imageUrl, sortOrder }) {
+  async update(id, { enabled, ondemandPrice, nombre, color, icon, imageUrl, sortOrder, herramientaHistoriaClinica, herramientaReceta }) {
     const { data: { user } } = await supabase.auth.getUser()
 
     const patch = { updated_at: new Date().toISOString(), updated_by: user?.id ?? null }
@@ -54,6 +54,8 @@ export const verticalsService = {
     if (icon !== undefined) patch.icon = icon
     if (imageUrl !== undefined) patch.image_url = imageUrl
     if (sortOrder !== undefined) patch.sort_order = sortOrder
+    if (herramientaHistoriaClinica !== undefined) patch.herramienta_historia_clinica = herramientaHistoriaClinica
+    if (herramientaReceta !== undefined) patch.herramienta_receta = herramientaReceta
 
     const { data, error } = await supabase
       .from('vertical_settings')
@@ -74,7 +76,7 @@ export const verticalsService = {
    * Arranca deshabilitada para el paciente salvo que venga con precio y
    * `enabled: true`.
    */
-  async create({ id, nombre, color, icon, imageUrl = null, ondemandPrice = null, enabled = false, sortOrder }) {
+  async create({ id, nombre, color, icon, imageUrl = null, ondemandPrice = null, enabled = false, sortOrder, herramientaHistoriaClinica = true, herramientaReceta = true }) {
     const { data: { user } } = await supabase.auth.getUser()
     const fila = {
       id,
@@ -86,6 +88,8 @@ export const verticalsService = {
       enabled: Boolean(enabled && ondemandPrice),
       sort_order: sortOrder ?? 50,
       tipo: 'vertical',
+      herramienta_historia_clinica: herramientaHistoriaClinica,
+      herramienta_receta: herramientaReceta,
       updated_by: user?.id ?? null,
     }
     const { data, error } = await supabase

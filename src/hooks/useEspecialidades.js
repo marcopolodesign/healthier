@@ -85,10 +85,23 @@ export function useEspecialidades() {
   // mostrar: el bloqueo real está en el trigger de `clinical_medications` y en
   // `rcta-issue`. Mientras el catálogo no cargó devuelve `false` — es preferible
   // esconder el recetario un instante de más que ofrecérselo a quien no puede.
+  // Desde la migración 200 además tiene que tenerla la VERTICAL
+  // (`vertical_settings.herramienta_receta`) — mismo criterio que
+  // `profesional_puede_recetar()` en la base.
   const puedeRecetar = useMemo(() => {
     const map = {}
-    especialidades.forEach(e => { map[e.slug] = !!e.puedeRecetar })
+    especialidades.forEach(e => { map[e.slug] = !!e.puedeRecetar && e.vertical?.herramientaReceta !== false })
     return slug => !!map[slug]
+  }, [especialidades])
+
+  // Si el profesional de esa especialidad ve la historia clínica (herramienta
+  // de su vertical, migración 200). Mientras el catálogo no cargó, o si la
+  // especialidad no tiene vertical, `true`: esconder la HC por un fetch lento
+  // le cortaría la consulta a un clínico.
+  const usaHistoriaClinica = useMemo(() => {
+    const map = {}
+    especialidades.forEach(e => { map[e.slug] = e.vertical?.herramientaHistoriaClinica !== false })
+    return slug => map[slug] ?? true
   }, [especialidades])
 
   const subEspecialidadesDe = useMemo(() => {
@@ -108,6 +121,7 @@ export function useEspecialidades() {
     porVertical,
     activas,
     puedeRecetar,
+    usaHistoriaClinica,
     subEspecialidadesDe,
     cargando: config === null,
     invalidar: invalidarEspecialidades,

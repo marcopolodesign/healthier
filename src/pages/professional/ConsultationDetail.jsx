@@ -11,6 +11,7 @@ import { emergencyService } from '../../services/emergencyService'
 import { professionalService } from '../../services/professionalService'
 import { derivacionesService } from '../../services/derivacionesService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { clinicalService } from '../../services/clinicalService'
 import StatusBadge from '../../components/StatusBadge'
 import CloseConsultationModal from '../../components/CloseConsultationModal'
@@ -30,6 +31,8 @@ export default function ConsultationDetail({ profile }) {
   const { id } = useParams()
   const navigate = useNavigate()
   const [consultation, setConsultation] = useState(null)
+  // Herramienta de su vertical (migración 200): sin HC no se ofrece el link.
+  const { usaHistoriaClinica } = useEspecialidades()
   const [loading, setLoading] = useState(true)
   const [closeModal, setCloseModal] = useState(false)
 
@@ -686,7 +689,7 @@ export default function ConsultationDetail({ profile }) {
       <DerivadoPorCard derivacion={derivacion} />
 
       {/* Navigation shortcuts */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className={`grid gap-3 ${usaHistoriaClinica(profProfile?.specialty ?? profile?.professionalProfiles?.[0]?.specialty) ? 'grid-cols-2' : 'grid-cols-1'}`}>
         <Link
           to={`/profesional/paciente/${consultation.patientId}`}
           className="btn-secondary py-3 flex items-center justify-center gap-2"
@@ -694,13 +697,15 @@ export default function ConsultationDetail({ profile }) {
           <User className="h-5 w-5" />
           Perfil del paciente
         </Link>
-        <Link
-          to={`/profesional/historia-clinica/${consultation.patientId}`}
-          className="btn-secondary py-3 flex items-center justify-center gap-2"
-        >
-          <ClipboardText className="h-5 w-5" />
-          Historia clínica
-        </Link>
+        {usaHistoriaClinica(profProfile?.specialty ?? profile?.professionalProfiles?.[0]?.specialty) && (
+          <Link
+            to={`/profesional/historia-clinica/${consultation.patientId}`}
+            className="btn-secondary py-3 flex items-center justify-center gap-2"
+          >
+            <ClipboardText className="h-5 w-5" />
+            Historia clínica
+          </Link>
+        )}
       </div>
 
       {/* Reagendar */}

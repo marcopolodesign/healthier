@@ -53,7 +53,7 @@ function MiniaturaVertical({ vertical }) {
   )
 }
 
-function FilaVertical({ vertical, config, onGuardado, danger = false, priceLabel = 'Precio on-demand', toggleLabel, onEditar, editando = false, onSubir, onBajar }) {
+function FilaVertical({ vertical, config, onGuardado, danger = false, priceLabel = 'Precio on-demand', toggleLabel, onEditar, editando = false, onSubir, onBajar, notaHerramientas = null }) {
   const [enabled, setEnabled] = useState(config?.enabled ?? false)
   const [precio, setPrecio] = useState(config?.ondemandPrice ?? '')
   const [guardando, setGuardando] = useState(false)
@@ -118,6 +118,7 @@ function FilaVertical({ vertical, config, onGuardado, danger = false, priceLabel
                 ? `Consulta inmediata a ${formatARS(config.ondemandPrice)}`
                 : 'Habilitada sin precio — no se puede contratar'
               : 'No se muestra a los pacientes'}
+            {notaHerramientas && ` · ${notaHerramientas}`}
           </p>
         </div>
       </div>
@@ -567,6 +568,21 @@ function EspecialidadesPanel() {
   )
 }
 
+/**
+ * Lo que el profesional de esta vertical NO tiene, para la línea gris de la
+ * fila (Felipe, 2026-10-16) — así el super admin lo ve sin abrir el editor.
+ */
+function notaDeHerramientas(v, especialidades) {
+  const hc = v.herramientas?.historiaClinica !== false
+  const rx = v.herramientas?.receta !== false
+  if (!hc && !rx) return 'Sin historia clínica ni receta'
+  if (!hc) return 'Sin historia clínica'
+  if (!rx) return 'Sin receta electrónica'
+  const esp = especialidades.filter(e => e.verticalId === v.id && !e.parentId && e.active)
+  if (esp.length && !esp.some(e => e.puedeRecetar)) return 'Receta sin especialidades'
+  return null
+}
+
 export default function SuperAdminVerticales() {
   const [tab, setTab] = useState('verticales')
   const [config, setConfig] = useState(null)
@@ -576,6 +592,7 @@ export default function SuperAdminVerticales() {
   // Identidad ya mezclada (nombre, fondo, ícono, foto) — mismo hook que el
   // paciente, así lo que se ve acá es lo que va a ver él.
   const { verticales } = useVerticales()
+  const { especialidades } = useEspecialidades()
 
   const cargar = () => verticalsService.getAll()
     .then(setConfig)
@@ -696,6 +713,7 @@ export default function SuperAdminVerticales() {
                 <div key={v.id} className="space-y-3">
                   <FilaVertical
                     vertical={v}
+                    notaHerramientas={notaDeHerramientas(v, especialidades)}
                     config={porId[v.id]}
                     onGuardado={alGuardar}
                     onEditar={() => setEditando(e => (e === v.id ? null : v.id))}
@@ -707,6 +725,7 @@ export default function SuperAdminVerticales() {
                     <EditorVertical
                       vertical={v}
                       existentes={lista}
+                      onVerEspecialidades={() => { setEditando(null); setTab('especialidades') }}
                       onGuardado={alGuardarIdentidad}
                       onCancelar={() => setEditando(null)}
                     />

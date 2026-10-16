@@ -745,8 +745,11 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
   // Mientras el catálogo o el perfil profesional todavía están cargando se
   // considera que NO puede — es preferible esconder la pestaña un instante de
   // más que ofrecerla (y de paso crear un encuentro clínico) a quien no puede.
-  const { puedeRecetar, cargando: cargandoEspecialidades } = useEspecialidades()
+  const { puedeRecetar, usaHistoriaClinica, cargando: cargandoEspecialidades } = useEspecialidades()
   const puedeRecetarProfesional = !cargandoEspecialidades && !loadingProfProfile && puedeRecetar(specialty)
+  // Herramienta de la vertical (migración 200): ej. Odontología no ve la
+  // historia clínica. Mientras carga, se muestra (no cortarle la HC a nadie).
+  const verHistoriaClinica = usaHistoriaClinica(specialty)
 
   // El encuentro clínico se crea perezosamente (al guardar la primera nota).
   // La receta también lo necesita, así que se asegura al abrir su pestaña —
@@ -825,7 +828,9 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
   // punto 7). Mientras se está cargando esa respuesta,
   // `puedeRecetarProfesional` da `false`, así que la pestaña queda oculta y
   // no "parpadea" apareciendo tarde.
-  const visibleTabs = PANEL_TABS.filter(tab => tab.id !== 'receta' || puedeRecetarProfesional)
+  const visibleTabs = PANEL_TABS
+    .filter(tab => tab.id !== 'receta' || puedeRecetarProfesional)
+    .filter(tab => tab.id !== 'historia' || verHistoriaClinica)
 
   return (
     <div className="flex flex-col h-full bg-white lg:border-l border-border-default">
@@ -1092,10 +1097,12 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
               )}
             </section>
 
-            <section ref={el => { sectionRefs.current.historia = el }} className="scroll-mt-6 mt-8 pb-4">
-              <SectionHeader icon={ClockCounterClockwise} label="Historia Clínica" />
-              <HistoriaTab loading={loadingHistoria} encounters={historia.encounters} allergies={historia.allergies} />
-            </section>
+            {verHistoriaClinica && (
+              <section ref={el => { sectionRefs.current.historia = el }} className="scroll-mt-6 mt-8 pb-4">
+                <SectionHeader icon={ClockCounterClockwise} label="Historia Clínica" />
+                <HistoriaTab loading={loadingHistoria} encounters={historia.encounters} allergies={historia.allergies} />
+              </section>
+            )}
           </>
         )}
 

@@ -5,6 +5,7 @@ import {
   contrasteConBlanco, oscurecerHasta,
 } from '../../lib/verticals'
 import { verticalsService } from '../../services/verticalsService'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../Toast'
 
 /**
@@ -93,7 +94,29 @@ function Swatch({ hex, nombre, elegido, sugerido, onClick }) {
   )
 }
 
-export default function EditorVertical({ vertical, existentes = [], onGuardado, onCancelar }) {
+/** Switch de una herramienta: nombre + ayuda, el switch centrado con el nombre (Felipe). */
+function FilaHerramienta({ nombre, ayuda, activa, onCambiar, children }) {
+  return (
+    <div className="py-3 first:pt-0 border-b border-[#E8E6E0] last:border-b-0">
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-[15px] font-medium text-[#2D2A26]">{nombre}</span>
+        <button
+          type="button"
+          onClick={() => onCambiar(!activa)}
+          aria-pressed={activa}
+          aria-label={`${activa ? 'Apagar' : 'Prender'} ${nombre}`}
+          className={`w-12 h-7 rounded-full transition-colors relative shrink-0 ${activa ? 'bg-brand' : 'bg-gray-300'}`}
+        >
+          <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-transform ${activa ? 'translate-x-6' : 'translate-x-1'}`} />
+        </button>
+      </div>
+      <p className="text-[14px] leading-[1.4] text-[#6B6560] max-w-[60ch] mt-0.5">{ayuda}</p>
+      {children}
+    </div>
+  )
+}
+
+export default function EditorVertical({ vertical, existentes = [], onGuardado, onCancelar, onVerEspecialidades }) {
   const esAlta = !vertical
   const [nombre, setNombre] = useState(vertical?.nombre ?? '')
   const [color, setColor] = useState(vertical?.fondo ?? '')
@@ -105,6 +128,15 @@ export default function EditorVertical({ vertical, existentes = [], onGuardado, 
   const [previewArchivo, setPreviewArchivo] = useState(null)
   const [precio, setPrecio] = useState('')
   const [otroHex, setOtroHex] = useState('')
+  // Herramientas del profesional (migración 200). En el alta arrancan
+  // prendidas (default de Felipe, avisado a Mateo).
+  const [conHistoria, setConHistoria] = useState(vertical?.herramientas?.historiaClinica ?? true)
+  const [conReceta, setConReceta] = useState(vertical?.herramientas?.receta ?? true)
+  const { especialidades } = useEspecialidades()
+  const espDeLaVertical = vertical
+    ? especialidades.filter(e => e.verticalId === vertical.id && !e.parentId && e.active)
+    : []
+  const espConReceta = espDeLaVertical.filter(e => e.puedeRecetar).length
   const [guardando, setGuardando] = useState(false)
   const inputFileRef = useRef(null)
 
@@ -157,7 +189,7 @@ export default function EditorVertical({ vertical, existentes = [], onGuardado, 
     try {
       let imageUrl = imagen
       if (archivo) imageUrl = await verticalsService.uploadImage(id, archivo)
-      const datos = { nombre: nombre.trim(), color: colorFinal, icon: iconKey, imageUrl }
+      const datos = { nombre: nombre.trim(), color: colorFinal, icon: iconKey, imageUrl, herramientaHistoriaClinica: conHistoria, herramientaReceta: conReceta }
       const guardada = esAlta
         ? await verticalsService.create({
           id, ...datos, ondemandPrice: precioNum,
@@ -281,6 +313,35 @@ export default function EditorVertical({ vertical, existentes = [], onGuardado, 
                 <Icono className="h-5 w-5" />
               </button>
             ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="form-label">Herramientas del profesional</label>
+          <div>
+            <FilaHerramienta
+              nombre="Historia clínica"
+              ayuda="Ve y carga la historia clínica del paciente durante la consulta."
+              activa={conHistoria}
+              onCambiar={setConHistoria}
+            />
+            <FilaHerramienta
+              nombre="Receta electrónica"
+              ayuda="Puede emitir recetas de medicamentos y órdenes de estudios."
+              activa={conReceta}
+              onCambiar={setConReceta}
+            >
+              {conReceta && vertical && espDeLaVertical.length > 0 && (
+                <p className={`text-[14px] mt-1 ${espConReceta === 0 ? 'text-[#B2633F]' : 'text-[#6B6560]'}`}>
+                  {espConReceta === 0
+                    ? 'Ninguna especialidad la tiene habilitada'
+                    : `Habilitada en ${espConReceta} de ${espDeLaVertical.length} especialidad${espDeLaVertical.length === 1 ? '' : 'es'}`}
+                  {onVerEspecialidades && (
+                    <> · <button type="button" onClick={onVerEspecialidades} className="underline">Ver especialidades</button></>
+                  )}
+                </p>
+              )}
+            </FilaHerramienta>
           </div>
         </div>
 
