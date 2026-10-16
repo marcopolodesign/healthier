@@ -24,8 +24,8 @@ union all
 select 'documento: DNI ≥ 90 millones → true',
        cio.documento_extranjero('95123456') is true, null
 union all
-select 'documento: justo 90.000.000 → true',
-       cio.documento_extranjero('90.000.000') is true, null
+select 'documento: justo 90.000.000 → false (regla > 90M, migración 201)',
+       cio.documento_extranjero('90.000.000') is false, null
 union all
 select 'documento: pasaporte (no numérico) → true',
        cio.documento_extranjero('AB123456') is true, null
@@ -41,9 +41,9 @@ select 'quien no es profesional no tiene tiene_horarios ni tiene_direccion', cou
   from cio.people
  where role <> 'professional' and (tiene_horarios is not null or tiene_direccion is not null)
 union all
-select 'documento_extranjero es NULL sólo sin DNI', count(*) = 0, count(*)
+select 'sin DNI, documento_extranjero es NULL (con DNI de largo raro también puede serlo, migración 201)', count(*) = 0, count(*)
   from cio.people
- where (documento_extranjero is null) <> (not tiene_dni)
+ where not tiene_dni and documento_extranjero is not null
 union all
 select 'ninguna cuenta de prueba sale en cio.people', count(*) = 0, count(*)
   from cio.people
