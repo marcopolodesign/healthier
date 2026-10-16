@@ -10,9 +10,8 @@ import {
   computeConsumedFood,
   computeTotals,
   toLocalDateString,
+  pedirReceta,
 } from '../../services/nutriplanService'
-
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY ?? ''}`
 
 function formatUpdatedAt(iso) {
   if (!iso) return ''
@@ -55,30 +54,12 @@ function RecipeCard({ mealName, foods }) {
   const [error, setError] = useState('')
 
   async function fetchRecipe() {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY
-    if (!apiKey) { setError('Configurá VITE_GEMINI_API_KEY para usar recetas.'); return }
     setLoading(true)
     setError('')
     try {
-      const foodList = foods.map(f => f.name).join(', ')
-      const res = await fetch(GEMINI_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `Inventá una receta saludable para ${mealName} usando estos ingredientes: ${foodList}. Respondé en español argentino. Formato: nombre del plato, tiempo de preparación, y pasos numerados. Máximo 200 palabras.`,
-            }],
-          }],
-          generationConfig: { maxOutputTokens: 350 },
-        }),
-      })
-      const json = await res.json()
-      const text = json?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-      if (!text) throw new Error()
-      setRecipe(text)
-    } catch {
-      setError('Error al generar la receta.')
+      setRecipe(await pedirReceta({ comida: mealName, alimentos: foods.map(f => f.name) }))
+    } catch (e) {
+      setError(`No pudimos generar la receta${e?.message ? ` (${e.message})` : ''}.`)
     } finally {
       setLoading(false)
     }

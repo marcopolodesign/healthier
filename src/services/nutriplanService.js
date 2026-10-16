@@ -382,3 +382,28 @@ export function parseLocalDate(value) {
   const [y, m, d] = String(value).slice(0, 10).split('-').map(Number)
   return new Date(y, m - 1, d)
 }
+
+/**
+ * Receta sugerida para una comida del plan. La arma Gemini del lado del
+ * servidor (Edge Function `nutriplan-receta`); el navegador no tiene ninguna
+ * clave de IA — antes se llamaba directo con `VITE_GEMINI_API_KEY`, que queda
+ * compilada y pública en el bundle.
+ */
+export async function pedirReceta({ comida, alimentos }) {
+  const { data, error } = await supabase.functions.invoke('nutriplan-receta', {
+    body: { comida, alimentos },
+  })
+  if (error) {
+    // El cuerpo real viene en error.context; "non-2xx status code" no dice nada.
+    let detalle = error.message
+    try {
+      const cuerpo = await error.context?.json()
+      if (cuerpo?.error) detalle = String(cuerpo.error)
+    } catch {
+      // el cuerpo no era JSON
+    }
+    throw new Error(detalle)
+  }
+  if (data?.error) throw new Error(String(data.error))
+  return data.data.receta
+}
