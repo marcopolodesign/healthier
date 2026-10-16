@@ -12,6 +12,7 @@ import { followupsService } from '../../services/followupsService'
 import { professionalService } from '../../services/professionalService'
 import { derivacionesService, destinoLabel, derivacionVigente } from '../../services/derivacionesService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { useMiEspecialidad } from '../../hooks/useMiEspecialidad'
 import DerivarModal from '../../components/professional/DerivarModal'
 import DerivadoPorCard from '../../components/professional/DerivadoPorCard'
 import DerivacionEstado from '../../components/DerivacionEstado'
@@ -75,7 +76,7 @@ export default function ProfessionalPatientProfile({ profile }) {
   // ── Derivaciones de este paciente que hice o recibí ──────────────────────
   const { porSlug, usaHistoriaClinica } = useEspecialidades()
   // Herramienta de su vertical (migración 200).
-  const verHistoriaClinica = usaHistoriaClinica(profile?.professionalProfiles?.[0]?.specialty)
+  const verHistoriaClinica = usaHistoriaClinica(useMiEspecialidad(profile?.id))
   const [derivarOpen, setDerivarOpen] = useState(false)
   const [derivaciones, setDerivaciones] = useState([])
   const [cancelandoId, setCancelandoId] = useState(null)

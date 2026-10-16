@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, CircleNotch, User, ShareFat, ClipboardText, CalendarCheck } from '@phosphor-icons/react'
 import { derivacionesService, textoHistoriaClinica, destinoLabel, derivacionVigente } from '../../services/derivacionesService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { useMiEspecialidad } from '../../hooks/useMiEspecialidad'
 import DerivacionEstado, { consentimientoLabel } from '../../components/DerivacionEstado'
 import Modal from '../../components/Modal'
 import { toast } from '../../components/Toast'
@@ -25,7 +26,7 @@ export default function DerivacionDetalle({ profile }) {
   const { id } = useParams()
   const navigate = useNavigate()
   const { porSlug, usaHistoriaClinica } = useEspecialidades()
-  const verHistoriaClinica = usaHistoriaClinica(profile?.professionalProfiles?.[0]?.specialty)
+  const verHistoriaClinica = usaHistoriaClinica(useMiEspecialidad(profile?.id))
   const [d, setD] = useState(null)
   const [loading, setLoading] = useState(true)
   const [cancelando, setCancelando] = useState(false)

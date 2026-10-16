@@ -697,7 +697,7 @@ export default function ConsultationDetail({ profile }) {
       <DerivadoPorCard derivacion={derivacion} />
 
       {/* Navigation shortcuts */}
-      <div className={`grid gap-3 ${usaHistoriaClinica(profProfile?.specialty ?? profile?.professionalProfiles?.[0]?.specialty) ? 'grid-cols-2' : 'grid-cols-1'}`}>
+      <div className={`grid gap-3 ${usaHistoriaClinica(profProfile?.specialty) ? 'grid-cols-2' : 'grid-cols-1'}`}>
         <Link
           to={`/profesional/paciente/${consultation.patientId}`}
           className="btn-secondary py-3 flex items-center justify-center gap-2"
@@ -705,7 +705,7 @@ export default function ConsultationDetail({ profile }) {
           <User className="h-5 w-5" />
           Perfil del paciente
         </Link>
-        {usaHistoriaClinica(profProfile?.specialty ?? profile?.professionalProfiles?.[0]?.specialty) && (
+        {usaHistoriaClinica(profProfile?.specialty) && (
           <Link
             to={`/profesional/historia-clinica/${consultation.patientId}`}
             className="btn-secondary py-3 flex items-center justify-center gap-2"
