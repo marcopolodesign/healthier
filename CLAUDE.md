@@ -134,8 +134,9 @@ The following services are **UI-only mocks** with realistic `setTimeout` delays.
 
 | Service | File | TODO |
 |---------|------|------|
-| AI triage | `src/services/aiService.js` | Gemini 2.5 Flash via `VITE_GEMINI_API_KEY` |
 | Emergency dispatch | `src/services/emergencyService.js` | Real dispatcher + ETA feed |
+
+> 🔴 **Ninguna clave de IA en `VITE_*`** (2026-10-16). Gemini se llama sólo desde Edge Functions con el secret `GEMINI_API_KEY`: `biovisor-extract` (BioVisor) y `nutriplan-receta` (receta sugerida del NutriPlan), las dos con sesión obligatoria. El control es `node scripts/verificar-claves-ia.mjs`. `aiService.js` (triage, código muerto sin importar) se borró.
 
 ---
 
