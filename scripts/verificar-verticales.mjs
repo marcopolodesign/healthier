@@ -234,7 +234,8 @@ if (!process.argv.includes('--sin-front')) {
   {
     const page = await paginaComo('clinica@staging.healthier.app', { bloquearPerfil: true })
     const texto = await intentarNota(page)
-    check(!/Falta tu matrícula/.test(texto), 'con la red cortada al leer el perfil, el aviso no dice "Falta tu matrícula"')
+    const aviso = (/No se pudo guardar la nota[^\n]*/.exec(texto) ?? [''])[0]
+    check(!/Falta tu matrícula/.test(texto) && aviso !== '', `con la red cortada al leer el perfil, el aviso no dice "Falta tu matrícula" (${aviso.slice(0, 90) || 'no apareció ningún aviso'})`)
     await page.context().close()
   }
 

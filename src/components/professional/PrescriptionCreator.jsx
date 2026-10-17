@@ -14,6 +14,7 @@ import { clinicalService, logClinicalAccess } from '../../services/clinicalServi
 import { esSimulado, marcarRecetaEmitida } from '../../lib/simulacion'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../Toast'
+import { mensajeDeError } from '../../lib/supabase'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -294,8 +295,9 @@ function AddPrescriptionForm({ patientId, encounterId, ensureEncounter, professi
       logClinicalAccess({ resourceType: 'medication', resourceId: data.id, patientId, action: 'create' })
       toast.success('Medicación registrada — todavía falta emitir la receta')
       onSaved(data)
-    } catch {
-      toast.error('Error al guardar la medicación')
+    } catch (err) {
+      // El error real (ej. "Falta tu matrícula en el perfil…"), no uno genérico.
+      toast.error(`No se pudo guardar la medicación: ${mensajeDeError(err)}`)
     } finally {
       setSaving(false)
     }
