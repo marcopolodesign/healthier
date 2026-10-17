@@ -9,7 +9,7 @@ import { mensajeDeError } from '../lib/supabase'
 
 export default function CloseConsultationModal({
   open, onClose, consultationId, patientName, modality, profile, onFinalized,
-  patientId, ensureEncounter, licenseType, licenseNumber,
+  patientId, ensureEncounter,
   // Ya verificado EN la videollamada (migración 099, tab "Cerrar"). Si viene
   // seteado, este modal no vuelve a pedir el código.
   closingCodeVerifiedAt,
@@ -72,8 +72,6 @@ export default function CloseConsultationModal({
         entryType: 'note',
         content: form.notes.trim(),
         data: { source: 'cierre_de_consulta', consultationId },
-        licenseType,
-        licenseNumber,
       })
     } catch (err) {
       console.error('No se pudo asentar la nota de cierre en la HC:', err)
@@ -104,7 +102,6 @@ export default function CloseConsultationModal({
       await guardarConsultaEnHC({
         draft, ensureEncounter, patientId,
         professionalId: profile.id,
-        licenseType, licenseNumber,
       })
       // Best-effort también: marca el borrador como asentado para que un
       // segundo cierre (o el propio botón, si el profesional vuelve a

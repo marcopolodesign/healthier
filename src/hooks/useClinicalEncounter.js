@@ -7,7 +7,8 @@ import { preconsultaToText } from '../components/professional/PreconsultaSummary
 // ClinicalPanel — both need "get or create the encounter" before writing any
 // clinical data (vitals, allergies, prescriptions, AI Scribe notes), and
 // previously duplicated this get-or-create logic independently.
-export function useClinicalEncounter({ consultationId, patientId, professionalId, specialty, modality, licenseType, licenseNumber, preconsulta }) {
+// La firma (matrícula y especialidad) la resuelve clinicalService al escribir.
+export function useClinicalEncounter({ consultationId, patientId, professionalId, specialty, modality, preconsulta }) {
   const [encounterId, setEncounterId] = useState(null)
   // Promesa compartida entre llamadas concurrentes de ESTA instancia del hook.
   // Dos taps rápidos en la guía clínica (p.ej. marcar dos banderas rojas
@@ -54,8 +55,6 @@ export function useClinicalEncounter({ consultationId, patientId, professionalId
             consultationId,
             specialty: specialty ?? 'otra',
             modality,
-            licenseType: licenseType ?? 'MN',
-            licenseNumber,
           })
         } catch (err) {
           // Violación del índice único (23505, migración 076): otra instancia
@@ -90,8 +89,6 @@ export function useClinicalEncounter({ consultationId, patientId, professionalId
             entryType: 'note',
             content: texto,
             data: { source: 'preconsulta', consultationId },
-            licenseType: licenseType ?? 'MN',
-            licenseNumber,
           }).catch(err => console.error('No se pudo asentar la pre-consulta en la HC:', err))
         }
 
@@ -103,7 +100,7 @@ export function useClinicalEncounter({ consultationId, patientId, professionalId
 
     inFlightRef.current = promise
     return promise
-  }, [encounterId, patientId, professionalId, consultationId, specialty, modality, licenseType, licenseNumber, preconsulta])
+  }, [encounterId, patientId, professionalId, consultationId, specialty, modality, preconsulta])
 
   return { encounterId, ensureEncounter }
 }

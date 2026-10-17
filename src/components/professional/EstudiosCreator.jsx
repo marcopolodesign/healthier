@@ -102,8 +102,6 @@ export default function EstudiosCreator({ patientId, encounterId, ensureEncounte
           estudios: estudios.map(e => ({ nombre: e.nombre, codigo: e.codigo ?? null })),
           indicaciones: indicaciones.trim() || null,
         },
-        licenseType: profProfile.licenseType,
-        licenseNumber: profProfile.licenseNumber,
       })
 
       setOrdenes(prev => [entry, ...prev])

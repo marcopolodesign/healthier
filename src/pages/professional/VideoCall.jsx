@@ -597,18 +597,11 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
   const [historia, setHistoria] = useState({ encounters: [], allergies: [] })
   const [loadingHistoria, setLoadingHistoria] = useState(true)
   const [patientData, setPatientData] = useState(null)
-  // Perfil profesional propio: hace falta para saber si tiene matrícula y
-  // domicilio, que RCTA exige para emitir. También es la ÚNICA fuente real de
-  // licencia/especialidad acá — `profile` (el de sesión) nunca trae
-  // `professionalProfiles` embebido, así que leer de ahí (como hacía este
-  // panel antes) siempre caía en los defaults 'MN'/'0'/'otra', sin importar
-  // quién estuviera atendiendo. Se vuelve a `otra` mientras carga.
-  // Mientras `loadingProfProfile` está en `true` no se sabe la firma real: el
-  // botón "Guardar" espera (ver el form más abajo) y no se crea el encuentro.
-  const { perfil: profProfile, cargando: loadingProfProfile, error: errorProfProfile, recargar: recargarProfProfile } = useMiPerfilProfesional(profile?.id)
-  const licenseType = profProfile?.licenseType ?? 'MN'
-  // Sin matrícula NO se firma (antes se firmaba con '0'): lo corta clinicalService.
-  const licenseNumber = profProfile?.licenseNumber ?? null
+  // Perfil profesional propio, para lo que muestra el panel: si tiene matrícula
+  // y domicilio (RCTA los exige para emitir), y la especialidad (herramientas de
+  // su vertical, guía clínica). La FIRMA de la HC no sale de acá: la resuelve
+  // clinicalService al escribir, leyendo professional_profiles.
+  const { perfil: profProfile, cargando: loadingProfProfile, recargar: recargarProfProfile } = useMiPerfilProfesional(profile?.id)
   const specialty = profProfile?.specialty ?? 'otra'
   const [loadingPatientData, setLoadingPatientData] = useState(true)
 
@@ -727,7 +720,6 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
     consultationId: consultation?.id,
     patientId, professionalId, specialty,
     modality: consultation?.modality,
-    licenseType, licenseNumber,
     preconsulta: consultation?.preconsultaData,
   })
 
@@ -748,9 +740,9 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
   // ofrece (ver PANEL_TABS filtrado más abajo), y tocarla no tiene que crear
   // un clinical_encounter que no sirve para nada.
   useEffect(() => {
-    if (activeView === 'receta' && !encounterId && puedeRecetarProfesional && licenseNumber) ensureEncounter().catch(() => {})
+    if (activeView === 'receta' && !encounterId && puedeRecetarProfesional) ensureEncounter().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeView, encounterId, puedeRecetarProfesional, licenseNumber])
+  }, [activeView, encounterId, puedeRecetarProfesional])
 
 
   // Combines Daily.co's already-live local mic + remote participant audio
@@ -806,16 +798,12 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
     if (!form.content.trim()) return
     setSubmitting(true)
     try {
-      // Si el perfil no se pudo leer, el error real (no "Falta tu matrícula").
-      if (!profProfile) throw errorProfProfile ?? new Error('No encontramos tu perfil profesional.')
       const eid = await ensureEncounter()
       const entry = await clinicalService.addEntry(eid, {
         patientId,
         professionalId,
         entryType: form.entryType,
         content: form.content,
-        licenseType,
-        licenseNumber,
       })
       setEntries(prev => [...prev, entry])
       setForm(f => ({ ...f, content: '' }))
@@ -928,8 +916,6 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
             patientId={patientId}
             professionalId={professionalId}
             specialty={specialty}
-            licenseType={licenseType}
-            licenseNumber={licenseNumber}
             encounterId={encounterId}
             ensureEncounter={ensureEncounter}
             getAudioStream={getAudioStream}
@@ -1077,8 +1063,6 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
                   patientId={patientId}
                   professionalId={professionalId}
                   specialty={specialty}
-                  licenseType={licenseType}
-                  licenseNumber={licenseNumber}
                   loadingProfProfile={loadingProfProfile}
                   ensureEncounter={ensureEncounter}
                   onEntryAdded={entry => setEntries(prev => [...prev, entry])}

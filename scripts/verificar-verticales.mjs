@@ -14,10 +14,12 @@
 //  4. La historia clínica de un paciente con una derivación se cae al abrirla
 //     (ReferenceError en `DerivacionCard`, revisión ronda 2) — en el front de
 //     staging, con Chromium headless y la sesión de clinica@staging.
-//  5. Con matrícula, una nota de la videollamada NO se firma con la matrícula
-//     real (antes iba 'otra'/'0'). Con cuentas propias del control
+//  5. Firma de la HC con la matrícula real (antes iba 'otra'/'0'): una nota
+//     de la videollamada y la nota de cierre al cerrar desde el detalle de
+//     consulta, abierto y cerrado enseguida. Con cuentas propias del control
 //     (control-firma@ y control-paciente@staging.healthier.app), creadas acá si
-//     no existen; el profesional queda fuera del marketplace (is_active false).
+//     no existen; el profesional queda fuera del marketplace (is_active false)
+//     y cada consulta del control termina completada (no se acumulan abiertas).
 //
 //   node scripts/verificar-verticales.mjs            # todo
 //   node scripts/verificar-verticales.mjs --sin-front
@@ -250,6 +252,36 @@ if (!process.argv.includes('--sin-front')) {
       && notas.length > 0 && notas.every(n => n.professional_license_number === MATRICULA_CTRL),
       `con matrícula, la nota de la videollamada se firma con la matrícula real (encuentro ${enc[0]?.professional_license_number ?? '—'} · ${enc[0]?.specialty ?? '—'}, notas ${notas.map(n => n.professional_license_number).join(',') || '—'})`)
   }
+  await rest(`consultations?id=eq.${consultaCtrl.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'completed' }) })
+
+  // Cierre desde el detalle de consulta, apenas abierto: la nota de cierre
+  // queda firmada con la matrícula real.
+  {
+    const [cc] = await rest('consultations', {
+      method: 'POST',
+      body: JSON.stringify({ patient_id: pacCtrl, professional_id: proCtrl, status: 'closing', scheduled_at: new Date().toISOString(), modality: 'video', price_at_booking: 0, payment_status: 'exempt' }),
+    })
+    const resumen = `Control de cierre ${Date.now()}`
+    const page = await paginaComo('control-firma@staging.healthier.app')
+    let aviso = ''
+    try {
+      await page.goto(`${WEB}/profesional/consulta/${cc.id}`)
+      await page.getByRole('button', { name: 'Cerrar consulta' }).last().click({ timeout: 20000 })
+      await page.getByPlaceholder(/Qué pasó/).fill(resumen)
+      await page.getByText('cerrá dejando un motivo').click()
+      await page.getByPlaceholder(/el paciente cortó/).fill('Control automático.')
+      await page.getByRole('button', { name: 'Confirmar cierre' }).click()
+      aviso = await page.getByText(/Consulta finalizada correctamente|no se pudo asentar[^\n]*/).first().textContent({ timeout: 20000 }).catch(() => '')
+    } finally {
+      await page.context().close()
+    }
+    const [despues] = await rest(`consultations?select=status&id=eq.${cc.id}`)
+    const notas = await rest(`clinical_entries?select=professional_license_number&content=eq.${encodeURIComponent(resumen)}`)
+    check(despues?.status === 'completed' && notas[0]?.professional_license_number === MATRICULA_CTRL,
+      `cerrar desde el detalle deja la nota de cierre firmada con la matrícula real (${despues?.status} · ${notas[0]?.professional_license_number ?? 'sin nota'}${aviso && !/finalizada/.test(aviso) ? ` · ${aviso.slice(0, 60)}` : ''})`)
+    if (despues?.status !== 'completed') await rest(`consultations?id=eq.${cc.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'completed' }) })
+  }
+
   const [proFila] = await rest(`professional_profiles?select=is_active&user_id=eq.${proCtrl}`)
   check(proFila?.is_active === false, 'la cuenta de control no queda activa en el marketplace')
 

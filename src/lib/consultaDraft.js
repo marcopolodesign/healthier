@@ -270,7 +270,7 @@ export function hasMeaningfulContent(draft) {
  * en la HC" (`ConsultaEstructurada`) y por el auto-asentado al cerrar
  * (`CloseConsultationModal`) — ver el comentario de arriba del módulo.
  */
-export async function guardarConsultaEnHC({ draft, ensureEncounter, patientId, professionalId, licenseType, licenseNumber }) {
+export async function guardarConsultaEnHC({ draft, ensureEncounter, patientId, professionalId }) {
   const content = composeConsultaContent(draft)
   const encounterId = await ensureEncounter()
   return clinicalService.addEntry(encounterId, {
@@ -279,7 +279,5 @@ export async function guardarConsultaEnHC({ draft, ensureEncounter, patientId, p
     entryType: 'consultation',
     content: content || 'Consulta documentada sin contenido adicional.',
     data: { source: 'consulta_estructurada', ...draft, asentada: true },
-    licenseType,
-    licenseNumber,
   })
 }

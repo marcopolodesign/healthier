@@ -44,35 +44,45 @@ export async function logClinicalAccess({ resourceType, resourceId, patientId, a
 }
 
 /**
- * Sin matrícula no se firma la historia clínica (Ley 26.529 Art. 12). Antes se
- * rellenaba con '0'. No debería pasar —sólo atiende quien fue verificado a mano,
- * con matrícula—, pero si pasa, corta acá con un único error claro.
+ * La firma de un asiento de HC (Ley 26.529 Art. 12: matrícula de quien lo
+ * hace), resuelta ACÁ al escribir, no por la pantalla: se lee
+ * `professional_profiles` del profesional que escribe, una vez por escritura.
+ * Así no importa si la pantalla terminó (o falló) de cargar su perfil — antes
+ * llegaba `licenseNumber` vacío y se firmaba '0' (revisión pre-prod,
+ * 2026-10-17). Si la lectura falla, se tira el error real; si no hay matrícula
+ * (no debería: sólo atiende quien fue verificado a mano), "Falta tu matrícula".
  */
-function exigirMatricula(licenseNumber) {
-  const m = String(licenseNumber ?? '').trim()
-  if (!m || m === '0') throw new Error(MENSAJE_SIN_MATRICULA)
-  return m
+async function firmaDe(professionalId) {
+  const { data, error } = await supabase
+    .from('professional_profiles')
+    .select('specialty, license_type, license_number')
+    .eq('user_id', professionalId)
+    .maybeSingle()
+  if (error) throw error
+  const matricula = String(data?.license_number ?? '').trim()
+  if (!matricula || matricula === '0') throw new Error(MENSAJE_SIN_MATRICULA)
+  return { licenseType: data.license_type ?? 'MN', licenseNumber: matricula, specialty: data.specialty ?? null }
 }
 
 export const clinicalService = {
 
   logAccess: logClinicalAccess,
 
-  async createEncounter({ patientId, professionalId, consultationId, specialty, chiefComplaint, modality, licenseType, licenseNumber }) {
+  async createEncounter({ patientId, professionalId, consultationId, specialty, chiefComplaint, modality }) {
     if (esSimulado(consultationId)) return simulacion.encuentro()
-    const matricula = exigirMatricula(licenseNumber)
     // Sin sesión esto sale como anónimo y la RLS lo rechaza (ver asegurarSesion).
     await asegurarSesion()
+    const firma = await firmaDe(professionalId)
     const payload = toSnakeCase({
       patientId,
       professionalId,
       consultationId,
-      specialty: specialty ?? 'otra',
+      specialty: firma.specialty ?? specialty ?? 'otra',
       status: 'in_progress',
     })
     // Required NOT NULL fields not handled by toSnakeCase
-    payload.professional_license_type = licenseType ?? 'MN'
-    payload.professional_license_number = matricula
+    payload.professional_license_type = firma.licenseType
+    payload.professional_license_number = firma.licenseNumber
     payload.modality = modality === 'video' ? 'telemedicina' : (modality ?? 'telemedicina')
     payload.started_at = new Date().toISOString()
     if (chiefComplaint !== undefined) payload.chief_complaint = chiefComplaint
@@ -115,10 +125,10 @@ export const clinicalService = {
     return toCamelCase(data)
   },
 
-  async addEntry(encounterId, { patientId, professionalId, entryType, content, data: entryData, correctsEntryId, icdCode, licenseType, licenseNumber }) {
+  async addEntry(encounterId, { patientId, professionalId, entryType, content, data: entryData, correctsEntryId, icdCode }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, entryType, content, data: entryData, icdCode })
-    const matricula = exigirMatricula(licenseNumber)
     await asegurarSesion()
+    const firma = await firmaDe(professionalId)
     const payload = toSnakeCase({
       encounterId,
       patientId,
@@ -126,8 +136,8 @@ export const clinicalService = {
       entryType,
       content: content ?? null,
     })
-    payload.professional_license_type = licenseType ?? 'MN'
-    payload.professional_license_number = matricula
+    payload.professional_license_type = firma.licenseType
+    payload.professional_license_number = firma.licenseNumber
     if (entryData !== undefined) payload.data = entryData
     if (correctsEntryId !== undefined) payload.corrects_entry_id = correctsEntryId
     if (icdCode !== undefined) payload.icd_code = icdCode
@@ -143,9 +153,9 @@ export const clinicalService = {
     return toCamelCase(data)
   },
 
-  async addCondition(encounterId, { patientId, professionalId, icdCode, display, clinicalStatus, onsetDate, licenseType, licenseNumber }) {
+  async addCondition(encounterId, { patientId, professionalId, icdCode, display, clinicalStatus, onsetDate }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, icdCode, display, clinicalStatus, onsetDate })
-    const matricula = exigirMatricula(licenseNumber)
+    const firma = await firmaDe(professionalId)
     const payload = toSnakeCase({
       encounterId,
       patientId,
@@ -156,8 +166,8 @@ export const clinicalService = {
     })
     if (onsetDate !== undefined) payload.onset_date = onsetDate
 
-    payload.professional_license_type = licenseType ?? 'MN'
-    payload.professional_license_number = matricula
+    payload.professional_license_type = firma.licenseType
+    payload.professional_license_number = firma.licenseNumber
 
     const { data, error } = await supabase
       .from('clinical_conditions')
@@ -170,9 +180,9 @@ export const clinicalService = {
     return toCamelCase(data)
   },
 
-  async addAllergy(encounterId, { patientId, professionalId, allergen, allergyType, clinicalStatus, severity, reaction, licenseType, licenseNumber }) {
+  async addAllergy(encounterId, { patientId, professionalId, allergen, allergyType, clinicalStatus, severity, reaction }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, allergen, allergyType, clinicalStatus, severity, reaction })
-    const matricula = exigirMatricula(licenseNumber)
+    const firma = await firmaDe(professionalId)
     const payload = toSnakeCase({
       encounterId,
       patientId,
@@ -184,8 +194,8 @@ export const clinicalService = {
       reactionDescription: reaction ?? null,
     })
 
-    payload.professional_license_type = licenseType ?? 'MN'
-    payload.professional_license_number = matricula
+    payload.professional_license_type = firma.licenseType
+    payload.professional_license_number = firma.licenseNumber
 
     const { data, error } = await supabase
       .from('clinical_allergies')
@@ -198,9 +208,9 @@ export const clinicalService = {
     return toCamelCase(data)
   },
 
-  async addObservation(encounterId, { patientId, professionalId, code, display, value, unit, effectiveDate, licenseType, licenseNumber }) {
+  async addObservation(encounterId, { patientId, professionalId, code, display, value, unit, effectiveDate }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, code, display, value, unit, effectiveDate })
-    const matricula = exigirMatricula(licenseNumber)
+    const firma = await firmaDe(professionalId)
     const payload = toSnakeCase({
       encounterId,
       patientId,
@@ -214,8 +224,8 @@ export const clinicalService = {
       status: 'final',
     })
 
-    payload.professional_license_type = licenseType ?? 'MN'
-    payload.professional_license_number = matricula
+    payload.professional_license_type = firma.licenseType
+    payload.professional_license_number = firma.licenseNumber
 
     const { data, error } = await supabase
       .from('clinical_observations')
@@ -228,9 +238,9 @@ export const clinicalService = {
     return toCamelCase(data)
   },
 
-  async addMedication(encounterId, { patientId, professionalId, medicationName, dosage, frequency, route, instructions, status, startDate, endDate, licenseType, licenseNumber }) {
+  async addMedication(encounterId, { patientId, professionalId, medicationName, dosage, frequency, route, instructions, status, startDate, endDate }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, medicationName, dosage, frequency, route, instructions, status, startDate, endDate })
-    const matricula = exigirMatricula(licenseNumber)
+    const firma = await firmaDe(professionalId)
     const dosageText = [dosage, frequency, route].filter(Boolean).join(' — ') || null
     const payload = toSnakeCase({
       encounterId,
@@ -244,8 +254,8 @@ export const clinicalService = {
     if (startDate !== undefined) payload.start_date = startDate
     if (endDate !== undefined) payload.end_date = endDate
 
-    payload.professional_license_type = licenseType ?? 'MN'
-    payload.professional_license_number = matricula
+    payload.professional_license_type = firma.licenseType
+    payload.professional_license_number = firma.licenseNumber
 
     const { data, error } = await supabase
       .from('clinical_medications')
@@ -314,10 +324,10 @@ export const clinicalService = {
    */
   async createPrescriptionMedication(fila) {
     if (esSimulado(fila.encounterId)) return simulacion.guardarRecetaDePractica(fila)
-    const matricula = exigirMatricula(fila.professionalLicenseNumber)
+    const firma = await firmaDe(fila.professionalId)
     const { data, error } = await supabase
       .from('clinical_medications')
-      .insert(toSnakeCase({ ...fila, professionalLicenseNumber: matricula }))
+      .insert(toSnakeCase({ ...fila, professionalLicenseType: firma.licenseType, professionalLicenseNumber: firma.licenseNumber }))
       .select()
       .single()
     if (error) throw error

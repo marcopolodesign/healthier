@@ -15,8 +15,10 @@ import { professionalService } from '../services/professionalService'
  */
 const enVuelo = new Map()
 
-function leer(userId) {
-  if (!enVuelo.has(userId)) {
+function leer(userId, { nueva = false } = {}) {
+  // `nueva`: no reusar una lectura que arrancó antes (ej. recién se cargó la
+  // matrícula desde el recetario y hay que verla).
+  if (nueva || !enVuelo.has(userId)) {
     enVuelo.set(userId, professionalService.getByUserId(userId, { tirarError: true }).finally(() => enVuelo.delete(userId)))
   }
   return enVuelo.get(userId)
@@ -27,10 +29,11 @@ export function useMiPerfilProfesional(userId) {
   const [cargando, setCargando] = useState(!!userId)
   const [error, setError] = useState(null)
 
-  const recargar = useCallback(async () => {
+  const cargar = useCallback(async ({ nueva = false } = {}) => {
     if (!userId) return null
+    setCargando(true)
     try {
-      const p = await leer(userId)
+      const p = await leer(userId, { nueva })
       setPerfil(p)
       setError(null)
       return p
@@ -42,10 +45,14 @@ export function useMiPerfilProfesional(userId) {
     }
   }, [userId])
 
+  // El userId puede llegar después del primer render: `cargar` pone
+  // `cargando` en true recién cuando de verdad empieza a leer.
   useEffect(() => {
     if (!userId) { setCargando(false); return }
-    recargar().catch(() => {})
-  }, [userId, recargar])
+    cargar().catch(() => {})
+  }, [userId, cargar])
+
+  const recargar = useCallback(() => cargar({ nueva: true }), [cargar])
 
   return { perfil, cargando, error, recargar }
 }
