@@ -21,7 +21,6 @@ import { especialidadesService } from '../services/especialidadesService'
 let cache = null
 let inflight = null
 const listeners = new Set()
-const FALLO = Symbol('catalogo-sin-cargar')
 
 function notificar(data) {
   cache = data
@@ -40,7 +39,7 @@ function cargar() {
         // se quedaba con el spinner. Con el catálogo vacío rigen los defaults
         // seguros: HC visible, receta escondida.
         cache = null
-        listeners.forEach(fn => fn(FALLO))
+        listeners.forEach(fn => fn([]))
         return null
       })
       .finally(() => { inflight = null })
@@ -63,8 +62,7 @@ export function useEspecialidades() {
     return () => { listeners.delete(setConfig) }
   }, [])
 
-  const fallo = config === FALLO
-  const especialidades = useMemo(() => (config && config !== FALLO ? config : []), [config])
+  const especialidades = useMemo(() => config ?? [], [config])
 
   const porSlug = useMemo(
     () => Object.fromEntries(especialidades.map(e => [e.slug, e.label])),
@@ -130,7 +128,9 @@ export function useEspecialidades() {
     puedeRecetar,
     usaHistoriaClinica,
     subEspecialidadesDe,
-    cargando: config === null && !fallo,
+    // Ante una falla de red los listeners reciben `[]` (sin cachearlo): deja de
+    // "cargar" con los defaults seguros y la próxima pantalla reintenta.
+    cargando: config === null,
     invalidar: invalidarEspecialidades,
   }
 }

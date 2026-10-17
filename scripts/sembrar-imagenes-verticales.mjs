@@ -24,6 +24,7 @@
 // no responde 200.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { createClient } from '@supabase/supabase-js'
@@ -59,13 +60,15 @@ if (!['staging', 'produccion'].includes(entorno)) {
   process.exit(1)
 }
 
-const global = leerEnv('/Users/mataldao/Local/.env')
+const global = leerEnv(path.join(homedir(), 'Local/.env'))
 let url, key
 if (entorno === 'staging') {
   url = global.HEALTHIER_STAGING_SUPABASE_URL
   key = global.HEALTHIER_STAGING_SUPABASE_SERVICE_ROLE_KEY
 } else {
-  const web = leerEnv(path.resolve(raiz, '../../../.env'))
+  // Las claves de prod viven en el .env del checkout principal del website
+  // (no versionado), sea cual sea el worktree desde el que se corre.
+  const web = leerEnv(path.join(homedir(), 'Local/Healthier/website/.env'))
   url = web.VITE_SUPABASE_URL
   key = web.SUPABASE_SERVICE_ROLE_KEY
 }

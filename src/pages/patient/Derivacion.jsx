@@ -4,7 +4,7 @@ import { ArrowLeft, UserCircle, ShareFat, ShieldCheck, CircleNotch, CalendarChec
 import { derivacionesService, destinoLabel, derivacionVigente } from '../../services/derivacionesService'
 import { professionalService } from '../../services/professionalService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
-import { useVerticales } from '../../hooks/useVerticales'
+import { useDestinoDerivacion, verticalDeDerivacion } from '../../hooks/useDestinoDerivacion'
 import { verticalForSpecialty } from '../../lib/verticals'
 import DerivacionEstado from '../../components/DerivacionEstado'
 import { toast } from '../../components/Toast'
@@ -40,7 +40,7 @@ export default function Derivacion({ profile }) {
   const { id } = useParams()
   const navigate = useNavigate()
   const { porSlug, especialidades: catalogo } = useEspecialidades()
-  const { verticalesById } = useVerticales()
+  const destinoDe = useDestinoDerivacion()
   const [d, setD] = useState(null)
   const [loading, setLoading] = useState(true)
   const [respondiendo, setRespondiendo] = useState(false)
@@ -97,7 +97,9 @@ export default function Derivacion({ profile }) {
       const vertical = verticalForSpecialty(especialidades.destino, catalogo)
       if (vertical) params.set('vertical', vertical)
     } else {
-      params.set('vertical', d.verticalDestino)
+      // La vertical sale de la especialidad (catálogo actual), no de lo guardado:
+      // si la especialidad cambió de vertical, lo guardado quedó viejo.
+      params.set('vertical', verticalDeDerivacion(d, catalogo))
       if (d.especialidadDestino) params.set('especialidad', d.especialidadDestino)
     }
     navigate(`/paciente/reservar?${params.toString()}`)
@@ -153,7 +155,7 @@ export default function Derivacion({ profile }) {
                 </div>
                 <div className="min-w-0">
                   <span className="text-[10px] font-semibold tracking-widest uppercase text-text-tertiary block">Derivado a</span>
-                  <p className="text-[15px] font-semibold text-text-primary">{destinoLabel(d, porSlug, verticalesById)}</p>
+                  <p className="text-[15px] font-semibold text-text-primary">{destinoDe(d)}</p>
                   <p className="text-[12px] text-text-secondary">Elegís con quién reservar</p>
                 </div>
               </div>

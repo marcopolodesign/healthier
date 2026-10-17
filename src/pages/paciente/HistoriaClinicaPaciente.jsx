@@ -8,7 +8,7 @@ import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { familyService } from '../../services/familyService'
 import { derivacionesService, destinoLabel } from '../../services/derivacionesService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
-import { useVerticales } from '../../hooks/useVerticales'
+import { useDestinoDerivacion } from '../../hooks/useDestinoDerivacion'
 import DerivacionEstado from '../../components/DerivacionEstado'
 
 const ENTRY_TYPE_LABEL = {
@@ -179,7 +179,7 @@ export default function HistoriaClinicaPaciente({ profile }) {
   const [familiar, setFamiliar] = useState(null)
   const pacienteId = deFamiliar || profile?.id
   const { porSlug } = useEspecialidades()
-  const { verticalesById } = useVerticales()
+  const destinoDe = useDestinoDerivacion()
   const [derivaciones, setDerivaciones] = useState([])
 
   useEffect(() => {
@@ -271,7 +271,7 @@ export default function HistoriaClinicaPaciente({ profile }) {
                         className="w-full text-left bg-white rounded-[20px] border border-gray-100 shadow-sm px-5 py-4 hover:bg-gray-50 transition-colors"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-[14px] font-semibold text-gray-900">Derivación a {destinoLabel(d, porSlug, verticalesById)}</p>
+                          <p className="text-[14px] font-semibold text-gray-900">Derivación a {destinoDe(d)}</p>
                           <DerivacionEstado derivacion={d} />
                         </div>
                         <p className="text-[12px] text-gray-500 mt-0.5">

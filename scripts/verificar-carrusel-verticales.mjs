@@ -17,6 +17,8 @@
 //   node scripts/verificar-carrusel-verticales.mjs staging    # 1, 2 y 3
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import path from 'node:path'
 import { ordenarCarrusel } from '../src/lib/carruselVerticales.js'
 
 let fallas = 0
@@ -68,10 +70,10 @@ const entorno = process.argv[2]
 if (entorno) {
   const env = {}
   const leer = f => { for (const l of readFileSync(f, 'utf8').split('\n')) { const m = /^\s*(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(l); if (m) env[m[1]] = m[2].replace(/^['"]|['"]$/g, '') } }
-  leer('/Users/mataldao/Local/.env')
+  leer(path.join(homedir(), 'Local/.env'))
   let url, key
   if (entorno === 'staging') { url = env.HEALTHIER_STAGING_SUPABASE_URL; key = env.HEALTHIER_STAGING_SUPABASE_ANON_KEY }
-  else { leer(new URL('../../../../.env', import.meta.url).pathname); url = env.VITE_SUPABASE_URL; key = env.VITE_SUPABASE_ANON_KEY }
+  else { leer(path.join(homedir(), 'Local/Healthier/website/.env')); url = env.VITE_SUPABASE_URL; key = env.VITE_SUPABASE_ANON_KEY }
   const get = async q => (await fetch(`${url}/rest/v1/${q}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } })).json()
   const filas = await get('vertical_settings?select=id,nombre,color,tipo')
   if (!Array.isArray(filas)) { check(false, `no pude leer vertical_settings: ${JSON.stringify(filas)}`) }

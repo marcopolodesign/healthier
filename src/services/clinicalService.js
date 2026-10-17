@@ -1,4 +1,5 @@
 import { supabase, toCamelCase, toSnakeCase, asegurarSesion } from '../lib/supabase'
+import { MENSAJE_SIN_MATRICULA } from '../lib/firmaHistoriaClinica'
 // Ver la nota de la valla en `consultationsService.js`.
 import * as simulacion from '../lib/simulacion'
 import { esSimulado } from '../lib/simulacion'
@@ -42,12 +43,35 @@ export async function logClinicalAccess({ resourceType, resourceId, patientId, a
   }
 }
 
+/**
+ * 🔴 Sin matrícula no se firma la historia clínica (Ley 26.529 Art. 12: cada
+ * asiento lleva la matrícula de quien lo hace). Es el ÚNICO lugar donde se
+ * chequea: todo lo que escribe HC pasa por `createEncounter`, `addEntry` o
+ * `createPrescriptionMedication` (nota libre, escriba, consulta estructurada,
+ * cierre, recetario, emergencias). Antes se rellenaba con '0' y quedaban notas
+ * firmadas con una matrícula falsa (revisión pre-prod, 2026-10-17).
+ */
+export class SinMatriculaError extends Error {
+  constructor() {
+    super(MENSAJE_SIN_MATRICULA)
+    this.name = 'SinMatriculaError'
+    this.code = 'SIN_MATRICULA'
+  }
+}
+function exigirMatricula(licenseNumber) {
+  if (!licenseNumber || !String(licenseNumber).trim() || String(licenseNumber).trim() === '0') {
+    throw new SinMatriculaError()
+  }
+  return String(licenseNumber).trim()
+}
+
 export const clinicalService = {
 
   logAccess: logClinicalAccess,
 
   async createEncounter({ patientId, professionalId, consultationId, specialty, chiefComplaint, modality, licenseType, licenseNumber }) {
     if (esSimulado(consultationId)) return simulacion.encuentro()
+    const matricula = exigirMatricula(licenseNumber)
     // Sin sesión esto sale como anónimo y la RLS lo rechaza (ver asegurarSesion).
     await asegurarSesion()
     const payload = toSnakeCase({
@@ -59,7 +83,7 @@ export const clinicalService = {
     })
     // Required NOT NULL fields not handled by toSnakeCase
     payload.professional_license_type = licenseType ?? 'MN'
-    payload.professional_license_number = licenseNumber ?? '0'
+    payload.professional_license_number = matricula
     payload.modality = modality === 'video' ? 'telemedicina' : (modality ?? 'telemedicina')
     payload.started_at = new Date().toISOString()
     if (chiefComplaint !== undefined) payload.chief_complaint = chiefComplaint
@@ -104,6 +128,7 @@ export const clinicalService = {
 
   async addEntry(encounterId, { patientId, professionalId, entryType, content, data: entryData, correctsEntryId, icdCode, licenseType, licenseNumber }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, entryType, content, data: entryData, icdCode })
+    const matricula = exigirMatricula(licenseNumber)
     await asegurarSesion()
     const payload = toSnakeCase({
       encounterId,
@@ -113,7 +138,7 @@ export const clinicalService = {
       content: content ?? null,
     })
     payload.professional_license_type = licenseType ?? 'MN'
-    payload.professional_license_number = licenseNumber ?? '0'
+    payload.professional_license_number = matricula
     if (entryData !== undefined) payload.data = entryData
     if (correctsEntryId !== undefined) payload.corrects_entry_id = correctsEntryId
     if (icdCode !== undefined) payload.icd_code = icdCode
@@ -284,9 +309,10 @@ export const clinicalService = {
    */
   async createPrescriptionMedication(fila) {
     if (esSimulado(fila.encounterId)) return simulacion.guardarRecetaDePractica(fila)
+    const matricula = exigirMatricula(fila.professionalLicenseNumber)
     const { data, error } = await supabase
       .from('clinical_medications')
-      .insert(toSnakeCase(fila))
+      .insert(toSnakeCase({ ...fila, professionalLicenseNumber: matricula }))
       .select()
       .single()
     if (error) throw error

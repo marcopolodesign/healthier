@@ -70,6 +70,22 @@ export function disponibleAhora(pro, now = Date.now()) {
 }
 
 export const professionalService = {
+  /**
+   * Igual que `getByUserId` pero distingue los dos "nada": `null` = el
+   * profesional todavía no tiene ficha; un error de red/permisos se TIRA. Lo usa
+   * `useMiPerfilProfesional`: confundir los dos hacía que un corte de red se
+   * mostrara como "Falta tu matrícula" (revisión pre-prod, 2026-10-17).
+   */
+  async getMiPerfil(userId) {
+    const { data, error } = await supabase
+      .from('professional_profiles')
+      .select('*, profiles!user_id(*)')
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (error) throw error
+    return data ? toCamelCase(data) : null
+  },
+
   async getByUserId(userId) {
     const { data, error } = await supabase
       .from('professional_profiles')
@@ -107,9 +123,9 @@ export const professionalService = {
     // El perfil cacheado del profesional (especialidad → herramientas de su
     // vertical, matrícula → firma de la HC) queda con lo recién guardado.
     const guardado = toCamelCase(data)
-    // Se mezcla con lo que había (el upsert no trae el join `profiles` que sí
-    // trae getByUserId); si no había nada, lo lee el próximo que lo pida.
-    if (miPerfilCache.has(userId)) actualizarMiPerfil(userId, { ...miPerfilCache.get(userId), ...guardado })
+    // Siempre se actualiza y se avisa (aunque no hubiera entrada). Se mezcla
+    // con lo que había porque el upsert no trae el join `profiles`.
+    actualizarMiPerfil(userId, { ...(miPerfilCache.get(userId) ?? {}), ...guardado })
     return guardado
   },
 
