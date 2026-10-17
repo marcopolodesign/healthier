@@ -115,8 +115,18 @@ export function useEspecialidades() {
     return map
   }, [especialidades])
 
+  // Nombre de cada vertical (de la base, migración 199) — para textos como el
+  // destino de una derivación, que antes salían de la lista fija del código y
+  // con una vertical nueva mostraban el id crudo.
+  const nombreVertical = useMemo(() => {
+    const map = {}
+    especialidades.forEach(e => { if (e.verticalId && e.vertical?.nombre) map[e.verticalId] = e.vertical.nombre })
+    return map
+  }, [especialidades])
+
   return {
     especialidades,
+    nombreVertical,
     porSlug,
     porVertical,
     activas,

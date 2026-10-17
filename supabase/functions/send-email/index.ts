@@ -488,9 +488,12 @@ Deno.serve(async (req) => {
   }
 })
 
+// Respaldo si la fila de la vertical no se puede leer. El nombre de verdad sale
+// de `vertical_settings.nombre` (migración 199): las verticales nuevas
+// (Psiquiatría, Odontología…) no están acá.
 const NOMBRE_VERTICAL: Record<string, string> = {
   clinica: 'Clínica', pediatria: 'Pediatría', nutricion: 'Nutrición', mente: 'Psicología',
-  fisico: 'Kinesiología', veterinaria: 'Veterinaria', preparador: 'Preparador físico',
+  fisico: 'Kinesiología', veterinaria: 'Veterinaria', preparador: 'Preparación física',
 }
 
 async function leerDerivacion(sb: SupabaseClient, id: string | undefined) {
@@ -517,6 +520,9 @@ async function leerDerivacion(sb: SupabaseClient, id: string | undefined) {
   const { data: esp } = slugs.length
     ? await sb.from('specialties').select('slug, label').in('slug', slugs)
     : { data: [] }
+  const { data: vert } = data.vertical_destino
+    ? await sb.from('vertical_settings').select('nombre').eq('id', data.vertical_destino).maybeSingle()
+    : { data: null }
   const label = (slug: string | null | undefined) =>
     slug ? ((esp ?? []).find((e: { slug: string }) => e.slug === slug)?.label ?? slug) : null
   const especialidadDe = (userId: string | null) =>
@@ -536,7 +542,7 @@ async function leerDerivacion(sb: SupabaseClient, id: string | undefined) {
       destinoEspecialidad: especialidadDe(data.profesional_destino_id),
       especialidad: data.profesional_destino_id
         ? null
-        : (label(data.especialidad_destino) ?? NOMBRE_VERTICAL[data.vertical_destino] ?? data.vertical_destino),
+        : (label(data.especialidad_destino) ?? vert?.nombre ?? NOMBRE_VERTICAL[data.vertical_destino] ?? data.vertical_destino),
       motivo: data.motivo as string,
       motivoRechazo: (data.motivo_rechazo as string | null) ?? null,
     } satisfies T.Derivacion,

@@ -40,12 +40,14 @@ export function derivacionVigente(d) {
 
 /**
  * Texto del destino: el profesional con nombre y apellido, o la vertical (con la
- * especialidad si la hay). `porSlug` viene de `useEspecialidades()`.
+ * especialidad si la hay). `porSlug` y `nombreVertical` vienen de `useEspecialidades()`.
  */
-export function destinoLabel(d, porSlug = {}) {
+export function destinoLabel(d, porSlug = {}, nombreVertical = {}) {
   if (!d) return ''
   if (d.destino?.fullName) return d.destino.fullName
-  const vertical = VERTICALS_BY_ID[d.verticalDestino]?.nombre ?? d.verticalDestino
+  // `nombreVertical` (de `useEspecialidades()`) es el nombre de la base; la
+  // lista del código queda de respaldo para las de siempre.
+  const vertical = nombreVertical[d.verticalDestino] ?? VERTICALS_BY_ID[d.verticalDestino]?.nombre ?? d.verticalDestino
   const esp = d.especialidadDestino ? (porSlug[d.especialidadDestino] ?? d.especialidadDestino) : null
   return esp ? `${vertical} · ${esp}` : vertical
 }

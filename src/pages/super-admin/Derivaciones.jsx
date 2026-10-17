@@ -13,7 +13,7 @@ import MetricCard from '../../components/super-admin/MetricCard'
  * visibilidad del panel: nada operativo de la plataforma queda sin verse acá.
  */
 export default function SuperAdminDerivaciones() {
-  const { porSlug } = useEspecialidades()
+  const { porSlug, nombreVertical } = useEspecialidades()
   const [filas, setFilas] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -80,7 +80,7 @@ export default function SuperAdminDerivaciones() {
                     <td className="table-cell whitespace-nowrap">{formatDate(d.createdAt)}</td>
                     <td className="table-cell"><p className="truncate max-w-[180px]">{d.paciente?.fullName || '—'}</p></td>
                     <td className="table-cell"><p className="truncate max-w-[180px]">{d.derivado?.fullName || '—'}</p></td>
-                    <td className="table-cell"><p className="truncate max-w-[200px]">{destinoLabel(d, porSlug)}</p></td>
+                    <td className="table-cell"><p className="truncate max-w-[200px]">{destinoLabel(d, porSlug, nombreVertical)}</p></td>
                     <td className="table-cell"><p className="truncate max-w-[240px]" title={d.motivo}>{d.motivo}</p></td>
                     <td className="table-cell" title={d.motivoRechazo || undefined}>
                       <DerivacionEstado derivacion={d} />

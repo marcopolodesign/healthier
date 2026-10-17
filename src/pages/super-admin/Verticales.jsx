@@ -93,7 +93,7 @@ function FilaVertical({ vertical, config, onGuardado, danger = false, priceLabel
   return (
     <div className={`card flex flex-col sm:flex-row sm:items-center gap-4 ${enabled ? '' : 'opacity-75'} ${danger ? 'border-danger/20' : ''}`}>
       <div className="flex items-center gap-3 flex-1 min-w-0">
-        {(onSubir || onBajar) && (
+        {!danger && (
           <div className="flex flex-col shrink-0">
             <button type="button" onClick={onSubir} disabled={!onSubir} aria-label="Subir" className="disabled:opacity-20 text-text-tertiary hover:text-text-primary">
               <CaretUp className="h-3.5 w-3.5" />
@@ -623,19 +623,24 @@ export default function SuperAdminVerticales() {
     [verticales, config]
   )
 
-  // Reordenar = intercambiar sort_order con la vecina. Es el orden del
-  // carrusel entre las que tienen (o no) a alguien en línea, y el del onboarding.
+  // Reordenar contra el orden ACTUAL de la base (RPC `mover_vertical`,
+  // migración 202), no contra el `sort_order` del caché del panel. Mientras se
+  // mueve y se vuelve a leer, las flechas quedan apagadas: dos clics seguidos
+  // no se pisan.
+  const [moviendo, setMoviendo] = useState(false)
   const mover = async (idx, dir) => {
-    const a = lista[idx], b = lista[idx + dir]
-    if (!a || !b) return
+    const v = lista[idx]
+    if (!v || moviendo) return
+    setMoviendo(true)
     try {
-      await Promise.all([
-        verticalsService.update(a.id, { sortOrder: b.sortOrder }),
-        verticalsService.update(b.id, { sortOrder: a.sortOrder }),
-      ])
-      alGuardarIdentidad()
+      await verticalsService.mover(v.id, dir)
+      setEditando(null)
+      invalidarEspecialidades()
+      await Promise.all([invalidarVerticales(), cargar()])
     } catch (err) {
       toast.error(err?.message || 'No pudimos reordenar')
+    } finally {
+      setMoviendo(false)
     }
   }
 
@@ -718,8 +723,8 @@ export default function SuperAdminVerticales() {
                     onGuardado={alGuardar}
                     onEditar={() => setEditando(e => (e === v.id ? null : v.id))}
                     editando={editando === v.id}
-                    onSubir={i > 0 ? () => mover(i, -1) : undefined}
-                    onBajar={i < lista.length - 1 ? () => mover(i, 1) : undefined}
+                    onSubir={i > 0 && !moviendo ? () => mover(i, -1) : undefined}
+                    onBajar={i < lista.length - 1 && !moviendo ? () => mover(i, 1) : undefined}
                   />
                   {editando === v.id && (
                     <EditorVertical

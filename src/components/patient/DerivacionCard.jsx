@@ -11,7 +11,7 @@ import { useEspecialidades } from '../../hooks/useEspecialidades'
  */
 export default function DerivacionCard({ profile }) {
   const navigate = useNavigate()
-  const { porSlug } = useEspecialidades()
+  const { porSlug, nombreVertical } = useEspecialidades()
   const [derivaciones, setDerivaciones] = useState([])
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export default function DerivacionCard({ profile }) {
               <p className="text-[15px] font-semibold text-text-primary leading-tight mt-1 truncate">
                 {d.estado === 'rechazada'
                   ? `${d.destino?.fullName ?? 'El profesional'} no puede tomarla — elegí otro profesional`
-                  : `${d.derivado?.fullName ?? 'Tu médico'} te derivó a ${destinoLabel(d, porSlug)}`}
+                  : `${d.derivado?.fullName ?? 'Tu médico'} te derivó a ${destinoLabel(d, porSlug, nombreVertical)}`}
               </p>
               <p className="text-[12px] text-text-secondary mt-0.5 line-clamp-1">{d.motivo}</p>
             </div>

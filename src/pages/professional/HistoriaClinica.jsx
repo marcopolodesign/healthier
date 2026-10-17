@@ -9,6 +9,7 @@ import { consultationsService } from '../../services/consultationsService'
 import PatientConsultationList from '../../components/professional/PatientConsultationList'
 import PreconsultaSummary, { hasPreconsulta } from '../../components/professional/PreconsultaSummary'
 import { clinicalService } from '../../services/clinicalService'
+import { professionalService } from '../../services/professionalService'
 import { profilesService } from '../../services/profilesService'
 import { diagnosticReportService } from '../../services/diagnosticReportService'
 import SignedDocLink from '../../components/SignedDocLink'
@@ -138,7 +139,7 @@ function LabReportCard({ report }) {
 }
 
 function EncounterCard({ encounter, notaDeCierre }) {
-  const { porSlug } = useEspecialidades()
+  const { porSlug, nombreVertical } = useEspecialidades()
   const [open, setOpen] = useState(true)
   const d = new Date(encounter.startedAt || encounter.createdAt)
   const dateStr = d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -334,7 +335,7 @@ function DerivacionCard({ derivacion, porSlug }) {
             <ShareFat size={16} className="text-brand-tertiary" />
           </div>
           <div className="min-w-0">
-            <p className="font-semibold text-text-primary text-sm truncate">Derivación a {destinoLabel(d, porSlug)}</p>
+            <p className="font-semibold text-text-primary text-sm truncate">Derivación a {destinoLabel(d, porSlug, nombreVertical)}</p>
             <p className="text-xs text-text-tertiary">
               {new Date(d.createdAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
               {d.derivado?.fullName ? ` · por ${d.derivado.fullName}` : ''}
@@ -372,10 +373,15 @@ export default function HistoriaClinica({ profile }) {
   const [form, setForm] = useState({ entryType: 'note', content: '' })
   const [submitting, setSubmitting] = useState(false)
 
-  const pp = profile?.professionalProfiles?.[0]
-  const licenseType = pp?.licenseType ?? 'MN'
-  const licenseNumber = pp?.licenseNumber ?? '0'
-  const specialty = pp?.specialty ?? 'otra'
+  // Matrícula y especialidad con las que se firma la nota: de
+  // `professional_profiles`. Antes salían de `profile.professionalProfiles`,
+  // que App.jsx no trae, así que toda nota escrita desde acá quedaba con
+  // especialidad 'otra' y matrícula '0' (revisión pre-prod, 2026-10-17).
+  const [pp, setPp] = useState(null)
+  useEffect(() => {
+    if (!profile?.id) return
+    professionalService.getByUserId(profile.id).then(setPp).catch(() => {})
+  }, [profile?.id])
 
   // Su vertical no tiene historia clínica (migración 200, ej. Odontología):
   // la pantalla no se ofrece en ningún lado; si llega por la URL, a la ficha.
@@ -431,6 +437,11 @@ export default function HistoriaClinica({ profile }) {
     if (!form.content.trim()) return
     setSubmitting(true)
     try {
+      const firma = pp ?? await professionalService.getByUserId(profile.id)
+      if (!firma?.licenseNumber) throw new Error('Falta tu matrícula en el perfil: cargala antes de escribir en la historia clínica.')
+      const licenseType = firma.licenseType ?? 'MN'
+      const licenseNumber = firma.licenseNumber
+      const specialty = firma.specialty ?? 'otra'
       let eid = encounterId
       if (!eid) {
         const enc = await clinicalService.createEncounter({
@@ -459,8 +470,8 @@ export default function HistoriaClinica({ profile }) {
       setForm(f => ({ ...f, content: '' }))
       setShowForm(false)
       toast.success('Nota guardada en la HC')
-    } catch {
-      toast.error('Error al guardar')
+    } catch (err) {
+      toast.error(err?.message || 'Error al guardar')
     } finally {
       setSubmitting(false)
     }

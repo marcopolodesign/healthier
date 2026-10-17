@@ -69,46 +69,43 @@ export const verticalsService = {
 
   /**
    * Alta de una vertical nueva + su especialidad homónima (mismo slug que el
-   * id). Sin la especialidad, la vertical no aparecería en el onboarding del
-   * profesional ni tendría a quién mandarle consultas: el pool sale de
-   * `specialties.vertical_id`.
+   * id), en UNA transacción: RPC `crear_vertical` (migración 202, sólo
+   * super_admin). Sin la especialidad la vertical no aparecería en el
+   * onboarding ni tendría pool (sale de `specialties.vertical_id`).
    *
-   * Arranca deshabilitada para el paciente salvo que venga con precio y
-   * `enabled: true`.
+   * Si el slug ya es una especialidad de OTRA vertical, la RPC corta con un
+   * error que dice cuál (antes se la llevaba en silencio: crear "Cardiología"
+   * le sacaba los cardiólogos a Clínica).
+   *
+   * Con precio > 0 se crea prendida; sin precio, apagada (el paciente la vería
+   * y no la podría pagar). Lo decide la RPC.
    */
-  async create({ id, nombre, color, icon, imageUrl = null, ondemandPrice = null, enabled = false, sortOrder, herramientaHistoriaClinica = true, herramientaReceta = true }) {
-    const { data: { user } } = await supabase.auth.getUser()
-    const fila = {
-      id,
-      nombre: nombre.trim(),
-      color: color ? color.toUpperCase() : null,
-      icon,
-      image_url: imageUrl,
-      ondemand_price: ondemandPrice === null || ondemandPrice === '' ? null : Number(ondemandPrice),
-      enabled: Boolean(enabled && ondemandPrice),
-      sort_order: sortOrder ?? 50,
-      tipo: 'vertical',
-      herramienta_historia_clinica: herramientaHistoriaClinica,
-      herramienta_receta: herramientaReceta,
-      updated_by: user?.id ?? null,
-    }
-    const { data, error } = await supabase
-      .from('vertical_settings')
-      .insert(fila)
-      .select(COLUMNAS)
-      .single()
+  async create({ id, nombre, color, icon, imageUrl = null, ondemandPrice = null, sortOrder, herramientaHistoriaClinica = true, herramientaReceta = true }) {
+    const precio = ondemandPrice === null || ondemandPrice === '' ? null : Number(ondemandPrice)
+    const { data, error } = await supabase.rpc('crear_vertical', {
+      p_id: id,
+      p_nombre: nombre.trim(),
+      p_color: color || null,
+      p_icon: icon || null,
+      p_image_url: imageUrl,
+      p_ondemand_price: precio,
+      p_enabled: precio != null && precio > 0,
+      p_sort_order: sortOrder ?? 50,
+      p_historia_clinica: herramientaHistoriaClinica,
+      p_receta: herramientaReceta,
+    })
     if (error) throw error
+    return toCamelCase(Array.isArray(data) ? data[0] : data)
+  },
 
-    // La especialidad: si ya existe ese slug (alguien la creó a mano), se la
-    // cuelga de la vertical en vez de duplicarla.
-    const { data: existente } = await supabase
-      .from('specialties').select('id').eq('slug', id).maybeSingle()
-    const esp = existente
-      ? await supabase.from('specialties').update({ vertical_id: id, active: true }).eq('id', existente.id)
-      : await supabase.from('specialties').insert({ slug: id, label: nombre.trim(), vertical_id: id, active: true, sort_order: 100 })
-    if (esp.error) throw esp.error
-
-    return toCamelCase(data)
+  /**
+   * Mover una vertical un lugar (-1 arriba, +1 abajo) contra el orden actual de
+   * la base — RPC `mover_vertical` (migración 202). Antes eran dos updates con
+   * el `sort_order` del caché del panel y podían quedar órdenes repetidos.
+   */
+  async mover(id, direccion) {
+    const { error } = await supabase.rpc('mover_vertical', { p_id: id, p_direccion: direccion })
+    if (error) throw error
   },
 
   /** Sube la foto de la tarjeta al bucket público y devuelve su URL. */

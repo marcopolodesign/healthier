@@ -18,7 +18,7 @@ const TABS = [
  * paciente reserva (entonces aparecen en el turno como "Derivado por").
  */
 export default function Derivaciones({ profile }) {
-  const { porSlug } = useEspecialidades()
+  const { porSlug, nombreVertical } = useEspecialidades()
   const [tab, setTab] = useState('hechas')
   const [hechas, setHechas] = useState([])
   const [recibidas, setRecibidas] = useState([])
@@ -90,7 +90,7 @@ export default function Derivaciones({ profile }) {
                 <p className="text-sm font-semibold text-text-primary truncate">{d.paciente?.fullName ?? 'Paciente'}</p>
                 <p className="text-xs text-text-secondary truncate">
                   {tab === 'hechas'
-                    ? `A ${destinoLabel(d, porSlug)}`
+                    ? `A ${destinoLabel(d, porSlug, nombreVertical)}`
                     : `De ${d.derivado?.fullName ?? 'otro profesional'}`}
                   {' · '}{formatDate(d.createdAt)}
                 </p>

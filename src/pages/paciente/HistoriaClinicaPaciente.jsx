@@ -177,7 +177,7 @@ export default function HistoriaClinicaPaciente({ profile }) {
   const deFamiliar = searchParams.get('de')
   const [familiar, setFamiliar] = useState(null)
   const pacienteId = deFamiliar || profile?.id
-  const { porSlug } = useEspecialidades()
+  const { porSlug, nombreVertical } = useEspecialidades()
   const [derivaciones, setDerivaciones] = useState([])
 
   useEffect(() => {
@@ -269,7 +269,7 @@ export default function HistoriaClinicaPaciente({ profile }) {
                         className="w-full text-left bg-white rounded-[20px] border border-gray-100 shadow-sm px-5 py-4 hover:bg-gray-50 transition-colors"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="text-[14px] font-semibold text-gray-900">Derivación a {destinoLabel(d, porSlug)}</p>
+                          <p className="text-[14px] font-semibold text-gray-900">Derivación a {destinoLabel(d, porSlug, nombreVertical)}</p>
                           <DerivacionEstado derivacion={d} />
                         </div>
                         <p className="text-[12px] text-gray-500 mt-0.5">
