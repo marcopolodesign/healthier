@@ -164,6 +164,10 @@ if (!process.argv.includes('--sin-front')) {
   ])
   await page.goto(`${WEB}/profesional/historia-clinica/5eed1001-0000-4000-8000-000000000001`)
   const vio = await page.getByText(/Derivación a /).first().waitFor({ timeout: 20000 }).then(() => true).catch(() => false)
+  // El ErrorBoundary de la app atrapa el error (no llega a `pageerror`) y
+  // muestra "Algo salió mal" con el mensaje: eso también es una caída.
+  const caida = await page.getByText('Algo salió mal').count()
+  if (caida) errores.push(await page.locator('body').innerText().then(t => t.split('\n').slice(0, 6).join(' ')))
   check(vio && errores.length === 0, `la historia clínica de un paciente con derivación se abre${errores.length ? ` (error: ${errores[0].slice(0, 80)})` : vio ? '' : ' (no apareció "Derivación a")'}`)
   await browser.close()
 }
