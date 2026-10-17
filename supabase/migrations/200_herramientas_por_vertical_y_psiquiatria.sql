@@ -92,21 +92,8 @@ insert into public.specialties (slug, label, vertical_id, active, sort_order)
 values ('kinesiologia', 'Kinesiología', 'fisico', true, 41)
 on conflict (slug) do update set vertical_id = 'fisico', active = true;
 
--- ── Derivaciones abiertas a una especialidad que cambió de vertical ─────────
--- `validar_consulta_derivada` (195) exige que la vertical del profesional que
--- toma el turno sea la `vertical_destino` de la derivación. Una derivación
--- abierta a "Clínica · Psiquiatría" quedaría imposible de reservar con un
--- psiquiatra después de mover la especialidad. Se alinea a la vertical actual
--- de su `especialidad_destino`. Idempotente (sólo toca las que no coinciden);
--- en prod el 2026-10-16 había 0 filas. En staging, donde la 200 ya estaba
--- aplicada, esta sentencia se corrió aparte (revisión pre-prod, 2026-10-17).
-update public.derivaciones d
-   set vertical_destino = s.vertical_id
-  from public.specialties s
- where s.slug = d.especialidad_destino
-   and s.vertical_id is not null
-   and d.estado in ('pendiente', 'rechazada')
-   and d.vertical_destino is distinct from s.vertical_id;
+-- (Las derivaciones abiertas a una especialidad que cambia de vertical se
+-- resuelven en la 203: el trigger valida por especialidad, no por vertical.)
 
 -- ── Receta: especialidad Y vertical ─────────────────────────────────────────
 create or replace function public.profesional_puede_recetar(p_professional_id uuid)

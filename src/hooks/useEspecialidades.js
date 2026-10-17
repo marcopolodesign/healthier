@@ -21,6 +21,7 @@ import { especialidadesService } from '../services/especialidadesService'
 let cache = null
 let inflight = null
 const listeners = new Set()
+const FALLO = Symbol('catalogo-sin-cargar')
 
 function notificar(data) {
   cache = data
@@ -33,8 +34,13 @@ function cargar() {
     inflight = especialidadesService.getAll()
       .then(data => { notificar(data); return data })
       .catch(() => {
-        // Falla de red: no se cachea el error, la próxima pantalla reintenta.
-        notificar(null)
+        // Falla de red: no se cachea el error (la próxima pantalla reintenta),
+        // pero se avisa que FALLÓ — si no, `cargando` quedaba en true para
+        // siempre y lo que espera al catálogo (la historia de la videollamada)
+        // se quedaba con el spinner. Con el catálogo vacío rigen los defaults
+        // seguros: HC visible, receta escondida.
+        cache = null
+        listeners.forEach(fn => fn(FALLO))
         return null
       })
       .finally(() => { inflight = null })
@@ -57,7 +63,8 @@ export function useEspecialidades() {
     return () => { listeners.delete(setConfig) }
   }, [])
 
-  const especialidades = useMemo(() => config ?? [], [config])
+  const fallo = config === FALLO
+  const especialidades = useMemo(() => (config && config !== FALLO ? config : []), [config])
 
   const porSlug = useMemo(
     () => Object.fromEntries(especialidades.map(e => [e.slug, e.label])),
@@ -115,25 +122,15 @@ export function useEspecialidades() {
     return map
   }, [especialidades])
 
-  // Nombre de cada vertical (de la base, migración 199) — para textos como el
-  // destino de una derivación, que antes salían de la lista fija del código y
-  // con una vertical nueva mostraban el id crudo.
-  const nombreVertical = useMemo(() => {
-    const map = {}
-    especialidades.forEach(e => { if (e.verticalId && e.vertical?.nombre) map[e.verticalId] = e.vertical.nombre })
-    return map
-  }, [especialidades])
-
   return {
     especialidades,
-    nombreVertical,
     porSlug,
     porVertical,
     activas,
     puedeRecetar,
     usaHistoriaClinica,
     subEspecialidadesDe,
-    cargando: config === null,
+    cargando: config === null && !fallo,
     invalidar: invalidarEspecialidades,
   }
 }

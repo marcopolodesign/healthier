@@ -1,5 +1,5 @@
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
-import { invalidarMiEspecialidad } from '../lib/miEspecialidadCache'
+import { actualizarMiPerfil, miPerfilCache } from '../lib/miEspecialidadCache'
 import { aBlobSubible, extensionDe, TIPOS_DOCUMENTO } from '../lib/archivoSubible'
 import { subirConProgreso } from '../lib/subidaConProgreso'
 import { PRECIO_MINIMO } from '../lib/tarifas'
@@ -104,10 +104,13 @@ export const professionalService = {
       .select()
       .single()
     if (error) throw error
-    // La especialidad cacheada del profesional (herramientas de su vertical)
-    // puede haber cambiado con esta escritura.
-    invalidarMiEspecialidad(userId)
-    return toCamelCase(data)
+    // El perfil cacheado del profesional (especialidad → herramientas de su
+    // vertical, matrícula → firma de la HC) queda con lo recién guardado.
+    const guardado = toCamelCase(data)
+    // Se mezcla con lo que había (el upsert no trae el join `profiles` que sí
+    // trae getByUserId); si no había nada, lo lee el próximo que lo pida.
+    if (miPerfilCache.has(userId)) actualizarMiPerfil(userId, { ...miPerfilCache.get(userId), ...guardado })
+    return guardado
   },
 
   /**

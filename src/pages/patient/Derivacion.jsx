@@ -4,6 +4,7 @@ import { ArrowLeft, UserCircle, ShareFat, ShieldCheck, CircleNotch, CalendarChec
 import { derivacionesService, destinoLabel, derivacionVigente } from '../../services/derivacionesService'
 import { professionalService } from '../../services/professionalService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { useVerticales } from '../../hooks/useVerticales'
 import { verticalForSpecialty } from '../../lib/verticals'
 import DerivacionEstado from '../../components/DerivacionEstado'
 import { toast } from '../../components/Toast'
@@ -38,7 +39,8 @@ function ProCard({ etiqueta, profile, specialty, porSlug }) {
 export default function Derivacion({ profile }) {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { porSlug, nombreVertical, especialidades: catalogo } = useEspecialidades()
+  const { porSlug, especialidades: catalogo } = useEspecialidades()
+  const { verticalesById } = useVerticales()
   const [d, setD] = useState(null)
   const [loading, setLoading] = useState(true)
   const [respondiendo, setRespondiendo] = useState(false)
@@ -151,7 +153,7 @@ export default function Derivacion({ profile }) {
                 </div>
                 <div className="min-w-0">
                   <span className="text-[10px] font-semibold tracking-widest uppercase text-text-tertiary block">Derivado a</span>
-                  <p className="text-[15px] font-semibold text-text-primary">{destinoLabel(d, porSlug, nombreVertical)}</p>
+                  <p className="text-[15px] font-semibold text-text-primary">{destinoLabel(d, porSlug, verticalesById)}</p>
                   <p className="text-[12px] text-text-secondary">Elegís con quién reservar</p>
                 </div>
               </div>

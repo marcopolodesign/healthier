@@ -103,7 +103,7 @@ begin
 
   -- El orden actual de la base (no el del panel), bloqueando las filas.
   perform 1 from public.vertical_settings where tipo = 'vertical' for update;
-  select array_agg(id order by sort_order, id) into v_ids
+  select array_agg(id order by sort_order, id collate "C") into v_ids
     from public.vertical_settings where tipo = 'vertical';
 
   v_pos := array_position(v_ids, p_id);

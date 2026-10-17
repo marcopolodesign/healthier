@@ -515,14 +515,16 @@ async function leerDerivacion(sb: SupabaseClient, id: string | undefined) {
 
   const slugs = [data.especialidad_destino].filter(Boolean) as string[]
   const pros = [data.derivado_por, data.profesional_destino_id].filter(Boolean) as string[]
-  const { data: pps } = await sb.from('professional_profiles').select('user_id, specialty').in('user_id', pros)
+  const [{ data: pps }, { data: vert }] = await Promise.all([
+    sb.from('professional_profiles').select('user_id, specialty').in('user_id', pros),
+    data.vertical_destino
+      ? sb.from('vertical_settings').select('nombre').eq('id', data.vertical_destino).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ])
   for (const pp of pps ?? []) if (pp.specialty) slugs.push(pp.specialty)
   const { data: esp } = slugs.length
     ? await sb.from('specialties').select('slug, label').in('slug', slugs)
     : { data: [] }
-  const { data: vert } = data.vertical_destino
-    ? await sb.from('vertical_settings').select('nombre').eq('id', data.vertical_destino).maybeSingle()
-    : { data: null }
   const label = (slug: string | null | undefined) =>
     slug ? ((esp ?? []).find((e: { slug: string }) => e.slug === slug)?.label ?? slug) : null
   const especialidadDe = (userId: string | null) =>

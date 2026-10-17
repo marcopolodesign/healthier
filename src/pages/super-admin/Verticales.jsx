@@ -634,8 +634,8 @@ export default function SuperAdminVerticales() {
     setMoviendo(true)
     try {
       await verticalsService.mover(v.id, dir)
-      setEditando(null)
-      invalidarEspecialidades()
+      // El editor abierto (de esta u otra vertical) se queda abierto con lo que
+      // tenía escrito; el orden no toca las especialidades.
       await Promise.all([invalidarVerticales(), cargar()])
     } catch (err) {
       toast.error(err?.message || 'No pudimos reordenar')

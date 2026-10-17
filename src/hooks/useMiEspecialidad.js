@@ -1,38 +1,47 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { professionalService } from '../services/professionalService'
-import { miEspecialidadCache as cache, alInvalidarMiEspecialidad } from '../lib/miEspecialidadCache'
+import { miPerfilCache as cache, actualizarMiPerfil, alCambiarMiPerfil } from '../lib/miEspecialidadCache'
 
 /**
- * La especialidad (slug) del profesional logueado, para decidir qué
- * herramientas de su vertical ve (migración 200: historia clínica, receta).
+ * El `professional_profiles` del profesional logueado, leído una vez y
+ * compartido entre pantallas (caché a nivel módulo por usuario). Es la ÚNICA
+ * fuente de la especialidad (herramientas de su vertical, migración 200) y de
+ * la matrícula con la que se firma la historia clínica — la usan la
+ * videollamada y /profesional/historia-clinica. El `profile` que pasa App.jsx
+ * no trae `professional_profiles`.
  *
- * El `profile` que pasa App.jsx no trae `professional_profiles`, así que se lee
- * una vez y se comparte entre pantallas (caché a nivel módulo por usuario).
- * Sólo se cachea un slug real: un error o un perfil que todavía no existe no
- * queda guardado, y `professionalService.upsert` invalida el caché (ej. el
- * onboarding que cambia de área). `null` mientras carga: los que lo usan
- * muestran la herramienta en ese instante (no le cortan la HC a nadie por un
- * fetch lento).
+ * Sólo se cachea un perfil real: un error o un perfil que todavía no existe no
+ * queda guardado. `professionalService.upsert` deja el perfil nuevo en el
+ * caché (ej. el onboarding que cambia de área). `recargar()` lo vuelve a leer
+ * (ej. después de cargar la matrícula desde el recetario).
  */
-export function useMiEspecialidad(userId) {
-  const [slug, setSlug] = useState(() => (userId ? cache.get(userId) ?? null : null))
-  const [version, setVersion] = useState(0)
+export function useMiPerfilProfesional(userId) {
+  const [perfil, setPerfil] = useState(() => (userId ? cache.get(userId) ?? null : null))
+  const [cargando, setCargando] = useState(() => !!userId && !cache.has(userId))
 
-  useEffect(() => alInvalidarMiEspecialidad(id => { if (!id || id === userId) setVersion(v => v + 1) }), [userId])
+  const leer = useCallback(() => {
+    if (!userId) { setCargando(false); return Promise.resolve(null) }
+    setCargando(true)
+    return professionalService.getByUserId(userId)
+      .then(p => { actualizarMiPerfil(userId, p ?? null); setPerfil(p ?? null); return p ?? null })
+      .catch(() => null)
+      .finally(() => setCargando(false))
+  }, [userId])
+
+  useEffect(() => alCambiarMiPerfil(id => {
+    if (id === userId) setPerfil(cache.get(userId) ?? null)
+  }), [userId])
 
   useEffect(() => {
-    if (!userId) return
-    if (cache.has(userId)) { setSlug(cache.get(userId)); return }
-    let vivo = true
-    professionalService.getByUserId(userId)
-      .then(p => {
-        const s = p?.specialty ?? null
-        if (s) cache.set(userId, s)
-        if (vivo) setSlug(s)
-      })
-      .catch(() => {})
-    return () => { vivo = false }
-  }, [userId, version])
+    if (!userId) { setCargando(false); return }
+    if (cache.has(userId)) { setPerfil(cache.get(userId)); setCargando(false); return }
+    leer()
+  }, [userId, leer])
 
-  return slug
+  return { perfil, cargando, recargar: leer }
+}
+
+/** La especialidad (slug) del profesional logueado, o `null` mientras carga. */
+export function useMiEspecialidad(userId) {
+  return useMiPerfilProfesional(userId).perfil?.specialty ?? null
 }

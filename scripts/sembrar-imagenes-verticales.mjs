@@ -15,9 +15,13 @@
 // `assets/images/verticals/`. Veterinaria y Odontología no tienen: quedan con
 // la tarjeta del color.
 //
+// 🔴 PASO OBLIGATORIO DEL PASE A PRODUCCIÓN, ANTES DE PUBLICAR EL FRONT: desde
+// la revisión pre-prod (2026-10-17) la foto de la tarjeta sale SÓLO de
+// `image_url` — sin este script el carrusel de prod queda sin fotos.
+//
 // Control (lo arreglado no vuelve): con `--verificar` no sube nada y falla
-// (exit 1) si alguna vertical de la lista quedó sin foto, o si la URL no
-// responde 200.
+// (exit 1) si alguna vertical de la lista no existe, quedó sin foto, o la URL
+// no responde 200.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -31,6 +35,9 @@ const FOTOS = {
   pediatria:  'public/images/landing/esp-pediatria.jpg',
   nutricion:  'public/images/landing/esp-nutricion.jpg',
   mente:      'public/images/landing/esp-psicologia.jpg',
+  // Psiquiatría (vertical propia desde la 200) reusa la de Psicología: es la
+  // foto más cercana que tenemos; se cambia desde el panel cuando haya una.
+  psiquiatria: 'public/images/landing/esp-psicologia.jpg',
   fisico:     'public/images/landing/esp-entrenamiento.jpg',
   preparador: 'public/images/landing/esp-entrenamiento.jpg',
 }
@@ -69,6 +76,12 @@ const { data: filas, error } = await sb.from('vertical_settings').select('id, im
 if (error) { console.error(error.message); process.exit(1) }
 
 let fallas = 0
+if (verificar) {
+  const ids = new Set(filas.map(f => f.id))
+  for (const id of Object.keys(FOTOS)) {
+    if (!ids.has(id)) { console.log(`🔴 ${id}: la vertical no existe en ${entorno} (¿faltan migraciones?)`); fallas++ }
+  }
+}
 for (const fila of filas) {
   const archivo = FOTOS[fila.id]
   if (!archivo) continue
