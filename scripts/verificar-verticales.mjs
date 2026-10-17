@@ -16,7 +16,7 @@
 //     staging, con Chromium headless y la sesión de clinica@staging.
 //  5. Un profesional sin matrícula puede firmar una nota en la videollamada
 //     (antes se firmaba con '0'). Con una cuenta de prueba propia del control
-//     (control-firma@staging.healthier.app), creada y borrada acá.
+//     (control-firma@staging.healthier.app), creada acá si no existe.
 //  6. Un corte de red al leer el perfil se muestra como "Falta tu matrícula".
 //
 //   node scripts/verificar-verticales.mjs            # todo
@@ -205,7 +205,9 @@ if (!process.argv.includes('--sin-front')) {
   }
 
   // 5 y 6 con una cuenta de prueba PROPIA del control (no las demo
-  // compartidas): un profesional sin matrícula, creado acá y borrado al final.
+  // compartidas): control-firma@staging.healthier.app, un profesional sin
+  // matrícula que el script crea si no existe y deja sin matrícula. Lo único
+  // que se borra al final es la consulta de la corrida (ver la limpieza).
   const H = { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, 'Content-Type': 'application/json' }
   const rest = async (ruta, init = {}) => {
     const r = await fetch(`${URL_SB}/rest/v1/${ruta}`, { ...init, headers: { ...H, Prefer: 'return=representation', ...(init.headers ?? {}) } })
@@ -228,7 +230,7 @@ if (!process.argv.includes('--sin-front')) {
       ctrlId = u.id
     }
     if (!ctrlId) throw new Error('no pude crear la cuenta de control')
-    await rest('profiles?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify({ id: ctrlId, email: EMAIL_CTRL, full_name: 'Control Firma', role: 'professional' }) })
+    await rest('profiles?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify({ id: ctrlId, email: EMAIL_CTRL, full_name: 'Control Firma', first_name: 'Control', last_name: 'Firma', role: 'professional' }) })
     await rest('professional_profiles?on_conflict=user_id', {
       method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
       body: JSON.stringify({ user_id: ctrlId, specialty: 'medicina_general', license_type: 'MN', license_number: '', is_verified: true, is_active: true, mp_connected: false, is_on_demand: false }),
@@ -259,11 +261,10 @@ if (!process.argv.includes('--sin-front')) {
   } finally {
     // Limpieza de la cuenta de control (no queda nada de esta corrida).
     if (consultaCtrl) await rest(`consultations?id=eq.${consultaCtrl.id}`, { method: 'DELETE' }).catch(e => console.log(`· no pude borrar la consulta de control: ${e.message}`))
-    if (ctrlId) {
-      await rest(`professional_profiles?user_id=eq.${ctrlId}`, { method: 'DELETE' }).catch(e => console.log(`· ${e.message}`))
-      const del = await fetch(`${URL_SB}/auth/v1/admin/users/${ctrlId}`, { method: 'DELETE', headers: H })
-      if (!del.ok) console.log(`· no pude borrar el usuario de control (${del.status}); se reusa en la próxima corrida`)
-    }
+    // La cuenta en sí NO se borra: abrir la videollamada deja filas en
+    // `clinical_access_log` (auditoría, no se borra nunca) que la referencian.
+    // Queda como cuenta propia y fija del control (sin matrícula, sin MP, sin
+    // pacientes) y se reusa en la próxima corrida.
   }
 
   await browser.close()
