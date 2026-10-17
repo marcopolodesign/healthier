@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import {
   Plus, X, CircleNotch, Warning, Info, MagnifyingGlass, Check,
 } from '@phosphor-icons/react'
-import { supabase } from '../../lib/supabase'
+import { supabase, mensajeDeError } from '../../lib/supabase'
 import { clinicalService } from '../../services/clinicalService'
 import { toast } from '../Toast'
 
@@ -89,7 +89,7 @@ function AllergyRow({ allergy }) {
 }
 
 // ── Add-allergy form ──────────────────────────────────────────────────────────
-function AddAllergyForm({ patientId, encounterId, onSaved, onCancel }) {
+function AddAllergyForm({ patientId, encounterId, ensureEncounter, professionalId, licenseType, licenseNumber, onSaved, onCancel }) {
   const [form, setForm] = useState({
     codeDisplay: '',
     category: 'MEDICATION',
@@ -106,8 +106,16 @@ function AddAllergyForm({ patientId, encounterId, onSaved, onCancel }) {
     if (!form.codeDisplay.trim()) { toast.warning('Ingresá el nombre del alérgeno'); return }
     setSaving(true)
     try {
-      const saved = await clinicalService.addAllergy(encounterId, {
+      // Sin encuentro todavía, se crea (sin él la alergia quedaba huérfana); y
+      // se firma con la matrícula como todo asiento de HC (clinicalService
+      // corta si falta). Antes no mandaba ni profesional ni matrícula y la base
+      // la rechazaba siempre (NOT NULL).
+      const eid = encounterId ?? (ensureEncounter ? await ensureEncounter() : null)
+      const saved = await clinicalService.addAllergy(eid, {
         patientId,
+        professionalId,
+        licenseType,
+        licenseNumber,
         allergen: form.codeDisplay.trim(),
         allergyType: form.category,
         clinicalStatus: form.clinicalStatus,
@@ -116,8 +124,8 @@ function AddAllergyForm({ patientId, encounterId, onSaved, onCancel }) {
       })
       toast.success('Alergia registrada')
       onSaved(saved)
-    } catch {
-      toast.error('Error al guardar la alergia')
+    } catch (err) {
+      toast.error(`No se pudo guardar la alergia: ${mensajeDeError(err)}`)
     } finally {
       setSaving(false)
     }
@@ -187,7 +195,7 @@ function AddAllergyForm({ patientId, encounterId, onSaved, onCancel }) {
  * AllergyPanel
  * @param {{ patientId: string|null, encounterId: string|null }} props
  */
-export default function AllergyPanel({ patientId, encounterId, bloqueada = false }) {
+export default function AllergyPanel({ patientId, encounterId, ensureEncounter, professionalId, licenseType, licenseNumber, bloqueada = false }) {
   const [allergies, setAllergies] = useState([])
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
@@ -232,6 +240,10 @@ export default function AllergyPanel({ patientId, encounterId, bloqueada = false
         <AddAllergyForm
           patientId={patientId}
           encounterId={encounterId}
+          ensureEncounter={ensureEncounter}
+          professionalId={professionalId}
+          licenseType={licenseType}
+          licenseNumber={licenseNumber}
           onSaved={newAllergy => {
             setAllergies(prev => [newAllergy, ...prev])
             setAddOpen(false)

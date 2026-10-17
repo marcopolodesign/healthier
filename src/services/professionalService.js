@@ -1,5 +1,5 @@
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
-import { actualizarMiPerfil, miPerfilCache } from '../lib/miEspecialidadCache'
+import { guardarMiPerfil, miPerfilCache } from '../lib/miEspecialidadCache'
 import { aBlobSubible, extensionDe, TIPOS_DOCUMENTO } from '../lib/archivoSubible'
 import { subirConProgreso } from '../lib/subidaConProgreso'
 import { PRECIO_MINIMO } from '../lib/tarifas'
@@ -70,22 +70,12 @@ export function disponibleAhora(pro, now = Date.now()) {
 
 export const professionalService = {
   /**
-   * Igual que `getByUserId` pero distingue los dos "nada": `null` = el
-   * profesional todavía no tiene ficha; un error de red/permisos se TIRA. Lo usa
-   * `useMiPerfilProfesional`: confundir los dos hacía que un corte de red se
+   * `null` = el profesional todavía no tiene ficha. Un error de red/permisos
+   * devuelve `null` también, salvo con `{ tirarError: true }`, que lo TIRA —
+   * lo usa `useMiPerfilProfesional`: confundir los dos hacía que un corte se
    * mostrara como "Falta tu matrícula" (revisión pre-prod, 2026-10-17).
    */
-  async getMiPerfil(userId) {
-    const { data, error } = await supabase
-      .from('professional_profiles')
-      .select('*, profiles!user_id(*)')
-      .eq('user_id', userId)
-      .maybeSingle()
-    if (error) throw error
-    return data ? toCamelCase(data) : null
-  },
-
-  async getByUserId(userId) {
+  async getByUserId(userId, { tirarError = false } = {}) {
     const { data, error } = await supabase
       .from('professional_profiles')
       .select('*, profiles!user_id(*)')
@@ -96,8 +86,11 @@ export const professionalService = {
       // PostgREST responde **406** cuando no hay fila, así que cada alta nueva
       // ensuciaba la consola con un error de red que no era un error.
       .maybeSingle()
-    if (error) return null
-    return toCamelCase(data)
+    if (error) {
+      if (tirarError) throw error
+      return null
+    }
+    return data ? toCamelCase(data) : null
   },
 
   async upsert(userId, profileData) {
@@ -117,7 +110,7 @@ export const professionalService = {
     const guardado = toCamelCase(data)
     // Siempre se actualiza y se avisa (aunque no hubiera entrada). Se mezcla
     // con lo que había porque el upsert no trae el join `profiles`.
-    actualizarMiPerfil(userId, { ...(miPerfilCache.get(userId) ?? {}), ...guardado })
+    guardarMiPerfil(userId, { ...(miPerfilCache.get(userId) ?? {}), ...guardado })
     return guardado
   },
 

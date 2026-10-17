@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, UserCircle, ShareFat, ShieldCheck, CircleNotch, CalendarCheck } from '@phosphor-icons/react'
-import { derivacionesService, destinoLabel, derivacionVigente } from '../../services/derivacionesService'
+import { derivacionesService, derivacionVigente } from '../../services/derivacionesService'
 import { professionalService } from '../../services/professionalService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { useDestinoDerivacion, verticalDeDerivacion } from '../../hooks/useDestinoDerivacion'

@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ShareFat, CaretRight } from '@phosphor-icons/react'
-import { derivacionesService, destinoLabel } from '../../services/derivacionesService'
-import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { derivacionesService } from '../../services/derivacionesService'
 import { useDestinoDerivacion } from '../../hooks/useDestinoDerivacion'
 
 /**
@@ -12,7 +11,6 @@ import { useDestinoDerivacion } from '../../hooks/useDestinoDerivacion'
  */
 export default function DerivacionCard({ profile }) {
   const navigate = useNavigate()
-  const { porSlug } = useEspecialidades()
   const destinoDe = useDestinoDerivacion()
   const [derivaciones, setDerivaciones] = useState([])
 

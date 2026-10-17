@@ -5,6 +5,7 @@ import { capitalizarNombreCatalogo } from '../../lib/format'
 import InfoTooltip from '../common/InfoTooltip'
 import EstudioSearch from '../patient/EstudioSearch'
 import { toast } from '../Toast'
+import { mensajeDeError } from '../../lib/supabase'
 
 const EMPTY_ESTUDIO = { nombre: '', codigo: null }
 
@@ -112,8 +113,9 @@ export default function EstudiosCreator({ patientId, encounterId, ensureEncounte
       resetForm()
       setAddOpen(false)
       toast.success('Orden de estudios guardada en la historia clínica')
-    } catch {
-      toast.error('Error al guardar la orden de estudios')
+    } catch (err) {
+      // El error real (ej. "Falta tu matrícula…" o "No pudimos leer tu perfil…").
+      toast.error(`No se pudo guardar la orden de estudios: ${mensajeDeError(err)}`)
     } finally {
       setSaving(false)
     }

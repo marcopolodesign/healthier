@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, CircleNotch, User, ShareFat, ClipboardText, CalendarCheck } from '@phosphor-icons/react'
-import { derivacionesService, textoHistoriaClinica, destinoLabel, derivacionVigente } from '../../services/derivacionesService'
+import { derivacionesService, textoHistoriaClinica, derivacionVigente } from '../../services/derivacionesService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { useDestinoDerivacion } from '../../hooks/useDestinoDerivacion'
 import { useMiEspecialidad } from '../../hooks/useMiEspecialidad'
@@ -26,7 +26,7 @@ function Dato({ label, children }) {
 export default function DerivacionDetalle({ profile }) {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { porSlug, usaHistoriaClinica } = useEspecialidades()
+  const { usaHistoriaClinica } = useEspecialidades()
   const destinoDe = useDestinoDerivacion()
   const verHistoriaClinica = usaHistoriaClinica(useMiEspecialidad(profile?.id))
   const [d, setD] = useState(null)

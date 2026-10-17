@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useMiPerfilProfesional } from '../../hooks/useMiEspecialidad'
 import { useParams, useNavigate, Navigate, Link } from 'react-router-dom'
 import { ArrowLeft, Ambulance, CircleNotch, LockSimple, SealCheck, Warning } from '@phosphor-icons/react'
 import { ClinicalPanel } from './VideoCall'
 import CloseConsultationModal from '../../components/CloseConsultationModal'
 import { consultationsService } from '../../services/consultationsService'
 import { emergencyService } from '../../services/emergencyService'
-import { professionalService } from '../../services/professionalService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import { esWebViewDeLaApp } from '../../lib/enApp'
 
@@ -39,7 +39,8 @@ export default function AtencionEmergencia({ profile }) {
   const [consultation, setConsultation] = useState(null)
   const [emergencia, setEmergencia] = useState(null)
   const [error, setError] = useState(null)
-  const [profProfile, setProfProfile] = useState(null)
+  // Perfil profesional del hook compartido (ver ConsultationDetail).
+  const { perfil: profProfile } = useMiPerfilProfesional(profile?.id)
   const [cierreAbierto, setCierreAbierto] = useState(false)
   const [preparandoCierre, setPreparandoCierre] = useState(false)
 
@@ -57,11 +58,6 @@ export default function AtencionEmergencia({ profile }) {
       .then(setEmergencia)
       .catch(() => {})
   }, [consultation?.emergencyId])
-
-  useEffect(() => {
-    if (!profile?.id) return
-    professionalService.getByUserId(profile.id).then(setProfProfile).catch(() => {})
-  }, [profile?.id])
 
   // Mismo encuentro que usa el panel (el hook relee la base antes de crear, así
   // que dos instancias no duplican). Lo necesita el modal de cierre para

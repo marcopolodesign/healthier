@@ -15,8 +15,8 @@
 //     (ReferenceError en `DerivacionCard`, revisión ronda 2) — en el front de
 //     staging, con Chromium headless y la sesión de clinica@staging.
 //  5. Un profesional sin matrícula puede firmar una nota en la videollamada
-//     (antes se firmaba con '0'). Se le saca la matrícula sólo durante la
-//     prueba y se restaura.
+//     (antes se firmaba con '0'). Con una cuenta de prueba propia del control
+//     (control-firma@staging.healthier.app), creada y borrada acá.
 //  6. Un corte de red al leer el perfil se muestra como "Falta tu matrícula".
 //
 //   node scripts/verificar-verticales.mjs            # todo
@@ -151,11 +151,9 @@ const comoSuperAdmin = `perform set_config('request.jwt.claims', json_build_obje
 if (!process.argv.includes('--sin-front')) {
   const { chromium } = await import('@playwright/test')
   const browser = await chromium.launch()
-  const CLINICA = '5eed0001-0000-4000-8000-000000000001'
-  const CONSULTA = '1a507e77-8dc1-427c-b4f6-636ae266a127' // de clinica@staging, cancelada
   const PACIENTE = '5eed1001-0000-4000-8000-000000000001' // tiene una derivación
 
-  async function paginaComo(email, { bloquearPerfil = false } = {}) {
+  async function paginaComo(email, { bloquearPerfilDe = null } = {}) {
     const link = await (await fetch(`${URL_SB}/auth/v1/admin/generate_link`, {
       method: 'POST',
       headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, 'Content-Type': 'application/json' },
@@ -169,9 +167,9 @@ if (!process.argv.includes('--sin-front')) {
     const page = await ctx.newPage()
     page.errores = []
     page.on('pageerror', e => page.errores.push(e.message))
-    if (bloquearPerfil) {
+    if (bloquearPerfilDe) {
       // Simula un corte de red SÓLO en la lectura del perfil profesional propio.
-      await page.route(`**/rest/v1/professional_profiles?*user_id=eq.${CLINICA}*`, r => r.abort('internetdisconnected'))
+      await page.route(`**/rest/v1/professional_profiles?*user_id=eq.${bloquearPerfilDe}*`, r => r.abort('internetdisconnected'))
     }
     await page.goto(`${WEB}/login`)
     await page.evaluate(([k, v]) => localStorage.setItem(k, v), [
@@ -197,8 +195,8 @@ if (!process.argv.includes('--sin-front')) {
   }
 
   // Escribe una nota libre en la videollamada y devuelve el aviso que aparece.
-  async function intentarNota(page) {
-    await page.goto(`${WEB}/profesional/videollamada/${CONSULTA}`)
+  async function intentarNota(page, consultaId) {
+    await page.goto(`${WEB}/profesional/videollamada/${consultaId}`)
     await page.locator('[data-tour="botones-nota"] button').first().click({ timeout: 20000 })
     await page.locator('form textarea').first().fill('Control verificar-verticales: no se tiene que guardar.')
     await page.getByRole('button', { name: /^Guardar/ }).first().click()
@@ -206,37 +204,66 @@ if (!process.argv.includes('--sin-front')) {
     return page.locator('body').innerText()
   }
 
-  // 5. sin matrícula no se firma — se le saca la matrícula SÓLO durante la prueba
-  {
-    const { data: antes } = await fetch(`${URL_SB}/rest/v1/professional_profiles?select=license_number&user_id=eq.${CLINICA}`, {
-      headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}` },
-    }).then(r => r.json()).then(d => ({ data: d[0] }))
-    const patch = v => fetch(`${URL_SB}/rest/v1/professional_profiles?user_id=eq.${CLINICA}`, {
-      method: 'PATCH', headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ license_number: v }),
+  // 5 y 6 con una cuenta de prueba PROPIA del control (no las demo
+  // compartidas): un profesional sin matrícula, creado acá y borrado al final.
+  const H = { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, 'Content-Type': 'application/json' }
+  const rest = async (ruta, init = {}) => {
+    const r = await fetch(`${URL_SB}/rest/v1/${ruta}`, { ...init, headers: { ...H, Prefer: 'return=representation', ...(init.headers ?? {}) } })
+    const t = await r.text()
+    if (!r.ok) throw new Error(`${ruta} → ${r.status} ${t}`)
+    return t ? JSON.parse(t) : null
+  }
+  const EMAIL_CTRL = 'control-firma@staging.healthier.app'
+  let ctrlId = null
+  let consultaCtrl = null
+  try {
+    // Si quedó de una corrida anterior, se reusa.
+    const lista = await (await fetch(`${URL_SB}/auth/v1/admin/users?per_page=1000`, { headers: H })).json()
+    ctrlId = (lista.users ?? []).find(u => u.email === EMAIL_CTRL)?.id ?? null
+    if (!ctrlId) {
+      const u = await (await fetch(`${URL_SB}/auth/v1/admin/users`, {
+        method: 'POST', headers: H,
+        body: JSON.stringify({ email: EMAIL_CTRL, email_confirm: true, password: crypto.randomUUID(), user_metadata: { role: 'professional', full_name: 'Control Firma' } }),
+      })).json()
+      ctrlId = u.id
+    }
+    if (!ctrlId) throw new Error('no pude crear la cuenta de control')
+    await rest('profiles?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify({ id: ctrlId, email: EMAIL_CTRL, full_name: 'Control Firma', role: 'professional' }) })
+    await rest('professional_profiles?on_conflict=user_id', {
+      method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+      body: JSON.stringify({ user_id: ctrlId, specialty: 'medicina_general', license_type: 'MN', license_number: '', is_verified: true, is_active: true, mp_connected: false, is_on_demand: false }),
     })
-    try {
-      await patch('')
-      const page = await paginaComo('clinica@staging.healthier.app')
-      const texto = await intentarNota(page)
+    const [pac] = await rest(`profiles?select=id&email=eq.paciente.completo@staging.healthier.app`)
+    ;[consultaCtrl] = await rest('consultations', {
+      method: 'POST',
+      body: JSON.stringify({ patient_id: pac.id, professional_id: ctrlId, status: 'confirmed', scheduled_at: new Date().toISOString(), modality: 'video', price_at_booking: 0, payment_status: 'exempt' }),
+    })
+
+    // 5. sin matrícula no se firma
+    {
+      const page = await paginaComo(EMAIL_CTRL)
+      const texto = await intentarNota(page, consultaCtrl.id)
       check(/Falta tu matrícula/.test(texto), 'sin matrícula, la nota de la videollamada no se firma y lo dice')
       await page.context().close()
-    } finally {
-      await patch(antes?.license_number ?? null)
     }
-    const { data: despues } = await fetch(`${URL_SB}/rest/v1/professional_profiles?select=license_number&user_id=eq.${CLINICA}`, {
-      headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}` },
-    }).then(r => r.json()).then(d => ({ data: d[0] }))
-    check(despues?.license_number === antes?.license_number, `matrícula de clinica@staging restaurada (${despues?.license_number})`)
-  }
-
-  // 6. un corte de red al leer el perfil NO se muestra como "Falta tu matrícula"
-  {
-    const page = await paginaComo('clinica@staging.healthier.app', { bloquearPerfil: true })
-    const texto = await intentarNota(page)
-    const aviso = (/No se pudo guardar la nota[^\n]*/.exec(texto) ?? [''])[0]
-    check(!/Falta tu matrícula/.test(texto) && aviso !== '', `con la red cortada al leer el perfil, el aviso no dice "Falta tu matrícula" (${aviso.slice(0, 90) || 'no apareció ningún aviso'})`)
-    await page.context().close()
+    // 6. un corte de red al leer el perfil NO se muestra como "Falta tu matrícula"
+    {
+      const page = await paginaComo(EMAIL_CTRL, { bloquearPerfilDe: ctrlId })
+      const texto = await intentarNota(page, consultaCtrl.id)
+      const aviso = (/No se pudo guardar la nota[^\n]*/.exec(texto) ?? [''])[0]
+      check(!/Falta tu matrícula/.test(texto) && /No pudimos leer tu perfil profesional/.test(aviso), `con la red cortada al leer el perfil, el aviso no dice "Falta tu matrícula" (${aviso.slice(0, 90) || 'no apareció ningún aviso'})`)
+      await page.context().close()
+    }
+    const enc = await rest(`clinical_encounters?select=id&consultation_id=eq.${consultaCtrl.id}`)
+    check(enc.length === 0, 'no quedó ningún encuentro clínico firmado por la cuenta sin matrícula')
+  } finally {
+    // Limpieza de la cuenta de control (no queda nada de esta corrida).
+    if (consultaCtrl) await rest(`consultations?id=eq.${consultaCtrl.id}`, { method: 'DELETE' }).catch(e => console.log(`· no pude borrar la consulta de control: ${e.message}`))
+    if (ctrlId) {
+      await rest(`professional_profiles?user_id=eq.${ctrlId}`, { method: 'DELETE' }).catch(e => console.log(`· ${e.message}`))
+      const del = await fetch(`${URL_SB}/auth/v1/admin/users/${ctrlId}`, { method: 'DELETE', headers: H })
+      if (!del.ok) console.log(`· no pude borrar el usuario de control (${del.status}); se reusa en la próxima corrida`)
+    }
   }
 
   await browser.close()

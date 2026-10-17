@@ -10,7 +10,7 @@ import { consultationsService } from '../../services/consultationsService'
 import PatientConsultationList from '../../components/professional/PatientConsultationList'
 import { followupsService } from '../../services/followupsService'
 import { professionalService } from '../../services/professionalService'
-import { derivacionesService, destinoLabel, derivacionVigente } from '../../services/derivacionesService'
+import { derivacionesService, derivacionVigente } from '../../services/derivacionesService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { useDestinoDerivacion } from '../../hooks/useDestinoDerivacion'
 import { useMiEspecialidad } from '../../hooks/useMiEspecialidad'
@@ -75,7 +75,7 @@ export default function ProfessionalPatientProfile({ profile }) {
   const [savingFollowup, setSavingFollowup] = useState(false)
 
   // ── Derivaciones de este paciente que hice o recibí ──────────────────────
-  const { porSlug, usaHistoriaClinica } = useEspecialidades()
+  const { usaHistoriaClinica } = useEspecialidades()
   const destinoDe = useDestinoDerivacion()
   // Herramienta de su vertical (migración 200).
   const verHistoriaClinica = usaHistoriaClinica(useMiEspecialidad(profile?.id))
