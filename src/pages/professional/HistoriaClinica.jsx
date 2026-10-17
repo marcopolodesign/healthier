@@ -16,7 +16,7 @@ import { toast } from '../../components/Toast'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { useDestinoDerivacion } from '../../hooks/useDestinoDerivacion'
 import { useMiPerfilProfesional } from '../../hooks/useMiEspecialidad'
-import { derivacionesService, destinoLabel } from '../../services/derivacionesService'
+import { derivacionesService } from '../../services/derivacionesService'
 import DerivacionEstado from '../../components/DerivacionEstado'
 import { rangoDe, textoRango, estadoDe, estaAnalizado } from '../../lib/biomarcadores'
 
@@ -325,9 +325,7 @@ function ConsultaSinEncuentroCard({ consulta }) {
  * Una derivación del paciente en la línea de tiempo: a quién, por qué, de quién
  * y cómo va. Sólo aparecen las que este profesional hizo o recibió (la RLS).
  */
-function DerivacionCard({ derivacion, porSlug }) {
-  // El destino con la vertical resuelta desde la especialidad (useDestinoDerivacion).
-  const destinoDe = useDestinoDerivacion()
+function DerivacionCard({ derivacion, destinoDe }) {
   const d = derivacion
   return (
     <div className="card p-0 overflow-hidden">
@@ -366,7 +364,9 @@ export default function HistoriaClinica({ profile }) {
   const [consultas, setConsultas] = useState([])
   const [loadingConsultas, setLoadingConsultas] = useState(true)
   const [derivaciones, setDerivaciones] = useState([])
-  const { porSlug, usaHistoriaClinica, cargando: cargandoEsp } = useEspecialidades()
+  const { usaHistoriaClinica, cargando: cargandoEsp } = useEspecialidades()
+  // Una vez acá (no por tarjeta): el texto del destino de cada derivación.
+  const destinoDe = useDestinoDerivacion()
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('notas')
 
@@ -436,10 +436,10 @@ export default function HistoriaClinica({ profile }) {
     if (!form.content.trim()) return
     setSubmitting(true)
     try {
-      // Si el perfil no se pudo leer (red), `recargar` tira con el error real;
-      // sin matrícula, corta clinicalService (SinMatriculaError).
-      const firma = pp ?? await recargarPp()
-      if (!firma) throw new Error('No encontramos tu perfil profesional.')
+      // Firma del perfil compartido. Si no está (red, en curso, sin ficha) o
+      // no tiene matrícula, clinicalService corta con el motivo correcto.
+      if (!pp) recargarPp().catch(() => {})
+      const firma = pp ?? {}
       const licenseType = firma.licenseType ?? 'MN'
       const licenseNumber = firma.licenseNumber
       const specialty = firma.specialty ?? 'otra'
@@ -645,7 +645,7 @@ export default function HistoriaClinica({ profile }) {
             <div className="space-y-3">
               {timeline.map(item => {
                 if (item.tipo === 'encuentro') return <EncounterCard key={item.id} encounter={item.data} notaDeCierre={item.notaDeCierre} />
-                if (item.tipo === 'derivacion') return <DerivacionCard key={item.id} derivacion={item.data} porSlug={porSlug} />
+                if (item.tipo === 'derivacion') return <DerivacionCard key={item.id} derivacion={item.data} destinoDe={destinoDe} />
                 return <ConsultaSinEncuentroCard key={item.id} consulta={item.data} />
               })}
             </div>

@@ -6,8 +6,7 @@ import {
 } from '@phosphor-icons/react'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { familyService } from '../../services/familyService'
-import { derivacionesService, destinoLabel } from '../../services/derivacionesService'
-import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { derivacionesService } from '../../services/derivacionesService'
 import { useDestinoDerivacion } from '../../hooks/useDestinoDerivacion'
 import DerivacionEstado from '../../components/DerivacionEstado'
 
@@ -178,7 +177,6 @@ export default function HistoriaClinicaPaciente({ profile }) {
   const deFamiliar = searchParams.get('de')
   const [familiar, setFamiliar] = useState(null)
   const pacienteId = deFamiliar || profile?.id
-  const { porSlug } = useEspecialidades()
   const destinoDe = useDestinoDerivacion()
   const [derivaciones, setDerivaciones] = useState([])
 

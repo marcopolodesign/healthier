@@ -810,13 +810,10 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
     if (!form.content.trim()) return
     setSubmitting(true)
     try {
-      // La regla de firma vive en clinicalService (SinMatriculaError). Acá sólo
-      // se distingue el caso "no pudimos leer tu perfil" (red), para que un
-      // corte no se muestre como "Falta tu matrícula".
-      if (!profProfile) {
-        await recargarProfProfile() // ante error de red, tira con el error real
-        throw new Error('Recién pudimos leer tu perfil profesional: volvé a tocar "Guardar".')
-      }
+      // La regla de firma (y el "no pudimos leer tu perfil" vs "falta tu
+      // matrícula") vive en clinicalService. Si el perfil no está, se relee
+      // de fondo para el próximo intento.
+      if (!profProfile) recargarProfProfile().catch(() => {})
       const eid = await ensureEncounter()
       const entry = await clinicalService.addEntry(eid, {
         patientId,

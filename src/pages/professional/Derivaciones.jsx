@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ShareFat, CaretRight, User } from '@phosphor-icons/react'
-import { derivacionesService, destinoLabel } from '../../services/derivacionesService'
-import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { derivacionesService } from '../../services/derivacionesService'
 import { useDestinoDerivacion } from '../../hooks/useDestinoDerivacion'
 import DerivacionEstado from '../../components/DerivacionEstado'
 import { toast } from '../../components/Toast'
@@ -19,7 +18,6 @@ const TABS = [
  * paciente reserva (entonces aparecen en el turno como "Derivado por").
  */
 export default function Derivaciones({ profile }) {
-  const { porSlug } = useEspecialidades()
   const destinoDe = useDestinoDerivacion()
   const [tab, setTab] = useState('hechas')
   const [hechas, setHechas] = useState([])

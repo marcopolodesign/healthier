@@ -8,10 +8,10 @@ import {
 import InfoTooltip from '../../components/common/InfoTooltip'
 import { consultationsService } from '../../services/consultationsService'
 import { emergencyService } from '../../services/emergencyService'
-import { professionalService } from '../../services/professionalService'
 import { derivacionesService } from '../../services/derivacionesService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { useMiPerfilProfesional } from '../../hooks/useMiEspecialidad'
 import { clinicalService } from '../../services/clinicalService'
 import StatusBadge from '../../components/StatusBadge'
 import CloseConsultationModal from '../../components/CloseConsultationModal'
@@ -51,14 +51,11 @@ export default function ConsultationDetail({ profile }) {
   const [coverageForm, setCoverageForm] = useState({ coverageType: null, financiadorId: null, obraSocialName: '', affiliateNumber: '' })
   const [savingCoverage, setSavingCoverage] = useState(false)
 
-  const [profProfile, setProfProfile] = useState(null)
+  // El perfil profesional (matrícula/especialidad) del hook compartido: si no
+  // se pudo leer, clinicalService lo dice al firmar en vez de "Falta tu matrícula".
+  const { perfil: profProfile, recargar: recargarProfProfile } = useMiPerfilProfesional(profile?.id)
   const [showScribe, setShowScribe] = useState(false)
   const [recetas, setRecetas] = useState([])
-
-  useEffect(() => {
-    if (!profile?.id) return
-    professionalService.getByUserId(profile.id).then(setProfProfile).catch(() => {})
-  }, [profile?.id])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -556,6 +553,10 @@ export default function ConsultationDetail({ profile }) {
           <AllergyPanel
             patientId={consultation.patientId}
             encounterId={clinicalEncounterId}
+            ensureEncounter={ensureEncounter}
+            professionalId={profile?.id ?? null}
+            licenseType={profProfile?.licenseType}
+            licenseNumber={profProfile?.licenseNumber}
             bloqueada={bloqueada}
           />
         </div>
@@ -586,7 +587,7 @@ export default function ConsultationDetail({ profile }) {
             // desaparezca y el botón de emitir quede habilitado sin recargar.
             onDatosActualizados={() => {
               load()
-              professionalService.getByUserId(profile.id).then(setProfProfile).catch(() => {})
+              recargarProfProfile().catch(() => {})
             }}
             profile={profile}
             profProfile={profProfile}

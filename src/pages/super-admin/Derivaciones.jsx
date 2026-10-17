@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ShareFat } from '@phosphor-icons/react'
-import { derivacionesService, destinoLabel, derivacionVigente } from '../../services/derivacionesService'
-import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { derivacionesService, derivacionVigente } from '../../services/derivacionesService'
 import { useDestinoDerivacion } from '../../hooks/useDestinoDerivacion'
 import DerivacionEstado, { consentimientoLabel } from '../../components/DerivacionEstado'
 import { toast } from '../../components/Toast'
@@ -14,7 +13,6 @@ import MetricCard from '../../components/super-admin/MetricCard'
  * visibilidad del panel: nada operativo de la plataforma queda sin verse acá.
  */
 export default function SuperAdminDerivaciones() {
-  const { porSlug } = useEspecialidades()
   const destinoDe = useDestinoDerivacion()
   const [filas, setFilas] = useState([])
   const [loading, setLoading] = useState(true)
