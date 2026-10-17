@@ -9,6 +9,7 @@ import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
 import { getStoredReferral, clearReferral, referralUtms } from '../../lib/referral'
+import { track } from '../../utils/analytics'
 
 export default function CompleteProfile({ authUser, onProfileComplete }) {
   const navigate = useNavigate()
@@ -35,7 +36,11 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
     if (!role) { toast.error('Seleccioná un tipo de cuenta'); return }
     const errorNombre = validarNombreApellido(nombres.nombre, nombres.apellido)
     if (errorNombre) { toast.error(errorNombre); return }
-    if (role === 'professional' && !dniValido(dni)) { toast.error(MENSAJE_DNI_INVALIDO); return }
+    if (role === 'professional' && !dniValido(dni)) {
+      toast.error(MENSAJE_DNI_INVALIDO)
+      track('sign_up_error', { step: 1, step_name: 'cuenta', error_type: 'dni_invalido', flow: 'profesional', method: 'google' })
+      return
+    }
     if (!phone.trim()) { toast.error('Ingresá tu teléfono'); return }
     setLoading(true)
     try {

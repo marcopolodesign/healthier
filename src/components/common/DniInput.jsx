@@ -1,4 +1,5 @@
 import { IdentificationCard } from '@phosphor-icons/react'
+import { normalizarDni } from '../../lib/dni'
 
 /**
  * DNI del profesional en el alta (2026-10-16): lo usan el registro por mail y
@@ -6,9 +7,11 @@ import { IdentificationCard } from '@phosphor-icons/react'
  * alta para que `profiles.es_extranjero` (migración 201) se sepa desde el
  * primer momento; el onboarding lo trae precargado y no lo vuelve a pedir.
  * Revisado por Felipe: label sin asterisco, ayuda con el porqué.
+ * Sin `required` ni `maxLength` a propósito: el vacío lo frena el submit con el
+ * mensaje propio (y el evento de analytics), y un pegado con puntos o un CUIT
+ * no se trunca — lo resuelve `normalizarDni`.
  */
-export const dniValido = dni => /^\d{7,8}$/.test(dni ?? '')
-export const MENSAJE_DNI_INVALIDO = 'Revisá tu DNI: son 7 u 8 números.'
+export { dniValido, MENSAJE_DNI_INVALIDO } from '../../lib/dni'
 
 export default function DniInput({ value, onChange }) {
   return (
@@ -21,10 +24,8 @@ export default function DniInput({ value, onChange }) {
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"
-          maxLength={8}
-          required
           value={value}
-          onChange={e => onChange(e.target.value.replace(/\D/g, '').slice(0, 8))}
+          onChange={e => onChange(normalizarDni(e.target.value))}
           placeholder="Ej: 28999888"
           className="form-input pl-9"
         />

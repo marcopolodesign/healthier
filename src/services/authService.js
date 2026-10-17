@@ -1,6 +1,7 @@
 import { supabase, toCamelCase, olvidarSesion } from '../lib/supabase'
 import { armarNombreCompleto } from '../lib/nombreApellido'
 import { bajaService } from './bajaService'
+import { normalizarDni } from '../lib/dni'
 
 // Shared insert payload for a new `profiles` row — used both by email/password
 // registration and by first-time Google sign-in completion.
@@ -38,7 +39,7 @@ function buildProfileRow(user, email, role, { nombre, apellido }, utms = {}, pho
     // El profesional lo carga en el registro (2026-10-16) para que
     // `profiles.es_extranjero` (migración 201) se sepa desde el alta y no recién
     // al enviar el legajo. El onboarding lo trae precargado.
-    ...(dni ? { dni } : {}),
+    ...(dni && normalizarDni(dni) ? { dni: normalizarDni(dni) } : {}),
     ...(referredByProfessionalId ? { referred_by_professional_id: referredByProfessionalId } : {}),
     utm_source:   utms.utm_source   ?? null,
     utm_medium:   utms.utm_medium   ?? null,

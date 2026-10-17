@@ -17,6 +17,7 @@ import OnboardingPreview from '../../components/professional/OnboardingPreview'
 import EnvioFallidoSheet from '../../components/professional/EnvioFallidoSheet'
 import { LAWS } from '../../lib/laws'
 import { track } from '../../utils/analytics'
+import { dniValido, normalizarDni } from '../../lib/dni'
 
 // De acá salieron **sólo las tarifas** — precio, modalidad, zona y dirección —
 // que ya se configuran en Configuración → Tarifas y Perfil, y que el
@@ -146,6 +147,13 @@ export default function Onboarding({ profile }) {
     }
   }, [isResubmit, profile?.id, profile?.dni, profile?.gender, profile?.onboardingDraft])
 
+  // El DNI del registro puede llegar DESPUÉS del montaje: el alta abre sesión y
+  // redirige acá antes de que termine el upsert (ver lib/postSignupRedirect.js).
+  // Si el campo sigue vacío cuando aparece, se precarga — que no lo pida dos veces.
+  useEffect(() => {
+    if (profile?.dni) setForm(f => (f.dni ? f : { ...f, dni: profile.dni }))
+  }, [profile?.dni])
+
   const handleAvatar = async file => {
     setAvatarFile(file)
     setAvatarPreview(URL.createObjectURL(file))
@@ -197,7 +205,7 @@ export default function Onboarding({ profile }) {
     }
     if (step === 1) {
       const falta = []
-      if ((form.dni ?? '').trim().length < 7) falta.push('tu DNI')
+      if (!dniValido(form.dni)) falta.push('tu DNI')
       if (!(form.gender ?? '').trim()) falta.push('tu sexo')
       return falta
     }
@@ -626,7 +634,7 @@ export default function Onboarding({ profile }) {
                   type="text"
                   inputMode="numeric"
                   value={form.dni}
-                  onChange={e => setForm(p => ({ ...p, dni: e.target.value.replace(/\D/g, '') }))}
+                  onChange={e => setForm(p => ({ ...p, dni: normalizarDni(e.target.value) }))}
                   placeholder="Sin puntos, ej: 28999888"
                   className="form-input"
                 />
