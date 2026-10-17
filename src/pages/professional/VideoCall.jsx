@@ -21,7 +21,6 @@ import { professionalService } from '../../services/professionalService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { useMiPerfilProfesional } from '../../hooks/useMiEspecialidad'
-import { MENSAJE_SIN_MATRICULA } from '../../lib/firmaHistoriaClinica'
 import ScribeSession from '../../components/professional/ScribeSession'
 import Recetario from '../../components/professional/Recetario'
 import { DerivarForm } from '../../components/professional/DerivarModal'
@@ -611,7 +610,8 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
   // botón "Guardar" espera (ver el form más abajo) y no se crea el encuentro.
   const { perfil: profProfile, cargando: loadingProfProfile, recargar: recargarProfProfile } = useMiPerfilProfesional(profile?.id)
   const licenseType = profProfile?.licenseType ?? 'MN'
-  // Sin matrícula NO se firma (antes se firmaba con '0'): ver handleSubmit.
+  // Sin matrícula NO se firma (antes se firmaba con '0'): lo corta
+  // clinicalService con SinMatriculaError.
   const licenseNumber = profProfile?.licenseNumber ?? null
   const specialty = profProfile?.specialty ?? 'otra'
   const [loadingPatientData, setLoadingPatientData] = useState(true)
@@ -810,7 +810,13 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
     if (!form.content.trim()) return
     setSubmitting(true)
     try {
-      if (!licenseNumber) throw new Error(MENSAJE_SIN_MATRICULA)
+      // La regla de firma vive en clinicalService (SinMatriculaError). Acá sólo
+      // se distingue el caso "no pudimos leer tu perfil" (red), para que un
+      // corte no se muestre como "Falta tu matrícula".
+      if (!profProfile) {
+        await recargarProfProfile() // ante error de red, tira con el error real
+        throw new Error('Recién pudimos leer tu perfil profesional: volvé a tocar "Guardar".')
+      }
       const eid = await ensureEncounter()
       const entry = await clinicalService.addEntry(eid, {
         patientId,

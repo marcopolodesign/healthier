@@ -1,5 +1,5 @@
 import { supabase, toCamelCase } from '../lib/supabase'
-import { VERTICALS_BY_ID } from '../lib/verticals'
+import { VERTICALS_BY_ID, verticalForSpecialty } from '../lib/verticals'
 
 /**
  * Derivaciones (migración 195, docs/derivaciones.md).
@@ -39,16 +39,32 @@ export function derivacionVigente(d) {
 }
 
 /**
+ * La vertical de una derivación a una especialidad, resuelta desde la
+ * especialidad destino (catálogo actual) y no desde la `vertical_destino`
+ * guardada: si la especialidad cambió de vertical (Psiquiatría salió de
+ * Clínica en la 200), lo guardado queda viejo. Mismo criterio que el trigger
+ * `validar_consulta_derivada` (203).
+ */
+export function verticalDeDerivacion(d, especialidades = []) {
+  if (!d) return null
+  if (d.especialidadDestino) {
+    return verticalForSpecialty(d.especialidadDestino, especialidades) ?? d.verticalDestino ?? null
+  }
+  return d.verticalDestino ?? null
+}
+
+/**
  * Texto del destino: el profesional con nombre y apellido, o la vertical (con la
  * especialidad si la hay). `porSlug` viene de `useEspecialidades()` y
  * `verticalesById` de `useVerticales()` (única fuente del nombre de la vertical).
  */
-export function destinoLabel(d, porSlug = {}, verticalesById = {}) {
+export function destinoLabel(d, porSlug = {}, verticalesById = {}, especialidades = []) {
   if (!d) return ''
   if (d.destino?.fullName) return d.destino.fullName
   // `verticalesById` (de `useVerticales()`) trae el nombre de la base; la
   // lista del código queda de respaldo para las de siempre.
-  const vertical = verticalesById[d.verticalDestino]?.nombre ?? VERTICALS_BY_ID[d.verticalDestino]?.nombre ?? d.verticalDestino
+  const vId = verticalDeDerivacion(d, especialidades)
+  const vertical = verticalesById[vId]?.nombre ?? VERTICALS_BY_ID[vId]?.nombre ?? vId
   const esp = d.especialidadDestino ? (porSlug[d.especialidadDestino] ?? d.especialidadDestino) : null
   return esp ? `${vertical} · ${esp}` : vertical
 }

@@ -288,7 +288,7 @@ export function encuentro() {
     startedAt: new Date().toISOString(),
     finishedAt: null,
     professionalLicenseType: profProfile?.licenseType ?? 'MN',
-    professionalLicenseNumber: profProfile?.licenseNumber ?? '0',
+    professionalLicenseNumber: profProfile?.licenseNumber ?? null,
     entries: [],
     conditions: [],
     allergies: [],

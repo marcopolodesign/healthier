@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ShareFat, CaretRight, User } from '@phosphor-icons/react'
 import { derivacionesService, destinoLabel } from '../../services/derivacionesService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
-import { useVerticales } from '../../hooks/useVerticales'
+import { useDestinoDerivacion } from '../../hooks/useDestinoDerivacion'
 import DerivacionEstado from '../../components/DerivacionEstado'
 import { toast } from '../../components/Toast'
 import { formatDate } from '../../lib/format'
@@ -20,7 +20,7 @@ const TABS = [
  */
 export default function Derivaciones({ profile }) {
   const { porSlug } = useEspecialidades()
-  const { verticalesById } = useVerticales()
+  const destinoDe = useDestinoDerivacion()
   const [tab, setTab] = useState('hechas')
   const [hechas, setHechas] = useState([])
   const [recibidas, setRecibidas] = useState([])
@@ -92,7 +92,7 @@ export default function Derivaciones({ profile }) {
                 <p className="text-sm font-semibold text-text-primary truncate">{d.paciente?.fullName ?? 'Paciente'}</p>
                 <p className="text-xs text-text-secondary truncate">
                   {tab === 'hechas'
-                    ? `A ${destinoLabel(d, porSlug, verticalesById)}`
+                    ? `A ${destinoDe(d)}`
                     : `De ${d.derivado?.fullName ?? 'otro profesional'}`}
                   {' · '}{formatDate(d.createdAt)}
                 </p>

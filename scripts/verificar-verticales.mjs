@@ -14,6 +14,10 @@
 //  4. La historia clínica de un paciente con una derivación se cae al abrirla
 //     (ReferenceError en `DerivacionCard`, revisión ronda 2) — en el front de
 //     staging, con Chromium headless y la sesión de clinica@staging.
+//  5. Un profesional sin matrícula puede firmar una nota en la videollamada
+//     (antes se firmaba con '0'). Se le saca la matrícula sólo durante la
+//     prueba y se restaura.
+//  6. Un corte de red al leer el perfil se muestra como "Falta tu matrícula".
 //
 //   node scripts/verificar-verticales.mjs            # todo
 //   node scripts/verificar-verticales.mjs --sin-front
@@ -22,9 +26,11 @@
 // deshacen enteros (nada queda escrito, ningún aviso sale).
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import path from 'node:path'
 
 const env = {}
-for (const l of readFileSync('/Users/mataldao/Local/.env', 'utf8').split('\n')) {
+for (const l of readFileSync(path.join(homedir(), 'Local/.env'), 'utf8').split('\n')) {
   const m = /^\s*(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(l)
   if (m) env[m[1]] = m[2].replace(/^['"]|['"]$/g, '')
 }
@@ -141,34 +147,97 @@ const comoSuperAdmin = `perform set_config('request.jwt.claims', json_build_obje
   check(/no es de la especialidad/.test(no), `un nutricionista no la puede tomar (${no.slice(0, 60)})`)
 }
 
-// ── 4. historia clínica con derivación, en el front ─────────────────────────
+// ── 4-6. En el front de staging (Chromium headless) ─────────────────────────
 if (!process.argv.includes('--sin-front')) {
   const { chromium } = await import('@playwright/test')
-  const link = await (await fetch(`${URL_SB}/auth/v1/admin/generate_link`, {
-    method: 'POST',
-    headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'magiclink', email: 'clinica@staging.healthier.app' }),
-  })).json()
-  const ses = await (await fetch(`${URL_SB}/auth/v1/verify`, {
-    method: 'POST', headers: { apikey: ANON, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'magiclink', token_hash: link.hashed_token ?? link.properties?.hashed_token }),
-  })).json()
   const browser = await chromium.launch()
-  const page = await browser.newPage()
-  const errores = []
-  page.on('pageerror', e => errores.push(e.message))
-  await page.goto(`${WEB}/login`)
-  await page.evaluate(([k, v]) => localStorage.setItem(k, v), [
-    `sb-${REF}-auth-token`,
-    JSON.stringify({ access_token: ses.access_token, token_type: ses.token_type, expires_in: ses.expires_in, expires_at: ses.expires_at, refresh_token: ses.refresh_token, user: ses.user }),
-  ])
-  await page.goto(`${WEB}/profesional/historia-clinica/5eed1001-0000-4000-8000-000000000001`)
-  const vio = await page.getByText(/Derivación a /).first().waitFor({ timeout: 20000 }).then(() => true).catch(() => false)
-  // El ErrorBoundary de la app atrapa el error (no llega a `pageerror`) y
-  // muestra "Algo salió mal" con el mensaje: eso también es una caída.
-  const caida = await page.getByText('Algo salió mal').count()
-  if (caida) errores.push(await page.locator('body').innerText().then(t => t.split('\n').slice(0, 6).join(' ')))
-  check(vio && errores.length === 0, `la historia clínica de un paciente con derivación se abre${errores.length ? ` (error: ${errores[0].slice(0, 80)})` : vio ? '' : ' (no apareció "Derivación a")'}`)
+  const CLINICA = '5eed0001-0000-4000-8000-000000000001'
+  const CONSULTA = '1a507e77-8dc1-427c-b4f6-636ae266a127' // de clinica@staging, cancelada
+  const PACIENTE = '5eed1001-0000-4000-8000-000000000001' // tiene una derivación
+
+  async function paginaComo(email, { bloquearPerfil = false } = {}) {
+    const link = await (await fetch(`${URL_SB}/auth/v1/admin/generate_link`, {
+      method: 'POST',
+      headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'magiclink', email }),
+    })).json()
+    const ses = await (await fetch(`${URL_SB}/auth/v1/verify`, {
+      method: 'POST', headers: { apikey: ANON, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'magiclink', token_hash: link.hashed_token ?? link.properties?.hashed_token }),
+    })).json()
+    const ctx = await browser.newContext()
+    const page = await ctx.newPage()
+    page.errores = []
+    page.on('pageerror', e => page.errores.push(e.message))
+    if (bloquearPerfil) {
+      // Simula un corte de red SÓLO en la lectura del perfil profesional propio.
+      await page.route(`**/rest/v1/professional_profiles?*user_id=eq.${CLINICA}*`, r => r.abort('internetdisconnected'))
+    }
+    await page.goto(`${WEB}/login`)
+    await page.evaluate(([k, v]) => localStorage.setItem(k, v), [
+      `sb-${REF}-auth-token`,
+      JSON.stringify({ access_token: ses.access_token, token_type: ses.token_type, expires_in: ses.expires_in, expires_at: ses.expires_at, refresh_token: ses.refresh_token, user: ses.user }),
+    ])
+    return page
+  }
+  // Espera a que la red quede quieta y un rato más, antes de mirar la pantalla.
+  const asentar = async page => { await page.waitForLoadState('networkidle').catch(() => {}); await page.waitForTimeout(1500) }
+
+  // 4. historia clínica con derivación
+  {
+    const page = await paginaComo('clinica@staging.healthier.app')
+    await page.goto(`${WEB}/profesional/historia-clinica/${PACIENTE}`)
+    const vio = await page.getByText(/Derivación a /).first().waitFor({ timeout: 20000 }).then(() => true).catch(() => false)
+    await asentar(page)
+    // El ErrorBoundary de la app atrapa el error (no llega a `pageerror`) y
+    // muestra "Algo salió mal" con el mensaje: eso también es una caída.
+    if (await page.getByText('Algo salió mal').count()) page.errores.push(await page.locator('body').innerText().then(t => t.split('\n').slice(0, 6).join(' ')))
+    check(vio && page.errores.length === 0, `la historia clínica de un paciente con derivación se abre${page.errores.length ? ` (error: ${page.errores[0].slice(0, 80)})` : vio ? '' : ' (no apareció "Derivación a")'}`)
+    await page.context().close()
+  }
+
+  // Escribe una nota libre en la videollamada y devuelve el aviso que aparece.
+  async function intentarNota(page) {
+    await page.goto(`${WEB}/profesional/videollamada/${CONSULTA}`)
+    await page.locator('[data-tour="botones-nota"] button').first().click({ timeout: 20000 })
+    await page.locator('form textarea').first().fill('Control verificar-verticales: no se tiene que guardar.')
+    await page.getByRole('button', { name: /^Guardar/ }).first().click()
+    await page.waitForTimeout(3000)
+    return page.locator('body').innerText()
+  }
+
+  // 5. sin matrícula no se firma — se le saca la matrícula SÓLO durante la prueba
+  {
+    const { data: antes } = await fetch(`${URL_SB}/rest/v1/professional_profiles?select=license_number&user_id=eq.${CLINICA}`, {
+      headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}` },
+    }).then(r => r.json()).then(d => ({ data: d[0] }))
+    const patch = v => fetch(`${URL_SB}/rest/v1/professional_profiles?user_id=eq.${CLINICA}`, {
+      method: 'PATCH', headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ license_number: v }),
+    })
+    try {
+      await patch('')
+      const page = await paginaComo('clinica@staging.healthier.app')
+      const texto = await intentarNota(page)
+      check(/Falta tu matrícula/.test(texto), 'sin matrícula, la nota de la videollamada no se firma y lo dice')
+      await page.context().close()
+    } finally {
+      await patch(antes?.license_number ?? null)
+    }
+    const { data: despues } = await fetch(`${URL_SB}/rest/v1/professional_profiles?select=license_number&user_id=eq.${CLINICA}`, {
+      headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}` },
+    }).then(r => r.json()).then(d => ({ data: d[0] }))
+    check(despues?.license_number === antes?.license_number, `matrícula de clinica@staging restaurada (${despues?.license_number})`)
+  }
+
+  // 6. un corte de red al leer el perfil NO se muestra como "Falta tu matrícula"
+  {
+    const page = await paginaComo('clinica@staging.healthier.app', { bloquearPerfil: true })
+    const texto = await intentarNota(page)
+    check(!/Falta tu matrícula/.test(texto), 'con la red cortada al leer el perfil, el aviso no dice "Falta tu matrícula"')
+    await page.context().close()
+  }
+
   await browser.close()
 }
 

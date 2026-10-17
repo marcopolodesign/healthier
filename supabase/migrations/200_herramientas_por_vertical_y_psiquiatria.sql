@@ -49,16 +49,6 @@ update public.vertical_settings
    set herramienta_historia_clinica = false, herramienta_receta = false
  where id = 'odontologia';
 
--- La herramienta de receta arranca apagada en las verticales donde hoy
--- ninguna especialidad puede recetar (Nutrición, Psicología, Kinesiología,
--- Veterinaria, Preparación física…): no cambia quién receta (ya era nadie),
--- pero el panel lo dice como es en vez de "prendida y sin especialidades".
-update public.vertical_settings v
-   set herramienta_receta = false
- where v.tipo = 'vertical'
-   and not exists (select 1 from public.specialties s
-                    where s.vertical_id = v.id and s.parent_id is null and s.active and s.puede_recetar);
-
 -- ── Psiquiatría ─────────────────────────────────────────────────────────────
 insert into public.vertical_settings (id, nombre, color, icon, enabled, ondemand_price, sort_order, tipo)
 select 'psiquiatria', 'Psiquiatría', '#7E5A90', 'brain',
@@ -91,9 +81,6 @@ update public.specialties set vertical_id = 'preparador' where slug = 'entrenami
 insert into public.specialties (slug, label, vertical_id, active, sort_order)
 values ('kinesiologia', 'Kinesiología', 'fisico', true, 41)
 on conflict (slug) do update set vertical_id = 'fisico', active = true;
-
--- (Las derivaciones abiertas a una especialidad que cambia de vertical se
--- resuelven en la 203: el trigger valida por especialidad, no por vertical.)
 
 -- ── Receta: especialidad Y vertical ─────────────────────────────────────────
 create or replace function public.profesional_puede_recetar(p_professional_id uuid)

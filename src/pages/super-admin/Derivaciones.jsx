@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ShareFat } from '@phosphor-icons/react'
 import { derivacionesService, destinoLabel, derivacionVigente } from '../../services/derivacionesService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
-import { useVerticales } from '../../hooks/useVerticales'
+import { useDestinoDerivacion } from '../../hooks/useDestinoDerivacion'
 import DerivacionEstado, { consentimientoLabel } from '../../components/DerivacionEstado'
 import { toast } from '../../components/Toast'
 import { formatDate } from '../../lib/format'
@@ -15,7 +15,7 @@ import MetricCard from '../../components/super-admin/MetricCard'
  */
 export default function SuperAdminDerivaciones() {
   const { porSlug } = useEspecialidades()
-  const { verticalesById } = useVerticales()
+  const destinoDe = useDestinoDerivacion()
   const [filas, setFilas] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -82,7 +82,7 @@ export default function SuperAdminDerivaciones() {
                     <td className="table-cell whitespace-nowrap">{formatDate(d.createdAt)}</td>
                     <td className="table-cell"><p className="truncate max-w-[180px]">{d.paciente?.fullName || '—'}</p></td>
                     <td className="table-cell"><p className="truncate max-w-[180px]">{d.derivado?.fullName || '—'}</p></td>
-                    <td className="table-cell"><p className="truncate max-w-[200px]">{destinoLabel(d, porSlug, verticalesById)}</p></td>
+                    <td className="table-cell"><p className="truncate max-w-[200px]">{destinoDe(d)}</p></td>
                     <td className="table-cell"><p className="truncate max-w-[240px]" title={d.motivo}>{d.motivo}</p></td>
                     <td className="table-cell" title={d.motivoRechazo || undefined}>
                       <DerivacionEstado derivacion={d} />

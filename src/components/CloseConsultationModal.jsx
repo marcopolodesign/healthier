@@ -77,7 +77,10 @@ export default function CloseConsultationModal({
       })
     } catch (err) {
       console.error('No se pudo asentar la nota de cierre en la HC:', err)
-      toast.warning('La consulta se cerró, pero la nota no se pudo asentar en la historia clínica.')
+      // El cierre NO se frena (es lo que pidió el profesional, y el resumen
+      // igual le llega al paciente por `closing_notes`); se dice por qué no
+      // quedó en la HC — ej. "Falta tu matrícula en el perfil…".
+      toast.warning(`La consulta se cerró, pero la nota no se pudo asentar en la historia clínica: ${mensajeDeError(err)}`)
     }
   }
 

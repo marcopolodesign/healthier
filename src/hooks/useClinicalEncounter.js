@@ -55,7 +55,7 @@ export function useClinicalEncounter({ consultationId, patientId, professionalId
             specialty: specialty ?? 'otra',
             modality,
             licenseType: licenseType ?? 'MN',
-            licenseNumber: licenseNumber ?? '0',
+            licenseNumber,
           })
         } catch (err) {
           // Violación del índice único (23505, migración 076): otra instancia
@@ -91,7 +91,7 @@ export function useClinicalEncounter({ consultationId, patientId, professionalId
             content: texto,
             data: { source: 'preconsulta', consultationId },
             licenseType: licenseType ?? 'MN',
-            licenseNumber: licenseNumber ?? '0',
+            licenseNumber,
           }).catch(err => console.error('No se pudo asentar la pre-consulta en la HC:', err))
         }
 
