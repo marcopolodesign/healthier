@@ -15,7 +15,9 @@ import { diagnosticReportService } from '../../services/diagnosticReportService'
 import SignedDocLink from '../../components/SignedDocLink'
 import { toast } from '../../components/Toast'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
-import { useMiEspecialidad } from '../../hooks/useMiEspecialidad'
+import { useVerticales } from '../../hooks/useVerticales'
+import { useMiPerfilProfesional } from '../../hooks/useMiEspecialidad'
+import { MENSAJE_SIN_MATRICULA } from '../../lib/firmaHistoriaClinica'
 import { derivacionesService, destinoLabel } from '../../services/derivacionesService'
 import DerivacionEstado from '../../components/DerivacionEstado'
 import { rangoDe, textoRango, estadoDe, estaAnalizado } from '../../lib/biomarcadores'
@@ -139,7 +141,7 @@ function LabReportCard({ report }) {
 }
 
 function EncounterCard({ encounter, notaDeCierre }) {
-  const { porSlug, nombreVertical } = useEspecialidades()
+  const { porSlug } = useEspecialidades()
   const [open, setOpen] = useState(true)
   const d = new Date(encounter.startedAt || encounter.createdAt)
   const dateStr = d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -326,6 +328,8 @@ function ConsultaSinEncuentroCard({ consulta }) {
  * y cómo va. Sólo aparecen las que este profesional hizo o recibió (la RLS).
  */
 function DerivacionCard({ derivacion, porSlug }) {
+  // El nombre de la vertical destino, de la base (las nuevas también).
+  const { verticalesById } = useVerticales()
   const d = derivacion
   return (
     <div className="card p-0 overflow-hidden">
@@ -335,7 +339,7 @@ function DerivacionCard({ derivacion, porSlug }) {
             <ShareFat size={16} className="text-brand-tertiary" />
           </div>
           <div className="min-w-0">
-            <p className="font-semibold text-text-primary text-sm truncate">Derivación a {destinoLabel(d, porSlug, nombreVertical)}</p>
+            <p className="font-semibold text-text-primary text-sm truncate">Derivación a {destinoLabel(d, porSlug, verticalesById)}</p>
             <p className="text-xs text-text-tertiary">
               {new Date(d.createdAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
               {d.derivado?.fullName ? ` · por ${d.derivado.fullName}` : ''}
@@ -377,15 +381,12 @@ export default function HistoriaClinica({ profile }) {
   // `professional_profiles`. Antes salían de `profile.professionalProfiles`,
   // que App.jsx no trae, así que toda nota escrita desde acá quedaba con
   // especialidad 'otra' y matrícula '0' (revisión pre-prod, 2026-10-17).
-  const [pp, setPp] = useState(null)
-  useEffect(() => {
-    if (!profile?.id) return
-    professionalService.getByUserId(profile.id).then(setPp).catch(() => {})
-  }, [profile?.id])
+  // Mismo hook cacheado que la videollamada (una sola fuente de la firma).
+  const { perfil: pp } = useMiPerfilProfesional(profile?.id)
 
   // Su vertical no tiene historia clínica (migración 200, ej. Odontología):
   // la pantalla no se ofrece en ningún lado; si llega por la URL, a la ficha.
-  const miEspecialidad = useMiEspecialidad(profile?.id)
+  const miEspecialidad = pp?.specialty ?? null
   useEffect(() => {
     if (!cargandoEsp && miEspecialidad && !usaHistoriaClinica(miEspecialidad) && patientId) {
       navigate(`/profesional/paciente/${patientId}`, { replace: true })
@@ -438,7 +439,7 @@ export default function HistoriaClinica({ profile }) {
     setSubmitting(true)
     try {
       const firma = pp ?? await professionalService.getByUserId(profile.id)
-      if (!firma?.licenseNumber) throw new Error('Falta tu matrícula en el perfil: cargala antes de escribir en la historia clínica.')
+      if (!firma?.licenseNumber) throw new Error(MENSAJE_SIN_MATRICULA)
       const licenseType = firma.licenseType ?? 'MN'
       const licenseNumber = firma.licenseNumber
       const specialty = firma.specialty ?? 'otra'

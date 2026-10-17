@@ -12,6 +12,7 @@ import { followupsService } from '../../services/followupsService'
 import { professionalService } from '../../services/professionalService'
 import { derivacionesService, destinoLabel, derivacionVigente } from '../../services/derivacionesService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { useVerticales } from '../../hooks/useVerticales'
 import { useMiEspecialidad } from '../../hooks/useMiEspecialidad'
 import DerivarModal from '../../components/professional/DerivarModal'
 import DerivadoPorCard from '../../components/professional/DerivadoPorCard'
@@ -74,7 +75,8 @@ export default function ProfessionalPatientProfile({ profile }) {
   const [savingFollowup, setSavingFollowup] = useState(false)
 
   // ── Derivaciones de este paciente que hice o recibí ──────────────────────
-  const { porSlug, nombreVertical, usaHistoriaClinica } = useEspecialidades()
+  const { porSlug, usaHistoriaClinica } = useEspecialidades()
+  const { verticalesById } = useVerticales()
   // Herramienta de su vertical (migración 200).
   const verHistoriaClinica = usaHistoriaClinica(useMiEspecialidad(profile?.id))
   const [derivarOpen, setDerivarOpen] = useState(false)
@@ -475,7 +477,7 @@ export default function ProfessionalPatientProfile({ profile }) {
                   <div className="flex items-start justify-between gap-2">
                     <Link to={`/profesional/derivaciones/${d.id}`} className="min-w-0 hover:text-brand">
                       <p className="text-sm font-medium text-text-primary truncate">
-                        {hecha ? `A ${destinoLabel(d, porSlug, nombreVertical)}` : `De ${d.derivado?.fullName ?? 'otro profesional'}`}
+                        {hecha ? `A ${destinoLabel(d, porSlug, verticalesById)}` : `De ${d.derivado?.fullName ?? 'otro profesional'}`}
                       </p>
                     </Link>
                     <DerivacionEstado derivacion={d} />

@@ -101,7 +101,9 @@ function mezclar(config) {
         },
       }
     })
-    .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999))
+    // Mismo orden que la RPC `mover_vertical` (sort_order, id): con un empate,
+    // el panel y la base tienen que ver la misma fila primero.
+    .sort((a, b) => ((a.sortOrder ?? 999) - (b.sortOrder ?? 999)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }
 
 export function useVerticales() {

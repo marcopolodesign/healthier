@@ -20,6 +20,8 @@ import { profilesService } from '../../services/profilesService'
 import { professionalService } from '../../services/professionalService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { useMiPerfilProfesional } from '../../hooks/useMiEspecialidad'
+import { MENSAJE_SIN_MATRICULA } from '../../lib/firmaHistoriaClinica'
 import ScribeSession from '../../components/professional/ScribeSession'
 import Recetario from '../../components/professional/Recetario'
 import { DerivarForm } from '../../components/professional/DerivarModal'
@@ -602,23 +604,15 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
   // `professionalProfiles` embebido, así que leer de ahí (como hacía este
   // panel antes) siempre caía en los defaults 'MN'/'0'/'otra', sin importar
   // quién estuviera atendiendo. Se vuelve a `otra` mientras carga.
-  const [profProfile, setProfProfile] = useState(null)
-  // Mientras esto está en `true` no se sabe todavía la matrícula/especialidad
-  // real — crear el encuentro clínico en esta ventana lo deja para siempre con
-  // la firma de relleno ('otra'/'MN'/'0'), porque el encuentro se crea una
-  // sola vez (ver useClinicalEncounter). No bloquea escribir la nota: sólo el
-  // botón "Guardar" espera, con spinner (ver el form más abajo).
-  const [loadingProfProfile, setLoadingProfProfile] = useState(true)
-  useEffect(() => {
-    if (!profile?.id) { setLoadingProfProfile(false); return }
-    setLoadingProfProfile(true)
-    professionalService.getByUserId(profile.id)
-      .then(setProfProfile)
-      .catch(() => {})
-      .finally(() => setLoadingProfProfile(false))
-  }, [profile?.id])
+  // El perfil profesional (matrícula y especialidad) sale del hook compartido
+  // con /profesional/historia-clinica — una sola lectura cacheada y la misma
+  // regla de firma en las dos pantallas (revisión pre-prod, 2026-10-17).
+  // Mientras `loadingProfProfile` está en `true` no se sabe la firma real: el
+  // botón "Guardar" espera (ver el form más abajo) y no se crea el encuentro.
+  const { perfil: profProfile, cargando: loadingProfProfile, recargar: recargarProfProfile } = useMiPerfilProfesional(profile?.id)
   const licenseType = profProfile?.licenseType ?? 'MN'
-  const licenseNumber = profProfile?.licenseNumber ?? '0'
+  // Sin matrícula NO se firma (antes se firmaba con '0'): ver handleSubmit.
+  const licenseNumber = profProfile?.licenseNumber ?? null
   const specialty = profProfile?.specialty ?? 'otra'
   const [loadingPatientData, setLoadingPatientData] = useState(true)
 
@@ -758,9 +752,9 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
   // ofrece (ver PANEL_TABS filtrado más abajo), y tocarla no tiene que crear
   // un clinical_encounter que no sirve para nada.
   useEffect(() => {
-    if (activeView === 'receta' && !encounterId && puedeRecetarProfesional) ensureEncounter().catch(() => {})
+    if (activeView === 'receta' && !encounterId && puedeRecetarProfesional && licenseNumber) ensureEncounter().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeView, encounterId, puedeRecetarProfesional])
+  }, [activeView, encounterId, puedeRecetarProfesional, licenseNumber])
 
 
   // Combines Daily.co's already-live local mic + remote participant audio
@@ -816,6 +810,7 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
     if (!form.content.trim()) return
     setSubmitting(true)
     try {
+      if (!licenseNumber) throw new Error(MENSAJE_SIN_MATRICULA)
       const eid = await ensureEncounter()
       const entry = await clinicalService.addEntry(eid, {
         patientId,
@@ -1199,7 +1194,7 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
               consultationId={consultation?.id ?? null}
               onDatosActualizados={() => {
                 if (patientId) profilesService.getById(patientId).then(setPatientData).catch(() => {})
-                if (profile?.id) professionalService.getByUserId(profile.id).then(setProfProfile).catch(() => {})
+                recargarProfProfile()
               }}
               cobertura={cobertura.financiadorId ? {
                 idFinanciador: cobertura.financiadorId,

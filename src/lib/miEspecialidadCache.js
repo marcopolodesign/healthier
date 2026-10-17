@@ -1,20 +1,21 @@
 /**
- * Caché de la especialidad del profesional logueado (`useMiEspecialidad`).
- * Vive aparte del hook para que `professionalService.upsert` lo pueda vaciar
- * sin importar el hook (sería un import circular): cualquier escritura del
- * perfil profesional —el onboarding que cambia de especialidad, Configuración—
- * lo invalida y la próxima pantalla la vuelve a leer.
+ * Caché del perfil profesional (`professional_profiles`) del profesional
+ * logueado — lo comparten `useMiPerfilProfesional` / `useMiEspecialidad`.
+ * Vive aparte del hook para que `professionalService.upsert` lo actualice sin
+ * importar el hook (sería un import circular).
  */
-export const miEspecialidadCache = new Map()
+export const miPerfilCache = new Map()
 const listeners = new Set()
 
-export function invalidarMiEspecialidad(userId) {
-  if (userId) miEspecialidadCache.delete(userId)
-  else miEspecialidadCache.clear()
+/** Deja el perfil recién guardado (o lo borra si no viene) y avisa. */
+export function actualizarMiPerfil(userId, perfil) {
+  if (!userId) return
+  if (perfil) miPerfilCache.set(userId, perfil)
+  else miPerfilCache.delete(userId)
   listeners.forEach(fn => fn(userId))
 }
 
-export function alInvalidarMiEspecialidad(fn) {
+export function alCambiarMiPerfil(fn) {
   listeners.add(fn)
   return () => listeners.delete(fn)
 }
