@@ -251,7 +251,9 @@ export default function AllergyPanel({ patientId, encounterId, ensureEncounter, 
           onCancel={() => setAddOpen(false)}
         />
       ) : (
-        !loading && encounterId && !bloqueada && (
+        // Con `ensureEncounter` se puede cargar aunque todavía no haya encuentro
+        // (se crea al guardar, firmado).
+        !loading && (encounterId || ensureEncounter) && !bloqueada && (
           <button
             type="button"
             onClick={() => setAddOpen(true)}
