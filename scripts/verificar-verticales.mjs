@@ -15,8 +15,8 @@
 //     (ReferenceError en `DerivacionCard`, revisión ronda 2) — en el front de
 //     staging, con Chromium headless y la sesión de clinica@staging.
 //  5. Firma de la HC con la matrícula real (antes iba 'otra'/'0'): una nota
-//     de la videollamada y la nota de cierre al cerrar desde el detalle de
-//     consulta, abierto y cerrado enseguida. Con cuentas propias del control
+//     de la videollamada, y desde el detalle de consulta una alergia, una
+//     medicación del recetario y la nota de cierre. Con cuentas propias del control
 //     (control-firma@ y control-paciente@staging.healthier.app), creadas acá si
 //     no existen; el profesional queda fuera del marketplace (is_active false)
 //     y cada consulta del control termina completada (no se acumulan abiertas).
@@ -264,8 +264,19 @@ if (!process.argv.includes('--sin-front')) {
     const resumen = `Control de cierre ${Date.now()}`
     const page = await paginaComo('control-firma@staging.healthier.app')
     let aviso = ''
+    const alergeno = `Látex control ${Date.now()}`
     try {
       await page.goto(`${WEB}/profesional/consulta/${cc.id}`)
+      // Alergia y medicación desde el mismo detalle, antes de cerrar.
+      await page.getByRole('button', { name: /Agregar alergia/ }).click({ timeout: 20000 })
+      await page.getByPlaceholder(/Amoxicilina, Ibuprofeno/).first().fill(alergeno)
+      await page.getByRole('button', { name: 'Guardar', exact: true }).click()
+      await page.getByText('Alergia registrada').first().waitFor({ timeout: 15000 }).catch(() => {})
+      await page.getByPlaceholder(/Buscá en el vademécum/).fill('amoxicilina')
+      await page.locator('li, [role=option], button').filter({ hasText: /Amox|Amix/i }).first().click({ timeout: 15000 })
+      await page.getByPlaceholder(/1 comprimido/).fill('1 comprimido')
+      await page.getByRole('button', { name: /Guardar medicación/ }).click()
+      await page.getByText(/Medicación registrada/).first().waitFor({ timeout: 15000 }).catch(() => {})
       await page.getByRole('button', { name: 'Cerrar consulta' }).last().click({ timeout: 20000 })
       await page.getByPlaceholder(/Qué pasó/).fill(resumen)
       await page.getByText('cerrá dejando un motivo').click()
@@ -275,6 +286,11 @@ if (!process.argv.includes('--sin-front')) {
     } finally {
       await page.context().close()
     }
+    const alergias = await rest(`clinical_allergies?select=professional_license_number&substance=eq.${encodeURIComponent(alergeno)}`)
+    check(alergias[0]?.professional_license_number === MATRICULA_CTRL, `una alergia cargada desde el detalle queda firmada con la matrícula real (${alergias[0]?.professional_license_number ?? 'no se guardó'})`)
+    const meds = await rest(`clinical_medications?select=professional_license_number,created_at&patient_id=eq.${pacCtrl}&order=created_at.desc&limit=1`)
+    const recien = meds[0] && Date.now() - new Date(meds[0].created_at).getTime() < 5 * 60 * 1000
+    check(recien && meds[0].professional_license_number === MATRICULA_CTRL, `una medicación del recetario queda firmada con la matrícula real (${recien ? meds[0].professional_license_number : 'no se guardó'})`)
     const [despues] = await rest(`consultations?select=status&id=eq.${cc.id}`)
     const notas = await rest(`clinical_entries?select=professional_license_number&content=eq.${encodeURIComponent(resumen)}`)
     check(despues?.status === 'completed' && notas[0]?.professional_license_number === MATRICULA_CTRL,

@@ -26,9 +26,8 @@ const EMPTY_ESTUDIO = { nombre: '', codigo: null }
  * @param {{ patientId: string, encounterId: string|null,
  *   ensureEncounter: () => Promise<string>, professionalId: string,
  *   profProfile: object|null, bloqueada?: boolean }} props
- *   `profProfile` en null significa "todavía está cargando" — nunca se manda
- *   un placeholder de matrícula, así que mientras no llegue el guardado queda
- *   deshabilitado (mismo criterio que el formulario de notas de VideoCall).
+ *   La firma (matrícula) la pone clinicalService al guardar, con la sesión:
+ *   no hace falta esperar a `profProfile`.
  */
 export default function EstudiosCreator({ patientId, encounterId, ensureEncounter, professionalId, profProfile, bloqueada = false, onEntryAdded }) {
   const [ordenes, setOrdenes] = useState([])
@@ -83,7 +82,6 @@ export default function EstudiosCreator({ patientId, encounterId, ensureEncounte
 
   async function handleSave() {
     if (!estudios.length) { toast.warning('Agregá al menos un estudio'); return }
-    if (!profProfile) return // el botón ya queda deshabilitado mientras esto sea null
 
     setSaving(true)
     try {
@@ -206,11 +204,10 @@ export default function EstudiosCreator({ patientId, encounterId, ensureEncounte
             <button
               type="button"
               onClick={handleSave}
-              disabled={saving || !profProfile || estudios.length === 0}
-              title={!profProfile ? 'Esperando el perfil profesional…' : undefined}
+              disabled={saving || estudios.length === 0}
               className="btn-primary flex-1 py-2 flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {(saving || !profProfile)
+              {saving
                 ? <CircleNotch className="h-4 w-4 animate-spin" />
                 : <Check className="h-4 w-4" />}
               {saving ? 'Guardando…' : 'Guardar orden'}
