@@ -93,7 +93,7 @@ function FilaVertical({ vertical, config, onGuardado, danger = false, priceLabel
   return (
     <div className={`card flex flex-col sm:flex-row sm:items-center gap-4 ${enabled ? '' : 'opacity-75'} ${danger ? 'border-danger/20' : ''}`}>
       <div className="flex items-center gap-3 flex-1 min-w-0">
-        {(onSubir || onBajar) && (
+        {!danger && (
           <div className="flex flex-col shrink-0">
             <button type="button" onClick={onSubir} disabled={!onSubir} aria-label="Subir" className="disabled:opacity-20 text-text-tertiary hover:text-text-primary">
               <CaretUp className="h-3.5 w-3.5" />
@@ -589,7 +589,6 @@ export default function SuperAdminVerticales() {
   const [loading, setLoading] = useState(true)
   // Qué vertical tiene el editor abierto: su id, 'nueva' para el alta, o null.
   const [editando, setEditando] = useState(null)
-  const [moviendo, setMoviendo] = useState(false)
   // Identidad ya mezclada (nombre, fondo, ícono, foto) — mismo hook que el
   // paciente, así lo que se ve acá es lo que va a ver él.
   const { verticales } = useVerticales()
@@ -624,28 +623,20 @@ export default function SuperAdminVerticales() {
     [verticales, config]
   )
 
-  // Reordenar = intercambiar sort_order con la vecina. Es el orden del
-  // carrusel entre las que tienen (o no) a alguien en línea, y el del onboarding.
+  // Reordenar contra el orden ACTUAL de la base (RPC `mover_vertical`,
+  // migración 202), no contra el `sort_order` del caché del panel. Mientras se
+  // mueve y se vuelve a leer, las flechas quedan apagadas: dos clics seguidos
+  // no se pisan.
+  const [moviendo, setMoviendo] = useState(false)
   const mover = async (idx, dir) => {
-    const a = lista[idx], b = lista[idx + dir]
-    if (!a || !b || moviendo) return
-    // El orden se lee de la base (`config`), no del caché de useVerticales,
-    // que queda viejo hasta que se invalida: dos clics seguidos escribían el
-    // mismo par de valores. Con valores iguales, se desempata.
-    const sa = porId[a.id]?.sortOrder ?? a.sortOrder
-    const sb = porId[b.id]?.sortOrder ?? b.sortOrder
-    const [nuevoA, nuevoB] = sa === sb ? [sb + dir, sa] : [sb, sa]
+    const v = lista[idx]
+    if (!v || moviendo) return
     setMoviendo(true)
     try {
-      await Promise.all([
-        verticalsService.update(a.id, { sortOrder: nuevoA }),
-        verticalsService.update(b.id, { sortOrder: nuevoB }),
-      ])
+      await verticalsService.mover(v.id, dir)
       setEditando(null)
       invalidarEspecialidades()
-      // Se espera a la base Y al caché de la lista que se ve: si no, el botón
-      // se libera con la lista vieja en pantalla y un clic rápido deshace.
-      await Promise.all([cargar(), invalidarVerticales()])
+      await Promise.all([invalidarVerticales(), cargar()])
     } catch (err) {
       toast.error(err?.message || 'No pudimos reordenar')
     } finally {

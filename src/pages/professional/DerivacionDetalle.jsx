@@ -25,7 +25,7 @@ function Dato({ label, children }) {
 export default function DerivacionDetalle({ profile }) {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { porSlug, usaHistoriaClinica } = useEspecialidades()
+  const { porSlug, nombreVertical, usaHistoriaClinica } = useEspecialidades()
   const verHistoriaClinica = usaHistoriaClinica(useMiEspecialidad(profile?.id))
   const [d, setD] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -112,7 +112,7 @@ export default function DerivacionDetalle({ profile }) {
       <div className="card space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <Dato label="Derivado por">{soyQuienDerivo ? 'Vos' : d.derivado?.fullName}</Dato>
-          <Dato label="Derivado a">{recibo && d.profesionalDestinoId === profile?.id ? 'Vos' : destinoLabel(d, porSlug)}</Dato>
+          <Dato label="Derivado a">{recibo && d.profesionalDestinoId === profile?.id ? 'Vos' : destinoLabel(d, porSlug, nombreVertical)}</Dato>
           <Dato label="Fecha">{formatDate(d.createdAt)}</Dato>
           <Dato label="Vence">{['pendiente', 'rechazada'].includes(d.estado) ? formatDate(d.venceAt) : '—'}</Dato>
         </div>

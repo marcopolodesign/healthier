@@ -38,7 +38,7 @@ function ProCard({ etiqueta, profile, specialty, porSlug }) {
 export default function Derivacion({ profile }) {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { porSlug, especialidades: catalogo } = useEspecialidades()
+  const { porSlug, nombreVertical, especialidades: catalogo } = useEspecialidades()
   const [d, setD] = useState(null)
   const [loading, setLoading] = useState(true)
   const [respondiendo, setRespondiendo] = useState(false)
@@ -151,7 +151,7 @@ export default function Derivacion({ profile }) {
                 </div>
                 <div className="min-w-0">
                   <span className="text-[10px] font-semibold tracking-widest uppercase text-text-tertiary block">Derivado a</span>
-                  <p className="text-[15px] font-semibold text-text-primary">{destinoLabel(d, porSlug)}</p>
+                  <p className="text-[15px] font-semibold text-text-primary">{destinoLabel(d, porSlug, nombreVertical)}</p>
                   <p className="text-[12px] text-text-secondary">Elegís con quién reservar</p>
                 </div>
               </div>

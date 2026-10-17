@@ -6,7 +6,7 @@ import { toast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import StatusBadge, { STATUS_CONFIG } from '../../components/StatusBadge'
 import { formatARS, formatDate } from '../../lib/format'
-import { VERTICALS } from '../../lib/verticals'
+import { useVerticales } from '../../hooks/useVerticales'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
@@ -50,9 +50,6 @@ function PaymentBadge({ status }) {
   )
 }
 
-function verticalInfo(id) {
-  return VERTICALS.find(v => v.id === id) || null
-}
 
 function modalityLabel(m) {
   return m === 'video' ? 'Video' : m === 'presencial' ? 'Presencial' : '—'
@@ -78,6 +75,9 @@ function toDatetimeLocalValue(iso) {
 }
 
 export default function SuperAdminConsultas() {
+  // Las verticales de la base (las nuevas, como Psiquiatría, también).
+  const { verticalesById } = useVerticales()
+  const verticalInfo = id => verticalesById[id] || null
   const [consultations, setConsultations] = useState([])
   const [llegadas, setLlegadas] = useState({})
   const [loading, setLoading] = useState(true)

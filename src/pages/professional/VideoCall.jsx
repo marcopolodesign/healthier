@@ -784,14 +784,26 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
 
   // Full history + basic patient data — loaded once so both new tabs are ready
   // by the time the professional switches to them, no extra click-to-load lag.
+  // La historia previa sólo si la vertical del profesional la tiene (migración
+  // 200): un odontólogo no la ve, así que tampoco se pide. Se espera a saber su
+  // especialidad para no traerla "por las dudas" mientras carga.
+  const historiaHabilitada = !cargandoEspecialidades && !loadingProfProfile && verHistoriaClinica
   useEffect(() => {
     if (!patientId) return
+    if (!historiaHabilitada) {
+      // Ya se sabe que no la tiene: deja de "cargar". Mientras no se sabe, sigue cargando.
+      if (!cargandoEspecialidades && !loadingProfProfile) setLoadingHistoria(false)
+      return
+    }
     setLoadingHistoria(true)
     historiaClinicaService.getPatientTimeline(patientId)
       .then(setHistoria)
       .catch(() => { /* leave empty */ })
       .finally(() => setLoadingHistoria(false))
+  }, [patientId, historiaHabilitada, cargandoEspecialidades, loadingProfProfile])
 
+  useEffect(() => {
+    if (!patientId) return
     setLoadingPatientData(true)
     profilesService.getById(patientId)
       .then(setPatientData)

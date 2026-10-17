@@ -4,7 +4,7 @@ import {
   COLORES_PRESET, ICONOS_VERTICAL, iconoDe, colorSugerido, iconoSugerido,
   contrasteConBlanco, oscurecerHasta,
 } from '../../lib/verticals'
-import { verticalsService, mensajeChoque } from '../../services/verticalsService'
+import { verticalsService } from '../../services/verticalsService'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../Toast'
 
@@ -178,34 +178,42 @@ export default function EditorVertical({ vertical, existentes = [], onGuardado, 
 
   const id = esAlta ? slugDe(nombre) : vertical.id
   const idRepetido = esAlta && id && existentes.some(v => v.id === id)
-  // Una especialidad que ya existe con ese nombre no se muda a la vertical
-  // nueva (se llevaría a sus profesionales): se avisa y no se deja crear.
-  const sinTildes = t => (t ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-  const espHomonima = esAlta && id && !idRepetido
-    ? especialidades.find(e => e.slug === id || sinTildes(e.label) === sinTildes(nombre))
-    : null
-  const nombreVertical = vid => existentes.find(v => v.id === vid)?.nombre ?? vid
+  // El slug ya es una especialidad de OTRA vertical (ej. "Cardiología", que
+  // cuelga de Clínica): crearla se la llevaría y Clínica perdería a esos
+  // profesionales. La RPC también lo frena (migración 202); acá se avisa antes.
+  const espChoca = esAlta && id ? especialidades.find(e => e.slug === id && e.verticalId && e.verticalId !== id) : null
+  const verticalDeEspChoca = espChoca ? (existentes.find(v => v.id === espChoca.verticalId)?.nombre ?? espChoca.verticalId) : null
 
   const guardar = async () => {
     if (!nombre.trim()) { toast.warning('Poné un nombre'); return }
     if (esAlta && !id) { toast.warning('El nombre tiene que tener letras o números'); return }
     if (idRepetido) { toast.warning(`Ya existe una vertical "${nombre.trim()}"`); return }
-    if (espHomonima) { toast.warning(mensajeChoque(espHomonima, nombreVertical(espHomonima.verticalId))); return }
+    if (espChoca) { toast.warning(`"${espChoca.label}" ya es una especialidad de ${verticalDeEspChoca}`); return }
     const precioNum = precio === '' ? null : Number(precio)
     if (precioNum !== null && (Number.isNaN(precioNum) || precioNum <= 0)) { toast.warning('El precio tiene que ser mayor a 0'); return }
     setGuardando(true)
     try {
-      let imageUrl = imagen
-      if (archivo) imageUrl = await verticalsService.uploadImage(id, archivo)
-      const datos = { nombre: nombre.trim(), color: colorFinal, icon: iconKey, imageUrl, herramientaHistoriaClinica: conHistoria, herramientaReceta: conReceta }
-      const guardada = esAlta
-        ? await verticalsService.create({
-          id, ...datos, ondemandPrice: precioNum,
-          // "Sin precio se crea apagada": con precio, prendida.
-          enabled: precioNum !== null,
+      const datos = { nombre: nombre.trim(), color: colorFinal, icon: iconKey, herramientaHistoriaClinica: conHistoria, herramientaReceta: conReceta }
+      let guardada
+      if (esAlta) {
+        // Primero la vertical (RPC atómica) y recién después la foto: si el
+        // alta falla no queda un archivo suelto en el bucket.
+        guardada = await verticalsService.create({
+          id, ...datos, imageUrl: null, ondemandPrice: precioNum,
           sortOrder: Math.max(0, ...existentes.map(v => v.sortOrder ?? 0)) + 1,
         })
-        : await verticalsService.update(vertical.id, datos)
+        if (archivo) {
+          try {
+            const url = await verticalsService.uploadImage(id, archivo)
+            guardada = await verticalsService.update(id, { imageUrl: url })
+          } catch (err) {
+            toast.error(`La vertical se creó, pero la foto no se pudo subir: ${err?.message || 'error desconocido'}`)
+          }
+        }
+      } else {
+        const imageUrl = archivo ? await verticalsService.uploadImage(id, archivo) : imagen
+        guardada = await verticalsService.update(vertical.id, { ...datos, imageUrl })
+      }
       toast.success(esAlta ? `${guardada.nombre} creada` : `${guardada.nombre} actualizada`)
       onGuardado(guardada)
     } catch (err) {
@@ -231,8 +239,12 @@ export default function EditorVertical({ vertical, existentes = [], onGuardado, 
             autoFocus={esAlta}
           />
           {esAlta && id && (
-            <p className={`text-xs mt-1 ${idRepetido || espHomonima ? 'text-danger' : 'text-text-tertiary'}`}>
-              {idRepetido ? 'Ya existe una vertical con ese nombre.' : espHomonima ? mensajeChoque(espHomonima, nombreVertical(espHomonima.verticalId)) : <>Se crea también la especialidad <span className="font-medium">{nombre.trim()}</span> para el onboarding.</>}
+            <p className={`text-xs mt-1 ${idRepetido || espChoca ? 'text-danger' : 'text-text-tertiary'}`}>
+              {idRepetido
+                ? 'Ya existe una vertical con ese nombre.'
+                : espChoca
+                  ? <>"{espChoca.label}" ya es una especialidad de {verticalDeEspChoca}. Para separarla, cambiale la vertical desde la pestaña Especialidades.</>
+                  : <>Se crea también la especialidad <span className="font-medium">{nombre.trim()}</span> para el onboarding.</>}
             </p>
           )}
         </div>
@@ -244,7 +256,7 @@ export default function EditorVertical({ vertical, existentes = [], onGuardado, 
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary text-sm">$</span>
               <input type="number" min="1" step="1" value={precio} onChange={e => setPrecio(e.target.value)} placeholder="—" className="form-input pl-7" />
             </div>
-            <p className="text-xs text-text-tertiary mt-1">Sin precio se crea apagada: no la ven los pacientes hasta que la prendas. Con precio, se crea prendida.</p>
+            <p className="text-xs text-text-tertiary mt-1">Con precio se crea prendida y la ven los pacientes; sin precio, apagada hasta que se lo pongas.</p>
           </div>
         )}
 
@@ -356,7 +368,7 @@ export default function EditorVertical({ vertical, existentes = [], onGuardado, 
         </div>
 
         <div className="flex gap-2 pt-1">
-          <button type="button" onClick={guardar} disabled={guardando || !nombre.trim() || idRepetido || !!espHomonima} className="btn-primary text-sm py-2 px-4 flex items-center gap-1.5 disabled:opacity-40">
+          <button type="button" onClick={guardar} disabled={guardando || !nombre.trim() || idRepetido || !!espChoca} className="btn-primary text-sm py-2 px-4 flex items-center gap-1.5 disabled:opacity-40">
             {guardando ? <><CircleNotch className="h-4 w-4 animate-spin" /> Guardando…</> : <><Check className="h-4 w-4" /> {esAlta ? 'Crear vertical' : 'Guardar'}</>}
           </button>
           <button type="button" onClick={onCancelar} className="btn-secondary text-sm py-2 px-4">Cancelar</button>

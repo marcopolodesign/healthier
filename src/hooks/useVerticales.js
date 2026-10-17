@@ -84,8 +84,10 @@ function mezclar(config) {
         color: base?.color ?? fondo,
         bg: base?.bg ?? conAlfa(fondo, 0.1),
         shadow: base?.shadow ?? conAlfa(fondo, 0.15),
-        // La foto que se sube desde el panel manda; si no hay, la del código.
-        img: c.imageUrl || base?.img || null,
+        // La foto sale SÓLO de la base (`image_url`, las semillas la cargan):
+        // con un fallback al código, "Quitar" en el panel no quitaba nada y el
+        // editor no coincidía con lo que veía el paciente (revisión 2026-10-17).
+        img: c.imageUrl || null,
         imageUrl: c.imageUrl ?? null,
         fondo,
         enabled: c.enabled,
