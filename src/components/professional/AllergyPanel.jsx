@@ -117,9 +117,12 @@ function AddAllergyForm({ patientId, encounterId, ensureEncounter, professionalI
         licenseType,
         licenseNumber,
         allergen: form.codeDisplay.trim(),
-        allergyType: form.category,
-        clinicalStatus: form.clinicalStatus,
-        severity: form.criticality,
+        // La base guarda los códigos en minúscula (checks de la migración 033);
+        // el formulario los usa en mayúscula — antes se mandaban tal cual y la
+        // base rechazaba toda alergia (el catch genérico lo escondía).
+        allergyType: form.category.toLowerCase(),
+        clinicalStatus: form.clinicalStatus.toLowerCase(),
+        severity: form.criticality.toLowerCase(),
         reaction: '',
       })
       toast.success('Alergia registrada')
