@@ -45,23 +45,39 @@ export async function logClinicalAccess({ resourceType, resourceId, patientId, a
 
 /**
  * La firma de un asiento de HC (Ley 26.529 Art. 12: matrícula de quien lo
- * hace), resuelta ACÁ al escribir, no por la pantalla: se lee
- * `professional_profiles` del profesional que escribe, una vez por escritura.
- * Así no importa si la pantalla terminó (o falló) de cargar su perfil — antes
- * llegaba `licenseNumber` vacío y se firmaba '0' (revisión pre-prod,
- * 2026-10-17). Si la lectura falla, se tira el error real; si no hay matrícula
- * (no debería: sólo atiende quien fue verificado a mano), "Falta tu matrícula".
+ * hace), resuelta ACÁ al escribir y con el usuario de la SESIÓN, no con lo que
+ * pase la pantalla: antes llegaba `licenseNumber` vacío (o un id nulo) y se
+ * firmaba '0' (revisión pre-prod, 2026-10-17). Se lee `professional_profiles`
+ * del que tiene la sesión y se memoriza unos segundos, para que un cierre que
+ * escribe varias cosas seguidas no lea cuatro veces.
+ * - lectura que falla → el error real
+ * - sin fila → "No encontramos tu perfil profesional."
+ * - fila sin matrícula (no debería: sólo atiende quien fue verificado a mano)
+ *   → "Falta tu matrícula…"
  */
-async function firmaDe(professionalId) {
-  const { data, error } = await supabase
-    .from('professional_profiles')
-    .select('specialty, license_type, license_number')
-    .eq('user_id', professionalId)
-    .maybeSingle()
-  if (error) throw error
-  const matricula = String(data?.license_number ?? '').trim()
-  if (!matricula || matricula === '0') throw new Error(MENSAJE_SIN_MATRICULA)
-  return { licenseType: data.license_type ?? 'MN', licenseNumber: matricula, specialty: data.specialty ?? null }
+const MEMO_FIRMA_MS = 10_000
+let memoFirma = null // { uid, at, promesa }
+
+async function firmaDeLaSesion() {
+  const session = await asegurarSesion()
+  const uid = session.user.id
+  if (memoFirma && memoFirma.uid === uid && Date.now() - memoFirma.at < MEMO_FIRMA_MS) return memoFirma.promesa
+  const promesa = (async () => {
+    const { data, error } = await supabase
+      .from('professional_profiles')
+      .select('specialty, license_type, license_number')
+      .eq('user_id', uid)
+      .maybeSingle()
+    if (error) throw error
+    if (!data) throw new Error('No encontramos tu perfil profesional.')
+    const matricula = String(data.license_number ?? '').trim()
+    if (!matricula || matricula === '0') throw new Error(MENSAJE_SIN_MATRICULA)
+    return { professionalId: uid, licenseType: data.license_type ?? 'MN', licenseNumber: matricula, specialty: data.specialty ?? null }
+  })()
+  memoFirma = { uid, at: Date.now(), promesa }
+  // Un error no queda memorizado: el próximo intento vuelve a leer.
+  promesa.catch(() => { if (memoFirma?.promesa === promesa) memoFirma = null })
+  return promesa
 }
 
 export const clinicalService = {
@@ -70,12 +86,12 @@ export const clinicalService = {
 
   async createEncounter({ patientId, professionalId, consultationId, specialty, chiefComplaint, modality }) {
     if (esSimulado(consultationId)) return simulacion.encuentro()
-    // Sin sesión esto sale como anónimo y la RLS lo rechaza (ver asegurarSesion).
-    await asegurarSesion()
-    const firma = await firmaDe(professionalId)
+    // Sin sesión esto sale como anónimo y la RLS lo rechaza: firmaDeLaSesion
+    // pasa por asegurarSesion.
+    const firma = await firmaDeLaSesion()
     const payload = toSnakeCase({
       patientId,
-      professionalId,
+      professionalId: firma.professionalId,
       consultationId,
       specialty: firma.specialty ?? specialty ?? 'otra',
       status: 'in_progress',
@@ -127,12 +143,11 @@ export const clinicalService = {
 
   async addEntry(encounterId, { patientId, professionalId, entryType, content, data: entryData, correctsEntryId, icdCode }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, entryType, content, data: entryData, icdCode })
-    await asegurarSesion()
-    const firma = await firmaDe(professionalId)
+    const firma = await firmaDeLaSesion()
     const payload = toSnakeCase({
       encounterId,
       patientId,
-      professionalId,
+      professionalId: firma.professionalId,
       entryType,
       content: content ?? null,
     })
@@ -155,11 +170,11 @@ export const clinicalService = {
 
   async addCondition(encounterId, { patientId, professionalId, icdCode, display, clinicalStatus, onsetDate }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, icdCode, display, clinicalStatus, onsetDate })
-    const firma = await firmaDe(professionalId)
+    const firma = await firmaDeLaSesion()
     const payload = toSnakeCase({
       encounterId,
       patientId,
-      professionalId,
+      professionalId: firma.professionalId,
       icd10Code: icdCode ?? null,
       icd10Display: display ?? null,
       clinicalStatus: clinicalStatus ?? 'active',
@@ -182,11 +197,11 @@ export const clinicalService = {
 
   async addAllergy(encounterId, { patientId, professionalId, allergen, allergyType, clinicalStatus, severity, reaction }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, allergen, allergyType, clinicalStatus, severity, reaction })
-    const firma = await firmaDe(professionalId)
+    const firma = await firmaDeLaSesion()
     const payload = toSnakeCase({
       encounterId,
       patientId,
-      professionalId,
+      professionalId: firma.professionalId,
       substance: allergen ?? null,
       category: allergyType ?? null,
       clinicalStatus: clinicalStatus ?? 'active',
@@ -210,11 +225,11 @@ export const clinicalService = {
 
   async addObservation(encounterId, { patientId, professionalId, code, display, value, unit, effectiveDate }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, code, display, value, unit, effectiveDate })
-    const firma = await firmaDe(professionalId)
+    const firma = await firmaDeLaSesion()
     const payload = toSnakeCase({
       encounterId,
       patientId,
-      professionalId,
+      professionalId: firma.professionalId,
       loincCode: code ?? null,
       observationType: display ?? null,
       valueNumeric: typeof value === 'number' ? value : null,
@@ -240,12 +255,12 @@ export const clinicalService = {
 
   async addMedication(encounterId, { patientId, professionalId, medicationName, dosage, frequency, route, instructions, status, startDate, endDate }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, medicationName, dosage, frequency, route, instructions, status, startDate, endDate })
-    const firma = await firmaDe(professionalId)
+    const firma = await firmaDeLaSesion()
     const dosageText = [dosage, frequency, route].filter(Boolean).join(' — ') || null
     const payload = toSnakeCase({
       encounterId,
       patientId,
-      professionalId,
+      professionalId: firma.professionalId,
       medicationName: medicationName ?? null,
       dosageText,
       notes: instructions ?? null,
@@ -269,7 +284,7 @@ export const clinicalService = {
   },
 
 // ── Lecturas y escrituras que antes hacían los componentes contra Supabase ──
-  // Estaban sueltas en `PrescriptionCreator`, `VitalsPanel` y `AllergyPanel`,
+  // Estaban sueltas en `PrescriptionCreator` y `AllergyPanel`,
   // contra la regla del proyecto ("todas las llamadas a la base pasan por
   // `src/services/`"). Se movieron acá al construir la simulación de
   // videollamada: la valla de `esSimulado` vive en los servicios, así que una
@@ -324,10 +339,10 @@ export const clinicalService = {
    */
   async createPrescriptionMedication(fila) {
     if (esSimulado(fila.encounterId)) return simulacion.guardarRecetaDePractica(fila)
-    const firma = await firmaDe(fila.professionalId)
+    const firma = await firmaDeLaSesion()
     const { data, error } = await supabase
       .from('clinical_medications')
-      .insert(toSnakeCase({ ...fila, professionalLicenseType: firma.licenseType, professionalLicenseNumber: firma.licenseNumber }))
+      .insert(toSnakeCase({ ...fila, professionalId: firma.professionalId, professionalLicenseType: firma.licenseType, professionalLicenseNumber: firma.licenseNumber }))
       .select()
       .single()
     if (error) throw error

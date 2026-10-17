@@ -556,9 +556,9 @@ export default function ConsultationDetail({ profile }) {
         </div>
 
         {/* Signos vitales sacado de la pantalla (Mateo, 2026-07-29): "por ahora
-            no vamos a tener esto". `VitalsPanel` y `clinical_observations` siguen
-            existiendo — se sacó el punto de entrada, no el modelo de datos, para
-            poder volver a colgarlo acá cuando haya de dónde medir. */}
+            no vamos a tener esto". `clinical_observations` sigue existiendo
+            (`clinicalService.addObservation`); el panel se borró el 2026-10-17
+            por no usarse (está en el historial si hace falta volver). */}
 
         <div className="border-t border-border-default" />
 
