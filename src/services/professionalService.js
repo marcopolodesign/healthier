@@ -1,5 +1,4 @@
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
-import { guardarMiPerfil, miPerfilCache } from '../lib/miEspecialidadCache'
 import { aBlobSubible, extensionDe, TIPOS_DOCUMENTO } from '../lib/archivoSubible'
 import { subirConProgreso } from '../lib/subidaConProgreso'
 import { PRECIO_MINIMO } from '../lib/tarifas'
@@ -72,9 +71,8 @@ export function disponibleAhora(pro, now = Date.now()) {
 export const professionalService = {
   /**
    * `null` = el profesional todavía no tiene ficha. Un error de red/permisos
-   * devuelve `null` también, salvo con `{ tirarError: true }`, que lo TIRA —
-   * lo usa `useMiPerfilProfesional`: confundir los dos hacía que un corte se
-   * mostrara como "Falta tu matrícula" (revisión pre-prod, 2026-10-17).
+   * devuelve `null` también, salvo con `{ tirarError: true }` (lo usa
+   * `useMiPerfilProfesional`, para mostrar el error real al firmar).
    */
   async getByUserId(userId, { tirarError = false } = {}) {
     const { data, error } = await supabase
@@ -113,13 +111,7 @@ export const professionalService = {
       .select()
       .single()
     if (error) throw error
-    // El perfil cacheado del profesional (especialidad → herramientas de su
-    // vertical, matrícula → firma de la HC) queda con lo recién guardado.
-    const guardado = toCamelCase(data)
-    // Siempre se actualiza y se avisa (aunque no hubiera entrada). Se mezcla
-    // con lo que había porque el upsert no trae el join `profiles`.
-    guardarMiPerfil(userId, { ...(miPerfilCache.get(userId) ?? {}), ...guardado })
-    return guardado
+    return toCamelCase(data)
   },
 
   /**

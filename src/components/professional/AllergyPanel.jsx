@@ -43,10 +43,13 @@ function SkeletonRow() {
 
 // ── Allergy row ───────────────────────────────────────────────────────────────
 function AllergyRow({ allergy }) {
-  // Supabase fields: substance, category, criticality, clinical_status, created_at
+  // Las filas de la lista vienen en snake_case (getAllergiesByPatient) y la
+  // recién guardada en camelCase (addAllergy): se leen las dos.
+  const clinicalStatus = allergy.clinical_status ?? allergy.clinicalStatus
+  const createdAt = allergy.created_at ?? allergy.createdAt
   const categoryKey = (allergy.category ?? 'MEDICATION').toUpperCase()
   const criticalityKey = (allergy.criticality ?? 'UNABLE_TO_ASSESS').toUpperCase()
-  const statusKey = (allergy.clinical_status ?? 'ACTIVE').toUpperCase()
+  const statusKey = (clinicalStatus ?? 'ACTIVE').toUpperCase()
 
   const cat = CATEGORY_LABELS[categoryKey] ?? CATEGORY_LABELS.MEDICATION
   const crit = CRITICALITY_LABELS[criticalityKey] ?? CRITICALITY_LABELS.UNABLE_TO_ASSESS
@@ -65,9 +68,9 @@ function AllergyRow({ allergy }) {
         <p className="text-sm font-semibold text-text-primary leading-tight">
           {allergy.substance || '—'}
         </p>
-        {allergy.created_at && (
+        {createdAt && (
           <p className="text-[11px] text-text-tertiary mt-0.5">
-            {new Date(allergy.created_at).toLocaleDateString('es-AR', {
+            {new Date(createdAt).toLocaleDateString('es-AR', {
               day: 'numeric', month: 'short', year: 'numeric',
             })}
           </p>

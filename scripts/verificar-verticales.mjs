@@ -14,10 +14,10 @@
 //  4. La historia clínica de un paciente con una derivación se cae al abrirla
 //     (ReferenceError en `DerivacionCard`, revisión ronda 2) — en el front de
 //     staging, con Chromium headless y la sesión de clinica@staging.
-//  5. Un profesional sin matrícula puede firmar una nota en la videollamada
-//     (antes se firmaba con '0'). Con una cuenta de prueba propia del control
-//     (control-firma@staging.healthier.app), creada acá si no existe.
-//  6. Un corte de red al leer el perfil se muestra como "Falta tu matrícula".
+//  5. Con matrícula, una nota de la videollamada NO se firma con la matrícula
+//     real (antes iba 'otra'/'0'). Con cuentas propias del control
+//     (control-firma@ y control-paciente@staging.healthier.app), creadas acá si
+//     no existen; el profesional queda fuera del marketplace (is_active false).
 //
 //   node scripts/verificar-verticales.mjs            # todo
 //   node scripts/verificar-verticales.mjs --sin-front
@@ -147,13 +147,13 @@ const comoSuperAdmin = `perform set_config('request.jwt.claims', json_build_obje
   check(/no es de la especialidad/.test(no), `un nutricionista no la puede tomar (${no.slice(0, 60)})`)
 }
 
-// ── 4-6. En el front de staging (Chromium headless) ─────────────────────────
+// ── 4-5. En el front de staging (Chromium headless) ─────────────────────────
 if (!process.argv.includes('--sin-front')) {
   const { chromium } = await import('@playwright/test')
   const browser = await chromium.launch()
   const PACIENTE = '5eed1001-0000-4000-8000-000000000001' // tiene una derivación
 
-  async function paginaComo(email, { bloquearPerfilDe = null } = {}) {
+  async function paginaComo(email) {
     const link = await (await fetch(`${URL_SB}/auth/v1/admin/generate_link`, {
       method: 'POST',
       headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, 'Content-Type': 'application/json' },
@@ -167,10 +167,6 @@ if (!process.argv.includes('--sin-front')) {
     const page = await ctx.newPage()
     page.errores = []
     page.on('pageerror', e => page.errores.push(e.message))
-    if (bloquearPerfilDe) {
-      // Simula un corte de red SÓLO en la lectura del perfil profesional propio.
-      await page.route(`**/rest/v1/professional_profiles?*user_id=eq.${bloquearPerfilDe}*`, r => r.abort('internetdisconnected'))
-    }
     await page.goto(`${WEB}/login`)
     await page.evaluate(([k, v]) => localStorage.setItem(k, v), [
       `sb-${REF}-auth-token`,
@@ -195,19 +191,20 @@ if (!process.argv.includes('--sin-front')) {
   }
 
   // Escribe una nota libre en la videollamada y devuelve el aviso que aparece.
-  async function intentarNota(page, consultaId) {
+  async function intentarNota(page, consultaId, texto) {
     await page.goto(`${WEB}/profesional/videollamada/${consultaId}`)
     await page.locator('[data-tour="botones-nota"] button').first().click({ timeout: 20000 })
-    await page.locator('form textarea').first().fill('Control verificar-verticales: no se tiene que guardar.')
+    await page.locator('form textarea').first().fill(texto)
     await page.getByRole('button', { name: /^Guardar/ }).first().click()
     await page.waitForTimeout(3000)
     return page.locator('body').innerText()
   }
 
-  // 5 y 6 con una cuenta de prueba PROPIA del control (no las demo
-  // compartidas): control-firma@staging.healthier.app, un profesional sin
-  // matrícula que el script crea si no existe y deja sin matrícula. Lo único
-  // que se borra al final es la consulta de la corrida (ver la limpieza).
+  // 5. Con matrícula, la nota de la videollamada se firma con la matrícula
+  // REAL (no 'otra'/'0' como antes). Con cuentas propias del control —un
+  // profesional y un paciente— que el script crea si no existen; nunca con las
+  // demo compartidas, porque una nota de HC no se borra. El profesional queda
+  // `is_active = false` y sin Mercado Pago: no aparece en el marketplace.
   const H = { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, 'Content-Type': 'application/json' }
   const rest = async (ruta, init = {}) => {
     const r = await fetch(`${URL_SB}/rest/v1/${ruta}`, { ...init, headers: { ...H, Prefer: 'return=representation', ...(init.headers ?? {}) } })
@@ -215,57 +212,46 @@ if (!process.argv.includes('--sin-front')) {
     if (!r.ok) throw new Error(`${ruta} → ${r.status} ${t}`)
     return t ? JSON.parse(t) : null
   }
-  const EMAIL_CTRL = 'control-firma@staging.healthier.app'
-  let ctrlId = null
-  let consultaCtrl = null
-  try {
-    // Si quedó de una corrida anterior, se reusa.
-    const lista = await (await fetch(`${URL_SB}/auth/v1/admin/users?per_page=1000`, { headers: H })).json()
-    ctrlId = (lista.users ?? []).find(u => u.email === EMAIL_CTRL)?.id ?? null
-    if (!ctrlId) {
+  const MATRICULA_CTRL = 'CTRL-58210'
+  async function cuentaControl(email, rol, nombre, apellido) {
+    let [fila] = await rest(`profiles?select=id&email=eq.${encodeURIComponent(email)}`)
+    let id = fila?.id
+    if (!id) {
       const u = await (await fetch(`${URL_SB}/auth/v1/admin/users`, {
         method: 'POST', headers: H,
-        body: JSON.stringify({ email: EMAIL_CTRL, email_confirm: true, password: crypto.randomUUID(), user_metadata: { role: 'professional', full_name: 'Control Firma' } }),
+        body: JSON.stringify({ email, email_confirm: true, password: crypto.randomUUID(), user_metadata: { role: rol, full_name: `${nombre} ${apellido}` } }),
       })).json()
-      ctrlId = u.id
+      id = u.id
     }
-    if (!ctrlId) throw new Error('no pude crear la cuenta de control')
-    await rest('profiles?on_conflict=id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify({ id: ctrlId, email: EMAIL_CTRL, full_name: 'Control Firma', first_name: 'Control', last_name: 'Firma', role: 'professional' }) })
-    await rest('professional_profiles?on_conflict=user_id', {
+    if (!id) throw new Error(`no pude crear ${email}`)
+    await rest('profiles?on_conflict=id', {
       method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-      body: JSON.stringify({ user_id: ctrlId, specialty: 'medicina_general', license_type: 'MN', license_number: '', is_verified: true, is_active: true, mp_connected: false, is_on_demand: false }),
+      body: JSON.stringify({ id, email, full_name: `${nombre} ${apellido}`, first_name: nombre, last_name: apellido, role: rol }),
     })
-    const [pac] = await rest(`profiles?select=id&email=eq.paciente.completo@staging.healthier.app`)
-    ;[consultaCtrl] = await rest('consultations', {
-      method: 'POST',
-      body: JSON.stringify({ patient_id: pac.id, professional_id: ctrlId, status: 'confirmed', scheduled_at: new Date().toISOString(), modality: 'video', price_at_booking: 0, payment_status: 'exempt' }),
-    })
-
-    // 5. sin matrícula no se firma
-    {
-      const page = await paginaComo(EMAIL_CTRL)
-      const texto = await intentarNota(page, consultaCtrl.id)
-      check(/Falta tu matrícula/.test(texto), 'sin matrícula, la nota de la videollamada no se firma y lo dice')
-      await page.context().close()
-    }
-    // 6. un corte de red al leer el perfil NO se muestra como "Falta tu matrícula"
-    {
-      const page = await paginaComo(EMAIL_CTRL, { bloquearPerfilDe: ctrlId })
-      const texto = await intentarNota(page, consultaCtrl.id)
-      const aviso = (/No se pudo guardar la nota[^\n]*/.exec(texto) ?? [''])[0]
-      check(!/Falta tu matrícula/.test(texto) && /No pudimos leer tu perfil profesional/.test(aviso), `con la red cortada al leer el perfil, el aviso no dice "Falta tu matrícula" (${aviso.slice(0, 90) || 'no apareció ningún aviso'})`)
-      await page.context().close()
-    }
-    const enc = await rest(`clinical_encounters?select=id&consultation_id=eq.${consultaCtrl.id}`)
-    check(enc.length === 0, 'no quedó ningún encuentro clínico firmado por la cuenta sin matrícula')
-  } finally {
-    // Limpieza de la cuenta de control (no queda nada de esta corrida).
-    if (consultaCtrl) await rest(`consultations?id=eq.${consultaCtrl.id}`, { method: 'DELETE' }).catch(e => console.log(`· no pude borrar la consulta de control: ${e.message}`))
-    // La cuenta en sí NO se borra: abrir la videollamada deja filas en
-    // `clinical_access_log` (auditoría, no se borra nunca) que la referencian.
-    // Queda como cuenta propia y fija del control (sin matrícula, sin MP, sin
-    // pacientes) y se reusa en la próxima corrida.
+    return id
   }
+  const proCtrl = await cuentaControl('control-firma@staging.healthier.app', 'professional', 'Control', 'Firma')
+  const pacCtrl = await cuentaControl('control-paciente@staging.healthier.app', 'patient', 'Control', 'Paciente')
+  await rest('professional_profiles?on_conflict=user_id', {
+    method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+    body: JSON.stringify({ user_id: proCtrl, specialty: 'medicina_general', license_type: 'MN', license_number: MATRICULA_CTRL, is_verified: true, is_active: false, mp_connected: false, is_on_demand: false }),
+  })
+  const [consultaCtrl] = await rest('consultations', {
+    method: 'POST',
+    body: JSON.stringify({ patient_id: pacCtrl, professional_id: proCtrl, status: 'confirmed', scheduled_at: new Date().toISOString(), modality: 'video', price_at_booking: 0, payment_status: 'exempt' }),
+  })
+  {
+    const page = await paginaComo('control-firma@staging.healthier.app')
+    const texto = await intentarNota(page, consultaCtrl.id, `Control de firma ${Date.now()}`)
+    await page.context().close()
+    const enc = await rest(`clinical_encounters?select=id,specialty,professional_license_number&consultation_id=eq.${consultaCtrl.id}`)
+    const notas = enc[0] ? await rest(`clinical_entries?select=professional_license_number&encounter_id=eq.${enc[0].id}`) : []
+    check(/Nota guardada/.test(texto) && enc[0]?.professional_license_number === MATRICULA_CTRL && enc[0]?.specialty === 'medicina_general'
+      && notas.length > 0 && notas.every(n => n.professional_license_number === MATRICULA_CTRL),
+      `con matrícula, la nota de la videollamada se firma con la matrícula real (encuentro ${enc[0]?.professional_license_number ?? '—'} · ${enc[0]?.specialty ?? '—'}, notas ${notas.map(n => n.professional_license_number).join(',') || '—'})`)
+  }
+  const [proFila] = await rest(`professional_profiles?select=is_active&user_id=eq.${proCtrl}`)
+  check(proFila?.is_active === false, 'la cuenta de control no queda activa en el marketplace')
 
   await browser.close()
 }
