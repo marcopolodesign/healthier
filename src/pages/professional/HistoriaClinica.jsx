@@ -436,10 +436,10 @@ export default function HistoriaClinica({ profile }) {
     if (!form.content.trim()) return
     setSubmitting(true)
     try {
-      // Firma del perfil compartido. Si no está (red, en curso, sin ficha) o
-      // no tiene matrícula, clinicalService corta con el motivo correcto.
-      if (!pp) recargarPp().catch(() => {})
-      const firma = pp ?? {}
+      // La firma, de professional_profiles leído con await justo antes de
+      // escribir; si la lectura falla, el error real.
+      const firma = pp ?? await recargarPp()
+      if (!firma) throw new Error('No encontramos tu perfil profesional.')
       const licenseType = firma.licenseType ?? 'MN'
       const licenseNumber = firma.licenseNumber
       const specialty = firma.specialty ?? 'otra'

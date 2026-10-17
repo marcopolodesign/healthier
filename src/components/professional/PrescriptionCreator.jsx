@@ -267,7 +267,7 @@ function AddPrescriptionForm({ patientId, encounterId, ensureEncounter, professi
           // manda como `medico.matricula` — el 'MN'/'0' que estaba hardcodeado
           // acá terminaba impreso en la receta electrónica.
           professionalLicenseType:     profProfile?.licenseType ?? 'MN',
-          // Sin matrícula, `createPrescriptionMedication` corta (SinMatriculaError).
+          // Sin matrícula, `createPrescriptionMedication` corta con "Falta tu matrícula".
           professionalLicenseNumber:   profProfile?.licenseNumber ?? null,
           medicationName:   form.medicationName.trim(),
           snomedCode:       null,

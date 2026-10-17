@@ -1,6 +1,5 @@
 import { supabase, toCamelCase, toSnakeCase, asegurarSesion } from '../lib/supabase'
 import { MENSAJE_SIN_MATRICULA } from '../lib/firmaHistoriaClinica'
-import { motivoSinMatricula } from '../lib/miEspecialidadCache'
 // Ver la nota de la valla en `consultationsService.js`.
 import * as simulacion from '../lib/simulacion'
 import { esSimulado } from '../lib/simulacion'
@@ -45,33 +44,14 @@ export async function logClinicalAccess({ resourceType, resourceId, patientId, a
 }
 
 /**
- * 🔴 Sin matrícula no se firma la historia clínica (Ley 26.529 Art. 12: cada
- * asiento lleva la matrícula de quien lo hace). Es el ÚNICO lugar donde se
- * chequea: todo lo que escribe HC pasa por `createEncounter`, `addEntry` o
- * `createPrescriptionMedication` (nota libre, escriba, consulta estructurada,
- * cierre, recetario, emergencias), y también `addAllergy`, `addCondition`,
- * `addObservation` y `addMedication`. Antes se rellenaba con '0' y quedaban
- * notas firmadas con una matrícula falsa (revisión pre-prod, 2026-10-17).
+ * Sin matrícula no se firma la historia clínica (Ley 26.529 Art. 12). Antes se
+ * rellenaba con '0'. No debería pasar —sólo atiende quien fue verificado a mano,
+ * con matrícula—, pero si pasa, corta acá con un único error claro.
  */
-export class SinMatriculaError extends Error {
-  constructor() {
-    super(MENSAJE_SIN_MATRICULA)
-    this.name = 'SinMatriculaError'
-    this.code = 'SIN_MATRICULA'
-  }
-}
-function exigirMatricula(licenseNumber, professionalId) {
-  if (!licenseNumber || !String(licenseNumber).trim() || String(licenseNumber).trim() === '0') {
-    // ¿Falta de verdad, o es que el perfil no se pudo leer (red, en curso, sin
-    // ficha)? La distinción vive en un solo lugar, con el estado que deja
-    // `useMiPerfilProfesional` — así ningún camino (escriba, consulta
-    // estructurada, cierre, recetario) muestra "Falta tu matrícula" ante un
-    // corte de red.
-    const motivo = motivoSinMatricula(professionalId)
-    if (motivo) throw new Error(motivo)
-    throw new SinMatriculaError()
-  }
-  return String(licenseNumber).trim()
+function exigirMatricula(licenseNumber) {
+  const m = String(licenseNumber ?? '').trim()
+  if (!m || m === '0') throw new Error(MENSAJE_SIN_MATRICULA)
+  return m
 }
 
 export const clinicalService = {
@@ -80,7 +60,7 @@ export const clinicalService = {
 
   async createEncounter({ patientId, professionalId, consultationId, specialty, chiefComplaint, modality, licenseType, licenseNumber }) {
     if (esSimulado(consultationId)) return simulacion.encuentro()
-    const matricula = exigirMatricula(licenseNumber, professionalId)
+    const matricula = exigirMatricula(licenseNumber)
     // Sin sesión esto sale como anónimo y la RLS lo rechaza (ver asegurarSesion).
     await asegurarSesion()
     const payload = toSnakeCase({
@@ -137,7 +117,7 @@ export const clinicalService = {
 
   async addEntry(encounterId, { patientId, professionalId, entryType, content, data: entryData, correctsEntryId, icdCode, licenseType, licenseNumber }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, entryType, content, data: entryData, icdCode })
-    const matricula = exigirMatricula(licenseNumber, professionalId)
+    const matricula = exigirMatricula(licenseNumber)
     await asegurarSesion()
     const payload = toSnakeCase({
       encounterId,
@@ -165,7 +145,7 @@ export const clinicalService = {
 
   async addCondition(encounterId, { patientId, professionalId, icdCode, display, clinicalStatus, onsetDate, licenseType, licenseNumber }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, icdCode, display, clinicalStatus, onsetDate })
-    const matricula = exigirMatricula(licenseNumber, professionalId)
+    const matricula = exigirMatricula(licenseNumber)
     const payload = toSnakeCase({
       encounterId,
       patientId,
@@ -192,7 +172,7 @@ export const clinicalService = {
 
   async addAllergy(encounterId, { patientId, professionalId, allergen, allergyType, clinicalStatus, severity, reaction, licenseType, licenseNumber }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, allergen, allergyType, clinicalStatus, severity, reaction })
-    const matricula = exigirMatricula(licenseNumber, professionalId)
+    const matricula = exigirMatricula(licenseNumber)
     const payload = toSnakeCase({
       encounterId,
       patientId,
@@ -220,7 +200,7 @@ export const clinicalService = {
 
   async addObservation(encounterId, { patientId, professionalId, code, display, value, unit, effectiveDate, licenseType, licenseNumber }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, code, display, value, unit, effectiveDate })
-    const matricula = exigirMatricula(licenseNumber, professionalId)
+    const matricula = exigirMatricula(licenseNumber)
     const payload = toSnakeCase({
       encounterId,
       patientId,
@@ -250,7 +230,7 @@ export const clinicalService = {
 
   async addMedication(encounterId, { patientId, professionalId, medicationName, dosage, frequency, route, instructions, status, startDate, endDate, licenseType, licenseNumber }) {
     if (esSimulado(encounterId)) return simulacion.eco({ encounterId, patientId, professionalId, medicationName, dosage, frequency, route, instructions, status, startDate, endDate })
-    const matricula = exigirMatricula(licenseNumber, professionalId)
+    const matricula = exigirMatricula(licenseNumber)
     const dosageText = [dosage, frequency, route].filter(Boolean).join(' — ') || null
     const payload = toSnakeCase({
       encounterId,
@@ -334,7 +314,7 @@ export const clinicalService = {
    */
   async createPrescriptionMedication(fila) {
     if (esSimulado(fila.encounterId)) return simulacion.guardarRecetaDePractica(fila)
-    const matricula = exigirMatricula(fila.professionalLicenseNumber, fila.professionalId)
+    const matricula = exigirMatricula(fila.professionalLicenseNumber)
     const { data, error } = await supabase
       .from('clinical_medications')
       .insert(toSnakeCase({ ...fila, professionalLicenseNumber: matricula }))

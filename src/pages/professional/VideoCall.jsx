@@ -603,15 +603,11 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
   // `professionalProfiles` embebido, así que leer de ahí (como hacía este
   // panel antes) siempre caía en los defaults 'MN'/'0'/'otra', sin importar
   // quién estuviera atendiendo. Se vuelve a `otra` mientras carga.
-  // El perfil profesional (matrícula y especialidad) sale del hook compartido
-  // con /profesional/historia-clinica — una sola lectura cacheada y la misma
-  // regla de firma en las dos pantallas (revisión pre-prod, 2026-10-17).
   // Mientras `loadingProfProfile` está en `true` no se sabe la firma real: el
   // botón "Guardar" espera (ver el form más abajo) y no se crea el encuentro.
-  const { perfil: profProfile, cargando: loadingProfProfile, recargar: recargarProfProfile } = useMiPerfilProfesional(profile?.id)
+  const { perfil: profProfile, cargando: loadingProfProfile, error: errorProfProfile, recargar: recargarProfProfile } = useMiPerfilProfesional(profile?.id)
   const licenseType = profProfile?.licenseType ?? 'MN'
-  // Sin matrícula NO se firma (antes se firmaba con '0'): lo corta
-  // clinicalService con SinMatriculaError.
+  // Sin matrícula NO se firma (antes se firmaba con '0'): lo corta clinicalService.
   const licenseNumber = profProfile?.licenseNumber ?? null
   const specialty = profProfile?.specialty ?? 'otra'
   const [loadingPatientData, setLoadingPatientData] = useState(true)
@@ -810,10 +806,8 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
     if (!form.content.trim()) return
     setSubmitting(true)
     try {
-      // La regla de firma (y el "no pudimos leer tu perfil" vs "falta tu
-      // matrícula") vive en clinicalService. Si el perfil no está, se relee
-      // de fondo para el próximo intento.
-      if (!profProfile) recargarProfProfile().catch(() => {})
+      // Si el perfil no se pudo leer, el error real (no "Falta tu matrícula").
+      if (!profProfile) throw errorProfProfile ?? new Error('No encontramos tu perfil profesional.')
       const eid = await ensureEncounter()
       const entry = await clinicalService.addEntry(eid, {
         patientId,

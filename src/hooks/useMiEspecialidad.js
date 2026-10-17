@@ -1,55 +1,38 @@
 import { useCallback, useEffect, useState } from 'react'
 import { professionalService } from '../services/professionalService'
-import {
-  miPerfilCache as cache, versionDe, leidoMiPerfil, marcarLectura, alCambiarMiPerfil,
-} from '../lib/miEspecialidadCache'
 
 /**
- * El `professional_profiles` del profesional logueado. ÚNICA fuente de la
- * especialidad (herramientas de su vertical, migración 200) y de la matrícula
- * con la que se firma la historia clínica (videollamada, historia clínica,
- * detalle de consulta, atención de emergencia). El `profile` de App.jsx no
- * trae `professional_profiles`.
+ * El `professional_profiles` del profesional logueado: la especialidad (para
+ * las herramientas de su vertical, migración 200) y la matrícula con la que se
+ * firma la historia clínica. El `profile` que pasa App.jsx no trae
+ * `professional_profiles`.
  *
- * - Stale-while-revalidate: muestra lo cacheado y relee al montar.
- * - Una sola lectura en vuelo por usuario.
- * - Una lectura que arrancó antes de un `upsert` no pisa lo recién guardado
- *   (versión en `lib/miEspecialidadCache`).
- * - Error ≠ sin perfil: el estado de la lectura queda registrado y
- *   `clinicalService` lo usa para decir "no pudimos leer tu perfil" en vez de
- *   "falta tu matrícula".
+ * Se lee al montar la pantalla; si dos pantallas lo piden a la vez, comparten
+ * la misma lectura. Sin caché entre pantallas a propósito: los profesionales
+ * se verifican a mano y sólo atiende quien tiene matrícula, así que no hace
+ * falta más (decisión de Mateo, 2026-10-17). Si la lectura falla queda en
+ * `error`, para mostrar el mensaje real al intentar firmar.
  */
-const inflight = new Map()
+const enVuelo = new Map()
 
-function leerPerfil(userId) {
-  if (!inflight.has(userId)) {
-    const v = versionDe(userId)
-    marcarLectura(userId, { cargando: true })
-    const p = professionalService.getByUserId(userId, { tirarError: true })
-      .then(perfil => { leidoMiPerfil(userId, perfil, v); return cache.get(userId) ?? perfil ?? null })
-      .catch(err => { marcarLectura(userId, { cargando: false, error: err }); throw err })
-      .finally(() => inflight.delete(userId))
-    inflight.set(userId, p)
+function leer(userId) {
+  if (!enVuelo.has(userId)) {
+    enVuelo.set(userId, professionalService.getByUserId(userId, { tirarError: true }).finally(() => enVuelo.delete(userId)))
   }
-  return inflight.get(userId)
+  return enVuelo.get(userId)
 }
 
 export function useMiPerfilProfesional(userId) {
-  const [perfil, setPerfil] = useState(() => (userId ? cache.get(userId) ?? null : null))
-  const [cargando, setCargando] = useState(() => !!userId && !cache.has(userId))
+  const [perfil, setPerfil] = useState(null)
+  const [cargando, setCargando] = useState(!!userId)
   const [error, setError] = useState(null)
 
-  useEffect(() => alCambiarMiPerfil(id => {
-    if (id === userId) setPerfil(cache.get(userId) ?? null)
-  }), [userId])
-
-  /** Relee. Devuelve el perfil (`null` si no tiene ficha); ante un error de red, TIRA. */
   const recargar = useCallback(async () => {
     if (!userId) return null
     try {
-      const p = await leerPerfil(userId)
-      setError(null)
+      const p = await leer(userId)
       setPerfil(p)
+      setError(null)
       return p
     } catch (err) {
       setError(err)
@@ -61,8 +44,7 @@ export function useMiPerfilProfesional(userId) {
 
   useEffect(() => {
     if (!userId) { setCargando(false); return }
-    if (cache.has(userId)) setPerfil(cache.get(userId))
-    recargar().catch(() => { /* queda registrado; clinicalService lo dice al firmar */ })
+    recargar().catch(() => {})
   }, [userId, recargar])
 
   return { perfil, cargando, error, recargar }
