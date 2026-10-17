@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Briefcase, Heart } from '@phosphor-icons/react'
 import PhoneInput from '../../components/common/PhoneInput'
 import NombreApellidoInputs from '../../components/common/NombreApellidoInputs'
+import DniInput, { dniValido, MENSAJE_DNI_INVALIDO } from '../../components/common/DniInput'
 import { propuestaDeNombre, validarNombreApellido } from '../../lib/nombreApellido'
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
@@ -21,6 +22,7 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
   })
   const [role, setRole] = useState('')
   const [phone, setPhone] = useState('')
+  const [dni, setDni] = useState('')
   const [loading, setLoading] = useState(false)
 
   const roles = [
@@ -33,6 +35,7 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
     if (!role) { toast.error('Seleccioná un tipo de cuenta'); return }
     const errorNombre = validarNombreApellido(nombres.nombre, nombres.apellido)
     if (errorNombre) { toast.error(errorNombre); return }
+    if (role === 'professional' && !dniValido(dni)) { toast.error(MENSAJE_DNI_INVALIDO); return }
     if (!phone.trim()) { toast.error('Ingresá tu teléfono'); return }
     setLoading(true)
     try {
@@ -45,7 +48,7 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
       // pestaña, etc.) y tira un error con mensaje claro — antes esto
       // explotaba con "Cannot read properties of null (reading 'id')" acá
       // mismo. El catch de abajo ya lo muestra vía toast.
-      const profile = await authService.completeGoogleProfile(authUser, role, nombres, utms, phone.trim() || null, referral?.professionalId ?? null)
+      const profile = await authService.completeGoogleProfile(authUser, role, nombres, utms, phone.trim() || null, referral?.professionalId ?? null, role === 'professional' ? dni : null)
       clearUtms()
       clearReferral()
       onProfileComplete(profile)
@@ -93,6 +96,8 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
         </div>
 
         <NombreApellidoInputs nombre={nombres.nombre} apellido={nombres.apellido} onChange={setNombres} />
+
+        {role === 'professional' && <DniInput value={dni} onChange={setDni} />}
 
         <div>
           <label className="form-label">Teléfono (WhatsApp)</label>

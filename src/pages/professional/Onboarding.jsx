@@ -140,7 +140,9 @@ export default function Onboarding({ profile }) {
     // guarda en cada "Siguiente" — ver trackStep.
     const d = profile.onboardingDraft
     if (d) {
-      setForm(f => ({ ...f, ...d }))
+      // El DNI puede venir del registro (2026-10-16): un draft viejo con el
+      // campo vacío no lo tiene que borrar.
+      setForm(f => ({ ...f, ...d, dni: d.dni || f.dni }))
     }
   }, [isResubmit, profile?.id, profile?.dni, profile?.gender, profile?.onboardingDraft])
 

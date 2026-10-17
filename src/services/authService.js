@@ -24,7 +24,7 @@ import { bajaService } from './bajaService'
 // Nombre (migración 183): `nombre` y `apellido` van por separado — la receta
 // necesita el apellido explícito. `full_name` se manda igual (la base lo
 // vuelve a armar con los dos, pero así ninguna lectura lo ve vacío).
-function buildProfileRow(user, email, role, { nombre, apellido }, utms = {}, phone = null, referredByProfessionalId = null) {
+function buildProfileRow(user, email, role, { nombre, apellido }, utms = {}, phone = null, referredByProfessionalId = null, dni = null) {
   const avatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null
   return {
     id: user.id,
@@ -35,6 +35,10 @@ function buildProfileRow(user, email, role, { nombre, apellido }, utms = {}, pho
     role,
     ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
     ...(phone ? { phone } : {}),
+    // El profesional lo carga en el registro (2026-10-16) para que
+    // `profiles.es_extranjero` (migración 201) se sepa desde el alta y no recién
+    // al enviar el legajo. El onboarding lo trae precargado.
+    ...(dni ? { dni } : {}),
     ...(referredByProfessionalId ? { referred_by_professional_id: referredByProfessionalId } : {}),
     utm_source:   utms.utm_source   ?? null,
     utm_medium:   utms.utm_medium   ?? null,
@@ -51,7 +55,7 @@ function errorDeAlta(code, mensaje) {
 
 export const authService = {
   /** `nombres` = `{ nombre, apellido }`, los dos obligatorios (migración 183). */
-  async register(email, password, role, nombres, utms = {}, phone = null, referredByProfessionalId = null, { ignorarBaja = false } = {}) {
+  async register(email, password, role, nombres, utms = {}, phone = null, referredByProfessionalId = null, { ignorarBaja = false, dni = null } = {}) {
     // Mail de una cuenta dada de baja (migración 188): antes de crear otra, se
     // le ofrece recuperar la suya, con su historia clínica.
     if (!ignorarBaja && await bajaService.estaDadoDeBaja(email)) {
@@ -91,7 +95,7 @@ export const authService = {
     // el avatar, que es justamente lo que sólo conoce el cliente.
     const { error: profileError } = await supabase
       .from('profiles')
-      .upsert(buildProfileRow(authData.user, email, role, nombres, utms, phone, referredByProfessionalId), { onConflict: 'id' })
+      .upsert(buildProfileRow(authData.user, email, role, nombres, utms, phone, referredByProfessionalId, dni), { onConflict: 'id' })
     if (profileError) throw new Error(profileError.message)
 
     return { user: authData.user, session: authData.session }
@@ -124,7 +128,7 @@ export const authService = {
     if (error) throw new Error(error.message)
   },
 
-  async completeGoogleProfile(user, role, nombres, utms = {}, phone = null, referredByProfessionalId = null) {
+  async completeGoogleProfile(user, role, nombres, utms = {}, phone = null, referredByProfessionalId = null, dni = null) {
     if (!user?.id) {
       // Defensa además del guard en CompleteProfile.jsx — nunca dereferenciar
       // .id de un user nulo (esto es lo que producía el crash reportado:
@@ -133,7 +137,7 @@ export const authService = {
     }
     const { data, error } = await supabase
       .from('profiles')
-      .insert(buildProfileRow(user, user.email, role, nombres, utms, phone, referredByProfessionalId))
+      .insert(buildProfileRow(user, user.email, role, nombres, utms, phone, referredByProfessionalId, dni))
       .select()
       .single()
     if (error) throw new Error(error.message)
