@@ -262,13 +262,9 @@ function AddPrescriptionForm({ patientId, encounterId, ensureEncounter, professi
           patientId,
           encounterId:                 eid,
           professionalId,
-          // La matrícula real, no un placeholder. Va desnormalizada en cada fila
-          // clínica por Ley 26.529 Art. 12, y además es la que `rcta-issue`
-          // manda como `medico.matricula` — el 'MN'/'0' que estaba hardcodeado
-          // acá terminaba impreso en la receta electrónica.
-          professionalLicenseType:     profProfile?.licenseType ?? 'MN',
-          // Sin matrícula, `createPrescriptionMedication` corta con "Falta tu matrícula".
-          professionalLicenseNumber:   profProfile?.licenseNumber ?? null,
+          // La matrícula (desnormalizada por Ley 26.529 Art. 12, y la que
+          // `rcta-issue` manda como `medico.matricula`) la pone
+          // `createPrescriptionMedication` leyendo professional_profiles.
           medicationName:   form.medicationName.trim(),
           snomedCode:       null,
           // Siempre presente: `handleSave` no deja guardar sin elegir del catálogo.

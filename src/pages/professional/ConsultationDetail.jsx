@@ -51,8 +51,9 @@ export default function ConsultationDetail({ profile }) {
   const [coverageForm, setCoverageForm] = useState({ coverageType: null, financiadorId: null, obraSocialName: '', affiliateNumber: '' })
   const [savingCoverage, setSavingCoverage] = useState(false)
 
-  // El perfil profesional (matrícula/especialidad) del hook compartido: si no
-  // se pudo leer, clinicalService lo dice al firmar en vez de "Falta tu matrícula".
+  // El perfil profesional, sólo para lo que muestra la pantalla (herramientas de
+  // su vertical, el aviso del recetario). La firma de la HC NO sale de acá: la
+  // resuelve clinicalService al escribir.
   const { perfil: profProfile, recargar: recargarProfProfile } = useMiPerfilProfesional(profile?.id)
   const [showScribe, setShowScribe] = useState(false)
   const [recetas, setRecetas] = useState([])
@@ -115,8 +116,6 @@ export default function ConsultationDetail({ profile }) {
     professionalId: profile.id,
     specialty: profProfile?.specialty,
     modality: consultation?.modality,
-    licenseType: profProfile?.licenseType,
-    licenseNumber: profProfile?.licenseNumber,
     preconsulta: consultation?.preconsultaData,
   })
 
@@ -533,8 +532,6 @@ export default function ConsultationDetail({ profile }) {
             patientId={consultation.patientId}
             professionalId={profile.id}
             specialty={profProfile?.specialty}
-            licenseType={profProfile?.licenseType}
-            licenseNumber={profProfile?.licenseNumber}
             encounterId={clinicalEncounterId}
             ensureEncounter={ensureEncounter}
             getAudioStream={() => navigator.mediaDevices.getUserMedia({ audio: true })}
@@ -555,8 +552,6 @@ export default function ConsultationDetail({ profile }) {
             encounterId={clinicalEncounterId}
             ensureEncounter={ensureEncounter}
             professionalId={profile?.id ?? null}
-            licenseType={profProfile?.licenseType}
-            licenseNumber={profProfile?.licenseNumber}
             bloqueada={bloqueada}
           />
         </div>
@@ -775,8 +770,6 @@ export default function ConsultationDetail({ profile }) {
         profile={profile}
         patientId={consultation.patientId}
         ensureEncounter={ensureEncounter}
-        licenseType={profProfile?.licenseType}
-        licenseNumber={profProfile?.licenseNumber}
         hcDraft={consultation.hcDraft}
         sinFactura={esEmergencia}
         onFinalized={() => navigate('/profesional/dashboard')}

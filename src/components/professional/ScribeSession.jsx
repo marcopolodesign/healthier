@@ -47,7 +47,7 @@ function recordFor(stream, ms, onRecorderReady) {
 // VideoCall's tracks belong to the ongoing call and must NOT be stopped, so
 // it passes nothing.
 export default function ScribeSession({
-  patientId, professionalId, specialty, licenseType, licenseNumber,
+  patientId, professionalId, specialty,
   encounterId, ensureEncounter, getAudioStream, stopStream, onFinalized, onClose,
 }) {
   const [phase, setPhase] = useState('idle') // idle | recording | extracting | draft | finalizing | finalized
@@ -178,7 +178,7 @@ export default function ScribeSession({
     try {
       const eid = encounterId ?? await ensureEncounter()
       const entry = await scribeService.finalize(sessionIdRef.current, {
-        encounterId: eid, patientId, professionalId, structuredData, licenseType, licenseNumber,
+        encounterId: eid, patientId, professionalId, structuredData,
       })
       setPhase('finalized')
       toast.success('Historia clínica guardada')

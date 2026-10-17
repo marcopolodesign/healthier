@@ -108,15 +108,13 @@ export const scribeService = {
   // row does; the marker on the immutable entry itself is what actually
   // proves AI origin permanently. Additive-only, doesn't affect any UI that
   // reads structuredData by its known SCRIBE_SECTION_LABELS keys.
-  async finalize(sessionId, { encounterId, patientId, professionalId, structuredData, licenseType, licenseNumber }) {
+  async finalize(sessionId, { encounterId, patientId, professionalId, structuredData }) {
     const entry = await clinicalService.addEntry(encounterId, {
       patientId,
       professionalId,
       entryType: 'note',
       content: renderSummary(structuredData) || '(sin contenido)',
       data: { ...structuredData, _source: 'ai_scribe', _scribeSessionId: sessionId },
-      licenseType,
-      licenseNumber,
     })
 
     const { error } = await supabase

@@ -94,7 +94,7 @@ function VitalInput({ label, unidad, rango, value, onChange, fueraDeRango }) {
  * cada tap, que era el problema del componente que reemplaza.
  */
 export default function ConsultaEstructurada({
-  consultation, patientId, professionalId, specialty, licenseType, licenseNumber,
+  consultation, patientId, professionalId, specialty,
   loadingProfProfile, ensureEncounter, onEntryAdded, patientData, loadingPatientData, historia,
 }) {
   const { draft, update, errorGuardado } = useConsultaDraft({
@@ -198,7 +198,7 @@ export default function ConsultaEstructurada({
     if (guardando) return
     setGuardando(true)
     try {
-      const entry = await guardarConsultaEnHC({ draft, ensureEncounter, patientId, professionalId, licenseType, licenseNumber })
+      const entry = await guardarConsultaEnHC({ draft, ensureEncounter, patientId, professionalId })
       onEntryAdded(entry)
       update(d => ({ ...d, asentada: true }))
       toast.success('Consulta guardada en la historia clínica')

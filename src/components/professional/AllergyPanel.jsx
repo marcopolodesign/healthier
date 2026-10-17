@@ -92,7 +92,7 @@ function AllergyRow({ allergy }) {
 }
 
 // ── Add-allergy form ──────────────────────────────────────────────────────────
-function AddAllergyForm({ patientId, encounterId, ensureEncounter, professionalId, licenseType, licenseNumber, onSaved, onCancel }) {
+function AddAllergyForm({ patientId, encounterId, ensureEncounter, professionalId, onSaved, onCancel }) {
   const [form, setForm] = useState({
     codeDisplay: '',
     category: 'MEDICATION',
@@ -117,8 +117,6 @@ function AddAllergyForm({ patientId, encounterId, ensureEncounter, professionalI
       const saved = await clinicalService.addAllergy(eid, {
         patientId,
         professionalId,
-        licenseType,
-        licenseNumber,
         allergen: form.codeDisplay.trim(),
         // La base guarda los códigos en minúscula (checks de la migración 033);
         // el formulario los usa en mayúscula — antes se mandaban tal cual y la
@@ -201,7 +199,7 @@ function AddAllergyForm({ patientId, encounterId, ensureEncounter, professionalI
  * AllergyPanel
  * @param {{ patientId: string|null, encounterId: string|null }} props
  */
-export default function AllergyPanel({ patientId, encounterId, ensureEncounter, professionalId, licenseType, licenseNumber, bloqueada = false }) {
+export default function AllergyPanel({ patientId, encounterId, ensureEncounter, professionalId, bloqueada = false }) {
   const [allergies, setAllergies] = useState([])
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
@@ -248,8 +246,6 @@ export default function AllergyPanel({ patientId, encounterId, ensureEncounter, 
           encounterId={encounterId}
           ensureEncounter={ensureEncounter}
           professionalId={professionalId}
-          licenseType={licenseType}
-          licenseNumber={licenseNumber}
           onSaved={newAllergy => {
             setAllergies(prev => [newAllergy, ...prev])
             setAddOpen(false)

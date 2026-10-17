@@ -375,12 +375,11 @@ export default function HistoriaClinica({ profile }) {
   const [form, setForm] = useState({ entryType: 'note', content: '' })
   const [submitting, setSubmitting] = useState(false)
 
-  // Matrícula y especialidad con las que se firma la nota: de
-  // `professional_profiles`. Antes salían de `profile.professionalProfiles`,
-  // que App.jsx no trae, así que toda nota escrita desde acá quedaba con
-  // especialidad 'otra' y matrícula '0' (revisión pre-prod, 2026-10-17).
-  // Mismo hook cacheado que la videollamada (una sola fuente de la firma).
-  const { perfil: pp, recargar: recargarPp } = useMiPerfilProfesional(profile?.id)
+  // Perfil profesional sólo para lo que muestra la pantalla (herramientas de su
+  // vertical). Antes de acá salía la firma, de `profile.professionalProfiles`
+  // —que App.jsx no trae— y toda nota quedaba con 'otra'/'0'; ahora la firma
+  // la resuelve clinicalService al escribir (revisión pre-prod, 2026-10-17).
+  const { perfil: pp } = useMiPerfilProfesional(profile?.id)
 
   // Su vertical no tiene historia clínica (migración 200, ej. Odontología):
   // la pantalla no se ofrece en ningún lado; si llega por la URL, a la ficha.
@@ -436,22 +435,14 @@ export default function HistoriaClinica({ profile }) {
     if (!form.content.trim()) return
     setSubmitting(true)
     try {
-      // La firma, de professional_profiles leído con await justo antes de
-      // escribir; si la lectura falla, el error real.
-      const firma = pp ?? await recargarPp()
-      if (!firma) throw new Error('No encontramos tu perfil profesional.')
-      const licenseType = firma.licenseType ?? 'MN'
-      const licenseNumber = firma.licenseNumber
-      const specialty = firma.specialty ?? 'otra'
+      // La firma (matrícula y especialidad) la resuelve clinicalService al
+      // escribir, leyendo professional_profiles.
       let eid = encounterId
       if (!eid) {
         const enc = await clinicalService.createEncounter({
           patientId,
           professionalId: profile.id,
-          specialty,
           modality: 'presencial',
-          licenseType,
-          licenseNumber,
         })
         eid = enc.id
         setEncounterId(eid)
@@ -462,8 +453,6 @@ export default function HistoriaClinica({ profile }) {
         professionalId: profile.id,
         entryType: form.entryType,
         content: form.content,
-        licenseType,
-        licenseNumber,
       })
       setEncounters(prev => prev.map(enc =>
         enc.id === eid ? { ...enc, entries: [...(enc.entries ?? []), entry] } : enc

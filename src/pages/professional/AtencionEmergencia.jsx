@@ -39,7 +39,7 @@ export default function AtencionEmergencia({ profile }) {
   const [consultation, setConsultation] = useState(null)
   const [emergencia, setEmergencia] = useState(null)
   const [error, setError] = useState(null)
-  // Perfil profesional del hook compartido (ver ConsultationDetail).
+  // Perfil profesional sólo para mostrar; la firma la resuelve clinicalService.
   const { perfil: profProfile } = useMiPerfilProfesional(profile?.id)
   const [cierreAbierto, setCierreAbierto] = useState(false)
   const [preparandoCierre, setPreparandoCierre] = useState(false)
@@ -68,8 +68,6 @@ export default function AtencionEmergencia({ profile }) {
     professionalId: profile?.id,
     specialty: profProfile?.specialty,
     modality: consultation?.modality,
-    licenseType: profProfile?.licenseType,
-    licenseNumber: profProfile?.licenseNumber,
     preconsulta: consultation?.preconsultaData,
   })
 
@@ -223,8 +221,6 @@ export default function AtencionEmergencia({ profile }) {
         profile={profile}
         patientId={consultation.patientId}
         ensureEncounter={ensureEncounter}
-        licenseType={profProfile?.licenseType}
-        licenseNumber={profProfile?.licenseNumber}
         hcDraft={consultation.hcDraft}
         sinFactura
         onFinalized={() => {
