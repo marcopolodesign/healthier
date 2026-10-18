@@ -349,9 +349,13 @@ export const emergencyService = {
         dispatch_code: `UTM-${Math.floor(1000 + Math.random() * 9000)}`,
       })
       .eq('id', emergencyId)
+      // Sólo si sigue esperando móvil: si el paciente canceló mientras el
+      // operador elegía, la cancelación gana y no se despacha nada.
+      .eq('status', 'awaiting_dispatch')
       .select('*, patient:profiles!patient_id(full_name, phone)')
-      .single()
+      .maybeSingle()
     if (error) throw error
+    if (!data) throw new Error('Esta emergencia ya no está esperando móvil: el paciente la canceló o ya se asignó.')
 
     // El móvil pasa a ocupado. Si esto falla, el despacho queda hecho igual y
     // el operador ve el estado viejo en el mapa — se avisa, no se revierte un
@@ -372,15 +376,6 @@ export const emergencyService = {
       .from('ambulances')
       .update({ status: 'disponible' })
       .eq('id', ambulanceId)
-    if (error) throw error
-  },
-
-  /** Patient cancels their own emergency (RLS: emergency_patient_cancel). */
-  async cancel(emergencyId) {
-    const { error } = await supabase
-      .from('emergencies')
-      .update({ status: 'cancelled' })
-      .eq('id', emergencyId)
     if (error) throw error
   },
 
