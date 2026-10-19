@@ -215,8 +215,13 @@ try {
     if (error || !data?.requestId) { mal(`no se pudo pedir: ${error ?? JSON.stringify(data)}`) }
     else {
       creados.pedidos.push(data.requestId)
-      const { data: fila } = await admin.from('ondemand_requests').select('avisados, estado_pago').eq('id', data.requestId).single()
+      const { data: fila } = await admin.from('ondemand_requests').select('avisados, estado_pago, especialidades').eq('id', data.requestId).single()
       nota(`pedido ${data.requestId.slice(0, 8)} · avisados=${fila.avisados} · pago=${fila.estado_pago}`)
+      // Un pedido de Clínica también les suena a los pediatras (2026-10-19).
+      if (VERTICAL === 'clinica') {
+        fila.especialidades?.includes('pediatria')
+          ? ok('el pedido de Clínica también les suena a los pediatras') : mal(`el pedido de Clínica no incluye a pediatría: ${fila.especialidades}`)
+      }
       fila.avisados >= 2 ? ok(`el aviso salió a ${fila.avisados} profesionales`) : mal(`el aviso salió sólo a ${fila.avisados}`)
 
       const [vA, vB] = await Promise.all([proA, proB].map(p => p.c.from('ondemand_requests').select('id, preconsulta_data').eq('id', data.requestId)))
