@@ -48,6 +48,15 @@ const FINAL = PASOS_PACIENTE.length // índice de la pantalla "Listo"
 
 const evento = i => ({ step: i + 2, step_name: PASOS_PACIENTE[i]?.key, flow: 'paciente' })
 
+/**
+ * Próximo paso que le falta después de `desde` (un paciente existente no pasa
+ * por los que ya tiene completos). FINAL si no queda ninguno.
+ */
+const siguientePendiente = (perfil, desde) => {
+  const i = completitudPaciente(perfil).pasos.findIndex((p, j) => j > desde && !p.done)
+  return i === -1 ? FINAL : i
+}
+
 export default function PatientOnboarding({ profile, onProfileUpdate }) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -139,7 +148,7 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
     try {
       const updated = cambios ? await guardar(cambios) : profile
       track('sign_up_step_complete', { ...evento(step), ...extra })
-      const siguiente = step + 1
+      const siguiente = siguientePendiente(updated, step)
       if (siguiente === FINAL) await terminar(updated)
       else setStep(siguiente)
       return updated
@@ -171,8 +180,9 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
 
   const saltear = () => {
     track('sign_up_skip_step', evento(step))
-    if (step + 1 === FINAL) terminar(profile)
-    else setStep(step + 1)
+    const siguiente = siguientePendiente(profile, step)
+    if (siguiente === FINAL) terminar(profile)
+    else setStep(siguiente)
   }
 
   // ── Guardado por paso ──────────────────────────────────────────
