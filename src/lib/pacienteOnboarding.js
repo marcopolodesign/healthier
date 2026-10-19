@@ -92,10 +92,17 @@ export function completitudPaciente(p) {
 }
 
 /**
- * ¿Se le muestra el aviso / se lo manda al wizard? Sólo a pacientes titulares:
- * un familiar a cargo (titular_id) lo completa quien lo cargó, desde su ficha.
+ * ¿El wizard es obligatorio para este paciente? (Mateo, 2026-10-19)
+ *
+ * Sólo para los NUEVOS: `requiere_onboarding` (migración 206) es true en todo
+ * paciente titular creado después de la 206 y false en los que ya existían, a
+ * los que no se les muestra el wizard ni se les vuelve a pedir nada. Termina
+ * cuando llega al final del wizard (`onboarding_completado_at`, 205), que sólo
+ * se alcanza con los tres obligatorios hechos.
+ *
+ * Familiares a cargo nunca (la base ya los marca false; esto es por las dudas).
  */
-export function debeCompletarPerfil(p) {
+export function onboardingBloqueante(p) {
   if (!p || p.role !== 'patient' || p.titularId) return false
-  return !completitudPaciente(p).obligatoriosCompletos
+  return p.requiereOnboarding === true && !p.onboardingCompletadoAt
 }

@@ -10,8 +10,7 @@ import WhatsAppButton from './WhatsAppButton'
  *
  * Privacidad: DNI y cobertura se muestran (hacen falta para soporte: "no me
  * deja recetar"); los datos de salud y el contacto de emergencia sólo como
- * Cargado / Pendiente, nunca el valor (recomendación de Felipe, a confirmar
- * con Mateo).
+ * Cargado / Pendiente, nunca el valor (decidido por Mateo, 2026-10-19).
  */
 
 const fecha = ts => (ts
@@ -74,6 +73,12 @@ export default function PacienteOnboardingDrawer({ paciente, onClose }) {
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Registro</p>
               <p className="font-medium text-gray-800">{fecha(p.createdAt)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Registro por pasos</p>
+              <p className="font-medium text-gray-800">
+                {p.requiereOnboarding ? (p.onboardingCompletadoAt ? 'Nuevo — lo completó' : 'Nuevo — obligatorio, sin terminar') : 'Ya existía — no lo recibe'}
+              </p>
             </div>
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Llegó hasta</p>
