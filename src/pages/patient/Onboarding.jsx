@@ -11,7 +11,8 @@ import { toast } from '../../components/Toast'
 import { PATIENT_CONSENT_ITEMS } from '../../lib/consentItems'
 import { OPCIONES_SEXO } from '../../lib/datosReceta'
 import { normalizarDni, dniValido, MENSAJE_DNI_INVALIDO } from '../../lib/dni'
-import { PASOS_PACIENTE, CONSENT_VERSION, completitudPaciente } from '../../lib/pacienteOnboarding'
+import { PASOS_PACIENTE, CONSENT_VERSION, completitudPaciente, onboardingBloqueante } from '../../lib/pacienteOnboarding'
+import { authService } from '../../services/authService'
 import { nombreDePila } from '../../lib/format'
 import { track } from '../../utils/analytics'
 import { referralService } from '../../services/referralService'
@@ -28,8 +29,14 @@ import { referralService } from '../../services/referralService'
  *   los anteriores tildados — no vuelve a tipear lo que ya cargó.
  * - Cada paso se guarda al apretar "Continuar", no al final: si cierra la
  *   pestaña a mitad de camino, lo cargado queda.
- * - Obligatorios (consentimiento, datos, cobertura) no tienen "Saltear". Salir
- *   sí se puede siempre ("Terminar después"): no se bloquea el uso de la app.
+ * - Obligatorios (consentimiento, datos, cobertura) no tienen "Saltear".
+ * - Paciente NUEVO (migración 206, `onboardingBloqueante`): no hay salida al
+ *   inicio hasta terminar — sólo "Cerrar sesión". App.jsx lo devuelve acá si
+ *   intenta entrar a cualquier /paciente/*. Si guardar el final falla, se
+ *   muestra el error real y se queda en el paso para reintentar (si no, la
+ *   guarda lo devolvería al wizard en loop).
+ * - Paciente que ya existía: no se lo manda acá; si entra igual por la URL,
+ *   puede salir ("Terminar después").
  *
  * Eventos de analytics: `step` cuenta el alta (Register.jsx) como paso 1, así
  * que el evento de cada paso del wizard es índice + 2 (spec de Henry).
@@ -161,10 +168,10 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
     }
   }
 
+  // Tira si no pudo guardar la marca de fin: con el onboarding obligatorio esa
+  // marca es la que destraba la plataforma, así que no se puede seguir sin ella.
   const terminar = async (perfil) => {
-    try {
-      await guardar({ onboardingCompletadoAt: new Date().toISOString() })
-    } catch { /* la marca es informativa: no frena el final */ }
+    await guardar({ onboardingCompletadoAt: new Date().toISOString() })
     track('sign_up_complete', { flow: 'paciente', profile_completed: completitudPaciente(perfil).obligatoriosCompletos })
     // Quien llegó por el link de un profesional termina en la ficha de ESE
     // profesional, no buscando de nuevo entre todos.
@@ -178,12 +185,24 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
     navigate(destinoReferido ?? '/paciente/dashboard')
   }
 
-  const saltear = () => {
+  const saltear = async () => {
     track('sign_up_skip_step', evento(step))
     const siguiente = siguientePendiente(profile, step)
-    if (siguiente === FINAL) terminar(profile)
-    else setStep(siguiente)
+    if (siguiente !== FINAL) return setStep(siguiente)
+    setSaving(true)
+    try {
+      await terminar(profile)
+    } catch (err) {
+      toast.error(`No pudimos guardar: ${err.message}. Probá de nuevo.`)
+    } finally {
+      setSaving(false)
+    }
   }
+
+  const cerrarSesion = async () => {
+    try { await authService.logout() } finally { navigate('/') }
+  }
+  const bloqueado = onboardingBloqueante(profile)
 
   // ── Guardado por paso ──────────────────────────────────────────
   const guardarConsentimiento = () => avanzar(
@@ -285,11 +304,16 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
                 Paso {step + 1} de {PASOS_PACIENTE.length} — {paso.corto}
               </p>
             </div>
-            {/* No se bloquea el uso: siempre se puede salir. Lo que falte queda
-                en la tarjeta del inicio. */}
-            <Link to="/paciente/dashboard" className="text-sm text-text-tertiary hover:text-text-secondary whitespace-nowrap mt-2">
-              Terminar después
-            </Link>
+            {/* Paciente nuevo: sin salida al inicio hasta terminar (migración 206). */}
+            {bloqueado ? (
+              <button type="button" onClick={cerrarSesion} className="text-sm text-text-tertiary hover:text-text-secondary whitespace-nowrap mt-2">
+                Cerrar sesión
+              </button>
+            ) : (
+              <Link to="/paciente/dashboard" className="text-sm text-text-tertiary hover:text-text-secondary whitespace-nowrap mt-2">
+                Terminar después
+              </Link>
+            )}
           </div>
 
           {/* Tracker — los pasos ya hechos (por dato cargado, no por orden) se
@@ -533,6 +557,7 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
             <button
               type="button"
               onClick={saltear}
+              disabled={saving}
               className="mt-4 w-full text-center text-sm text-text-tertiary hover:text-text-secondary transition-colors"
             >
               Saltear por ahora

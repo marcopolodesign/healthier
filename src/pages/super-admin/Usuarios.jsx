@@ -14,11 +14,11 @@ import { completitudPaciente, PASOS_PACIENTE } from '../../lib/pacienteOnboardin
 // Datos que mira el onboarding por pasos (lib/pacienteOnboarding.js). Los de
 // salud y emergencia se traen sólo para saber si están cargados: el drawer no
 // muestra el valor.
-const CAMPOS_ONBOARDING = 'phone, titular_id, dni, gender, birth_date, coverage_type, financiador_id, insurance_name, insurance_num, height_cm, weight_kg, blood_type, allergies, emergency_name, emergency_phone, consentimiento_at, consentimiento_version, paciente_paso_onboarding, onboarding_completado_at';
+const CAMPOS_ONBOARDING = 'phone, titular_id, dni, gender, birth_date, coverage_type, financiador_id, insurance_name, insurance_num, height_cm, weight_kg, blood_type, allergies, emergency_name, emergency_phone, consentimiento_at, consentimiento_version, paciente_paso_onboarding, onboarding_completado_at, requiere_onboarding';
 
-/** Dónde se frenó: el primer paso sin hacer, o 'completo'. */
-function etapa(c) {
-  return c.completados === c.total ? 'completo' : PASOS_PACIENTE[c.primerPendiente].key;
+/** Dónde se frenó: 'completo' si terminó el wizard (aunque haya salteado lo opcional), si no el primer paso sin hacer. */
+function etapa(c, p) {
+  return p?.onboarding_completado_at || c.completados === c.total ? 'completo' : PASOS_PACIENTE[c.primerPendiente].key;
 }
 
 const fechaCorta = (ts) => new Date(ts).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' });
@@ -94,7 +94,7 @@ export default function SuperAdminUsuarios() {
     if (perfilFilter === 'completo' && !p._c.obligatoriosCompletos) return false;
     if (perfilFilter === 'incompleto' && p._c.obligatoriosCompletos) return false;
     if (perfilFilter === 'sin_consentimiento' && p.consentimiento_at) return false;
-    if (etapaFilter && (p.titular_id || etapa(p._c) !== etapaFilter)) return false;
+    if (etapaFilter && (p.titular_id || !p.requiere_onboarding || etapa(p._c, p) !== etapaFilter)) return false;
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -164,11 +164,12 @@ export default function SuperAdminUsuarios() {
     }
   }
 
-  // Embudo: dónde se frena cada paciente titular (los familiares a cargo no
-  // pasan por el wizard). Clic en una columna filtra la tabla.
-  const titulares = patients.filter((p) => !p.titular_id);
+  // Embudo: dónde se frena cada paciente NUEVO (migración 206). Los que ya
+  // existían no pasan por el wizard, y los familiares a cargo tampoco.
+  // Clic en una columna filtra la tabla.
+  const titulares = patients.filter((p) => !p.titular_id && p.requiere_onboarding);
   const embudo = [...PASOS_PACIENTE.map((s) => ({ key: s.key, label: s.corto })), { key: 'completo', label: 'Completo' }]
-    .map((e) => ({ ...e, n: titulares.filter((p) => etapa(p._c) === e.key).length }));
+    .map((e) => ({ ...e, n: titulares.filter((p) => etapa(p._c, p) === e.key).length }));
 
   const perfilPills = [
     { key: 'todos', label: 'Todos los perfiles' },
@@ -203,7 +204,7 @@ export default function SuperAdminUsuarios() {
       {!loading && (
         <div className="card p-4">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-medium text-gray-500">Dónde se frenan en el perfil</p>
+            <p className="text-sm font-medium text-gray-500">Pacientes nuevos: dónde se frenan en el registro</p>
             {etapaFilter && (
               <button type="button" onClick={() => setEtapaFilter(null)} className="text-sm font-medium text-brand hover:underline">
                 Ver todos
