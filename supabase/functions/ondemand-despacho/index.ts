@@ -105,13 +105,22 @@ interface Pago {
 // deno-lint-ignore no-explicit-any
 type Db = any
 
+// Un pedido de Clínica también les suena a los pediatras, para todos los
+// pacientes (Mateo, 2026-10-19): con pocos médicos en línea, más gente a quien
+// tocarle el timbre. El pediatra decide si toma a un adulto. Mismo mapa en
+// website (`src/lib/carruselVerticales.js`) y mobile (`ProfessionalService.ts`).
+const TAMBIEN_SUENA: Record<string, string[]> = { clinica: ['pediatria'] }
+
 async function especialidadesDe(db: Db, vertical: string): Promise<string[]> {
   const { data } = await db
     .from('specialties')
     .select('slug')
     .eq('vertical_id', vertical)
     .is('parent_id', null)
-  return (data ?? []).map((e: { slug: string }) => e.slug)
+  const propias = (data ?? []).map((e: { slug: string }) => e.slug)
+  // Sólo si la vertical existe: una vertical desconocida sigue dando "nadie".
+  if (!propias.length) return propias
+  return [...new Set([...propias, ...(TAMBIEN_SUENA[vertical] ?? [])])]
 }
 
 async function cuantosElegibles(db: Db, especialidades: string[], excluir: string): Promise<number> {
