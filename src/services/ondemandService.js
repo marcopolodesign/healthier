@@ -73,6 +73,17 @@ export const ondemandService = {
   },
 
   /** Lo que ve el profesional: pedidos vivos que puede tomar (la RLS filtra). */
+  /**
+   * Profesional: edad, sexo, cobertura y si es para un familiar del paciente de
+   * un pedido abierto — SIN el nombre (migración 207). `null` si ya no se puede
+   * ver o la base no tiene la función todavía.
+   */
+  async pacienteDelPedido(requestId) {
+    const { data, error } = await supabase.rpc('paciente_del_pedido', { p_request_id: requestId })
+    if (error) return null
+    return data ?? null
+  },
+
   async getPedidosAbiertos() {
     const { data, error } = await supabase
       .from('ondemand_requests')
