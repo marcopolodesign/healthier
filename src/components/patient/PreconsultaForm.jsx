@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { X, CircleNotch, ClipboardText, ArrowLeft, Check } from '@phosphor-icons/react'
 import PatientSheet from './PatientSheet'
 import { toast } from '../Toast'
@@ -7,6 +7,7 @@ import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/c
 import { ALL_SYMPTOMS, MEDICATION_QUESTION, questionsFor } from '../../data/symptoms'
 import { faltanDatosPaciente, listar, OPCIONES_SEXO } from '../../lib/datosReceta'
 import { profilesService } from '../../services/profilesService'
+import BarraDePasos from './BarraDePasos'
 
 /**
  * Botón de opción (radio / checkbox visual).
@@ -16,7 +17,31 @@ import { profilesService } from '../../services/profilesService'
  * todas las opciones. Ver la nota larga sobre el mismo problema en el `return`
  * de PreconsultaForm.
  */
-function OptionButton({ selected, label, onClick }) {
+// `blanco` es el modo de Teleclínica (Felipe, 2026-10-19): un solo estado
+// elegido (borde 1,5 px de marca + fondo de marca al 8 %), sin hover en
+// pantallas táctiles, opción de 16 px regular, y check cuadrado si es múltiple.
+function OptionButton({ selected, label, onClick, blanco = false, multi = false }) {
+  const forma = multi && blanco ? 'rounded-md' : 'rounded-full'
+  if (blanco) {
+    return (
+      <button
+        onClick={onClick}
+        aria-pressed={selected}
+        className={`w-full text-left px-4 py-3 rounded-2xl text-[16px] font-normal flex items-center gap-3 ${
+          selected
+            ? 'border-[1.5px] border-brand bg-brand/[0.08] text-text-primary'
+            : 'border-[1.5px] border-gray-200 bg-white text-gray-800 [@media(hover:hover)]:hover:border-gray-300'
+        }`}
+      >
+        <span className={`w-5 h-5 ${forma} border flex items-center justify-center flex-shrink-0 ${
+          selected ? 'border-brand bg-brand' : 'border-gray-300 bg-white'
+        }`}>
+          {selected && <Check className="w-3 h-3 text-white" weight="bold" />}
+        </span>
+        <span className="flex-1">{label}</span>
+      </button>
+    )
+  }
   return (
     <button
       onClick={onClick}
@@ -58,8 +83,20 @@ function OptionButton({ selected, label, onClick }) {
  *                    mantiene el formulario abierto en vez de dejar pasar. Lo usa la
  *                    sala de espera: anunciar presencia convoca al profesional, así
  *                    que esto tiene que estar contestado ANTES.
+ *   inline         – Teleclínica (opción B, 2026-10-19): las preguntas son la
+ *                    pantalla, no un modal. Sin X ni flecha propia (la flecha es
+ *                    la de la página), "Paso X de N" con la barra en tramos, y
+ *                    queda montado aunque `isOpen` sea false para que "Cambiar"
+ *                    no borre lo contestado.
+ *   step / onStepChange – el paso, controlado desde afuera (lo usa `inline`:
+ *                    la flecha de la página retrocede un paso).
+ *   pasosExtra     – pasos que vienen DESPUÉS de las preguntas (el pago), para
+ *                    que N cuente el recorrido entero.
+ *   textoFinal     – el botón del último paso. En Teleclínica, "Continuar": no
+ *                    dice "Pagar" porque todavía no se paga (Mateo).
+ *   arriba         – algo que va arriba del primer paso ("La consulta es: Para mí").
  */
-export default function PreconsultaForm({ isOpen, onClose, consultationId, onSubmitted, required = false, profile = null, onProfileUpdate, pedirDatos = required, permitirOmitir = !required }) {
+export default function PreconsultaForm({ isOpen, onClose, consultationId, onSubmitted, required = false, profile = null, onProfileUpdate, pedirDatos = required, permitirOmitir = !required, inline = false, step: stepControlado, onStepChange, pasosExtra = 0, textoFinal, arriba = null }) {
   // Datos que Innovamed exige para emitir una receta y que el paciente puede no
   // tener cargados. Se pregunta SOLO lo que falta: quien ya los tiene no ve este
   // paso. Y se pregunta acá porque es el único momento obligatorio antes de la
@@ -71,7 +108,17 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
   const [submitting, setSubmitting] = useState(false)
   const [saveError, setSaveError] = useState(null)
 
-  const [step, setStep] = useState(0)            // 0 = elegir síntoma, 1 = preguntas, 2 = medicación
+  const [stepInterno, setStepInterno] = useState(0) // 0 = elegir síntoma, 1 = preguntas, 2 = medicación, 3 = datos
+  const step = stepControlado ?? stepInterno
+  // Cambiar de paso vuelve el scroll arriba: si no, al pasar del listado de
+  // síntomas (más largo que la pantalla) se aterriza a mitad de las preguntas.
+  const cuerpoRef = useRef(null)
+  useEffect(() => { if (cuerpoRef.current) cuerpoRef.current.scrollTop = 0 }, [step])
+  const setStep = (sigue) => {
+    const n = typeof sigue === 'function' ? sigue(step) : sigue
+    if (onStepChange) onStepChange(n)
+    else setStepInterno(n)
+  }
   const [symptomId, setSymptomId] = useState(null)
   const [freeText, setFreeText] = useState('')   // solo para "Otro motivo"
   const [answers, setAnswers] = useState({})     // { [questionId]: value | value[] }
@@ -218,6 +265,10 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
   }
 
   const ultimoPaso = pideDatos ? 3 : 2
+  const totalPasos = ultimoPaso + 1 + pasosExtra
+  // En Teleclínica el texto secundario va a 14 px (Felipe); en el modal, como siempre.
+  const fondoCampo = inline ? 'bg-white' : 'bg-bg-primary'
+  const ayuda = inline ? 'text-[14px] text-gray-500' : 'text-[12px] text-gray-400'
   const stepTitles = ['¿Qué te pasa?', `Contanos más sobre: ${symptom?.label ?? ''}`, 'Medicación', 'Tus datos']
 
   // El paso de datos solo se da por completo cuando está lo que falta.
@@ -236,8 +287,88 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
   // el paso "¿Qué te pasa?", que es más largo que la pantalla, era literalmente
   // imposible scrollear. Los envoltorios tienen que ser JSX inline como acá
   // abajo — `div` y `PatientSheet` son tipos estables entre renders.
+  // El botón y sus ayudas: dentro del cuerpo en el modal, fijo abajo en `inline`.
+  const cta = (
+        <div className="space-y-3 pb-2 pt-1">
+          {saveError && <p className="text-[13px] font-semibold text-danger text-center">{saveError}</p>}
+
+          {step < ultimoPaso ? (
+            <button
+              onClick={() => setStep(s => s + 1)}
+              disabled={step === 0 ? !symptomStepOk : step === 1 ? !answeredAll : !medicationOk}
+              className={`w-full py-4 rounded-[20px] font-bold text-[16px] transition-colors ${
+                (step === 0 ? symptomStepOk : step === 1 ? answeredAll : medicationOk)
+                  ? 'bg-brand text-white hover:bg-brand-hover'
+                  : 'bg-[#E9EBEA] text-[#9AA0A6] cursor-not-allowed'
+              }`}
+            >
+              Continuar
+            </button>
+          ) : (
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || !medicationOk || !datosOk}
+              className={`w-full py-4 rounded-[20px] font-bold text-[16px] transition-colors flex justify-center items-center gap-2 ${
+                submitting || !medicationOk || !datosOk
+                  ? 'bg-[#E9EBEA] text-[#9AA0A6] cursor-not-allowed'
+                  : 'bg-brand text-white hover:bg-brand-hover'
+              }`}
+            >
+              {submitting
+                ? <><CircleNotch className="w-5 h-5 animate-spin" /> Enviando...</>
+                : (textoFinal ?? (required ? 'Ingresar en sala de espera' : 'Completar pre-consulta'))}
+            </button>
+          )}
+
+          {step === 0 && !symptomStepOk && (
+            <p className={`${ayuda} text-center font-medium`}>
+              Elegí un motivo para continuar.
+            </p>
+          )}
+          {step === 1 && !answeredAll && (
+            <p className={`${ayuda} text-center font-medium`}>
+              Contestá todas las preguntas para continuar.
+            </p>
+          )}
+          {step === 2 && !medicationOk && (
+            <p className={`${ayuda} text-center font-medium`}>
+              Contanos si estás tomando medicación.
+            </p>
+          )}
+          {step === 3 && !datosOk && (
+            <p className={`${ayuda} text-center font-medium`}>
+              Completá {listar(faltantes)} para continuar.
+            </p>
+          )}
+
+          {permitirOmitir && step === 0 && (
+            <button
+              onClick={() => onSubmitted()}
+              disabled={submitting}
+              className="w-full py-3 text-[14px] font-semibold text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Omitir por ahora
+            </button>
+          )}
+        </div>
+  )
+
   const contenido = (
     <>
+      {inline ? (
+        // Encabezado fijo con fondo opaco y una línea abajo: la lista corre por
+        // debajo con un corte limpio (Felipe).
+        <div className="px-4 sm:px-6 pt-1 pb-4 flex-shrink-0 bg-bg-primary border-b border-gray-200/70">
+          <BarraDePasos paso={step + 1} total={totalPasos} className="mb-5" />
+          <h2 className="text-[28px] font-light text-gray-900 leading-tight">{step === 1 ? (symptom?.label ?? '') : stepTitles[step]}</h2>
+          {step === 0 && (
+            <p className="text-[14px] text-gray-500 leading-snug mt-1">
+              Elegí lo que más te molesta. El profesional lo lee antes de aceptar.
+            </p>
+          )}
+          {step === 1 && <p className="text-[14px] text-gray-500 leading-snug mt-1">Contanos un poco más.</p>}
+        </div>
+      ) : (<>
       {/* Header */}
       <div className="px-6 pt-4 pb-3 flex items-center gap-3 flex-shrink-0 border-b border-border-default">
         {step > 0 ? (
@@ -272,18 +403,23 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
           step >= ultimoPaso ? 'w-full' : step === 0 ? 'w-1/4' : step === 1 ? 'w-2/4' : 'w-3/4'
         }`} />
       </div>
+      </>)}
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto px-6 py-5 scrollbar-hide space-y-5">
+      <div ref={cuerpoRef} className={`flex-1 overflow-y-auto scrollbar-hide space-y-5 ${inline ? 'px-4 sm:px-6 pt-5 pb-10' : 'px-6 py-5'}`}>
 
         {/* ── Step 0 — elegir síntoma ── */}
         {step === 0 && (
           <div className="space-y-2">
-            <p className="text-[13px] text-gray-500 font-medium mb-3">
-              Elegí lo que más te molesta. Si tenés varias cosas, empezá por la principal.
-            </p>
+            {arriba}
+            {!inline && (
+              <p className="text-[13px] text-gray-500 font-medium mb-3">
+                Elegí lo que más te molesta. Si tenés varias cosas, empezá por la principal.
+              </p>
+            )}
             {ALL_SYMPTOMS.map(s => (
               <OptionButton
+                blanco={inline}
                 key={s.id}
                 selected={symptomId === s.id}
                 label={s.label}
@@ -300,7 +436,7 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
                   value={freeText}
                   onChange={e => setFreeText(e.target.value)}
                   placeholder="Ej: me duele la rodilla desde ayer"
-                  className="w-full bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors resize-none"
+                  className={`w-full ${fondoCampo} border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors resize-none`}
                 />
               </div>
             )}
@@ -310,9 +446,9 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
         {/* ── Step 1 — preguntas de calificación ── */}
         {step === 1 && questions.map(q => (
           <div key={q.id} className="space-y-2">
-            <p className="text-[15px] font-bold text-gray-900">{q.label}</p>
+            <p className={inline ? 'text-[16px] font-medium text-text-primary' : 'text-[15px] font-bold text-gray-900'}>{q.label}</p>
             {q.type === 'multi' && (
-              <p className="text-[12px] text-gray-400 font-medium -mt-1">Podés elegir más de una</p>
+              <p className={`${ayuda} font-medium -mt-1`}>Podés elegir más de una</p>
             )}
             {q.options.map(o => {
               const raw = answers[q.id]
@@ -321,6 +457,8 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
                 : raw === o.value
               return (
                 <OptionButton
+                blanco={inline}
+                  multi={q.type === 'multi'}
                   key={o.value}
                   selected={selected}
                   label={o.label}
@@ -334,9 +472,10 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
         {/* ── Step 2 — medicación ── */}
         {step === 2 && (
           <div className="space-y-2">
-            <p className="text-[15px] font-bold text-gray-900">{MEDICATION_QUESTION.label}</p>
+            <p className={inline ? 'text-[16px] font-medium text-text-primary' : 'text-[15px] font-bold text-gray-900'}>{MEDICATION_QUESTION.label}</p>
             {MEDICATION_QUESTION.options.map(o => (
               <OptionButton
+                blanco={inline}
                 key={o.value}
                 selected={medication.value === o.value}
                 label={o.label}
@@ -353,7 +492,7 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
                   value={medication.detail}
                   onChange={e => setMedication(m => ({ ...m, detail: e.target.value }))}
                   placeholder="Ej: Omeprazol 20mg, Ibuprofeno 400mg"
-                  className="w-full bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors resize-none"
+                  className={`w-full ${fondoCampo} border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors resize-none`}
                 />
               </div>
             )}
@@ -363,7 +502,7 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
         {/* ── Paso 3 — datos que faltan para la receta ── */}
         {step === 3 && pideDatos && (
           <div className="space-y-4">
-            <p className="text-[13px] text-gray-500 leading-snug">
+            <p className={`${inline ? 'text-[14px]' : 'text-[13px]'} text-gray-500 leading-snug`}>
               Necesitamos {listar(faltantes)} para que el profesional pueda emitirte una
               receta electrónica. Se pide una sola vez.
             </p>
@@ -375,7 +514,7 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
                   type="text" inputMode="numeric" value={datos.dni}
                   onChange={e => setDatos(d => ({ ...d, dni: e.target.value.replace(/\D/g, '') }))}
                   placeholder="Sin puntos, ej: 30111222"
-                  className="w-full bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors"
+                  className={`w-full ${fondoCampo} border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors`}
                 />
               </div>
             )}
@@ -387,7 +526,7 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
                   type="date" value={datos.birthDate}
                   onChange={e => setDatos(d => ({ ...d, birthDate: e.target.value }))}
                   max={new Date().toISOString().slice(0, 10)}
-                  className="w-full bg-bg-primary border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 focus:border-brand transition-colors"
+                  className={`w-full ${fondoCampo} border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 focus:border-brand transition-colors`}
                 />
               </div>
             )}
@@ -397,6 +536,7 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
                 <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block">Sexo</label>
                 {OPCIONES_SEXO.map(o => (
                   <OptionButton
+                blanco={inline}
                     key={o.value}
                     selected={datos.gender === o.value}
                     label={o.label}
@@ -408,70 +548,16 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
           </div>
         )}
 
-        {/* CTA */}
-        <div className="space-y-3 pb-2 pt-1">
-          {saveError && <p className="text-[13px] font-semibold text-danger text-center">{saveError}</p>}
-
-          {step < ultimoPaso ? (
-            <button
-              onClick={() => setStep(s => s + 1)}
-              disabled={step === 0 ? !symptomStepOk : step === 1 ? !answeredAll : !medicationOk}
-              className={`w-full py-4 rounded-[20px] font-bold text-[16px] transition-all ${
-                (step === 0 ? symptomStepOk : step === 1 ? answeredAll : medicationOk)
-                  ? 'bg-brand text-white hover:bg-brand-hover active:scale-95'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              }`}
-            >
-              Continuar
-            </button>
-          ) : (
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || !medicationOk || !datosOk}
-              className={`w-full py-4 rounded-[20px] font-bold text-[16px] transition-all flex justify-center items-center gap-2 ${
-                submitting || !medicationOk || !datosOk
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-brand text-white hover:bg-brand-hover active:scale-95'
-              }`}
-            >
-              {submitting
-                ? <><CircleNotch className="w-5 h-5 animate-spin" /> Enviando...</>
-                : (required ? 'Ingresar en sala de espera' : 'Completar pre-consulta')}
-            </button>
-          )}
-
-          {step === 0 && !symptomStepOk && (
-            <p className="text-[12px] text-gray-400 text-center font-medium">
-              Elegí un motivo para continuar.
-            </p>
-          )}
-          {step === 1 && !answeredAll && (
-            <p className="text-[12px] text-gray-400 text-center font-medium">
-              Contestá todas las preguntas para continuar.
-            </p>
-          )}
-          {step === 2 && !medicationOk && (
-            <p className="text-[12px] text-gray-400 text-center font-medium">
-              Contanos si estás tomando medicación.
-            </p>
-          )}
-          {step === 3 && !datosOk && (
-            <p className="text-[12px] text-gray-400 text-center font-medium">
-              Completá {listar(faltantes)} para continuar.
-            </p>
-          )}
-
-          {permitirOmitir && step === 0 && (
-            <button
-              onClick={() => onSubmitted()}
-              disabled={submitting}
-              className="w-full py-3 text-[14px] font-semibold text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              Omitir por ahora
-            </button>
-          )}
-        </div>
+        {!inline && cta}
       </div>
+
+      {/* En Teleclínica el botón queda fijo abajo: con 13 síntomas, "Continuar"
+          quedaba fuera de la pantalla (Felipe). */}
+      {inline && (
+        <div className="flex-shrink-0 px-4 sm:px-6 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-bg-primary border-t border-gray-100">
+          {cta}
+        </div>
+      )}
     </>
   )
 
@@ -480,6 +566,12 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
   // contrario de lo que tiene que comunicar.
   if (required) {
     return <div className="fixed inset-0 z-[100] bg-bg-secondary flex flex-col">{contenido}</div>
+  }
+
+  // Teleclínica: las preguntas son la pantalla. Se oculta en vez de desmontarse
+  // para que volver desde el pago ("Cambiar") encuentre lo contestado.
+  if (inline) {
+    return <div className={isOpen ? 'flex-1 min-h-0 flex flex-col' : 'hidden'} data-testid="preconsulta-inline">{contenido}</div>
   }
 
   return (

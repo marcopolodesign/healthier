@@ -19,6 +19,10 @@
  *   disabled            {boolean}           Disables selection/CVV while a payment is in flight
  *   onNewCardCharge     {(info) => void}    Fired when a brand-new card's own submit button charges it.
  *                                           info = { cardToken, paymentMethodId, payerEmail }
+ *   compacto            {boolean}           Teleclínica (Felipe, 2026-10-19): la tarjeta elegida con un solo
+ *                                           borde y el código de seguridad ADENTRO de ella, no en una caja aparte.
+ *   etiquetaPagar       {string?}           Texto del botón del Brick al pagar con una tarjeta nueva sin
+ *                                           guardarla. Por defecto "Pagar $monto"; Teleclínica usa "Pagar y solicitar".
  *   onAddCardModeChange {(isAdding) => void} Fired when the "add new card" panel opens/closes — the
  *                                           parent should hide its own "Confirmar y Pagar" button while
  *                                           true, since the new-card Brick has its own submit button.
@@ -45,17 +49,19 @@ import MPCardHolder from './MPCardHolder'
 import { brandLabel } from './cardBrand'
 
 // ── Single card row ───────────────────────────────────────────────────────────
-function CardRow({ card, selected, onSelect, onDelete, deleting, disabled }) {
+function CardRow({ card, selected, onSelect, onDelete, deleting, disabled, sinBorde = false }) {
   return (
     <button
       type="button"
       onClick={() => !disabled && onSelect(card.id)}
       disabled={disabled}
       className={[
-        'w-full flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all text-left',
-        selected
-          ? 'border-[#7CB38B] bg-[#7CB38B]/8 shadow-[0_0_0_2px_rgba(124,179,139,0.25)]'
-          : 'border-[#D8D4CE] bg-white hover:border-[#7CB38B]/50 hover:bg-[#F6F5F0]',
+        'w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all text-left',
+        sinBorde
+          ? 'border-0 bg-transparent'
+          : selected
+            ? 'border border-[#7CB38B] bg-[#7CB38B]/8 shadow-[0_0_0_2px_rgba(124,179,139,0.25)]'
+            : 'border border-[#D8D4CE] bg-white hover:border-[#7CB38B]/50 hover:bg-[#F6F5F0]',
         disabled ? 'opacity-60 cursor-not-allowed' : '',
       ].join(' ')}
     >
@@ -117,6 +123,8 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
   disabled = false,
   onNewCardCharge,
   onAddCardModeChange,
+  etiquetaPagar = null,
+  compacto = false,
 }, ref) {
   const [cards, setCards] = useState([])
   const [loading, setLoading] = useState(true)
@@ -325,7 +333,38 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
       {/* Saved card list */}
       {cards.length > 0 && (
         <div className="space-y-2">
-          {cards.map((card) => (
+          {cards.map((card) => (compacto && card.id === selectedCardId && !showAddCard) ? (
+            <div key={card.id} className="rounded-2xl border-[1.5px] border-[#7CB38B] bg-[#7CB38B]/[0.06]">
+              <CardRow
+                card={card}
+                selected
+                sinBorde
+                onSelect={(id) => onCardSelected?.(id)}
+                onDelete={handleDelete}
+                deleting={deletingId === card.id}
+                disabled={disabled}
+              />
+              <div className="px-4 pb-4 -mt-1">
+                <label htmlFor="cvv-tarjeta-guardada" className="block text-[14px] font-medium text-[#2D2A26] mb-1.5">
+                  Código de seguridad
+                </label>
+                {idRecienGuardada && selectedCardId === idRecienGuardada && (
+                  <p className="text-[14px] text-[#6B6560] mb-2">Guardamos tu tarjeta. Ingresá el código para confirmar el pago.</p>
+                )}
+                <input
+                  id="cvv-tarjeta-guardada"
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={cvv}
+                  disabled={disabled}
+                  onChange={(e) => { setCvv(e.target.value.replace(/\D/g, '')); setCvvError(null) }}
+                  placeholder="•••"
+                  className="w-[120px] px-4 py-3 rounded-xl border border-[#D8D4CE] bg-white text-base font-mono tracking-widest outline-none focus:border-[#7CB38B] disabled:opacity-50"
+                />
+              </div>
+            </div>
+          ) : (
             <CardRow
               key={card.id}
               card={card}
@@ -346,7 +385,7 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
         * seguro (`<SecurityCode />`) es del otro flujo, el de Secure Fields,
         * que además exige el número de tarjeta montado y por eso no sirve acá.
         * Ver el comentario largo en `getSavedCardCharge`. */}
-      {selectedCard && !showAddCard && (
+      {selectedCard && !showAddCard && !compacto && (
         <div className="flex flex-col gap-2 px-4 py-3 rounded-2xl border border-[#D8D4CE] bg-[#F6F5F0]">
           {/* En columna y a lo ancho: con el campo chiquito al costado, el
               paciente no se daba cuenta de que tenía que completarlo (Mateo,
@@ -444,7 +483,7 @@ const SavedCardSelector = forwardRef(function SavedCardSelector({
                 submitLabel={
                   guardarNueva
                     ? 'Guardar tarjeta'
-                    : (amount ? `Pagar $${amount.toLocaleString('es-AR')}` : 'Pagar')
+                    : (etiquetaPagar ?? (amount ? `Pagar $${amount.toLocaleString('es-AR')}` : 'Pagar'))
                 }
                 onSuccess={guardarNueva ? handleNewCardSaved : handleNewCardCharge}
                 onError={(err) => {
