@@ -1,10 +1,28 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Lightning, Clock, CircleNotch, Warning } from '@phosphor-icons/react'
+import { Lightning, Clock, CircleNotch, Warning, CaretDown } from '@phosphor-icons/react'
 import { ondemandService } from '../../services/ondemandService'
 import { useVerticales } from '../../hooks/useVerticales'
 import { toast } from '../Toast'
 import { resumenPreconsulta } from '../../lib/resumenPreconsulta'
+import PreconsultaSummary, { hasPreconsulta } from './PreconsultaSummary'
+
+const SEXOS = { masculino: 'Masculino', femenino: 'Femenino', no_binario: 'No binario' }
+
+/**
+ * "34 años · Femenino · OSDE" — lo mínimo del paciente para decidir si se toma,
+ * SIN el nombre: el pedido lo ven todos los elegibles (migración 207). Espejo de
+ * `lineaDelPaciente` de la app (mobile/src/lib/solicitud.ts).
+ */
+function lineaDelPaciente(f) {
+  if (!f) return ''
+  return [
+    f.edad != null ? `${f.edad} ${f.edad === 1 ? 'año' : 'años'}` : null,
+    SEXOS[f.sexo] ?? null,
+    f.cobertura ?? null,
+    (f.para_familiar ?? f.paraFamiliar) ? 'Para un familiar' : null,
+  ].filter(Boolean).join(' · ')
+}
 
 /**
  * Pedidos de consulta inmediata sonando (Teleclínica por despacho, migración 191).
@@ -37,6 +55,16 @@ function haceCuanto(iso) {
 function PedidoCard({ pedido, nombreVertical, onAceptar, aceptando }) {
   const left = useSegundosRestantes(pedido.expiresAt)
   const pre = resumenPreconsulta(pedido.preconsultaData)
+  // La solicitud completa (cada pregunta con su respuesta) — Mateo, 2026-10-19:
+  // "no podemos pretender que sepan automáticamente los médicos".
+  const [abierta, setAbierta] = useState(false)
+  const [ficha, setFicha] = useState(null)
+  useEffect(() => {
+    let vivo = true
+    ondemandService.pacienteDelPedido(pedido.id).then(f => { if (vivo) setFicha(f) })
+    return () => { vivo = false }
+  }, [pedido.id])
+  const linea = lineaDelPaciente(ficha)
   if (left <= 0) return null
   const mm = String(Math.floor(left / 60)).padStart(2, '0')
   const ss = String(left % 60).padStart(2, '0')
@@ -49,6 +77,7 @@ function PedidoCard({ pedido, nombreVertical, onAceptar, aceptando }) {
         <div className="flex-1 min-w-0">
           <p className="text-[15px] font-semibold text-text-primary truncate">Consulta inmediata · {nombreVertical}</p>
           <p className="text-xs text-text-secondary truncate">Paciente esperando · {haceCuanto(pedido.createdAt)}</p>
+          {linea && <p className="text-xs text-text-secondary truncate" data-testid="pedido-paciente">{linea}</p>}
         </div>
         <span className={`hidden sm:flex items-center gap-1 text-xs font-mono tabular-nums shrink-0 ${left <= 30 ? 'text-danger' : 'text-text-secondary'}`}>
           <Clock className="h-3.5 w-3.5" /> {mm}:{ss}
@@ -73,8 +102,22 @@ function PedidoCard({ pedido, nombreVertical, onAceptar, aceptando }) {
               </span>
             )}
           </p>
-          {pre.detalle && <p className="text-xs text-text-secondary mt-0.5">{pre.detalle}</p>}
+          {pre.detalle && !abierta && <p className="text-xs text-text-secondary mt-0.5">{pre.detalle}</p>}
         </div>
+      )}
+      {hasPreconsulta(pedido.preconsultaData) && (
+        <>
+          <button
+            type="button"
+            onClick={() => setAbierta(a => !a)}
+            className="self-start inline-flex items-center gap-1 text-sm font-semibold text-brand hover:underline"
+            data-testid="pedido-ver-solicitud"
+          >
+            {abierta ? 'Ocultar solicitud' : 'Ver solicitud completa'}
+            <CaretDown className={`h-3.5 w-3.5 transition-transform ${abierta ? 'rotate-180' : ''}`} />
+          </button>
+          {abierta && <PreconsultaSummary preconsulta={pedido.preconsultaData} />}
+        </>
       )}
     </div>
   )
