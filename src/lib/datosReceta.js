@@ -62,11 +62,18 @@ export function listar(campos) {
   return `${l.slice(0, -1).join(', ')} y ${l[l.length - 1]}`
 }
 
-/** Opciones de sexo, con los mismos valores que ya usa la base. */
+/**
+ * Opciones de sexo, con los valores que ACEPTA la base (`profiles_gender_check`:
+ * masculino, femenino, no_binario, prefiero_no_decir). Hasta el 2026-10-18 la
+ * tercera era 'otro', que la base rechaza: elegirla daba error al guardar en el
+ * onboarding del profesional, la preconsulta y "Datos para recetar". La receta
+ * la manda como 'X', igual que el DNI argentino. Control:
+ * `scripts/verificar-onboarding-paciente.mjs`.
+ */
 export const OPCIONES_SEXO = [
-  { value: 'femenino',  label: 'Femenino' },
-  { value: 'masculino', label: 'Masculino' },
-  { value: 'otro',      label: 'Otro' },
+  { value: 'femenino',   label: 'Femenino' },
+  { value: 'masculino',  label: 'Masculino' },
+  { value: 'no_binario', label: 'X (no binario)' },
 ]
 
 /**
