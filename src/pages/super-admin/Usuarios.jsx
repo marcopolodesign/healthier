@@ -359,7 +359,7 @@ export default function SuperAdminUsuarios() {
                             {patient._c.faltan.length > 0 && (
                               <div className="flex gap-1 flex-wrap">
                                 {patient._c.faltan.filter((f) => f !== 'Sin consentimiento').slice(0, 1).map((f) => (
-                                  <span key={f} className="status-badge status-pending">{f}</span>
+                                  <span key={f} className="status-badge status-pending whitespace-nowrap">{f}</span>
                                 ))}
                                 {patient._c.faltan.filter((f) => f !== 'Sin consentimiento').length > 1 && (
                                   <span className="status-badge">+{patient._c.faltan.filter((f) => f !== 'Sin consentimiento').length - 1}</span>

@@ -107,7 +107,7 @@ export default function PacienteOnboardingDrawer({ paciente, onClose }) {
                       {!s.obligatorio && <span className="ml-1.5 text-gray-400 font-normal">opcional</span>}
                     </p>
                     <p className="text-sm text-gray-500">
-                      {det ?? (s.done ? 'Cargado' : s.faltan.length ? s.faltan.join(' · ') : 'Pendiente')}
+                      {[det, s.faltan.join(' · ')].filter(Boolean).join(' — ') || (s.done ? 'Cargado' : 'Pendiente')}
                     </p>
                   </div>
                 </li>
