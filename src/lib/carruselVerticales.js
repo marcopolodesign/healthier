@@ -13,11 +13,18 @@
  * @param pros        profesionales on demand con presencia vigente
  * @param estaDisponible (pro) => bool — `disponibleAhora` de professionalService
  */
+/**
+ * Un pedido de Clínica también les suena a los pediatras (Mateo, 2026-10-19),
+ * así que con un pediatra en línea la tarjeta de Clínica se prende. Tiene que
+ * coincidir con `TAMBIEN_SUENA` de la Edge Function `ondemand-despacho`.
+ */
+export const TAMBIEN_SUENA = { clinica: ['pediatria'] }
+
 export function ordenarCarrusel(verticales, porVertical, pros, estaDisponible = () => true) {
   const conDisponibilidad = (verticales ?? [])
     .filter(v => !v.comingSoon)
     .map(v => {
-      const slugs = porVertical?.[v.id] || []
+      const slugs = [...(porVertical?.[v.id] || []), ...(TAMBIEN_SUENA[v.id] || [])]
       return { ...v, disponible: (pros ?? []).some(p => slugs.includes(p.specialty) && estaDisponible(p)) }
     })
   return [

@@ -31,10 +31,17 @@ const verticales = [
 ]
 const porVertical = { clinica: ['medicina_general', 'cardiologia'], pediatria: ['pediatria'], nutricion: ['nutricion'], mente: ['psicologia'] }
 
-let r = ordenarCarrusel(verticales, porVertical, [{ specialty: 'pediatria' }])
-check(r[0].id === 'pediatria' && r[0].disponible, 'con un pediatra en línea, Pediatría va primera')
-check(r.slice(1).map(v => v.id).join() === 'clinica,nutricion,mente', 'el resto sigue en el orden del admin')
+let r = ordenarCarrusel(verticales, porVertical, [{ specialty: 'nutricion' }])
+check(r[0].id === 'nutricion' && r[0].disponible, 'con un nutricionista en línea, Nutrición va primera')
+check(r.slice(1).map(v => v.id).join() === 'clinica,pediatria,mente', 'el resto sigue en el orden del admin')
 check(!r.some(v => v.id === 'odontologia'), 'una vertical deshabilitada no entra')
+
+// Un pedido de Clínica también les suena a los pediatras (2026-10-19).
+r = ordenarCarrusel(verticales, porVertical, [{ specialty: 'pediatria' }])
+check(r.slice(0, 2).map(v => v.id).join() === 'clinica,pediatria' && r[0].disponible && r[1].disponible,
+  'con sólo un pediatra en línea se prenden Clínica y Pediatría')
+r = ordenarCarrusel(verticales, porVertical, [{ specialty: 'cardiologia' }])
+check(r.find(v => v.id === 'pediatria').disponible === false, 'un clínico en línea NO prende Pediatría (es en un solo sentido)')
 
 r = ordenarCarrusel(verticales, porVertical, [{ specialty: 'psicologia' }, { specialty: 'cardiologia' }])
 check(r.map(v => v.id).join() === 'clinica,mente,pediatria,nutricion', 'dos con gente: las dos primero, en orden del admin')
