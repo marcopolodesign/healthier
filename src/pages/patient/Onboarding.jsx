@@ -60,8 +60,16 @@ const evento = i => ({ step: i + 2, step_name: PASOS_PACIENTE[i]?.key, flow: 'pa
  * por los que ya tiene completos). FINAL si no queda ninguno.
  */
 const siguientePendiente = (perfil, desde) => {
-  const i = completitudPaciente(perfil).pasos.findIndex((p, j) => j > desde && !p.done)
-  return i === -1 ? FINAL : i
+  const { pasos } = completitudPaciente(perfil)
+  const i = pasos.findIndex((p, j) => j > desde && !p.done)
+  if (i !== -1) return i
+  // Al que está bloqueado no se le da el fin sin los obligatorios, aunque haya
+  // entrado por `?paso=` a uno posterior: vuelve al primero que le falta.
+  if (onboardingBloqueante(perfil)) {
+    const obligatorio = pasos.findIndex(p => p.obligatorio && !p.done)
+    if (obligatorio !== -1) return obligatorio
+  }
+  return FINAL
 }
 
 export default function PatientOnboarding({ profile, onProfileUpdate }) {

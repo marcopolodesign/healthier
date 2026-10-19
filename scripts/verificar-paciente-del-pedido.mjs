@@ -6,7 +6,9 @@
  *   - que el profesional elegible no vea el nombre, la edad, el sexo o la
  *     cobertura del paciente antes de aceptar (la hoja del llamado queda muda);
  *   - que alguien que NO puede tomar el pedido (otro paciente, un profesional
- *     fuera del on-demand) lea esos datos.
+ *     fuera del on-demand) lea esos datos;
+ *   - que una cuenta de prueba lea a un paciente real o al revés (209: la
+ *     función tiene que pasar por `cuentas_compatibles`, regla de la 186).
  *
  * Usa las cuentas de `seed-llamado-profesional.mjs` (las deja listas sola).
  *   node scripts/verificar-paciente-del-pedido.mjs
@@ -62,6 +64,16 @@ await fetch(`${URL}/functions/v1/ondemand-despacho`, {
 })
 const { data: f3 } = await pro.rpc('paciente_del_pedido', { p_request_id: requestId })
 ok(f3 == null, 'con el pedido cancelado, el profesional ya no lo lee')
+
+// 209: el aislamiento de cuentas de prueba (186) vive en la definición.
+if (env.SUPABASE_ACCESS_TOKEN && env.HEALTHIER_STAGING_SUPABASE_REF) {
+  const r = await fetch(`https://api.supabase.com/v1/projects/${env.HEALTHIER_STAGING_SUPABASE_REF}/database/query`, {
+    method: 'POST', headers: { Authorization: `Bearer ${env.SUPABASE_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: "select pg_get_functiondef('public.paciente_del_pedido(uuid)'::regprocedure) as def" }),
+  })
+  const def = (await r.json())?.[0]?.def ?? ''
+  ok(def.includes('cuentas_compatibles'), 'paciente_del_pedido respeta el aislamiento de cuentas de prueba (209)')
+} else ok(false, 'sin SUPABASE_ACCESS_TOKEN no se pudo leer la definición de paciente_del_pedido')
 
 console.log(fallos ? `\n${fallos} en rojo` : '\nTodo en verde')
 process.exit(fallos ? 1 : 0)
