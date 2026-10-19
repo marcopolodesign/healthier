@@ -124,8 +124,9 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
   useEffect(() => {
     if (!profile?.id || step >= FINAL) return
     if ((profile.pacientePasoOnboarding ?? -1) >= step) return
+    // Sólo el paso: aplicar la fila entera podía pisar con una lectura vieja un
+    // guardado más nuevo (la marca de fin) si esta respuesta llegaba última.
     profilesService.update(profile.id, { pacientePasoOnboarding: step })
-      .then(p => onProfileUpdate?.(p))
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, profile?.id])
