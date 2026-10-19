@@ -63,6 +63,12 @@ const ok = (cond, msg) => { console.log(`${cond ? '✅' : '❌'} ${msg}`); if (!
 const VALIDOS_SEXO = ['masculino', 'femenino', 'no_binario', 'prefiero_no_decir'] // profiles_gender_check
 ok(OPCIONES_SEXO.every(o => VALIDOS_SEXO.includes(o.value)), `web: opciones de sexo válidas para la base (${OPCIONES_SEXO.map(o => o.value)})`)
 
+// Revisión pre-prod 2026-10-19: entrando por `?paso=salud` se podía terminar el
+// registro sin los obligatorios. El "siguiente" del bloqueado vuelve al primero
+// que le falta (web y app).
+const vuelveAlObligatorio = src => /const siguientePendiente[\s\S]{0,600}onboardingBloqueante\(perfil\)[\s\S]{0,200}obligatorio && !p\.done/.test(src)
+ok(vuelveAlObligatorio(readFileSync(new URL('../src/pages/patient/Onboarding.jsx', import.meta.url), 'utf8')), 'web: el bloqueado no termina sin los obligatorios (?paso= no lo saltea)')
+
 const mobile = join(homedir(), 'Local', 'Healthier', 'mobile')
 const mobileDir = process.env.MOBILE_DIR || mobile
 if (existsSync(join(mobileDir, 'app'))) {
@@ -78,6 +84,7 @@ if (existsSync(join(mobileDir, 'app'))) {
   ok(/onboardingBloqueante/.test(idx) && /onboardingBloqueante/.test(tabs), 'app: el arranque y las tabs mandan al wizard al paciente nuevo')
   const onb = leer('app/onboarding.tsx')
   ok(/dni/.test(onb) && /financiadorId|financiador_id/.test(onb) && /consentimientoAt|consentimiento_at/.test(onb), 'app: el onboarding guarda DNI, cobertura del listado y consentimiento')
+  ok(vuelveAlObligatorio(onb), 'app: el bloqueado no termina sin los obligatorios (?paso= no lo saltea)')
 } else {
   console.log(`⚠️  sin repo de la app en ${mobileDir} — se saltean los chequeos de mobile`)
 }
