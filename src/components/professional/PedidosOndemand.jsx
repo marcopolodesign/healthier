@@ -10,13 +10,15 @@ import PreconsultaSummary, { hasPreconsulta } from './PreconsultaSummary'
 const SEXOS = { masculino: 'Masculino', femenino: 'Femenino', no_binario: 'No binario' }
 
 /**
- * "34 años · Femenino · OSDE" — lo mínimo del paciente para decidir si se toma,
- * SIN el nombre: el pedido lo ven todos los elegibles (migración 207). Espejo de
- * `lineaDelPaciente` de la app (mobile/src/lib/solicitud.ts).
+ * "Sofía Méndez · 34 años · Femenino · OSDE" — lo mínimo del paciente para
+ * decidir si se toma (migraciones 207/208; el nombre se muestra antes de
+ * aceptar por decisión de Mateo, 2026-10-19). Espejo de `lineaDelPaciente` de
+ * la app (mobile/src/lib/solicitud.ts).
  */
 function lineaDelPaciente(f) {
   if (!f) return ''
   return [
+    f.nombre?.trim() || null,
     f.edad != null ? `${f.edad} ${f.edad === 1 ? 'año' : 'años'}` : null,
     SEXOS[f.sexo] ?? null,
     f.cobertura ?? null,
