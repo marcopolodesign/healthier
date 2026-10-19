@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, VideoCamera, Clock, CircleNotch, Check, ShieldCheck, CreditCard, Warning,
+  ArrowLeft, VideoCamera, Clock, CircleNotch, ShieldCheck, CreditCard, Warning,
   ArrowClockwise, UserCircle, User, CaretDown, ClipboardText,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
@@ -12,6 +12,9 @@ import { ondemandService, BUSQUEDA_MAX_MS } from '../../services/ondemandService
 import PatientSheet from '../../components/patient/PatientSheet'
 import BuscandoMedico from '../../components/teleclinica/BuscandoMedico'
 import PreconsultaForm from '../../components/patient/PreconsultaForm'
+import BarraDePasos from '../../components/patient/BarraDePasos'
+import { faltanDatosPaciente } from '../../lib/datosReceta'
+import { preguntasTeleclinica, vistaTeleclinica, puedeSolicitar, etiquetaBotonPago, ETIQUETA_PAGAR } from '../../lib/checkoutTeleclinica'
 import { resumenPreconsulta } from '../../lib/resumenPreconsulta'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
@@ -64,12 +67,21 @@ export default function OnDemand({ profile }) {
   // El perfil propio actualizado si la preconsulta guardó DNI/nacimiento/sexo:
   // así "Cambiar" no los vuelve a pedir.
   const [perfilPropio, setPerfilPropio] = useState(null)
-  const [showPreconsulta, setShowPreconsulta] = useState(false)
+  // Opción B (Mateo, 2026-10-19): primero las preguntas, después el pago.
+  // `editando` es volver a las preguntas desde el pago ("Cambiar" o la flecha);
+  // `pasoPre` es el paso de las preguntas, que la flecha de la página retrocede.
+  const [editando, setEditando] = useState(false)
+  const [pasoPre, setPasoPre] = useState(0)
+  // N de "Paso X de N", fijado al terminar las preguntas: si ahí se guardaron
+  // el DNI y la fecha de nacimiento, el paso de datos deja de contar y el pago
+  // no puede pasar a decir otro total.
+  const [totalAlPagar, setTotalAlPagar] = useState(null)
   const resumenPre = resumenPreconsulta(preconsulta)
   const perfilAtendido = familiarElegido ? { ...(familiarElegido.familiar ?? {}), id: familiarElegido.familiarId } : (perfilPropio ?? profile)
   // Con `?para=` el familiar se conoce cuando carga el grupo: hasta entonces
   // no se abre la preconsulta, o los datos de la receta irían al titular.
   const preconsultaLista = !cargandoFamiliares && (!paraId || paraId === profile?.id || Boolean(familiarElegido))
+  const cantPreguntas = preguntasTeleclinica({ pideDatos: faltanDatosPaciente(perfilAtendido).length > 0 })
   const navigate = useNavigate()
   const { verticalesById, cargando: cargandoVerticales } = useVerticales()
   const { porSlug } = useEspecialidades()
@@ -207,19 +219,18 @@ export default function OnDemand({ profile }) {
     }
   }
 
+  // La pantalla de pago sólo existe con la preconsulta respondida
+  // (`vistaTeleclinica`); estos cortes son la segunda llave, por si algún día
+  // cambia el render: sin preconsulta no sale ningún pedido.
   const handlePay = () => {
     if (addCardMode) return
-    if (!preconsulta) { setShowPreconsulta(true); return }
+    if (!puedeSolicitar({ preconsulta })) { setEditando(true); return }
     if (paymentExempt) return conPago(async () => null)
     if (!selectedCardId) return
     return conPago(() => cardSelectorRef.current?.getSavedCardCharge())
   }
-  // La tarjeta nueva también pasa por la preconsulta. El token es de un solo
-  // uso: si falta la preconsulta, se guarda y el pago sigue solo al terminarla,
-  // sin volver a tipear la tarjeta.
-  const cargoPendienteRef = useRef(null)
   const handleNewCardCharge = (chargeInfo) => {
-    if (!preconsulta) { cargoPendienteRef.current = chargeInfo; setShowPreconsulta(true); return }
+    if (!puedeSolicitar({ preconsulta })) { setEditando(true); return }
     return conPago(async () => chargeInfo)
   }
 
@@ -415,12 +426,34 @@ export default function OnDemand({ profile }) {
     : handlePay
   const alPagarNueva = rechazado ? (charge) => pagarDeNuevo(async () => charge) : handleNewCardCharge
   const mostrarExento = paymentExempt && !rechazado
+  const vista = vistaTeleclinica({ preconsulta, rechazado, editando })
+  const totalPasos = vista === 'preguntas' ? cantPreguntas + 1 : (totalAlPagar ?? cantPreguntas + 1)
+
+  // La flecha de arriba: en las preguntas retrocede un paso (desde el primero,
+  // vuelve al pago si venía de "Cambiar", o al inicio); desde el pago vuelve a
+  // la última pregunta.
+  const atras = () => {
+    if (rechazado) return setShowExitConfirm(true)
+    if (vista === 'preguntas') {
+      if (pasoPre > 0) return setPasoPre(p => p - 1)
+      if (editando && preconsulta) return setEditando(false)
+      return navigate('/paciente/dashboard')
+    }
+    // La última pregunta según lo que falta HOY: si en la vuelta anterior se
+    // guardaron DNI y nacimiento, el paso "Tus datos" ya no existe.
+    setPasoPre(cantPreguntas - 1)
+    setEditando(true)
+  }
+  const cambiarPreconsulta = () => { setPasoPre(0); setEditando(true) }
+
+  const sinBoton = paying || (missingCard && !mostrarExento) || (isDemoMode && !mostrarExento)
 
   return (
     <div className="absolute inset-0 bg-bg-primary z-[100] flex flex-col animate-fade-in">
-      <div className="flex items-center gap-3 px-4 pt-6 pb-4 sm:px-6 sm:pt-8 flex-shrink-0">
+      <div className="flex items-center gap-3 px-4 pt-6 pb-4 sm:px-6 sm:pt-8 flex-shrink-0 w-full max-w-[488px] mx-auto">
         <button
-          onClick={() => (rechazado ? setShowExitConfirm(true) : navigate('/paciente/dashboard'))}
+          onClick={atras}
+          aria-label="Volver"
           className="w-11 h-11 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50 shrink-0"
         >
           <ArrowLeft className="h-5 w-5 text-gray-900" />
@@ -431,38 +464,86 @@ export default function OnDemand({ profile }) {
         <h1 className="text-[20px] sm:text-[22px] font-light tracking-tight text-gray-900 leading-none">Tele-{vertical.nombre}</h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-10">
-        <div className="w-full sm:max-w-lg mx-auto">
-          {/* Para quién va primero, como un menú: "Para mí ⌄" (Mateo, 2026-10-09). */}
-          {familiares.length > 0 && !rechazado && (
-            <label className="relative mb-4 flex items-center gap-3 px-4 py-3 rounded-2xl border border-gray-200 bg-white cursor-pointer">
-              <User className="w-5 h-5 text-brand shrink-0" />
-              <span className="flex-1 min-w-0">
-                <span className="block text-[10px] font-semibold text-gray-400 uppercase tracking-widest">La consulta es</span>
-                <span className="block text-[15px] font-semibold text-gray-900 truncate">{etiquetaParaQuien}</span>
-              </span>
-              <CaretDown className="w-4 h-4 text-gray-500 shrink-0" />
-              <select
-                aria-label="¿Para quién es la consulta?"
-                value={paraId || profile?.id || ''}
-                onChange={e => { setParaId(e.target.value === profile?.id ? null : e.target.value); setPreconsulta(null) }}
-                className="absolute inset-0 opacity-0 cursor-pointer"
-              >
-                <option value={profile?.id}>Para mí</option>
-                {familiares.map(f => (
-                  <option key={f.familiarId} value={f.familiarId}>
-                    {nombreFamiliar(f)}{f.relationship ? ` · ${f.relationship}` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
+      {/* ── 1. Las preguntas — la pantalla entera, sin modal ─────────────────── */}
+      <div className={vista === 'preguntas' ? 'flex-1 min-h-0 flex flex-col w-full max-w-[488px] mx-auto' : 'hidden'}>
+        {preconsultaLista ? (
+          <PreconsultaForm
+            key={paraId || profile?.id || 'yo'}
+            inline
+            isOpen={vista === 'preguntas'}
+            consultationId={null}
+            pedirDatos
+            permitirOmitir={false}
+            profile={perfilAtendido}
+            step={pasoPre}
+            onStepChange={setPasoPre}
+            pasosExtra={1}
+            textoFinal="Continuar"
+            arriba={familiares.length > 0 && (
+              // Para quién va antes de la primera pregunta: lo que se contesta es
+              // de la persona atendida (Mateo, 2026-10-09).
+              <label className="relative mb-3 flex items-center gap-3 px-4 py-3 rounded-2xl border border-gray-200 bg-white cursor-pointer">
+                <User className="w-5 h-5 text-brand shrink-0" />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[11px] font-semibold text-gray-400 uppercase tracking-widest">La consulta es</span>
+                  <span className="block text-[15px] font-semibold text-gray-900 truncate">{etiquetaParaQuien}</span>
+                </span>
+                <CaretDown className="w-4 h-4 text-gray-500 shrink-0" />
+                <select
+                  aria-label="¿Para quién es la consulta?"
+                  value={paraId || profile?.id || ''}
+                  onChange={e => { setParaId(e.target.value === profile?.id ? null : e.target.value); setPreconsulta(null); setPasoPre(0) }}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                >
+                  <option value={profile?.id}>Para mí</option>
+                  {familiares.map(f => (
+                    <option key={f.familiarId} value={f.familiarId}>
+                      {nombreFamiliar(f)}{f.relationship ? ` · ${f.relationship}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            onProfileUpdate={(p) => { if (!familiarElegido && p) setPerfilPropio(p) }}
+            onSubmitted={(payload) => {
+              if (!payload) return
+              setTotalAlPagar(cantPreguntas + 1)
+              setPreconsulta(payload)
+              setEditando(false)
+            }}
+          />
+        ) : (
+          <div className="flex-1 flex items-center justify-center"><CircleNotch className="w-7 h-7 text-brand animate-spin" /></div>
+        )}
+      </div>
+
+      {/* ── 2. El pago — sólo con la preconsulta respondida ──────────────────── */}
+      {vista === 'pago' && (<>
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-6">
+        <div className="w-full max-w-[440px] mx-auto">
+          {!rechazado && <BarraDePasos paso={totalPasos} total={totalPasos} className="pt-1 mb-5" />}
+
+          {!rechazado && resumenPre && (
+            <div className="mb-4 flex items-start gap-3 px-4 py-3 rounded-2xl border border-gray-200 bg-white" data-testid="ondemand-preconsulta-resumen">
+              <ClipboardText className="w-5 h-5 text-brand shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">
+                    Qué te pasa{familiarElegido ? ` · ${etiquetaParaQuien}` : ''}
+                  </p>
+                  <button onClick={cambiarPreconsulta} className="text-[14px] font-medium text-brand shrink-0" data-testid="ondemand-preconsulta-cambiar">Cambiar</button>
+                </div>
+                <p className="text-[15px] font-semibold text-gray-900 truncate">{resumenPre.motivo}</p>
+                {resumenPre.detalle && <p className="text-[14px] text-gray-500 leading-snug line-clamp-2">{resumenPre.detalle}</p>}
+              </div>
+            </div>
           )}
 
           {puedeBonificar && !rechazado && (
-            <label className="mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-dashed border-brand/40 bg-brand-muted/30 cursor-pointer">
+            <label className="mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-brand/30 bg-brand-muted/30 cursor-pointer">
               <span className="min-w-0">
                 <span className="block text-[14px] font-semibold text-gray-900">Bonificar esta consulta</span>
-                <span className="block text-[12px] text-gray-500">Sólo lo ve tu cuenta. Para recorrer el flujo sin pagar.</span>
+                <span className="block text-[14px] text-gray-500">Sólo lo ve tu cuenta. Para recorrer el flujo sin pagar.</span>
               </span>
               <input
                 type="checkbox"
@@ -475,71 +556,45 @@ export default function OnDemand({ profile }) {
             </label>
           )}
 
-          {!rechazado && (
-            resumenPre ? (
-              <div className="mb-4 flex items-start gap-3 px-4 py-3 rounded-2xl border border-gray-200 bg-white" data-testid="ondemand-preconsulta-resumen">
-                <ClipboardText className="w-5 h-5 text-brand shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Qué te pasa</p>
-                  <p className="text-[15px] font-semibold text-gray-900 truncate">{resumenPre.motivo}</p>
-                  {resumenPre.detalle && <p className="text-[12px] text-gray-500 truncate">{resumenPre.detalle}</p>}
-                </div>
-                <button onClick={() => setShowPreconsulta(true)} className="text-[13px] font-semibold text-brand shrink-0">Cambiar</button>
-              </div>
-            ) : (
-              <button
-                data-testid="ondemand-preconsulta"
-                onClick={() => setShowPreconsulta(true)}
-                className="mb-4 w-full flex items-center gap-3 px-4 py-4 rounded-2xl border-2 border-dashed border-brand/50 bg-brand-muted/30 text-left"
-              >
-                <ClipboardText className="w-6 h-6 text-brand shrink-0" />
-                <span className="flex-1 min-w-0">
-                  <span className="block text-[15px] font-semibold text-gray-900">Contanos qué te pasa</span>
-                  <span className="block text-[12px] text-gray-500">Tres preguntas cortas. El profesional las lee antes de aceptar.</span>
-                </span>
-              </button>
-            )
-          )}
-
           {rechazado ? (
             <div className="mb-4 p-4 rounded-[24px] border border-danger/30 bg-danger/5 flex items-start gap-3" role="alert">
               <Warning className="w-5 h-5 text-danger shrink-0 mt-0.5" weight="fill" />
               <div className="flex-1 min-w-0">
                 <p className="text-[15px] font-semibold text-gray-900 leading-snug">{proName} ya aceptó, pero tu tarjeta fue rechazada</p>
-                <p className="text-[13px] text-gray-600 leading-snug mt-1">
+                <p className="text-[14px] text-gray-600 leading-snug mt-1">
                   {(explicacionRechazo?.motivo ?? 'Mercado Pago no autorizó el pago.')} Elegí otra tarjeta para seguir — te está esperando.
                 </p>
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-4 mb-4 p-4 bg-[#F8FAFC] rounded-[24px] border border-gray-200">
-              <div className="w-14 h-14 rounded-full shrink-0 bg-white border border-gray-100 flex items-center justify-center">
-                <VideoCamera className="w-6 h-6 text-brand" />
+            <div className="flex items-start gap-4 mb-5 p-4 bg-white rounded-[24px] border border-gray-200">
+              <div className="hidden sm:flex w-10 h-10 rounded-full shrink-0 bg-brand-muted items-center justify-center">
+                <VideoCamera className="w-5 h-5 text-brand" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-[16px] text-gray-900">Consulta inmediata por video</p>
-                <p className="text-[13px] text-gray-500">Con el primer profesional de {vertical.nombre} disponible</p>
+                <p className="font-semibold text-[16px] leading-tight text-gray-900">Consulta inmediata por video</p>
+                <p className="text-[14px] text-gray-500 leading-snug">El primer profesional disponible</p>
               </div>
-              <p className="text-[22px] text-gray-900 shrink-0">
+              <p className="text-[22px] leading-tight text-gray-900 shrink-0" data-testid="ondemand-precio">
                 {mostrarExento ? 'Bonificada' : `$${price.toLocaleString('es-AR')}`}
               </p>
             </div>
           )}
 
           <div className="mb-4">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Método de pago</p>
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Cómo pagás</p>
             {mostrarExento ? (
               <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-brand/30 bg-brand-muted">
                 <ShieldCheck size={18} weight="fill" className="text-brand" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-semibold text-gray-900">Consulta bonificada</p>
-                  <p className="text-[11px] text-gray-400">Sin cargo para tu cuenta</p>
+                  <p className="text-[14px] font-semibold text-gray-900">Consulta bonificada</p>
+                  <p className="text-[14px] text-gray-500">Sin cargo para tu cuenta</p>
                 </div>
               </div>
             ) : isDemoMode ? (
               <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-amber-200 bg-amber-50">
                 <CreditCard size={18} weight="fill" className="text-amber-600" />
-                <p className="text-[13px] text-gray-900">El pago con tarjeta no está disponible en este momento.</p>
+                <p className="text-[14px] text-gray-900">El pago con tarjeta no está disponible en este momento.</p>
               </div>
             ) : (
               <SavedCardSelector
@@ -550,6 +605,8 @@ export default function OnDemand({ profile }) {
                 payerEmail={profile?.email ?? ''}
                 amount={price ?? undefined}
                 disabled={paying}
+                compacto
+                etiquetaPagar={rechazado ? 'Pagar con esta tarjeta' : ETIQUETA_PAGAR}
                 onNewCardCharge={alPagarNueva}
                 onAddCardModeChange={next => { if (next) setErrorPago(null); setAddCardMode(next) }}
               />
@@ -562,71 +619,51 @@ export default function OnDemand({ profile }) {
                 <Warning className="w-5 h-5 text-danger shrink-0 mt-0.5" weight="fill" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[14px] font-semibold text-gray-900 leading-snug">{errorPago.motivo}</p>
-                  {errorPago.accion && <p className="text-[13px] text-gray-600 leading-snug mt-1">{errorPago.accion}</p>}
+                  {errorPago.accion && <p className="text-[14px] text-gray-600 leading-snug mt-1">{errorPago.accion}</p>}
                   {errorPago.codigo && <span className="text-[11px] text-gray-400 font-mono">{errorPago.codigo}</span>}
                 </div>
               </div>
             </div>
           )}
 
+          {/* Una sola nota: cuándo se cobra y que es por Mercado Pago (Felipe). */}
           {!mostrarExento && (
-            <div className="flex items-start gap-3 mb-3 p-4 bg-brand-muted/30 rounded-[20px] border border-brand/20">
-              <ShieldCheck className="w-5 h-5 text-brand shrink-0 mt-0.5" weight="fill" />
-              <p className="text-[13px] text-gray-600 leading-snug">
+            <div className="flex items-start gap-3 mb-2 px-1" data-testid="ondemand-nota-pago">
+              {isDemoMode
+                ? <ShieldCheck className="w-5 h-5 text-brand shrink-0 mt-0.5" weight="fill" />
+                : <MercadoPagoMark className="w-5 h-5 shrink-0 mt-0.5" />}
+              <p className="text-[14px] text-gray-600 leading-snug">
                 {rechazado
                   ? 'Reservamos el monto en tu tarjeta y se cobra cuando termina la consulta.'
-                  : 'No te cobramos nada hasta que un profesional acepte. Ahí reservamos el monto y se cobra cuando termina la consulta. Si nadie acepta, no se cobra.'}
+                  : 'No te cobramos nada hasta que un profesional acepte. Si nadie acepta, no se cobra.'}
+                {!isDemoMode && ' Pago protegido por Mercado Pago, sólo con tarjeta de crédito.'}
               </p>
             </div>
           )}
 
-          {!mostrarExento && !isDemoMode && (
-            <div className="flex items-start gap-3 mb-6 p-4 bg-amber-50 rounded-[20px] border border-amber-200">
-              <MercadoPagoMark className="w-5 h-5 shrink-0 mt-0.5" />
-              <p className="text-[13px] text-amber-700 leading-snug">Compra protegida y solo válida con tarjeta de crédito a través de Mercado Pago.</p>
-            </div>
-          )}
-
-          {!addCardMode && (
-            <button
-              data-testid="ondemand-pagar"
-              onClick={alPagar}
-              disabled={paying || (!!preconsulta || rechazado) && ((missingCard && !mostrarExento) || (isDemoMode && !mostrarExento))}
-              className={`w-full py-5 rounded-[20px] font-semibold text-[17px] transition-all flex justify-center items-center gap-2
-                ${paying || ((!!preconsulta || rechazado) && missingCard && !mostrarExento) ? 'bg-gray-100 text-gray-400' : 'bg-brand text-white hover:bg-brand-hover active:scale-95'}`}
-            >
-              {paying
-                ? <><CircleNotch className="w-5 h-5 animate-spin" /> {rechazado ? 'Autorizando…' : 'Procesando…'}</>
-                : !rechazado && !preconsulta
-                  ? <><ClipboardText className="w-5 h-5" /> Contanos qué te pasa</>
-                : errorPago
-                  ? <><ArrowClockwise className="w-5 h-5" /> Reintentar</>
-                  : mostrarExento
-                    ? <><Check className="w-5 h-5" /> Pedir consulta</>
-                    : <><Check className="w-5 h-5" /> {rechazado ? 'Pagar con esta tarjeta' : `Pagar $${price.toLocaleString('es-AR')}`}</>}
-            </button>
-          )}
         </div>
       </div>
 
-      <PreconsultaForm
-        isOpen={showPreconsulta && preconsultaLista}
-        consultationId={null}
-        pedirDatos
-        permitirOmitir={false}
-        profile={perfilAtendido}
-        onClose={() => setShowPreconsulta(false)}
-        onProfileUpdate={(p) => { if (!familiarElegido && p) setPerfilPropio(p) }}
-        onSubmitted={(payload) => {
-          setShowPreconsulta(false)
-          if (!payload) return
-          setPreconsulta(payload)
-          const cargo = cargoPendienteRef.current
-          cargoPendienteRef.current = null
-          if (cargo) conPagoCon(payload, cargo)
-        }}
-      />
-
+      {/* El botón queda fijo abajo: en 390 salía cortado (Felipe). Con la
+          tarjeta nueva abierta no va, el formulario trae el suyo. */}
+      {!addCardMode && (
+        <div className="flex-shrink-0 px-4 sm:px-6 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-bg-primary border-t border-gray-100">
+          <div className="w-full max-w-[440px] mx-auto">
+            <button
+              data-testid="ondemand-pagar"
+              onClick={alPagar}
+              disabled={sinBoton}
+              className={`w-full py-5 rounded-[20px] font-semibold text-[17px] transition-colors flex justify-center items-center gap-2
+                ${sinBoton ? 'bg-[#E9EBEA] text-[#9AA0A6]' : 'bg-brand text-white hover:bg-brand-hover'}`}
+            >
+              {paying && <CircleNotch className="w-5 h-5 animate-spin" />}
+              {!paying && errorPago && <ArrowClockwise className="w-5 h-5" />}
+              {etiquetaBotonPago({ paying, rechazado, errorPago: Boolean(errorPago), exento: mostrarExento })}
+            </button>
+          </div>
+        </div>
+      )}
+      </>)}
       <PatientSheet open={showExitConfirm} onClose={() => setShowExitConfirm(false)} maxWidth="max-w-md">
         <div className="px-6 pt-2 pb-8">
           <h2 className="text-[22px] font-light text-gray-900 mb-2 text-center leading-tight">¿Cancelar la consulta?</h2>
