@@ -7,6 +7,9 @@
  *
  * Qué cuida, y por qué cada cosa:
  *
+ *   0. El bloqueo (migración 206): sólo el paciente NUEVO queda obligado al
+ *      wizard hasta terminarlo; los que ya existían, nunca; un cliente no puede
+ *      apagarse la marca.
  *   1. La lógica de pasos (lib/pacienteOnboarding.js): qué cuenta como hecho.
  *      La usan el wizard, la tarjeta del inicio y el super admin; si se rompe,
  *      a un paciente completo se le piden datos o uno incompleto no se entera.
@@ -30,7 +33,7 @@ import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
 const aqui = dirname(fileURLToPath(import.meta.url))
-const { completitudPaciente, debeCompletarPerfil, PASOS_PACIENTE } = await import(join(aqui, '../src/lib/pacienteOnboarding.js'))
+const { completitudPaciente, onboardingBloqueante, PASOS_PACIENTE } = await import(join(aqui, '../src/lib/pacienteOnboarding.js'))
 const { OPCIONES_SEXO } = await import(join(aqui, '../src/lib/datosReceta.js'))
 
 let fallas = 0
@@ -47,9 +50,12 @@ const ok = (cond, msg) => { console.log(`${cond ? '✅' : '❌'} ${msg}`); if (!
   ok(!completitudPaciente({ ...base, coverageType: 'financiador', financiadorId: null }).obligatoriosCompletos, 'obra social sin id del listado NO cuenta')
   ok(completitudPaciente({ ...base, coverageType: 'financiador', financiadorId: 28 }).primerPendiente === 3, 'obligatorios completos → abre en "Salud"')
   ok(!completitudPaciente({ ...base, dni: '123', coverageType: 'particular' }).obligatoriosCompletos, 'DNI de 3 dígitos no cuenta')
-  ok(!debeCompletarPerfil({ role: 'patient', titularId: 'x' }), 'familiar a cargo no recibe el aviso')
-  ok(!debeCompletarPerfil({ role: 'professional' }), 'profesional no recibe el aviso')
-  ok(debeCompletarPerfil({ role: 'patient' }), 'paciente vacío sí recibe el aviso')
+  ok(onboardingBloqueante({ role: 'patient', requiereOnboarding: true }), 'paciente nuevo sin terminar: bloqueado')
+  ok(!onboardingBloqueante({ role: 'patient', requiereOnboarding: true, onboardingCompletadoAt: '2026-10-19T00:00:00Z' }), 'paciente nuevo que terminó: libre')
+  ok(!onboardingBloqueante({ role: 'patient', requiereOnboarding: false }), 'paciente que ya existía: nunca bloqueado (aunque le falten datos)')
+  ok(!onboardingBloqueante({ role: 'patient' }), 'sin la columna (base sin la 206): no bloquea')
+  ok(!onboardingBloqueante({ role: 'patient', requiereOnboarding: true, titularId: 'x' }), 'familiar a cargo: nunca bloqueado')
+  ok(!onboardingBloqueante({ role: 'professional', requiereOnboarding: true }), 'profesional: nunca bloqueado')
   ok(PASOS_PACIENTE.map(p => p.key).join() === 'consentimiento,datos,cobertura,salud,emergencia', 'orden de pasos estable (es lo que guarda paciente_paso_onboarding)')
 }
 
@@ -66,6 +72,10 @@ if (existsSync(join(mobileDir, 'app'))) {
   const reg = leer('app/(auth)/register.tsx')
   ok(reg && !/role:\s*'paciente'/.test(reg), "app: el alta no manda role 'paciente'")
   ok(/role:\s*'patient'/.test(reg), "app: el alta manda role 'patient'")
+  const lib = leer('src/lib/pacienteOnboarding.ts')
+  ok(/requiere_onboarding === true/.test(lib) && /onboarding_completado_at/.test(lib), 'app: misma regla de bloqueo (requiere_onboarding y completado)')
+  const idx = leer('app/index.tsx'), tabs = leer('app/(tabs)/_layout.tsx')
+  ok(/onboardingBloqueante/.test(idx) && /onboardingBloqueante/.test(tabs), 'app: el arranque y las tabs mandan al wizard al paciente nuevo')
   const onb = leer('app/onboarding.tsx')
   ok(/dni/.test(onb) && /financiadorId|financiador_id/.test(onb) && /consentimientoAt|consentimiento_at/.test(onb), 'app: el onboarding guarda DNI, cobertura del listado y consentimiento')
 } else {
@@ -106,6 +116,12 @@ if (!process.argv.includes('--sin-base')) {
     if (eLogin) { await admin.auth.admin.updateUserById(uid, { email_confirm: true }); await pac.auth.signInWithPassword({ email, password: 'Prueba-12345' }) }
 
     const upd = async (cambios) => pac.from('profiles').update(cambios).eq('id', uid).select().single()
+    let r0 = await pac.from('profiles').select('requiere_onboarding').eq('id', uid).single()
+    ok(r0.data?.requiere_onboarding === true, `staging: el alta nueva entra con requiere_onboarding=true (${r0.data?.requiere_onboarding})`)
+    r0 = await upd({ requiere_onboarding: false })
+    ok(r0.data?.requiere_onboarding === true, 'staging: el paciente no puede apagarse la marca')
+    const { count: viejos } = await admin.from('profiles').select('id', { count: 'exact', head: true }).is('requiere_onboarding', null)
+    ok(viejos === 0, `staging: ningún perfil con la marca en NULL (${viejos})`)
     let r = await upd({ consentimiento_at: new Date().toISOString(), consentimiento_version: '3.0', paciente_paso_onboarding: 3 })
     ok(!r.error && r.data?.consentimiento_at, `staging: el paciente guarda su consentimiento ${r.error?.message ?? ''}`)
     r = await upd({ paciente_paso_onboarding: 1 })

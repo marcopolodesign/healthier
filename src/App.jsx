@@ -43,6 +43,7 @@ const PaginaGuia = lazy(() => import('./guia/Guia'))
 
 import PatientDashboard from './pages/patient/Dashboard'
 import PatientOnboarding from './pages/patient/Onboarding'
+import { onboardingBloqueante } from './lib/pacienteOnboarding'
 import PatientSearch from './pages/patient/Search'
 import PatientBuscarDisponibles from './pages/patient/BuscarDisponibles'
 import PatientNotificaciones from './pages/patient/Notificaciones'
@@ -146,6 +147,18 @@ import { ROLE_REDIRECTS } from './lib/roleRedirects'
 function RedirectToProfesional() {
   const { id } = useParams()
   return <Navigate to={`/paciente/profesional/${id}`} replace />
+}
+
+/**
+ * Paciente nuevo con el onboarding sin terminar (migración 206): no usa nada
+ * de /paciente/* hasta completar los tres pasos obligatorios. Siguen abiertas,
+ * porque están fuera de este bloque: /terminos, /guia, y cerrar sesión (que va
+ * dentro del wizard). Un paciente nuevo no puede tener una consulta o una
+ * emergencia en curso antes de terminar, así que no hay que dejarlas pasar.
+ */
+function RequireOnboarding({ profile, children }) {
+  if (onboardingBloqueante(profile)) return <Navigate to="/paciente/onboarding" replace />
+  return children
 }
 
 function RequireRole({ profile, allowed, children }) {
@@ -430,7 +443,9 @@ export default function App() {
         {/* Patient — mobile shell */}
         <Route element={
           <RequireRole profile={profile} allowed={['patient']}>
-            <PatientMobileLayout profile={profile} />
+            <RequireOnboarding profile={profile}>
+              <PatientMobileLayout profile={profile} />
+            </RequireOnboarding>
           </RequireRole>
         }>
           <Route path="/paciente/dashboard"       element={<PatientDashboard    profile={profile} />} />
@@ -495,7 +510,9 @@ export default function App() {
             navegación del sitio adentro del contenedor nativo sobra. */}
         <Route path="/paciente/agregar-tarjeta" element={
           <RequireRole profile={profile} allowed={['patient']}>
-            <PatientAgregarTarjeta profile={profile} />
+            <RequireOnboarding profile={profile}>
+              <PatientAgregarTarjeta profile={profile} />
+            </RequireOnboarding>
           </RequireRole>
         } />
 
