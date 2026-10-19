@@ -7,6 +7,38 @@ import { MENSAJE_BAJA } from '../../services/bajaService';
 import { useBulkSelection } from '../../hooks/useBulkSelection';
 import BulkActionBar from '../../components/super-admin/BulkActionBar';
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog';
+import PacienteOnboardingDrawer from '../../components/super-admin/PacienteOnboardingDrawer';
+import { toCamelCase } from '../../lib/supabase';
+import { completitudPaciente, PASOS_PACIENTE } from '../../lib/pacienteOnboarding';
+
+// Datos que mira el onboarding por pasos (lib/pacienteOnboarding.js). Los de
+// salud y emergencia se traen sólo para saber si están cargados: el drawer no
+// muestra el valor.
+const CAMPOS_ONBOARDING = 'phone, titular_id, dni, gender, birth_date, coverage_type, financiador_id, insurance_name, insurance_num, height_cm, weight_kg, blood_type, allergies, emergency_name, emergency_phone, consentimiento_at, consentimiento_version, paciente_paso_onboarding, onboarding_completado_at';
+
+/** Dónde se frenó: el primer paso sin hacer, o 'completo'. */
+function etapa(c) {
+  return c.completados === c.total ? 'completo' : PASOS_PACIENTE[c.primerPendiente].key;
+}
+
+const fechaCorta = (ts) => new Date(ts).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' });
+
+/** Cinco puntos, uno por paso; los obligatorios más oscuros. */
+function PuntosPerfil({ c }) {
+  return (
+    <div className="flex items-center gap-1" aria-label={`${c.completados} de ${c.total} pasos`}>
+      {c.pasos.map((s) => (
+        <span
+          key={s.key}
+          title={`${s.corto}${s.obligatorio ? '' : ' (opcional)'}: ${s.done ? 'hecho' : 'pendiente'}`}
+          className={`w-2.5 h-2.5 rounded-full ${
+            s.done ? (s.obligatorio ? 'bg-brand' : 'bg-brand/50') : (s.obligatorio ? 'bg-gray-300' : 'bg-gray-200')
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function SuperAdminUsuarios() {
   const [patients, setPatients] = useState([]);
@@ -14,6 +46,9 @@ export default function SuperAdminUsuarios() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('todos');
   const [search, setSearch] = useState('');
+  const [perfilFilter, setPerfilFilter] = useState('todos');
+  const [etapaFilter, setEtapaFilter] = useState(null);
+  const [abierto, setAbierto] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -25,7 +60,7 @@ export default function SuperAdminUsuarios() {
       const [profilesRes, consultationsRes] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, email, full_name, created_at, utm_source, utm_medium, utm_campaign, es_prueba')
+          .select(`id, email, full_name, created_at, utm_source, utm_medium, utm_campaign, es_prueba, ${CAMPOS_ONBOARDING}`)
           .eq('role', 'patient')
           .is('deleted_at', null) // bajas lógicas (188) fuera
           .order('created_at', { ascending: false }),
@@ -42,7 +77,7 @@ export default function SuperAdminUsuarios() {
         map[row.patient_id] = (map[row.patient_id] || 0) + 1;
       }
 
-      setPatients(profilesRes.data || []);
+      setPatients((profilesRes.data || []).map((p) => ({ ...p, _c: completitudPaciente(toCamelCase(p)) })));
       setConsultationMap(map);
     } catch (err) {
       toast.error('Error al cargar usuarios');
@@ -56,6 +91,10 @@ export default function SuperAdminUsuarios() {
     const count = consultationMap[p.id] || 0;
     if (filter === 'con_consultas' && count === 0) return false;
     if (filter === 'sin_consultas' && count > 0) return false;
+    if (perfilFilter === 'completo' && !p._c.obligatoriosCompletos) return false;
+    if (perfilFilter === 'incompleto' && p._c.obligatoriosCompletos) return false;
+    if (perfilFilter === 'sin_consentimiento' && p.consentimiento_at) return false;
+    if (etapaFilter && (p.titular_id || etapa(p._c) !== etapaFilter)) return false;
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -77,7 +116,7 @@ export default function SuperAdminUsuarios() {
   }
 
   function exportCSV() {
-    const headers = ['Nombre', 'Email', 'UTM Source', 'UTM Campaign', 'Consultas', 'Registro'];
+    const headers = ['Nombre', 'Email', 'UTM Source', 'UTM Campaign', 'Consultas', 'Registro', 'Perfil', 'Le falta', 'Consentimiento'];
     const rows = filteredPatients.map((p) => [
       p.full_name || '',
       p.email || '',
@@ -85,6 +124,9 @@ export default function SuperAdminUsuarios() {
       p.utm_campaign || '',
       consultationMap[p.id] || 0,
       formatDate(p.created_at),
+      `${p._c.completados}/${p._c.total}`,
+      p._c.faltan.join(' · '),
+      p.consentimiento_at ? formatDate(p.consentimiento_at) : 'Sin consentimiento',
     ]);
 
     const csvContent = [headers, ...rows]
@@ -122,6 +164,19 @@ export default function SuperAdminUsuarios() {
     }
   }
 
+  // Embudo: dónde se frena cada paciente titular (los familiares a cargo no
+  // pasan por el wizard). Clic en una columna filtra la tabla.
+  const titulares = patients.filter((p) => !p.titular_id);
+  const embudo = [...PASOS_PACIENTE.map((s) => ({ key: s.key, label: s.corto })), { key: 'completo', label: 'Completo' }]
+    .map((e) => ({ ...e, n: titulares.filter((p) => etapa(p._c) === e.key).length }));
+
+  const perfilPills = [
+    { key: 'todos', label: 'Todos los perfiles' },
+    { key: 'completo', label: 'Perfil completo' },
+    { key: 'incompleto', label: 'Le faltan datos obligatorios' },
+    { key: 'sin_consentimiento', label: 'Sin consentimiento' },
+  ];
+
   const filterPills = [
     { key: 'todos', label: 'Todos' },
     { key: 'con_consultas', label: 'Con consultas' },
@@ -135,13 +190,58 @@ export default function SuperAdminUsuarios() {
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Usuarios (Pacientes)</h1>
           <p className="text-sm text-text-secondary mt-1">
-            {loading ? 'Cargando...' : `${filteredPatients.length} usuario${filteredPatients.length !== 1 ? 's' : ''} en total`}
+            {loading ? 'Cargando…' : `${filteredPatients.length} usuario${filteredPatients.length !== 1 ? 's' : ''} en total`}
           </p>
         </div>
         <button onClick={exportCSV} className="btn-secondary flex items-center gap-2 shrink-0">
           <DownloadSimple size={16} />
           Exportar CSV
         </button>
+      </div>
+
+      {/* Embudo del onboarding por pasos */}
+      {!loading && (
+        <div className="card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-medium text-gray-500">Dónde se frenan en el perfil</p>
+            {etapaFilter && (
+              <button type="button" onClick={() => setEtapaFilter(null)} className="text-sm font-medium text-brand hover:underline">
+                Ver todos
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+            {embudo.map((e) => (
+              <button
+                type="button"
+                key={e.key}
+                onClick={() => setEtapaFilter((prev) => (prev === e.key ? null : e.key))}
+                className={`text-center rounded-lg py-2 transition-colors ${
+                  etapaFilter === e.key ? 'bg-brand-muted ring-1 ring-brand' : 'hover:bg-gray-50'
+                }`}
+              >
+                <p className="text-2xl font-bold text-gray-900 tabular-nums">{e.n}</p>
+                <p className="text-sm text-gray-500 mt-0.5">{e.label}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2 flex-wrap">
+        {perfilPills.map((pill) => (
+          <button
+            key={pill.key}
+            onClick={() => setPerfilFilter(pill.key)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              perfilFilter === pill.key
+                ? 'bg-text-primary text-white'
+                : 'bg-white text-text-secondary border border-border hover:border-text-primary hover:text-text-primary'
+            }`}
+          >
+            {pill.label}
+          </button>
+        ))}
       </div>
 
       {/* Filters + Search */}
@@ -186,6 +286,8 @@ export default function SuperAdminUsuarios() {
                   <input type="checkbox" checked={selection.isAllSelected} onChange={selection.toggleAll} className="rounded border-border-default" />
                 </th>
                 <th className="table-header">Usuario</th>
+                <th className="table-header">Perfil</th>
+                <th className="table-header">Consentimiento</th>
                 <th className="table-header">Fuente UTM</th>
                 <th className="table-header">Consultas</th>
                 <th className="table-header">Registro</th>
@@ -215,7 +317,7 @@ export default function SuperAdminUsuarios() {
                 ))
               ) : filteredPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center">
+                  <td colSpan={8} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-3 text-text-tertiary">
                       <Users size={40} weight="thin" />
                       <span className="text-sm">No se encontraron usuarios</span>
@@ -226,9 +328,9 @@ export default function SuperAdminUsuarios() {
                 filteredPatients.map((patient) => {
                   const count = consultationMap[patient.id] || 0;
                   return (
-                    <tr key={patient.id} className="table-row">
+                    <tr key={patient.id} className="table-row cursor-pointer" onClick={() => setAbierto(patient)}>
                       <td className="table-cell">
-                        <input type="checkbox" checked={selection.isSelected(patient.id)} onChange={() => selection.toggle(patient.id)} className="rounded border-border-default" />
+                        <input type="checkbox" checked={selection.isSelected(patient.id)} onChange={() => selection.toggle(patient.id)} onClick={(e) => e.stopPropagation()} className="rounded border-border-default" />
                       </td>
                       {/* Usuario */}
                       <td className="table-cell">
@@ -245,6 +347,34 @@ export default function SuperAdminUsuarios() {
                           </p>
                           <p className="text-xs text-text-secondary mt-0.5">{patient.email}</p>
                         </div>
+                      </td>
+
+                      {/* Perfil — onboarding por pasos */}
+                      <td className="table-cell">
+                        {patient.titular_id ? (
+                          <span className="text-sm text-text-tertiary">Familiar a cargo</span>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <PuntosPerfil c={patient._c} />
+                            {patient._c.faltan.length > 0 && (
+                              <div className="flex gap-1 flex-wrap">
+                                {patient._c.faltan.filter((f) => f !== 'Sin consentimiento').slice(0, 1).map((f) => (
+                                  <span key={f} className="status-badge status-pending">{f}</span>
+                                ))}
+                                {patient._c.faltan.filter((f) => f !== 'Sin consentimiento').length > 1 && (
+                                  <span className="status-badge">+{patient._c.faltan.filter((f) => f !== 'Sin consentimiento').length - 1}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Consentimiento */}
+                      <td className="table-cell text-sm">
+                        {patient.consentimiento_at
+                          ? <span className="text-text-secondary tabular-nums">{fechaCorta(patient.consentimiento_at)}</span>
+                          : <span className="text-text-tertiary">Sin consentimiento</span>}
                       </td>
 
                       {/* UTM Source */}
@@ -272,7 +402,7 @@ export default function SuperAdminUsuarios() {
                         {formatDate(patient.created_at)}
                       </td>
                       <td className="table-cell">
-                        <button onClick={() => { selection.toggle(patient.id); setConfirmOpen(true); }} className="p-1 text-text-tertiary hover:text-danger transition-colors" title="Eliminar">
+                        <button onClick={(e) => { e.stopPropagation(); selection.toggle(patient.id); setConfirmOpen(true); }} className="p-1 text-text-tertiary hover:text-danger transition-colors" title="Eliminar">
                           <Trash className="h-4 w-4" />
                         </button>
                       </td>
@@ -284,6 +414,8 @@ export default function SuperAdminUsuarios() {
           </table>
         </div>
       </div>
+
+      {abierto && <PacienteOnboardingDrawer paciente={abierto} onClose={() => setAbierto(null)} />}
 
       <BulkActionBar count={selection.count} onDelete={() => setConfirmOpen(true)} onClear={selection.clear} />
       <ConfirmDeleteDialog

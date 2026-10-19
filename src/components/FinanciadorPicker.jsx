@@ -27,6 +27,9 @@ import { rctaService } from '../services/rctaService'
  */
 export default function FinanciadorPicker({
   coverageType, financiadorId, financiadorName, affiliateNumber, onChange,
+  // El onboarding del paciente muestra su propia elección grande ("Tengo obra
+  // social" / "Particular") y usa el picker sólo para buscar en el catálogo.
+  sinOpciones = false,
 }) {
   const [financiadores, setFinanciadores] = useState(null)
   const [error, setError] = useState(null)
@@ -83,7 +86,7 @@ export default function FinanciadorPicker({
 
   return (
     <div className="space-y-3">
-      <div>
+      {!sinOpciones && <div>
         <label className="form-label text-xs">¿Tiene cobertura?</label>
         <div className="flex gap-2">
           <Opcion value="financiador" label="Sí, obra social" desc="Se receta con cobertura" />
@@ -101,7 +104,7 @@ export default function FinanciadorPicker({
             Sin definir — opcional. Sin obra social, las recetas salen sin cobertura, como particular.
           </p>
         )}
-      </div>
+      </div>}
 
       {coverageType === 'financiador' && (
         <>

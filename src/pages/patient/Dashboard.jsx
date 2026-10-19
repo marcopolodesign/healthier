@@ -14,6 +14,7 @@ import ActiveAppointmentBanner from '../../components/patient/ActiveAppointmentB
 import ActivePharmacyOrderCard from '../../components/patient/ActivePharmacyOrderCard'
 import DerivacionCard from '../../components/patient/DerivacionCard'
 import MedicoCabeceraCard from '../../components/patient/MedicoCabeceraCard'
+import CompletarPerfilCard from '../../components/patient/CompletarPerfilCard'
 import MedicoCabeceraModal from '../../components/patient/MedicoCabeceraModal'
 import TourPaciente from '../../components/patient/TourPaciente'
 import PatientHeader from '../../components/patient/PatientHeader'
@@ -498,6 +499,12 @@ export default function PatientDashboard({ profile }) {
         <div className="px-6 patient-column pt-5 w-full flex flex-col gap-3 empty:hidden empty:pt-0">
           {activeEmergencyBanner}
           <ActiveAppointmentBanner profile={profile} />
+        </div>
+
+        {/* "Te faltan N datos" del onboarding por pasos — sólo mientras falte
+            algo obligatorio. Ver lib/pacienteOnboarding.js. */}
+        <div className="px-6 patient-column pt-5 w-full empty:hidden">
+          <CompletarPerfilCard profile={profile} />
         </div>
 
         {/* El pedido de farmacia en curso. Sale solo cuando no hay ninguno,
