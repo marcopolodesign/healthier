@@ -218,10 +218,18 @@ try {
       const { data: fila } = await admin.from('ondemand_requests').select('avisados, estado_pago, especialidades').eq('id', data.requestId).single()
       nota(`pedido ${data.requestId.slice(0, 8)} · avisados=${fila.avisados} · pago=${fila.estado_pago}`)
       // Un pedido de Clínica también les suena a los pediatras (2026-10-19).
+      // …y a nadie más: las especialidades del pedido son exactamente las de la
+      // vertical + las de TAMBIEN_SUENA (sólo Clínica → pediatría, en un sentido).
+      // `VERTICAL=pediatria` prueba que un pedido de Pediatría NO les suena a clínicos.
       if (VERTICAL === 'clinica') {
         fila.especialidades?.includes('pediatria')
           ? ok('el pedido de Clínica también les suena a los pediatras') : mal(`el pedido de Clínica no incluye a pediatría: ${fila.especialidades}`)
       }
+      const esperadas = [...new Set([...SLUGS, ...(VERTICAL === 'clinica' ? ['pediatria'] : [])])].sort().join()
+      const reales = [...new Set(fila.especialidades ?? [])].sort().join()
+      reales === esperadas
+        ? ok(`el pedido de ${VERTICAL} no les suena a otras verticales`)
+        : mal(`el pedido de ${VERTICAL} suena a especialidades de más o de menos: ${reales} (esperado ${esperadas})`)
       fila.avisados >= 2 ? ok(`el aviso salió a ${fila.avisados} profesionales`) : mal(`el aviso salió sólo a ${fila.avisados}`)
 
       const [vA, vB] = await Promise.all([proA, proB].map(p => p.c.from('ondemand_requests').select('id, preconsulta_data').eq('id', data.requestId)))
