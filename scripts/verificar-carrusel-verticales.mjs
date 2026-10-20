@@ -19,7 +19,7 @@
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
-import { ordenarCarrusel } from '../src/lib/carruselVerticales.js'
+import { ordenarCarrusel, TAMBIEN_SUENA } from '../src/lib/carruselVerticales.js'
 
 let fallas = 0
 const check = (ok, msg) => { console.log(`${ok ? '🟢' : '🔴'} ${msg}`); if (!ok) fallas++ }
@@ -40,6 +40,18 @@ check(!r.some(v => v.id === 'odontologia'), 'una vertical deshabilitada no entra
 r = ordenarCarrusel(verticales, porVertical, [{ specialty: 'pediatria' }])
 check(r.slice(0, 2).map(v => v.id).join() === 'clinica,pediatria' && r[0].disponible && r[1].disponible,
   'con sólo un pediatra en línea se prenden Clínica y Pediatría')
+// El mismo mapa en la función del despacho y en la app (si no, la tarjeta y el
+// timbre se despegan). MOBILE_DIR apunta a otra copia de la app.
+const sinComillas = t => t?.replace(/[\s'"]/g, '')
+const mapa = sinComillas(JSON.stringify(TAMBIEN_SUENA))
+const leerSiExiste = f => { try { return readFileSync(f, 'utf8') } catch { return null } }
+const normalizar = t => sinComillas(t?.match(/TAMBIEN_SUENA[^=]*=\s*(\{[^}]*\})/)?.[1])
+const funcion = leerSiExiste(new URL('../supabase/functions/ondemand-despacho/index.ts', import.meta.url))
+check(!!mapa && normalizar(funcion) === mapa, `la función del despacho usa el mismo TAMBIEN_SUENA (${mapa})`)
+const app = leerSiExiste(path.join(process.env.MOBILE_DIR || path.join(homedir(), 'Local', 'Healthier', 'mobile'), 'src/lib/carruselVerticales.ts'))
+if (app) check(normalizar(app) === mapa, 'la app usa el mismo TAMBIEN_SUENA en su carrusel')
+else console.log('⚠️  sin la app a mano: no se compara su TAMBIEN_SUENA')
+
 r = ordenarCarrusel(verticales, porVertical, [{ specialty: 'cardiologia' }])
 check(r.find(v => v.id === 'pediatria').disponible === false, 'un clínico en línea NO prende Pediatría (es en un solo sentido)')
 
