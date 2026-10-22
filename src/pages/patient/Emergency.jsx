@@ -5,7 +5,8 @@ import {
   User, CheckCircle, PhoneCall, MapPinLine, Ambulance, ShieldCheck,
 } from '@phosphor-icons/react'
 import { emergencyService, getSosSettings, SOS_FALLBACK } from '../../services/emergencyService'
-import { emergenciasVisible } from '../../lib/featureFlags'
+import { emergenciasVisible, puedeBonificarTeleclinica } from '../../lib/featureFlags'
+import { SOS_BONIFICAR_POR_DEFECTO, sosBonificada, camposBonificar } from '../../lib/bonificar'
 import { emergencyTrackingService, esReciente, FRESCURA_MINUTOS } from '../../services/emergencyTrackingService'
 import { getRoute, formatMeters, formatMinutes } from '../../lib/directions'
 import { mpService } from '../../services/mpService'
@@ -143,6 +144,12 @@ export default function Emergency({ profile }) {
   const [pagando, setPagando] = useState(false)
   const [errorPago, setErrorPago] = useState('')
   const cardSelectorRef = useRef(null)
+  // Interruptor "Bonificar" (Mateo, 2026-10-22): sólo lo ve la cuenta de la
+  // allowlist y arranca prendido. Esto sólo decide qué se muestra y qué se
+  // pide: el que bonifica es `mp-payment`, con el mail de la sesión.
+  const puedeBonificar = puedeBonificarTeleclinica(profile)
+  const [bonificar, setBonificar] = useState(SOS_BONIFICAR_POR_DEFECTO)
+  const bonificada = sosBonificada({ puedeBonificar, bonificar })
 
   // ── SOS settings — precio y disponibilidad, /super-admin/verticales ─────
   const [sosSettings, setSosSettings] = useState(null)
@@ -328,6 +335,26 @@ export default function Emergency({ profile }) {
     setPhase('triage')
   }
 
+  /** S.O.S. bonificado — sin tarjeta; el servidor vuelve a chequear la cuenta. */
+  const handleBonificado = async () => {
+    if (pagando) return
+    setPagando(true)
+    setErrorPago('')
+    try {
+      const fila = await asegurarSolicitud()
+      const resultado = await mpService.createPayment({
+        emergencyId: fila.id,
+        ...camposBonificar({ puedeBonificar, bonificar }),
+        description: 'Servicio de emergencias',
+      })
+      await trasReservar(resultado, fila)
+    } catch (err) {
+      setErrorPago(err?.message || 'No pudimos bonificar la emergencia.')
+    } finally {
+      setPagando(false)
+    }
+  }
+
   /** Tarjeta guardada — necesita re-tokenizar con el CVV (lo hace el selector). */
   const handlePagar = async () => {
     if (!selectedCardId || pagando) return
@@ -339,6 +366,7 @@ export default function Emergency({ profile }) {
       const resultado = await mpService.createPayment({
         emergencyId: fila.id,
         ...chargeInfo,
+        ...camposBonificar({ puedeBonificar, bonificar }),
         description: 'Servicio de emergencias',
       })
       await trasReservar(resultado, fila)
@@ -358,6 +386,7 @@ export default function Emergency({ profile }) {
       const resultado = await mpService.createPayment({
         emergencyId: fila.id,
         ...chargeInfo,
+        ...camposBonificar({ puedeBonificar, bonificar }),
         description: 'Servicio de emergencias',
       })
       await trasReservar(resultado, fila)
@@ -752,18 +781,35 @@ export default function Emergency({ profile }) {
               </div>
               <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                 <span className="text-[15px] font-semibold text-gray-900">Total</span>
-                <span className="text-[22px] font-light text-gray-900 tabular-nums">${precio}</span>
+                <span className="text-[22px] font-light text-gray-900 tabular-nums" data-testid="sos-total">{bonificada ? 'Bonificada' : `$${precio}`}</span>
               </div>
             </div>
 
+            {puedeBonificar && (
+              <label className="mb-5 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-brand/30 bg-brand-muted/30 cursor-pointer">
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-semibold text-gray-900">Bonificar esta emergencia</span>
+                  <span className="block text-[14px] text-gray-500">Sólo lo ve tu cuenta. Para recorrer el flujo sin pagar.</span>
+                </span>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  data-testid="sos-bonificar"
+                  checked={bonificar}
+                  onChange={e => { setBonificar(e.target.checked); setErrorPago(''); setAgregandoTarjeta(false) }}
+                  className="switch-bonificar"
+                />
+              </label>
+            )}
+
             {/* La frase más importante de la pantalla: lo que pasa con su plata. */}
-            <div className="flex items-start gap-3 rounded-[20px] bg-emerald-50 border border-emerald-100 px-4 py-3.5 mb-5">
+            {!bonificada && <div className="flex items-start gap-3 rounded-[20px] bg-emerald-50 border border-emerald-100 px-4 py-3.5 mb-5">
               <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
               <p className="text-[13px] text-emerald-800 leading-snug">
                 <span className="font-semibold">Reservamos ${precio} en tu tarjeta, no te lo cobramos todavía.</span>{' '}
                 Se cobra sólo si la ambulancia sale. Si cancelás antes, liberamos la reserva.
               </p>
-            </div>
+            </div>}
 
             {locationWarning && (
               <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-5 flex items-start gap-3">
@@ -781,7 +827,7 @@ export default function Emergency({ profile }) {
               </div>
             )}
 
-            {mpPublicKey ? (
+            {bonificada ? null : mpPublicKey ? (
               <SavedCardSelector
                 ref={cardSelectorRef}
                 selectedCardId={selectedCardId}
@@ -803,7 +849,27 @@ export default function Emergency({ profile }) {
 
         {/* Se esconde mientras el Brick de tarjeta nueva está abierto: ese trae
             su propio botón de submit y dos botones confunden. */}
-        {!agregandoTarjeta && (
+        {bonificada && (
+          <div className="flex-shrink-0 p-4 sm:p-6 bg-gradient-to-t from-bg-primary via-bg-primary/95 to-transparent">
+            <div className="w-full sm:max-w-lg mx-auto">
+              <button
+                onClick={handleBonificado}
+                disabled={pagando}
+                data-testid="sos-continuar-bonificado"
+                className={`w-full py-5 rounded-[24px] font-semibold text-[17px] flex justify-center items-center gap-3 transition-all
+                  ${!pagando
+                    ? 'bg-danger text-white shadow-[0_8px_25px_rgba(217,83,79,0.3)] hover:bg-danger-hover active:scale-95'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+              >
+                {pagando
+                  ? <><CircleNotch className="w-6 h-6 animate-spin" /> Pidiendo…</>
+                  : <>Continuar sin cargo</>
+                }
+              </button>
+            </div>
+          </div>
+        )}
+        {!bonificada && !agregandoTarjeta && (
           <div className="flex-shrink-0 p-4 sm:p-6 bg-gradient-to-t from-bg-primary via-bg-primary/95 to-transparent">
             <div className="w-full sm:max-w-lg mx-auto">
               <button

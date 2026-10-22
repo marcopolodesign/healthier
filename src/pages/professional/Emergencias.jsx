@@ -16,6 +16,7 @@ import { emergencyTrackingService } from '../../services/emergencyTrackingServic
 import { useCompartirUbicacionEmergencia } from '../../hooks/useCompartirUbicacionEmergencia'
 import { formatMeters, formatMinutes } from '../../lib/directions'
 import { toast } from '../../components/Toast'
+import { mpService } from '../../services/mpService'
 
 // ── Design tokens per triage code ─────────────────────────────
 const CODE = {
@@ -72,6 +73,9 @@ export default function ProfessionalEmergencias({ profile }) {
   const [emergency, setEmergency] = useState(demoPhase !== null ? DEMO[demoPhase] ?? null : undefined)
   const [loading, setLoading] = useState(demoPhase === null)
   const [updating, setUpdating] = useState(false)
+  // S.O.S. bonificado: no hay pago para cobrar; al cerrar se deja un mensaje
+  // (Mateo, 2026-10-22). Lo registra `mp-capture` (cerrar-sin-pago).
+  const [notaSinPago, setNotaSinPago] = useState('')
   const [, forceRender] = useState(0)
   const unsubRef = useRef(null)
 
@@ -177,6 +181,16 @@ export default function ProfessionalEmergencias({ profile }) {
   })
 
   const closeEmergency = async () => {
+    if (demoPhase === null && emergency?.bonificada) {
+      if (!notaSinPago.trim()) return
+      setUpdating(true)
+      const { error } = await mpService.cerrarEmergenciaSinPago(emergency.id, notaSinPago.trim())
+      setUpdating(false)
+      if (error) {
+        toast.error(`No se pudo cerrar: ${error}`)
+        return
+      }
+    }
     if (demoPhase === null && emergency?.id) {
       await emergencyTrackingService.dejarDeCompartir(emergency.id).catch(() => {})
     }
@@ -408,7 +422,27 @@ export default function ProfessionalEmergencias({ profile }) {
         <Row label="Despacho"  value={<span className="font-mono">{emergency.dispatchCode}</span>} />
       </div>
 
-      <Btn loading={updating} onClick={closeEmergency} color="bg-gray-950 hover:bg-gray-800" icon={<CheckCircle className="w-6 h-6" />}>
+      {emergency.bonificada && (
+        <div className="bg-white rounded-3xl p-5 flex flex-col gap-3 border border-amber-200" role="alert">
+          <div className="flex items-start gap-2.5">
+            <Warning className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" weight="fill" />
+            <p className="text-sm text-text-primary">
+              <span className="font-semibold">Esta emergencia no tiene pago para cobrar.</span> Está bonificada. Dejá un mensaje para cerrarla.
+            </p>
+          </div>
+          <textarea
+            data-testid="nota-sin-pago"
+            className="form-textarea"
+            rows={3}
+            maxLength={1000}
+            value={notaSinPago}
+            onChange={e => setNotaSinPago(e.target.value)}
+            placeholder="Mensaje de cierre"
+          />
+        </div>
+      )}
+
+      <Btn loading={updating} disabled={!!emergency.bonificada && !notaSinPago.trim()} onClick={closeEmergency} color="bg-gray-950 hover:bg-gray-800" icon={<CheckCircle className="w-6 h-6" />}>
         Cerrar emergencia
       </Btn>
     </div>
@@ -430,11 +464,11 @@ function Divider() {
   return <div className="h-px bg-border-default" />
 }
 
-function Btn({ children, onClick, color, icon, loading }) {
+function Btn({ children, onClick, color, icon, loading, disabled = false }) {
   return (
     <button
       onClick={onClick}
-      disabled={loading}
+      disabled={loading || disabled}
       className={`w-full py-5 rounded-[24px] text-white font-black text-xl flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-transform disabled:opacity-60 ${color}`}
     >
       {loading

@@ -413,6 +413,7 @@ export const emergencyService = {
         patient:profiles!patient_id(full_name, phone),
         professional:profiles!professional_id(full_name),
         operador:profiles!operator_id(full_name),
+        cerroSinPago:profiles!cierre_sin_pago_por(full_name),
         ambulancia:ambulances!ambulance_id(id, label, plate, unit_type),
         entidad:emergency_providers!provider_id(id, name, color)
       `)
