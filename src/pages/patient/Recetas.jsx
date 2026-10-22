@@ -75,6 +75,7 @@ export default function Recetas({ profile }) {
                         ? new Date(r.emitidaEn).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
                         : null,
                       r.profesional,
+                      r.valeDesde ? `vale desde el ${r.valeDesde.slice(8, 10)}/${r.valeDesde.slice(5, 7)}` : null,
                     ].filter(Boolean).join(' · ')}
                   </p>
                 </div>

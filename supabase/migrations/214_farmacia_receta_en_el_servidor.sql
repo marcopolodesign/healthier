@@ -38,6 +38,11 @@
 --     dispensa". Para un crónico, lo legal es que la receta traiga la
 --     cantidad de hasta 3 meses (Res. MSAL 27/2022) o que el médico emita
 --     recetas posdatadas — no reusar la misma.
+--   · Tratamiento prolongado (Mateo, 2026-10-22): el médico puede emitir hasta
+--     3 recetas en el mismo acto, cada una con fecha de inicio 30 días después
+--     de la anterior (recetas posdatadas, `recetasPostadatas` de la API). Cada
+--     posdatada es una receta propia: habilita UNA compra desde su fecha de
+--     inicio y vence a los 30 días de esa fecha. Nunca para controlados.
 --   · Controlados (psicotrópicos Ley 19.303, antimicrobianos Ley 27.680):
 --     receta archivada, una dispensa, receta nueva cada vez.
 --   · Cada compra, como mucho los envases que dice la receta: 1, salvo que la
@@ -233,6 +238,23 @@ as $$
   from rx, pr
 $$;
 
+-- ── 3b. Recetas posdatadas ─────────────────────────────────────────────────
+-- Cada posdatada es una fila más de `clinical_medications` (la escribe
+-- `rcta-issue` con la service key): misma medicación, su propio idReceta, PDF
+-- y verificador, y la fecha desde la que vale. `posdatada_de` apunta a la fila
+-- original, para que la historia clínica no muestre el medicamento tres veces.
+alter table public.clinical_medications
+  add column if not exists vigencia_desde date,
+  add column if not exists posdatada_de   uuid references public.clinical_medications(id);
+
+comment on column public.clinical_medications.vigencia_desde is
+  'Fecha de inicio de vigencia de una receta posdatada (hora argentina). NULL = vale desde que se emitió.';
+comment on column public.clinical_medications.posdatada_de is
+  'Si esta fila es una receta posdatada, la fila original del mismo medicamento. NULL en la original.';
+
+create index if not exists clinical_medications_posdatada_de_idx
+  on public.clinical_medications (posdatada_de) where posdatada_de is not null;
+
 -- ── 4. El estado de cada receta del paciente ──────────────────────────────
 alter table public.medication_order_items
   add column if not exists clinical_medication_id uuid references public.clinical_medications(id);
@@ -254,7 +276,7 @@ returns table (
   profesional            text,
   is_chronic             boolean,
   controlada             boolean,
-  estado                 text,          -- vigente | usada | vencida
+  estado                 text,          -- vigente | proxima (posdatada que no empezó) | usada | vencida
   vence_at               timestamptz,   -- hasta cuándo sirve para comprar
   max_envases            integer,
   producto_ids           uuid[]
@@ -270,7 +292,10 @@ as $$
   ),
   lineas as (
     select cm.*,
-           coalesce(cm.rcta_issued_at, cm.created_at) as emitida,
+           -- Desde cuándo vale: la fecha de inicio de la posdatada (a la medianoche
+           -- argentina), o la emisión.
+           coalesce((cm.vigencia_desde::timestamp at time zone 'America/Argentina/Buenos_Aires'),
+                    cm.rcta_issued_at, cm.created_at) as emitida,
            concat_ws(' ', cm.medication_name, cm.nombre_droga, cm.presentacion, cm.presentation, cm.concentration) as texto
       from public.clinical_medications cm
      where cm.patient_id = p_patient
@@ -314,6 +339,10 @@ as $$
   con_estado as (
     select b.*,
            case
+             -- Un controlado nunca va posdatado (rcta-issue no lo emite); si
+             -- igual hubiera una fila así, no habilita nada.
+             when b.posdatada_de is not null and b.es_controlada then 'vencida'
+             when not b.ya_usada and now() < b.emitida then 'proxima'
              when not b.ya_usada and now() < b.fin_vigencia then 'vigente'
              when b.ya_usada then 'usada'
              else 'vencida'
@@ -348,7 +377,7 @@ as $$
 $$;
 
 comment on function public.farmacia_recetas_de(uuid, uuid) is
-  'Las recetas emitidas de un paciente con su estado para la farmacia (vigente / usada / vencida), hasta cuándo sirven, cuántos envases cubren y qué productos del catálogo son exactamente lo recetado. Única definición de "esta receta cubre este producto": la usan los triggers, mp-payment y la pantalla (vía farmacia_mis_recetas).';
+  'Las recetas emitidas de un paciente con su estado para la farmacia (vigente / proxima / usada / vencida; emitida_at es desde cuándo vale), hasta cuándo sirven, cuántos envases cubren y qué productos del catálogo son exactamente lo recetado. Única definición de "esta receta cubre este producto": la usan los triggers, mp-payment y la pantalla (vía farmacia_mis_recetas).';
 
 -- Recibe el paciente por parámetro: sólo para triggers y para mp-payment.
 revoke all on function public.farmacia_recetas_de(uuid, uuid) from public, anon, authenticated;
@@ -605,6 +634,7 @@ begin
 
   if tg_op = 'INSERT' then
     if new.rcta_status is distinct from 'issued'
+       and new.vigencia_desde is null and new.posdatada_de is null
        and new.rcta_prescription_id is null and new.rcta_issued_at is null
        and new.rcta_pdf_url is null and new.rcta_verificador is null
        and new.rcta_transaction_id is null then
@@ -621,7 +651,9 @@ begin
       or new.quantity          is distinct from old.quantity
       or new.reg_no            is distinct from old.reg_no
       or new.is_chronic        is distinct from old.is_chronic
-      or new.created_at        is distinct from old.created_at) then
+      or new.created_at        is distinct from old.created_at
+      or new.vigencia_desde    is distinct from old.vigencia_desde
+      or new.posdatada_de      is distinct from old.posdatada_de) then
     -- Una receta emitida —o en emisión— no se reescribe: la farmacia vende
     -- contra lo que dice, y tiene que ser lo mismo que se mandó a emitir.
     null;
@@ -643,3 +675,110 @@ drop trigger if exists clinical_medications_proteger_emision on public.clinical_
 create trigger clinical_medications_proteger_emision
   before insert or update on public.clinical_medications
   for each row execute function public.proteger_emision_de_receta();
+
+-- ── 9. La venta libre no pide consulta previa (Mateo, 2026-10-22) ─────────
+-- Hasta acá TODA la farmacia exigía haberse atendido alguna vez (129/130).
+-- Con la receta exigida producto por producto (arriba), ese bloqueo general
+-- ya no protege nada que la receta no proteja, y le escondía al paciente nuevo
+-- justamente la venta libre y el camino a la videoconsulta. Lo que necesita
+-- receta sigue necesitándola: una receta implica una consulta.
+drop policy if exists "medication_orders_patient_insert_own" on public.medication_orders;
+create policy "medication_orders_patient_insert_own"
+  on public.medication_orders for insert
+  with check (patient_id = auth.uid());
+
+create or replace function public.agregar_item_pedido_medicamentos(
+  p_product_id uuid,
+  p_delta      integer default 1   -- negativo resta; si llega a 0 saca el medicamento
+)
+returns uuid                       -- id del pedido, o NULL si quedó vacío y se borró
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  v_patient_id uuid := auth.uid();
+  v_product    public.pharmacy_products%rowtype;
+  v_order_id   uuid;
+  v_item_id    uuid;
+  v_qty        integer;
+begin
+  if v_patient_id is null then
+    raise exception 'Sesión no válida.' using errcode = '42501';
+  end if;
+
+  -- Sin el "primero atendete" de la 138/139: la receta la exige el trigger de
+  -- medication_order_items (sección 5), producto por producto.
+
+  select * into v_product from public.pharmacy_products where id = p_product_id;
+  if not found then
+    raise exception 'El producto ya no está en el catálogo.' using errcode = 'P0002';
+  end if;
+
+  -- Buscar el carrito o crearlo. El índice único garantiza que hay a lo sumo
+  -- uno; si otra sesión lo crea entre el select y el insert, el insert falla y
+  -- se vuelve a buscar en vez de partir la compra en dos pedidos.
+  loop
+    select mo.id into v_order_id
+      from public.medication_orders mo
+     where mo.patient_id = v_patient_id
+       and mo.payment_status = 'no_pagado'
+       and mo.status = 'pendiente';
+
+    exit when v_order_id is not null;
+
+    -- Restar sobre un carrito que no existe no crea uno vacío.
+    if p_delta <= 0 then
+      return null;
+    end if;
+
+    begin
+      insert into public.medication_orders (patient_id, pharmacy_id, delivery_address, subtotal, total)
+      select v_patient_id,
+             coalesce(v_product.pharmacy_id, '10000000-0000-0000-0000-000000000001'::uuid),
+             pr.address,
+             0, 0
+        from public.profiles pr
+       where pr.id = v_patient_id
+      returning id into v_order_id;
+      exit;
+    exception when unique_violation then
+      null;
+    end;
+  end loop;
+
+  select it.id, it.quantity into v_item_id, v_qty
+    from public.medication_order_items it
+   where it.order_id = v_order_id
+     and it.pharmacy_product_id = p_product_id
+   limit 1;
+
+  v_qty := coalesce(v_qty, 0) + p_delta;
+
+  if v_qty <= 0 then
+    if v_item_id is not null then
+      delete from public.medication_order_items where id = v_item_id;
+    end if;
+  elsif v_item_id is null then
+    insert into public.medication_order_items (
+      order_id, pharmacy_product_id, medication_name, presentation,
+      quantity, unit_price, requires_prescription
+    ) values (
+      v_order_id, p_product_id, v_product.name, v_product.presentation,
+      v_qty, v_product.price, v_product.prescription_type is distinct from 'venta_libre'
+    );
+  else
+    -- El precio se refresca al tocar la cantidad: el total que ve es el que se
+    -- le va a cobrar.
+    update public.medication_order_items
+       set quantity = v_qty,
+           unit_price = v_product.price
+     where id = v_item_id;
+  end if;
+
+  return public.recalcular_total_pedido_medicamentos(v_order_id);
+end;
+$$;
+
+revoke all on function public.agregar_item_pedido_medicamentos(uuid, integer) from public;
+grant execute on function public.agregar_item_pedido_medicamentos(uuid, integer) to authenticated;

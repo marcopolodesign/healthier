@@ -51,7 +51,65 @@ const preparar = `
   delete from medication_orders where patient_id = '${PACIENTE}' and payment_status = 'no_pagado' and status = 'pendiente';
 `
 
+// Sin la consulta: la venta libre ya no la pide (2026-10-22).
+const prepararSinConsulta = preparar.replace(/insert into consultations[\s\S]*?interval '2 days'\);/, '')
+// Tratamiento prolongado (no controlado): Enalapril, la receta de hoy (RX3)
+// y una posdatada (RX4) desde la fecha que se pida.
+const PROD_C = 'fa214fff-0000-4000-8000-00000000000c'
+const RX3 = 'fa214fff-0000-4000-8000-0000000000c3'
+const RX4 = 'fa214fff-0000-4000-8000-0000000000c4'
+const filaRx = (id, extra = '', valores = '') => `insert into clinical_medications (id, patient_id, professional_id, professional_license_type, professional_license_number,
+    medication_name, presentation, dosage_text, rcta_status, rcta_prescription_id, rcta_issued_at, status, quantity, is_chronic${extra})
+  values ('${id}', '${PACIENTE}', '${PRO}', 'MN', '1', 'Enalapril 10 mg', 'x 30', 'x', 'issued', 'prueba-${id.slice(-2)}', now(), 'active', '1', true${valores});`
+const posdatada = (desde) => `
+  insert into pharmacy_products (id, name, category, price, medication_match, prescription_type, stock_quantity, pharmacy_id)
+  values ('${PROD_C}', 'Prueba Enalapril 10 mg x 30', 'clinica', 100, 'enalapril', 'receta', 10, '10000000-0000-0000-0000-000000000001');
+  ${filaRx(RX3)}
+  ${filaRx(RX4, ', posdatada_de, vigencia_desde', `, '${RX3}', ${desde}`)}`
+const usarLaPrimera = `${como(PACIENTE)} select agregar_item_pedido_medicamentos('${PROD_C}', 1);
+  ${reset} ${comoServicio} update medication_orders set payment_status = 'pagado' where patient_id = '${PACIENTE}' and payment_status = 'no_pagado';`
+const posdatadaControlada = `insert into clinical_medications (id, patient_id, professional_id, professional_license_type, professional_license_number,
+    medication_name, presentation, dosage_text, rcta_status, rcta_prescription_id, rcta_issued_at, status, quantity, posdatada_de, vigencia_desde)
+  values ('${RX4}', '${PACIENTE}', '${PRO}', 'MN', '1', 'Clonazepam 2 mg', 'x 30', 'x', 'issued', 'prueba-ctrl', now(), 'active', '1', '${RX}', current_date - 1);`
+
 const CASOS = [
+  {
+    nombre: 'Venta libre sin haberse atendido nunca: entra al carrito',
+    sql: `${prepararSinConsulta} delete from consultations where patient_id = '${PACIENTE}' and status = 'completed';
+          ${como(PACIENTE)} select (agregar_item_pedido_medicamentos((select id from pharmacy_products where prescription_type = 'venta_libre' and in_stock limit 1), 1) is not null)::text as r;`,
+    espera: { valor: 'true' },
+  },
+  {
+    nombre: 'Posdatada que todavía no empezó: no habilita la compra',
+    sql: `${preparar} ${posdatada("current_date + 30")} ${usarLaPrimera}
+          ${como(PACIENTE)} select agregar_item_pedido_medicamentos('${PROD_C}', 1);`,
+    espera: { error: 'HR001' },
+  },
+  {
+    nombre: 'Posdatada desde su fecha: habilita UNA compra',
+    sql: `${preparar} ${posdatada("current_date - 1")} ${usarLaPrimera}
+          ${como(PACIENTE)} select (agregar_item_pedido_medicamentos('${PROD_C}', 1) is not null)::text as r;`,
+    espera: { valor: 'true' },
+  },
+  {
+    nombre: 'Posdatada vencida (30 días desde su fecha): no habilita',
+    sql: `${preparar} ${posdatada("current_date - 31")} ${usarLaPrimera}
+          ${como(PACIENTE)} select agregar_item_pedido_medicamentos('${PROD_C}', 1);`,
+    espera: { error: 'HR001' },
+  },
+  {
+    nombre: 'Una posdatada de un controlado no habilita nada',
+    sql: `${preparar} ${posdatadaControlada} ${como(PACIENTE)} select agregar_item_pedido_medicamentos('${PROD_A}', 1);
+          ${reset} ${comoServicio} update medication_orders set payment_status = 'pagado' where patient_id = '${PACIENTE}' and payment_status = 'no_pagado';
+          ${como(PACIENTE)} select agregar_item_pedido_medicamentos('${PROD_A}', 1);`,
+    espera: { error: 'HR001' },
+  },
+  {
+    nombre: 'Un profesional no puede fabricarse una posdatada',
+    sql: `${preparar} ${como(PRO)} insert into clinical_medications (patient_id, professional_id, professional_license_type, professional_license_number, medication_name, dosage_text, vigencia_desde, posdatada_de)
+          values ('${PACIENTE}', '${PRO}', 'MN', '1', 'Clonazepam 2 mg x 30', 'x', current_date, '${RX}');`,
+    espera: { error: '42501' },
+  },
   {
     nombre: 'El catálogo no puede tener un psicotrópico como venta libre',
     sql: `${preparar} select prescription_type as r from pharmacy_products where id = '${PROD_A}';`,

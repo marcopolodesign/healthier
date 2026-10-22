@@ -80,6 +80,10 @@ Deno.serve(async (req: Request) => {
       ? body.medicationIds
       : (body.medicationId ? [body.medicationId] : [])
     if (!esPractica && !ids.length) return json({ error: 'medicationId o medicationIds requerido' }, 400)
+    // Tratamiento prolongado (Mateo, 2026-10-22): cuántas recetas en total, 1 a
+    // 3 — la primera vale desde hoy y cada posdatada 30 días después de la
+    // anterior. Ver el bloque "Recetas posdatadas" más abajo.
+    const recetasTotales = Math.min(3, Math.max(1, Number.parseInt(String(body.recetas ?? 1), 10) || 1))
     if (esPractica && !Array.isArray(body.medicamentos)) {
       return json({ error: 'medicamentos requerido en modo practica' }, 400)
     }
@@ -290,6 +294,45 @@ Deno.serve(async (req: Request) => {
     const yaEmitida = meds.find((m: { rcta_status: string }) => m.rcta_status === 'issued')
     if (yaEmitida) return await fallar('validation_error', { error: 'Already issued', code: 'RCTA_YA_EMITIDA' }, 409)
 
+    // ── Recetas posdatadas ───────────────────────────────────────────────────
+    // Sólo para tratamiento prolongado y NUNCA para un controlado: psicotrópicos
+    // y antimicrobianos van con receta archivada, una por dispensa (Ley 19.303
+    // art. 14, Ley 27.680). La lista de controlados es la misma que usa la
+    // farmacia (`farmacia_drogas_bajo_receta`, migración 214).
+    const fechasPosdatadas: string[] = []   // DD/MM/AAAA, hora argentina
+    if (recetasTotales > 1) {
+      // deno-lint-ignore no-explicit-any
+      const noCronicos = meds.filter((m: any) => !m.is_chronic)
+      if (noCronicos.length) {
+        return await fallar('validation_error', {
+          error: 'Las recetas posdatadas son sólo para medicación crónica.',
+          code: 'RCTA_POSDATADAS_NO_CRONICA',
+        }, 422)
+      }
+      const { data: controlados, error: ctrlErr } = await supabase
+        .from('farmacia_drogas_bajo_receta')
+        .select('droga')
+        .eq('tipo', 'receta_archivada')
+      if (ctrlErr) return await fallar('server_error', { error: ctrlErr.message }, 500)
+      // deno-lint-ignore no-explicit-any
+      const controlado = meds.find((m: any) => {
+        const texto = [m.medication_name, m.nombre_droga, m.presentacion].filter(Boolean).join(' ').toLowerCase()
+        return (controlados ?? []).some((c: { droga: string }) => texto.includes(c.droga))
+      })
+      if (controlado) {
+        return await fallar('validation_error', {
+          error: `${controlado.medication_name} es controlado: no admite recetas posdatadas.`,
+          code: 'RCTA_POSDATADAS_CONTROLADO',
+        }, 422)
+      }
+      // Hoy en Argentina, +30 y +60 días.
+      const hoyAr = new Date(Date.now() - 3 * 3600 * 1000)
+      for (let k = 1; k < recetasTotales; k++) {
+        const d = new Date(Date.UTC(hoyAr.getUTCFullYear(), hoyAr.getUTCMonth(), hoyAr.getUTCDate() + 30 * k))
+        fechasPosdatadas.push(`${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`)
+      }
+    }
+
     // Sólo recetan las especialidades marcadas en el catálogo (migración 116).
     // El trigger sobre `clinical_medications` ya frena la carga, pero esto se
     // chequea igual: las filas cargadas ANTES de la 116 siguen existiendo, y sin
@@ -470,6 +513,10 @@ Deno.serve(async (req: Request) => {
 
     const payload = {
       clienteAppId: Number(RCTA_CLIENT_APP_ID),
+      // Las posdatadas: además de la de hoy, una receta por cada fecha.
+      ...(fechasPosdatadas.length ? {
+        recetasPostadatas: { cantidad: fechasPosdatadas.length, diasAPosdatar: 30, fechas: fechasPosdatadas },
+      } : {}),
       diagnostico: med.cie10_display ?? med.cie10_code ?? null,
       // Una receta, N medicamentos. Innovamed puede repartirlos en mas de una
       // receta segun sus propias reglas (lo informa en `accionPDF`), por eso
@@ -673,7 +720,13 @@ Deno.serve(async (req: Request) => {
         { errores: rctaData.errores, error_code: rctaData.errores[0]?.error ?? null })
     }
 
-    const receta = rctaData.recetas?.[0]
+    // Con posdatadas vienen varias: la de hoy y una por fecha. Se las ubica por
+    // la fecha que devuelve Innovamed y, si no la trae, por orden.
+    const recetasDevueltas = Array.isArray(rctaData.recetas) ? rctaData.recetas : []
+    const fechaDe = (r: { fecha?: string }) => String(r?.fecha ?? '').slice(0, 10)
+    const posdatadasDevueltas = fechasPosdatadas.map((f, k) =>
+      recetasDevueltas.find((r: { fecha?: string }) => fechaDe(r) === f) ?? recetasDevueltas[k + 1] ?? null)
+    const receta = recetasDevueltas.find((r: unknown) => !posdatadasDevueltas.includes(r)) ?? recetasDevueltas[0]
     if (!receta) {
       await setStatus('error')
       return await fallar('api_error', { error: 'RCTA API returned no receta', detail: rctaData }, 502)
@@ -740,6 +793,40 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // ── Recetas posdatadas: una fila por medicamento y por fecha ───────────────
+    // Cada posdatada es una receta propia (su idReceta, PDF y verificador) que
+    // la farmacia habilita recién desde su fecha. Se guardan como filas nuevas
+    // de `clinical_medications` apuntando a la original (`posdatada_de`), con
+    // la service key: el trigger de la 214 no deja que nadie más las escriba.
+    // Si Innovamed devolvió menos recetas que las pedidas, se guarda lo que
+    // vino y se avisa: las que faltan no existen y no se inventan.
+    const posdatadasGuardadas: { fecha: string; prescriptionId: string | null; pdfUrl: string | null }[] = []
+    if (fechasPosdatadas.length) {
+      for (let k = 0; k < fechasPosdatadas.length; k++) {
+        const r = posdatadasDevueltas[k]
+        if (!r) { console.error(`rcta-issue: Innovamed no devolvió la posdatada del ${fechasPosdatadas[k]}`); continue }
+        const [dd, mm, aaaa] = fechasPosdatadas[k].split('/')
+        posdatadasGuardadas.push({ fecha: fechasPosdatadas[k], prescriptionId: r.idReceta ?? r.id ?? null, pdfUrl: r.s3Link ?? null })
+        if (esPractica) continue
+        // deno-lint-ignore no-explicit-any
+        const filas = (meds as any[]).map(({ id, created_at, patient: _p, professional: _pr, encounter: _e,
+          rcta_status: _s, rcta_prescription_id: _rp, rcta_transaction_id: _rt, rcta_verificador: _rv,
+          rcta_pdf_url: _ru, rcta_issued_at: _ri, ...resto }) => ({
+          ...resto,
+          posdatada_de: id,
+          vigencia_desde: `${aaaa}-${mm}-${dd}`,
+          rcta_status: 'issued',
+          rcta_prescription_id: r.idReceta ?? r.id ?? null,
+          rcta_transaction_id: rctaData.idTransaccion ?? null,
+          rcta_verificador: r.verificador ?? null,
+          rcta_pdf_url: r.s3Link ?? null,
+          rcta_issued_at: issuedAt,
+        }))
+        const { error: posErr } = await supabase.from('clinical_medications').insert(filas)
+        if (posErr) console.error(`rcta-issue: la posdatada del ${fechasPosdatadas[k]} se emitió pero no se pudo guardar:`, posErr.message, JSON.stringify(r))
+      }
+    }
+
     // ── Pharmacy stock match + patient notification (best-effort — a failure here
     // must never fail the RCTA response, the prescription was already issued) ──
     // En practica no: le avisaria a una farmacia que hay un pedido posible para
@@ -760,6 +847,8 @@ Deno.serve(async (req: Request) => {
       pdfUrl,
       issuedAt,
       medicationIds: ids,
+      posdatadas: posdatadasGuardadas,
+      posdatadasFaltantes: fechasPosdatadas.length - posdatadasGuardadas.length,
     })
 
   } catch (err) {
