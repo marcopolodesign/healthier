@@ -354,11 +354,13 @@ CREATE TRIGGER consultations_emergencia_solo_del_modulo BEFORE INSERT OR UPDATE 
 -- El despacho lee la ficha del paciente sólo mientras el pedido está activo
 -- (`despacho_lee_paciente_de_emergencia`): es la ficha entera (teléfono, DNI,
 -- datos de salud) y no tiene por qué seguir abierta. Para el historial alcanza
--- con el nombre, así que se guarda una copia en la emergencia al crearla.
+-- con el nombre, así que se guarda una copia en la emergencia. Se copia recién
+-- cuando el pedido queda asignado a una entidad: un pedido sin entidad lo ven
+-- los despachos de todas (156) y no tiene por qué llevar el nombre.
 ALTER TABLE public.emergencies
   ADD COLUMN IF NOT EXISTS paciente_nombre text NULL;
 COMMENT ON COLUMN public.emergencies.paciente_nombre IS
-  'Copia del nombre del paciente al pedir (historial del despacho). No se actualiza si cambia el perfil.';
+  'Copia del nombre del paciente al asignarse a una entidad (historial del despacho). No se actualiza si cambia el perfil.';
 
 CREATE OR REPLACE FUNCTION public.copiar_nombre_paciente_emergencia()
  RETURNS trigger
@@ -367,7 +369,9 @@ CREATE OR REPLACE FUNCTION public.copiar_nombre_paciente_emergencia()
  SET search_path TO 'public'
 AS $function$
 begin
-  if tg_op = 'INSERT' or new.patient_id is distinct from old.patient_id then
+  if new.provider_id is null then
+    new.paciente_nombre := null;
+  elsif tg_op = 'INSERT' or old.provider_id is null or new.patient_id is distinct from old.patient_id then
     select full_name into new.paciente_nombre from public.profiles where id = new.patient_id;
   elsif coalesce(auth.role(), '') in ('authenticated', 'anon') then
     new.paciente_nombre := old.paciente_nombre;  -- ninguna sesión la pisa
@@ -380,7 +384,10 @@ DROP TRIGGER IF EXISTS emergencies_copiar_nombre_paciente ON public.emergencies;
 CREATE TRIGGER emergencies_copiar_nombre_paciente BEFORE INSERT OR UPDATE ON public.emergencies
   FOR EACH ROW EXECUTE FUNCTION public.copiar_nombre_paciente_emergencia();
 
--- Las que ya existen (pocas filas): una sola vez.
+-- Las que ya existen (pocas filas): una sola vez, sólo las que tienen entidad.
 UPDATE public.emergencies e SET paciente_nombre = p.full_name
   FROM public.profiles p
- WHERE p.id = e.patient_id AND e.paciente_nombre IS NULL;
+ WHERE p.id = e.patient_id AND e.provider_id IS NOT NULL
+   AND e.paciente_nombre IS DISTINCT FROM p.full_name;
+UPDATE public.emergencies SET paciente_nombre = NULL
+ WHERE provider_id IS NULL AND paciente_nombre IS NOT NULL;
