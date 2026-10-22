@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Map, Marker } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { Ambulance, MapTrifold, WifiSlash, X } from '@phosphor-icons/react'
-import { dispatchService, ubicacionEsReciente, ESTADOS_AMBULANCIA, TIPOS_AMBULANCIA } from '../../services/dispatchService'
+import { MapTrifold, WifiSlash, X } from '@phosphor-icons/react'
+import { dispatchService, antiguedadUbicacion, haceCuanto, ESTADOS_AMBULANCIA, TIPOS_AMBULANCIA } from '../../services/dispatchService'
+import MarcadorMovil from '../../components/dispatch/MarcadorMovil'
 import { toast } from '../../components/Toast'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
@@ -15,32 +16,18 @@ const COLOR_POR_ESTADO = {
   fuera_de_servicio: '#9CA3AF', // gris
 }
 
-function haceCuanto(iso) {
-  if (!iso) return 'sin datos'
-  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  if (min < 1) return 'hace instantes'
-  if (min < 60) return `hace ${min} min`
-  const h = Math.floor(min / 60)
-  return `hace ${h} h`
-}
-
-function MarcadorAmbulancia({ color }) {
-  return (
-    <div
-      className="w-9 h-9 rounded-full flex items-center justify-center border-[3px] border-white shadow-[0_6px_16px_rgba(0,0,0,0.25)]"
-      style={{ backgroundColor: color }}
-    >
-      <Ambulance className="w-[18px] h-[18px] text-white" />
-    </div>
-  )
-}
-
 export default function DespachoMapa() {
   const [entidad, setEntidad] = useState(null)
   const [ambulancias, setAmbulancias] = useState([])
   const [loading, setLoading] = useState(true)
   const [seleccionada, setSeleccionada] = useState(null)
   const mapRef = useRef(null)
+  // Tic para el "hace X" y para que una posición pase a vieja sin esperar un evento.
+  const [ahora, setAhora] = useState(Date.now())
+  useEffect(() => {
+    const iv = setInterval(() => setAhora(Date.now()), 15_000)
+    return () => clearInterval(iv)
+  }, [])
 
   const cargar = useCallback(async (providerId) => {
     try {
@@ -64,13 +51,16 @@ export default function DespachoMapa() {
     return unsub
   }, [cargar])
 
+  // Se dibuja la última posición conocida (hasta 12 h), con contorno si es
+  // vieja (Mateo + Felipe, 2026-10-22); la lista de abajo queda para los que
+  // nunca reportaron o hace más de 12 h.
   const conUbicacionFresca = useMemo(
-    () => ambulancias.filter(a => a.ubicacion && ubicacionEsReciente(a.ubicacion)),
-    [ambulancias],
+    () => ambulancias.filter(a => antiguedadUbicacion(a.ubicacion, ahora) !== 'sin'),
+    [ambulancias, ahora],
   )
   const sinUbicacionFresca = useMemo(
-    () => ambulancias.filter(a => !a.ubicacion || !ubicacionEsReciente(a.ubicacion)),
-    [ambulancias],
+    () => ambulancias.filter(a => antiguedadUbicacion(a.ubicacion, ahora) === 'sin'),
+    [ambulancias, ahora],
   )
 
   const centro = conUbicacionFresca[0]?.ubicacion
@@ -88,6 +78,7 @@ export default function DespachoMapa() {
           <MapTrifold className="h-6 w-6 text-brand" /> Flota en vivo
         </h1>
         <p className="text-text-secondary mt-1">{entidad?.name}</p>
+        <p className="text-xs text-text-secondary mt-1">Contorno = posición vieja (más de 2 min), con cuánto hace debajo.</p>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-4">
@@ -105,10 +96,11 @@ export default function DespachoMapa() {
                 key={a.id}
                 longitude={a.ubicacion.longitude}
                 latitude={a.ubicacion.latitude}
-                anchor="center"
+                anchor="top"
+                offset={[0, -18]}
                 onClick={e => { e.originalEvent.stopPropagation(); setSeleccionada(a) }}
               >
-                <MarcadorAmbulancia color={COLOR_POR_ESTADO[a.status] || COLOR_POR_ESTADO.fuera_de_servicio} />
+                <MarcadorMovil movil={a} ahora={ahora} />
               </Marker>
             ))}
           </Map>
@@ -145,17 +137,19 @@ export default function DespachoMapa() {
                 ))}
               </div>
               {seleccionada.ubicacion && (
-                <p className="text-xs text-text-tertiary">Actualizado {haceCuanto(seleccionada.ubicacion.updatedAt)}</p>
+                <p className={`text-xs tabular-nums ${antiguedadUbicacion(seleccionada.ubicacion, ahora) === 'vivo' ? 'text-emerald-700' : 'text-text-secondary'}`}>
+                  Posición de {haceCuanto(seleccionada.ubicacion.updatedAt, ahora)}
+                </p>
               )}
             </div>
           )}
 
           <div className="card space-y-2">
             <p className="font-semibold text-text-primary flex items-center gap-1.5 text-sm">
-              <WifiSlash className="h-4 w-4 text-text-tertiary" /> Sin posición reciente ({sinUbicacionFresca.length})
+              <WifiSlash className="h-4 w-4 text-text-tertiary" /> Sin posición ({sinUbicacionFresca.length})
             </p>
             {sinUbicacionFresca.length === 0 ? (
-              <p className="text-xs text-text-secondary">Toda la flota reporta posición en vivo</p>
+              <p className="text-xs text-text-secondary">Toda la flota tiene una posición conocida</p>
             ) : (
               <div className="space-y-2">
                 {sinUbicacionFresca.map(a => (
@@ -165,7 +159,7 @@ export default function DespachoMapa() {
                     className="w-full flex items-center justify-between text-left p-2 rounded-lg hover:bg-bg-surface transition-colors"
                   >
                     <span className="text-sm text-text-primary">{a.label}</span>
-                    <span className="text-xs text-text-tertiary">{haceCuanto(a.ubicacion?.updatedAt)}</span>
+                    <span className="text-xs text-text-tertiary">{a.ubicacion ? haceCuanto(a.ubicacion.updatedAt, ahora) : 'nunca reportó'}</span>
                   </button>
                 ))}
               </div>

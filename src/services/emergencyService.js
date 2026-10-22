@@ -239,7 +239,7 @@ export const emergencyService = {
    * `getActiveForPatient()` y retomar, no quedarse con una tarjeta reservada y
    * ninguna emergencia.
    */
-  async crearSolicitud({ patientId, latitude, longitude, priceAtRequest }) {
+  async crearSolicitud({ patientId, latitude, longitude, priceAtRequest, ubicacion }) {
     const { data, error } = await supabase
       .from('emergencies')
       .insert({
@@ -253,6 +253,8 @@ export const emergencyService = {
         patient_latitude: latitude ?? null,
         patient_longitude: longitude ?? null,
         price_at_request: priceAtRequest ?? null,
+        // Dirección confirmada + GPS crudo (`columnasDeUbicacion`, migración 211).
+        ...(ubicacion ?? {}),
       })
       .select()
       .single()
@@ -268,6 +270,46 @@ export const emergencyService = {
    * del operador filtra por él, así que una fila que llegue a
    * `awaiting_dispatch` sin pagar simplemente no la ve nadie.
    */
+  /**
+   * El paciente confirma o corrige la dirección de un pedido que ya existe
+   * (lo retomó sin pagar). RLS `emergency_patient_cancel`: sólo mientras espera.
+   */
+  async actualizarUbicacion(emergencyId, ubicacion) {
+    const { error } = await supabase
+      .from('emergencies')
+      .update(ubicacion)
+      .eq('id', emergencyId)
+      .in('status', ['pending', 'awaiting_dispatch'])
+    if (error) throw error
+  },
+
+  /** Un traslado en curso con el móvil, su tripulación y su última posición — el panel del despacho. */
+  async trasladoParaDespacho(id) {
+    const { data, error } = await supabase
+      .from('emergencies')
+      .select(`
+        *,
+        patient:profiles!patient_id(full_name, phone, avatar_url, birth_date, allergies, blood_type),
+        medico:profiles!professional_id(full_name, phone),
+        ambulancia:ambulances!ambulance_id(
+          id, label, plate, unit_type, status,
+          ubicacion:ambulance_locations(*),
+          tripulacion:ambulance_crew(id, crew_role, active, created_at, profile:profiles!profile_id(id, full_name, phone))
+        )
+      `)
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw error
+    if (!data) return null
+    const t = toCamelCase(data)
+    if (t.ambulancia) {
+      const u = t.ambulancia.ubicacion
+      t.ambulancia.ubicacion = Array.isArray(u) ? (u[0] ?? null) : (u ?? null)
+      t.ambulancia.tripulacion = (t.ambulancia.tripulacion ?? []).filter(x => x.active)
+    }
+    return t
+  },
+
   async confirmarTriage({ emergencyId, triageCode, symptoms }) {
     const { data, error } = await supabase
       .from('emergencies')
