@@ -1541,8 +1541,15 @@ export default function ProfessionalVideoCall({ profile }) {
       if (motivo === 'salir') avisarALaApp(MENSAJE_APP.HOJA_ABIERTA)
       return
     }
-    if (accion === 'salir') avisarALaApp(MENSAJE_APP.SALIR)
+    if (accion === 'salir') salirDeLaSala(motivo)
     else cortarLlamada()
+  }
+
+  // Salir sin finalizar: la X de la app vuelve a la app; el "Volver" de la web,
+  // a la pantalla anterior. La consulta sigue en curso.
+  function salirDeLaSala(motivo) {
+    if (motivo === 'salir') avisarALaApp(MENSAJE_APP.SALIR)
+    else navigate(-1)
   }
 
   function cortarDesdeLaHoja({ sinCodigo }) {
@@ -1552,8 +1559,8 @@ export default function ProfessionalVideoCall({ profile }) {
       consultationEventsService.log(id, CONSULTATION_EVENTS.CODE_SKIPPED_AT_HANGUP,
         { motivo }, { id: profile?.id, role: 'professional' })
     }
-    if (motivo === 'salir') avisarALaApp(MENSAJE_APP.SALIR)
-    else cortarLlamada()
+    if (motivo === 'colgar') cortarLlamada()
+    else salirDeLaSala(motivo)
   }
 
   // La X nativa de la app (salir de la sala) llama a esto antes de irse. Lee el
@@ -1688,7 +1695,7 @@ export default function ProfessionalVideoCall({ profile }) {
           // franja, así que acá no hace falta reservar nada.
           <span aria-hidden className={simulando ? '' : 'w-9 shrink-0'} />
         ) : (
-          <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-white/50 hover:text-white transition-colors">
+          <button onClick={() => intentarCortar('volver')} className="flex items-center gap-1 text-sm text-white/50 hover:text-white transition-colors">
             <ArrowLeft className="h-4 w-4" /> Volver
           </button>
         )}

@@ -7,16 +7,15 @@
 // time to complete before events fire.
 
 window.__DailyIframeMock = (() => {
-  // Minimal MediaStreamTrack-like object for video/audio tiles
-  const mockTrack = { kind: 'video', readyState: 'live', enabled: true }
-  const mockAudioTrack = { kind: 'audio', readyState: 'live', enabled: true }
-
+  // Sin tracks: la sala hace `new MediaStream([track])` y un objeto de mentira
+  // la tira abajo ("Failed to construct 'MediaStream'"). Sin track, la sala
+  // muestra el lugar vacío, que alcanza para probar los controles.
   function makeParticipant(local) {
     return {
       local,
       tracks: {
-        video: { persistentTrack: local ? mockTrack : null, state: 'playable' },
-        audio: { persistentTrack: local ? mockAudioTrack : null, state: 'playable' },
+        video: { persistentTrack: null, state: 'playable' },
+        audio: { persistentTrack: null, state: 'playable' },
       },
     }
   }

@@ -16,8 +16,9 @@ import { pasoDeLaHoja } from '../../lib/codigoAlCortar'
  * — el rojo queda para la acción que corta de verdad. Cerrar la hoja (fondo,
  * Esc) = seguir en la llamada.
  *
- * `motivo`: 'colgar' (botón rojo / Finalizar) o 'salir' (la X de la app, que
- * sale de la sala sin finalizar la consulta).
+ * `motivo`: 'colgar' (botón rojo / Finalizar), 'salir' (la X de la app) o
+ * 'volver' (el "Volver" de la web) — los dos últimos salen de la sala sin
+ * finalizar la consulta.
  */
 const REPEDIR_MS = 20_000
 
@@ -46,7 +47,9 @@ export default function CodigoAlCortarSheet({
     codigoVerificadoEn: codeVerifiedAt, confirmando, intentosRestantes: attemptsLeft, solicitado,
   })
   const nombre = (nombrePaciente || '').trim().split(/\s+/)[0] || 'el paciente'
-  const saliendo = motivo === 'salir'
+  // 'salir' (X de la app) y 'volver' (Volver de la web) sacan de la sala sin
+  // finalizar la consulta; 'colgar' la corta.
+  const saliendo = motivo !== 'colgar'
   const textoCortar = saliendo ? 'Salir de la sala' : 'Cortar la llamada'
   const textoSinCodigo = saliendo ? 'Salir sin código' : 'Cortar sin código'
 
