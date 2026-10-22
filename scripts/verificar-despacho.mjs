@@ -112,8 +112,9 @@ try {
       ambulance_id: disponible.id, profile_id: chofer.userId,
       latitude: -34.5900, longitude: -58.3900, updated_at: new Date().toISOString(),
     }, { onConflict: 'ambulance_id' })
-    errUbi ? mal(`el chofer no puede publicar su posición: ${errUbi.message}`)
-           : ok('el chofer publica la posición del móvil')
+    // Migración 212 (Mateo, opción B): la posición del móvil la publica sólo su médico.
+    errUbi ? ok('el chofer no publica la posición del móvil (la publica el médico)')
+           : mal('el chofer pudo publicar la posición del móvil (sólo tiene que poder el médico)')
 
     // ── El paciente ────────────────────────────────────────────────────────
     bloque('El paciente de la emergencia')

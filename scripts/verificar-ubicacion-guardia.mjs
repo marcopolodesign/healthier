@@ -6,9 +6,10 @@
  *   node scripts/verificar-ubicacion-guardia.mjs
  *
  * Chequea lo que no se ve en pantalla:
- *  1. Un tripulante publica la posición de SU móvil mientras está de guardia.
+ *  1. El MÉDICO del móvil publica su posición mientras está de guardia; el
+ *     resto de la tripulación no (212, opción B de Mateo).
  *  2. Fuera de servicio, la base la rechaza (aunque la app vieja la mande).
- *  3. Nadie publica la de un móvil que no tripula, ni a nombre de otro.
+ *  3. Nadie publica la de un móvil del que no es médico, ni a nombre de otro.
  *  4. La hora la pone la base: un `updated_at` del futuro no pasa.
  *  5. El paciente guarda la dirección al crear el pedido y la corrige mientras
  *     espera; el despacho la lee.
@@ -42,9 +43,21 @@ async function como(email, password = 'staging') {
   return { c, id: data.user.id }
 }
 
-const MOVIL = '40000000-0000-0000-0000-000000000003' // Móvil 3: tripula chofer@staging
+const MOVIL = '40000000-0000-0000-0000-000000000003' // Móvil 3: sólo chofer@staging, sin médico
+const MOVIL_MEDICO = '40000000-0000-0000-0000-000000000002' // Móvil 2: médica clinica@staging
+
+async function sql(query) {
+  const r = await fetch(`https://api.supabase.com/v1/projects/${env.HEALTHIER_STAGING_SUPABASE_REF}/database/query`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env.SUPABASE_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  })
+  return r.json()
+}
 
 const { data: antes } = await admin.from('ambulances').select('status').eq('id', MOVIL).single()
+const { data: antesMedico } = await admin.from('ambulances').select('status').eq('id', MOVIL_MEDICO).single()
+const [posMedico] = await sql(`select latitude, longitude, heading, speed_kmh, profile_id, updated_at from ambulance_locations where ambulance_id='${MOVIL_MEDICO}'`)
 const { data: posAntes } = await admin.from('ambulance_locations').select('*').eq('ambulance_id', MOVIL).maybeSingle()
 
 const chofer = await como('chofer@staging.healthier.app')
@@ -52,29 +65,32 @@ const clinica = await como('clinica@staging.healthier.app')
 const pos = (id, extra = {}) => ({ ambulance_id: id, latitude: -34.58, longitude: -58.42, ...extra })
 
 try {
-  console.log('\n── Ubicación de la flota')
+  console.log('\n── Ubicación de la flota (la publica sólo el médico, 212)')
+  await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL_MEDICO)
   await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL)
-  let r = await chofer.c.from('ambulance_locations').upsert(pos(MOVIL, { profile_id: chofer.id }), { onConflict: 'ambulance_id' })
-  esperar(!r.error, `tripulante publica su móvil Disponible ${r.error ? `(${r.error.message})` : ''}`)
+  let r = await clinica.c.from('ambulance_locations').upsert(pos(MOVIL_MEDICO, { profile_id: clinica.id }), { onConflict: 'ambulance_id' })
+  esperar(!r.error, `el médico publica su móvil Disponible ${r.error ? `(${r.error.message})` : ''}`)
 
-  r = await chofer.c.from('ambulance_locations')
-    .upsert(pos(MOVIL, { profile_id: chofer.id, updated_at: '2099-01-01T00:00:00Z' }), { onConflict: 'ambulance_id' })
+  r = await clinica.c.from('ambulance_locations')
+    .upsert(pos(MOVIL_MEDICO, { profile_id: clinica.id, updated_at: '2099-01-01T00:00:00Z' }), { onConflict: 'ambulance_id' })
     .select('updated_at').single()
   esperar(!r.error && new Date(r.data.updated_at).getFullYear() < 2099, 'la hora de la posición la pone la base')
 
-  r = await chofer.c.from('ambulance_locations').upsert(pos(MOVIL, { profile_id: clinica.id }), { onConflict: 'ambulance_id' })
+  r = await clinica.c.from('ambulance_locations').upsert(pos(MOVIL_MEDICO, { profile_id: chofer.id }), { onConflict: 'ambulance_id' })
   esperar(!!r.error, 'no se publica a nombre de otro tripulante')
 
-  await admin.from('ambulances').update({ status: 'fuera_de_servicio' }).eq('id', MOVIL)
   r = await chofer.c.from('ambulance_locations').upsert(pos(MOVIL, { profile_id: chofer.id }), { onConflict: 'ambulance_id' })
-  esperar(!!r.error, 'fuera de servicio la base rechaza la posición')
+  esperar(!!r.error, 'el chofer no publica (aunque tripule el móvil y esté de guardia)')
 
-  const { data: crewOtro } = await admin.from('ambulance_crew').select('profile_id').eq('ambulance_id', MOVIL).eq('profile_id', clinica.id).eq('active', true)
-  if (!crewOtro?.length) {
-    await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL)
-    r = await clinica.c.from('ambulance_locations').upsert(pos(MOVIL, { profile_id: clinica.id }), { onConflict: 'ambulance_id' })
-    esperar(!!r.error, 'quien no tripula el móvil no publica su posición')
-  }
+  r = await chofer.c.from('ambulance_locations').upsert(pos(MOVIL_MEDICO, { profile_id: chofer.id }), { onConflict: 'ambulance_id' })
+  esperar(!!r.error, 'el chofer no pisa la posición que publica el médico')
+
+  r = await clinica.c.from('ambulance_locations').upsert(pos(MOVIL, { profile_id: clinica.id }), { onConflict: 'ambulance_id' })
+  esperar(!!r.error, 'quien no es médico del móvil no publica su posición')
+
+  await admin.from('ambulances').update({ status: 'fuera_de_servicio' }).eq('id', MOVIL_MEDICO)
+  r = await clinica.c.from('ambulance_locations').upsert(pos(MOVIL_MEDICO, { profile_id: clinica.id }), { onConflict: 'ambulance_id' })
+  esperar(!!r.error, 'fuera de servicio la base rechaza la posición')
 
   console.log('\n── Dirección escrita del pedido')
   const paciente = await como('paciente.completo@staging.healthier.app')
@@ -112,6 +128,16 @@ try {
   }
 } finally {
   await admin.from('ambulances').update({ status: antes.status }).eq('id', MOVIL)
+  await admin.from('ambulances').update({ status: antesMedico.status }).eq('id', MOVIL_MEDICO)
+  // La posición del Móvil 2 vuelve tal cual (con su hora vieja: sin los triggers).
+  if (posMedico?.latitude) {
+    const v = x => (x == null ? 'null' : `'${x}'`)
+    await sql(`begin; alter table ambulance_locations disable trigger user;
+      update ambulance_locations set latitude=${posMedico.latitude}, longitude=${posMedico.longitude}, heading=${v(posMedico.heading)},
+        speed_kmh=${v(posMedico.speed_kmh)}, profile_id=${v(posMedico.profile_id)}, updated_at='${posMedico.updated_at}'
+      where ambulance_id='${MOVIL_MEDICO}';
+      alter table ambulance_locations enable trigger user; commit;`)
+  }
   if (posAntes) {
     await admin.from('ambulance_locations').upsert(posAntes, { onConflict: 'ambulance_id' })
   } else {
