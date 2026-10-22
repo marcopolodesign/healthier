@@ -105,6 +105,20 @@ const CASOS = [
     espera: { error: 'HR001' },
   },
   {
+    nombre: 'Un profesional no puede correr la fecha de inicio de una receta (ni en borrador)',
+    sql: `${preparar} ${reset} ${comoServicio} insert into clinical_medications (id, patient_id, professional_id, professional_license_type, professional_license_number, medication_name, dosage_text)
+          values ('${RX4}', '${PACIENTE}', '${PRO}', 'MN', '1', 'Enalapril 10 mg x 30', 'x');
+          ${como(PRO)} update clinical_medications set vigencia_desde = current_date + 29 where id = '${RX4}';`,
+    espera: { error: '42501' },
+  },
+  {
+    nombre: 'Si el médico suspende la original, las posdatadas no se venden',
+    sql: `${preparar} ${posdatada("current_date - 1")} ${usarLaPrimera}
+          ${reset} ${comoServicio} update clinical_medications set status = 'stopped' where id = '${RX3}';
+          ${como(PACIENTE)} select agregar_item_pedido_medicamentos('${PROD_C}', 1);`,
+    espera: { error: 'HR001' },
+  },
+  {
     nombre: 'Un profesional no puede fabricarse una posdatada',
     sql: `${preparar} ${como(PRO)} insert into clinical_medications (patient_id, professional_id, professional_license_type, professional_license_number, medication_name, dosage_text, vigencia_desde, posdatada_de)
           values ('${PACIENTE}', '${PRO}', 'MN', '1', 'Clonazepam 2 mg x 30', 'x', current_date, '${RX}');`,

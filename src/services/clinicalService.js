@@ -377,7 +377,8 @@ export const clinicalService = {
       supabase.from('clinical_conditions').select('*').eq('encounter_id', encounterId).order('created_at', { ascending: true }),
       supabase.from('clinical_allergies').select('*').eq('encounter_id', encounterId).order('created_at', { ascending: true }),
       supabase.from('clinical_observations').select('*').eq('encounter_id', encounterId).order('observed_at', { ascending: true }),
-      supabase.from('clinical_medications').select('*').eq('encounter_id', encounterId).order('created_at', { ascending: true }),
+      // Sin las posdatadas: el mismo medicamento emitido para otra fecha.
+      supabase.from('clinical_medications').select('*').eq('encounter_id', encounterId).is('posdatada_de', null).order('created_at', { ascending: true }),
     ])
 
     if (entriesError) throw entriesError
