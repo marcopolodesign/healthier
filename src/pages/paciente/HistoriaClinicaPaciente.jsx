@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, DownloadSimple, Stethoscope, Pill, Warning,
-  Heartbeat, ClipboardText, CircleNotch, Heart, ShareFat,
+  Heartbeat, ClipboardText, CircleNotch, Heart, ShareFat, Siren,
 } from '@phosphor-icons/react'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { familyService } from '../../services/familyService'
 import { derivacionesService } from '../../services/derivacionesService'
 import { useDestinoDerivacion } from '../../hooks/useDestinoDerivacion'
 import DerivacionEstado from '../../components/DerivacionEstado'
+import OrdenDeTrasladoCard from '../../components/emergencias/OrdenDeTrasladoCard'
+import { ordenTrasladoService } from '../../services/ordenTrasladoService'
 
 const ENTRY_TYPE_LABEL = {
   soap_subjective: 'Subjetivo',
@@ -179,6 +181,15 @@ export default function HistoriaClinicaPaciente({ profile }) {
   const pacienteId = deFamiliar || profile?.id
   const destinoDe = useDestinoDerivacion()
   const [derivaciones, setDerivaciones] = useState([])
+  // Documentos de sus emergencias: orden de traslado y negativa (migración 213,
+  // Mateo 2026-10-22). Sección propia: un traslado sin atención no tiene
+  // consulta en la HC. Sólo la HC propia (la RLS no abre los de un familiar).
+  const [emergencias, setEmergencias] = useState([])
+
+  useEffect(() => {
+    if (!pacienteId || deFamiliar) { setEmergencias([]); return }
+    ordenTrasladoService.listarDelPaciente(pacienteId).then(setEmergencias).catch(() => {}) // aditivo
+  }, [pacienteId, deFamiliar])
 
   useEffect(() => {
     if (!pacienteId) return
@@ -282,6 +293,27 @@ export default function HistoriaClinicaPaciente({ profile }) {
                 </div>
               )}
 
+              {emergencias.length > 0 && (
+                <div data-testid="hc-emergencias">
+                  <p className="text-[12px] font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                    <Siren className="w-3.5 h-3.5" /> Emergencias ({emergencias.length})
+                  </p>
+                  <div className="space-y-3">
+                    {emergencias.map(({ emergencia, documentos }) => (
+                      <div key={emergencia.id} className="space-y-2">
+                        <p className="text-[15px] font-semibold text-gray-900">Emergencia del {formatDate(emergencia.createdAt)}</p>
+                        <p className="text-[14px] text-gray-600">
+                          {emergencia.desenlace === 'traslado'
+                            ? `Trasladado${documentos.find(d => d.tipo === 'orden_traslado')?.institucion ? ` a ${documentos.find(d => d.tipo === 'orden_traslado').institucion}` : ''}`
+                            : emergencia.desenlace === 'en_el_lugar' ? 'Atendido en el lugar' : 'Emergencia atendida'}
+                        </p>
+                        <OrdenDeTrasladoCard emergencyId={emergencia.id} documentos={documentos} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Encounter timeline */}
               {timeline?.encounters?.length > 0 ? (
                 <div>
@@ -294,7 +326,7 @@ export default function HistoriaClinicaPaciente({ profile }) {
                     ))}
                   </div>
                 </div>
-              ) : (
+              ) : emergencias.length > 0 ? null : (
                 <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
                   <div className="w-16 h-16 rounded-full bg-[#F0F7F3] flex items-center justify-center">
                     <Heart className="w-8 h-8 text-[#7CB38B]" />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { FileImage, CircleNotch } from '@phosphor-icons/react'
-import { ordenTrasladoService } from '../../services/ordenTrasladoService'
+import { ordenTrasladoService, ultimosPorTipo, TIPO_DOCUMENTO } from '../../services/ordenTrasladoService'
 
 /** "14:32" si es de hoy; si no, "22 oct, 14:32". */
 export function horaDeOrden(iso) {
@@ -11,80 +11,47 @@ export function horaDeOrden(iso) {
   return hoy ? hora : `${d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}, ${hora}`
 }
 
-/**
- * La orden de traslado de una emergencia (migración 213), como card: miniatura,
- * institución y "Subida por Dra. X · 14:32". Click → la foto en una pestaña
- * nueva (URL firmada, 10 min). Vale la última que se subió.
- *
- * Se usa en el panel del despacho (en curso y terminado), en el super admin y
- * en la atención de la HC. Si la emergencia no tiene orden no dibuja nada,
- * salvo que venga `vacio` (el texto a mostrar en ese caso).
- */
-export default function OrdenDeTrasladoCard({ emergencyId, orden: ordenDada, vacio = null, className = '' }) {
-  const [orden, setOrden] = useState(undefined)
+/** Abre la foto en una pestaña nueva con una URL firmada recién pedida. */
+async function abrirFoto(path) {
+  // Sin 'noopener' en los features: con eso `window.open` devuelve null.
+  const pestana = window.open('', '_blank')
+  if (pestana) pestana.opener = null
+  try {
+    const url = await ordenTrasladoService.urlFoto(path)
+    if (pestana) pestana.location.href = url
+    else window.open(url, '_blank', 'noopener')
+  } catch (e) {
+    pestana?.close()
+    throw e
+  }
+}
+
+function Documento({ doc }) {
   const [miniatura, setMiniatura] = useState(null)
   const [abriendo, setAbriendo] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (!emergencyId && ordenDada === undefined) return
     let vivo = true
-    setOrden(undefined)
-    setMiniatura(null)
-    setError('')
-    // Si el padre ya la trajo (el panel del historial), no se vuelve a listar.
-    const lectura = ordenDada !== undefined
-      ? Promise.resolve(ordenDada ? [ordenDada] : [])
-      : ordenTrasladoService.listar(emergencyId)
-    lectura
-      .then(async lista => {
-        if (!vivo) return
-        const ultima = lista[0] ?? null
-        setOrden(ultima)
-        if (ultima) {
-          const url = await ordenTrasladoService.urlFoto(ultima.fotoPath).catch(() => null)
-          if (vivo) setMiniatura(url)
-        }
-      })
-      .catch(e => { if (vivo) { setOrden(null); setError(e?.message || 'No pudimos leer la orden de traslado.') } })
+    ordenTrasladoService.urlFoto(doc.fotoPath).then(u => { if (vivo) setMiniatura(u) }).catch(() => {})
     return () => { vivo = false }
-  }, [emergencyId, ordenDada])
+  }, [doc.fotoPath])
 
-  // Se pide una URL nueva al abrir: la de la miniatura puede haber vencido.
   async function abrir() {
-    if (!orden) return
-    // La pestaña se abre en el click (si no, el bloqueador de popups la frena).
-    // Sin 'noopener' en los features: con eso `window.open` devuelve null.
-    const pestana = window.open('', '_blank')
-    if (pestana) pestana.opener = null
     setAbriendo(true)
     setError('')
-    try {
-      const url = await ordenTrasladoService.urlFoto(orden.fotoPath)
-      if (pestana) pestana.location.href = url
-      else window.open(url, '_blank', 'noopener')
-    } catch (e) {
-      pestana?.close()
-      setError(e?.message || 'No pudimos abrir la foto.')
-    } finally {
-      setAbriendo(false)
-    }
-  }
-
-  if (orden === undefined) return null
-  if (!orden) {
-    if (error) return <p className={`text-sm text-danger ${className}`}>{error}</p>
-    return vacio ? <p className={`text-sm text-text-secondary ${className}`}>{vacio}</p> : null
+    try { await abrirFoto(doc.fotoPath) } catch (e) { setError(e?.message || 'No pudimos abrir la foto.') }
+    setAbriendo(false)
   }
 
   return (
-    <div className={`card space-y-2 ${className}`} data-testid="orden-traslado">
-      <p className="font-semibold text-text-primary">Orden de traslado</p>
+    <div className="space-y-2">
+      <p className="font-semibold text-text-primary">{TIPO_DOCUMENTO[doc.tipo] ?? 'Documento'}</p>
       <button
         type="button"
         onClick={abrir}
         className="w-full flex items-center gap-3 text-left rounded-xl hover:bg-bg-surface transition-colors"
-        aria-label="Ver la foto de la orden de traslado"
+        aria-label={`Ver la foto: ${TIPO_DOCUMENTO[doc.tipo] ?? 'documento'}`}
       >
         <span className="w-16 h-16 shrink-0 rounded-xl overflow-hidden bg-bg-surface border border-border-default flex items-center justify-center">
           {miniatura
@@ -92,9 +59,9 @@ export default function OrdenDeTrasladoCard({ emergencyId, orden: ordenDada, vac
             : <FileImage className="h-6 w-6 text-text-tertiary" />}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block font-semibold text-text-primary truncate">{orden.institucion}</span>
+          {doc.tipo !== 'negativa' && <span className="block font-semibold text-text-primary truncate">{doc.institucion}</span>}
           <span className="block text-sm text-text-secondary tabular-nums">
-            Subida por {orden.subidor?.fullName || 'la tripulación'} · {horaDeOrden(orden.subidaAt)}
+            {doc.subidor?.fullName ? `Subida por ${doc.subidor.fullName}` : 'Subida'} · {horaDeOrden(doc.subidaAt)}
           </span>
         </span>
         {abriendo && <CircleNotch className="h-4 w-4 animate-spin text-text-tertiary shrink-0" />}
@@ -105,27 +72,66 @@ export default function OrdenDeTrasladoCard({ emergencyId, orden: ordenDada, vac
 }
 
 /**
- * Sólo el ícono, para una tabla (super admin): abre la última orden en una
- * pestaña nueva. Se dibuja cuando la fila ya sabe que hay orden.
+ * Los documentos de cierre de una emergencia (migración 213): la orden de
+ * traslado y la negativa de atención, el último de cada tipo. Miniatura, qué
+ * es y "Subida por Dra. X · 14:32"; click → la foto en una pestaña nueva (URL
+ * firmada, 10 min).
+ *
+ * Se usa en el panel del despacho (en curso y terminado), en la HC del
+ * profesional y del paciente. `documentos`: si el padre ya los trajo, no se
+ * vuelven a pedir. Sin documentos no dibuja nada, salvo que venga `vacio`.
  */
-export function BotonOrden({ emergencyId }) {
+export default function OrdenDeTrasladoCard({ emergencyId, documentos: dados, vacio = null, className = '' }) {
+  const [docs, setDocs] = useState(undefined)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!emergencyId && dados === undefined) return
+    let vivo = true
+    setDocs(undefined)
+    setError('')
+    const lectura = dados !== undefined ? Promise.resolve(dados ?? []) : ordenTrasladoService.listar(emergencyId)
+    lectura
+      .then(lista => { if (vivo) setDocs(lista) })
+      .catch(e => { if (vivo) { setDocs([]); setError(e?.message || 'No pudimos leer los documentos.') } })
+    return () => { vivo = false }
+  }, [emergencyId, dados])
+
+  if (docs === undefined) return null
+  const { orden_traslado: orden, negativa } = ultimosPorTipo(docs)
+  if (!orden && !negativa) {
+    if (error) return <p className={`text-sm text-danger ${className}`}>{error}</p>
+    return vacio ? <p className={`text-sm text-text-secondary ${className}`}>{vacio}</p> : null
+  }
+
+  return (
+    <div className={`card space-y-4 ${className}`} data-testid="orden-traslado">
+      {orden && <Documento doc={orden} />}
+      {negativa && <Documento doc={negativa} />}
+    </div>
+  )
+}
+
+/**
+ * Sólo el ícono, para una tabla (super admin): abre el último documento (la
+ * orden si hay, si no la negativa) en una pestaña nueva.
+ */
+export function BotonOrden({ emergencyId, soloNegativa = false }) {
+  const [error, setError] = useState('')
+  const etiqueta = soloNegativa ? 'Ver la negativa de atención' : 'Ver la orden de traslado'
   async function abrir(ev) {
     ev.stopPropagation()
-    const pestana = window.open('', '_blank')
-    if (pestana) pestana.opener = null
     try {
-      const [ultima] = await ordenTrasladoService.listar(emergencyId)
-      if (!ultima) throw new Error('No hay orden')
-      const url = await ordenTrasladoService.urlFoto(ultima.fotoPath)
-      if (pestana) pestana.location.href = url
+      const { orden_traslado: orden, negativa } = ultimosPorTipo(await ordenTrasladoService.listar(emergencyId))
+      const doc = orden ?? negativa
+      if (!doc) throw new Error('No hay documentos')
+      await abrirFoto(doc.fotoPath)
     } catch (e) {
-      pestana?.close()
       setError(e?.message || 'No pudimos abrir la foto')
     }
   }
   return (
-    <button type="button" onClick={abrir} title={error || 'Ver la orden de traslado'} aria-label="Ver la orden de traslado" className="p-1 rounded-lg hover:bg-bg-surface">
+    <button type="button" onClick={abrir} title={error || etiqueta} aria-label={etiqueta} className="p-1 rounded-lg hover:bg-bg-surface">
       <FileImage className={`h-5 w-5 ${error ? 'text-danger' : 'text-text-secondary'}`} />
     </button>
   )

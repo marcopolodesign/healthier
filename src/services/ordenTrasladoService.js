@@ -1,24 +1,34 @@
 import { supabase, toCamelCase } from '../lib/supabase'
 
 /**
- * La orden de traslado de una emergencia (migración 213; Nacho, 2026-10-22):
- * la foto de la orden firmada y sellada por el médico y por la institución que
- * recibe al paciente. Exime de responsabilidad, así que:
+ * Los documentos de cierre de una emergencia (migración 213; Nacho y Mateo,
+ * 2026-10-22): la orden de traslado (firmada y sellada por el médico y por la
+ * institución que recibe) y la negativa de atención firmada (opcional, al
+ * cerrar sin atención). Eximen de responsabilidad, así que:
  *   · la hora y el autor los pone la base (no el teléfono);
  *   · no se edita ni se borra: "cambiar la foto" sube otra, y vale la última;
  *   · el bucket es privado y la foto se ve con una URL firmada que dura poco.
- * La suben el médico o la tripulación mientras la emergencia está en curso; la
- * ven ellos, el despacho de la entidad y el super admin.
+ * Los suben el médico, la tripulación o el despacho de la entidad mientras la
+ * emergencia está en curso; los ven ellos, el super admin y el paciente.
  */
 const BUCKET = 'ordenes-traslado'
 const EXTENSION = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic' }
 export const TIPOS_FOTO_ORDEN = Object.keys(EXTENSION)
 export const MAX_FOTO_ORDEN_BYTES = 10 * 1024 * 1024
 
-const SELECT = 'id, emergency_id, institucion, foto_path, subida_at, subida_por, subidor:profiles!subida_por(full_name)'
+export const TIPO_DOCUMENTO = { orden_traslado: 'Orden de traslado', negativa: 'Negativa de atención' }
+
+const SELECT = 'id, emergency_id, tipo, institucion, foto_path, subida_at, subida_por, subidor:profiles!subida_por(full_name)'
+
+/** El último de cada tipo (`{ orden_traslado, negativa }`), de una lista ya ordenada. */
+export function ultimosPorTipo(lista) {
+  const out = {}
+  for (const d of lista ?? []) if (!out[d.tipo]) out[d.tipo] = d
+  return out
+}
 
 export const ordenTrasladoService = {
-  /** Las órdenes de la emergencia, la más nueva primero (la que vale es la primera). */
+  /** Los documentos de la emergencia, el más nuevo primero (de cada tipo vale el primero). */
   async listar(emergencyId) {
     const { data, error } = await supabase
       .from('emergency_transfer_orders')
@@ -29,12 +39,35 @@ export const ordenTrasladoService = {
     return (data ?? []).map(toCamelCase)
   },
 
-  /** Sube la foto y registra la orden. Devuelve la orden con la hora de la base. */
-  async subir(emergencyId, file, institucion) {
-    if (!file) throw new Error('Falta la foto de la orden.')
+  /**
+   * Los de las emergencias del paciente (su historia clínica), agrupados por
+   * emergencia: `[{ emergencia, documentos }]`, la más nueva primero.
+   */
+  async listarDelPaciente(patientId) {
+    const { data, error } = await supabase
+      .from('emergency_transfer_orders')
+      .select(`${SELECT}, emergencia:emergencies!inner(id, dispatch_code, created_at, completed_at, desenlace, patient_id)`)
+      .eq('emergencia.patient_id', patientId)
+      .order('subida_at', { ascending: false })
+    if (error) throw error
+    const grupos = new Map()
+    for (const d of (data ?? []).map(toCamelCase)) {
+      const g = grupos.get(d.emergencyId) ?? { emergencia: d.emergencia, documentos: [] }
+      g.documentos.push(d)
+      grupos.set(d.emergencyId, g)
+    }
+    return [...grupos.values()].sort((a, b) => new Date(b.emergencia.createdAt) - new Date(a.emergencia.createdAt))
+  },
+
+  /**
+   * Sube la foto y registra el documento. Devuelve la fila con la hora de la
+   * base. `tipo`: 'orden_traslado' (pide institución) | 'negativa'.
+   */
+  async subir(emergencyId, file, { tipo = 'orden_traslado', institucion = null } = {}) {
+    if (!file) throw new Error('Falta la foto.')
     if (!TIPOS_FOTO_ORDEN.includes(file.type)) throw new Error('La foto tiene que ser JPG, PNG, WEBP o HEIC.')
     if (file.size > MAX_FOTO_ORDEN_BYTES) throw new Error('La foto pesa más de 10 MB.')
-    if (!institucion?.trim()) throw new Error('Falta la institución que lo recibe.')
+    if (tipo === 'orden_traslado' && !institucion?.trim()) throw new Error('Falta la institución que lo recibe.')
 
     const path = `${emergencyId}/${Date.now()}.${EXTENSION[file.type]}`
     const { error: errSubida } = await supabase.storage
@@ -44,10 +77,10 @@ export const ordenTrasladoService = {
 
     const { data, error } = await supabase
       .from('emergency_transfer_orders')
-      .insert({ emergency_id: emergencyId, institucion: institucion.trim(), foto_path: path })
+      .insert({ emergency_id: emergencyId, tipo, institucion: institucion?.trim() || null, foto_path: path })
       .select(SELECT)
       .single()
-    if (error) throw new Error(error.message || 'No pudimos guardar la orden.')
+    if (error) throw new Error(error.message || 'No pudimos guardar el documento.')
     return toCamelCase(data)
   },
 

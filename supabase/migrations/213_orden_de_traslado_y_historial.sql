@@ -13,12 +13,20 @@
 --   3. "Operador tiene que ver despachos previos en otro tab." `completed_at`
 --      para la duración del historial; la lectura ya la da la RLS de 156.
 --
--- Decisiones (default, ver la pregunta a Mateo en el catchup):
---   · `desenlace`: 'en_el_lugar' | 'traslado'. Lo declara quien cierra.
---   · Con 'traslado' la emergencia NO se cierra sin una orden subida (la base
---     lo exige, no sólo la pantalla). Con 'en_el_lugar' la orden es opcional.
---   · La orden es inmutable: no hay UPDATE ni DELETE para ninguna sesión, y la
---     hora y el autor los pone la base (no el teléfono).
+-- Decisiones de Mateo (2026-10-22):
+--   · `desenlace`: 'en_el_lugar' | 'traslado'. Lo declara quien cierra; si
+--     cierra el despacho, es obligatorio.
+--   · Con 'traslado' la emergencia NO se cierra sin la foto de la orden (la
+--     base lo exige, no sólo la pantalla). La puede subir la tripulación o el
+--     despacho de la entidad.
+--   · "Cerrar sin atención" admite una foto de la negativa firmada, opcional
+--     (mismo mecanismo, `tipo = 'negativa'`).
+--   · Los documentos son inmutables: sin UPDATE ni DELETE para ninguna sesión,
+--     hora y autor los pone la base. Los ven la tripulación, el despacho de la
+--     entidad, el super admin y el propio paciente (en su historia clínica).
+--   · De paso (Mateo): nadie salvo el super admin cambia `patient_id`; el
+--     despacho lee sólo pacientes de su entidad; el paciente no toca una
+--     emergencia terminada.
 -- ============================================================
 
 -- ── 1. Columnas de la emergencia ───────────────────────────
@@ -36,9 +44,9 @@ COMMENT ON COLUMN public.emergencies.desenlace IS
 COMMENT ON COLUMN public.emergencies.completed_at IS
   'Hora de la base en la que la emergencia pasó a completed (la pone el trigger de cierre).';
 
--- ── 2. Quién carga y quién ve una orden ────────────────────
--- Carga: el médico del traslado o la tripulación del móvil, mientras está en
--- curso. Ve: ellos, el despacho de la entidad y el super admin.
+-- ── 2. Quién carga y quién ve un documento ─────────────────
+-- Carga: el médico del traslado, la tripulación del móvil o el despacho de la
+-- entidad, mientras está en curso. Ve: ellos, el super admin y el paciente.
 CREATE OR REPLACE FUNCTION public.puede_cargar_orden_traslado(p_emergency_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -50,7 +58,10 @@ AS $function$
      WHERE e.id = p_emergency_id
        AND e.status IN ('dispatched', 'in_transit', 'arrived')
        AND (e.professional_id = auth.uid()
-            OR (e.ambulance_id IS NOT NULL AND public.soy_tripulacion(e.ambulance_id)))
+            OR (e.ambulance_id IS NOT NULL AND public.soy_tripulacion(e.ambulance_id))
+            OR (public.get_my_role() IN ('emergency_admin', 'emergency_operator')
+                AND e.provider_id IS NOT NULL
+                AND e.provider_id = public.mi_entidad_de_emergencias()))
   );
 $function$;
 
@@ -63,7 +74,8 @@ AS $function$
   SELECT public.get_my_role() = 'super_admin' OR EXISTS (
     SELECT 1 FROM public.emergencies e
      WHERE e.id = p_emergency_id
-       AND (e.professional_id = auth.uid()
+       AND (e.patient_id = auth.uid()
+            OR e.professional_id = auth.uid()
             OR (e.ambulance_id IS NOT NULL AND public.soy_tripulacion(e.ambulance_id))
             OR (public.get_my_role() IN ('emergency_admin', 'emergency_operator')
                 AND e.provider_id IS NOT NULL
@@ -96,11 +108,25 @@ CREATE TABLE IF NOT EXISTS public.emergency_transfer_orders (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   -- RESTRICT: borrar la emergencia no se lleva puesta la orden (ni deja la foto huérfana).
   emergency_id  uuid NOT NULL REFERENCES public.emergencies(id) ON DELETE RESTRICT,
-  institucion   text NOT NULL CHECK (char_length(trim(institucion)) BETWEEN 2 AND 200),
+  tipo          text NOT NULL DEFAULT 'orden_traslado',
+  institucion   text NULL,
   foto_path     text NOT NULL UNIQUE,
   subida_por    uuid NOT NULL DEFAULT auth.uid() REFERENCES public.profiles(id),
   subida_at     timestamptz NOT NULL DEFAULT now()
 );
+-- Tipos: la orden de traslado (lleva institución) y la negativa firmada.
+ALTER TABLE public.emergency_transfer_orders
+  ADD COLUMN IF NOT EXISTS tipo text NOT NULL DEFAULT 'orden_traslado',
+  ALTER COLUMN institucion DROP NOT NULL,
+  DROP CONSTRAINT IF EXISTS emergency_transfer_orders_institucion_check,
+  DROP CONSTRAINT IF EXISTS emergency_transfer_orders_tipo_check,
+  DROP CONSTRAINT IF EXISTS emergency_transfer_orders_institucion_tipo_check;
+ALTER TABLE public.emergency_transfer_orders
+  ADD CONSTRAINT emergency_transfer_orders_tipo_check CHECK (tipo IN ('orden_traslado', 'negativa')),
+  ADD CONSTRAINT emergency_transfer_orders_institucion_tipo_check CHECK (
+    (tipo = 'orden_traslado' AND char_length(trim(institucion)) BETWEEN 2 AND 200)
+    OR (tipo = 'negativa' AND (institucion IS NULL OR char_length(institucion) <= 200)));
+
 -- Por si la tabla ya existía con otra regla de borrado.
 ALTER TABLE public.emergency_transfer_orders
   DROP CONSTRAINT IF EXISTS emergency_transfer_orders_emergency_id_fkey,
@@ -109,7 +135,7 @@ ALTER TABLE public.emergency_transfer_orders
 CREATE INDEX IF NOT EXISTS emergency_transfer_orders_emergency_idx
   ON public.emergency_transfer_orders (emergency_id, subida_at DESC);
 COMMENT ON TABLE public.emergency_transfer_orders IS
-  'Orden de traslado (foto con sello del médico y de la institución receptora). Inmutable: hora y autor los pone la base.';
+  'Documentos de cierre de una emergencia: orden de traslado (con la institución receptora) o negativa de atención firmada. Inmutables: hora y autor los pone la base.';
 
 ALTER TABLE public.emergency_transfer_orders ENABLE ROW LEVEL SECURITY;
 
@@ -135,7 +161,7 @@ begin
     new.subida_por := auth.uid();
     new.subida_at := now();
   end if;
-  new.institucion := trim(new.institucion);
+  new.institucion := nullif(trim(new.institucion), '');
   -- La foto tiene que estar en la carpeta de ESA emergencia (y existir).
   if public.emergencia_de_la_carpeta(new.foto_path) is distinct from new.emergency_id then
     raise exception 'La foto no corresponde a esta emergencia.' using errcode = '42501';
@@ -242,9 +268,17 @@ begin
             then 'Antes de cerrar la emergencia cargá la atención, o indicá por qué se cierra sin atención.'
             else 'Antes de cerrar la emergencia cerrá la consulta.' end;
       end if;
+      -- Si cierra el despacho, dice cómo terminó (migración 213, Mateo).
+      if new.desenlace is null
+         and public.get_my_role() in ('emergency_admin', 'emergency_operator') then
+        raise exception using
+          errcode = 'check_violation',
+          message = 'Elegí cómo terminó: en el lugar o trasladado.';
+      end if;
       -- Orden de traslado (migración 213).
       if new.desenlace = 'traslado' and not exists (
-        select 1 from public.emergency_transfer_orders o where o.emergency_id = new.id
+        select 1 from public.emergency_transfer_orders o
+         where o.emergency_id = new.id and o.tipo = 'orden_traslado'
       ) then
         raise exception using
           errcode = 'check_violation',
@@ -411,3 +445,87 @@ UPDATE public.emergencies e SET paciente_nombre = p.full_name
 UPDATE public.emergencies SET paciente_nombre = NULL
  WHERE provider_id IS NULL AND paciente_nombre IS NOT NULL;
 ALTER TABLE public.emergencies ENABLE TRIGGER emergencies_updated_at;
+
+-- ── 10. Huecos que ya existían (Mateo: "cerralos en esta tanda") ─────────
+-- a) `patient_id` no lo cambia nadie más que el super admin (o el servidor).
+--    Antes el médico, la tripulación o el despacho podían re-apuntar una
+--    emergencia activa a otra persona y así leer su ficha (y su HC).
+CREATE OR REPLACE FUNCTION public.paciente_de_emergencia_fijo()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.patient_id is distinct from old.patient_id
+     and coalesce(auth.role(), '') in ('authenticated', 'anon')
+     and public.get_my_role() is distinct from 'super_admin' then
+    raise exception 'El paciente de una emergencia no se cambia.' using errcode = '42501';
+  end if;
+  return new;
+end;
+$function$;
+
+DROP TRIGGER IF EXISTS emergencies_paciente_fijo ON public.emergencies;
+CREATE TRIGGER emergencies_paciente_fijo BEFORE UPDATE OF patient_id ON public.emergencies
+  FOR EACH ROW EXECUTE FUNCTION public.paciente_de_emergencia_fijo();
+
+-- b) El despacho lee la ficha del paciente sólo de pedidos de SU entidad (o
+--    todavía sin entidad: la cola). Antes, la de cualquier emergencia activa.
+DROP POLICY IF EXISTS despacho_lee_paciente_de_emergencia ON public.profiles;
+CREATE POLICY despacho_lee_paciente_de_emergencia ON public.profiles
+  FOR SELECT TO authenticated
+  USING (
+    public.get_my_role() IN ('emergency_admin', 'emergency_operator')
+    AND EXISTS (
+      SELECT 1 FROM public.emergencies e
+       WHERE e.patient_id = profiles.id
+         AND e.status NOT IN ('cancelled', 'completed')
+         AND (e.provider_id IS NULL OR e.provider_id = public.mi_entidad_de_emergencias())
+    )
+  );
+
+-- c) El paciente actualiza su emergencia sólo mientras está abierta: confirmar
+--    el triage y la dirección (pending/awaiting) o cancelarla (hasta en
+--    camino; el trigger de la 211 acota qué puede cambiar en cada estado).
+--    En prod la policy dejaba tocar una terminada; en staging, ni cancelar en
+--    camino. Queda una sola versión, en el repo.
+DROP POLICY IF EXISTS emergency_patient_cancel ON public.emergencies;
+CREATE POLICY emergency_patient_cancel ON public.emergencies
+  FOR UPDATE TO authenticated
+  USING (
+    patient_id = auth.uid()
+    AND status IN ('pending', 'awaiting_dispatch', 'dispatched', 'in_transit')
+  )
+  WITH CHECK (
+    patient_id = auth.uid()
+    AND status IN ('pending', 'awaiting_dispatch', 'dispatched', 'in_transit', 'cancelled')
+    AND cancellation_charged IS NOT TRUE
+  );
+
+-- ── 11. El despacho sabe si la atención está cerrada ──────────────────────
+-- Antes de cobrar, "Terminar" mira lo que la base va a exigir para cerrar
+-- (la atención cerrada o un motivo). El despacho no lee `consultations` (y no
+-- tiene por qué: es la HC), así que se le da sólo el estado, y sólo de una
+-- emergencia que ve. Devuelve NULL si no hay atención o no la ve.
+CREATE OR REPLACE FUNCTION public.estado_atencion_emergencia(p_emergency_id uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT c.status
+    FROM public.consultations c
+    JOIN public.emergencies e ON e.id = c.emergency_id
+   WHERE c.emergency_id = p_emergency_id
+     AND (public.get_my_role() = 'super_admin'
+          OR e.professional_id = auth.uid()
+          OR (e.ambulance_id IS NOT NULL AND public.soy_tripulacion(e.ambulance_id))
+          OR (public.get_my_role() IN ('emergency_admin', 'emergency_operator')
+              AND e.provider_id IS NOT NULL
+              AND e.provider_id = public.mi_entidad_de_emergencias()))
+   LIMIT 1;
+$function$;
+
+REVOKE ALL ON FUNCTION public.estado_atencion_emergencia(uuid) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.estado_atencion_emergencia(uuid) TO authenticated;

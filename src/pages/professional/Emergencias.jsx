@@ -17,7 +17,7 @@ import { useCompartirUbicacionEmergencia } from '../../hooks/useCompartirUbicaci
 import { formatMeters, formatMinutes } from '../../lib/directions'
 import { toast } from '../../components/Toast'
 import { mpService } from '../../services/mpService'
-import CierreDesenlace, { faltaParaCerrar } from '../../components/emergencias/CierreDesenlace'
+import CierreDesenlace, { faltaParaCerrar, NegativaFirmada } from '../../components/emergencias/CierreDesenlace'
 
 // ── Design tokens per triage code ─────────────────────────────
 const CODE = {
@@ -553,6 +553,7 @@ export default function ProfessionalEmergencias({ profile }) {
                 placeholder="¿Por qué no lo atendiste? (ej. rechazó la atención)"
               />
             </div>
+            <NegativaFirmada emergencyId={emergency.id} />
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => { setSinAtencion(false); setMotivo('') }}

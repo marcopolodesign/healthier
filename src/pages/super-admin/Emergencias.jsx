@@ -194,7 +194,7 @@ export default function SuperAdminEmergencias() {
                       </td>
                       <td className="table-cell whitespace-nowrap">
                         <span className="flex items-center gap-1">
-                          {e.ordenes?.length > 0 && <BotonOrden emergencyId={e.id} />}
+                          {e.ordenes?.length > 0 && <BotonOrden emergencyId={e.id} soloNegativa={!e.ordenes.some(o => o.tipo === 'orden_traslado')} />}
                           <span className="text-xs text-text-secondary">{DESENLACE[e.desenlace] ?? (e.ordenes?.length ? '' : '—')}</span>
                         </span>
                       </td>
