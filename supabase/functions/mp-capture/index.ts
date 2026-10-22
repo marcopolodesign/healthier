@@ -663,7 +663,8 @@ Deno.serve(async (req) => {
     // Deja asentado quién la cerró así, cuándo y su mensaje (lo ve el super
     // admin). El estado del traslado lo sigue moviendo quien lo cierra, igual
     // que con el cobro. Pueden: el despacho de la entidad de la emergencia, el
-    // médico del móvil y admin/super_admin. Con una reserva autorizada se
+    // médico y la tripulación del móvil asignado, y admin/super_admin. Con una
+    // reserva autorizada se
     // niega: esa emergencia se cobra, no se cierra sin pago.
     // ────────────────────────────────────────────────────────────────────────
     if (action === "cerrar-sin-pago") {
@@ -674,7 +675,7 @@ Deno.serve(async (req) => {
 
       const { data: emergencia } = await serviceSupabase
         .from("emergencies")
-        .select("id, provider_id, professional_id, status, bonificada")
+        .select("id, provider_id, professional_id, ambulance_id, status, bonificada")
         .eq("id", emergencyId)
         .single();
       if (!emergencia) return jsonResponse({ data: null, error: "Emergency not found" }, 404);
@@ -689,6 +690,17 @@ Deno.serve(async (req) => {
           .limit(1)
           .maybeSingle();
         puede = !!staff && (emergencia.provider_id === null || staff.provider_id === emergencia.provider_id);
+      }
+      if (!puede && emergencia.ambulance_id) {
+        const { data: tripulante } = await serviceSupabase
+          .from("ambulance_crew")
+          .select("profile_id")
+          .eq("ambulance_id", emergencia.ambulance_id)
+          .eq("profile_id", user.id)
+          .eq("active", true)
+          .limit(1)
+          .maybeSingle();
+        puede = !!tripulante;
       }
       if (!puede) return jsonResponse({ data: null, error: "Forbidden" }, 403);
 
