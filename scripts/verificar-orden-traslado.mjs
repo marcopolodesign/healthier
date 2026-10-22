@@ -292,8 +292,15 @@ try {
       }).select('id').single())
       const { data: f2 } = await operador.c.from('profiles').select('id, email').eq('id', otroPaciente.id)
       debe(!f2?.length, 'el despacho no lee al paciente de un traslado de otra entidad', 'el despacho lee la ficha de un paciente de otra entidad')
-      const { error: errCancel } = await paciente.c.from('emergencies').update({ status: 'cancelled' }).eq('id', e3.id).select('id').single()
-      debe(!errCancel, 'el paciente sigue pudiendo cancelar en camino', `el paciente no pudo cancelar: ${errCancel?.message}`)
+      // Cancelar mientras espera la ambulancia sigue andando en las dos bases
+      // (después de asignada depende de la 175: va por mp-capture o directo).
+      const { data: e5 } = await admin.from('emergencies').insert({
+        patient_id: paciente.id, triage_code: 'VERDE', status: 'awaiting_dispatch', paid_at: new Date().toISOString(),
+        price_at_request: 50, patient_latitude: -34.6, patient_longitude: -58.38,
+      }).select('id').single()
+      const { error: errCancel } = await paciente.c.from('emergencies').update({ status: 'cancelled' }).eq('id', e5.id).select('id').single()
+      debe(!errCancel, 'el paciente sigue pudiendo cancelar mientras espera la ambulancia', `el paciente no pudo cancelar: ${errCancel?.message}`)
+      await admin.from('emergencies').delete().eq('id', e5.id)
     } finally {
       if (e4) await admin.from('emergencies').delete().eq('id', e4.id)
       await admin.from('emergencies').delete().eq('id', e3.id)

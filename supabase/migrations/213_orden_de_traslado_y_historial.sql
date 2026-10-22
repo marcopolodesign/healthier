@@ -485,23 +485,38 @@ CREATE POLICY despacho_lee_paciente_de_emergencia ON public.profiles
     )
   );
 
--- c) El paciente actualiza su emergencia sólo mientras está abierta: confirmar
---    el triage y la dirección (pending/awaiting) o cancelarla (hasta en
---    camino; el trigger de la 211 acota qué puede cambiar en cada estado).
---    En prod la policy dejaba tocar una terminada; en staging, ni cancelar en
---    camino. Queda una sola versión, en el repo.
-DROP POLICY IF EXISTS emergency_patient_cancel ON public.emergencies;
-CREATE POLICY emergency_patient_cancel ON public.emergencies
-  FOR UPDATE TO authenticated
-  USING (
-    patient_id = auth.uid()
-    AND status IN ('pending', 'awaiting_dispatch', 'dispatched', 'in_transit')
-  )
-  WITH CHECK (
-    patient_id = auth.uid()
-    AND status IN ('pending', 'awaiting_dispatch', 'dispatched', 'in_transit', 'cancelled')
-    AND cancellation_charged IS NOT TRUE
-  );
+-- c) El paciente no toca una emergencia terminada (en prod la policy dejaba
+--    actualizar una `completed`). Se respeta la regla de cancelación de cada
+--    base: si ya corre la 175 (`cancellation_charged`, "con la ambulancia
+--    asignada se cancela pero se cobra", Mateo 2026-09-25), el paciente sólo
+--    escribe mientras espera la ambulancia y cancelar después va por
+--    `mp-capture` — igual que la 175. Si no (prod hoy), queda lo de prod sin
+--    el hueco: hasta "en camino", que es donde el paciente puede cancelar.
+DO $$
+BEGIN
+  DROP POLICY IF EXISTS emergency_patient_cancel ON public.emergencies;
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'emergencies'
+                AND column_name = 'cancellation_charged') THEN
+    EXECUTE $p$
+      CREATE POLICY emergency_patient_cancel ON public.emergencies
+        FOR UPDATE TO authenticated
+        USING (patient_id = auth.uid() AND status IN ('pending', 'awaiting_dispatch'))
+        WITH CHECK (patient_id = auth.uid()
+                    AND status IN ('pending', 'awaiting_dispatch', 'cancelled')
+                    AND cancellation_charged IS NOT TRUE)
+    $p$;
+  ELSE
+    EXECUTE $p$
+      CREATE POLICY emergency_patient_cancel ON public.emergencies
+        FOR UPDATE TO authenticated
+        USING (patient_id = auth.uid()
+               AND status IN ('pending', 'awaiting_dispatch', 'dispatched', 'in_transit'))
+        WITH CHECK (patient_id = auth.uid()
+                    AND status IN ('pending', 'awaiting_dispatch', 'dispatched', 'in_transit', 'cancelled'))
+    $p$;
+  END IF;
+END $$;
 
 -- ── 11. El despacho sabe si la atención está cerrada ──────────────────────
 -- Antes de cobrar, "Terminar" mira lo que la base va a exigir para cerrar
