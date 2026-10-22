@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, PhoneSlash, ClipboardText, ArrowsOut, ArrowsIn,
@@ -177,24 +177,39 @@ const VELOCIDAD_DECIDE = 0.4 // px/ms — un flick decide aunque el recorrido se
  * Es la única fuente del número: lo deja en `--vc-hoja-asoma` para el CSS
  * (`vc-panel-pane`, `vc-video-pane`, `vc-controles`) y lo devuelve en un ref
  * para el arrastre. Se mide sólo con la hoja cerrada, que es cuando importa
- * (abierta, el rótulo "Historia clínica" desaparece y la medida cambia).
+ * (abierta, el rótulo "Historia clínica" desaparece y la medida cambia), sólo
+ * en el teléfono (desde `lg` el panel es una columna y no asoma nada), y antes
+ * de pintar, para que la llamada no abra con un salto.
  */
+const ESCRITORIO = '(min-width: 64rem)'
+
 function useAsomaDeLaHoja(hojaRef, asomaRef, activa, abierta) {
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const root = document.documentElement
+    const soltar = () => { asomaRef.current = null; root.style.removeProperty('--vc-hoja-asoma') }
     const hoja = hojaRef.current
     const tarjeta = hoja?.querySelector('[data-hoja-asoma]')
-    if (!activa || abierta || !hoja || !tarjeta) return
-    const root = document.documentElement
+    // Sin hoja ("Ocultar historial"), la variable no puede quedar colgada: los
+    // controles flotantes la usan para su altura.
+    if (!activa || !hoja || !tarjeta) { soltar(); return }
+    if (abierta) return
     const medir = () => {
+      if (window.matchMedia(ESCRITORIO).matches) { soltar(); return }
       const alto = window.innerHeight
       const medida = tarjeta.getBoundingClientRect().bottom - hoja.getBoundingClientRect().top
-      const px = Math.round(Math.max(alto * 0.2, Math.min(medida, alto * 0.45)))
+      // La hoja lleva abajo el área segura (la barra de inicio del iPhone):
+      // se suma, si no la última línea de la tarjeta queda debajo de la barra.
+      const areaSegura = parseFloat(getComputedStyle(hoja).paddingBottom) || 0
+      const px = Math.round(Math.max(alto * 0.2, Math.min(medida, alto * 0.45)) + areaSegura)
       asomaRef.current = px
       root.style.setProperty('--vc-hoja-asoma', `${px}px`)
     }
     medir()
+    // La tarjeta (los vitales llegan después) y lo que hay arriba de ella en
+    // la hoja (el rótulo de la barra, la fuente que termina de cargar).
     const ro = new ResizeObserver(medir)
     ro.observe(tarjeta)
+    for (const hijo of hoja.children) ro.observe(hijo)
     window.addEventListener('resize', medir)
     return () => { ro.disconnect(); window.removeEventListener('resize', medir) }
   }, [hojaRef, asomaRef, activa, abierta])
@@ -830,6 +845,27 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
       .then(setPatientData)
       .catch(() => { /* leave empty */ })
       .finally(() => setLoadingPatientData(false))
+  }, [patientId])
+
+  // Signos vitales al día durante la consulta: si el profesional le pide al
+  // paciente que abra la app y sincronice, lo nuevo aparece arriba sin
+  // recargar. Sólo se pisan esos campos — el resto del legajo es de la carga
+  // de arriba y lo pueden estar usando otros bloques del panel.
+  useEffect(() => {
+    if (!patientId) return
+    const t = setInterval(() => {
+      profilesService.getById(patientId)
+        .then(p => setPatientData(prev => prev && {
+          ...prev,
+          fcLpm: p.fcLpm,
+          saturacionPct: p.saturacionPct,
+          saludSincronizadoAt: p.saludSincronizadoAt,
+          weightKg: p.weightKg,
+          heightCm: p.heightCm,
+        }))
+        .catch(() => { /* el próximo intento lo vuelve a pedir */ })
+    }, 60_000)
+    return () => clearInterval(t)
   }, [patientId])
 
   async function handleSubmit(e) {

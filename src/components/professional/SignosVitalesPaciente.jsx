@@ -32,7 +32,9 @@ const numero = n => Number(n).toLocaleString('es-AR', { maximumFractionDigits: 1
 
 /** "recién", "hace 40 min", "hace 3 h", "hace 1 día", "hace 12 días". */
 function haceCuanto(iso, ahora) {
-  const min = Math.max(0, Math.floor((ahora - new Date(iso).getTime()) / 60000))
+  const t = new Date(iso).getTime()
+  if (!Number.isFinite(t)) return 'sin fecha'
+  const min = Math.max(0, Math.floor((ahora - t) / 60000))
   if (min < 1) return 'recién'
   if (min < 60) return `hace ${min} min`
   const h = Math.floor(min / 60)
@@ -86,7 +88,7 @@ export default function SignosVitalesPaciente({ loading, patient }) {
       <div role="group" aria-label="Signos vitales" className="border-t border-border-subtle px-3 py-2">
         <p className="flex items-center gap-1.5 text-xs leading-4 text-text-tertiary">
           <Heartbeat className="h-3.5 w-3.5 shrink-0" />
-          Sin signos vitales: no hay datos de Apple Health.
+          Sin signos vitales del teléfono del paciente.
         </p>
       </div>
     )
@@ -97,8 +99,10 @@ export default function SignosVitalesPaciente({ loading, patient }) {
   const desactualizado = hayVitales && !saludReciente(patient, ahora)
 
   let fuente
-  if (!hayVitales) fuente = 'Sin datos de Apple Health'
-  else if (!saludSincronizadoAt) fuente = 'Apple Health · sin fecha · desactualizado'
+  // Neutral a propósito: en Android todavía no hay integración (Health
+  // Connect), así que "no compartió Apple Health" sería decir algo falso.
+  if (!hayVitales) fuente = 'Sin datos del teléfono del paciente'
+  else if (!Number.isFinite(new Date(saludSincronizadoAt ?? NaN).getTime())) fuente = 'Apple Health · sin fecha · desactualizado'
   else if (desactualizado) fuente = `Sincronizó ${haceCuanto(saludSincronizadoAt, ahora)} · desactualizado`
   else fuente = `Apple Health · sincronizó ${haceCuanto(saludSincronizadoAt, ahora)}`
 
@@ -121,7 +125,9 @@ export default function SignosVitalesPaciente({ loading, patient }) {
       <p className="mt-0.5 flex items-center gap-1 text-xs leading-4 text-text-tertiary">
         {desactualizado
           ? <Warning weight="fill" className="h-3 w-3 shrink-0 text-warning" />
-          : <AppleLogo weight="fill" className="h-3 w-3 shrink-0" />}
+          : hayVitales
+            ? <AppleLogo weight="fill" className="h-3 w-3 shrink-0" />
+            : <Heartbeat className="h-3 w-3 shrink-0" />}
         <span className={desactualizado ? 'text-text-secondary' : undefined}>{fuente}</span>
       </p>
     </div>
