@@ -11,6 +11,11 @@
 -- a nombre propio y con la hora de la base.
 -- ============================================================
 
+-- "El médico del móvil" es UNO: el médico activo más antiguo de la
+-- tripulación, el mismo criterio con que el despacho elige a quién le asigna
+-- el traslado (`medicoDe` en la app). Con dos médicos cargados publicarían los
+-- dos y el punto volvería a saltar. La app la llama por RPC para saber si
+-- este teléfono es el que publica (la tripulación no lee la fila de los demás).
 CREATE OR REPLACE FUNCTION public.soy_medico_del_movil(amb_id uuid)
 RETURNS boolean
 LANGUAGE sql
@@ -18,10 +23,13 @@ SECURITY DEFINER
 STABLE
 SET search_path = public
 AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.ambulance_crew
-     WHERE ambulance_id = amb_id AND profile_id = auth.uid() AND active AND crew_role = 'medico'
-  );
+  SELECT coalesce((
+    SELECT profile_id = auth.uid()
+      FROM public.ambulance_crew
+     WHERE ambulance_id = amb_id AND active AND crew_role = 'medico'
+     ORDER BY created_at, id
+     LIMIT 1
+  ), false);
 $$;
 
 REVOKE ALL ON FUNCTION public.soy_medico_del_movil(uuid) FROM public;
