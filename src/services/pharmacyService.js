@@ -89,26 +89,16 @@ export const pharmacyService = {
   },
 
   /**
-   * Medicamentos con receta emitida que matchean el catálogo y todavía no
-   * fueron pedidos — alimenta "Recetados por tu médico" en Pharmacy.jsx.
-   * El paciente decide si los agrega o no; esto nunca crea un pedido.
-   * Misma lógica de matching que notifyPharmacyMatch (rcta-issue), del
-   * lado del cliente para poder listarlos en vez de sólo notificar.
-   */
-  /**
    * Lo recetado en UNA receta, cruzado contra el catálogo de la farmacia.
    *
    * Devuelve **todos** los medicamentos de la receta, con o sin producto: el
    * paciente tiene que poder ver que uno de los tres no está disponible, no
-   * que simplemente no aparezca (Mateo, 2026-09-04). Por eso esto no reusa
-   * `getPrescribedMatches`, que descarta lo que no matchea.
+   * que simplemente no aparezca (Mateo, 2026-09-04).
    *
-   * 🔴 **El match es por palabra clave, no por marca ni por dosis.** Puede
-   * traer otra presentación de la misma droga, así que cada item viaja con lo
-   * recetado Y lo que es el producto, para que la pantalla pueda mostrar las
-   * dos cosas y ninguna diferencia pase inadvertida — ver la regla de exactitud
-   * de datos de medicamentos. Nunca presentar el producto como si fuera
-   * exactamente lo recetado.
+   * El producto es el que la base considera exactamente lo recetado (misma
+   * droga, concentración y envase — `getMisRecetas`). Igual cada item viaja con
+   * lo recetado Y el producto, porque los nombres del catálogo no son los de
+   * la receta y la pantalla muestra las dos cosas.
    *
    * `pedido` es el pedido que ya incluye esta receta, si existe: una receta ya
    * pedida no se vuelve a comprar desde acá, se muestra el pedido.
@@ -141,57 +131,63 @@ export const pharmacyService = {
     if (prodErr) throw prodErr
     if (ordersErr) throw ordersErr
 
-    const buscarProducto = (nombre) => {
-      const needle = (nombre ?? '').toLowerCase()
-      if (!needle) return null
-      return (products ?? []).find(p =>
-        (p.medication_match ?? '').split(',').some(kw => kw.trim() && needle.includes(kw.trim().toLowerCase()))
-      ) ?? null
+    // Qué producto es exactamente lo recetado lo decide la base (migración
+    // 214: misma droga, misma concentración y, si la receta lo dice, mismo
+    // envase) — es la misma regla con la que después acepta o rechaza el
+    // carrito. Antes se buscaba por palabra clave y una receta de 0,5 mg
+    // ofrecía el de 2 mg.
+    const lineas = await this.getMisRecetas()
+    const productosDe = new Map(lineas.map(l => [l.clinicalMedicationId, new Set(l.productoIds ?? [])]))
+    const buscarProducto = (medId) => {
+      const ids = productosDe.get(medId)
+      if (!ids?.size) return null
+      return (products ?? []).find(p => ids.has(p.id)) ?? null
     }
 
     const medicamentos = toCamelCase(meds ?? []).map(med => {
-      const raw = buscarProducto(med.medicationName)
+      const raw = buscarProducto(med.id)
       return { medication: med, product: raw ? toCamelCase(raw) : null }
     })
 
     return { medicamentos, pedido: toCamelCase(orders ?? [])[0] ?? null }
   },
 
-  async getPrescribedMatches(patientId) {
-    const [{ data: meds, error: medsErr }, { data: products, error: prodErr }, { data: orders, error: ordersErr }] = await Promise.all([
-      supabase
-        .from('clinical_medications')
-        .select('id, medication_name, presentation, dosage_text, rcta_prescription_id, rcta_status')
-        .eq('patient_id', patientId)
-        .eq('rcta_status', 'issued')
-        .not('rcta_prescription_id', 'is', null),
-      supabase
-        .from('pharmacy_products')
-        .select('*')
-        .eq('pharmacy_id', PHARMACY_ID)
-        .eq('in_stock', true)
-        .not('medication_match', 'is', null),
-      supabase
-        .from('medication_orders')
-        .select('rcta_prescription_id')
-        .eq('patient_id', patientId)
-        .not('rcta_prescription_id', 'is', null),
-    ])
-    if (medsErr) throw medsErr
-    if (prodErr) throw prodErr
-    if (ordersErr) throw ordersErr
+  /**
+   * Las recetas del paciente para la farmacia, con su estado (vigente / usada /
+   * vencida), hasta cuándo sirven, cuántos envases cubren y qué productos del
+   * catálogo son exactamente lo recetado. Lo calcula la base
+   * (`farmacia_mis_recetas`, migración 214) con la misma regla que valida el
+   * carrito, así la pantalla nunca ofrece algo que después se rechaza.
+   */
+  async getMisRecetas() {
+    const { data, error } = await supabase.rpc('farmacia_mis_recetas')
+    if (error) throw error
+    return toCamelCase(data ?? [])
+  },
 
-    const alreadyOrdered = new Set((orders ?? []).map(o => o.rcta_prescription_id))
+  // ── Super admin: el piso legal del catálogo (migración 214) ──────────────
+  // Drogas que nunca se venden como venta libre aunque la farmacia las cargue
+  // así. Al agregar una, la base reclasifica el catálogo sola. RLS: sólo el
+  // super admin escribe.
+  async getDrogasBajoReceta() {
+    const { data, error } = await supabase
+      .from('farmacia_drogas_bajo_receta')
+      .select('*')
+      .order('tipo', { ascending: false })
+      .order('droga')
+    if (error) throw error
+    return toCamelCase(data)
+  },
 
-    const matches = []
-    for (const med of meds ?? []) {
-      if (alreadyOrdered.has(med.rcta_prescription_id)) continue
-      const needle = (med.medication_name ?? '').toLowerCase()
-      const product = (products ?? []).find(p =>
-        p.medication_match.split(',').some(kw => needle.includes(kw.trim().toLowerCase()))
-      )
-      if (product) matches.push({ medication: toCamelCase(med), product: toCamelCase(product) })
-    }
-    return matches
+  async addDrogaBajoReceta({ droga, tipo, motivo }) {
+    const { error } = await supabase
+      .from('farmacia_drogas_bajo_receta')
+      .insert({ droga: droga.trim().toLowerCase(), tipo, motivo: motivo.trim() })
+    if (error) throw error
+  },
+
+  async removeDrogaBajoReceta(droga) {
+    const { error } = await supabase.from('farmacia_drogas_bajo_receta').delete().eq('droga', droga)
+    if (error) throw error
   },
 }

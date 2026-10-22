@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, MapPin, Pill, XCircle } from '@phosphor-icons/react'
+import { ArrowLeft, MapPin, Pill, XCircle, FileText } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
 import { formatARS, formatDate } from '../../lib/format'
@@ -11,6 +11,7 @@ export default function PharmacyOrderDetail({ profile }) {
   const navigate = useNavigate()
   const [order, setOrder] = useState(null)
   const [payment, setPayment] = useState(null)
+  const [recetas, setRecetas] = useState({}) // itemId → receta que lo cubre
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
   const [cancelando, setCancelando] = useState(false)
@@ -28,6 +29,8 @@ export default function PharmacyOrderDetail({ profile }) {
       .then(([o, p]) => { setOrder(o); setPayment(p) })
       .catch(() => toast.error('Error al cargar el pedido'))
       .finally(() => setLoading(false))
+    // Aparte: si falla, el pedido se ve igual (sólo falta el dato de la receta).
+    medicationOrdersService.getRecetasDelPedido(id).then(setRecetas).catch(() => setRecetas({}))
   }, [id])
 
   /**
@@ -137,6 +140,14 @@ export default function PharmacyOrderDetail({ profile }) {
               <div>
                 <p className="text-sm font-medium text-text-primary">{it.medicationName}{it.presentation ? ` — ${it.presentation}` : ''}</p>
                 <p className="text-xs text-text-secondary">x{it.quantity}{it.requiresPrescription ? ' · requiere receta' : ''}</p>
+                {recetas[it.id] && (
+                  <p className="text-xs text-text-secondary mt-0.5 flex items-center gap-1 flex-wrap">
+                    <FileText className="h-3.5 w-3.5 shrink-0" />
+                    Receta: {recetas[it.id].medicamento} · {recetas[it.id].profesional || 'profesional'} · {formatDate(recetas[it.id].emitidaAt)}
+                    {recetas[it.id].verificador && <> · código <span className="font-mono">{recetas[it.id].verificador}</span></>}
+                    {recetas[it.id].pdfUrl && <> · <a href={recetas[it.id].pdfUrl} target="_blank" rel="noreferrer" className="text-brand font-semibold">ver PDF</a></>}
+                  </p>
+                )}
               </div>
             </div>
             <p className="text-sm text-text-secondary">{formatARS(it.unitPrice * it.quantity)}</p>

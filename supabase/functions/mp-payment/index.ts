@@ -535,6 +535,27 @@ Deno.serve(async (req) => {
         )
       }
 
+      // Lo que necesita receta se valida ANTES de cobrar (migración 214): la
+      // receta pudo vencer —o usarse en otro pedido— entre que la agregó al
+      // carrito y que paga. El trigger de medication_orders igual rechazaría
+      // el 'pagado', pero para entonces la tarjeta ya estaría cobrada.
+      const { data: sinReceta, error: recetaErr } = await serviceSupabase
+        .rpc('farmacia_items_sin_receta', { p_order: orderId })
+      if (recetaErr) {
+        console.error('mp-payment (order): farmacia_items_sin_receta error:', recetaErr.message)
+        return new Response(
+          JSON.stringify({ data: null, error: 'No pudimos validar las recetas del pedido. Probá de nuevo.' }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      if (sinReceta?.length) {
+        const nombres = [...new Set(sinReceta.map((r: { medication_name: string }) => r.medication_name))].join(', ')
+        return new Response(
+          JSON.stringify({ data: null, code: 'RECETA_REQUERIDA', error: `Necesitás una receta vigente para: ${nombres}. Sacalo del carrito o pedí la receta en una videoconsulta.` }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       const catalogIds = items.map((it) => it.pharmacy_product_id).filter(Boolean) as string[]
       const currentPrices = new Map<string, number>()
       if (catalogIds.length) {
