@@ -1464,6 +1464,7 @@ export default function ProfessionalVideoCall({ profile }) {
 
     const ch = supabase.channel(`consultation-waiting-${id}`)
     channelRef.current = ch
+    let releidoAlEntrar = false
 
     // El paciente compartió el código de cierre (a mano o aceptando el pedido
     // — migración 099). Se auto-verifica: no hace falta que el profesional lo
@@ -1478,13 +1479,20 @@ export default function ProfessionalVideoCall({ profile }) {
       if (destroyed) return
       clearTimeout(timerVitalesRef.current)
       const estado = payload?.estado
+      // Se relee siempre: aun sin mediciones de hoy, el teléfono pudo subir una
+      // vieja (que la tira muestra marcada "no es de hoy").
+      setVersionVitales(v => v + 1)
       if (estado === 'compartidos') {
-        setVersionVitales(v => v + 1)
         setEstadoVitales('recibido')
         timerVitalesRef.current = setTimeout(() => setEstadoVitales('idle'), 3000)
       } else {
         setEstadoVitales(['sin_datos', 'sin_permiso', 'rechazado', 'no_disponible'].includes(estado) ? estado : 'error')
       }
+    })
+
+    // La app subió lo que tenía al entrar a la llamada: se relee ya.
+    ch.on('broadcast', { event: 'vitales_actualizados' }, () => {
+      if (!destroyed) setVersionVitales(v => v + 1)
     })
 
     ch.on('presence', { event: 'sync' }, () => {
@@ -1499,6 +1507,12 @@ export default function ProfessionalVideoCall({ profile }) {
         clearTimeout(noShowTimerRef.current)
         setNoShowBanner(false)
         setJoinGate(true)
+        // Al entrar, la app sube los signos vitales del momento: por si el
+        // aviso `vitales_actualizados` se perdió, se relee una vez a los 4 s.
+        if (!releidoAlEntrar) {
+          releidoAlEntrar = true
+          setTimeout(() => { if (!destroyed) setVersionVitales(v => v + 1) }, 4000)
+        }
       }
     })
 
@@ -1725,9 +1739,9 @@ export default function ProfessionalVideoCall({ profile }) {
     if (!channelRef.current) return
     clearTimeout(timerVitalesRef.current)
     setEstadoVitales('pidiendo')
-    try {
-      await channelRef.current.send({ type: 'broadcast', event: 'solicitar_vitales', payload: {} })
-    } catch {
+    // `send` no rechaza: resuelve 'ok' | 'timed out' | 'error'.
+    const r = await channelRef.current.send({ type: 'broadcast', event: 'solicitar_vitales', payload: {} }).catch(() => 'error')
+    if (r !== 'ok') {
       setEstadoVitales('error')
       return
     }
