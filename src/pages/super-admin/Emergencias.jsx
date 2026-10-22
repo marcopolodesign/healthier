@@ -189,8 +189,6 @@ export default function SuperAdminEmergencias() {
                           ? <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Bonificada</span>
                           : e.status === 'cancelled' && e.cancellationCharged
                             ? <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-danger/10 text-danger">Cobrado al cancelar</span>
-                          : e.status === 'cancelled' && e.cancellationCharged === false && e.paidAt
-                            ? <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">Liberado</span>
                           : e.paidAt
                             ? <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600">Reservado</span>
                             : <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">Sin cobrar</span>}
