@@ -286,8 +286,13 @@ export default function Pharmacy({ profile }) {
   // Al volver a la pantalla después de comprar, una receta vigente puede
   // haber pasado a "usada": se recarga cuando cambia el carrito (pagarlo lo
   // vacía), no en cada "+".
+  const carritoPrevio = useRef(cart.orderId)
   useEffect(() => {
-    if (!profile?.id || cart.orderId) return
+    const antes = carritoPrevio.current
+    carritoPrevio.current = cart.orderId
+    // Sólo cuando un carrito que existía desaparece (se pagó): la carga
+    // inicial ya trae las recetas.
+    if (!profile?.id || !antes || cart.orderId) return
     pharmacyService.getMisRecetas().then(setRecetas).catch(() => {})
   }, [profile?.id, cart.orderId])
 
