@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Map, Marker } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { MapPin, Phone, User, Warning, WarningCircle, X } from '@phosphor-icons/react'
+import { Clock, MapPin, Phone, User, Warning, WarningCircle, X } from '@phosphor-icons/react'
 import { emergencyService } from '../../services/emergencyService'
 import { dispatchService, antiguedadUbicacion, haceCuanto } from '../../services/dispatchService'
 import { haversineKm, formatDistance } from '../../lib/geo'
@@ -161,7 +161,11 @@ export default function PanelTraslado({ emergencyId, onClose, onTerminar, termin
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span className="text-[11px] font-semibold uppercase px-2 py-0.5 rounded-full bg-sky-50 text-sky-700">{ESTADO[t.status] || t.status}</span>
               {t.dispatchCode && <span className="text-text-secondary">{t.dispatchCode}</span>}
-              {t.dispatchedAt && <span className="text-text-secondary tabular-nums">Despachada · {cronometro(t.dispatchedAt, ahora)}</span>}
+              {t.dispatchedAt && (
+                <span className="flex items-center gap-1 text-text-secondary tabular-nums" aria-label={`Despachada hace ${cronometro(t.dispatchedAt, ahora)}`}>
+                  <Clock className="h-4 w-4" /> {cronometro(t.dispatchedAt, ahora)}
+                </span>
+              )}
             </div>
             <p className="text-sm text-text-secondary">
               {km != null
