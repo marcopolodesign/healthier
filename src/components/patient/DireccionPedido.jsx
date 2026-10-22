@@ -47,11 +47,11 @@ export function DireccionPedidoCard({ valor, buscando, conGps, onCambiar }) {
         <button
           type="button"
           onClick={onCambiar}
-          disabled={buscando}
-          className="min-h-11 min-w-11 text-[15px] font-semibold text-brand disabled:opacity-40"
+          className="min-h-11 min-w-11 text-[15px] font-semibold text-brand"
           data-testid="sos-direccion-cambiar"
         >
-          Cambiar
+          {/* Habilitado aun buscando: con el GPS lento, el paciente la escribe. */}
+          {buscando ? 'Escribirla' : 'Cambiar'}
         </button>
       </div>
       {buscando ? (
