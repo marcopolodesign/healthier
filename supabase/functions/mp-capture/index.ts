@@ -713,8 +713,13 @@ Deno.serve(async (req) => {
       }
       if (!puede) return jsonResponse({ data: null, error: "Forbidden" }, 403);
 
-      if (emergencia.status === "cancelled") {
-        return jsonResponse({ data: null, error: "La emergencia está cancelada." }, 409);
+      if (!["dispatched", "in_transit", "arrived", "completed"].includes(emergencia.status)) {
+        return jsonResponse({ data: null, error: "La emergencia no está en curso." }, 409);
+      }
+      // Ya registrado (p. ej. un reintento tras fallar el cierre): no se pisa
+      // quién la cerró ni su mensaje.
+      if (emergencia.cierre_sin_pago_at) {
+        return jsonResponse({ data: { registrado: true, yaEstaba: true, bonificada: emergencia.bonificada === true }, error: null });
       }
 
       const { data: reserva } = await serviceSupabase
