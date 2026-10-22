@@ -103,12 +103,24 @@ CREATE TRIGGER ambulance_locations_ahora
 -- ── El paciente no se asigna una ambulancia ─────────────────
 -- Con la flota publicando su posición todo el turno, `soy_paciente_de_ambulancia`
 -- (156) pasa a valer mucho: quien la cumple ve el móvil en vivo. Y la RLS del
--- paciente sólo exige `patient_id = auth.uid()`, así que podía INSERTAR una
--- emergencia ya `in_transit` con el `ambulance_id` de un móvil (el de una
--- emergencia suya anterior) y seguirlo todos los turnos (revisión de
--- seguridad, 2026-10-22). Lo del despacho lo escribe el despacho (operador,
--- admin, RPC del coordinador) o el servidor; el paciente crea el pedido en
--- `pending` y sin nada asignado, y no toca esas columnas después.
+-- paciente es floja: el INSERT sólo exige `patient_id = auth.uid()` y, en
+-- PRODUCCIÓN, `emergency_patient_cancel` deja editar cualquier columna mientras
+-- el estado no sea arrived/cancelled (en staging quedó otra versión, más
+-- estricta, que nunca llegó al repo). Con eso un paciente podía crear un pedido
+-- ya `in_transit` con el móvil de una emergencia suya anterior, o volver a
+-- poner `in_transit` una suya `completed`, y seguir al móvil todos los turnos
+-- (revisión de seguridad y de código, 2026-10-22).
+--
+-- Regla, igual en los dos entornos y sin tocar la policy (cancelar en camino
+-- sigue como está): lo del despacho lo escribe el despacho (operador, admin,
+-- coordinador de la 179) o el servidor. El paciente:
+--   · crea el pedido en `pending`, sin nada asignado;
+--   · no toca las columnas de asignación;
+--   · sólo mueve el estado pending → awaiting_dispatch (triage) o a cancelled
+--     desde uno no terminado;
+--   · corrige su dirección / punto sólo mientras espera (pending,
+--     awaiting_dispatch): con el móvil en la calle, mover el destino es
+--     mandarlo a otro lado.
 CREATE OR REPLACE FUNCTION public.proteger_despacho_emergencia()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -119,7 +131,8 @@ begin
   if coalesce(auth.role(), '') not in ('authenticated', 'anon') then
     return new;
   end if;
-  if public.get_my_role() in ('super_admin', 'emergency_admin', 'emergency_operator') then
+  if public.get_my_role() in ('super_admin', 'emergency_admin', 'emergency_operator')
+     or public.soy_coordinador_emergencias() then
     return new;
   end if;
 
@@ -131,19 +144,44 @@ begin
       raise exception 'Un pedido nuevo no puede venir asignado.'
         using errcode = '42501';
     end if;
-  elsif new.patient_id = auth.uid()
-     -- La tripulación y el médico del móvil sí mueven su emergencia (156/177).
-     and not (old.ambulance_id is not null and public.soy_tripulacion(old.ambulance_id))
-     and old.professional_id is distinct from auth.uid() then
-    if new.ambulance_id is distinct from old.ambulance_id
-       or new.provider_id is distinct from old.provider_id
-       or new.operator_id is distinct from old.operator_id
-       or new.professional_id is distinct from old.professional_id
-       or new.dispatched_at is distinct from old.dispatched_at
-       or new.dispatch_code is distinct from old.dispatch_code then
-      raise exception 'No autorizado para asignar esta emergencia.'
-        using errcode = '42501';
-    end if;
+    return new;
+  end if;
+
+  -- UPDATE: la tripulación y el médico del móvil sí mueven su emergencia (156/177).
+  if new.patient_id is distinct from auth.uid()
+     or (old.ambulance_id is not null and public.soy_tripulacion(old.ambulance_id))
+     or old.professional_id is not distinct from auth.uid() then
+    return new;
+  end if;
+
+  if new.ambulance_id is distinct from old.ambulance_id
+     or new.provider_id is distinct from old.provider_id
+     or new.operator_id is distinct from old.operator_id
+     or new.professional_id is distinct from old.professional_id
+     or new.dispatched_at is distinct from old.dispatched_at
+     or new.dispatch_code is distinct from old.dispatch_code then
+    raise exception 'No autorizado para asignar esta emergencia.'
+      using errcode = '42501';
+  end if;
+
+  if new.status is distinct from old.status
+     and not (old.status = 'pending' and new.status = 'awaiting_dispatch')
+     and not (new.status = 'cancelled' and old.status in ('pending', 'awaiting_dispatch', 'dispatched', 'in_transit')) then
+    raise exception 'No autorizado para cambiar el estado de esta emergencia.'
+      using errcode = '42501';
+  end if;
+
+  if old.status not in ('pending', 'awaiting_dispatch') and (
+       new.patient_latitude is distinct from old.patient_latitude
+       or new.patient_longitude is distinct from old.patient_longitude
+       or new.direccion is distinct from old.direccion
+       or new.direccion_piso is distinct from old.direccion_piso
+       or new.direccion_referencias is distinct from old.direccion_referencias
+       or new.gps_latitude is distinct from old.gps_latitude
+       or new.gps_longitude is distinct from old.gps_longitude
+       or new.ubicacion_origen is distinct from old.ubicacion_origen) then
+    raise exception 'La dirección sólo se corrige mientras se espera la ambulancia.'
+      using errcode = '42501';
   end if;
 
   return new;

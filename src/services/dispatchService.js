@@ -264,7 +264,10 @@ export const dispatchService = {
    */
   suscribirUbicaciones(onCambio) {
     const canal = supabase
-      .channel('flota-ambulancias')
+      // Nombre único por suscripción: con uno fijo, el mapa y el panel del
+      // traslado (o el panel al cambiar de traslado) reusaban un canal que se
+      // estaba cerrando y se quedaban sin tiempo real.
+      .channel(`flota-ambulancias-${Date.now()}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ambulance_locations' },
         payload => onCambio({
           evento: payload.eventType,
