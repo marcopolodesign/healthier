@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Ambulance, Plus, Trash, UserPlus, X, MagnifyingGlass } from '@phosphor-icons/react'
+import { Ambulance, MapPin, Plus, Trash, UserPlus, X, MagnifyingGlass } from '@phosphor-icons/react'
 import {
-  dispatchService, ESTADOS_AMBULANCIA, TIPOS_AMBULANCIA, ROLES_TRIPULACION,
+  dispatchService, ESTADOS_AMBULANCIA, TIPOS_AMBULANCIA, ROLES_TRIPULACION, antiguedadUbicacion, haceCuanto,
 } from '../../services/dispatchService'
 import { toast } from '../../components/Toast'
 import Modal from '../../components/Modal'
@@ -131,6 +131,10 @@ function AmbulanciaCard({ ambulancia, isAdmin, onCambio }) {
           <p className="text-xs text-text-secondary">
             {ambulancia.plate ? `${ambulancia.plate} · ` : ''}
             {TIPOS_AMBULANCIA.find(t => t.id === ambulancia.unitType)?.label || ambulancia.unitType}
+          </p>
+          <p className={`text-xs tabular-nums flex items-center gap-1 mt-0.5 ${antiguedadUbicacion(ambulancia.ubicacion) === 'vivo' ? 'text-emerald-700' : 'text-text-secondary'}`}>
+            <MapPin className="h-3.5 w-3.5" weight={antiguedadUbicacion(ambulancia.ubicacion) === 'vivo' ? 'fill' : 'regular'} />
+            {ambulancia.ubicacion ? `Posición de ${haceCuanto(ambulancia.ubicacion.updatedAt)}` : 'Sin posición'}
           </p>
         </div>
         {isAdmin && (

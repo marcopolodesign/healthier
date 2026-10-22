@@ -146,6 +146,7 @@ export default function SuperAdminEmergencias() {
                       </td>
                       <td className="table-cell">
                         <p className="text-text-primary truncate max-w-[160px]">{e.patient?.fullName || '—'}</p>
+                        {e.direccion && <p className="text-xs text-text-secondary truncate max-w-[200px]" title={[e.direccion, e.direccionPiso, e.direccionReferencias].filter(Boolean).join(' · ')}>{e.direccion}{e.direccionPiso ? ` · ${e.direccionPiso}` : ''}</p>}
                         <p className="text-xs text-text-tertiary truncate max-w-[160px]">{e.patient?.phone || ''}</p>
                       </td>
                       <td className="table-cell">

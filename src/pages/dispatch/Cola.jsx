@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Siren, Phone, Ambulance, Clock, MapPin, Warning } from '@phosphor-icons/react'
-import { dispatchService, ubicacionEsReciente } from '../../services/dispatchService'
+import { Siren, Phone, Ambulance, Clock, MapPin, Warning, CaretRight } from '@phosphor-icons/react'
+import { dispatchService, antiguedadUbicacion, haceCuanto } from '../../services/dispatchService'
+import PanelTraslado from '../../components/dispatch/PanelTraslado'
+import { direccionCorta } from '../../lib/direccionEmergencia'
 import { emergencyService } from '../../services/emergencyService'
 import { mpService } from '../../services/mpService'
 import { toast } from '../../components/Toast'
@@ -72,6 +74,12 @@ function SolicitudCard({ req, tick, onAsignar }) {
         </div>
       </div>
 
+      {direccionCorta(req) && (
+        <p className="flex items-center gap-1.5 text-sm text-text-primary truncate" data-testid="cola-direccion">
+          <MapPin className="h-4 w-4 shrink-0 text-text-secondary" /> <span className="truncate">{direccionCorta(req)}</span>
+        </p>
+      )}
+
       {req.patient?.phone && (
         <p className="flex items-center gap-1.5 text-xs text-text-secondary">
           <Phone className="h-3.5 w-3.5 shrink-0" /> {req.patient.phone}
@@ -103,6 +111,8 @@ export default function DespachoCola({ profile }) {
   const [modalReq, setModalReq] = useState(null)
   const [asignando, setAsignando] = useState(null)
   const [terminando, setTerminando] = useState(null)
+  // El traslado "En curso" abierto en el panel lateral (Mateo, 2026-10-22).
+  const [abierto, setAbierto] = useState(null)
   // Cierre sin pago: la emergencia no tiene reserva para cobrar (bonificada o
   // sin preautorización). Se avisa y se pide un mensaje (Mateo, 2026-10-22).
   const [sinPago, setSinPago] = useState(null) // { req, bonificada }
@@ -191,6 +201,7 @@ export default function DespachoCola({ profile }) {
       await emergencyService.updateStatus(req.id, 'completed')
       await emergencyService.liberarAmbulancia(req.ambulancia?.id)
       toast.success('Traslado terminado y cobrado')
+      setAbierto(null)
       cargar(entidad?.id)
     } catch (err) {
       toast.error(err?.message || 'Error al terminar el traslado')
@@ -214,6 +225,7 @@ export default function DespachoCola({ profile }) {
       await emergencyService.liberarAmbulancia(req.ambulancia?.id)
       toast.success('Traslado terminado, sin cobro')
       setSinPago(null)
+      setAbierto(null)
       cargar(entidad?.id)
     } catch (err) {
       toast.error(err?.message || 'Error al terminar el traslado')
@@ -227,20 +239,27 @@ export default function DespachoCola({ profile }) {
     const paciente = (modalReq.patientLatitude != null && modalReq.patientLongitude != null)
       ? { lat: modalReq.patientLatitude, lng: modalReq.patientLongitude }
       : null
+    // Por cercanía real con la última posición conocida (Felipe + Mateo,
+    // 2026-10-22): en vivo y de menos de 15 min compiten por distancia;
+    // después las viejas con su distancia; al final las que nunca reportaron.
+    const RANGO = { vivo: 0, reciente: 0, vieja: 1, sin: 2 }
+    const ahora = Date.now()
     return ambulancias
       .filter(a => a.status === 'disponible')
       .map(a => {
-        const fresca = ubicacionEsReciente(a.ubicacion)
-        const distanciaKm = (fresca && paciente) ? haversineKm(paciente, a.ubicacion) : null
-        return { ambulancia: a, distanciaKm }
+        const antiguedad = antiguedadUbicacion(a.ubicacion, ahora)
+        const distanciaKm = (antiguedad !== 'sin' && paciente) ? haversineKm(paciente, a.ubicacion) : null
+        return { ambulancia: a, distanciaKm, antiguedad }
       })
       .sort((a, b) => {
+        if (RANGO[a.antiguedad] !== RANGO[b.antiguedad]) return RANGO[a.antiguedad] - RANGO[b.antiguedad]
         if (a.distanciaKm == null && b.distanciaKm == null) return 0
         if (a.distanciaKm == null) return 1
         if (b.distanciaKm == null) return -1
         return a.distanciaKm - b.distanciaKm
       })
-  }, [modalReq, ambulancias])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalReq, ambulancias, Math.floor(tick / 15)])
 
   if (loading) {
     return (
@@ -299,12 +318,27 @@ export default function DespachoCola({ profile }) {
                     </span>
                     <p className="text-sm text-text-secondary">{req.ambulancia?.label || '—'} {req.ambulancia?.plate ? `· ${req.ambulancia.plate}` : ''}</p>
                   </div>
-                  <p className="font-medium text-text-primary text-sm">{req.patient?.fullName || 'Paciente'}</p>
+                  <button
+                    type="button"
+                    onClick={() => setAbierto(req.id)}
+                    className="w-full text-left space-y-1.5 -m-1 p-1 rounded-xl hover:bg-bg-surface transition-colors"
+                    data-testid="en-curso-abrir"
+                  >
+                  <p className="font-medium text-text-primary text-sm flex items-center justify-between gap-2">
+                    {req.patient?.fullName || 'Paciente'}
+                    <span className="flex items-center gap-0.5 text-xs text-text-secondary font-normal">Ver detalle <CaretRight className="h-3.5 w-3.5" /></span>
+                  </p>
+                  {direccionCorta(req) && (
+                    <p className="flex items-center gap-1.5 text-xs text-text-secondary truncate">
+                      <MapPin className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{direccionCorta(req)}</span>
+                    </p>
+                  )}
                   {req.patient?.phone && (
                     <p className="flex items-center gap-1.5 text-xs text-text-secondary">
                       <Phone className="h-3.5 w-3.5 shrink-0" /> {req.patient.phone}
                     </p>
                   )}
+                  </button>
                   <button
                     className="btn-secondary w-full"
                     disabled={terminando === req.id}
@@ -318,6 +352,15 @@ export default function DespachoCola({ profile }) {
           )}
         </div>
       </div>
+
+      {abierto && (
+        <PanelTraslado
+          emergencyId={abierto}
+          onClose={() => setAbierto(null)}
+          onTerminar={terminar}
+          terminando={terminando === abierto}
+        />
+      )}
 
       <Modal open={!!sinPago} onClose={() => !cerrandoSinPago && setSinPago(null)} title="Terminar sin cobro">
         {sinPago && (
@@ -374,7 +417,8 @@ export default function DespachoCola({ profile }) {
               </div>
             ) : (
               <div className="space-y-2 max-h-[50vh] overflow-y-auto">
-                {opcionesModal.map(({ ambulancia: a, distanciaKm }) => (
+                <p className="text-xs text-text-secondary">Ordenados por distancia en línea recta</p>
+                {opcionesModal.map(({ ambulancia: a, distanciaKm, antiguedad }) => (
                   <div key={a.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-border-default">
                     <div className="min-w-0">
                       <p className="font-medium text-text-primary text-sm">{a.label} {a.plate ? `· ${a.plate}` : ''}</p>
@@ -383,7 +427,9 @@ export default function DespachoCola({ profile }) {
                       </p>
                       <p className="text-xs text-text-tertiary flex items-center gap-1 mt-0.5">
                         <MapPin className="h-3 w-3 shrink-0" />
-                        {distanciaKm != null ? `${formatDistance(distanciaKm)} en línea recta` : 'Sin posición reciente'}
+                        {distanciaKm != null
+                          ? <>{formatDistance(distanciaKm)} · <span className={`tabular-nums ${antiguedad === 'vivo' ? '' : 'inline-flex items-center gap-1'}`}>{antiguedad !== 'vivo' && <Clock className="h-3 w-3 text-amber-600" weight="fill" />}{haceCuanto(a.ubicacion?.updatedAt)}</span></>
+                          : 'Sin posición reciente'}
                       </p>
                     </div>
                     <button
