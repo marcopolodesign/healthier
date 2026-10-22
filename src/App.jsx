@@ -137,6 +137,7 @@ import DespachoCola from './pages/dispatch/Cola'
 import DespachoMapa from './pages/dispatch/Mapa'
 import DespachoAmbulancias from './pages/dispatch/Ambulancias'
 import DespachoConfiguracion from './pages/dispatch/Configuracion'
+import DespachoHistorial from './pages/dispatch/Historial'
 import { tomarDestinoPostRegistro } from './lib/postSignupRedirect'
 import ConfirmarApellido from './components/ConfirmarApellido'
 import { ROLE_REDIRECTS } from './lib/roleRedirects'
@@ -635,6 +636,7 @@ export default function App() {
           </RequireRole>
         }>
           <Route path="/despacho" element={<DespachoCola profile={profile} />} />
+          <Route path="/despacho/historial" element={<DespachoHistorial profile={profile} />} />
           <Route path="/despacho/mapa" element={<DespachoMapa profile={profile} />} />
           <Route path="/despacho/ambulancias" element={<DespachoAmbulancias profile={profile} />} />
           <Route path="/despacho/configuracion" element={<DespachoConfiguracion profile={profile} />} />

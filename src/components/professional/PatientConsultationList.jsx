@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { VideoCamera, MapPin, CircleNotch, CalendarBlank } from '@phosphor-icons/react'
+import { VideoCamera, MapPin, CircleNotch, CalendarBlank, Ambulance } from '@phosphor-icons/react'
 import StatusBadge from '../StatusBadge'
 import DerivadoChip from './DerivadoChip'
 
@@ -44,6 +44,9 @@ export default function PatientConsultationList({ consultations, loading, emptyH
       {consultations.map(c => {
         const fecha = c.scheduledAt ? new Date(c.scheduledAt) : null
         const esVideo = c.modality === 'video'
+        // La atención de una emergencia (migración 177) no es un turno
+        // presencial: se dice qué fue (Nacho, 2026-10-22).
+        const esEmergencia = Boolean(c.emergencyId)
         const pago = Array.isArray(c.payment) ? c.payment[0] : c.payment
         const neto = pago?.mpNetReceivedAmount ?? pago?.netToProfessional
 
@@ -56,9 +59,11 @@ export default function PatientConsultationList({ consultations, loading, emptyH
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {esVideo
-                    ? <VideoCamera className="h-3.5 w-3.5 text-brand shrink-0" />
-                    : <MapPin className="h-3.5 w-3.5 text-brand shrink-0" />}
+                  {esEmergencia
+                    ? <Ambulance className="h-3.5 w-3.5 text-danger shrink-0" weight="fill" />
+                    : esVideo
+                      ? <VideoCamera className="h-3.5 w-3.5 text-brand shrink-0" />
+                      : <MapPin className="h-3.5 w-3.5 text-brand shrink-0" />}
                   <span className="text-sm font-medium text-text-primary">
                     {fecha
                       ? fecha.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -74,7 +79,7 @@ export default function PatientConsultationList({ consultations, loading, emptyH
                 <p className="text-xs text-text-secondary mt-0.5">
                   {[
                     c.consultationType?.name,
-                    esVideo ? 'Videollamada' : 'Presencial',
+                    esEmergencia ? 'Atención de emergencia' : esVideo ? 'Videollamada' : 'Presencial',
                     c.durationMinutes != null ? `${c.durationMinutes} min` : null,
                   ].filter(Boolean).join(' · ')}
                 </p>
