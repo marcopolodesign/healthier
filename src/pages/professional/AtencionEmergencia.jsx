@@ -8,6 +8,7 @@ import { consultationsService } from '../../services/consultationsService'
 import { emergencyService } from '../../services/emergencyService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import { esWebViewDeLaApp } from '../../lib/enApp'
+import OrdenDeTrasladoCard from '../../components/emergencias/OrdenDeTrasladoCard'
 
 /**
  * La atención de una emergencia, en el lugar (migración 177).
@@ -138,6 +139,7 @@ export default function AtencionEmergencia({ profile }) {
           Quedó registrada en su historia clínica y le mandamos el resumen.
           {enApp ? ' Ya podés volver a la emergencia.' : ''}
         </p>
+        <OrdenDeTrasladoCard emergencyId={consultation.emergencyId} className="w-full max-w-sm text-left" />
         {!enApp && (
           <Link to="/profesional/emergencias" className="btn-primary px-6 py-3">
             Volver a la emergencia

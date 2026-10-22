@@ -165,6 +165,40 @@ export const emergencyService = {
     return toCamelCase(data)
   },
 
+  // ── La atención y el cierre (migraciones 177 y 213) ──────────────────
+
+  /** La consulta de la emergencia, si ya se abrió: `{ id, status }` o null. */
+  async getAtencion(emergencyId) {
+    const { data, error } = await supabase
+      .from('consultations')
+      .select('id, status')
+      .eq('emergency_id', emergencyId)
+      .maybeSingle()
+    if (error) throw error
+    return data ?? null
+  },
+
+  /** Abre (o retoma) la atención. Sólo el médico del móvil. Devuelve el id de la consulta. */
+  async iniciarAtencion(emergencyId) {
+    const { data, error } = await supabase.rpc('iniciar_atencion_emergencia', { p_emergency_id: emergencyId })
+    if (error) throw new Error(error.message)
+    return data
+  },
+
+  /**
+   * Cierra la emergencia en UNA escritura: el desenlace ('en_el_lugar' |
+   * 'traslado') y, si no hubo atención, el motivo. La base exige la atención
+   * cerrada o el motivo, y con 'traslado' la orden subida (migración 213): el
+   * mensaje de error ya dice qué falta.
+   */
+  async cerrar(emergencyId, { desenlace, motivoSinAtencion } = {}) {
+    const cambios = { status: 'completed' }
+    if (desenlace) cambios.desenlace = desenlace
+    if (motivoSinAtencion?.trim()) cambios.cierre_sin_atencion = motivoSinAtencion.trim()
+    const { error } = await supabase.from('emergencies').update(cambios).eq('id', emergencyId)
+    if (error) throw new Error(error.message)
+  },
+
   /**
    * Subscribe to emergency changes for a professional.
    * Returns an unsubscribe function.
@@ -361,6 +395,53 @@ export const emergencyService = {
   },
 
   /**
+   * Historial del despacho (Nacho, 2026-10-22: "el operador tiene que ver
+   * despachos previos en otro tab"): los traslados terminados o cancelados de
+   * SU entidad, del más nuevo al más viejo, de a `limite`. `desde` es una
+   * fecha ISO; `estado` 'completed' | 'cancelled' | 'todas'.
+   */
+  async historialDeDespacho({ providerId, desde, estado = 'completed', limite = 30, offset = 0 }) {
+    let q = supabase
+      .from('emergencies')
+      .select(`
+        id, status, triage_code, dispatch_code, created_at, updated_at, completed_at, cancelled_at,
+        bonificada, cierre_sin_pago, cierre_sin_atencion, desenlace, paciente_nombre,
+        patient:profiles!patient_id(full_name),
+        medico:profiles!professional_id(full_name),
+        ambulancia:ambulances!ambulance_id(id, label, plate),
+        pagos:payments!emergency_id(status),
+        ordenes:emergency_transfer_orders(id)
+      `)
+      .eq('provider_id', providerId)
+      .in('status', estado === 'todas' ? EMERGENCY_TERMINAL_STATUSES : [estado])
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limite - 1)
+    if (desde) q = q.gte('created_at', desde)
+    const { data, error } = await q
+    if (error) throw error
+    return (data ?? []).map(toCamelCase)
+  },
+
+  /** Un traslado terminado, con todo lo que muestra su detalle en el historial. */
+  async trasladoTerminado(id) {
+    const { data, error } = await supabase
+      .from('emergencies')
+      .select(`
+        *,
+        patient:profiles!patient_id(full_name, phone, birth_date, blood_type),
+        medico:profiles!professional_id(full_name, phone),
+        operador:profiles!operator_id(full_name),
+        cerroSinPago:profiles!cierre_sin_pago_por(full_name),
+        ambulancia:ambulances!ambulance_id(id, label, plate),
+        pagos:payments!emergency_id(status, authorized_at, captured_at, auth_cancelled_at)
+      `)
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw error
+    return data ? toCamelCase(data) : null
+  },
+
+  /**
    * Paso 4 — el operador asigna un móvil. Esto es el despacho.
    *
    * `professional_id` se sigue escribiendo, con el médico de la tripulación:
@@ -457,7 +538,8 @@ export const emergencyService = {
         operador:profiles!operator_id(full_name),
         cerroSinPago:profiles!cierre_sin_pago_por(full_name),
         ambulancia:ambulances!ambulance_id(id, label, plate, unit_type),
-        entidad:emergency_providers!provider_id(id, name, color)
+        entidad:emergency_providers!provider_id(id, name, color),
+        ordenes:emergency_transfer_orders(id)
       `)
       .order('created_at', { ascending: false })
     if (error) throw error

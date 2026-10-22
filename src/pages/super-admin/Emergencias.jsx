@@ -10,6 +10,8 @@ import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
 import CoordinadorAmbulancias from '../../components/super-admin/CoordinadorAmbulancias'
+import { BotonOrden } from '../../components/emergencias/OrdenDeTrasladoCard'
+import { DESENLACE } from '../../lib/cobroEmergencia'
 
 const STATUS_BADGE = {
   pending:           'bg-gray-100 text-gray-500',
@@ -116,6 +118,7 @@ export default function SuperAdminEmergencias() {
                   <th className="table-header">Móvil</th>
                   <th className="table-header">Despachó</th>
                   <th className="table-header">Cobro</th>
+                  <th className="table-header">Orden</th>
                   <th className="table-header">Ubicación</th>
                   <th className="table-header">En vivo</th>
                   <th className="table-header text-right">Precio</th>
@@ -185,6 +188,12 @@ export default function SuperAdminEmergencias() {
                             {e.cerroSinPago?.fullName ? ` · ${e.cerroSinPago.fullName}` : ''}: {e.cierreSinPago}
                           </p>
                         )}
+                      </td>
+                      <td className="table-cell whitespace-nowrap">
+                        <span className="flex items-center gap-1">
+                          {e.ordenes?.length > 0 && <BotonOrden emergencyId={e.id} />}
+                          <span className="text-xs text-text-secondary">{DESENLACE[e.desenlace] ?? (e.ordenes?.length ? '' : '—')}</span>
+                        </span>
                       </td>
                       <td className="table-cell">
                         {mapsUrl ? (
