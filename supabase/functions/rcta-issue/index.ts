@@ -258,9 +258,10 @@ Deno.serve(async (req: Request) => {
     // emitir— podía disparar una receta real con la matrícula y la firma del
     // médico, y después comprarla en la farmacia. El único que la llama es
     // PrescriptionCreator, con la sesión del profesional.
-    if (!esPractica) {
-      const jwt = req.headers.get('Authorization')?.replace('Bearer ', '') ?? ''
-      const { data: { user: quienLlama } } = await supabase.auth.getUser(jwt)
+    // La service key también pasa: la usa scripts/rcta-certificacion.mjs.
+    const jwtLlamada = req.headers.get('Authorization')?.replace('Bearer ', '') ?? ''
+    if (!esPractica && jwtLlamada !== Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) {
+      const { data: { user: quienLlama } } = await supabase.auth.getUser(jwtLlamada)
       const prescriptores = new Set(meds.map((m: { professional_id: string }) => m.professional_id))
       if (!quienLlama || prescriptores.size !== 1 || !prescriptores.has(quienLlama.id)) {
         return await fallar('validation_error', {

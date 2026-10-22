@@ -40,8 +40,8 @@
 --     recetas posdatadas — no reusar la misma.
 --   · Controlados (psicotrópicos Ley 19.303, antimicrobianos Ley 27.680):
 --     receta archivada, una dispensa, receta nueva cada vez.
---   · Cada compra, como mucho los envases que dice la receta (el mismo número
---     que `rcta-issue` le manda como `cantidad`).
+--   · Cada compra, como mucho los envases que dice la receta: 1, salvo que la
+--     cantidad diga explícitamente 2 o 3 envases (ver max_envases).
 -- ============================================================
 
 -- ── 1. Configuración (super admin → Configuración) ────────────────────────
@@ -330,14 +330,15 @@ as $$
          c.es_controlada,
          c.est,
          c.fin_vigencia,
-         -- `quantity` es texto libre del recetario: "2", "2 cajas", "1 frasco"…
-         -- o "30 comprimidos". Sólo cuenta como envases cuando dice envases (un
-         -- número solo, o seguido de caja/envase/frasco/blister); cualquier otra
-         -- cosa —unidades, comprimidos— es UN envase. Si no, "30 comprimidos"
-         -- habilitaba 30 cajas de un controlado.
+         -- `quantity` es texto libre del recetario ("Cantidad total — Ej: 30
+         -- comp., 1 frasco"): puede ser envases o comprimidos, y "30" solo es
+         -- ambiguo. Sólo cuenta como envases si es 1, 2 o 3 (solo o seguido de
+         -- caja/envase/frasco/blister): hasta 3 meses de tratamiento crónico
+         -- en una receta (Res. MSAL 27/2022). Cualquier otra cosa es UN envase.
+         -- Antes "30 comprimidos" habilitaba 30 cajas de un controlado.
          case
-           when c.quantity ~* '^\s*\d{1,2}\s*(cajas?|envases?|frascos?|blisters?|unidades de venta)?\s*$'
-             then greatest(1, least(12, substring(c.quantity from '\d{1,2}')::integer))
+           when c.quantity ~* '^\s*[1-3]\s*(cajas?|envases?|frascos?|blisters?|unidades de venta)?\s*$'
+             then substring(c.quantity from '[1-3]')::integer
            else 1
          end,
          c.ids
@@ -609,7 +610,7 @@ begin
        and new.rcta_transaction_id is null then
       return new;
     end if;
-  elsif old.rcta_status = 'issued' and (
+  elsif old.rcta_status in ('pending', 'issued') and (
          new.patient_id        is distinct from old.patient_id
       or new.professional_id   is distinct from old.professional_id
       or new.medication_name   is distinct from old.medication_name
@@ -621,7 +622,8 @@ begin
       or new.reg_no            is distinct from old.reg_no
       or new.is_chronic        is distinct from old.is_chronic
       or new.created_at        is distinct from old.created_at) then
-    -- Una receta emitida no se reescribe: la farmacia vende contra lo que dice.
+    -- Una receta emitida —o en emisión— no se reescribe: la farmacia vende
+    -- contra lo que dice, y tiene que ser lo mismo que se mandó a emitir.
     null;
   elsif (new.rcta_status = 'issued') is not distinct from (old.rcta_status = 'issued')
      and new.rcta_prescription_id is not distinct from old.rcta_prescription_id

@@ -68,6 +68,18 @@ const CASOS = [
     espera: { error: 'HR003' },
   },
   {
+    nombre: 'Un "30" solo también es UN envase (puede ser comprimidos)',
+    sql: `${preparar} update clinical_medications set quantity = '30' where id = '${RX}';
+          ${como(PACIENTE)} select agregar_item_pedido_medicamentos('${PROD_A}', 2);`,
+    espera: { error: 'HR003' },
+  },
+  {
+    nombre: '"2 cajas" sí son dos envases',
+    sql: `${preparar} update clinical_medications set quantity = '2 cajas' where id = '${RX}';
+          ${como(PACIENTE)} select (agregar_item_pedido_medicamentos('${PROD_A}', 2) is not null)::text as r;`,
+    espera: { valor: 'true' },
+  },
+  {
     nombre: 'Otra dosis de la misma droga NO está cubierta',
     sql: `${preparar} ${como(PACIENTE)} select agregar_item_pedido_medicamentos('${PROD_B}', 1);`,
     espera: { error: 'HR001' },
