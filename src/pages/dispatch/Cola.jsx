@@ -5,7 +5,6 @@ import PanelTraslado from '../../components/dispatch/PanelTraslado'
 import { direccionCorta } from '../../lib/direccionEmergencia'
 import { emergencyService } from '../../services/emergencyService'
 import { mpService } from '../../services/mpService'
-import { ordenTrasladoService } from '../../services/ordenTrasladoService'
 import { toast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import { haversineKm, formatDistance } from '../../lib/geo'
@@ -189,12 +188,17 @@ export default function DespachoCola({ profile }) {
   const terminar = async (req) => {
     setTerminando(req.id)
     try {
-      // Si la tripulación declaró un traslado, sin la foto de la orden la base
-      // no deja cerrar (migración 213). Se mira ANTES de cobrar: si no, se le
-      // cobraba al paciente y el cierre fallaba después.
-      const fresca = await emergencyService.getById(req.id)
-      if (fresca?.desenlace === 'traslado' && !(await ordenTrasladoService.listar(req.id)).length) {
-        toast.error('Falta la foto de la orden de traslado. La sube la tripulación desde la emergencia.')
+      // Lo que la base exige para cerrar (177): la atención cerrada o un motivo
+      // de cierre sin atención. Se mira ANTES de cobrar: si no, se le cobraba
+      // al paciente y el cierre fallaba después, con la emergencia abierta.
+      const [fresca, atencion] = await Promise.all([
+        emergencyService.getById(req.id),
+        emergencyService.getAtencion(req.id),
+      ])
+      if (atencion?.status !== 'completed' && !fresca?.cierreSinAtencion?.trim()) {
+        toast.error(atencion
+          ? 'La atención sigue abierta: la cierra el médico desde la emergencia. No se cobró nada.'
+          : 'Todavía no hay atención cargada: el médico la carga o cierra sin atención desde la emergencia. No se cobró nada.')
         return
       }
       const { data: cobro, error: errorCobro } = await mpService.capturarEmergencia(req.id)

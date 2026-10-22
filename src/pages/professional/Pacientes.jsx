@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Users, MagnifyingGlass, CaretRight, User, VideoCamera, MapPin } from '@phosphor-icons/react';
+import { Users, MagnifyingGlass, CaretRight, User, VideoCamera, MapPin, Ambulance } from '@phosphor-icons/react';
 import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
 
@@ -22,28 +22,32 @@ export default function Pacientes({ profile }) {
       .finally(() => setLoading(false))
   }, [profile?.id])
 
-  // Deduplicate by patientId, keeping the most recent consultation per patient
+  // Deduplicate by patientId, keeping the most recent consultation per patient.
+  // La atención de una emergencia trae al paciente a la lista (para poder abrir
+  // su HC) pero no cuenta como consulta ni define la modalidad: no es un turno.
   const patients = useMemo(() => {
     const map = new Map()
-    for (const c of consultations) {
+    const orden = [...consultations].sort((a, b) => Boolean(a.emergencyId) - Boolean(b.emergencyId))
+    for (const c of orden) {
       const pid = c.patientId
       if (!pid) continue
       const existing = map.get(pid)
-      if (!existing || new Date(c.scheduledAt) > new Date(existing.lastConsultation)) {
+      if (existing && c.emergencyId && existing.lastModality !== 'emergencia') continue
+      if (!existing || existing.lastModality === 'emergencia' || new Date(c.scheduledAt) > new Date(existing.lastConsultation)) {
         map.set(pid, {
           id:               pid,
           fullName:         c.profiles?.fullName || c.profiles?.full_name || 'Paciente',
           email:            c.profiles?.email    || '',
           avatarUrl:        c.profiles?.avatarUrl || c.profiles?.avatar_url || null,
           lastConsultation: c.scheduledAt,
-          lastModality:     c.modality,
+          lastModality:     c.emergencyId ? 'emergencia' : c.modality,
           totalConsultations: 0,
         })
       }
     }
     // Count total consultations per patient
     for (const c of consultations) {
-      if (c.patientId && map.has(c.patientId)) {
+      if (c.patientId && map.has(c.patientId) && !c.emergencyId) {
         map.get(c.patientId).totalConsultations++
       }
     }
@@ -124,18 +128,22 @@ export default function Pacientes({ profile }) {
                       </span>
                       <span className="text-xs text-text-tertiary">·</span>
                       <span className="flex items-center gap-0.5 text-xs text-text-tertiary">
-                        {p.lastModality === 'video'
-                          ? <><VideoCamera className="h-3 w-3" /> VideoCamera</>
-                          : <><MapPin className="h-3 w-3" /> Presencial</>
+                        {p.lastModality === 'emergencia'
+                          ? <><Ambulance className="h-3 w-3" /> Emergencia</>
+                          : p.lastModality === 'video'
+                            ? <><VideoCamera className="h-3 w-3" /> VideoCamera</>
+                            : <><MapPin className="h-3 w-3" /> Presencial</>
                         }
                       </span>
                     </div>
                   </div>
 
-                  {/* Count badge */}
-                  <span className="text-xs font-semibold text-brand bg-brand-muted px-2 py-0.5 rounded-full shrink-0">
-                    {p.totalConsultations} consulta{p.totalConsultations !== 1 ? 's' : ''}
-                  </span>
+                  {/* Count badge (sólo turnos: una emergencia no cuenta) */}
+                  {p.totalConsultations > 0 && (
+                    <span className="text-xs font-semibold text-brand bg-brand-muted px-2 py-0.5 rounded-full shrink-0">
+                      {p.totalConsultations} consulta{p.totalConsultations !== 1 ? 's' : ''}
+                    </span>
+                  )}
 
                   <CaretRight className="h-4 w-4 text-text-tertiary shrink-0" />
                 </Link>

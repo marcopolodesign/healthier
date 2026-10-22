@@ -96,7 +96,9 @@ export default function ProfessionalPatientProfile({ profile }) {
     consultationsService.getByPatientForProfessional(patientId, profile.id)
       .then(cs => {
         setConsultas(cs)
-        if (cs[0]?.modality) setFollowUpModality(cs[0].modality)
+        // La atención de una emergencia no define la modalidad del control.
+        const ultimoTurno = cs.find(c => !c.emergencyId)
+        if (ultimoTurno?.modality) setFollowUpModality(ultimoTurno.modality)
       })
       .catch(() => {})
       .finally(() => setLoadingConsultas(false))

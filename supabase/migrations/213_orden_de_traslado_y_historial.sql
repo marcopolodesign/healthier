@@ -343,13 +343,15 @@ begin
   if coalesce(current_setting('healthier.atencion_emergencia', true), '') = 'on' then
     return new;
   end if;
-  -- El super admin sigue pudiendo borrar emergencias: el ON DELETE SET NULL de
-  -- `consultations.emergency_id` (177) corre como su sesión.
-  if public.get_my_role() = 'super_admin' then
-    return new;
-  end if;
   if (tg_op = 'INSERT' and new.emergency_id is not null)
      or (tg_op = 'UPDATE' and new.emergency_id is distinct from old.emergency_id) then
+    -- Única excepción: el super admin borra una emergencia y el
+    -- ON DELETE SET NULL de `consultations.emergency_id` (177) corre como su
+    -- sesión. Sólo desanclar; anclar o mover sigue cerrado para todos.
+    if tg_op = 'UPDATE' and new.emergency_id is null
+       and public.get_my_role() = 'super_admin' then
+      return new;
+    end if;
     raise exception 'La atención de una emergencia se abre desde la emergencia.'
       using errcode = '42501';
   end if;

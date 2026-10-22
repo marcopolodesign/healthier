@@ -230,6 +230,11 @@ try {
       dispatched_at: new Date().toISOString(), dispatch_code: 'UTM-0214',
     }).select('id').single()
     const { data: cid } = await medico.c.rpc('iniciar_atencion_emergencia', { p_emergency_id: otra.id })
+    if (cid) {
+      const { error: errMover } = await sa.c.from('consultations').update({ emergency_id: em.id }).eq('id', cid)
+      const { data: c } = await admin.from('consultations').select('emergency_id').eq('id', cid).single()
+      debe(errMover && c.emergency_id === otra.id, 'ni el super admin ancla o mueve una consulta a otra emergencia', 'el super admin pudo mover la consulta a otra emergencia')
+    }
     const { error: errBorrar } = await sa.c.from('emergencies').delete().eq('id', otra.id)
     debe(!errBorrar, 'el super admin borra una emergencia con atención (sin orden)', `el super admin no pudo borrar: ${errBorrar?.message}`)
     if (errBorrar) await admin.from('emergencies').delete().eq('id', otra.id)
@@ -244,6 +249,42 @@ try {
   await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL_2).eq('status', 'en_servicio')
   const { data: queda } = await admin.from('emergencies').select('id').eq('id', em.id)
   queda?.length ? mal('quedó la emergencia de prueba') : ok('emergencia de prueba borrada')
+}
+
+// ── Lo que la revisión arregló en el código (que no vuelva) ─────────────────
+// La app se lee de MOBILE_DIR (default: ../mobile al lado de website/).
+bloque('Código: lo arreglado no vuelve')
+{
+  const { dirname, resolve } = await import('node:path')
+  const { fileURLToPath, pathToFileURL } = await import('node:url')
+  const { existsSync } = await import('node:fs')
+  const WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+  const APP = process.env.MOBILE_DIR || resolve(WEB, '..', 'mobile')
+  const leer = (base, rel) => readFileSync(join(base, rel), 'utf8')
+  const tiene = (base, rel, re, si, no) => {
+    if (!existsSync(join(base, rel))) return mal(`no encuentro ${rel} en ${base}`)
+    debe(re.test(leer(base, rel)), si, no)
+  }
+  const { duracionMin } = await import(pathToFileURL(join(WEB, 'src/lib/cobroEmergencia.js')).href)
+  debe(duracionMin({ createdAt: '2026-10-01T10:00:00Z', updatedAt: '2026-10-22T10:00:00Z' }) === null,
+    'sin hora de cierre la duración no se inventa con updated_at', 'la duración vuelve a salir de updated_at')
+  debe(duracionMin({ createdAt: '2026-10-22T10:00:00Z', completedAt: '2026-10-22T10:38:00Z' }) === 38, 'la duración sale de completed_at', 'la duración no sale de completed_at')
+  tiene(WEB, 'src/services/emergencyService.js', /update\(cambios\)\.eq\('id', emergencyId\)\.select\('id'\)\.single\(\)/,
+    'web: cerrar una emergencia que no cambió filas es error', 'web: el cierre vuelve a aceptar cero filas en silencio')
+  tiene(APP, 'src/services/EmergencyService.ts', /update\(cambios\)\.eq\('id', emergencyId\)\.select\('id'\)\.maybeSingle\(\);[\s\S]{0,120}if \(!data\) throw/,
+    'app: cerrar una emergencia que no cambió filas es error', 'app: el cierre vuelve a aceptar cero filas en silencio')
+  tiene(WEB, 'src/pages/professional/Pacientes.jsx', /getByProfessional\(profile\.id, \{ conEmergencias: true \}\)/,
+    'web: Pacientes incluye a quien se atendió en una emergencia', 'web: Pacientes volvió a dejar afuera a los de emergencia')
+  tiene(APP, 'app/(pro)/pacientes.tsx', /getByProfessional\(user\.id, \{ conEmergencias: true \}\)/,
+    'app: Pacientes incluye a quien se atendió en una emergencia', 'app: Pacientes volvió a dejar afuera a los de emergencia')
+  tiene(APP, 'app/(pro)/paciente/[id].tsx', /getByProfessional\(user\.id, \{ conEmergencias: true \}\)/,
+    'app: la ficha del paciente lo encuentra aunque sólo haya sido una emergencia', 'app: la ficha vuelve a decir "No encontramos este paciente"')
+  tiene(WEB, 'src/pages/dispatch/Cola.jsx', /getAtencion\(req\.id\)[\s\S]*?return\n[\s\S]*?capturarEmergencia\(req\.id\)/,
+    'web: el despacho mira la atención ANTES de cobrar', 'web: el despacho vuelve a cobrar antes de saber si puede cerrar')
+  tiene(WEB, 'src/pages/dispatch/Historial.jsx', /No estás cargado en ninguna entidad/,
+    'web: Historial sin entidad no queda cargando para siempre', 'web: Historial sin entidad vuelve al spinner infinito')
+  tiene(WEB, 'supabase/migrations/213_orden_de_traslado_y_historial.sql', /DISABLE TRIGGER emergencies_updated_at[\s\S]*ENABLE TRIGGER emergencies_updated_at/,
+    'migración: el backfill no pisa updated_at', 'migración: el backfill vuelve a pisar updated_at')
 }
 
 console.log(fallos ? `\n❌ ${fallos} fallo(s)` : '\n✅ Todo en verde')
