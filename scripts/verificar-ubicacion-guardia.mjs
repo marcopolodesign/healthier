@@ -96,6 +96,14 @@ try {
       patient_id: paciente.id, triage_code: 'VERDE', status: 'pending', direccion_referencias: 'x'.repeat(501),
     })
     esperar(!!r.error, 'las referencias tienen tope de 500 caracteres')
+    // Revisión de seguridad: el paciente no se asigna un móvil para seguirlo.
+    r = await paciente.c.from('emergencies').update({ ambulance_id: MOVIL }).eq('id', id).select('id')
+    esperar(!!r.error || !r.data?.length, 'el paciente no se asigna un móvil en su pedido')
+    r = await paciente.c.from('emergencies').insert({
+      patient_id: paciente.id, triage_code: 'VERDE', status: 'in_transit', ambulance_id: MOVIL,
+    })
+    esperar(!!r.error, 'el paciente no crea un pedido ya despachado con un móvil')
+    if (!r.error) await admin.from('emergencies').delete().eq('patient_id', paciente.id).eq('status', 'in_transit')
     const despacho = await como('despacho@staging.healthier.app')
     r = await despacho.c.from('emergencies').select('direccion, direccion_piso').eq('id', id).maybeSingle()
     esperar(r.data?.direccion === 'Av. Cabildo 2040, Belgrano', 'el despacho lee la dirección')

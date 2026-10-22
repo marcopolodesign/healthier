@@ -99,3 +99,57 @@ DROP TRIGGER IF EXISTS ambulance_locations_ahora ON public.ambulance_locations;
 CREATE TRIGGER ambulance_locations_ahora
   BEFORE INSERT ON public.ambulance_locations
   FOR EACH ROW EXECUTE FUNCTION public.ambulance_locations_ahora();
+
+-- ── El paciente no se asigna una ambulancia ─────────────────
+-- Con la flota publicando su posición todo el turno, `soy_paciente_de_ambulancia`
+-- (156) pasa a valer mucho: quien la cumple ve el móvil en vivo. Y la RLS del
+-- paciente sólo exige `patient_id = auth.uid()`, así que podía INSERTAR una
+-- emergencia ya `in_transit` con el `ambulance_id` de un móvil (el de una
+-- emergencia suya anterior) y seguirlo todos los turnos (revisión de
+-- seguridad, 2026-10-22). Lo del despacho lo escribe el despacho (operador,
+-- admin, RPC del coordinador) o el servidor; el paciente crea el pedido en
+-- `pending` y sin nada asignado, y no toca esas columnas después.
+CREATE OR REPLACE FUNCTION public.proteger_despacho_emergencia()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if coalesce(auth.role(), '') not in ('authenticated', 'anon') then
+    return new;
+  end if;
+  if public.get_my_role() in ('super_admin', 'emergency_admin', 'emergency_operator') then
+    return new;
+  end if;
+
+  if tg_op = 'INSERT' then
+    if new.status is distinct from 'pending'
+       or new.ambulance_id is not null or new.provider_id is not null
+       or new.operator_id is not null or new.professional_id is not null
+       or new.dispatched_at is not null or new.dispatch_code is not null then
+      raise exception 'Un pedido nuevo no puede venir asignado.'
+        using errcode = '42501';
+    end if;
+  elsif new.patient_id = auth.uid()
+     -- La tripulación y el médico del móvil sí mueven su emergencia (156/177).
+     and not (old.ambulance_id is not null and public.soy_tripulacion(old.ambulance_id))
+     and old.professional_id is distinct from auth.uid() then
+    if new.ambulance_id is distinct from old.ambulance_id
+       or new.provider_id is distinct from old.provider_id
+       or new.operator_id is distinct from old.operator_id
+       or new.professional_id is distinct from old.professional_id
+       or new.dispatched_at is distinct from old.dispatched_at
+       or new.dispatch_code is distinct from old.dispatch_code then
+      raise exception 'No autorizado para asignar esta emergencia.'
+        using errcode = '42501';
+    end if;
+  end if;
+
+  return new;
+end;
+$function$;
+
+DROP TRIGGER IF EXISTS emergencies_proteger_despacho ON public.emergencies;
+CREATE TRIGGER emergencies_proteger_despacho BEFORE INSERT OR UPDATE ON public.emergencies
+  FOR EACH ROW EXECUTE FUNCTION public.proteger_despacho_emergencia();
