@@ -16,7 +16,7 @@ export default function Pacientes({ profile }) {
 
   useEffect(() => {
     if (!profile?.id) return
-    consultationsService.getByProfessional(profile.id)
+    consultationsService.getByProfessional(profile.id, { conEmergencias: true })
       .then(setConsultations)
       .catch(() => toast.error('Error al cargar pacientes'))
       .finally(() => setLoading(false))

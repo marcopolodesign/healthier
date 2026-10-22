@@ -5,6 +5,7 @@ import PanelTraslado from '../../components/dispatch/PanelTraslado'
 import { direccionCorta } from '../../lib/direccionEmergencia'
 import { emergencyService } from '../../services/emergencyService'
 import { mpService } from '../../services/mpService'
+import { ordenTrasladoService } from '../../services/ordenTrasladoService'
 import { toast } from '../../components/Toast'
 import Modal from '../../components/Modal'
 import { haversineKm, formatDistance } from '../../lib/geo'
@@ -188,6 +189,14 @@ export default function DespachoCola({ profile }) {
   const terminar = async (req) => {
     setTerminando(req.id)
     try {
+      // Si la tripulación declaró un traslado, sin la foto de la orden la base
+      // no deja cerrar (migración 213). Se mira ANTES de cobrar: si no, se le
+      // cobraba al paciente y el cierre fallaba después.
+      const fresca = await emergencyService.getById(req.id)
+      if (fresca?.desenlace === 'traslado' && !(await ordenTrasladoService.listar(req.id)).length) {
+        toast.error('Falta la foto de la orden de traslado. La sube la tripulación desde la emergencia.')
+        return
+      }
       const { data: cobro, error: errorCobro } = await mpService.capturarEmergencia(req.id)
       if (errorCobro) {
         toast.error(`No se pudo cobrar: ${errorCobro}. El traslado sigue abierto.`)

@@ -20,18 +20,23 @@ export function horaDeOrden(iso) {
  * en la atención de la HC. Si la emergencia no tiene orden no dibuja nada,
  * salvo que venga `vacio` (el texto a mostrar en ese caso).
  */
-export default function OrdenDeTrasladoCard({ emergencyId, vacio = null, className = '' }) {
+export default function OrdenDeTrasladoCard({ emergencyId, orden: ordenDada, vacio = null, className = '' }) {
   const [orden, setOrden] = useState(undefined)
   const [miniatura, setMiniatura] = useState(null)
   const [abriendo, setAbriendo] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (!emergencyId) return
+    if (!emergencyId && ordenDada === undefined) return
     let vivo = true
     setOrden(undefined)
     setMiniatura(null)
-    ordenTrasladoService.listar(emergencyId)
+    setError('')
+    // Si el padre ya la trajo (el panel del historial), no se vuelve a listar.
+    const lectura = ordenDada !== undefined
+      ? Promise.resolve(ordenDada ? [ordenDada] : [])
+      : ordenTrasladoService.listar(emergencyId)
+    lectura
       .then(async lista => {
         if (!vivo) return
         const ultima = lista[0] ?? null
@@ -41,9 +46,9 @@ export default function OrdenDeTrasladoCard({ emergencyId, vacio = null, classNa
           if (vivo) setMiniatura(url)
         }
       })
-      .catch(() => { if (vivo) setOrden(null) })
+      .catch(e => { if (vivo) { setOrden(null); setError(e?.message || 'No pudimos leer la orden de traslado.') } })
     return () => { vivo = false }
-  }, [emergencyId])
+  }, [emergencyId, ordenDada])
 
   // Se pide una URL nueva al abrir: la de la miniatura puede haber vencido.
   async function abrir() {
@@ -67,7 +72,10 @@ export default function OrdenDeTrasladoCard({ emergencyId, vacio = null, classNa
   }
 
   if (orden === undefined) return null
-  if (!orden) return vacio ? <p className={`text-sm text-text-secondary ${className}`}>{vacio}</p> : null
+  if (!orden) {
+    if (error) return <p className={`text-sm text-danger ${className}`}>{error}</p>
+    return vacio ? <p className={`text-sm text-text-secondary ${className}`}>{vacio}</p> : null
+  }
 
   return (
     <div className={`card space-y-2 ${className}`} data-testid="orden-traslado">

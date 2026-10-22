@@ -94,12 +94,18 @@ GRANT EXECUTE ON FUNCTION public.puede_ver_orden_traslado(uuid) TO authenticated
 -- ── 3. La tabla de órdenes ─────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.emergency_transfer_orders (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  emergency_id  uuid NOT NULL REFERENCES public.emergencies(id) ON DELETE CASCADE,
+  -- RESTRICT: borrar la emergencia no se lleva puesta la orden (ni deja la foto huérfana).
+  emergency_id  uuid NOT NULL REFERENCES public.emergencies(id) ON DELETE RESTRICT,
   institucion   text NOT NULL CHECK (char_length(trim(institucion)) BETWEEN 2 AND 200),
   foto_path     text NOT NULL UNIQUE,
   subida_por    uuid NOT NULL DEFAULT auth.uid() REFERENCES public.profiles(id),
   subida_at     timestamptz NOT NULL DEFAULT now()
 );
+-- Por si la tabla ya existía con otra regla de borrado.
+ALTER TABLE public.emergency_transfer_orders
+  DROP CONSTRAINT IF EXISTS emergency_transfer_orders_emergency_id_fkey,
+  ADD CONSTRAINT emergency_transfer_orders_emergency_id_fkey
+    FOREIGN KEY (emergency_id) REFERENCES public.emergencies(id) ON DELETE RESTRICT;
 CREATE INDEX IF NOT EXISTS emergency_transfer_orders_emergency_idx
   ON public.emergency_transfer_orders (emergency_id, subida_at DESC);
 COMMENT ON TABLE public.emergency_transfer_orders IS
@@ -337,6 +343,11 @@ begin
   if coalesce(current_setting('healthier.atencion_emergencia', true), '') = 'on' then
     return new;
   end if;
+  -- El super admin sigue pudiendo borrar emergencias: el ON DELETE SET NULL de
+  -- `consultations.emergency_id` (177) corre como su sesión.
+  if public.get_my_role() = 'super_admin' then
+    return new;
+  end if;
   if (tg_op = 'INSERT' and new.emergency_id is not null)
      or (tg_op = 'UPDATE' and new.emergency_id is distinct from old.emergency_id) then
     raise exception 'La atención de una emergencia se abre desde la emergencia.'
@@ -384,10 +395,17 @@ DROP TRIGGER IF EXISTS emergencies_copiar_nombre_paciente ON public.emergencies;
 CREATE TRIGGER emergencies_copiar_nombre_paciente BEFORE INSERT OR UPDATE ON public.emergencies
   FOR EACH ROW EXECUTE FUNCTION public.copiar_nombre_paciente_emergencia();
 
--- Las que ya existen (pocas filas): una sola vez, sólo las que tienen entidad.
+-- ── 9. Datos de las que ya existen (pocas filas), una sola vez ──
+-- Sin tocar `updated_at`: el trigger de `set_updated_at` se apaga mientras
+-- tanto (si no, todas quedaban "actualizadas" ahora y el historial mostraba
+-- duraciones de semanas). La hora de cierre de las viejas es su último cambio.
+ALTER TABLE public.emergencies DISABLE TRIGGER emergencies_updated_at;
+UPDATE public.emergencies SET completed_at = updated_at
+ WHERE status = 'completed' AND completed_at IS NULL;
 UPDATE public.emergencies e SET paciente_nombre = p.full_name
   FROM public.profiles p
  WHERE p.id = e.patient_id AND e.provider_id IS NOT NULL
    AND e.paciente_nombre IS DISTINCT FROM p.full_name;
 UPDATE public.emergencies SET paciente_nombre = NULL
  WHERE provider_id IS NULL AND paciente_nombre IS NOT NULL;
+ALTER TABLE public.emergencies ENABLE TRIGGER emergencies_updated_at;
