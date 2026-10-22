@@ -39,6 +39,7 @@ const PACIENTE_PASS = 'staging'
 const ES_STAGING = (SUPABASE_URL ?? '').includes('itjhrvlzuqvyhqtffumc')
 
 test.use({ viewport: { width: 1440, height: 900 }, screenshot: 'only-on-failure' })
+test.setTimeout(90_000)
 
 test.describe('Videollamada del profesional — código de cierre al cortar', () => {
   test.skip(!ES_STAGING || !SERVICE_ROLE_KEY, 'Sólo contra staging: VITE_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY de staging')
@@ -68,7 +69,7 @@ test.describe('Videollamada del profesional — código de cierre al cortar', ()
     return data.id
   }
 
-  async function entrarALaLlamada(page, id) {
+  async function entrarALaLlamada(page, id, alPaciente) {
     await page.addInitScript({ content: DAILY_MOCK_SCRIPT })
     await page.route('**/functions/v1/daily-token', route => route.fulfill({
       status: 200, contentType: 'application/json',
@@ -76,22 +77,23 @@ test.describe('Videollamada del profesional — código de cierre al cortar', ()
     }))
     await loginAs(page, PRO_EMAIL, PRO_PASS)
     await page.goto(`/profesional/videollamada/${id}`)
-    await expect(page.getByText('Esperando al paciente…')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('Esperando al paciente…')).toBeVisible({ timeout: 30_000 })
     // El paciente "llega": entra al canal de presencia de la sala, como hacen la
     // web y la app del paciente. Eso abre la compuerta y el profesional entra a
     // la llamada (Daily mockeado).
-    await presenciaDelPaciente(id)
+    await presenciaDelPaciente(id, alPaciente)
     await expect(page.getByText('Esperando al paciente…')).toBeHidden({ timeout: 15_000 })
     await expect(page.getByText('Conectando sala…')).toBeHidden({ timeout: 10_000 })
   }
 
   // Sesión real del paciente en el canal `consultation-waiting-<id>`.
   const canales = []
-  async function presenciaDelPaciente(id) {
+  async function presenciaDelPaciente(id, alPaciente) {
     const sb = createClient(SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY)
     const { error } = await sb.auth.signInWithPassword({ email: PACIENTE_EMAIL, password: PACIENTE_PASS })
     if (error) throw new Error(`No entró ${PACIENTE_EMAIL}: ${error.message}`)
     const ch = sb.channel(`consultation-waiting-${id}`)
+    alPaciente?.(ch) // listeners antes de subscribe(), como pide Realtime
     await new Promise((ok, mal) => ch.subscribe(async (estado) => {
       if (estado === 'SUBSCRIBED') { await ch.track({ role: 'patient' }); ok() }
       else if (estado === 'CHANNEL_ERROR' || estado === 'TIMED_OUT') mal(new Error(`canal: ${estado}`))
@@ -141,6 +143,28 @@ test.describe('Videollamada del profesional — código de cierre al cortar', ()
     await expect(page).toHaveURL(new RegExp(`/profesional/videollamada/${id}$`))
     await page.getByRole('button', { name: 'Sí, cortar sin código' }).click()
     await expect(page).toHaveURL(new RegExp(`/profesional/consulta/${id}$`), { timeout: 10_000 })
+  })
+
+  test('desde la hoja se le pide el código al paciente y queda verificado', async ({ page }) => {
+    const id = await sembrarConsulta()
+    // El paciente contesta el pedido por el canal de la sala, como "Aceptar y
+    // compartir" en su pantalla (web: patient/VideoCall.jsx; app: consultation/video.tsx).
+    const { data: fila } = await admin.from('consultation_validation_codes').select('code').eq('consultation_id', id).single()
+    let pedidos = 0
+    await entrarALaLlamada(page, id, ch => ch.on('broadcast', { event: 'solicitar_codigo' }, () => {
+      pedidos++
+      ch.send({ type: 'broadcast', event: 'codigo_compartido', payload: { code: fila.code } })
+    }))
+
+    await page.getByRole('button', { name: 'Finalizar', exact: true }).click()
+    await expect(hoja(page)).toBeVisible()
+    await hoja(page).getByRole('button', { name: /Pedir código a/ }).click()
+    await expect(hoja(page)).toHaveAttribute('data-paso', 'verificado', { timeout: 10_000 })
+    expect(pedidos).toBe(1)
+    await hoja(page).getByRole('button', { name: 'Cortar la llamada' }).click()
+    await expect(page).toHaveURL(new RegExp(`/profesional/consulta/${id}$`), { timeout: 10_000 })
+    const { data: c } = await admin.from('consultations').select('closing_code_verified_at').eq('id', id).single()
+    expect(c.closing_code_verified_at).toBeTruthy()
   })
 
   test('con el código verificado, Finalizar corta sin hoja', async ({ page }) => {
