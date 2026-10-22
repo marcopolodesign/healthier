@@ -618,7 +618,9 @@ Deno.serve(async (req) => {
 
       const { data: emergencia } = await serviceSupabase
         .from("emergencies")
-        .select("id, patient_id, bonificada")
+        // `*` y no la lista: si la migración 210 no está, falta `bonificada` y
+        // una lista explícita haría fallar TODA captura de S.O.S.
+        .select("*")
         .eq("id", emergencyId)
         .single();
       if (!emergencia) return jsonResponse({ data: null, error: "Emergency not found" }, 404);
@@ -632,7 +634,10 @@ Deno.serve(async (req) => {
         .from("payments")
         .select("*")
         .eq("emergency_id", emergencyId)
-        .eq("status", "authorized")
+        // También las ya resueltas: una emergencia ya cobrada (o liberada) no
+        // es "sin pago" — `resolverPreautorizacionDeEmergencia` contesta
+        // `yaResuelta` y el despacho cierra normal.
+        .in("status", ["authorized", "approved", "cancelled"])
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -675,21 +680,25 @@ Deno.serve(async (req) => {
 
       const { data: emergencia } = await serviceSupabase
         .from("emergencies")
-        .select("id, provider_id, professional_id, ambulance_id, status, bonificada")
+        .select("*")
         .eq("id", emergencyId)
         .single();
       if (!emergencia) return jsonResponse({ data: null, error: "Emergency not found" }, 404);
 
       let puede = isAdmin || emergencia.professional_id === user.id;
       if (!puede && (callerRole === "emergency_admin" || callerRole === "emergency_operator")) {
-        const { data: staff } = await serviceSupabase
-          .from("emergency_provider_staff")
-          .select("provider_id")
-          .eq("profile_id", user.id)
-          .eq("active", true)
-          .limit(1)
-          .maybeSingle();
-        puede = !!staff && (emergencia.provider_id === null || staff.provider_id === emergencia.provider_id);
+        // Sólo el despacho de la entidad de ESTA emergencia (sin entidad, nadie).
+        if (emergencia.provider_id) {
+          const { data: staff } = await serviceSupabase
+            .from("emergency_provider_staff")
+            .select("provider_id")
+            .eq("profile_id", user.id)
+            .eq("provider_id", emergencia.provider_id)
+            .eq("active", true)
+            .limit(1)
+            .maybeSingle();
+          puede = !!staff;
+        }
       }
       if (!puede && emergencia.ambulance_id) {
         const { data: tripulante } = await serviceSupabase
@@ -712,11 +721,11 @@ Deno.serve(async (req) => {
         .from("payments")
         .select("id")
         .eq("emergency_id", emergencyId)
-        .eq("status", "authorized")
+        .in("status", ["authorized", "approved"])
         .limit(1)
         .maybeSingle();
       if (reserva) {
-        return jsonResponse({ data: null, error: "Esta emergencia tiene un pago reservado: se cobra al terminarla, no se cierra sin cobro." }, 409);
+        return jsonResponse({ data: null, error: "Esta emergencia tiene un pago reservado o cobrado: no se cierra sin cobro." }, 409);
       }
 
       const { error: updErr } = await serviceSupabase

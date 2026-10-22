@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
       ] = await Promise.all([
         serviceSupabase
           .from('emergencies')
-          .select('id, patient_id, status, paid_at')
+          .select('*')
           .eq('id', emergencyId)
           .single(),
         // El monto sale de la base (/super-admin/verticales), nunca del cliente.
@@ -252,6 +252,17 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({ data: null, error: 'Forbidden' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      // Reintento de una bonificación que ya se hizo (se perdió la respuesta):
+      // se contesta lo mismo, no un 409 que deja al paciente trabado.
+      if (emergencia.paid_at && emergencia.bonificada === true && bonificada) {
+        return new Response(
+          JSON.stringify({
+            data: { paymentId: null, status: 'bonificada', approved: true, bonificada: true, statusDetail: null, chargedAmount: 0 },
+            error: null,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
       if (emergencia.paid_at) {
