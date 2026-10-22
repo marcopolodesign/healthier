@@ -138,15 +138,16 @@ export default function ConsultaEstructurada({
   // llegan en plena consulta porque el profesional tocó "Pedir ahora".
   const fcDeHoy = esDeHoy(patientData?.fcMedidoAt) && patientData?.fcLpm != null ? String(patientData.fcLpm) : ''
   const satDeHoy = esDeHoy(patientData?.saturacionMedidoAt) && patientData?.saturacionPct != null ? String(patientData.saturacionPct) : ''
+  const faltaFc = !!fcDeHoy && !draft.vitales.fc
+  const faltaSat = !!satDeHoy && !draft.vitales.sat
   useEffect(() => {
-    if (!fcDeHoy && !satDeHoy) return
-    update(d => (
-      (d.vitales.fc || !fcDeHoy) && (d.vitales.sat || !satDeHoy) ? d : {
-        ...d,
-        vitales: { ...d.vitales, fc: d.vitales.fc || fcDeHoy, sat: d.vitales.sat || satDeHoy },
-      }
-    ))
-  }, [fcDeHoy, satDeHoy, update])
+    // Sin cambios no se llama a `update`: guarda el borrador en cada llamada.
+    if (!faltaFc && !faltaSat) return
+    update(d => ({
+      ...d,
+      vitales: { ...d.vitales, fc: d.vitales.fc || fcDeHoy, sat: d.vitales.sat || satDeHoy },
+    }))
+  }, [faltaFc, faltaSat, fcDeHoy, satDeHoy, update])
 
   const [nuevoSintoma, setNuevoSintoma] = useState('')
   const [guardando, setGuardando] = useState(false)
