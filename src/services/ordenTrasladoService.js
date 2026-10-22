@@ -46,7 +46,7 @@ export const ordenTrasladoService = {
   async listarDelPaciente(patientId) {
     const { data, error } = await supabase
       .from('emergency_transfer_orders')
-      .select(`${SELECT}, emergencia:emergencies!inner(id, dispatch_code, created_at, completed_at, desenlace, patient_id)`)
+      .select(`${SELECT}, emergencia:emergencies!inner(id, dispatch_code, status, created_at, completed_at, desenlace, cierre_sin_atencion, patient_id)`)
       .eq('emergencia.patient_id', patientId)
       .order('subida_at', { ascending: false })
     if (error) throw error

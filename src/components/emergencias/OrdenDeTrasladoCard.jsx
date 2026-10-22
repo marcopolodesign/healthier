@@ -11,11 +11,16 @@ export function horaDeOrden(iso) {
   return hoy ? hora : `${d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}, ${hora}`
 }
 
-/** Abre la foto en una pestaña nueva con una URL firmada recién pedida. */
-async function abrirFoto(path) {
+/** La pestaña se abre EN el click (antes de cualquier await), o el bloqueador de popups la frena. */
+function abrirPestana() {
   // Sin 'noopener' en los features: con eso `window.open` devuelve null.
   const pestana = window.open('', '_blank')
   if (pestana) pestana.opener = null
+  return pestana
+}
+
+/** Carga en `pestana` (ya abierta en el click) la foto con una URL firmada recién pedida. */
+async function abrirFoto(path, pestana = abrirPestana()) {
   try {
     const url = await ordenTrasladoService.urlFoto(path)
     if (pestana) pestana.location.href = url
@@ -81,7 +86,7 @@ function Documento({ doc }) {
  * profesional y del paciente. `documentos`: si el padre ya los trajo, no se
  * vuelven a pedir. Sin documentos no dibuja nada, salvo que venga `vacio`.
  */
-export default function OrdenDeTrasladoCard({ emergencyId, documentos: dados, vacio = null, className = '' }) {
+export default function OrdenDeTrasladoCard({ emergencyId, documentos: dados, tipos = ['orden_traslado', 'negativa'], vacio = null, className = '' }) {
   const [docs, setDocs] = useState(undefined)
   const [error, setError] = useState('')
 
@@ -98,7 +103,9 @@ export default function OrdenDeTrasladoCard({ emergencyId, documentos: dados, va
   }, [emergencyId, dados])
 
   if (docs === undefined) return null
-  const { orden_traslado: orden, negativa } = ultimosPorTipo(docs)
+  const ultimos = ultimosPorTipo(docs)
+  const orden = tipos.includes('orden_traslado') ? ultimos.orden_traslado : null
+  const negativa = tipos.includes('negativa') ? ultimos.negativa : null
   if (!orden && !negativa) {
     if (error) return <p className={`text-sm text-danger ${className}`}>{error}</p>
     return vacio ? <p className={`text-sm text-text-secondary ${className}`}>{vacio}</p> : null
@@ -121,12 +128,14 @@ export function BotonOrden({ emergencyId, soloNegativa = false }) {
   const etiqueta = soloNegativa ? 'Ver la negativa de atención' : 'Ver la orden de traslado'
   async function abrir(ev) {
     ev.stopPropagation()
+    const pestana = abrirPestana()
     try {
       const { orden_traslado: orden, negativa } = ultimosPorTipo(await ordenTrasladoService.listar(emergencyId))
       const doc = orden ?? negativa
       if (!doc) throw new Error('No hay documentos')
-      await abrirFoto(doc.fotoPath)
+      await abrirFoto(doc.fotoPath, pestana)
     } catch (e) {
+      pestana?.close()
       setError(e?.message || 'No pudimos abrir la foto')
     }
   }

@@ -10,7 +10,7 @@ import { derivacionesService } from '../../services/derivacionesService'
 import { useDestinoDerivacion } from '../../hooks/useDestinoDerivacion'
 import DerivacionEstado from '../../components/DerivacionEstado'
 import OrdenDeTrasladoCard from '../../components/emergencias/OrdenDeTrasladoCard'
-import { ordenTrasladoService } from '../../services/ordenTrasladoService'
+import { ordenTrasladoService, ultimosPorTipo } from '../../services/ordenTrasladoService'
 
 const ENTRY_TYPE_LABEL = {
   soap_subjective: 'Subjetivo',
@@ -169,6 +169,18 @@ function EncounterCard({ encounter }) {
   )
 }
 
+/**
+ * Cómo terminó, en palabras del paciente. Sin atención (rechazó o se cerró sin
+ * atender) no se dice "Atendido": contradiría la negativa firmada.
+ */
+function comoTerminoParaElPaciente(e, documentos) {
+  if (e.status !== 'completed') return 'En curso'
+  const institucion = ultimosPorTipo(documentos).orden_traslado?.institucion
+  const sinAtencion = !!e.cierreSinAtencion?.trim()
+  if (e.desenlace === 'traslado') return `Trasladado${institucion ? ` a ${institucion}` : ''}${sinAtencion ? ' · sin atención en el lugar' : ''}`
+  return sinAtencion ? 'Se cerró sin atención' : e.desenlace === 'en_el_lugar' ? 'Atendido en el lugar' : 'Emergencia cerrada'
+}
+
 export default function HistoriaClinicaPaciente({ profile }) {
   const navigate = useNavigate()
   const [timeline, setTimeline] = useState(null)
@@ -302,11 +314,7 @@ export default function HistoriaClinicaPaciente({ profile }) {
                     {emergencias.map(({ emergencia, documentos }) => (
                       <div key={emergencia.id} className="space-y-2">
                         <p className="text-[15px] font-semibold text-gray-900">Emergencia del {formatDate(emergencia.createdAt)}</p>
-                        <p className="text-[14px] text-gray-600">
-                          {emergencia.desenlace === 'traslado'
-                            ? `Trasladado${documentos.find(d => d.tipo === 'orden_traslado')?.institucion ? ` a ${documentos.find(d => d.tipo === 'orden_traslado').institucion}` : ''}`
-                            : emergencia.desenlace === 'en_el_lugar' ? 'Atendido en el lugar' : 'Emergencia atendida'}
-                        </p>
+                        <p className="text-[14px] text-gray-600">{comoTerminoParaElPaciente(emergencia, documentos)}</p>
                         <OrdenDeTrasladoCard emergencyId={emergencia.id} documentos={documentos} />
                       </div>
                     ))}

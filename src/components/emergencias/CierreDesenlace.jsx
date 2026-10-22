@@ -58,7 +58,7 @@ export default function CierreDesenlace({ emergencyId, valor, onChange, paraDesp
         const ultima = ultimosPorTipo(lista).orden_traslado
         if (!vivo || !ultima) return
         onChange(prev => (prev.orden ? prev : {
-          ...prev, orden: ultima, institucion: ultima.institucion,
+          ...prev, orden: ultima, institucion: ultima.institucion ?? '',
           desenlace: prev.desenlace ?? (paraDespacho ? 'traslado' : null),
         }))
         const url = await ordenTrasladoService.urlFoto(ultima.fotoPath).catch(() => null)
@@ -191,6 +191,8 @@ export function NegativaFirmada({ emergencyId }) {
   const camara = useRef(null)
   const galeria = useRef(null)
   const [esTactil] = useState(() => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches)
+
+  useEffect(() => () => { if (vista?.startsWith('blob:')) URL.revokeObjectURL(vista) }, [vista])
 
   useEffect(() => {
     let vivo = true

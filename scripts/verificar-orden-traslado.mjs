@@ -175,8 +175,14 @@ try {
     if (!errSub) subidas.push(rutaNeg)
     const { error: errNeg } = await medico.c.from('emergency_transfer_orders').insert({ emergency_id: em.id, tipo: 'negativa', foto_path: rutaNeg })
     debe(!errSub && !errNeg, 'el médico sube una negativa sin institución', `no pudo subir la negativa: ${errSub?.message || errNeg?.message}`)
-    const { error: errSinInst } = await medico.c.from('emergency_transfer_orders').insert({ emergency_id: em.id, tipo: 'orden_traslado', foto_path: rutaNeg })
-    debe(errSinInst, 'una orden de traslado sin institución no se registra', 'se registró una orden sin institución')
+    // Con una foto propia (no la de la negativa: si no, frena el UNIQUE y no la regla).
+    const rutaSin = `${em.id}/sin-inst-${Date.now()}.jpg`
+    const { error: errSubSin } = await medico.c.storage.from(BUCKET).upload(rutaSin, JPEG, { contentType: 'image/jpeg' })
+    if (!errSubSin) subidas.push(rutaSin)
+    for (const institucion of [undefined, '   ']) {
+      const { error: errSinInst } = await medico.c.from('emergency_transfer_orders').insert({ emergency_id: em.id, tipo: 'orden_traslado', institucion, foto_path: rutaSin })
+      debe(errSinInst && !/duplicate|unique/i.test(errSinInst.message), `una orden de traslado sin institución (${institucion === undefined ? 'nula' : 'en blanco'}) no se registra`, `se registró una orden sin institución (${errSinInst?.message ?? 'sin error'})`)
+    }
   }
 
   bloque('Quién ve la orden')
