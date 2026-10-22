@@ -30,12 +30,14 @@ export function hayQuePedirCodigo({ enLlamada, codigoVerificadoEn, simulando }) 
 
 /**
  * Qué hace el colgar: cortar directo, o abrir la hoja.
- * `motivo` = 'colgar' (botón rojo / Finalizar) o 'salir' (la X de la app).
+ * `motivo` = 'colgar' (botón rojo / Finalizar), 'salir' (la X de la app) o
+ * 'volver' (el "Volver" de la web): los dos últimos sacan de la sala sin
+ * finalizar la consulta, pero igual cortan la llamada.
  */
 export function alCortar(estado, motivo = 'colgar') {
   return hayQuePedirCodigo(estado)
     ? { accion: 'pedir-codigo', motivo }
-    : { accion: motivo === 'salir' ? 'salir' : 'cortar', motivo }
+    : { accion: motivo === 'colgar' ? 'cortar' : 'salir', motivo }
 }
 
 /**

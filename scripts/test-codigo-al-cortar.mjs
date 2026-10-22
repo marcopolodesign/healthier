@@ -42,6 +42,10 @@ prueba('con el código verificado corta directo', () => {
   assert.equal(alCortar({ ...enLlamadaSinCodigo, codigoVerificadoEn: '2026-10-22T20:00:00Z' }, 'colgar').accion, 'cortar')
   assert.equal(alCortar({ ...enLlamadaSinCodigo, codigoVerificadoEn: '2026-10-22T20:00:00Z' }, 'salir').accion, 'salir')
 })
+prueba('el "Volver" de la web sin código abre la hoja; con código, sale', () => {
+  assert.equal(alCortar(enLlamadaSinCodigo, 'volver').accion, 'pedir-codigo')
+  assert.equal(alCortar({ ...enLlamadaSinCodigo, codigoVerificadoEn: 'x' }, 'volver').accion, 'salir')
+})
 prueba('en la sala de espera (sin llamada) no hay código que pedir', () => assert.equal(hayQuePedirCodigo({ ...enLlamadaSinCodigo, enLlamada: false }), false))
 prueba('en la práctica (simulación) no se pide', () => assert.equal(hayQuePedirCodigo({ ...enLlamadaSinCodigo, simulando: true }), false))
 prueba('pasos de la hoja', () => {
@@ -71,6 +75,10 @@ prueba('la hoja usa el pedido de código de la sala (solicitarCodigo → solicit
   assert.match(sala, /onSolicitar=\{solicitarCodigo\}/)
   assert.match(sala, /event: 'solicitar_codigo'/)
   assert.doesNotMatch(hoja, /channel|broadcast|supabase/, 'la hoja no debe tener su propio canal de pedido')
+})
+prueba('el "Volver" de la web pasa por la hoja (no navega directo)', () => {
+  assert.match(sala, /onClick=\{\(\) => intentarCortar\('volver'\)\}/)
+  assert.doesNotMatch(sala, /onClick=\{\(\) => navigate\(-1\)\}/)
 })
 prueba('la X de la app pasa por la hoja', () => {
   assert.match(sala, /window\.__healthierAntesDeSalir = \(\) => intentarCortarRef\.current\('salir'\)/)
