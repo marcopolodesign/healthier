@@ -75,6 +75,19 @@ const subidas = []
 let consultaId = null
 
 try {
+  bloque('Nombre del paciente sólo con entidad')
+  {
+    const { data: suelto, error } = await paciente.c.from('emergencies')
+      .insert({ patient_id: paciente.id, status: 'pending', triage_code: 'VERDE', price_at_request: 50, patient_latitude: -34.6, patient_longitude: -58.38 })
+      .select('id').single()
+    if (error) mal(`el paciente no pudo crear un pedido de prueba: ${error.message}`)
+    else {
+      const { data: f } = await admin.from('emergencies').select('paciente_nombre').eq('id', suelto.id).single()
+      debe(f.paciente_nombre === null, 'un pedido sin entidad no lleva el nombre (lo ven todos los despachos)', 'un pedido sin entidad lleva el nombre del paciente')
+      await admin.from('emergencies').delete().eq('id', suelto.id)
+    }
+  }
+
   bloque('Desenlace')
   {
     const { error } = await paciente.c.from('emergencies').update({ desenlace: 'traslado' }).eq('id', em.id)
