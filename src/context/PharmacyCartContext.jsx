@@ -3,6 +3,7 @@ import { medicationOrdersService } from '../services/medicationOrdersService'
 import { pharmacyService } from '../services/pharmacyService'
 import { toast } from '../components/Toast'
 import { farmaciaVisible } from '../lib/featureFlags'
+import { esRecetaRequerida } from '../lib/pharmacyProducts'
 
 /**
  * El carrito de farmacia, compartido por toda la app del paciente.
@@ -39,8 +40,14 @@ export function PharmacyCartProvider({ profile, children }) {
   const [productsById, setProductsById] = useState({}) // para pintar filas que el servidor aún no devolvió
   const [loading, setLoading] = useState(true)
   const [sheetOpen, setSheetOpen] = useState(false)   // la hoja es una sola, la abren el pill y la barra de Farmacia
+  // El producto para el que se abre "Necesitás receta" (o null). Vive acá
+  // porque el rechazo puede venir de cualquier "+": el catálogo, la receta,
+  // la hoja del carrito. Ver NecesitasRecetaSheet.
+  const [recetaPara, setRecetaPara] = useState(null)
 
   const colaRef = useRef(Promise.resolve())
+  const productsByIdRef = useRef({})
+  productsByIdRef.current = productsById
   const montadoRef = useRef(true)
 
   // No hace falta un contador de llamadas en vuelo: cada respuesta descuenta
@@ -140,7 +147,10 @@ export function PharmacyCartProvider({ profile, children }) {
       })
       .catch(err => {
         olvidarDelta(product.id, delta)
-        toast.error(err?.message || 'No se pudo actualizar el carrito')
+        // Sin receta vigente la base no lo deja entrar (migración 214): en
+        // vez de un error, la invitación a pedirla en una videoconsulta.
+        if (esRecetaRequerida(err)) setRecetaPara(prev => prev ?? { ...productsByIdRef.current[product.id], ...product })
+        else toast.error(err?.message || 'No se pudo actualizar el carrito')
       })
   }, [olvidarDelta])
 
@@ -212,6 +222,8 @@ export function PharmacyCartProvider({ profile, children }) {
 
   const openSheet = useCallback(() => setSheetOpen(true), [])
   const closeSheet = useCallback(() => setSheetOpen(false), [])
+  const pedirReceta = useCallback(product => setRecetaPara(product ?? null), [])
+  const cerrarReceta = useCallback(() => setRecetaPara(null), [])
 
   const value = useMemo(() => ({
     orderId: order?.id ?? null,
@@ -231,7 +243,10 @@ export function PharmacyCartProvider({ profile, children }) {
     sheetOpen,
     openSheet,
     closeSheet,
-  }), [order, items, quantities, count, total, loading, syncing, add, subtract, remove, refresh, clear, sheetOpen, openSheet, closeSheet])
+    recetaPara,
+    pedirReceta,
+    cerrarReceta,
+  }), [order, items, quantities, count, total, loading, syncing, add, subtract, remove, refresh, clear, sheetOpen, openSheet, closeSheet, recetaPara, pedirReceta, cerrarReceta])
 
   return <PharmacyCartContext.Provider value={value}>{children}</PharmacyCartContext.Provider>
 }
@@ -247,6 +262,7 @@ const CARRITO_VACIO = {
   add: () => {}, subtract: () => {}, remove: () => {},
   refresh: async () => null, clear: () => {},
   sheetOpen: false, openSheet: () => {}, closeSheet: () => {},
+  recetaPara: null, pedirReceta: () => {}, cerrarReceta: () => {},
 }
 
 export function usePharmacyCart() {

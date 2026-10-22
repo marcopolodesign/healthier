@@ -6,6 +6,7 @@ import { notificationService } from '../services/notificationService'
 import { track } from '../utils/analytics'
 import { PharmacyCartProvider } from '../context/PharmacyCartContext'
 import PharmacyCartSheet from '../components/patient/PharmacyCartSheet'
+import NecesitasRecetaSheet from '../components/patient/NecesitasRecetaSheet'
 
 const HIDE_NAV_PREFIXES = ['/paciente/sos', '/paciente/ondemand', '/paciente/videollamada', '/paciente/reservar', '/paciente/sala-espera', '/paciente/consulta/review', '/paciente/fastpass', '/paciente/camino']
 
@@ -115,6 +116,7 @@ export default function PatientMobileLayout({ profile }) {
           (Inicio, Agenda, Bóveda, Perfil). El propio componente decide dónde
           se pinta — ver `RUTAS_CON_PILL` en PharmacyCartSheet. */}
       <PharmacyCartSheet />
+      <NecesitasRecetaSheet />
     </div>
     </PharmacyCartProvider>
   )

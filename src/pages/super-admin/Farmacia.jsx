@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
-import { ShoppingBag, CheckCircle } from '@phosphor-icons/react'
+import { ShoppingBag, CheckCircle, Trash, LockSimple } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { pharmacyAdminService } from '../../services/pharmacyAdminService'
+import { pharmacyService } from '../../services/pharmacyService'
+import { paymentsService } from '../../services/paymentsService'
 import { toast } from '../../components/Toast'
 import { formatARS, formatDate } from '../../lib/format'
 import { STATUS_LABEL } from '../../lib/pharmacyOrders'
@@ -10,17 +12,64 @@ export default function SuperAdminFarmacia() {
   const [orders, setOrders] = useState([])
   const [mpStatus, setMpStatus] = useState(null)
   const [loading, setLoading] = useState(true)
+  // Recetas (migración 214): cuántos días sirve una receta para comprar, y
+  // las drogas que nunca pueden quedar como venta libre.
+  const [vigenciaDias, setVigenciaDias] = useState(30)
+  const [guardandoVigencia, setGuardandoVigencia] = useState(false)
+  const [drogas, setDrogas] = useState([])
+  const [nuevaDroga, setNuevaDroga] = useState({ droga: '', tipo: 'receta_archivada', motivo: '' })
 
   useEffect(() => {
     setLoading(true)
     Promise.all([
       medicationOrdersService.listForPharmacy({}),
       pharmacyAdminService.getConnectionStatus(),
+      paymentsService.getPlatformSettings(),
+      pharmacyService.getDrogasBajoReceta(),
     ])
-      .then(([ords, { data }]) => { setOrders(ords); setMpStatus(data) })
+      .then(([ords, { data }, settings, drg]) => {
+        setOrders(ords); setMpStatus(data)
+        setVigenciaDias(settings?.recetaVigenciaDias ?? 30)
+        setDrogas(drg)
+      })
       .catch(() => toast.error('Error al cargar la vista de farmacia'))
       .finally(() => setLoading(false))
   }, [])
+
+  const guardarVigencia = async () => {
+    setGuardandoVigencia(true)
+    try {
+      await paymentsService.updatePlatformSettings({ recetaVigenciaDias: vigenciaDias })
+      toast.success('Vigencia de la receta guardada')
+    } catch (err) {
+      toast.error(err?.message || 'No se pudo guardar la vigencia')
+    } finally {
+      setGuardandoVigencia(false)
+    }
+  }
+
+  const agregarDroga = async (e) => {
+    e.preventDefault()
+    if (!nuevaDroga.droga.trim() || !nuevaDroga.motivo.trim()) return
+    try {
+      await pharmacyService.addDrogaBajoReceta(nuevaDroga)
+      setDrogas(await pharmacyService.getDrogasBajoReceta())
+      setNuevaDroga({ droga: '', tipo: 'receta_archivada', motivo: '' })
+      toast.success('Agregada — el catálogo ya se reclasificó')
+    } catch (err) {
+      toast.error(err?.message || 'No se pudo agregar')
+    }
+  }
+
+  const sacarDroga = async (droga) => {
+    try {
+      await pharmacyService.removeDrogaBajoReceta(droga)
+      setDrogas(d => d.filter(x => x.droga !== droga))
+      toast.success('Sacada de la lista. Los productos ya clasificados no bajan solos: se cambian desde el catálogo.')
+    } catch (err) {
+      toast.error(err?.message || 'No se pudo sacar')
+    }
+  }
 
   const paid = orders.filter(o => o.paymentStatus === 'pagado')
   const gmv = paid.reduce((s, o) => s + Number(o.total || 0), 0)
@@ -62,6 +111,56 @@ export default function SuperAdminFarmacia() {
             {STATUS_LABEL[status] || status}: {count}
           </span>
         ))}
+      </div>
+
+      <div className="card space-y-5">
+        <div>
+          <h2 className="font-semibold text-text-primary">Recetas</h2>
+          <p className="text-sm text-text-secondary mt-0.5">
+            Cada receta sirve para una sola compra. La vigencia legal de la receta electrónica es de 30 días (Decreto 98/2023): se puede acortar, no alargar.
+          </p>
+        </div>
+        <div className="flex items-end gap-3 flex-wrap">
+          <div>
+            <label className="form-label">Días de vigencia para comprar</label>
+            <input
+              type="number" min={1} max={30}
+              value={vigenciaDias}
+              onChange={e => setVigenciaDias(Math.max(1, Math.min(30, Number(e.target.value) || 1)))}
+              className="form-input w-32"
+            />
+          </div>
+          <button type="button" onClick={guardarVigencia} disabled={guardandoVigencia} className="btn-primary">
+            {guardandoVigencia ? 'Guardando…' : 'Guardar'}
+          </button>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold text-text-primary">Drogas que nunca son venta libre</h3>
+          <p className="text-xs text-text-muted mt-0.5">
+            Si el nombre de un producto las contiene, queda con receta aunque la farmacia lo cargue como venta libre. "Controlado" = receta archivada (psicotrópicos, antimicrobianos).
+          </p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            {drogas.map(d => (
+              <span key={d.droga} className="inline-flex items-center gap-1.5 text-xs font-medium pl-2.5 pr-1 py-1 rounded-full bg-bg-secondary text-text-secondary" title={d.motivo}>
+                {d.tipo === 'receta_archivada' && <LockSimple className="w-3 h-3" />}
+                {d.droga}
+                <button onClick={() => sacarDroga(d.droga)} aria-label={`Sacar ${d.droga}`} className="p-1 rounded-full hover:bg-bg-surface-hover">
+                  <Trash className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <form onSubmit={agregarDroga} className="flex gap-2 flex-wrap mt-3">
+            <input className="form-input w-40" placeholder="droga" value={nuevaDroga.droga} onChange={e => setNuevaDroga(n => ({ ...n, droga: e.target.value }))} />
+            <select className="form-select w-44" value={nuevaDroga.tipo} onChange={e => setNuevaDroga(n => ({ ...n, tipo: e.target.value }))}>
+              <option value="receta_archivada">Controlado</option>
+              <option value="receta">Con receta</option>
+            </select>
+            <input className="form-input flex-1 min-w-40" placeholder="motivo (ej. Ley 19.303)" value={nuevaDroga.motivo} onChange={e => setNuevaDroga(n => ({ ...n, motivo: e.target.value }))} />
+            <button type="submit" className="btn-secondary">Agregar</button>
+          </form>
+        </div>
       </div>
 
       <div className="card p-0 overflow-hidden">

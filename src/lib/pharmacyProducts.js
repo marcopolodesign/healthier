@@ -18,5 +18,19 @@ export const PRESCRIPTION_TYPE_LABELS = {
 export const PRESCRIPTION_TYPE_PATIENT_LABELS = {
   venta_libre: 'Sin receta',
   receta: 'Con receta',
-  receta_archivada: 'Receta archivada',
+  // Para el paciente "receta archivada" no dice nada: es un controlado
+  // (psicotrópicos, antimicrobianos) — cada compra lleva una receta nueva.
+  receta_archivada: 'Controlado',
+}
+
+/** Necesita receta, con el default de la columna para los productos viejos. */
+export const necesitaReceta = (product) => (product?.prescriptionType ?? 'venta_libre') !== 'venta_libre'
+
+/**
+ * El servidor rechazó el producto por falta de receta (migración 214): HR001
+ * al agregarlo, HR002 al pagar, o el `code` de `mp-payment`. Ante esto se abre
+ * la hoja "Necesitás receta", no un toast.
+ */
+export function esRecetaRequerida(err) {
+  return err?.code === 'HR001' || err?.code === 'HR002' || err?.code === 'RECETA_REQUERIDA' || err?.hint === 'receta_requerida'
 }

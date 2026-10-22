@@ -63,6 +63,9 @@
   --color-brand-tertiary: #9B8EC4;
   --color-brand-tertiary-hover: #7d6faa;
   --color-brand-tertiary-muted: rgba(155, 142, 196, 0.1);
+  /* Farmacia: fondo del nivel "Con receta" (lavanda muy clara). El lavanda
+     oscuro (`brand-tertiary-hover`) es el color de las acciones de receta. */
+  --color-receta-nivel: #EFECF5;
 
   /* Accent (sage — single accent) */
   --color-accent: #7CB38B;
