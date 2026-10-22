@@ -14,6 +14,9 @@ import InteractiveMap from '../../components/patient/InteractiveMap'
 import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import { toast } from '../../components/Toast'
+import { DireccionPedidoCard, DireccionPedidoHoja } from '../../components/patient/DireccionPedido'
+import { patientAddressesService } from '../../services/patientAddressesService'
+import { direccionPrecargada, conPunto, columnasDeUbicacion, direccionCorta } from '../../lib/direccionEmergencia'
 import {
   EMERGENCY_SYMPTOMS, TRIAGE_SEVERITY_ORDER, computeTriageCode, symptomLabelsFromIds,
 } from '../../data/emergencySymptoms'
@@ -156,7 +159,15 @@ export default function Emergency({ profile }) {
 
   // ── Dispatch / tracking ──────────────────────────────────────────────────
   const [emergency, setEmergency] = useState(null) // camelCased emergencies row, incl. .professional
-  const [locationWarning, setLocationWarning] = useState(false)
+  // La dirección del pedido (migración 211): se precarga con el GPS o una
+  // guardada y el paciente la confirma o corrige. Nada de esto frena el pedido.
+  const [direccion, setDireccion] = useState(null)
+  const [buscandoDireccion, setBuscandoDireccion] = useState(false)
+  const [guardadas, setGuardadas] = useState([])
+  const [hojaDireccion, setHojaDireccion] = useState(false)
+  const gpsRef = useRef(null)
+  const [conGps, setConGps] = useState(false)
+  const precargada = useRef(false)
   const [elapsedSec, setElapsedSec] = useState(0)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [cancelling, setCancelling] = useState(false)
@@ -200,6 +211,42 @@ export default function Emergency({ profile }) {
       .catch(() => { if (!cancelled) setPhase('pago') })
     return () => { cancelled = true }
   }, [profile?.id])
+
+  // Al llegar al pago se busca la ubicación y se precarga la dirección — una
+  // vez. Si el pedido retomado ya tenía dirección, manda ésa.
+  useEffect(() => {
+    if (phase !== 'pago' || precargada.current || !profile?.id) return
+    precargada.current = true
+    let vivo = true
+    setBuscandoDireccion(true)
+    ;(async () => {
+      const [coords, lista] = await Promise.all([
+        getCurrentPosition().catch(() => null),
+        patientAddressesService.list(profile.id).catch(() => []),
+      ])
+      if (!vivo) return
+      gpsRef.current = coords
+      setConGps(!!coords)
+      const g = (lista ?? []).map(a => ({
+        etiqueta: a.etiqueta, direccion: a.direccion, pisoDepto: a.pisoDepto, referencias: a.referencias, lat: a.lat, lng: a.lng,
+      }))
+      const delPerfil = profile?.address?.trim()
+      if (g.length === 0 && delPerfil) g.push({ etiqueta: 'Perfil', direccion: delPerfil })
+      setGuardadas(g)
+      const previa = emergency?.direccion ? {
+        direccion: emergency.direccion,
+        piso: emergency.direccionPiso ?? '',
+        referencias: emergency.direccionReferencias ?? '',
+        fuente: emergency.ubicacionOrigen === 'gps' ? 'gps' : 'escrita',
+        punto: emergency.patientLatitude != null ? { lat: Number(emergency.patientLatitude), lng: Number(emergency.patientLongitude) } : null,
+      } : null
+      const d = previa ?? await direccionPrecargada(coords, g)
+      if (!vivo) return
+      setDireccion(d)
+      setBuscandoDireccion(false)
+    })()
+    return () => { vivo = false }
+  }, [phase, profile?.id, profile?.address, emergency])
 
   // MP public key — needed to mount the CardPayment brick (see MPCardHolder).
   useEffect(() => {
@@ -302,26 +349,26 @@ export default function Emergency({ profile }) {
    * reserva en la tarjeta sin ninguna emergencia que la explique.
    */
   const asegurarSolicitud = useCallback(async () => {
-    if (emergency?.id) return emergency
+    // La dirección como va a la base: con su punto si es del paciente, y el
+    // GPS crudo. La ubicación no frena una emergencia: si no hay nada, el
+    // despacho la pide por teléfono.
+    const d = direccion ? await conPunto(direccion, gpsRef.current) : null
+    if (d && d !== direccion) setDireccion(d)
+    const ubicacion = columnasDeUbicacion(gpsRef.current, d)
 
-    let coords = null
-    try {
-      coords = await getCurrentPosition()
-    } catch {
-      // La ubicación no frena una emergencia. Se avisa y se sigue: el operador
-      // se la va a pedir por teléfono.
-      setLocationWarning(true)
+    if (emergency?.id) {
+      await emergencyService.actualizarUbicacion(emergency.id, ubicacion).catch(() => {})
+      return emergency
     }
 
     const fila = await emergencyService.crearSolicitud({
       patientId: profile.id,
-      latitude: coords?.lat ?? null,
-      longitude: coords?.lng ?? null,
       priceAtRequest: sosSettings?.price ?? SOS_FALLBACK.price,
+      ubicacion,
     })
     setEmergency(fila)
     return fila
-  }, [emergency, profile?.id, sosSettings?.price])
+  }, [emergency, profile?.id, sosSettings?.price, direccion])
 
   /** Reserva hecha → al triage. El monto lo puso el servidor, no esta pantalla. */
   const trasReservar = async (resultado, fila) => {
@@ -512,6 +559,12 @@ export default function Emergency({ profile }) {
             </div>
           </div>
 
+          {direccionCorta(emergency) && (
+            <p className="w-full flex items-center gap-2 text-[13px] text-gray-600 mb-5 px-1" data-testid="sos-destino">
+              <MapPinLine className="w-4 h-4 shrink-0" /> La ambulancia va a {direccionCorta(emergency)}
+            </p>
+          )}
+
           <div className="w-full flex items-start gap-3 rounded-[20px] bg-emerald-50 border border-emerald-100 px-4 py-3 mb-5">
             <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
             <p className="text-[13px] text-emerald-800 leading-snug">
@@ -632,6 +685,12 @@ export default function Emergency({ profile }) {
               </div>
               <p className="font-light text-[34px] text-gray-900 leading-none tabular-nums">{formatElapsed(elapsedSec)}</p>
             </div>
+
+            {direccionCorta(emergency) && (
+              <p className="flex items-center gap-2 text-[13px] text-gray-600 mb-3" data-testid="sos-destino">
+                <MapPinLine className="w-4 h-4 shrink-0" /> Va a {direccionCorta(emergency)}
+              </p>
+            )}
 
             {/* Dónde está — o por qué no lo sabemos. Las dos cosas se dicen. */}
             {proEnVivo ? (
@@ -765,6 +824,13 @@ export default function Emergency({ profile }) {
 
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-8">
           <div className="w-full sm:max-w-lg mx-auto">
+            <DireccionPedidoCard
+              valor={direccion}
+              buscando={buscandoDireccion || (!direccion && phase === 'pago')}
+              conGps={conGps}
+              onCambiar={() => setHojaDireccion(true)}
+            />
+
             <div className="flex items-start gap-3 mb-5 p-4 bg-danger/5 border border-danger/20 rounded-2xl">
               <PhoneCall className="w-5 h-5 text-danger shrink-0 mt-0.5" />
               <p className="text-[13px] text-gray-700 leading-snug">
@@ -814,15 +880,6 @@ export default function Emergency({ profile }) {
                 Se cobra sólo si la ambulancia sale. Si cancelás antes, liberamos la reserva.
               </p>
             </div>}
-
-            {locationWarning && (
-              <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-5 flex items-start gap-3">
-                <MapPinLine className="w-5 h-5 text-gray-500 shrink-0 mt-0.5" />
-                <p className="text-[13px] text-gray-600 leading-snug">
-                  No pudimos acceder a tu ubicación — el despacho te la va a pedir por teléfono.
-                </p>
-              </div>
-            )}
 
             {errorPago && (
               <div className="bg-danger/5 border border-danger/20 rounded-2xl p-4 mb-5 flex items-start gap-3">
@@ -892,6 +949,19 @@ export default function Emergency({ profile }) {
             </div>
           </div>
         )}
+
+        <DireccionPedidoHoja
+          open={hojaDireccion}
+          valor={direccion}
+          guardadas={guardadas}
+          onClose={() => setHojaDireccion(false)}
+          onConfirmar={(d) => {
+            setHojaDireccion(false)
+            setDireccion(d)
+            // Se busca en el mapa ya, para avisar si no aparece antes de pedir.
+            conPunto(d, gpsRef.current).then(con => setDireccion(act => (act === d ? con : act)))
+          }}
+        />
       </div>
     )
   }

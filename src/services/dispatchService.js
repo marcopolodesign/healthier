@@ -41,6 +41,34 @@ export function ubicacionEsReciente(ubicacion, ahora = Date.now()) {
   return ahora - new Date(ubicacion.updatedAt).getTime() < FRESCURA_MINUTOS * 60 * 1000
 }
 
+/*
+ * Cuánto se le cree a la última posición (Felipe + Mateo, 2026-10-22): menos
+ * de 2 min es "en vivo"; hasta 15 min compite por cercanía al elegir; hasta
+ * 12 h se dibuja en el mapa como posición vieja (contorno); más, "sin posición".
+ * Mismos números que la app (`GuardiaService.antiguedadUbicacion`).
+ */
+export const MINUTOS_COMPITE = 15
+export const HORAS_EN_MAPA = 12
+export function antiguedadUbicacion(ubicacion, ahora = Date.now()) {
+  if (!ubicacion?.updatedAt) return 'sin'
+  const min = (ahora - new Date(ubicacion.updatedAt).getTime()) / 60000
+  if (min < FRESCURA_MINUTOS) return 'vivo'
+  if (min < MINUTOS_COMPITE) return 'reciente'
+  if (min < HORAS_EN_MAPA * 60) return 'vieja'
+  return 'sin'
+}
+
+/** "hace 40 s", "hace 12 min", "hace 3 h", "hace 2 d". */
+export function haceCuanto(iso, ahora = Date.now()) {
+  if (!iso) return 'sin datos'
+  const s = Math.max(0, Math.floor((ahora - new Date(iso).getTime()) / 1000))
+  if (s < 60) return `hace ${s} s`
+  const min = Math.floor(s / 60)
+  if (min < 60) return `hace ${min} min`
+  const h = Math.floor(min / 60)
+  return h < 24 ? `hace ${h} h` : `hace ${Math.floor(h / 24)} d`
+}
+
 export const dispatchService = {
   // ── La entidad ────────────────────────────────────────────────────────
 

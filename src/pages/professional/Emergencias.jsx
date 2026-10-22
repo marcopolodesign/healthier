@@ -263,6 +263,10 @@ export default function ProfessionalEmergencias({ profile }) {
             <Divider />
             {patientName && <Row label="Paciente"  value={patientName} />}
             <Row label="Recibida"  value={elapsed(emergency.createdAt)} />
+            {/* La dirección que escribió el paciente (migración 211). */}
+            {emergency.direccion && <Row label="Dirección" value={emergency.direccion} />}
+            {emergency.direccionPiso && <Row label="Piso / depto" value={emergency.direccionPiso} />}
+            {emergency.direccionReferencias && <Row label="Referencias" value={emergency.direccionReferencias} />}
             {emergency.patientLatitude && (
               <Row label="Ubicación" value={`${Number(emergency.patientLatitude).toFixed(4)}, ${Number(emergency.patientLongitude).toFixed(4)}`} small />
             )}
@@ -347,6 +351,10 @@ export default function ProfessionalEmergencias({ profile }) {
             {patientName && <Row label="Paciente"    value={patientName} />}
             <Row label="Código"      value={<span className={`font-black ${cs.text}`}>{cs.label}</span>} />
             <Row label="Despacho"    value={<span className="font-mono">{emergency.dispatchCode}</span>} />
+            {/* La dirección que escribió el paciente (migración 211). */}
+            {emergency.direccion && <Row label="Dirección" value={emergency.direccion} />}
+            {emergency.direccionPiso && <Row label="Piso / depto" value={emergency.direccionPiso} />}
+            {emergency.direccionReferencias && <Row label="Referencias" value={emergency.direccionReferencias} />}
             {emergency.patientLatitude && (
               <Row label="Coordenadas" value={`${Number(emergency.patientLatitude).toFixed(5)}, ${Number(emergency.patientLongitude).toFixed(5)}`} small />
             )}
