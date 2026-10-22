@@ -10,7 +10,10 @@ import { etiquetaFuente, LARGO_MAX } from '../../lib/direccionEmergencia'
  */
 function acortar(displayName) {
   const partes = String(displayName ?? '').split(',').map(p => p.trim()).filter(Boolean)
-  if (partes.length >= 3 && /^\d+[a-z]?$/i.test(partes[0])) return `${partes[1]} ${partes[0]}, ${partes[2]}`
+  // La altura viene sola ("2040") y la calle después; antes puede haber el
+  // nombre de un lugar ("El Refugio, 2040, Avenida Cabildo, Belgrano, …").
+  const i = partes.findIndex(p => /^\d+[a-z]?$/i.test(p))
+  if (i >= 0 && partes[i + 1]) return [`${partes[i + 1]} ${partes[i]}`, partes[i + 2]].filter(Boolean).join(', ')
   return partes.slice(0, 3).join(', ')
 }
 
