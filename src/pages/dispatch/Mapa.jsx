@@ -47,8 +47,14 @@ export default function DespachoMapa() {
       setEntidad(e)
       return cargar(providerId)
     })
-    const unsub = dispatchService.suscribirUbicaciones(() => cargar(providerId))
-    return unsub
+    // Ahora publica cada teléfono de cada tripulante: se agrupan los avisos y
+    // se relee la flota a lo sumo cada 3 s (igual que la app).
+    let espera = null
+    const unsub = dispatchService.suscribirUbicaciones(() => {
+      if (espera) return
+      espera = setTimeout(() => { espera = null; cargar(providerId) }, 3000)
+    })
+    return () => { if (espera) clearTimeout(espera); unsub() }
   }, [cargar])
 
   // Se dibuja la última posición conocida (hasta 12 h), con contorno si es

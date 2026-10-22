@@ -33,6 +33,7 @@ let fallos = 0
 const ok = m => console.log(`  ✅ ${m}`)
 const mal = m => { fallos++; console.log(`  ❌ ${m}`) }
 const esperar = (cond, m) => (cond ? ok(m) : mal(m))
+const nota = m => console.log(`  ·  ${m}`)
 
 async function como(email, password = 'staging') {
   const c = createClient(URL, ANON, { auth: { persistSession: false } })
@@ -104,6 +105,19 @@ try {
     })
     esperar(!!r.error, 'el paciente no crea un pedido ya despachado con un móvil')
     if (!r.error) await admin.from('emergencies').delete().eq('patient_id', paciente.id).eq('status', 'in_transit')
+    // Un traslado suyo terminado no se reabre, y en camino no se mueve el destino.
+    const { data: viejo } = await admin.from('emergencies').insert({
+      patient_id: paciente.id, triage_code: 'VERDE', status: 'completed', ambulance_id: MOVIL,
+      cierre_sin_atencion: 'control verificar-ubicacion-guardia',
+    }).select('id').single()
+    r = await paciente.c.from('emergencies').update({ status: 'in_transit' }).eq('id', viejo.id).select('id')
+    esperar(!!r.error || !r.data?.length, 'el paciente no reabre un traslado terminado')
+    await admin.from('emergencies').update({ status: 'in_transit' }).eq('id', viejo.id)
+    r = await paciente.c.from('emergencies').update({ patient_latitude: -34.7 }).eq('id', viejo.id).select('id')
+    esperar(!!r.error || !r.data?.length, 'con el móvil en camino el paciente no mueve el destino')
+    r = await paciente.c.from('emergencies').update({ status: 'cancelled' }).eq('id', viejo.id).select('id')
+    nota(`cancelar en camino: ${r.error || !r.data?.length ? 'no' : 'sí'} (lo decide la policy de cada entorno)`)
+    await admin.from('emergencies').delete().eq('id', viejo.id)
     const despacho = await como('despacho@staging.healthier.app')
     r = await despacho.c.from('emergencies').select('direccion, direccion_piso').eq('id', id).maybeSingle()
     esperar(r.data?.direccion === 'Av. Cabildo 2040, Belgrano', 'el despacho lee la dirección')

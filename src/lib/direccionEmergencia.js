@@ -100,7 +100,8 @@ export async function conPunto(d, gps) {
 
 /** Las columnas de `emergencies` (snake_case). */
 export function columnasDeUbicacion(gps, d) {
-  const usarDireccion = !!d && d.fuente !== 'gps' && !!d.punto
+  // Sólo la dirección del paciente (escrita o guardada) manda sobre el GPS.
+  const usarDireccion = !!d && (d.fuente === 'escrita' || d.fuente === 'guardada') && !!d.punto
   const punto = usarDireccion ? d.punto : gps
   return {
     patient_latitude: punto?.lat ?? null,
@@ -112,6 +113,14 @@ export function columnasDeUbicacion(gps, d) {
     gps_longitude: gps?.lng ?? null,
     ubicacion_origen: punto ? (usarDireccion ? 'direccion' : 'gps') : null,
   }
+}
+
+/** Pedido que ya existe: no borrar el punto ni el GPS que tenía si esta vez no hay. */
+export function sinPisarPunto(cols) {
+  const c = { ...cols }
+  if (c.patient_latitude == null) { delete c.patient_latitude; delete c.patient_longitude; delete c.ubicacion_origen }
+  if (c.gps_latitude == null) { delete c.gps_latitude; delete c.gps_longitude }
+  return c
 }
 
 /** "Av. Libertador 7766, Núñez · 4 B" */

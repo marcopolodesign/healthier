@@ -16,7 +16,7 @@ import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import { toast } from '../../components/Toast'
 import { DireccionPedidoCard, DireccionPedidoHoja } from '../../components/patient/DireccionPedido'
 import { patientAddressesService } from '../../services/patientAddressesService'
-import { direccionPrecargada, conPunto, columnasDeUbicacion, direccionCorta } from '../../lib/direccionEmergencia'
+import { direccionPrecargada, conPunto, columnasDeUbicacion, sinPisarPunto, direccionCorta } from '../../lib/direccionEmergencia'
 import {
   EMERGENCY_SYMPTOMS, TRIAGE_SEVERITY_ORDER, computeTriageCode, symptomLabelsFromIds,
 } from '../../data/emergencySymptoms'
@@ -54,6 +54,8 @@ function pantallaPara(emergencia) {
 }
 
 const LOCATION_TIMEOUT_MS = 8000
+/** Lo máximo que pagar espera a la precarga de la dirección (GPS + Mapbox). */
+const PRECARGA_TOPE_MS = 10_000
 
 // Wrapped with our own timeout on top of the native `timeout` option — some
 // browsers never invoke either callback while a permission prompt is stuck
@@ -162,12 +164,18 @@ export default function Emergency({ profile }) {
   // La dirección del pedido (migración 211): se precarga con el GPS o una
   // guardada y el paciente la confirma o corrige. Nada de esto frena el pedido.
   const [direccion, setDireccion] = useState(null)
-  const [buscandoDireccion, setBuscandoDireccion] = useState(false)
+  const [buscandoDireccion, setBuscandoDireccion] = useState(true)
   const [guardadas, setGuardadas] = useState([])
   const [hojaDireccion, setHojaDireccion] = useState(false)
   const gpsRef = useRef(null)
   const [conGps, setConGps] = useState(false)
   const precargada = useRef(false)
+  // Lo último, para leerlo al pagar sin esperar un render: la precarga en
+  // curso, la dirección vigente y la búsqueda en el mapa de la que confirmó.
+  const precargaRef = useRef(null)
+  const direccionRef = useRef(null)
+  const puntoEnCurso = useRef(null)
+  const fijarDireccion = d => { direccionRef.current = d; setDireccion(d) }
   const [elapsedSec, setElapsedSec] = useState(0)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [cancelling, setCancelling] = useState(false)
@@ -213,40 +221,46 @@ export default function Emergency({ profile }) {
   }, [profile?.id])
 
   // Al llegar al pago se busca la ubicación y se precarga la dirección — una
-  // vez. Si el pedido retomado ya tenía dirección, manda ésa.
+  // vez. Si el pedido retomado ya tenía dirección, manda ésa. La promesa queda
+  // en un ref: si el paciente toca pagar antes de que termine, se la espera.
+  // No depende de `emergency` (se lee por ref): crear la solicitud al pagar
+  // cambia `emergency` y no puede cortar la precarga a la mitad.
+  const emergencyRef = useRef(emergency)
+  useEffect(() => { emergencyRef.current = emergency }, [emergency])
   useEffect(() => {
     if (phase !== 'pago' || precargada.current || !profile?.id) return
     precargada.current = true
-    let vivo = true
     setBuscandoDireccion(true)
-    ;(async () => {
-      const [coords, lista] = await Promise.all([
-        getCurrentPosition().catch(() => null),
-        patientAddressesService.list(profile.id).catch(() => []),
-      ])
-      if (!vivo) return
-      gpsRef.current = coords
-      setConGps(!!coords)
-      const g = (lista ?? []).map(a => ({
-        etiqueta: a.etiqueta, direccion: a.direccion, pisoDepto: a.pisoDepto, referencias: a.referencias, lat: a.lat, lng: a.lng,
-      }))
-      const delPerfil = profile?.address?.trim()
-      if (g.length === 0 && delPerfil) g.push({ etiqueta: 'Perfil', direccion: delPerfil })
-      setGuardadas(g)
-      const previa = emergency?.direccion ? {
-        direccion: emergency.direccion,
-        piso: emergency.direccionPiso ?? '',
-        referencias: emergency.direccionReferencias ?? '',
-        fuente: emergency.ubicacionOrigen === 'gps' ? 'gps' : 'escrita',
-        punto: emergency.patientLatitude != null ? { lat: Number(emergency.patientLatitude), lng: Number(emergency.patientLongitude) } : null,
-      } : null
-      const d = previa ?? await direccionPrecargada(coords, g)
-      if (!vivo) return
-      setDireccion(d)
-      setBuscandoDireccion(false)
+    precargaRef.current = (async () => {
+      try {
+        const [coords, lista] = await Promise.all([
+          getCurrentPosition().catch(() => null),
+          patientAddressesService.list(profile.id).catch(() => []),
+        ])
+        gpsRef.current = coords
+        setConGps(!!coords)
+        const g = (lista ?? []).map(a => ({
+          etiqueta: a.etiqueta, direccion: a.direccion, pisoDepto: a.pisoDepto, referencias: a.referencias, lat: a.lat, lng: a.lng,
+        }))
+        const delPerfil = profile?.address?.trim()
+        if (g.length === 0 && delPerfil) g.push({ etiqueta: 'Perfil', direccion: delPerfil })
+        setGuardadas(g)
+        const e = emergencyRef.current
+        const previa = e?.direccion ? {
+          direccion: e.direccion,
+          piso: e.direccionPiso ?? '',
+          referencias: e.direccionReferencias ?? '',
+          fuente: e.ubicacionOrigen === 'gps' ? 'gps' : 'escrita',
+          punto: e.patientLatitude != null ? { lat: Number(e.patientLatitude), lng: Number(e.patientLongitude) } : null,
+        } : null
+        const d = previa ?? await direccionPrecargada(coords, g)
+        // Si el paciente ya la escribió a mano mientras tanto, manda la suya.
+        if (!direccionRef.current) fijarDireccion(d)
+      } finally {
+        setBuscandoDireccion(false)
+      }
     })()
-    return () => { vivo = false }
-  }, [phase, profile?.id, profile?.address, emergency])
+  }, [phase, profile?.id, profile?.address]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // MP public key — needed to mount the CardPayment brick (see MPCardHolder).
   useEffect(() => {
@@ -352,12 +366,21 @@ export default function Emergency({ profile }) {
     // La dirección como va a la base: con su punto si es del paciente, y el
     // GPS crudo. La ubicación no frena una emergencia: si no hay nada, el
     // despacho la pide por teléfono.
-    const d = direccion ? await conPunto(direccion, gpsRef.current) : null
-    if (d && d !== direccion) setDireccion(d)
+    if (precargaRef.current) {
+      await Promise.race([precargaRef.current, new Promise(r => setTimeout(r, PRECARGA_TOPE_MS))]).catch(() => {})
+    }
+    let d = direccionRef.current
+    if (d && puntoEnCurso.current) d = await puntoEnCurso.current.catch(() => d)
+    if (d) {
+      const con = await conPunto(d, gpsRef.current)
+      if (con !== d) fijarDireccion(con)
+      d = con
+    }
     const ubicacion = columnasDeUbicacion(gpsRef.current, d)
 
     if (emergency?.id) {
-      await emergencyService.actualizarUbicacion(emergency.id, ubicacion).catch(() => {})
+      // Pedido retomado: sin borrar el punto que ya tenía si esta vez no hay.
+      await emergencyService.actualizarUbicacion(emergency.id, sinPisarPunto(ubicacion)).catch(() => {})
       return emergency
     }
 
@@ -368,7 +391,7 @@ export default function Emergency({ profile }) {
     })
     setEmergency(fila)
     return fila
-  }, [emergency, profile?.id, sosSettings?.price, direccion])
+  }, [emergency, profile?.id, sosSettings?.price])
 
   /** Reserva hecha → al triage. El monto lo puso el servidor, no esta pantalla. */
   const trasReservar = async (resultado, fila) => {
@@ -826,7 +849,7 @@ export default function Emergency({ profile }) {
           <div className="w-full sm:max-w-lg mx-auto">
             <DireccionPedidoCard
               valor={direccion}
-              buscando={buscandoDireccion || (!direccion && phase === 'pago')}
+              buscando={buscandoDireccion}
               conGps={conGps}
               onCambiar={() => setHojaDireccion(true)}
             />
@@ -957,9 +980,12 @@ export default function Emergency({ profile }) {
           onClose={() => setHojaDireccion(false)}
           onConfirmar={(d) => {
             setHojaDireccion(false)
-            setDireccion(d)
-            // Se busca en el mapa ya, para avisar si no aparece antes de pedir.
-            conPunto(d, gpsRef.current).then(con => setDireccion(act => (act === d ? con : act)))
+            fijarDireccion(d)
+            // Se busca en el mapa ya, para avisar si no aparece antes de pedir;
+            // pagar reusa esta misma búsqueda en vez de lanzar otra.
+            const p = conPunto(d, gpsRef.current)
+            puntoEnCurso.current = p
+            p.then(con => { if (direccionRef.current === d) fijarDireccion(con) }).catch(() => {})
           }}
         />
       </div>
