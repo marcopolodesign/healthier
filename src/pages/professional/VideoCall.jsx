@@ -166,13 +166,43 @@ function useVideoSplit() {
 const ARRASTRE_MIN_PX = 6
 const ESPERA_ENTRAR_IGUAL_MS = 3 * 60 * 1000
 const VELOCIDAD_DECIDE = 0.4 // px/ms — un flick decide aunque el recorrido sea corto
-// Lo que asoma la hoja cerrada: 20% del alto, pero nunca menos de 11.5rem
-// (184 px), para que entren el nombre del paciente y sus signos vitales (Nacho,
-// 2026-10-22). Tiene que coincidir con `max(20dvh, 11.5rem)` de `vc-panel-pane`
-// y `vc-controles` en index.css.
-const hojaAsomaPx = () => Math.max(window.innerHeight * 0.2, 184)
 
-function useHojaArrastrable(abierta, setAbierta) {
+/**
+ * Cuánto asoma la hoja cerrada. Antes era un 20% fijo del alto; desde que la
+ * tarjeta del paciente lleva los signos vitales (Nacho, 2026-10-22) asoma lo
+ * que mida esa tarjeta (marcada `data-hoja-asoma` en ClinicalPanel), así se ve
+ * entera aunque la tira pase a dos renglones o la letra sea más grande. Nunca
+ * menos del 20% de antes ni más del 45% (un teléfono apaisado).
+ *
+ * Es la única fuente del número: lo deja en `--vc-hoja-asoma` para el CSS
+ * (`vc-panel-pane`, `vc-video-pane`, `vc-controles`) y lo devuelve en un ref
+ * para el arrastre. Se mide sólo con la hoja cerrada, que es cuando importa
+ * (abierta, el rótulo "Historia clínica" desaparece y la medida cambia).
+ */
+function useAsomaDeLaHoja(hojaRef, asomaRef, activa, abierta) {
+  useEffect(() => {
+    const hoja = hojaRef.current
+    const tarjeta = hoja?.querySelector('[data-hoja-asoma]')
+    if (!activa || abierta || !hoja || !tarjeta) return
+    const root = document.documentElement
+    const medir = () => {
+      const alto = window.innerHeight
+      const medida = tarjeta.getBoundingClientRect().bottom - hoja.getBoundingClientRect().top
+      const px = Math.round(Math.max(alto * 0.2, Math.min(medida, alto * 0.45)))
+      asomaRef.current = px
+      root.style.setProperty('--vc-hoja-asoma', `${px}px`)
+    }
+    medir()
+    const ro = new ResizeObserver(medir)
+    ro.observe(tarjeta)
+    window.addEventListener('resize', medir)
+    return () => { ro.disconnect(); window.removeEventListener('resize', medir) }
+  }, [hojaRef, asomaRef, activa, abierta])
+  // Variable global: no sobrevive a la videollamada.
+  useEffect(() => () => document.documentElement.style.removeProperty('--vc-hoja-asoma'), [])
+}
+
+function useHojaArrastrable(abierta, setAbierta, asomaRef) {
   const hojaRef = useRef(null)
   const agarreRef = useRef(null)
   // El `click` llega después del `pointerup` aunque haya sido un arrastre:
@@ -184,7 +214,8 @@ function useHojaArrastrable(abierta, setAbierta) {
     if (!hoja || (e.pointerType === 'mouse' && e.button !== 0)) return
     fueArrastre.current = false
     // Posición cerrada = la altura de la hoja menos lo que asoma.
-    const cerradaY = Math.max(0, hoja.offsetHeight - hojaAsomaPx())
+    const asoma = asomaRef.current ?? window.innerHeight * 0.2
+    const cerradaY = Math.max(0, hoja.offsetHeight - asoma)
     const baseY = abierta ? 0 : cerradaY
     const inicioY = e.clientY
     let y = baseY
@@ -842,7 +873,7 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
           sección "Consulta" de la planilla (antes "Paciente" — Mateo,
           2026-08-24: esa sección se absorbió en "01. Filiación" de la nueva
           consulta estructurada). */}
-      <div className="shrink-0 bg-white border-b border-border-default px-3 py-2.5">
+      <div data-hoja-asoma className="shrink-0 bg-white border-b border-border-default px-3 py-2.5">
         <div className="rounded-xl border border-border-default bg-white">
           <div className="w-full flex items-center gap-2.5 px-3 py-2.5">
             <button
@@ -1265,7 +1296,9 @@ export default function ProfessionalVideoCall({ profile }) {
   const split = useVideoSplit()
   // Hoja de la HC en mobile. Arranca abajo: lo primero es ver al paciente.
   const [hojaAbierta, setHojaAbierta] = useState(false)
-  const hoja = useHojaArrastrable(hojaAbierta, setHojaAbierta)
+  const asomaRef = useRef(null)
+  const hoja = useHojaArrastrable(hojaAbierta, setHojaAbierta, asomaRef)
+  useAsomaDeLaHoja(hoja.hojaRef, asomaRef, splitScreen && !!consultation, hojaAbierta)
   const [noShowBanner, setNoShowBanner] = useState(false)
 
   // ── Código de cierre EN la llamada (migración 099) ───────────────────────
@@ -1851,7 +1884,10 @@ export default function ProfessionalVideoCall({ profile }) {
             // así no tapan "Ingresar paciente".
             <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 z-10 max-lg:pb-24">
               <div className="text-center space-y-4">
-                <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto relative">
+                {/* En un teléfono bajo (iPhone SE) el avatar se esconde: si no,
+                    los controles tapan "Ingresar paciente", que es lo único de
+                    acá que hay que poder tocar. */}
+                <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto relative max-lg:[@media(max-height:44rem)]:hidden">
                   <User className="h-12 w-12 text-white/15" />
                   <span className="absolute inset-0 rounded-full border-2 border-brand/30 animate-ping" />
                 </div>
