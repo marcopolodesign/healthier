@@ -4,19 +4,6 @@ import { medicationOrdersService } from './medicationOrdersService'
 const PHARMACY_ID = medicationOrdersService.PHARMACY_ID
 
 export const pharmacyService = {
-  /**
-   * La farmacia sólo está habilitada para pacientes que ya se atendieron al
-   * menos una vez con un profesional de Healthier. Llama a la misma función
-   * que usa la policy de INSERT en medication_orders (migración 130) — acá
-   * sólo para mostrar el mensaje antes de dejarlos armar un carrito; el RLS
-   * es el que realmente bloquea la compra.
-   */
-  async hasBeenAttended() {
-    const { data, error } = await supabase.rpc('patient_has_completed_consultation')
-    if (error) throw error
-    return !!data
-  },
-
   async getAll() {
     const { data, error } = await supabase
       .from('pharmacy_products')
@@ -144,9 +131,13 @@ export const pharmacyService = {
       return (products ?? []).find(p => ids.has(p.id)) ?? null
     }
 
+    const lineaDe = new Map(lineas.map(l => [l.clinicalMedicationId, l]))
     const medicamentos = toCamelCase(meds ?? []).map(med => {
       const raw = buscarProducto(med.id)
-      return { medication: med, product: raw ? toCamelCase(raw) : null }
+      // `estado` de la receta para la farmacia: una posdatada que todavía no
+      // empezó se muestra pero no se compra.
+      const linea = lineaDe.get(med.id)
+      return { medication: med, product: raw ? toCamelCase(raw) : null, estado: linea?.estado ?? null, valeDesde: linea?.emitidaAt ?? null }
     })
 
     return { medicamentos, pedido: toCamelCase(orders ?? [])[0] ?? null }

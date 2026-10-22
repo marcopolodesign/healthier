@@ -185,18 +185,22 @@ function TituloSeccion({ icon: Icon, children, id }) {
  * cubre. Se muestran las dos cosas porque los nombres del catálogo no son los
  * de la receta — y nunca se presenta el producto como si fuera la receta.
  */
-function RecetaVigente({ receta, productos, cart }) {
+function RecetaVigente({ receta, productos, cart, siguientes = [] }) {
+  // Posdatada que todavía no empezó: se ve, pero no se compra (Felipe).
+  const proxima = receta.estado === 'proxima'
   return (
     <div className="rounded-[24px] bg-bg-surface p-5 flex flex-col gap-3">
       <div className="flex flex-wrap gap-1.5">
-        <Chapa tono="vigente" icon={CheckCircle}>Vigente</Chapa>
+        {proxima
+          ? <Chapa tono="apagado">Desde el {ddmm(receta.emitidaAt)}</Chapa>
+          : <Chapa tono="vigente" icon={CheckCircle}>Vigente</Chapa>}
         {receta.controlada && <Chapa tono="receta" icon={LockSimple}>Controlado</Chapa>}
         {receta.isChronic && <Chapa tono="vigente" icon={ArrowsClockwise}>Tratamiento prolongado</Chapa>}
       </div>
       <div>
         <p className="text-[18px] font-medium text-text-primary leading-snug">{receta.medicationName}</p>
         <p className="text-[14px] text-text-secondary">
-          {[receta.profesional, receta.venceAt && `hasta el ${ddmm(receta.venceAt)}`].filter(Boolean).join(' · ')}
+          {[receta.profesional, !proxima && receta.venceAt && `hasta el ${ddmm(receta.venceAt)}`].filter(Boolean).join(' · ')}
         </p>
       </div>
       <div className="border-t border-border-default pt-3 flex flex-col gap-3">
@@ -214,7 +218,7 @@ function RecetaVigente({ receta, productos, cart }) {
                 <p className="text-[14px] text-text-primary leading-snug">{p.name}</p>
                 <p className="text-[14px] font-semibold text-text-primary">{fmtPrice(p.price)}</p>
               </div>
-              {q > 0 ? (
+              {proxima ? null : q > 0 ? (
                 <Stepper quantity={q} onAdd={() => cart.add(p)} onRemove={() => cart.subtract(p)} />
               ) : (
                 <button onClick={() => cart.add(p)} className="shrink-0 px-4 py-2 rounded-full bg-brand text-white text-[14px] font-semibold flex items-center gap-1">
@@ -225,9 +229,15 @@ function RecetaVigente({ receta, productos, cart }) {
           )
         })}
       </div>
+      {siguientes.length > 0 && (
+        <p className="flex items-center gap-1.5 text-[13px] text-text-secondary">
+          <ArrowsClockwise className="w-4 h-4 shrink-0" />
+          Siguientes: desde el {siguientes.map(r => ddmm(r.emitidaAt)).join(' y el ')}
+        </p>
+      )}
       <p className="flex items-center gap-1.5 text-[13px] text-text-secondary">
         <Info className="w-4 h-4 shrink-0" />
-        {receta.maxEnvases > 1
+        {proxima ? `La podés usar desde el ${ddmm(receta.emitidaAt)}.` : receta.maxEnvases > 1
           ? `Esta receta vale para una sola compra, de hasta ${receta.maxEnvases} envases.`
           : 'Esta receta vale para una sola compra.'}
       </p>
@@ -254,19 +264,13 @@ export default function Pharmacy({ profile }) {
   const [showWithPhotoOnly, setShowWithPhotoOnly] = useState(false)
   const [prescriptionType, setPrescriptionType] = useState(null) // null = todas
   const [showFilters, setShowFilters] = useState(false)
-  const [canBuy, setCanBuy] = useState(null) // null = todavía no se sabe
   const misRecetasRef = useRef(null)
 
   useEffect(() => {
-    setCanBuy(null) // vuelve a "no se sabe" hasta que resuelva para este perfil
     if (!profile?.id) return
 
-    pharmacyService.hasBeenAttended()
-      .then(setCanBuy)
-      .catch(() => setCanBuy(true)) // no bloquear por un error de red, sólo por la regla
-
-    // Se pide en paralelo al chequeo de arriba, no en cadena — si el paciente
-    // no puede comprar, la pantalla de bloqueo reemplaza todo esto igual.
+    // Sin el "primero atendete" (Mateo, 2026-10-22): la venta libre es para
+    // todos y lo que necesita receta lo frena la base producto por producto.
     Promise.all([
       pharmacyService.getAll(),
       pharmacyService.getFeatured(),
@@ -298,7 +302,21 @@ export default function Pharmacy({ profile }) {
 
   const productById = useMemo(() => new Map(allProducts.map(p => [p.id, p])), [allProducts])
   const vigentes = useMemo(() => recetas.filter(r => r.estado === 'vigente'), [recetas])
-  const anteriores = useMemo(() => recetas.filter(r => r.estado !== 'vigente'), [recetas])
+  // Posdatadas que todavía no empezaron: no cuentan como listas para usar ni
+  // cubren nada. Si la de hoy del mismo medicamento sigue vigente van como una
+  // línea dentro de su tarjeta; si no, en una tarjeta propia "Desde el…".
+  const proximas = useMemo(() => recetas.filter(r => r.estado === 'proxima')
+    .sort((a, b) => String(a.emitidaAt).localeCompare(String(b.emitidaAt))), [recetas])
+  const siguientesDe = (r) => proximas.filter(p => p.medicationName === r.medicationName)
+  const proximasSueltas = useMemo(() => {
+    const vistas = new Set()
+    return proximas.filter(p => {
+      if (vigentes.some(v => v.medicationName === p.medicationName) || vistas.has(p.medicationName)) return false
+      vistas.add(p.medicationName)
+      return true
+    })
+  }, [proximas, vigentes])
+  const anteriores = useMemo(() => recetas.filter(r => r.estado === 'usada' || r.estado === 'vencida'), [recetas])
   // Lo que una receta vigente cubre. Sólo para decidir qué botón mostrar: la
   // regla de verdad la aplica la base al agregar.
   const cubiertos = useMemo(() => new Set(vigentes.flatMap(r => r.productoIds ?? [])), [vigentes])
@@ -349,30 +367,7 @@ export default function Pharmacy({ profile }) {
   const ventaLibre = useMemo(() => filteredProducts.filter(p => !necesitaReceta(p)), [filteredProducts])
   const conReceta = useMemo(() => filteredProducts.filter(necesitaReceta), [filteredProducts])
 
-  if (canBuy === false) {
-    return (
-      <div className="absolute inset-0 flex flex-col bg-bg-primary">
-        <PharmacyHeader onBack={() => navigate(-1)} />
-        <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-4 patient-column">
-          <div className="w-16 h-16 rounded-full bg-brand/10 flex items-center justify-center">
-            <Stethoscope className="w-7 h-7 text-brand" />
-          </div>
-          <div>
-            <p className="font-semibold text-text-primary">Todavía no tenés una consulta realizada</p>
-            <p className="text-sm text-text-secondary mt-1">Para comprar en la farmacia primero tenés que atenderte con un profesional de Healthier.</p>
-          </div>
-          <button
-            onClick={() => navigate('/paciente/dashboard')}
-            className="px-5 py-3 rounded-full bg-brand text-white text-sm font-semibold"
-          >
-            Reservar una consulta
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  const nivelReceta = vigentes.length > 0 || conReceta.length > 0 || anteriores.length > 0
+  const nivelReceta = vigentes.length > 0 || proximas.length > 0 || conReceta.length > 0 || anteriores.length > 0
 
   return (
     <div className="absolute inset-0 flex flex-col bg-bg-primary">
@@ -558,16 +553,17 @@ export default function Pharmacy({ profile }) {
                     subtitulo="Necesitan una receta vigente. Si no la tenés, la pedís en una videoconsulta con un clínico."
                   />
 
-                  {vigentes.length > 0 && (
+                  {(vigentes.length > 0 || proximasSueltas.length > 0) && (
                     <div className="pt-8" ref={misRecetasRef}>
                       <TituloSeccion id="tus-recetas">Tus recetas vigentes</TituloSeccion>
                       <div className="px-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
-                        {vigentes.map(r => (
+                        {[...vigentes, ...proximasSueltas].map(r => (
                           <RecetaVigente
                             key={r.clinicalMedicationId}
                             receta={r}
                             productos={(r.productoIds ?? []).map(id => productById.get(id)).filter(p => p?.inStock)}
                             cart={cart}
+                            siguientes={siguientesDe(r).filter(p => p.clinicalMedicationId !== r.clinicalMedicationId)}
                           />
                         ))}
                       </div>
