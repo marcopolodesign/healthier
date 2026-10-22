@@ -309,16 +309,21 @@ Deno.serve(async (req: Request) => {
           code: 'RCTA_POSDATADAS_NO_CRONICA',
         }, 422)
       }
-      const { data: controlados, error: ctrlErr } = await supabase
-        .from('farmacia_drogas_bajo_receta')
-        .select('droga')
-        .eq('tipo', 'receta_archivada')
-      if (ctrlErr) return await fallar('server_error', { error: ctrlErr.message }, 500)
-      // deno-lint-ignore no-explicit-any
-      const controlado = meds.find((m: any) => {
-        const texto = [m.medication_name, m.nombre_droga, m.presentacion].filter(Boolean).join(' ').toLowerCase()
-        return (controlados ?? []).some((c: { droga: string }) => texto.includes(c.droga))
+      // De a un medicamento: con varios, Innovamed puede repartirlos en más de
+      // una receta por fecha y no habría forma segura de saber cuál es cuál.
+      if (meds.length !== 1) {
+        return await fallar('validation_error', {
+          error: 'Las recetas posdatadas se emiten de a un medicamento.',
+          code: 'RCTA_POSDATADAS_UN_MEDICAMENTO',
+        }, 422)
+      }
+      // El mismo "¿es controlado?" que usa la farmacia (migración 214).
+      const m0 = meds[0]
+      const { data: esControlado, error: ctrlErr } = await supabase.rpc('farmacia_texto_es_controlado', {
+        p_texto: [m0.medication_name, m0.nombre_droga, m0.presentacion, m0.presentation, m0.concentration].filter(Boolean).join(' '),
       })
+      if (ctrlErr) return await fallar('server_error', { error: ctrlErr.message }, 500)
+      const controlado = esControlado ? m0 : null
       if (controlado) {
         return await fallar('validation_error', {
           error: `${controlado.medication_name} es controlado: no admite recetas posdatadas.`,
@@ -722,10 +727,13 @@ Deno.serve(async (req: Request) => {
 
     // Con posdatadas vienen varias: la de hoy y una por fecha. Se las ubica por
     // la fecha que devuelve Innovamed y, si no la trae, por orden.
+    // Se ubica cada una por su fecha, sin adivinar por orden: guardar la receta
+    // de hoy como la de dentro de 60 días haría vender con una receta vencida.
     const recetasDevueltas = Array.isArray(rctaData.recetas) ? rctaData.recetas : []
-    const fechaDe = (r: { fecha?: string }) => String(r?.fecha ?? '').slice(0, 10)
-    const posdatadasDevueltas = fechasPosdatadas.map((f, k) =>
-      recetasDevueltas.find((r: { fecha?: string }) => fechaDe(r) === f) ?? recetasDevueltas[k + 1] ?? null)
+    const posdatadasDevueltas = fechasPosdatadas.map((f) => {
+      const conEsaFecha = recetasDevueltas.filter((r: { fecha?: string }) => fechaArgentina(r?.fecha) === f)
+      return conEsaFecha.length === 1 ? conEsaFecha[0] : null
+    })
     const receta = recetasDevueltas.find((r: unknown) => !posdatadasDevueltas.includes(r)) ?? recetasDevueltas[0]
     if (!receta) {
       await setStatus('error')
@@ -756,6 +764,9 @@ Deno.serve(async (req: Request) => {
     // funcion igual devolvia 200. El profesional veia "receta emitida" y un
     // renglon clavado en "Emitiendo...".
     const { error: persistErr } = await setStatus('issued', {
+      // La original vale desde hoy: nada de fechas de inicio heredadas.
+      vigencia_desde:       null,
+      posdatada_de:         null,
       rcta_prescription_id: prescriptionId,
       rcta_transaction_id:  rctaData.idTransaccion ?? null,
       rcta_verificador:     receta.verificador ?? null,
@@ -801,13 +812,20 @@ Deno.serve(async (req: Request) => {
     // Si Innovamed devolvió menos recetas que las pedidas, se guarda lo que
     // vino y se avisa: las que faltan no existen y no se inventan.
     const posdatadasGuardadas: { fecha: string; prescriptionId: string | null; pdfUrl: string | null }[] = []
+    // Lo que se emitió del otro lado pero no quedó guardado acá: va al log de la
+    // emisión para poder recuperarlo, y el profesional ve el aviso.
+    const posdatadasSinGuardar: { fecha: string; idReceta: string | null; motivo: string }[] = []
     if (fechasPosdatadas.length) {
       for (let k = 0; k < fechasPosdatadas.length; k++) {
         const r = posdatadasDevueltas[k]
-        if (!r) { console.error(`rcta-issue: Innovamed no devolvió la posdatada del ${fechasPosdatadas[k]}`); continue }
+        if (!r) {
+          console.error(`rcta-issue: no se pudo ubicar la posdatada del ${fechasPosdatadas[k]} en la respuesta`, JSON.stringify(recetasDevueltas))
+          posdatadasSinGuardar.push({ fecha: fechasPosdatadas[k], idReceta: null, motivo: 'no_ubicada' })
+          continue
+        }
         const [dd, mm, aaaa] = fechasPosdatadas[k].split('/')
-        posdatadasGuardadas.push({ fecha: fechasPosdatadas[k], prescriptionId: r.idReceta ?? r.id ?? null, pdfUrl: r.s3Link ?? null })
-        if (esPractica) continue
+        const guardada = { fecha: fechasPosdatadas[k], prescriptionId: r.idReceta ?? r.id ?? null, pdfUrl: r.s3Link ?? null }
+        if (esPractica) { posdatadasGuardadas.push(guardada); continue }
         // deno-lint-ignore no-explicit-any
         const filas = (meds as any[]).map(({ id, created_at, patient: _p, professional: _pr, encounter: _e,
           rcta_status: _s, rcta_prescription_id: _rp, rcta_transaction_id: _rt, rcta_verificador: _rv,
@@ -823,8 +841,14 @@ Deno.serve(async (req: Request) => {
           rcta_issued_at: issuedAt,
         }))
         const { error: posErr } = await supabase.from('clinical_medications').insert(filas)
-        if (posErr) console.error(`rcta-issue: la posdatada del ${fechasPosdatadas[k]} se emitió pero no se pudo guardar:`, posErr.message, JSON.stringify(r))
+        if (posErr) {
+          console.error(`rcta-issue: la posdatada del ${fechasPosdatadas[k]} se emitió pero no se pudo guardar:`, posErr.message, JSON.stringify(r))
+          posdatadasSinGuardar.push({ fecha: fechasPosdatadas[k], idReceta: guardada.prescriptionId, motivo: posErr.message })
+        } else {
+          posdatadasGuardadas.push(guardada)
+        }
       }
+      if (posdatadasSinGuardar.length) ctx.response = { ...rctaData, healthier_posdatadas_sin_guardar: posdatadasSinGuardar }
     }
 
     // ── Pharmacy stock match + patient notification (best-effort — a failure here
@@ -848,7 +872,7 @@ Deno.serve(async (req: Request) => {
       issuedAt,
       medicationIds: ids,
       posdatadas: posdatadasGuardadas,
-      posdatadasFaltantes: fechasPosdatadas.length - posdatadasGuardadas.length,
+      posdatadasFaltantes: posdatadasSinGuardar.length,
     })
 
   } catch (err) {
@@ -865,6 +889,25 @@ Deno.serve(async (req: Request) => {
  * Ante cualquier duda se usa la hora del servidor: la fecha exacta de emision es
  * un dato util, pero perder el vinculo con la receta por un formato no lo es.
  */
+/**
+ * La fecha de una receta de Innovamed como DD/MM/AAAA (día argentino), venga
+ * como "DD/MM/AAAA[ hh:mm]", "D/M/AAAA" o ISO. '' si no se puede leer.
+ */
+function fechaArgentina(fecha: unknown): string {
+  const t = String(fecha ?? '').trim()
+  const dma = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (dma) return `${dma[1].padStart(2, '0')}/${dma[2].padStart(2, '0')}/${dma[3]}`
+  const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})(T.*)?$/)
+  if (iso) {
+    if (!iso[4]) return `${iso[3]}/${iso[2]}/${iso[1]}`
+    const d = new Date(t)
+    if (isNaN(d.getTime())) return ''
+    const ar = new Date(d.getTime() - 3 * 3600 * 1000)
+    return `${String(ar.getUTCDate()).padStart(2, '0')}/${String(ar.getUTCMonth() + 1).padStart(2, '0')}/${ar.getUTCFullYear()}`
+  }
+  return ''
+}
+
 function aIso(fecha: unknown): string {
   if (typeof fecha === 'string') {
     const ddmmaaaa = fecha.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2}))?/)

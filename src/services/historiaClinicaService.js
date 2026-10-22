@@ -106,7 +106,7 @@ export const historiaClinicaService = {
       supabase.from('clinical_conditions').select('*')
         .eq('encounter_id', encounter.id).order('created_at', { ascending: false }),
       supabase.from('clinical_medications').select('*')
-        .eq('encounter_id', encounter.id).order('created_at', { ascending: false }),
+        .eq('encounter_id', encounter.id).is('posdatada_de', null).order('created_at', { ascending: false }),
     ])
 
     // Mismo asiento que la HC completa (Ley 26.529 Art. 14). No se espera:

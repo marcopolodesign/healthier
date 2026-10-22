@@ -116,7 +116,25 @@ insert into public.farmacia_drogas_bajo_receta (droga, tipo, motivo) values
   ('azitromicina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
   ('cefalexina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
   ('ciprofloxacina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
-  ('claritromicina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)')
+  ('claritromicina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('eritromicina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('ampicilina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('penicilina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('cefadroxilo', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('cefuroxima', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('cefixima', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('ceftriaxona', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('levofloxacina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('moxifloxacina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('norfloxacina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('doxiciclina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('minociclina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('sulfametoxazol', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('trimetoprima', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('nitrofurantoina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('metronidazol', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('clindamicina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
+  ('fosfomicina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)')
 on conflict (droga) do nothing;
 
 create or replace function public.farmacia_rango_venta(p_tipo text)
@@ -174,6 +192,29 @@ drop trigger if exists farmacia_drogas_bajo_receta_reaplicar on public.farmacia_
 create trigger farmacia_drogas_bajo_receta_reaplicar
   after insert or update on public.farmacia_drogas_bajo_receta
   for each row execute function public.farmacia_reaplicar_piso();
+
+-- Un solo "¿es un controlado?" para la emisión (rcta-issue no deja posdatarlo)
+-- y para la farmacia (una posdatada de un controlado no habilita nada): la
+-- droga está en el piso, o algún producto del catálogo con receta archivada la
+-- nombra en su medication_match.
+create or replace function public.farmacia_texto_es_controlado(p_texto text)
+returns boolean
+language sql
+stable
+security definer
+set search_path to 'public'
+as $$
+  select exists (
+           select 1 from public.farmacia_drogas_bajo_receta d
+            where d.tipo = 'receta_archivada' and position(d.droga in lower(coalesce(p_texto, ''))) > 0)
+      or exists (
+           select 1 from public.pharmacy_products p, unnest(string_to_array(lower(coalesce(p.medication_match, '')), ',')) kw
+            where p.prescription_type = 'receta_archivada'
+              and btrim(kw) <> '' and position(btrim(kw) in lower(coalesce(p_texto, ''))) > 0)
+$$;
+
+revoke all on function public.farmacia_texto_es_controlado(text) from public, anon;
+grant execute on function public.farmacia_texto_es_controlado(text) to authenticated, service_role;
 
 -- Reclasificar lo que ya hay (el trigger de arriba hace el trabajo).
 update public.pharmacy_products set prescription_type = prescription_type;
@@ -301,6 +342,11 @@ as $$
      where cm.patient_id = p_patient
        and cm.rcta_status = 'issued'
        and cm.status = 'active'
+       -- Una posdatada vale mientras su original siga activo: si el médico
+       -- suspendió la medicación, las que faltan tampoco se venden.
+       and (cm.posdatada_de is null or exists (
+             select 1 from public.clinical_medications o
+              where o.id = cm.posdatada_de and o.status = 'active'))
   ),
   prods as (
     select l.id as cm_id,
@@ -325,10 +371,7 @@ as $$
   base as (
     select l.*,
            coalesce(pr.ids, '{}'::uuid[]) as ids,
-           (coalesce(pr.archivada, false) or exists (
-              select 1 from public.farmacia_drogas_bajo_receta d
-               where d.tipo = 'receta_archivada' and position(d.droga in lower(l.texto)) > 0
-           )) as es_controlada,
+           (coalesce(pr.archivada, false) or public.farmacia_texto_es_controlado(l.texto)) as es_controlada,
            (u.cm_id is not null) as ya_usada,
            l.emitida + make_interval(days => cfg.vig) as fin_vigencia
       from lineas l
@@ -594,7 +637,8 @@ begin
     select it.id,
            cm.medication_name,
            pf.full_name,
-           coalesce(cm.rcta_issued_at, cm.created_at),
+           -- Una posdatada se fecha desde cuando vale, no desde cuando se emitió.
+           coalesce((cm.vigencia_desde::timestamp at time zone 'America/Argentina/Buenos_Aires'), cm.rcta_issued_at, cm.created_at),
            cm.rcta_verificador,
            cm.rcta_pdf_url
       from public.medication_order_items it
@@ -630,6 +674,15 @@ begin
   -- service role (rcta-issue, seeds) y conexiones directas de la base.
   if auth.role() = 'service_role' or auth.uid() is null then
     return new;
+  end if;
+
+  -- Desde cuándo vale una receta y de cuál es posdatada lo decide sólo la
+  -- emisión, en cualquier estado: si no, se podía correr la fecha de un
+  -- borrador antes de emitirlo y la farmacia lo vendía fuera de los 30 días.
+  if tg_op = 'UPDATE' and (new.vigencia_desde is distinct from old.vigencia_desde
+                           or new.posdatada_de is distinct from old.posdatada_de) then
+    raise exception 'Los datos de la receta electrónica los escribe sólo el servicio de recetas.'
+      using errcode = '42501';
   end if;
 
   if tg_op = 'INSERT' then

@@ -571,7 +571,9 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
     const texto = [rx.medication_name, rx.nombre_droga, rx.presentacion].filter(Boolean).join(' ').toLowerCase()
     return controladas.some(d => texto.includes(d))
   })
-  const puedePosdatar = marcados.length > 0 && cronicos.length === marcados.length && !controladoMarcado
+  // De a un medicamento (rcta-issue lo exige) y nunca en la práctica.
+  const enPracticaRx = esSimulado(encounterId)
+  const puedePosdatar = !enPracticaRx && marcados.length === 1 && cronicos.length === 1 && !controladoMarcado
   const recetasAEmitir = puedePosdatar ? recetasTotales : 1
 
   useEffect(() => {
@@ -781,7 +783,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
         <div className="space-y-1.5 pt-1">
           {/* Tratamiento prolongado: recetas posdatadas (Mateo, 2026-10-22).
               Cada una vale 30 días desde su fecha; nunca para controlados. */}
-          {cronicos.length > 0 && (
+          {cronicos.length > 0 && !enPracticaRx && (
             <div className="rounded-xl border border-border-default bg-bg-surface p-3 space-y-2">
               <p className="text-sm font-semibold text-text-primary">Tratamiento prolongado</p>
               {controladoMarcado ? (
@@ -790,6 +792,8 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
                 </p>
               ) : cronicos.length !== marcados.length ? (
                 <p className="text-sm text-text-secondary">Para emitir posdatadas, marcá sólo medicación crónica.</p>
+              ) : marcados.length > 1 ? (
+                <p className="text-sm text-text-secondary">Las recetas posdatadas se emiten de a un medicamento: marcá uno solo.</p>
               ) : (
                 <>
                   <div role="radiogroup" aria-label="Cuántas recetas" className="inline-flex rounded-full border border-border-default p-0.5 bg-bg-primary">
