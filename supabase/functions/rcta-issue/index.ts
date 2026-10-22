@@ -258,9 +258,15 @@ Deno.serve(async (req: Request) => {
     // emitir— podía disparar una receta real con la matrícula y la firma del
     // médico, y después comprarla en la farmacia. El único que la llama es
     // PrescriptionCreator, con la sesión del profesional.
-    // La service key también pasa: la usa scripts/rcta-certificacion.mjs.
+    // La service key también pasa: la usa scripts/rcta-certificacion.mjs. Se
+    // mira el claim `role` del JWT, que ya verificó la firma el gateway
+    // (verify_jwt = true para esta función): comparar contra la variable de
+    // entorno no sirve, porque la que inyecta Supabase no es la misma cadena.
     const jwtLlamada = req.headers.get('Authorization')?.replace('Bearer ', '') ?? ''
-    if (!esPractica && jwtLlamada !== Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) {
+    const rolLlamada = (() => {
+      try { return JSON.parse(atob(jwtLlamada.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).role } catch { return null }
+    })()
+    if (!esPractica && rolLlamada !== 'service_role') {
       const { data: { user: quienLlama } } = await supabase.auth.getUser(jwtLlamada)
       const prescriptores = new Set(meds.map((m: { professional_id: string }) => m.professional_id))
       if (!quienLlama || prescriptores.size !== 1 || !prescriptores.has(quienLlama.id)) {
