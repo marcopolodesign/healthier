@@ -164,7 +164,9 @@ export const mpService = {
   // emergencyId es el tercer destino posible, también excluyente: la
   // preautorización de una emergencia (siempre capture:false, la cobra la
   // plataforma). El monto no viaja — lo pone el servidor desde la base.
-  async createPayment({ consultationId, orderId, emergencyId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits = false, authorizeOnly = false, description, payerDocType, payerDocNumber }) {
+  // `bonificar`/`cobrar`: el interruptor del S.O.S. (sólo emergencyId). El
+  // servidor decide con el mail de la sesión; para otra cuenta se ignoran.
+  async createPayment({ consultationId, orderId, emergencyId, cardToken, paymentMethodId, payerEmail, savedCardId, useCredits = false, authorizeOnly = false, description, payerDocType, payerDocNumber, bonificar, cobrar }) {
     try {
       const result = await callEdgeFunction('mp-payment', {
         consultationId: consultationId ?? null,
@@ -186,6 +188,7 @@ export const mpService = {
         // que MP recomienda para que el antifraude no rechace dispositivos
         // legítimos.
         deviceId: (typeof window !== 'undefined' && window.MP_DEVICE_SESSION_ID) || null,
+        ...(emergencyId && bonificar !== undefined ? { bonificar, cobrar } : {}),
       })
       return { data: toCamelCase(result), error: null }
     } catch (err) {
@@ -234,10 +237,27 @@ export const mpService = {
   /**
    * Cobra la preautorización de una emergencia — el traslado se hizo.
    * (mp-capture action=capture-emergency). Idempotente del lado del servidor.
+   * Si no hay reserva para cobrar (bonificada, o nunca se preautorizó)
+   * devuelve `data.sinPago: true`: no es un error, el que cierra deja un
+   * mensaje y llama a `cerrarEmergenciaSinPago`.
    */
   async capturarEmergencia(emergencyId) {
     try {
       const result = await callEdgeFunction('mp-capture', { action: 'capture-emergency', emergencyId })
+      return { data: toCamelCase(result), error: null }
+    } catch (err) {
+      return { data: null, error: err.message }
+    }
+  },
+
+  /**
+   * Registra el cierre de una emergencia sin cobro: quién, cuándo y el mensaje
+   * (mp-capture action=cerrar-sin-pago). El servidor lo niega si hay una
+   * reserva autorizada. El estado (`completed`) lo escribe después quien cierra.
+   */
+  async cerrarEmergenciaSinPago(emergencyId, nota) {
+    try {
+      const result = await callEdgeFunction('mp-capture', { action: 'cerrar-sin-pago', emergencyId, nota })
       return { data: toCamelCase(result), error: null }
     } catch (err) {
       return { data: null, error: err.message }

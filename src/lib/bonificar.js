@@ -26,3 +26,17 @@ export function camposBonificar({ puedeBonificar, bonificar }) {
   if (!puedeBonificar) return { bonificar: false }
   return { bonificar: bonificar === true, cobrar: bonificar !== true }
 }
+
+/**
+ * "Bonificar" del S.O.S. (Mateo, 2026-10-22): para la cuenta del interruptor
+ * arranca PRENDIDO (lo pidió así) y, si lo apaga, se reserva en la tarjeta
+ * como siempre. Para cualquier otra cuenta no hay bonificación: el perfil
+ * exento no cambia nada en el S.O.S. Mismo criterio en el servidor
+ * (`emergenciaBonificadaEnServidor`), con el payload de `camposBonificar`.
+ */
+export const SOS_BONIFICAR_POR_DEFECTO = true
+
+/** ¿Este S.O.S. va bonificado? Lo que muestra la pantalla. */
+export function sosBonificada({ puedeBonificar, bonificar }) {
+  return puedeBonificar === true && bonificar === true
+}

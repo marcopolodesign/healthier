@@ -29,6 +29,13 @@
  *
  * action: "capture-emergency"     body: { emergencyId }  — traslado hecho, se cobra
  * action: "cancel-auth-emergency" body: { emergencyId }  — cancelado, se libera
+ *   Sin reserva para cobrar (S.O.S. bonificado, o sin preautorización por lo
+ *   que sea) ninguna de las dos falla: capture contesta `sinPago: true` para
+ *   que el front muestre el cartel y pida el mensaje de cierre; cancel
+ *   contesta OK, no hay nada que liberar.
+ * action: "cerrar-sin-pago"       body: { emergencyId, nota } — registra el
+ *   cierre sin cobro (quién, cuándo, mensaje). Sólo si NO hay una reserva
+ *   autorizada: con plata reservada, la emergencia se cobra, no se cierra así.
  * action: "sweep" (no body)
  *   Internal-only — header `x-cron-secret` === MP_CRON_SECRET or
  *   MP_WEBHOOK_SECRET, or `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>`
@@ -611,7 +618,7 @@ Deno.serve(async (req) => {
 
       const { data: emergencia } = await serviceSupabase
         .from("emergencies")
-        .select("id, patient_id")
+        .select("id, patient_id, bonificada")
         .eq("id", emergencyId)
         .single();
       if (!emergencia) return jsonResponse({ data: null, error: "Emergency not found" }, 404);
@@ -629,7 +636,17 @@ Deno.serve(async (req) => {
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (!payment) return jsonResponse({ data: null, error: "No authorized payment for this emergency" }, 404);
+      // Sin reserva para cobrar (bonificada, o nunca se preautorizó): antes
+      // contestaba 404 "No authorized payment" y la emergencia no se podía
+      // cerrar (Mateo, 2026-10-22). Ahora se dice cuál es el caso y Mercado
+      // Pago no se toca. Para cerrar, el front pide un mensaje y llama a
+      // `cerrar-sin-pago`, que lo registra.
+      if (!payment) {
+        return jsonResponse({
+          data: { sinPago: true, bonificada: emergencia.bonificada === true },
+          error: null,
+        });
+      }
 
       const result = await resolverPreautorizacionDeEmergencia(
         serviceSupabase,
@@ -638,6 +655,67 @@ Deno.serve(async (req) => {
         action === "capture-emergency" ? "capture" : "cancel"
       );
       return jsonResponse({ data: result.data, error: result.error }, result.status);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // action: cerrar-sin-pago — la emergencia no tiene reserva para cobrar
+    //
+    // Deja asentado quién la cerró así, cuándo y su mensaje (lo ve el super
+    // admin). El estado del traslado lo sigue moviendo quien lo cierra, igual
+    // que con el cobro. Pueden: el despacho de la entidad de la emergencia, el
+    // médico del móvil y admin/super_admin. Con una reserva autorizada se
+    // niega: esa emergencia se cobra, no se cierra sin pago.
+    // ────────────────────────────────────────────────────────────────────────
+    if (action === "cerrar-sin-pago") {
+      const { emergencyId, nota } = body as { emergencyId?: string; nota?: unknown };
+      if (!emergencyId) return jsonResponse({ data: null, error: "Missing emergencyId" }, 400);
+      const mensaje = typeof nota === "string" ? nota.trim().slice(0, 1000) : "";
+      if (!mensaje) return jsonResponse({ data: null, error: "Dejá un mensaje para cerrar la emergencia sin cobro." }, 422);
+
+      const { data: emergencia } = await serviceSupabase
+        .from("emergencies")
+        .select("id, provider_id, professional_id, status, bonificada")
+        .eq("id", emergencyId)
+        .single();
+      if (!emergencia) return jsonResponse({ data: null, error: "Emergency not found" }, 404);
+
+      let puede = isAdmin || emergencia.professional_id === user.id;
+      if (!puede && (callerRole === "emergency_admin" || callerRole === "emergency_operator")) {
+        const { data: staff } = await serviceSupabase
+          .from("emergency_provider_staff")
+          .select("provider_id")
+          .eq("profile_id", user.id)
+          .eq("active", true)
+          .limit(1)
+          .maybeSingle();
+        puede = !!staff && (emergencia.provider_id === null || staff.provider_id === emergencia.provider_id);
+      }
+      if (!puede) return jsonResponse({ data: null, error: "Forbidden" }, 403);
+
+      if (emergencia.status === "cancelled") {
+        return jsonResponse({ data: null, error: "La emergencia está cancelada." }, 409);
+      }
+
+      const { data: reserva } = await serviceSupabase
+        .from("payments")
+        .select("id")
+        .eq("emergency_id", emergencyId)
+        .eq("status", "authorized")
+        .limit(1)
+        .maybeSingle();
+      if (reserva) {
+        return jsonResponse({ data: null, error: "Esta emergencia tiene un pago reservado: se cobra al terminarla, no se cierra sin cobro." }, 409);
+      }
+
+      const { error: updErr } = await serviceSupabase
+        .from("emergencies")
+        .update({ cierre_sin_pago: mensaje, cierre_sin_pago_por: user.id, cierre_sin_pago_at: new Date().toISOString() })
+        .eq("id", emergencyId);
+      if (updErr) {
+        console.error("mp-capture (cerrar-sin-pago): update error:", updErr.message);
+        return jsonResponse({ data: null, error: "No pudimos registrar el cierre. Probá de nuevo." }, 500);
+      }
+      return jsonResponse({ data: { registrado: true, bonificada: emergencia.bonificada === true }, error: null });
     }
 
     return jsonResponse({ data: null, error: `Unknown action: ${action ?? "(none)"}` }, 400);
