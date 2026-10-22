@@ -106,7 +106,7 @@ export const pharmacyService = {
   async getPrescriptionMatch(prescriptionId, patientId) {
     if (!prescriptionId || !patientId) return { medicamentos: [], pedido: null }
 
-    const [{ data: meds, error: medsErr }, { data: products, error: prodErr }, { data: orders, error: ordersErr }] = await Promise.all([
+    const [{ data: meds, error: medsErr }, { data: products, error: prodErr }, { data: orders, error: ordersErr }, lineas] = await Promise.all([
       supabase
         .from('clinical_medications')
         .select('id, medication_name, presentation, dosage_text, frequency, duration_days, quantity, notes, rcta_prescription_id, rcta_pdf_url, rcta_issued_at, created_at, professional:profiles!professional_id(full_name)')
@@ -126,17 +126,17 @@ export const pharmacyService = {
         .eq('rcta_prescription_id', prescriptionId)
         .order('created_at', { ascending: false })
         .limit(1),
+      // Qué producto es exactamente lo recetado lo decide la base (migración
+      // 214: misma droga, misma concentración y, si la receta lo dice, mismo
+      // envase) — es la misma regla con la que después acepta o rechaza el
+      // carrito. Antes se buscaba por palabra clave y una receta de 0,5 mg
+      // ofrecía el de 2 mg.
+      this.getMisRecetas(),
     ])
     if (medsErr) throw medsErr
     if (prodErr) throw prodErr
     if (ordersErr) throw ordersErr
 
-    // Qué producto es exactamente lo recetado lo decide la base (migración
-    // 214: misma droga, misma concentración y, si la receta lo dice, mismo
-    // envase) — es la misma regla con la que después acepta o rechaza el
-    // carrito. Antes se buscaba por palabra clave y una receta de 0,5 mg
-    // ofrecía el de 2 mg.
-    const lineas = await this.getMisRecetas()
     const productosDe = new Map(lineas.map(l => [l.clinicalMedicationId, new Set(l.productoIds ?? [])]))
     const buscarProducto = (medId) => {
       const ids = productosDe.get(medId)

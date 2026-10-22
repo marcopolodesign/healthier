@@ -97,6 +97,16 @@ insert into public.farmacia_drogas_bajo_receta (droga, tipo, motivo) values
   ('zolpidem',     'receta_archivada', 'Psicotrópico (Ley 19.303)'),
   ('zopiclona',    'receta_archivada', 'Psicotrópico (Ley 19.303)'),
   ('metilfenidato','receta_archivada', 'Psicotrópico (Ley 19.303)'),
+  -- Marcas comerciales frecuentes: el piso mira el nombre del producto, y un
+  -- "Rivotril" sin medication_match no dice "clonazepam" en ningún lado.
+  ('rivotril',     'receta_archivada', 'Psicotrópico (Ley 19.303) — clonazepam'),
+  ('alplax',       'receta_archivada', 'Psicotrópico (Ley 19.303) — alprazolam'),
+  ('tranquinal',   'receta_archivada', 'Psicotrópico (Ley 19.303) — alprazolam'),
+  ('valium',       'receta_archivada', 'Psicotrópico (Ley 19.303) — diazepam'),
+  ('lexotanil',    'receta_archivada', 'Psicotrópico (Ley 19.303) — bromazepam'),
+  ('trapax',       'receta_archivada', 'Psicotrópico (Ley 19.303) — lorazepam'),
+  ('stilnox',      'receta_archivada', 'Psicotrópico (Ley 19.303) — zolpidem'),
+  ('ritalina',     'receta_archivada', 'Psicotrópico (Ley 19.303) — metilfenidato'),
   ('amoxicilina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
   ('azitromicina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
   ('cefalexina', 'receta_archivada', 'Antimicrobiano (Ley 27.680)'),
@@ -180,13 +190,16 @@ as $$
     from regexp_matches(coalesce(p_texto, ''), '(\d+(?:[.,]\d+)?)\s*(mg|mcg|µg|ug|gr|g|ml|ui|%)(?![a-z])', 'gi') as m
 $$;
 
--- Unidades por envase: "Compx30" / "comp.x 21" → 30 / 21. NULL si no lo dice.
+-- Unidades por envase: "Compx30" / "comp.x 21" / "Alplax 2 x 30" → 30 / 21 / 30.
+-- NULL si no lo dice. La "x" tiene que estar suelta o pegada a una forma
+-- farmacéutica abreviada: la de "Alplax" no es un "por".
 create or replace function public.farmacia_unidades_envase(p_texto text)
 returns integer
 language sql
 immutable
 as $$
-  select (regexp_match(coalesce(p_texto, ''), 'x\s*(\d{1,4})(?!\s*(?:mg|mcg|ml|g|ui|%|[.,]\d))', 'i'))[1]::integer
+  select (regexp_match(coalesce(p_texto, ''),
+            '(?:^|[^a-z]|comp|comps|caps|tab|tabs|grag)x\s*(\d{1,4})(?!\d|\s*(?:mg|mcg|ml|g|ui|%)|[.,]\d)', 'i'))[1]::integer
 $$;
 
 create or replace function public.farmacia_receta_matchea(
@@ -270,7 +283,8 @@ as $$
            bool_or(p.prescription_type = 'receta_archivada') as archivada
       from lineas l
       join public.pharmacy_products p
-        on public.farmacia_receta_matchea(l.texto, concat_ws(' ', p.name, p.presentation), p.medication_match)
+        on p.medication_match is not null
+       and public.farmacia_receta_matchea(l.texto, concat_ws(' ', p.name, p.presentation), p.medication_match)
      group by l.id
   ),
   usadas as (
@@ -316,7 +330,16 @@ as $$
          c.es_controlada,
          c.est,
          c.fin_vigencia,
-         greatest(1, least(99, coalesce(nullif(left(regexp_replace(coalesce(c.quantity, ''), '\D', '', 'g'), 4), '')::integer, 1))),
+         -- `quantity` es texto libre del recetario: "2", "2 cajas", "1 frasco"…
+         -- o "30 comprimidos". Sólo cuenta como envases cuando dice envases (un
+         -- número solo, o seguido de caja/envase/frasco/blister); cualquier otra
+         -- cosa —unidades, comprimidos— es UN envase. Si no, "30 comprimidos"
+         -- habilitaba 30 cajas de un controlado.
+         case
+           when c.quantity ~* '^\s*\d{1,2}\s*(cajas?|envases?|frascos?|blisters?|unidades de venta)?\s*$'
+             then greatest(1, least(12, substring(c.quantity from '\d{1,2}')::integer))
+           else 1
+         end,
          c.ids
     from con_estado c
     left join public.profiles pf on pf.id = c.professional_id
@@ -461,13 +484,17 @@ as $$
       left join public.pharmacy_products p on p.id = i.pharmacy_product_id
      where i.order_id = p_order
   )
+  -- Cada item con receta tiene que estar atado a SU línea de receta (lo ata
+  -- el trigger al agregarlo) y esa línea tiene que seguir vigente. Un item sin
+  -- atar (carrito de antes de esta migración) no pasa: el paciente lo saca y
+  -- lo vuelve a agregar, y ahí se ata —y cuenta para el tope y como usada—.
   select it.id, it.medication_name, 'sin_receta'
     from it
    where it.tipo <> 'venta_libre'
      and not exists (
        select 1 from r
-        where it.pharmacy_product_id = any (r.producto_ids)
-          and (it.clinical_medication_id is null or r.clinical_medication_id = it.clinical_medication_id)
+        where r.clinical_medication_id = it.clinical_medication_id
+          and it.pharmacy_product_id = any (r.producto_ids)
      )
   union all
   select null::uuid, r.medication_name, 'excede_envases'
@@ -491,6 +518,13 @@ security definer
 set search_path to 'public'
 as $$
 begin
+  -- El 'pagado' lo escriben mp-payment y mp-webhook con la service key, y
+  -- mp-payment ya validó las recetas ANTES de cobrar. Frenarlo acá, con la
+  -- tarjeta ya cobrada, dejaría un cobro sin pedido.
+  if auth.role() = 'service_role' then
+    return new;
+  end if;
+
   if new.payment_status in ('pagado', 'exento')
      and old.payment_status = 'no_pagado'
      and exists (select 1 from public.farmacia_items_sin_receta(new.id)) then
@@ -575,6 +609,20 @@ begin
        and new.rcta_transaction_id is null then
       return new;
     end if;
+  elsif old.rcta_status = 'issued' and (
+         new.patient_id        is distinct from old.patient_id
+      or new.professional_id   is distinct from old.professional_id
+      or new.medication_name   is distinct from old.medication_name
+      or new.nombre_droga      is distinct from old.nombre_droga
+      or new.presentacion      is distinct from old.presentacion
+      or new.presentation      is distinct from old.presentation
+      or new.concentration     is distinct from old.concentration
+      or new.quantity          is distinct from old.quantity
+      or new.reg_no            is distinct from old.reg_no
+      or new.is_chronic        is distinct from old.is_chronic
+      or new.created_at        is distinct from old.created_at) then
+    -- Una receta emitida no se reescribe: la farmacia vende contra lo que dice.
+    null;
   elsif (new.rcta_status = 'issued') is not distinct from (old.rcta_status = 'issued')
      and new.rcta_prescription_id is not distinct from old.rcta_prescription_id
      and new.rcta_issued_at       is not distinct from old.rcta_issued_at
