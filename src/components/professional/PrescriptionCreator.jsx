@@ -15,6 +15,19 @@ import { esSimulado, marcarRecetaEmitida } from '../../lib/simulacion'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../Toast'
 import { mensajeDeError } from '../../lib/supabase'
+import { pharmacyService } from '../../services/pharmacyService'
+
+/** DD/MM de hoy + `dias`, en hora argentina. */
+function ddmmDentroDe(dias) {
+  const d = new Date(Date.now() - 3 * 3600 * 1000)
+  d.setUTCDate(d.getUTCDate() + dias)
+  return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+function ddmmDe(fechaIso) {
+  const [a, m, d] = String(fechaIso ?? '').slice(0, 10).split('-')
+  return d && m ? `${d}/${m}` : ''
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -99,7 +112,7 @@ function RctaBadge({ rcta, enCurso = false }) {
 
 // ── Prescription row ───────────────────────────────────────────────────────────
 
-function PrescriptionRow({ rx, selectable, checked, onToggle, enCurso = false }) {
+function PrescriptionRow({ rx, selectable, checked, onToggle, enCurso = false, posdatadas = [] }) {
   const [copied, setCopied] = useState(false)
 
   function handleCopy() {
@@ -183,6 +196,22 @@ function PrescriptionRow({ rx, selectable, checked, onToggle, enCurso = false })
             <p className="text-xs text-text-tertiary mt-0.5 italic">{rx.notes}</p>
           )}
           {date && <p className="text-[11px] text-text-tertiary mt-1">{date}</p>}
+          {/* Tratamiento prolongado: la serie entera, cada una con su PDF. */}
+          {posdatadas.length > 0 && (
+            <p className="text-sm text-text-secondary mt-1.5 flex flex-wrap items-center gap-x-1.5">
+              <span>Recetas: hoy</span>
+              {posdatadas.map(p => (
+                <span key={p.id}>
+                  · desde {ddmmDe(p.vigencia_desde)}
+                  {p.rcta_pdf_url && (
+                    <a href={p.rcta_pdf_url} target="_blank" rel="noopener noreferrer"
+                      aria-label={`PDF de la receta que vale desde el ${ddmmDe(p.vigencia_desde)}`}
+                      className="ml-1 font-semibold text-brand hover:underline">PDF</a>
+                  )}
+                </span>
+              ))}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col items-end gap-1.5 shrink-0">
@@ -487,6 +516,15 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
   // una sola (`medicamentos` es un array), y para el paciente es un único PDF
   // en vez de tres — así es como funciona una receta en papel.
   const [selectedIds, setSelectedIds] = useState([])
+  // Tratamiento prolongado: cuántas recetas en total (1 = sin posdatadas).
+  const [recetasTotales, setRecetasTotales] = useState(1)
+  // Drogas controladas (las mismas que usa la farmacia): no admiten posdatadas.
+  const [controladas, setControladas] = useState([])
+  useEffect(() => {
+    pharmacyService.getDrogasBajoReceta()
+      .then(d => setControladas(d.filter(x => x.tipo === 'receta_archivada').map(x => x.droga)))
+      .catch(() => {})
+  }, [])
 
   // Sólo recetan las especialidades marcadas en el catálogo (migración 116).
   // Esconder el recetario es lo cosmético; el bloqueo real está en el trigger de
@@ -517,6 +555,24 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
     ? []
     : prescriptions.filter(rx => rx.status === 'active' && rx.rcta_status !== 'issued')
   const seleccionados = selectedIds.filter(id => emitibles.some(rx => rx.id === id))
+
+  // Las posdatadas son filas propias (`posdatada_de`): en la lista van debajo
+  // de su original, no como renglones sueltos.
+  const originales = prescriptions.filter(rx => !rx.posdatada_de)
+  const posdatadasDe = id => prescriptions
+    .filter(rx => rx.posdatada_de === id)
+    .sort((a, b) => String(a.vigencia_desde).localeCompare(String(b.vigencia_desde)))
+
+  // Recetas posdatadas: sólo si TODO lo marcado es crónico y nada es controlado
+  // (la emisión lo vuelve a chequear).
+  const marcados = emitibles.filter(rx => seleccionados.includes(rx.id))
+  const cronicos = marcados.filter(rx => rx.is_chronic)
+  const controladoMarcado = marcados.find(rx => {
+    const texto = [rx.medication_name, rx.nombre_droga, rx.presentacion].filter(Boolean).join(' ').toLowerCase()
+    return controladas.some(d => texto.includes(d))
+  })
+  const puedePosdatar = marcados.length > 0 && cronicos.length === marcados.length && !controladoMarcado
+  const recetasAEmitir = puedePosdatar ? recetasTotales : 1
 
   useEffect(() => {
     if (!encounterId) { setLoading(false); return }
@@ -587,7 +643,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
       const enPractica = esSimulado(encounterId)
       const cuerpo = enPractica
         ? { simulacion: true, medicamentos: prescriptions.filter(rx => medicationIds.includes(rx.id)) }
-        : { medicationIds }
+        : { medicationIds, recetas: recetasAEmitir }
 
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(
@@ -638,9 +694,16 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
         return
       }
 
-      toast.success(medicationIds.length > 1
-        ? `Receta emitida con ${medicationIds.length} medicamentos`
-        : 'Receta electrónica emitida')
+      if (result.posdatadasFaltantes > 0) {
+        toast.warning(`Se emitió la receta de hoy, pero ${result.posdatadasFaltantes === 1 ? 'una posdatada no se generó' : `${result.posdatadasFaltantes} posdatadas no se generaron`}. Revisalo antes de cerrar la consulta.`)
+      } else if (result.posdatadas?.length) {
+        toast.success(`Emitidas ${result.posdatadas.length + 1} recetas: hoy, ${result.posdatadas.map(p => p.fecha.slice(0, 5)).join(' y ')}`)
+      } else {
+        toast.success(medicationIds.length > 1
+          ? `Receta emitida con ${medicationIds.length} medicamentos`
+          : 'Receta electrónica emitida')
+      }
+      setRecetasTotales(1)
       onIssued?.()
     } catch {
       toast.error('Error al conectar con el servicio de recetas')
@@ -693,12 +756,13 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
 
       {!loading && prescriptions.length > 0 && (
         <div className="space-y-2">
-          {prescriptions.map(rx => {
+          {originales.map(rx => {
             const selectable = emitibles.some(e => e.id === rx.id)
             return (
               <PrescriptionRow
                 key={rx.id}
                 rx={rx}
+                posdatadas={posdatadasDe(rx.id)}
                 selectable={selectable}
                 checked={selectable && seleccionados.includes(rx.id)}
                 onToggle={toggleSeleccion}
@@ -715,6 +779,45 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
           le entrega nada al paciente, emitir sí. */}
       {!loading && emitibles.length > 0 && (
         <div className="space-y-1.5 pt-1">
+          {/* Tratamiento prolongado: recetas posdatadas (Mateo, 2026-10-22).
+              Cada una vale 30 días desde su fecha; nunca para controlados. */}
+          {cronicos.length > 0 && (
+            <div className="rounded-xl border border-border-default bg-bg-surface p-3 space-y-2">
+              <p className="text-sm font-semibold text-text-primary">Tratamiento prolongado</p>
+              {controladoMarcado ? (
+                <p className="text-sm text-text-secondary">
+                  {capitalizarNombreCatalogo(controladoMarcado.medication_name)} es controlado: no admite recetas posdatadas.
+                </p>
+              ) : cronicos.length !== marcados.length ? (
+                <p className="text-sm text-text-secondary">Para emitir posdatadas, marcá sólo medicación crónica.</p>
+              ) : (
+                <>
+                  <div role="radiogroup" aria-label="Cuántas recetas" className="inline-flex rounded-full border border-border-default p-0.5 bg-bg-primary">
+                    {[1, 2, 3].map(n => (
+                      <button
+                        key={n}
+                        type="button"
+                        role="radio"
+                        aria-checked={recetasTotales === n}
+                        onClick={() => setRecetasTotales(n)}
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                          recetasTotales === n ? 'bg-brand text-white' : 'text-text-secondary hover:text-text-primary'
+                        }`}
+                      >
+                        {n === 1 ? '1 receta' : `${n} recetas`}
+                      </button>
+                    ))}
+                  </div>
+                  {recetasTotales > 1 && (
+                    <p className="text-sm text-text-secondary">
+                      {[`${ddmmDentroDe(0)} (hoy)`, ...Array.from({ length: recetasTotales - 1 }, (_, k) => ddmmDentroDe(30 * (k + 1)))].join(' · ')}
+                      {' — cada una vale 30 días desde su fecha'}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -726,13 +829,13 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
                 ? <><CircleNotch className="h-4 w-4 animate-spin" /> Emitiendo…</>
                 : <>
                     <ArrowSquareOut className="h-4 w-4" />
-                    Emitir receta
+                    {recetasAEmitir > 1 ? `Emitir ${recetasAEmitir} recetas` : 'Emitir receta'}
                     {seleccionados.length > 1 && ` · ${seleccionados.length} medicamentos`}
                   </>}
             </button>
             <InfoTooltip
               title="Qué hace este botón"
-              label="Genera la receta electrónica y devuelve el PDF firmado con validez legal, que le queda al paciente y sirve en la farmacia. Guardar la medicación sola no emite nada: sólo la deja en la historia clínica. Los medicamentos marcados salen juntos, en una sola receta con un único PDF."
+              label="Genera la receta electrónica y devuelve el PDF firmado con validez legal, que le queda al paciente y sirve en la farmacia. Guardar la medicación sola no emite nada: sólo la deja en la historia clínica. Los medicamentos marcados salen juntos: una receta y un PDF por fecha (con tratamiento prolongado, hasta 3 fechas)."
             >
               <Info className="h-4 w-4 text-text-tertiary cursor-help" />
             </InfoTooltip>
@@ -741,7 +844,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
             <p className="text-[11px] text-text-tertiary text-center">
               {seleccionados.length === 0
                 ? 'Marcá al menos un medicamento.'
-                : 'Los marcados van en la misma receta, con un único PDF.'}
+                : 'Los marcados van juntos en cada receta: una receta y un PDF por fecha.'}
             </p>
           )}
         </div>

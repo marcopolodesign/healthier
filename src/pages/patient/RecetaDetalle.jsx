@@ -45,7 +45,9 @@ export default function RecetaDetalle({ profile }) {
 
   const cabecera = medicamentos[0]?.medication
   const emitidaEn = cabecera?.rctaIssuedAt ?? cabecera?.createdAt ?? null
-  const disponibles = medicamentos.filter(m => m.product)
+  // Una posdatada que todavía no empezó no se puede comprar.
+  const disponibles = medicamentos.filter(m => m.product && m.estado !== 'proxima')
+  const proximaDesde = medicamentos.find(m => m.estado === 'proxima')?.valeDesde ?? null
   const faltantes = medicamentos.filter(m => !m.product)
 
   /*
@@ -145,7 +147,7 @@ export default function RecetaDetalle({ profile }) {
         </div>
 
         <div className="space-y-3">
-          {medicamentos.map(({ medication, product }) => {
+          {medicamentos.map(({ medication, product, estado }) => {
             const enCarrito = product ? cart.quantityOf(product.id) : 0
             // Lo recetado y el producto se muestran por separado siempre que no
             // sean el mismo texto: el match es por palabra clave y puede
@@ -175,7 +177,11 @@ export default function RecetaDetalle({ profile }) {
                             .filter(Boolean).join(' · ')}
                         </p>
                       </div>
-                      {enCarrito > 0 ? (
+                      {estado === 'proxima' ? (
+                        <span className="text-[13px] font-semibold text-text-tertiary shrink-0">
+                          Desde el {new Date(proximaDesde).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
+                        </span>
+                      ) : enCarrito > 0 ? (
                         <span className="flex items-center gap-1 text-[13px] font-semibold text-brand shrink-0">
                           <CheckCircle className="w-4 h-4" weight="fill" /> En tu pedido
                         </span>
@@ -229,6 +235,10 @@ export default function RecetaDetalle({ profile }) {
               </p>
             )}
           </>
+        ) : proximaDesde ? (
+          <p className="text-[13px] text-text-tertiary text-center mt-6">
+            Esta receta la podés usar en la farmacia desde el {new Date(proximaDesde).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}.
+          </p>
         ) : (
           <p className="text-[13px] text-text-tertiary text-center mt-6">
             Por ahora la farmacia no tiene ninguno de los medicamentos de esta receta.

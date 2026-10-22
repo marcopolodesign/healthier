@@ -33,10 +33,13 @@ export const historiaClinicaService = {
         .eq('patient_id', patientId)
         .eq('clinical_status', 'active')
         .order('created_at', { ascending: false }),
+      // Sin las recetas posdatadas (migración 214): son el mismo medicamento
+      // emitido para otra fecha, y en la historia clínica saldría repetido.
       supabase
         .from('clinical_medications')
         .select('*, professional:profiles!professional_id(full_name)')
         .eq('patient_id', patientId)
+        .is('posdatada_de', null)
         .order('created_at', { ascending: false }),
     ])
 
@@ -138,7 +141,7 @@ export const historiaClinicaService = {
     if (!patientId || esSimulado(patientId)) return []
     const { data, error } = await supabase
       .from('clinical_medications')
-      .select('id, medication_name, rcta_prescription_id, rcta_pdf_url, rcta_issued_at, created_at, encounter_id, professional:profiles!professional_id(full_name)')
+      .select('id, medication_name, rcta_prescription_id, rcta_pdf_url, rcta_issued_at, created_at, encounter_id, vigencia_desde, professional:profiles!professional_id(full_name)')
       .eq('patient_id', patientId)
       .eq('rcta_status', 'issued')
       .not('rcta_pdf_url', 'is', null)
@@ -156,6 +159,8 @@ export const historiaClinicaService = {
         emitidaEn: raw.rctaIssuedAt ?? raw.createdAt,
         profesional: raw.professional?.fullName ?? null,
         encounterId: raw.encounterId ?? null,
+        // Receta posdatada (tratamiento prolongado): vale desde esta fecha.
+        valeDesde: raw.vigenciaDesde ?? null,
         medicamentos: [raw.medicationName],
       })
     }
