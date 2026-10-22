@@ -112,6 +112,18 @@ export const medicationOrdersService = {
     return toCamelCase(data)
   },
 
+  /**
+   * Para el panel de la farmacia: la receta que cubre cada item con receta de
+   * un pedido cobrado (médico, fecha, código verificador, PDF) — migración
+   * 214. La farmacia no lee `clinical_medications`; esto es lo único que ve.
+   * Devuelve un mapa itemId → receta.
+   */
+  async getRecetasDelPedido(orderId) {
+    const { data, error } = await supabase.rpc('farmacia_recetas_del_pedido', { p_order: orderId })
+    if (error) throw error
+    return Object.fromEntries(toCamelCase(data ?? []).map(r => [r.itemId, r]))
+  },
+
   async getById(orderId) {
     const { data, error } = await supabase
       .from('medication_orders')
