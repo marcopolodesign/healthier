@@ -88,6 +88,15 @@ try {
   r = await clinica.c.from('ambulance_locations').upsert(pos(MOVIL, { profile_id: clinica.id }), { onConflict: 'ambulance_id' })
   esperar(!!r.error, 'quien no es médico del móvil no publica su posición')
 
+  // Con dos médicos en el móvil publica uno solo: el más antiguo (Móvil 2 de
+  // staging tiene dos: clinica@ y demo.ana@).
+  const [{ c: medicos }] = await sql(`select count(*)::int c from ambulance_crew where ambulance_id='${MOVIL_MEDICO}' and active and crew_role='medico'`)
+  if (medicos > 1) {
+    const [{ pid: primero }] = await sql(`select profile_id pid from ambulance_crew where ambulance_id='${MOVIL_MEDICO}' and active and crew_role='medico' order by created_at, id limit 1`)
+    const { data: soy } = await clinica.c.rpc('soy_medico_del_movil', { amb_id: MOVIL_MEDICO })
+    esperar(soy === (primero === clinica.id), `con ${medicos} médicos, publica sólo el más antiguo (clinica@ ${soy ? 'sí' : 'no'})`)
+  }
+
   await admin.from('ambulances').update({ status: 'fuera_de_servicio' }).eq('id', MOVIL_MEDICO)
   r = await clinica.c.from('ambulance_locations').upsert(pos(MOVIL_MEDICO, { profile_id: clinica.id }), { onConflict: 'ambulance_id' })
   esperar(!!r.error, 'fuera de servicio la base rechaza la posición')
@@ -137,6 +146,8 @@ try {
         speed_kmh=${v(posMedico.speed_kmh)}, profile_id=${v(posMedico.profile_id)}, updated_at='${posMedico.updated_at}'
       where ambulance_id='${MOVIL_MEDICO}';
       alter table ambulance_locations enable trigger user; commit;`)
+  } else {
+    await admin.from('ambulance_locations').delete().eq('ambulance_id', MOVIL_MEDICO)
   }
   if (posAntes) {
     await admin.from('ambulance_locations').upsert(posAntes, { onConflict: 'ambulance_id' })
