@@ -8,7 +8,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Ambulance, MapPin, NavigationArrow, Phone,
-  CheckCircle, ArrowLeft, Warning, Pulse, UserCircle, Broadcast, WifiSlash, BookOpenText,
+  CheckCircle, ArrowLeft, Warning, Pulse, UserCircle, Broadcast, WifiSlash, BookOpenText, Stethoscope,
 } from '@phosphor-icons/react'
 import { emergencyService, EMERGENCY_TERMINAL_STATUSES } from '../../services/emergencyService'
 import { dispatchService } from '../../services/dispatchService'
@@ -17,6 +17,7 @@ import { useCompartirUbicacionEmergencia } from '../../hooks/useCompartirUbicaci
 import { formatMeters, formatMinutes } from '../../lib/directions'
 import { toast } from '../../components/Toast'
 import { mpService } from '../../services/mpService'
+import CierreDesenlace, { faltaParaCerrar } from '../../components/emergencias/CierreDesenlace'
 
 // ── Design tokens per triage code ─────────────────────────────
 const CODE = {
@@ -76,6 +77,13 @@ export default function ProfessionalEmergencias({ profile }) {
   // S.O.S. bonificado: no hay pago para cobrar; al cerrar se deja un mensaje
   // (Mateo, 2026-10-22). Lo registra `mp-capture` (cerrar-sin-pago).
   const [notaSinPago, setNotaSinPago] = useState('')
+  // La atención en el lugar (migración 177) y el cierre con desenlace + orden
+  // de traslado (migración 213), igual que en la app.
+  const [atencion, setAtencion] = useState(null)
+  const [abriendoAtencion, setAbriendoAtencion] = useState(false)
+  const [cierre, setCierre] = useState({ desenlace: null, institucion: '', orden: null })
+  const [sinAtencion, setSinAtencion] = useState(false)
+  const [motivo, setMotivo] = useState('')
   const [, forceRender] = useState(0)
   const unsubRef = useRef(null)
 
@@ -146,6 +154,16 @@ export default function ProfessionalEmergencias({ profile }) {
     destino: destinoPaciente,
   })
 
+  // La consulta de la atención, al llegar (y al volver de cargarla).
+  useEffect(() => {
+    if (demoPhase !== null || emergency?.status !== 'arrived' || !emergency?.id) return
+    let vivo = true
+    emergencyService.getAtencion(emergency.id)
+      .then(a => { if (vivo) setAtencion(a) })
+      .catch(() => {})
+    return () => { vivo = false }
+  }, [emergency?.id, emergency?.status, demoPhase])
+
   // ── Mutations ──────────────────────────────────────────────
   const mutate = async (newStatus, afterFn) => {
     if (!emergency) return
@@ -180,22 +198,44 @@ export default function ProfessionalEmergencias({ profile }) {
     }).catch(() => {})
   })
 
-  const closeEmergency = async () => {
-    if (demoPhase === null && emergency?.bonificada) {
-      if (!notaSinPago.trim()) return
-      setUpdating(true)
-      const { error } = await mpService.cerrarEmergenciaSinPago(emergency.id, notaSinPago.trim())
-      setUpdating(false)
-      if (error) {
-        toast.error(`No se pudo cerrar: ${error}`)
-        return
+  /** "Atender al paciente": abre (o retoma) la consulta atada a la emergencia. */
+  const atender = async () => {
+    if (!emergency) return
+    setAbriendoAtencion(true)
+    try {
+      const consultaId = await emergencyService.iniciarAtencion(emergency.id)
+      navigate(`/profesional/atencion/${consultaId}`)
+    } catch (e) {
+      toast.error(e?.message || 'No pudimos abrir la atención')
+    } finally {
+      setAbriendoAtencion(false)
+    }
+  }
+
+  /**
+   * Cierra con el desenlace (y el motivo, si fue sin atención). Si está
+   * bonificada, primero queda asentado el mensaje (el motivo hace de mensaje).
+   * Los errores de la base dicen qué falta: se muestran tal cual.
+   */
+  const closeEmergency = async (motivoSinAtencion) => {
+    if (demoPhase !== null) { setEmergency(prev => ({ ...prev, status: 'completed' })); return }
+    if (!emergency || faltaParaCerrar(cierre)) return
+    setUpdating(true)
+    try {
+      if (emergency.bonificada) {
+        const nota = (motivoSinAtencion ?? notaSinPago).trim()
+        if (!nota) throw new Error('Dejá un mensaje para cerrar la emergencia sin cobro.')
+        const { error } = await mpService.cerrarEmergenciaSinPago(emergency.id, nota)
+        if (error) throw new Error(error)
       }
-    }
-    if (demoPhase === null && emergency?.id) {
+      await emergencyService.cerrar(emergency.id, { desenlace: cierre.desenlace, motivoSinAtencion })
       await emergencyTrackingService.dejarDeCompartir(emergency.id).catch(() => {})
+      navigate('/profesional/dashboard')
+    } catch (e) {
+      toast.error(e?.message || 'No pudimos cerrar la emergencia')
+    } finally {
+      setUpdating(false)
     }
-    await mutate('completed')
-    if (demoPhase === null) navigate('/profesional/dashboard')
   }
 
   // ── Derived ────────────────────────────────────────────────
@@ -380,6 +420,9 @@ export default function ProfessionalEmergencias({ profile }) {
     try { storedSymptoms = JSON.parse(emergency.notes) } catch { /* ignore */ }
   }
   const hasReportedSymptoms = Array.isArray(storedSymptoms) && storedSymptoms.length > 0
+  const esMedico = demoPhase !== null || (!!emergency.professionalId && emergency.professionalId === profile?.id)
+  const atencionCerrada = atencion?.status === 'completed'
+  const faltaCierre = faltaParaCerrar(cierre)
 
   return (
     <div className="min-h-screen bg-bg-primary flex flex-col px-6 pt-14 pb-10 gap-6 overflow-y-auto">
@@ -430,29 +473,107 @@ export default function ProfessionalEmergencias({ profile }) {
         <Row label="Despacho"  value={<span className="font-mono">{emergency.dispatchCode}</span>} />
       </div>
 
-      {emergency.bonificada && (
-        <div className="bg-white rounded-3xl p-5 flex flex-col gap-3 border border-amber-200" role="alert">
-          <div className="flex items-start gap-2.5">
-            <Warning className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" weight="fill" />
-            <p className="text-sm text-text-primary">
-              <span className="font-semibold">Esta emergencia no tiene pago para cobrar.</span> Está bonificada. Dejá un mensaje para cerrarla.
-            </p>
-          </div>
-          <textarea
-            data-testid="nota-sin-pago"
-            className="form-textarea"
-            rows={3}
-            maxLength={1000}
-            value={notaSinPago}
-            onChange={e => setNotaSinPago(e.target.value)}
-            placeholder="Mensaje de cierre"
-          />
+      {/* La atención la carga el médico del móvil (migración 177). */}
+      {esMedico && !atencionCerrada && (
+        <Btn loading={abriendoAtencion} onClick={atender} color={cs.btnAccept} icon={<Stethoscope className="w-6 h-6" />}>
+          {atencion ? 'Seguir la atención' : 'Atender al paciente'}
+        </Btn>
+      )}
+      {!esMedico && !atencionCerrada && (
+        <p className="text-sm text-text-secondary text-center">
+          La atención la carga el médico del móvil. Cuando la cierre, vas a poder cerrar la emergencia.
+        </p>
+      )}
+
+      {emergency.bonificada && (atencionCerrada || sinAtencion) && (
+        <div className="flex items-start gap-2.5 rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3" role="alert">
+          <Warning className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" weight="fill" />
+          <p className="text-sm text-text-primary">
+            <span className="font-semibold">Esta emergencia no tiene pago para cobrar.</span> Está bonificada. Dejá un mensaje para cerrarla.
+          </p>
         </div>
       )}
 
-      <Btn loading={updating} disabled={!!emergency.bonificada && !notaSinPago.trim()} onClick={closeEmergency} color="bg-gray-950 hover:bg-gray-800" icon={<CheckCircle className="w-6 h-6" />}>
-        Cerrar emergencia
-      </Btn>
+      {/* Cierre con la atención cerrada: ¿cómo terminó? → Cerrar emergencia. */}
+      {atencionCerrada && (
+        <div className="bg-white rounded-3xl p-5 flex flex-col gap-4 border border-border-default">
+          <div className="flex items-center gap-2 text-emerald-700">
+            <CheckCircle className="w-5 h-5" weight="fill" />
+            <span className="text-sm font-semibold">Atención cargada y cerrada</span>
+          </div>
+          {emergency.bonificada && (
+            <textarea
+              data-testid="nota-sin-pago"
+              className="form-textarea"
+              rows={3}
+              maxLength={1000}
+              value={notaSinPago}
+              onChange={e => setNotaSinPago(e.target.value)}
+              placeholder="Mensaje de cierre"
+            />
+          )}
+          <CierreDesenlace emergencyId={emergency.id} valor={cierre} onChange={setCierre} />
+          <Btn
+            loading={updating}
+            disabled={!!faltaCierre || (!!emergency.bonificada && !notaSinPago.trim())}
+            onClick={() => closeEmergency()}
+            color="bg-gray-950 hover:bg-gray-800"
+            icon={<CheckCircle className="w-6 h-6" />}
+          >
+            Cerrar emergencia
+          </Btn>
+          {(faltaCierre || (emergency.bonificada && !notaSinPago.trim())) && (
+            <p className="text-sm text-text-secondary text-center">{faltaCierre || 'Falta el mensaje de cierre'}</p>
+          )}
+        </div>
+      )}
+
+      {/* Cierre sin atención — al final, lejos del pulgar. */}
+      {!atencionCerrada && (
+        !sinAtencion ? (
+          <button
+            onClick={() => setSinAtencion(true)}
+            className="w-full min-h-14 rounded-[24px] border border-border-default bg-white text-text-primary font-bold text-base"
+          >
+            Cerrar sin atención
+          </button>
+        ) : (
+          <div className="bg-white rounded-3xl p-5 flex flex-col gap-4 border border-border-default">
+            <CierreDesenlace emergencyId={emergency.id} valor={cierre} onChange={setCierre} />
+            <div>
+              <label htmlFor="motivo-sin-atencion" className="form-label">Motivo</label>
+              <textarea
+                id="motivo-sin-atencion"
+                data-testid="motivo-sin-atencion"
+                className="form-textarea"
+                rows={3}
+                maxLength={1000}
+                value={motivo}
+                onChange={e => setMotivo(e.target.value)}
+                placeholder="¿Por qué no lo atendiste? (ej. rechazó la atención)"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => { setSinAtencion(false); setMotivo('') }}
+                className="min-h-14 rounded-[24px] border border-border-default text-text-primary font-bold"
+              >
+                Volver
+              </button>
+              <button
+                onClick={() => closeEmergency(motivo)}
+                disabled={updating || !motivo.trim() || !!faltaCierre}
+                className="min-h-14 rounded-[24px] bg-gray-950 text-white font-bold disabled:opacity-40"
+              >
+                {updating ? 'Cerrando…' : 'Cerrar'}
+              </button>
+            </div>
+            {(faltaCierre || !motivo.trim()) && (
+              <p className="text-sm text-text-secondary text-center">{faltaCierre || 'Falta el motivo'}</p>
+            )}
+          </div>
+        )
+      )}
     </div>
   )
 }

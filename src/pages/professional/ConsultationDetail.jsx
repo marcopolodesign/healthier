@@ -27,6 +27,7 @@ import DerivarModal from '../../components/professional/DerivarModal'
 import DerivadoPorCard from '../../components/professional/DerivadoPorCard'
 import { toast } from '../../components/Toast'
 import { esBonificada } from '../../lib/agendaProfesional'
+import OrdenDeTrasladoCard from '../../components/emergencias/OrdenDeTrasladoCard'
 
 export default function ConsultationDetail({ profile }) {
   const { id } = useParams()
@@ -294,6 +295,9 @@ export default function ConsultationDetail({ profile }) {
           <ArrowRight className="h-5 w-5 text-red-600 shrink-0" />
         </Link>
       )}
+
+      {/* La orden de traslado de la emergencia, si la hubo (migración 213). */}
+      {esEmergencia && <OrdenDeTrasladoCard emergencyId={consultation.emergencyId} />}
 
       {/* Patient card */}
       <div className="card">

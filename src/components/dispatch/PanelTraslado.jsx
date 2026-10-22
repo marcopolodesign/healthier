@@ -7,6 +7,7 @@ import { dispatchService, antiguedadUbicacion, haceCuanto } from '../../services
 import { haversineKm, formatDistance } from '../../lib/geo'
 import { distanciaGpsDireccion, DIFERENCIA_AVISO_M } from '../../lib/direccionEmergencia'
 import MarcadorMovil from './MarcadorMovil'
+import OrdenDeTrasladoCard from '../emergencias/OrdenDeTrasladoCard'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 const REFRESCO_MS = 15_000
@@ -215,6 +216,9 @@ export default function PanelTraslado({ emergencyId, onClose, onTerminar, termin
               ) : <p className="text-sm text-text-secondary">{t.medico?.fullName ? `Médico: ${t.medico.fullName}` : 'Sin móvil asignado'}</p>}
             </div>
 
+            {/* La orden de traslado, si la tripulación ya la subió (migración 213). */}
+            <OrdenDeTrasladoCard emergencyId={t.id} />
+
             <div className="grid grid-cols-2 gap-2">
               {t.patient?.phone && (
                 <a href={`tel:${t.patient.phone}`} className="btn-secondary flex items-center justify-center gap-2 min-h-14"><Phone className="h-4 w-4" /> Paciente</a>
@@ -230,7 +234,7 @@ export default function PanelTraslado({ emergencyId, onClose, onTerminar, termin
       {enCurso && onTerminar && (
         <div className="flex-shrink-0 p-4 border-t border-border-default">
           <button className="btn-primary w-full min-h-14" disabled={terminando} onClick={() => onTerminar(t)} data-testid="panel-terminar">
-            {terminando ? 'Terminando...' : 'Marcar terminada'}
+            {terminando ? 'Terminando…' : 'Marcar terminada'}
           </button>
         </div>
       )}
