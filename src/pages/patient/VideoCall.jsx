@@ -204,6 +204,12 @@ export default function PatientVideoCall() {
     ch.on('broadcast', { event: 'solicitar_codigo' }, () => {
       if (!destroyed) setSolicitudCodigo(true)
     })
+    // El profesional pidió los signos vitales (Mateo, 2026-10-22). Se leen de
+    // Apple Health, que sólo existe en la app de iPhone: desde la web se le
+    // contesta que no hay, así su panel no se queda esperando.
+    ch.on('broadcast', { event: 'solicitar_vitales' }, () => {
+      ch.send({ type: 'broadcast', event: 'vitales_respuesta', payload: { estado: 'no_disponible' } }).catch(() => {})
+    })
 
     ch.on('presence', { event: 'sync' }, () => {
       if (destroyed) return

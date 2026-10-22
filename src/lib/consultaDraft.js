@@ -119,17 +119,22 @@ export function removeDiferencial(draft, nombre) {
 // al resto del contenido clínico de Nacho.
 
 /**
- * ¿El paciente sincronizó Apple Health en los últimos 7 días? Es el criterio
- * para precargar FC/SatO2 en "06. Vitales" (ConsultaEstructurada) y para no
- * marcarlos como desactualizados arriba del panel (SignosVitalesPaciente): un
- * solo lugar, así los dos no se contradicen.
+ * ¿La medición es de hoy (día de Argentina)? Mateo (2026-10-22): los signos
+ * vitales "tienen que pedirse en el momento" — uno que no es de hoy se muestra
+ * igual, pero marcado como viejo, y no se precarga en "06. Vitales".
  *
- * Ojo: `salud_sincronizado_at` es cuándo sincronizó el teléfono, no cuándo se
- * midió el dato — la app manda la última muestra de HealthKit, sea de cuando sea.
+ * Mira la fecha de la MEDICIÓN (`fc_medido_at` / `saturacion_medido_at`,
+ * migración 215), no la de sincronización: la app sube la última muestra de
+ * HealthKit, tenga la edad que tenga. Sin fecha (versión vieja de la app) = no
+ * es de hoy.
  */
-export function saludReciente(p, ahora = Date.now()) {
-  if (!p?.saludSincronizadoAt) return false
-  return ahora - new Date(p.saludSincronizadoAt).getTime() < 7 * 24 * 60 * 60 * 1000
+const DIA_AR = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
+
+export function esDeHoy(iso, ahora = Date.now()) {
+  if (!iso) return false
+  const t = new Date(iso).getTime()
+  if (!Number.isFinite(t)) return false
+  return DIA_AR.format(t) === DIA_AR.format(ahora)
 }
 
 export function evaluarTA(sistolica, diastolica) {
