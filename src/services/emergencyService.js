@@ -195,8 +195,10 @@ export const emergencyService = {
     const cambios = { status: 'completed' }
     if (desenlace) cambios.desenlace = desenlace
     if (motivoSinAtencion?.trim()) cambios.cierre_sin_atencion = motivoSinAtencion.trim()
-    const { error } = await supabase.from('emergencies').update(cambios).eq('id', emergencyId)
-    if (error) throw new Error(error.message)
+    // `.single()`: si la RLS deja la escritura en cero filas (p.ej. la
+    // reasignaron a otro móvil), es un error y no un cierre silencioso.
+    const { error } = await supabase.from('emergencies').update(cambios).eq('id', emergencyId).select('id').single()
+    if (error) throw new Error(error.code === 'PGRST116' ? 'No pudimos cerrar: la emergencia ya no está a tu cargo.' : error.message)
   },
 
   /**

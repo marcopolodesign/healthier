@@ -25,9 +25,12 @@ export function cobroDe(e) {
   return e?.status === 'completed' ? 'sin_cobro' : 'sin_pago'
 }
 
-/** Pedido → cierre (o cancelación), en minutos. */
+/**
+ * Pedido → cierre (o cancelación), en minutos. Sin hora de cierre no se
+ * inventa una: `updatedAt` cambia con cualquier escritura posterior.
+ */
 export function duracionMin(e) {
-  const fin = e?.completedAt ?? e?.cancelledAt ?? e?.updatedAt
+  const fin = e?.completedAt ?? e?.cancelledAt
   if (!e?.createdAt || !fin) return null
   return Math.max(0, Math.round((new Date(fin) - new Date(e.createdAt)) / 60000))
 }

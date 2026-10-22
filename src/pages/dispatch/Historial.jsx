@@ -76,7 +76,7 @@ function ChapaCobro({ e }) {
 }
 
 export default function DespachoHistorial() {
-  const [entidad, setEntidad] = useState(null)
+  const [entidad, setEntidad] = useState(undefined)
   const [rango, setRango] = useState('hoy')
   const [estado, setEstado] = useState('completed')
   const [busqueda, setBusqueda] = useState('')
@@ -88,12 +88,13 @@ export default function DespachoHistorial() {
 
   useEffect(() => {
     dispatchService.miEntidad()
-      .then(setEntidad)
+      .then(e => setEntidad(e ?? null))
       .catch(() => { setError('No pudimos cargar tu entidad'); setCargando(false) })
   }, [])
 
   const cargar = useCallback(async ({ offset = 0 } = {}) => {
-    if (!entidad?.id) return
+    if (entidad === undefined) return
+    if (!entidad?.id) { setFilas([]); setCargando(false); setError('No estás cargado en ninguna entidad de emergencias.'); return }
     setCargando(true)
     setError('')
     try {
@@ -107,7 +108,7 @@ export default function DespachoHistorial() {
     } finally {
       setCargando(false)
     }
-  }, [entidad?.id, rango, estado])
+  }, [entidad, rango, estado])
 
   useEffect(() => { cargar() }, [cargar])
 

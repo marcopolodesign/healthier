@@ -378,17 +378,19 @@ export const consultationsService = {
   },
 
   /**
-   * Agenda, inicio, pacientes e historial del profesional. Sin la atención de
+   * Agenda, inicio e historial del profesional. Sin la atención de
    * una emergencia (migración 177): no es un turno presencial, vive en
    * emergencias y en la HC (Nacho, 2026-10-22).
    */
-  async getByProfessional(professionalId) {
-    const { data, error } = await supabase
+  async getByProfessional(professionalId, { conEmergencias = false } = {}) {
+    let query = supabase
       .from('consultations')
       .select(`*, profiles!patient_id(full_name, avatar_url, email), ${DERIVACION_EMBED}`)
       .eq('professional_id', professionalId)
-      .is('emergency_id', null)
-      .order('scheduled_at', { ascending: false })
+    // "Pacientes" sí los incluye (`conEmergencias`): a quien atendió en una
+    // emergencia lo tiene que poder encontrar para abrir su HC.
+    if (!conEmergencias) query = query.is('emergency_id', null)
+    const { data, error } = await query.order('scheduled_at', { ascending: false })
     if (error) throw error
     return toCamelCase(data)
   },

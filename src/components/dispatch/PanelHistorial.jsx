@@ -28,7 +28,7 @@ export default function PanelHistorial({ emergencyId, onClose }) {
     try {
       const [fila, ordenes] = await Promise.all([
         emergencyService.trasladoTerminado(emergencyId),
-        ordenTrasladoService.listar(emergencyId).catch(() => []),
+        ordenTrasladoService.listar(emergencyId),
       ])
       setT(fila)
       setOrden(ordenes[0] ?? null)
@@ -102,7 +102,7 @@ export default function PanelHistorial({ emergencyId, onClose }) {
               <div className="space-y-2">
                 <p className="font-semibold text-text-primary">Cómo terminó</p>
                 <p className="text-sm text-text-primary">{comoTermino || 'No quedó registrado.'}</p>
-                <OrdenDeTrasladoCard emergencyId={t.id} />
+                <OrdenDeTrasladoCard emergencyId={t.id} orden={orden} />
               </div>
             )}
 
