@@ -223,7 +223,9 @@ export default function PanelTraslado({ emergencyId, onClose, onTerminar, termin
 
             {/* Documentos ya subidos (orden / negativa). Mientras se puede
                 terminar desde acá, la orden la muestra el bloque de cierre. */}
-            {!(enCurso && onTerminar) && <OrdenDeTrasladoCard emergencyId={t.id} />}
+            {/* La negativa (si el médico la subió) se ve siempre; la orden, mientras
+                se puede terminar, la muestra el bloque de cierre. */}
+            <OrdenDeTrasladoCard emergencyId={t.id} tipos={enCurso && onTerminar ? ['negativa'] : undefined} />
             {enCurso && onTerminar && (
               <div className="card">
                 <CierreDesenlace emergencyId={t.id} valor={cierre} onChange={setCierre} paraDespacho />

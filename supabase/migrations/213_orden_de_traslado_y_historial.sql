@@ -124,7 +124,7 @@ ALTER TABLE public.emergency_transfer_orders
 ALTER TABLE public.emergency_transfer_orders
   ADD CONSTRAINT emergency_transfer_orders_tipo_check CHECK (tipo IN ('orden_traslado', 'negativa')),
   ADD CONSTRAINT emergency_transfer_orders_institucion_tipo_check CHECK (
-    (tipo = 'orden_traslado' AND char_length(trim(institucion)) BETWEEN 2 AND 200)
+    (tipo = 'orden_traslado' AND institucion IS NOT NULL AND char_length(trim(institucion)) BETWEEN 2 AND 200)
     OR (tipo = 'negativa' AND (institucion IS NULL OR char_length(institucion) <= 200)));
 
 -- Por si la tabla ya existía con otra regla de borrado.
