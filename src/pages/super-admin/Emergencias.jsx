@@ -73,7 +73,10 @@ export default function SuperAdminEmergencias() {
       setConfirmOpen(false)
       toast.success(`${ids.length} emergencia${ids.length === 1 ? '' : 's'} eliminada${ids.length === 1 ? '' : 's'}`)
     } catch (err) {
-      toast.error(err.message || 'No se pudo eliminar')
+      // La orden de traslado no se borra (migración 213, RESTRICT): se dice así.
+      toast.error(/emergency_transfer_orders/.test(err.message || '')
+        ? 'Alguna de las emergencias tiene orden de traslado: queda como registro y no se puede borrar.'
+        : (err.message || 'No se pudo eliminar'))
     } finally {
       setDeleting(false)
     }

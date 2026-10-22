@@ -28,10 +28,11 @@ export default function PanelHistorial({ emergencyId, onClose }) {
     try {
       const [fila, ordenes] = await Promise.all([
         emergencyService.trasladoTerminado(emergencyId),
-        ordenTrasladoService.listar(emergencyId),
+        // Si falla, la tarjeta la vuelve a pedir y muestra su propio error.
+        ordenTrasladoService.listar(emergencyId).catch(() => undefined),
       ])
       setT(fila)
-      setOrden(ordenes[0] ?? null)
+      setOrden(ordenes === undefined ? undefined : (ordenes[0] ?? null))
     } catch (e) {
       setError(e?.message || 'No pudimos cargar el traslado')
     }
