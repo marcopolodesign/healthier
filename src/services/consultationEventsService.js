@@ -37,6 +37,8 @@ export const CONSULTATION_EVENTS = {
   CODE_SHARED:             'closing_code_shared',
   CODE_VERIFIED:           'closing_code_verified',
   CODE_VERIFY_FAILED:      'closing_code_verify_failed',
+  // Cortó sin el código, confirmándolo en la hoja de `CodigoAlCortarSheet`
+  CODE_SKIPPED_AT_HANGUP:  'closing_code_skipped_at_hangup',
 }
 
 export const consultationEventsService = {

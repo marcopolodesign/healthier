@@ -30,6 +30,8 @@ import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/c
 import * as simulacion from '../../lib/simulacion'
 import GuiaSimulacion from '../../components/professional/GuiaSimulacion'
 import { esWebViewDeLaApp } from '../../lib/enApp'
+import CodigoAlCortarSheet from '../../components/professional/CodigoAlCortarSheet'
+import { alCortar, avisarALaApp, MENSAJE_APP } from '../../lib/codigoAlCortar'
 
 const NO_SHOW_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
@@ -1261,6 +1263,9 @@ export default function ProfessionalVideoCall({ profile }) {
   const [intentosRestantes, setIntentosRestantes] = useState(5)
   const [solicitandoCodigo, setSolicitandoCodigo] = useState(false)
   const [codigoSolicitado, setCodigoSolicitado] = useState(false)
+  // Hoja "antes de cortar, pedile el código" (Mateo, 2026-10-22). null = cerrada;
+  // si no, por qué se abrió: 'colgar' o 'salir' (la X de la app).
+  const [hojaCodigo, setHojaCodigo] = useState(null)
 
   // Local tracks & controls
   const [camOn, setCamOn] = useState(true)
@@ -1520,7 +1525,47 @@ export default function ProfessionalVideoCall({ profile }) {
     catch { setMicOn(!next) }
   }
 
-  function handleLeave() {
+  // Colgar pasa primero por el código de cierre: si no está verificado, se abre
+  // la hoja para pedirlo (ver lib/codigoAlCortar.js). No bloquea — desde la hoja
+  // se puede cortar igual, confirmándolo.
+  function handleLeave() { intentarCortar('colgar') }
+
+  function intentarCortar(motivo) {
+    const { accion } = alCortar({
+      enLlamada: joinGate,
+      codigoVerificadoEn: consultation?.closingCodeVerifiedAt ?? null,
+      simulando,
+    }, motivo)
+    if (accion === 'pedir-codigo') {
+      setHojaCodigo(motivo)
+      if (motivo === 'salir') avisarALaApp(MENSAJE_APP.HOJA_ABIERTA)
+      return
+    }
+    if (accion === 'salir') avisarALaApp(MENSAJE_APP.SALIR)
+    else cortarLlamada()
+  }
+
+  function cortarDesdeLaHoja({ sinCodigo }) {
+    const motivo = hojaCodigo
+    setHojaCodigo(null)
+    if (sinCodigo) {
+      consultationEventsService.log(id, CONSULTATION_EVENTS.CODE_SKIPPED_AT_HANGUP,
+        { motivo }, { id: profile?.id, role: 'professional' })
+    }
+    if (motivo === 'salir') avisarALaApp(MENSAJE_APP.SALIR)
+    else cortarLlamada()
+  }
+
+  // La X nativa de la app (salir de la sala) llama a esto antes de irse. Lee el
+  // estado por ref: la app puede llamarla en cualquier momento.
+  const intentarCortarRef = useRef(intentarCortar)
+  intentarCortarRef.current = intentarCortar
+  useEffect(() => {
+    window.__healthierAntesDeSalir = () => intentarCortarRef.current('salir')
+    return () => { delete window.__healthierAntesDeSalir }
+  }, [])
+
+  function cortarLlamada() {
     // Colgar ya no abre el modal de cierre encima del video. Lleva al detalle de la
     // consulta, que es la pantalla intermedia: ahí se revisa y completa todo
     // (receta, alergias, notas) y recién después se cierra, que es lo que congela
@@ -1577,6 +1622,9 @@ export default function ProfessionalVideoCall({ profile }) {
         toast.success('Código verificado')
         consultationEventsService.log(id, CONSULTATION_EVENTS.CODE_VERIFIED, null, { id: profile?.id, role: 'professional' })
       } else {
+        // Un código equivocado vuelve a habilitar "Pedir código" (si no, la hoja
+        // quedaba en "Esperando a…" con el error abajo).
+        setCodigoSolicitado(false)
         setIntentosRestantes(result.intentosRestantes)
         setErrorCodigo(
           result.motivo === 'intentos_agotados'
@@ -1984,6 +2032,26 @@ export default function ProfessionalVideoCall({ profile }) {
           </div>
         )}
       </div>
+
+      <CodigoAlCortarSheet
+        open={!!hojaCodigo}
+        motivo={hojaCodigo ?? 'colgar'}
+        nombrePaciente={consultation?.patient?.fullName}
+        pacienteConectado={!!remote}
+        codeVerifiedAt={consultation?.closingCodeVerifiedAt ?? null}
+        codeInput={codigoInput}
+        onCodeInputChange={setCodigoInput}
+        onVerify={(code) => verificarCodigo(code)}
+        verifying={verificandoCodigo}
+        verifyError={errorCodigo}
+        attemptsLeft={intentosRestantes}
+        onSolicitar={solicitarCodigo}
+        solicitando={solicitandoCodigo}
+        solicitado={codigoSolicitado}
+        onSeguir={() => setHojaCodigo(null)}
+        onCortar={() => cortarDesdeLaHoja({ sinCodigo: false })}
+        onCortarSinCodigo={() => cortarDesdeLaHoja({ sinCodigo: true })}
+      />
     </div>
   )
 }
