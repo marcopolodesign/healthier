@@ -598,7 +598,7 @@ function VideoTile({ track, muted = false, mirror = false, className = '' }) {
 // este mismo panel sin la videollamada. Ahí no hay código de cierre (es
 // presencial): en vez de `codigoCierre` pasa `vistaCerrar`, lo que se muestra
 // en la pestaña "Cerrar Consulta".
-export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrack, codigoCierre, vistaCerrar }) {
+export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAudioTrack, codigoCierre, vistaCerrar, pedidoVitales }) {
   const patientId = consultation?.patientId
   const professionalId = consultation?.professionalId
 
@@ -851,22 +851,31 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
   // paciente que abra la app y sincronice, lo nuevo aparece arriba sin
   // recargar. Sólo se pisan esos campos — el resto del legajo es de la carga
   // de arriba y lo pueden estar usando otros bloques del panel.
-  useEffect(() => {
+  const refrescarVitales = useCallback(() => {
     if (!patientId) return
-    const t = setInterval(() => {
-      profilesService.getById(patientId)
-        .then(p => setPatientData(prev => prev && {
-          ...prev,
-          fcLpm: p.fcLpm,
-          saturacionPct: p.saturacionPct,
-          saludSincronizadoAt: p.saludSincronizadoAt,
-          weightKg: p.weightKg,
-          heightCm: p.heightCm,
-        }))
-        .catch(() => { /* el próximo intento lo vuelve a pedir */ })
-    }, 60_000)
-    return () => clearInterval(t)
+    profilesService.getById(patientId)
+      .then(p => setPatientData(prev => prev && {
+        ...prev,
+        fcLpm: p.fcLpm,
+        fcMedidoAt: p.fcMedidoAt,
+        saturacionPct: p.saturacionPct,
+        saturacionMedidoAt: p.saturacionMedidoAt,
+        saludSincronizadoAt: p.saludSincronizadoAt,
+        weightKg: p.weightKg,
+        heightCm: p.heightCm,
+      }))
+      .catch(() => { /* el próximo intento lo vuelve a pedir */ })
   }, [patientId])
+  useEffect(() => {
+    const t = setInterval(refrescarVitales, 60_000)
+    return () => clearInterval(t)
+  }, [refrescarVitales])
+  // Llegaron los que pidió el profesional ("Pedir ahora"): se leen ya, sin
+  // esperar al próximo minuto.
+  const versionVitales = pedidoVitales?.version ?? 0
+  useEffect(() => {
+    if (versionVitales > 0) refrescarVitales()
+  }, [versionVitales, refrescarVitales])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -945,7 +954,7 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
           {/* Signos vitales del paciente, segunda fila de esta misma tarjeta
               (Nacho, 2026-10-22): arriba de todo y a la vista en todas las
               pestañas. Ver SignosVitalesPaciente. */}
-          <SignosVitalesPaciente loading={loadingPatientData} patient={patientData} />
+          <SignosVitalesPaciente loading={loadingPatientData} patient={patientData} pedido={pedidoVitales} />
         </div>
       </div>
 
@@ -1337,6 +1346,15 @@ export default function ProfessionalVideoCall({ profile }) {
   useAsomaDeLaHoja(hoja.hojaRef, asomaRef, splitScreen && !!consultation, hojaAbierta)
   const [noShowBanner, setNoShowBanner] = useState(false)
 
+  // ── Signos vitales "en el momento" (Mateo, 2026-10-22) ──────────────────
+  // "Pedir ahora" le pide al teléfono del paciente que lea Salud y suba lo
+  // medido (por el mismo canal de la sala que el código de cierre). Contesta
+  // por `vitales_respuesta`; a los 20 s sin respuesta, "no respondió".
+  const [estadoVitales, setEstadoVitales] = useState('idle')
+  const [versionVitales, setVersionVitales] = useState(0)
+  const timerVitalesRef = useRef(null)
+  useEffect(() => () => clearTimeout(timerVitalesRef.current), [])
+
   // ── Código de cierre EN la llamada (migración 099) ───────────────────────
   const [codigoInput, setCodigoInput] = useState('')
   const [verificandoCodigo, setVerificandoCodigo] = useState(false)
@@ -1459,6 +1477,19 @@ export default function ProfessionalVideoCall({ profile }) {
       if (destroyed || !payload?.code) return
       setCodigoInput(payload.code)
       verificarCodigo(payload.code)
+    })
+
+    ch.on('broadcast', { event: 'vitales_respuesta' }, ({ payload }) => {
+      if (destroyed) return
+      clearTimeout(timerVitalesRef.current)
+      const estado = payload?.estado
+      if (estado === 'compartidos') {
+        setVersionVitales(v => v + 1)
+        setEstadoVitales('recibido')
+        timerVitalesRef.current = setTimeout(() => setEstadoVitales('idle'), 3000)
+      } else {
+        setEstadoVitales(['sin_datos', 'sin_permiso', 'rechazado', 'no_disponible'].includes(estado) ? estado : 'error')
+      }
     })
 
     ch.on('presence', { event: 'sync' }, () => {
@@ -1743,6 +1774,22 @@ export default function ProfessionalVideoCall({ profile }) {
     } finally {
       setSolicitandoCodigo(false)
     }
+  }
+
+  async function pedirVitales() {
+    if (!channelRef.current) return
+    clearTimeout(timerVitalesRef.current)
+    setEstadoVitales('pidiendo')
+    try {
+      await channelRef.current.send({ type: 'broadcast', event: 'solicitar_vitales', payload: {} })
+    } catch {
+      setEstadoVitales('error')
+      return
+    }
+    timerVitalesRef.current = setTimeout(
+      () => setEstadoVitales(e => (e === 'pidiendo' ? 'sin_respuesta' : e)),
+      20_000,
+    )
   }
 
   function handleKeepWaiting() {
@@ -2109,6 +2156,14 @@ export default function ProfessionalVideoCall({ profile }) {
                 profile={profile}
                 localAudioTrack={localAudioTrack}
                 remoteAudioTrack={remote?.audioTrack}
+                pedidoVitales={{
+                  // Sólo con el paciente ya en la sala: antes, el pedido no
+                  // tiene quién lo reciba y termina siempre en "no respondió".
+                  puedePedir: joinGate && !simulando,
+                  estado: estadoVitales,
+                  onPedir: pedirVitales,
+                  version: versionVitales,
+                }}
                 codigoCierre={{
                   codeVerifiedAt: consultation?.closingCodeVerifiedAt ?? null,
                   codeInput: codigoInput,

@@ -15,7 +15,7 @@ import {
 import {
   toggleSintomaOrigen, toggleSintomaChecked, removeSintoma, addSintomaManual,
   toggleDiferencial, removeDiferencial, evaluarTA, evaluarFC, evaluarFR, evaluarTemp,
-  evaluarSat, calcularIMC, categoriaIMC, guardarConsultaEnHC, saludReciente,
+  evaluarSat, calcularIMC, categoriaIMC, guardarConsultaEnHC, esDeHoy,
 } from '../../lib/consultaDraft'
 
 // Border-radius normal (Mateo, 2026-08-24: "no tan pronunciado") — no usa la
@@ -121,24 +121,32 @@ export default function ConsultaEstructurada({
     vitalesPrecargados.current = true
     const pesoInicial = patientData?.weightKg != null ? String(patientData.weightKg) : ''
     const tallaInicial = patientData?.heightCm != null ? String(patientData.heightCm) : ''
-    // Pulso y saturación vienen del teléfono del paciente (Apple Health,
-    // migración 170). Sólo si son de la última semana: un valor viejo en una
-    // consulta de hoy confunde más de lo que ayuda.
-    const reciente = saludReciente(patientData)
-    const fcInicial = reciente && patientData?.fcLpm != null ? String(patientData.fcLpm) : ''
-    const satInicial = reciente && patientData?.saturacionPct != null ? String(patientData.saturacionPct) : ''
-    if (!pesoInicial && !tallaInicial && !fcInicial && !satInicial) return
+    if (!pesoInicial && !tallaInicial) return
     update(d => ({
       ...d,
       vitales: {
         ...d.vitales,
         peso: d.vitales.peso || pesoInicial,
         talla: d.vitales.talla || tallaInicial,
-        fc: d.vitales.fc || fcInicial,
-        sat: d.vitales.sat || satInicial,
       },
     }))
   }, [loadingPatientData, patientData, update])
+
+  // Pulso y saturación vienen del teléfono del paciente (Apple Health,
+  // migraciones 170 y 215). Sólo si se MIDIERON hoy (Mateo, 2026-10-22: "tienen
+  // que pedirse en el momento"), y sólo en un campo vacío: también cuando
+  // llegan en plena consulta porque el profesional tocó "Pedir ahora".
+  const fcDeHoy = esDeHoy(patientData?.fcMedidoAt) && patientData?.fcLpm != null ? String(patientData.fcLpm) : ''
+  const satDeHoy = esDeHoy(patientData?.saturacionMedidoAt) && patientData?.saturacionPct != null ? String(patientData.saturacionPct) : ''
+  useEffect(() => {
+    if (!fcDeHoy && !satDeHoy) return
+    update(d => (
+      (d.vitales.fc || !fcDeHoy) && (d.vitales.sat || !satDeHoy) ? d : {
+        ...d,
+        vitales: { ...d.vitales, fc: d.vitales.fc || fcDeHoy, sat: d.vitales.sat || satDeHoy },
+      }
+    ))
+  }, [fcDeHoy, satDeHoy, update])
 
   const [nuevoSintoma, setNuevoSintoma] = useState('')
   const [guardando, setGuardando] = useState(false)
@@ -414,9 +422,9 @@ export default function ConsultaEstructurada({
             </p>
           )}
           <p className="text-[10px] text-text-tertiary mt-2">
-            {saludReciente(patientData)
-              ? `Precargado desde Apple Health del paciente (${new Date(patientData.saludSincronizadoAt).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}). Revisalo antes de guardar.`
-              : 'Si el paciente conecta Apple Health en la app, el pulso, la saturación, el peso y la talla se precargan acá.'}
+            {fcDeHoy || satDeHoy
+              ? 'Pulso y saturación precargados de Apple Health del paciente (medidos hoy). Revisalos antes de guardar.'
+              : 'Si el paciente comparte Apple Health desde la app, el pulso y la saturación medidos hoy se precargan acá.'}
           </p>
         </NumberedSection>
 
