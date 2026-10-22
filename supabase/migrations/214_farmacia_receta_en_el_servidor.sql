@@ -547,3 +547,49 @@ comment on function public.farmacia_recetas_del_pedido(uuid) is
 
 revoke all on function public.farmacia_recetas_del_pedido(uuid) from public, anon;
 grant execute on function public.farmacia_recetas_del_pedido(uuid) to authenticated;
+
+-- ── 8. Una receta "emitida" sólo la marca el servicio de recetas ──────────
+-- Todo lo de arriba confía en `rcta_status = 'issued'`. Hasta acá cualquier
+-- profesional —incluido uno recién registrado y sin verificar— podía escribir
+-- esa columna en sus propias filas (policy `cm_professional_all`, 033) sin
+-- haber emitido nada: con eso se fabricaba una receta "vigente" y la farmacia
+-- vendía alprazolam. Los datos de la emisión los escribe sólo `rcta-issue`,
+-- que corre con la service key; el front nunca los toca (sólo la simulación,
+-- que no escribe en la base).
+create or replace function public.proteger_emision_de_receta()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+begin
+  -- service role (rcta-issue, seeds) y conexiones directas de la base.
+  if auth.role() = 'service_role' or auth.uid() is null then
+    return new;
+  end if;
+
+  if tg_op = 'INSERT' then
+    if new.rcta_status is distinct from 'issued'
+       and new.rcta_prescription_id is null and new.rcta_issued_at is null
+       and new.rcta_pdf_url is null and new.rcta_verificador is null
+       and new.rcta_transaction_id is null then
+      return new;
+    end if;
+  elsif (new.rcta_status = 'issued') is not distinct from (old.rcta_status = 'issued')
+     and new.rcta_prescription_id is not distinct from old.rcta_prescription_id
+     and new.rcta_issued_at       is not distinct from old.rcta_issued_at
+     and new.rcta_pdf_url         is not distinct from old.rcta_pdf_url
+     and new.rcta_verificador     is not distinct from old.rcta_verificador
+     and new.rcta_transaction_id  is not distinct from old.rcta_transaction_id then
+    return new;
+  end if;
+
+  raise exception 'Los datos de la receta electrónica los escribe sólo el servicio de recetas.'
+    using errcode = '42501';
+end;
+$$;
+
+drop trigger if exists clinical_medications_proteger_emision on public.clinical_medications;
+create trigger clinical_medications_proteger_emision
+  before insert or update on public.clinical_medications
+  for each row execute function public.proteger_emision_de_receta();
