@@ -118,6 +118,20 @@ export function removeDiferencial(draft, nombre) {
 // Rangos documentados en `src/lib/clinicalGuideKB.js` (VITALES_RANGOS), junto
 // al resto del contenido clínico de Nacho.
 
+/**
+ * ¿El paciente sincronizó Apple Health en los últimos 7 días? Es el criterio
+ * para precargar FC/SatO2 en "06. Vitales" (ConsultaEstructurada) y para no
+ * marcarlos como desactualizados arriba del panel (SignosVitalesPaciente): un
+ * solo lugar, así los dos no se contradicen.
+ *
+ * Ojo: `salud_sincronizado_at` es cuándo sincronizó el teléfono, no cuándo se
+ * midió el dato — la app manda la última muestra de HealthKit, sea de cuando sea.
+ */
+export function saludReciente(p, ahora = Date.now()) {
+  if (!p?.saludSincronizadoAt) return false
+  return ahora - new Date(p.saludSincronizadoAt).getTime() < 7 * 24 * 60 * 60 * 1000
+}
+
 export function evaluarTA(sistolica, diastolica) {
   if (!sistolica || !diastolica) return null
   if (sistolica >= 140 || diastolica >= 90) return 'alto'

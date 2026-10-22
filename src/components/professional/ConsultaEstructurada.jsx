@@ -15,14 +15,8 @@ import {
 import {
   toggleSintomaOrigen, toggleSintomaChecked, removeSintoma, addSintomaManual,
   toggleDiferencial, removeDiferencial, evaluarTA, evaluarFC, evaluarFR, evaluarTemp,
-  evaluarSat, calcularIMC, categoriaIMC, guardarConsultaEnHC,
+  evaluarSat, calcularIMC, categoriaIMC, guardarConsultaEnHC, saludReciente,
 } from '../../lib/consultaDraft'
-
-/** ¿El paciente sincronizó Apple Health en los últimos 7 días? */
-function saludReciente(p) {
-  if (!p?.saludSincronizadoAt) return false
-  return Date.now() - new Date(p.saludSincronizadoAt).getTime() < 7 * 24 * 60 * 60 * 1000
-}
 
 // Border-radius normal (Mateo, 2026-08-24: "no tan pronunciado") — no usa la
 // utility `form-input`, que es 999px (pill), pensada para inputs de una
