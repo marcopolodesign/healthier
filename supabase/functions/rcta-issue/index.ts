@@ -252,6 +252,24 @@ Deno.serve(async (req: Request) => {
     ctx.professional_id = meds[0].professional_id ?? null
     ctx.encounter_id    = meds[0].encounter_id ?? null
 
+    // 🔴 Sólo emite el profesional que prescribió (2026-10-22). Antes la función
+    // cargaba los medicamentos con la service key y emitía sin mirar quién
+    // llamaba: cualquier sesión —un paciente leyendo sus propias filas sin
+    // emitir— podía disparar una receta real con la matrícula y la firma del
+    // médico, y después comprarla en la farmacia. El único que la llama es
+    // PrescriptionCreator, con la sesión del profesional.
+    if (!esPractica) {
+      const jwt = req.headers.get('Authorization')?.replace('Bearer ', '') ?? ''
+      const { data: { user: quienLlama } } = await supabase.auth.getUser(jwt)
+      const prescriptores = new Set(meds.map((m: { professional_id: string }) => m.professional_id))
+      if (!quienLlama || prescriptores.size !== 1 || !prescriptores.has(quienLlama.id)) {
+        return await fallar('validation_error', {
+          error: 'Sólo el profesional que hizo la receta puede emitirla.',
+          code: 'RCTA_NO_ES_EL_PRESCRIPTOR',
+        }, 403)
+      }
+    }
+
     // Una receta es un acto medico unico: mismo encuentro, mismo profesional,
     // mismo paciente. Mezclarlos produciria una receta firmada por alguien que
     // no prescribio uno de los medicamentos.
