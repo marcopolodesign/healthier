@@ -508,7 +508,7 @@
      que es el único control que hay que poder tocar siempre. */
   position: fixed;
   inset-inline: 0;
-  bottom: calc(20dvh + 1rem);
+  bottom: calc(max(20dvh, 11.5rem) + 1rem);
   z-index: 40;
   transition: opacity 160ms ease, transform 160ms ease;
   &[data-hoja='true'] {
@@ -569,10 +569,11 @@
    Debajo de `lg` no se aplica nada de esto: en pantallas chicas el layout queda
    exactamente como estaba, a la espera de que se defina el diseño mobile. */
 @utility vc-video-pane {
-  /* Mobile: el video se queda con el 80% del alto y la hoja asoma en el 20%
-     restante. Desde `lg` vuelve a repartirse el ancho con el panel. */
+  /* Mobile: el video se queda con lo que no ocupa la hoja asomada (el 80% del
+     alto, o menos si la hoja necesita sus 11.5rem mínimos — ver `vc-panel-pane`).
+     Desde `lg` vuelve a repartirse el ancho con el panel. */
   flex: none;
-  height: 80dvh;
+  height: calc(100dvh - max(20dvh, 11.5rem));
   @media (width >= 64rem) {
     height: auto;
     flex: 0 0 auto;
@@ -623,7 +624,10 @@
   padding-bottom: env(safe-area-inset-bottom);
   border-top-left-radius: 1.25rem;
   border-top-right-radius: 1.25rem;
-  transform: translateY(calc(100% - 20dvh));
+  /* Lo que asoma: 20dvh, pero nunca menos de 11.5rem — tiene que entrar la
+     tarjeta del paciente con sus signos vitales (Nacho, 2026-10-22). Mismo
+     valor en `vc-controles` y en `hojaAsomaPx` (VideoCall.jsx). */
+  transform: translateY(calc(100% - max(20dvh, 11.5rem)));
   transition: transform 240ms ease;
   box-shadow: 0 -8px 30px rgb(0 0 0 / 0.35);
   &[data-abierta='true'] {

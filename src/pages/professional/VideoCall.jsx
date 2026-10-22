@@ -14,6 +14,7 @@ import { clinicalService } from '../../services/clinicalService'
 import PreconsultaSummary, { hasPreconsulta } from '../../components/professional/PreconsultaSummary'
 import ConsultaEstructurada from '../../components/professional/ConsultaEstructurada'
 import DatosPacienteTab from '../../components/professional/DatosPacienteTab'
+import SignosVitalesPaciente from '../../components/professional/SignosVitalesPaciente'
 import { CLINICAL_GUIDE_SPECIALTIES } from '../../lib/clinicalGuideKB'
 import { historiaClinicaService } from '../../services/historiaClinicaService'
 import { profilesService } from '../../services/profilesService'
@@ -165,6 +166,11 @@ function useVideoSplit() {
 const ARRASTRE_MIN_PX = 6
 const ESPERA_ENTRAR_IGUAL_MS = 3 * 60 * 1000
 const VELOCIDAD_DECIDE = 0.4 // px/ms — un flick decide aunque el recorrido sea corto
+// Lo que asoma la hoja cerrada: 20% del alto, pero nunca menos de 11.5rem
+// (184 px), para que entren el nombre del paciente y sus signos vitales (Nacho,
+// 2026-10-22). Tiene que coincidir con `max(20dvh, 11.5rem)` de `vc-panel-pane`
+// y `vc-controles` en index.css.
+const hojaAsomaPx = () => Math.max(window.innerHeight * 0.2, 184)
 
 function useHojaArrastrable(abierta, setAbierta) {
   const hojaRef = useRef(null)
@@ -177,8 +183,8 @@ function useHojaArrastrable(abierta, setAbierta) {
     const hoja = hojaRef.current
     if (!hoja || (e.pointerType === 'mouse' && e.button !== 0)) return
     fueArrastre.current = false
-    // Posición cerrada = la altura de la hoja menos lo que asoma (20dvh).
-    const cerradaY = Math.max(0, hoja.offsetHeight - window.innerHeight * 0.2)
+    // Posición cerrada = la altura de la hoja menos lo que asoma.
+    const cerradaY = Math.max(0, hoja.offsetHeight - hojaAsomaPx())
     const baseY = abierta ? 0 : cerradaY
     const inicioY = e.clientY
     let y = baseY
@@ -837,36 +843,42 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
           2026-08-24: esa sección se absorbió en "01. Filiación" de la nueva
           consulta estructurada). */}
       <div className="shrink-0 bg-white border-b border-border-default px-3 py-2.5">
-        <div className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-border-default bg-white">
-          <button
-            onClick={() => irA({ id: 'consulta', kind: 'section' })}
-            className="flex-1 min-w-0 flex items-center gap-2.5 text-left group"
-          >
-            <div className="h-7 w-7 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
-              <User className="h-3.5 w-3.5 text-brand" />
-            </div>
-            <span className="flex-1 min-w-0 text-sm font-semibold text-text-primary truncate group-hover:text-brand transition-colors">
-              {consultation?.patient?.fullName ?? 'Paciente'}
-            </span>
-            <CaretRight className="h-3.5 w-3.5 text-text-tertiary shrink-0 group-hover:text-brand transition-colors" />
-          </button>
-
-          {/* Atajo que aparece SÓLO cuando los 4 botones de nota ya se fueron
-              de pantalla: los botones dejaron de ser sticky, así que sin esto
-              había que scrollear a mano hasta arriba para escribir. Devuelve
-              al principio, que es donde vuelven a estar a la vista. Sólo en la
-              planilla — en Receta/Cierre scrollear arriba no lleva a los
-              botones de nota. Usa el mismo scrollIntoView del índice y no
-              `chartRef.scrollTo({behavior:'smooth'})`, que resultó no
-              completar en algunos entornos (verificación 2026-08-24). */}
-          {atajoNota && !showForm && activeView === 'chart' && (
+        <div className="rounded-xl border border-border-default bg-white">
+          <div className="w-full flex items-center gap-2.5 px-3 py-2.5">
             <button
-              onClick={() => irA({ id: 'nota', kind: 'section' })}
-              className="shrink-0 flex items-center gap-1 pl-2.5 ml-0.5 border-l border-border-default text-[11px] font-semibold text-brand hover:text-brand-hover transition-colors"
+              onClick={() => irA({ id: 'consulta', kind: 'section' })}
+              className="flex-1 min-w-0 flex items-center gap-2.5 text-left group"
             >
-              <Plus className="h-3 w-3" weight="bold" /> Nueva nota
+              <div className="h-7 w-7 rounded-full bg-brand-muted flex items-center justify-center shrink-0">
+                <User className="h-3.5 w-3.5 text-brand" />
+              </div>
+              <span className="flex-1 min-w-0 text-sm font-semibold text-text-primary truncate group-hover:text-brand transition-colors">
+                {consultation?.patient?.fullName ?? 'Paciente'}
+              </span>
+              <CaretRight className="h-3.5 w-3.5 text-text-tertiary shrink-0 group-hover:text-brand transition-colors" />
             </button>
-          )}
+
+            {/* Atajo que aparece SÓLO cuando los 4 botones de nota ya se fueron
+                de pantalla: los botones dejaron de ser sticky, así que sin esto
+                había que scrollear a mano hasta arriba para escribir. Devuelve
+                al principio, que es donde vuelven a estar a la vista. Sólo en la
+                planilla — en Receta/Cierre scrollear arriba no lleva a los
+                botones de nota. Usa el mismo scrollIntoView del índice y no
+                `chartRef.scrollTo({behavior:'smooth'})`, que resultó no
+                completar en algunos entornos (verificación 2026-08-24). */}
+            {atajoNota && !showForm && activeView === 'chart' && (
+              <button
+                onClick={() => irA({ id: 'nota', kind: 'section' })}
+                className="shrink-0 flex items-center gap-1 pl-2.5 ml-0.5 border-l border-border-default text-[11px] font-semibold text-brand hover:text-brand-hover transition-colors"
+              >
+                <Plus className="h-3 w-3" weight="bold" /> Nueva nota
+              </button>
+            )}
+          </div>
+          {/* Signos vitales del paciente, segunda fila de esta misma tarjeta
+              (Nacho, 2026-10-22): arriba de todo y a la vista en todas las
+              pestañas. Ver SignosVitalesPaciente. */}
+          <SignosVitalesPaciente loading={loadingPatientData} patient={patientData} />
         </div>
       </div>
 
@@ -1834,7 +1846,10 @@ export default function ProfessionalVideoCall({ profile }) {
               con "esperando al paciente" una videollamada que seguía andando.
               Una vez adentro, quién está en la sala lo dice `remote`. */}
           {!joinGate && !joining && (
-            <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 z-10">
+            // En el teléfono los controles flotan abajo sobre el video: el
+            // `pb-24` centra la sala de espera en lo que queda arriba de ellos,
+            // así no tapan "Ingresar paciente".
+            <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 z-10 max-lg:pb-24">
               <div className="text-center space-y-4">
                 <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto relative">
                   <User className="h-12 w-12 text-white/15" />
