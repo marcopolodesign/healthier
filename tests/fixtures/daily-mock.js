@@ -33,6 +33,10 @@ window.__DailyIframeMock = (() => {
             participants: { local: makeParticipant(true) },
           })
         }, 500)
+        // El otro lado entra a la sala (sin video): la sala lo ve "conectado".
+        setTimeout(() => {
+          listeners['participant-joined']?.({ participant: { ...makeParticipant(false), session_id: 'remoto' } })
+        }, 800)
         return Promise.resolve()
       },
       participants() {
