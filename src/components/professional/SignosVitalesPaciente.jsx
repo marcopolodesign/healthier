@@ -64,7 +64,7 @@ const MENSAJE_PEDIDO = {
   sin_permiso: 'Le pedimos que habilite Salud en su teléfono.',
   rechazado: 'No habilitó Salud esta vez.',
   no_disponible: 'Hace falta que entre desde la app en un iPhone.',
-  sin_respuesta: 'No respondió. Probá de nuevo en un momento.',
+  sin_respuesta: 'No respondió. Puede que tenga que actualizar la app.',
   error: 'No se pudieron leer sus mediciones. Probá de nuevo.',
 }
 
