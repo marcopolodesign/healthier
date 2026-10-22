@@ -327,16 +327,23 @@ export const consultationsService = {
    * aparecer en SUS turnos, porque es él quien entra a la sala. Cada fila trae
    * `paciente` para poder decir "Para Juan". `{ conFamiliares: false }` para lo
    * que es estrictamente de la salud propia (el resumen de salud).
+   *
+   * Sin la atención de una emergencia (migración 177): esa consulta presencial
+   * no es un turno y confundía en "Mis consultas" (Nacho, 2026-10-22: "que
+   * quede anclada a emergencias"). Vive en emergencias y en la HC. Quien abre
+   * una consulta puntual por id (el resumen al cerrarla) pide
+   * `{ conEmergencias: true }`.
    */
-  async getByPatient(patientId, { conFamiliares = true } = {}) {
+  async getByPatient(patientId, { conFamiliares = true, conEmergencias = false } = {}) {
     const ids = conFamiliares ? await familyService.idsDelGrupo(patientId) : [patientId]
-    const { data, error } = await supabase
+    let query = supabase
       .from('consultations')
       // `address, latitude, longitude` del consultorio: sin eso un turno
       // presencial no puede mostrar ni la dirección ni el camino hasta ahí.
       .select('*, paciente:profiles!patient_id(id, full_name), professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty, address, latitude, longitude)), encounters:clinical_encounters!consultation_id(id, medications:clinical_medications(rcta_status, rcta_pdf_url, rcta_prescription_id)), payment:payments!consultation_id(id, status, refund_type, refunded_at, refund_conversion_requested_at, refund_conversion_resolved_at, mp_payment_id, refund_request_status, refund_reject_reason)')
       .in('patient_id', ids.length ? ids : [patientId])
-      .order('scheduled_at', { ascending: false })
+    if (!conEmergencias) query = query.is('emergency_id', null)
+    const { data, error } = await query.order('scheduled_at', { ascending: false })
     if (error) throw error
     return toCamelCase(data)
   },
@@ -358,7 +365,7 @@ export const consultationsService = {
       .from('consultations')
       .select(`
         id, scheduled_at, started_at, completed_at, created_at, status, modality, payment_status,
-        closing_notes, preconsulta_data, price_at_booking, duration_minutes, cancel_reason,
+        closing_notes, preconsulta_data, price_at_booking, duration_minutes, cancel_reason, emergency_id,
         consultation_type:consultation_types!consultation_type_id(name),
         payment:payments!consultation_id(status, gross_amount, mp_net_received_amount, net_to_professional),
         ${DERIVACION_EMBED}
@@ -370,11 +377,17 @@ export const consultationsService = {
     return toCamelCase(data ?? [])
   },
 
+  /**
+   * Agenda, inicio, pacientes e historial del profesional. Sin la atención de
+   * una emergencia (migración 177): no es un turno presencial, vive en
+   * emergencias y en la HC (Nacho, 2026-10-22).
+   */
   async getByProfessional(professionalId) {
     const { data, error } = await supabase
       .from('consultations')
       .select(`*, profiles!patient_id(full_name, avatar_url, email), ${DERIVACION_EMBED}`)
       .eq('professional_id', professionalId)
+      .is('emergency_id', null)
       .order('scheduled_at', { ascending: false })
     if (error) throw error
     return toCamelCase(data)
@@ -577,6 +590,7 @@ export const consultationsService = {
       .select('id, status, payment_status, price_at_booking, modality, obra_social_name, scheduled_at, completed_at, consultation_type:consultation_types!consultation_type_id(name), profiles!patient_id(full_name, avatar_url)')
       .eq('professional_id', professionalId)
       .eq('status', 'completed')
+      .is('emergency_id', null) // la atención de una emergencia no es un ingreso de consulta
       .order('completed_at', { ascending: false })
     if (error) throw error
     return toCamelCase(data)
@@ -616,6 +630,9 @@ export const consultationsService = {
       .select('id, status, payment_status, price_at_booking, modality, vertical, scheduled_at, completed_at, professional:profiles!professional_id(full_name, professional_profiles!professional_profiles_user_id_fkey(specialty))')
       .eq('patient_id', patientId)
       .not('status', 'in', '("pending","cancelled","no_show")')
+      // La atención de una emergencia no tiene comprobante propio (va `exempt`,
+      // $0): lo que se pagó es la emergencia.
+      .is('emergency_id', null)
       .order('scheduled_at', { ascending: false })
     if (error) throw error
     return toCamelCase(data)

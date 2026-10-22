@@ -36,7 +36,7 @@ export default function ConsultationSummary({ profile }) {
     if (!profile?.id || !id) return
     let cancelled = false
     Promise.all([
-      consultationsService.getByPatient(profile.id),
+      consultationsService.getByPatient(profile.id, { conEmergencias: true }),
       reviewsService.getByPatient(profile.id).catch(() => ({})),
       // Que falle la parte clínica no puede dejar al paciente sin resumen ni
       // sin su receta: se degrada a null y el resto se muestra igual.

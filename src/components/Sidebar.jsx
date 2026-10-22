@@ -100,12 +100,14 @@ const NAV_BY_ROLE = {
   ],
   emergency_admin: [
     { to: '/despacho',               icon: Siren,        label: 'Cola' },
+    { to: '/despacho/historial',     icon: ClockCounterClockwise, label: 'Historial' },
     { to: '/despacho/mapa',          icon: MapTrifold,   label: 'Mapa' },
     { to: '/despacho/ambulancias',   icon: Ambulance,    label: 'Ambulancias' },
     { to: '/despacho/configuracion', icon: Gear,         label: 'Configuración' },
   ],
   emergency_operator: [
     { to: '/despacho',               icon: Siren,        label: 'Cola' },
+    { to: '/despacho/historial',     icon: ClockCounterClockwise, label: 'Historial' },
     { to: '/despacho/mapa',          icon: MapTrifold,   label: 'Mapa' },
     { to: '/despacho/ambulancias',   icon: Ambulance,    label: 'Ambulancias' },
     { to: '/despacho/configuracion', icon: Gear,         label: 'Configuración' },
