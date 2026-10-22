@@ -8,6 +8,7 @@ import { haversineKm, formatDistance } from '../../lib/geo'
 import { distanciaGpsDireccion, DIFERENCIA_AVISO_M } from '../../lib/direccionEmergencia'
 import MarcadorMovil from './MarcadorMovil'
 import OrdenDeTrasladoCard from '../emergencias/OrdenDeTrasladoCard'
+import CierreDesenlace, { faltaParaCerrar } from '../emergencias/CierreDesenlace'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 const REFRESCO_MS = 15_000
@@ -52,6 +53,10 @@ export default function PanelTraslado({ emergencyId, onClose, onTerminar, termin
   const [t, setT] = useState(undefined)
   const [error, setError] = useState('')
   const [ahora, setAhora] = useState(Date.now())
+  // Al terminar, el despacho dice cómo terminó (Mateo, 2026-10-22): con
+  // "Trasladado" no se cierra sin la foto de la orden (la base lo exige).
+  const [cierre, setCierre] = useState({ desenlace: null, institucion: '', orden: null })
+  useEffect(() => { setCierre({ desenlace: null, institucion: '', orden: null }) }, [emergencyId])
   const lectura = useRef(0)
 
   const leer = useCallback(async () => {
@@ -216,8 +221,14 @@ export default function PanelTraslado({ emergencyId, onClose, onTerminar, termin
               ) : <p className="text-sm text-text-secondary">{t.medico?.fullName ? `Médico: ${t.medico.fullName}` : 'Sin móvil asignado'}</p>}
             </div>
 
-            {/* La orden de traslado, si la tripulación ya la subió (migración 213). */}
-            <OrdenDeTrasladoCard emergencyId={t.id} />
+            {/* Documentos ya subidos (orden / negativa). Mientras se puede
+                terminar desde acá, la orden la muestra el bloque de cierre. */}
+            {!(enCurso && onTerminar) && <OrdenDeTrasladoCard emergencyId={t.id} />}
+            {enCurso && onTerminar && (
+              <div className="card">
+                <CierreDesenlace emergencyId={t.id} valor={cierre} onChange={setCierre} paraDespacho />
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-2">
               {t.patient?.phone && (
@@ -233,9 +244,15 @@ export default function PanelTraslado({ emergencyId, onClose, onTerminar, termin
 
       {enCurso && onTerminar && (
         <div className="flex-shrink-0 p-4 border-t border-border-default">
-          <button className="btn-primary w-full min-h-14" disabled={terminando} onClick={() => onTerminar(t)} data-testid="panel-terminar">
-            {terminando ? 'Terminando…' : 'Marcar terminada'}
+          <button
+            className="btn-primary w-full min-h-14"
+            disabled={terminando || !!faltaParaCerrar(cierre)}
+            onClick={() => onTerminar(t, cierre.desenlace)}
+            data-testid="panel-terminar"
+          >
+            {terminando ? 'Terminando…' : t?.bonificada ? 'Seguir' : 'Terminar y cobrar'}
           </button>
+          {faltaParaCerrar(cierre) && <p className="text-sm text-text-secondary text-center mt-2">{faltaParaCerrar(cierre)}</p>}
         </div>
       )}
     </div>

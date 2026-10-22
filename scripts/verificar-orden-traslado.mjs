@@ -60,6 +60,7 @@ const medico = await comoUsuario('clinica@staging.healthier.app')
 const paciente = await comoUsuario('sos.paciente@healthier.app', 'emergencia')
 const operador = await comoUsuario('operador@staging.healthier.app')
 const otroPro = await comoUsuario('pediatria@staging.healthier.app')
+const otroPaciente = await comoUsuario('paciente.completo@staging.healthier.app')
 
 bloque('Preparando un traslado de prueba (Móvil 2, médico clinica@)')
 const { data: em, error: errEm } = await admin.from('emergencies').insert({
@@ -167,8 +168,19 @@ try {
     debe(errPisar, 'la foto no se pisa', 'la foto de la orden se pudo reemplazar')
   }
 
+  bloque('Negativa firmada (opcional) — no reemplaza a la orden')
+  {
+    const rutaNeg = `${em.id}/negativa-${Date.now()}.jpg`
+    const { error: errSub } = await medico.c.storage.from(BUCKET).upload(rutaNeg, JPEG, { contentType: 'image/jpeg' })
+    if (!errSub) subidas.push(rutaNeg)
+    const { error: errNeg } = await medico.c.from('emergency_transfer_orders').insert({ emergency_id: em.id, tipo: 'negativa', foto_path: rutaNeg })
+    debe(!errSub && !errNeg, 'el médico sube una negativa sin institución', `no pudo subir la negativa: ${errSub?.message || errNeg?.message}`)
+    const { error: errSinInst } = await medico.c.from('emergency_transfer_orders').insert({ emergency_id: em.id, tipo: 'orden_traslado', foto_path: rutaNeg })
+    debe(errSinInst, 'una orden de traslado sin institución no se registra', 'se registró una orden sin institución')
+  }
+
   bloque('Quién ve la orden')
-  for (const [quien, s, debeVer] of [['el médico', medico, true], ['el despacho de la entidad', operador, true], ['el paciente', paciente, false], ['otro profesional', otroPro, false]]) {
+  for (const [quien, s, debeVer] of [['el médico', medico, true], ['el despacho de la entidad', operador, true], ['el paciente (en su HC)', paciente, true], ['otro paciente', otroPaciente, false], ['otro profesional', otroPro, false]]) {
     const { data } = await s.c.from('emergency_transfer_orders').select('id').eq('emergency_id', em.id)
     const { data: url } = await s.c.storage.from(BUCKET).createSignedUrl(ruta, 60)
     const ve = (data?.length ?? 0) > 0 && !!url?.signedUrl
@@ -202,15 +214,20 @@ try {
       .update({ status: 'completed', cierre_sin_atencion: 'Traslado al Hospital Fernández', completed_at: haceUnAnio }).eq('id', em.id)
     debe(!error, 'el médico cierra el traslado', `no cierra: ${error?.message}`)
     const { data: hist } = await operador.c.from('emergencies')
-      .select('id, status, completed_at, desenlace, paciente_nombre, ordenes:emergency_transfer_orders(id, institucion)')
+      .select('id, status, completed_at, desenlace, paciente_nombre, ordenes:emergency_transfer_orders(id, tipo, institucion)')
       .eq('provider_id', ENTIDAD).in('status', ['completed', 'cancelled']).eq('id', em.id).maybeSingle()
     debe(hist?.status === 'completed', 'el operador lo ve en el historial', 'el operador NO ve el traslado terminado')
     debe(hist?.completed_at && Math.abs(Date.now() - new Date(hist.completed_at).getTime()) < 120_000,
       'completed_at = hora de la base', `completed_at = ${hist?.completed_at}`)
-    debe(hist?.desenlace === 'traslado' && hist?.ordenes?.length === 1, 'con su desenlace y su orden', 'falta el desenlace o la orden en el historial')
+    debe(hist?.desenlace === 'traslado' && hist?.ordenes?.filter(o => o.tipo === 'orden_traslado').length === 1, 'con su desenlace y su orden', 'falta el desenlace o la orden en el historial')
     debe(!!hist?.paciente_nombre, `con el nombre del paciente ("${hist?.paciente_nombre}") aunque ya no lea su ficha`, 'el historial no tiene el nombre del paciente')
-    const { data: ficha } = await operador.c.from('profiles').select('id').eq('id', paciente.id)
-    debe(!ficha?.length, 'cerrada, el despacho ya no lee la ficha del paciente', 'el despacho sigue leyendo la ficha completa del paciente')
+    const { data: otrasActivas } = await admin.from('emergencies').select('id')
+      .eq('patient_id', paciente.id).not('status', 'in', '("completed","cancelled")')
+    if (otrasActivas?.length) nota('el paciente tiene otra emergencia activa en staging: no se puede chequear que el despacho deje de leer su ficha')
+    else {
+      const { data: ficha } = await operador.c.from('profiles').select('id').eq('id', paciente.id)
+      debe(!ficha?.length, 'cerrada, el despacho ya no lee la ficha del paciente', 'el despacho sigue leyendo la ficha completa del paciente')
+    }
     const { error: errNombre } = await paciente.c.from('emergencies').update({ paciente_nombre: 'Otro' }).eq('id', em.id)
     const { data: nom } = await admin.from('emergencies').select('paciente_nombre').eq('id', em.id).single()
     debe(nom?.paciente_nombre === hist?.paciente_nombre, 'nadie pisa la copia del nombre', `la copia del nombre cambió (${errNombre?.message ?? ''})`)
@@ -218,6 +235,73 @@ try {
     debe(errTarde, 'cerrada, ya no se suben fotos', 'se subió una foto con la emergencia cerrada')
     if (!errTarde) subidas.push(`${em.id}/tarde.jpg`)
   }
+  bloque('El despacho sube la orden y cierra con desenlace')
+  {
+    const { data: e2 } = await admin.from('emergencies').insert({
+      patient_id: paciente.id, triage_code: 'AMARILLO', status: 'arrived', paid_at: new Date().toISOString(), price_at_request: 50,
+      patient_latitude: -34.6, patient_longitude: -58.38, provider_id: ENTIDAD, ambulance_id: MOVIL_2, professional_id: medico.id,
+      dispatched_at: new Date().toISOString(), dispatch_code: 'UTM-0215', cierre_sin_atencion: 'Rechazó la atención',
+    }).select('id').single()
+    try {
+      const { data: est0 } = await operador.c.rpc('estado_atencion_emergencia', { p_emergency_id: e2.id })
+      debe(est0 === null, 'sin atención, el despacho lee estado null', `estado: ${est0}`)
+      const { error: errSinDes } = await operador.c.from('emergencies').update({ status: 'completed' }).eq('id', e2.id)
+      debe(errSinDes && /cómo terminó/i.test(errSinDes.message), 'el despacho no cierra sin decir cómo terminó', `el despacho cerró sin desenlace (${errSinDes?.message ?? 'sin error'})`)
+      // Sólo una negativa: no alcanza para un traslado.
+      const rN = `${e2.id}/negativa.jpg`
+      await medico.c.storage.from(BUCKET).upload(rN, JPEG, { contentType: 'image/jpeg' }); subidas.push(rN)
+      await medico.c.from('emergency_transfer_orders').insert({ emergency_id: e2.id, tipo: 'negativa', foto_path: rN })
+      const { error: errSoloNeg } = await operador.c.from('emergencies').update({ status: 'completed', desenlace: 'traslado' }).eq('id', e2.id)
+      debe(errSoloNeg && /orden de traslado/i.test(errSoloNeg.message), 'con sólo la negativa, un traslado no se cierra', 'se cerró un traslado con sólo la negativa')
+      const rO = `${e2.id}/orden-despacho.jpg`
+      const { error: errSubOp } = await operador.c.storage.from(BUCKET).upload(rO, JPEG, { contentType: 'image/jpeg' })
+      if (!errSubOp) subidas.push(rO)
+      const { data: oOp, error: errRegOp } = await operador.c.from('emergency_transfer_orders').insert({ emergency_id: e2.id, institucion: 'Hospital Rivadavia', foto_path: rO }).select('subida_por').single()
+      debe(!errSubOp && !errRegOp && oOp?.subida_por === operador.id, 'el despacho de la entidad sube la orden él mismo', `el despacho no pudo subir la orden: ${errSubOp?.message || errRegOp?.message}`)
+      const { error: errCierre } = await operador.c.from('emergencies').update({ status: 'completed', desenlace: 'traslado' }).eq('id', e2.id).select('id').single()
+      debe(!errCierre, 'con la orden, el despacho cierra el traslado', `el despacho no pudo cerrar: ${errCierre?.message}`)
+      const { error: errTerminada } = await paciente.c.from('emergencies').update({ notes: 'cambio' }).eq('id', e2.id).select('id').single()
+      const { data: notas } = await admin.from('emergencies').select('notes').eq('id', e2.id).single()
+      debe(errTerminada && notas?.notes !== 'cambio', 'el paciente no toca una emergencia terminada', 'el paciente modificó una emergencia terminada')
+    } finally {
+      await admin.from('emergency_transfer_orders').delete().eq('emergency_id', e2.id)
+      await admin.from('emergencies').delete().eq('id', e2.id)
+    }
+  }
+
+  bloque('Huecos que ya existían, cerrados')
+  {
+    const { data: e3 } = await admin.from('emergencies').insert({
+      patient_id: paciente.id, triage_code: 'VERDE', status: 'in_transit', paid_at: new Date().toISOString(), price_at_request: 50,
+      patient_latitude: -34.6, patient_longitude: -58.38, provider_id: ENTIDAD, ambulance_id: MOVIL_2, professional_id: medico.id,
+      dispatched_at: new Date().toISOString(), dispatch_code: 'UTM-0216',
+    }).select('id').single()
+    const { data: otraEntidad } = await admin.from('emergency_providers').insert({ name: 'Entidad de prueba 213' }).select('id').single()
+    let e4 = null
+    try {
+      for (const [quien, s] of [['el médico', medico], ['el despacho', operador]]) {
+        const { error } = await s.c.from('emergencies').update({ patient_id: otroPaciente.id }).eq('id', e3.id)
+        const { data: f } = await admin.from('emergencies').select('patient_id').eq('id', e3.id).single()
+        debe(f.patient_id === paciente.id, `${quien} no cambia el paciente de una emergencia`, `${quien} cambió el paciente (${error?.message ?? ''})`)
+      }
+      const { data: f1 } = await operador.c.from('profiles').select('id').eq('id', paciente.id)
+      debe(f1?.length === 1, 'el despacho lee al paciente de un traslado de su entidad', 'el despacho NO lee al paciente de su propio traslado')
+      ;({ data: e4 } = await admin.from('emergencies').insert({
+        patient_id: otroPaciente.id, triage_code: 'VERDE', status: 'dispatched', paid_at: new Date().toISOString(), price_at_request: 50,
+        patient_latitude: -34.6, patient_longitude: -58.38, provider_id: otraEntidad.id, dispatched_at: new Date().toISOString(),
+      }).select('id').single())
+      const { data: f2 } = await operador.c.from('profiles').select('id, email').eq('id', otroPaciente.id)
+      debe(!f2?.length, 'el despacho no lee al paciente de un traslado de otra entidad', 'el despacho lee la ficha de un paciente de otra entidad')
+      const { error: errCancel } = await paciente.c.from('emergencies').update({ status: 'cancelled' }).eq('id', e3.id).select('id').single()
+      debe(!errCancel, 'el paciente sigue pudiendo cancelar en camino', `el paciente no pudo cancelar: ${errCancel?.message}`)
+    } finally {
+      if (e4) await admin.from('emergencies').delete().eq('id', e4.id)
+      await admin.from('emergencies').delete().eq('id', e3.id)
+      if (otraEntidad) await admin.from('emergency_providers').delete().eq('id', otraEntidad.id)
+      await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL_2).eq('status', 'en_servicio')
+    }
+  }
+
   bloque('Super admin: borrar sí, pero no una orden')
   {
     const sa = await comoUsuario('superadmin@healthier.app', 'superadmin')
@@ -230,6 +314,11 @@ try {
       dispatched_at: new Date().toISOString(), dispatch_code: 'UTM-0214',
     }).select('id').single()
     const { data: cid } = await medico.c.rpc('iniciar_atencion_emergencia', { p_emergency_id: otra.id })
+    {
+      const { data: estOp } = await operador.c.rpc('estado_atencion_emergencia', { p_emergency_id: otra.id })
+      const { data: estOtro } = await otroPro.c.rpc('estado_atencion_emergencia', { p_emergency_id: otra.id })
+      debe(estOp === 'in_progress' && estOtro === null, 'el despacho ve el estado de la atención (y un ajeno no)', `despacho: ${estOp} · ajeno: ${estOtro}`)
+    }
     if (cid) {
       const { error: errMover } = await sa.c.from('consultations').update({ emergency_id: em.id }).eq('id', cid)
       const { data: c } = await admin.from('consultations').select('emergency_id').eq('id', cid).single()
@@ -279,7 +368,7 @@ bloque('Código: lo arreglado no vuelve')
     'app: Pacientes incluye a quien se atendió en una emergencia', 'app: Pacientes volvió a dejar afuera a los de emergencia')
   tiene(APP, 'app/(pro)/paciente/[id].tsx', /getByProfessional\(user\.id, \{ conEmergencias: true \}\)/,
     'app: la ficha del paciente lo encuentra aunque sólo haya sido una emergencia', 'app: la ficha vuelve a decir "No encontramos este paciente"')
-  tiene(WEB, 'src/pages/dispatch/Cola.jsx', /getAtencion\(req\.id\)[\s\S]*?return\n[\s\S]*?capturarEmergencia\(req\.id\)/,
+  tiene(WEB, 'src/pages/dispatch/Cola.jsx', /estadoAtencion\(req\.id\)[\s\S]*?return\n[\s\S]*?capturarEmergencia\(req\.id\)/,
     'web: el despacho mira la atención ANTES de cobrar', 'web: el despacho vuelve a cobrar antes de saber si puede cerrar')
   tiene(WEB, 'src/pages/dispatch/Historial.jsx', /No estás cargado en ninguna entidad/,
     'web: Historial sin entidad no queda cargando para siempre', 'web: Historial sin entidad vuelve al spinner infinito')

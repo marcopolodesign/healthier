@@ -178,6 +178,16 @@ export const emergencyService = {
     return data ?? null
   },
 
+  /**
+   * Estado de la atención ('completed', 'in_progress'…) o null si no hay. Por
+   * RPC (migración 213): el despacho no lee `consultations`, sólo esto.
+   */
+  async estadoAtencion(emergencyId) {
+    const { data, error } = await supabase.rpc('estado_atencion_emergencia', { p_emergency_id: emergencyId })
+    if (error) throw new Error(error.message)
+    return data ?? null
+  },
+
   /** Abre (o retoma) la atención. Sólo el médico del móvil. Devuelve el id de la consulta. */
   async iniciarAtencion(emergencyId) {
     const { data, error } = await supabase.rpc('iniciar_atencion_emergencia', { p_emergency_id: emergencyId })
@@ -541,7 +551,7 @@ export const emergencyService = {
         cerroSinPago:profiles!cierre_sin_pago_por(full_name),
         ambulancia:ambulances!ambulance_id(id, label, plate, unit_type),
         entidad:emergency_providers!provider_id(id, name, color),
-        ordenes:emergency_transfer_orders(id)
+        ordenes:emergency_transfer_orders(id, tipo)
       `)
       .order('created_at', { ascending: false })
     if (error) throw error

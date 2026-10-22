@@ -185,18 +185,20 @@ export default function DespachoCola({ profile }) {
    * el traslado sigue en curso y el operador lo ve — al revés quedaría
    * cerrado y sin cobrar, que es la mitad que nadie vuelve a mirar.
    */
-  const terminar = async (req) => {
+  const terminar = async (req, desenlace) => {
+    // El desenlace se elige en el panel (la tarjeta de la cola lo abre).
+    if (!desenlace) { setAbierto(req.id); return }
     setTerminando(req.id)
     try {
       // Lo que la base exige para cerrar (177): la atención cerrada o un motivo
       // de cierre sin atención. Se mira ANTES de cobrar: si no, se le cobraba
       // al paciente y el cierre fallaba después, con la emergencia abierta.
-      const [fresca, atencion] = await Promise.all([
+      const [fresca, estadoAtencion] = await Promise.all([
         emergencyService.getById(req.id),
-        emergencyService.getAtencion(req.id),
+        emergencyService.estadoAtencion(req.id),
       ])
-      if (atencion?.status !== 'completed' && !fresca?.cierreSinAtencion?.trim()) {
-        toast.error(atencion
+      if (estadoAtencion !== 'completed' && !fresca?.cierreSinAtencion?.trim()) {
+        toast.error(estadoAtencion
           ? 'La atención sigue abierta: la cierra el médico desde la emergencia. No se cobró nada.'
           : 'Todavía no hay atención cargada: el médico la carga o cierra sin atención desde la emergencia. No se cobró nada.')
         return
@@ -208,10 +210,10 @@ export default function DespachoCola({ profile }) {
       }
       if (cobro?.sinPago) {
         setNotaSinPago('')
-        setSinPago({ req, bonificada: cobro.bonificada === true })
+        setSinPago({ req, bonificada: cobro.bonificada === true, desenlace })
         return
       }
-      await emergencyService.updateStatus(req.id, 'completed')
+      await emergencyService.cerrar(req.id, { desenlace })
       await emergencyService.liberarAmbulancia(req.ambulancia?.id)
       toast.success('Traslado terminado y cobrado')
       setAbierto(null)
@@ -226,7 +228,7 @@ export default function DespachoCola({ profile }) {
   /** Sin nada que cobrar: se deja asentado el mensaje y se cierra, sin MP. */
   const confirmarSinPago = async () => {
     if (!sinPago || !notaSinPago.trim()) return
-    const { req } = sinPago
+    const { req, desenlace } = sinPago
     setCerrandoSinPago(true)
     try {
       const { error } = await mpService.cerrarEmergenciaSinPago(req.id, notaSinPago.trim())
@@ -234,7 +236,7 @@ export default function DespachoCola({ profile }) {
         toast.error(`No se pudo cerrar: ${error}`)
         return
       }
-      await emergencyService.updateStatus(req.id, 'completed')
+      await emergencyService.cerrar(req.id, { desenlace })
       await emergencyService.liberarAmbulancia(req.ambulancia?.id)
       toast.success('Traslado terminado, sin cobro')
       setSinPago(null)
@@ -355,9 +357,9 @@ export default function DespachoCola({ profile }) {
                   <button
                     className="btn-secondary w-full"
                     disabled={terminando === req.id}
-                    onClick={() => terminar(req)}
+                    onClick={() => setAbierto(req.id)}
                   >
-                    {terminando === req.id ? 'Terminando...' : 'Marcar terminada'}
+                    Terminar
                   </button>
                 </div>
               ))}

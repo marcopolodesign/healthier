@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { WarningCircle, X } from '@phosphor-icons/react'
 import { emergencyService } from '../../services/emergencyService'
-import { ordenTrasladoService } from '../../services/ordenTrasladoService'
+import { ordenTrasladoService, ultimosPorTipo } from '../../services/ordenTrasladoService'
 import { COBRO, cobroDe, duracionMin, formatDuracion } from '../../lib/cobroEmergencia'
 import OrdenDeTrasladoCard from '../emergencias/OrdenDeTrasladoCard'
 
@@ -20,7 +20,8 @@ const hora = iso => (iso ? new Date(iso).toLocaleTimeString('es-AR', { hour: '2-
  */
 export default function PanelHistorial({ emergencyId, onClose }) {
   const [t, setT] = useState(undefined)
-  const [orden, setOrden] = useState(null)
+  const [documentos, setDocumentos] = useState(undefined)
+  const orden = documentos ? ultimosPorTipo(documentos).orden_traslado ?? null : null
   const [error, setError] = useState('')
 
   const leer = useCallback(async () => {
@@ -32,7 +33,7 @@ export default function PanelHistorial({ emergencyId, onClose }) {
         ordenTrasladoService.listar(emergencyId).catch(() => undefined),
       ])
       setT(fila)
-      setOrden(ordenes === undefined ? undefined : (ordenes[0] ?? null))
+      setDocumentos(ordenes)
     } catch (e) {
       setError(e?.message || 'No pudimos cargar el traslado')
     }
@@ -103,7 +104,7 @@ export default function PanelHistorial({ emergencyId, onClose }) {
               <div className="space-y-2">
                 <p className="font-semibold text-text-primary">Cómo terminó</p>
                 <p className="text-sm text-text-primary">{comoTermino || 'No quedó registrado.'}</p>
-                <OrdenDeTrasladoCard emergencyId={t.id} orden={orden} />
+                <OrdenDeTrasladoCard emergencyId={t.id} documentos={documentos} />
               </div>
             )}
 

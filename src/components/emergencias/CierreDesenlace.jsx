@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Camera, CircleNotch, WarningCircle } from '@phosphor-icons/react'
-import { ordenTrasladoService, TIPOS_FOTO_ORDEN } from '../../services/ordenTrasladoService'
+import { ordenTrasladoService, ultimosPorTipo, TIPOS_FOTO_ORDEN } from '../../services/ordenTrasladoService'
 import { horaDeOrden } from './OrdenDeTrasladoCard'
 
 /**
@@ -30,7 +30,12 @@ const OPCIONES = [
   { id: 'traslado', label: 'Trasladado' },
 ]
 
-export default function CierreDesenlace({ emergencyId, valor, onChange }) {
+/**
+ * `paraDespacho`: lo usa el despacho al terminar (web). Cambia la ayuda ("el
+ * médico", no "vos") y, si la tripulación ya subió la orden, deja "Trasladado"
+ * marcado (Felipe, 2026-10-22).
+ */
+export default function CierreDesenlace({ emergencyId, valor, onChange, paraDespacho = false }) {
   const [subiendo, setSubiendo] = useState(false)
   const [error, setError] = useState('')
   const [ultimoArchivo, setUltimoArchivo] = useState(null)
@@ -49,15 +54,19 @@ export default function CierreDesenlace({ emergencyId, valor, onChange }) {
   useEffect(() => {
     let vivo = true
     ordenTrasladoService.listar(emergencyId)
-      .then(async ([ultima]) => {
+      .then(async lista => {
+        const ultima = ultimosPorTipo(lista).orden_traslado
         if (!vivo || !ultima) return
-        onChange(prev => (prev.orden ? prev : { ...prev, orden: ultima, institucion: ultima.institucion }))
+        onChange(prev => (prev.orden ? prev : {
+          ...prev, orden: ultima, institucion: ultima.institucion,
+          desenlace: prev.desenlace ?? (paraDespacho ? 'traslado' : null),
+        }))
         const url = await ordenTrasladoService.urlFoto(ultima.fotoPath).catch(() => null)
         if (vivo && url) setVista(v => v ?? url)
       })
       .catch(() => {})
     return () => { vivo = false }
-  }, [emergencyId, onChange])
+  }, [emergencyId, onChange, paraDespacho])
 
   async function subir(file) {
     if (!file) return
@@ -65,7 +74,7 @@ export default function CierreDesenlace({ emergencyId, valor, onChange }) {
     setSubiendo(true)
     setError('')
     try {
-      const orden = await ordenTrasladoService.subir(emergencyId, file, valor.institucion)
+      const orden = await ordenTrasladoService.subir(emergencyId, file, { institucion: valor.institucion })
       setVista(URL.createObjectURL(file))
       set({ orden })
     } catch (e) {
@@ -150,7 +159,9 @@ export default function CierreDesenlace({ emergencyId, valor, onChange }) {
                   Elegir de fotos
                 </button>
               )}
-              <p className="text-sm text-text-secondary">Firmada y sellada por vos y por la institución.</p>
+              <p className="text-sm text-text-secondary">
+                {paraDespacho ? 'Firmada y sellada por el médico y por la institución.' : 'Firmada y sellada por vos y por la institución.'}
+              </p>
               {error && (
                 <div className="flex items-start gap-2 p-3 rounded-xl bg-danger/5 text-sm text-danger" role="alert">
                   <WarningCircle className="h-5 w-5 shrink-0" />
@@ -160,6 +171,100 @@ export default function CierreDesenlace({ emergencyId, valor, onChange }) {
               )}
             </div>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Foto de la negativa de atención firmada, OPCIONAL, al cerrar sin atención
+ * (Mateo, 2026-10-22). Se sube en el momento; si no hay, alcanza con el
+ * motivo escrito. Mismo bucket y misma tabla que la orden (`tipo = negativa`).
+ */
+export function NegativaFirmada({ emergencyId }) {
+  const [negativa, setNegativa] = useState(null)
+  const [vista, setVista] = useState(null)
+  const [subiendo, setSubiendo] = useState(false)
+  const [error, setError] = useState('')
+  const [ultimoArchivo, setUltimoArchivo] = useState(null)
+  const camara = useRef(null)
+  const galeria = useRef(null)
+  const [esTactil] = useState(() => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches)
+
+  useEffect(() => {
+    let vivo = true
+    ordenTrasladoService.listar(emergencyId)
+      .then(async lista => {
+        const ultima = ultimosPorTipo(lista).negativa
+        if (!vivo || !ultima) return
+        setNegativa(ultima)
+        const url = await ordenTrasladoService.urlFoto(ultima.fotoPath).catch(() => null)
+        if (vivo && url) setVista(url)
+      })
+      .catch(() => {})
+    return () => { vivo = false }
+  }, [emergencyId])
+
+  async function subir(file) {
+    if (!file) return
+    setUltimoArchivo(file)
+    setSubiendo(true)
+    setError('')
+    try {
+      const doc = await ordenTrasladoService.subir(emergencyId, file, { tipo: 'negativa' })
+      setVista(URL.createObjectURL(file))
+      setNegativa(doc)
+    } catch (e) {
+      setError(e?.message || 'No pudimos subir la foto.')
+    } finally {
+      setSubiendo(false)
+      if (camara.current) camara.current.value = ''
+      if (galeria.current) galeria.current.value = ''
+    }
+  }
+
+  return (
+    <div className="space-y-2" data-testid="negativa-firmada">
+      <input ref={camara} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => subir(e.target.files?.[0])} />
+      <input ref={galeria} type="file" accept={TIPOS_FOTO_ORDEN.join(',')} className="hidden" onChange={e => subir(e.target.files?.[0])} />
+      {negativa ? (
+        <div className="flex items-center gap-3">
+          <span className="w-16 h-16 shrink-0 rounded-xl overflow-hidden bg-bg-surface border border-border-default">
+            {vista && <img src={vista} alt="Negativa firmada" className="w-full h-full object-cover" />}
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-text-primary tabular-nums">Negativa subida · {horaDeOrden(negativa.subidaAt)}</p>
+            <button type="button" className="text-sm font-semibold text-text-primary underline" onClick={() => (esTactil ? camara : galeria).current?.click()}>
+              Cambiar foto
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <button
+            type="button"
+            disabled={subiendo}
+            onClick={() => (esTactil ? camara : galeria).current?.click()}
+            className="w-full min-h-14 rounded-[24px] border border-border-default bg-white text-text-primary font-semibold flex items-center justify-center gap-2 disabled:opacity-40"
+          >
+            {subiendo
+              ? <><CircleNotch className="h-5 w-5 animate-spin" /> Subiendo…</>
+              : <><Camera className="h-5 w-5" /> Agregar foto de la negativa firmada <span className="text-text-tertiary font-normal">Opcional</span></>}
+          </button>
+          {esTactil && (
+            <button type="button" disabled={subiendo} onClick={() => galeria.current?.click()} className="w-full text-sm font-semibold text-text-primary underline disabled:opacity-40">
+              Elegir de fotos
+            </button>
+          )}
+          <p className="text-sm text-text-secondary">Si el paciente firmó la negativa, sumala. Si no, alcanza con el motivo.</p>
+        </>
+      )}
+      {error && (
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-danger/5 text-sm text-danger" role="alert">
+          <WarningCircle className="h-5 w-5 shrink-0" />
+          <span className="flex-1">{error}</span>
+          {ultimoArchivo && <button type="button" className="font-semibold underline" onClick={() => subir(ultimoArchivo)}>Reintentar</button>}
         </div>
       )}
     </div>
