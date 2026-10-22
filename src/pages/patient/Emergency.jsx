@@ -331,7 +331,7 @@ export default function Emergency({ profile }) {
       setErrorPago(resultado?.error || resultado?.data?.statusDetail || 'No pudimos reservar el monto en tu tarjeta.')
       return
     }
-    setEmergency(prev => ({ ...(prev ?? fila), paidAt: new Date().toISOString() }))
+    setEmergency(prev => ({ ...(prev ?? fila), paidAt: new Date().toISOString(), bonificada: resultado?.data?.bonificada === true }))
     setPhase('triage')
   }
 
@@ -515,8 +515,10 @@ export default function Emergency({ profile }) {
           <div className="w-full flex items-start gap-3 rounded-[20px] bg-emerald-50 border border-emerald-100 px-4 py-3 mb-5">
             <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
             <p className="text-[13px] text-emerald-800 leading-snug">
-              Reservamos ${emergency.priceAtRequest ?? sosSettings?.price ?? SOS_FALLBACK.price} en tu tarjeta.
-              Se cobra sólo si la ambulancia sale.
+              {emergency.bonificada
+                ? 'Tu pedido está bonificado: no se te cobra nada.'
+                : <>Reservamos ${emergency.priceAtRequest ?? sosSettings?.price ?? SOS_FALLBACK.price} en tu tarjeta.
+              Se cobra sólo si la ambulancia sale.</>}
             </p>
           </div>
 
@@ -539,8 +541,10 @@ export default function Emergency({ profile }) {
           <div className="px-6 pt-2 pb-8">
             <h2 className="text-[20px] font-light text-gray-900 mb-2 text-center leading-tight">¿Cancelar el pedido?</h2>
             <p className="text-gray-500 text-[14px] text-center mb-7 leading-snug">
-              Todavía no salió ningún móvil. Liberamos lo que reservamos en tu tarjeta —
-              no se te cobra nada.
+              {emergency.bonificada
+                ? 'Todavía no salió ningún móvil. Tu pedido está bonificado — no se te cobra nada.'
+                : <>Todavía no salió ningún móvil. Liberamos lo que reservamos en tu tarjeta —
+              no se te cobra nada.</>}
             </p>
             <div className="flex flex-col gap-3">
               <button onClick={handleCancel} disabled={cancelling} className="btn-danger w-full py-4 text-[15px]">
