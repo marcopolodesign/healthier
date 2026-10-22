@@ -30,6 +30,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { puedeActuarComo } from '../_shared/familia.ts'
 import { ensureFreshMpToken, PAYMENT_REFRESH_MARGIN_MS } from '../_shared/mpRefresh.ts'
 import { ensureFreshPharmacyMpToken } from '../_shared/pharmacyMpRefresh.ts'
+import { emergenciaBonificadaEnServidor } from '../_shared/bonificar.ts'
 
 const MP_API_BASE = 'https://api.mercadopago.com/v1'
 
@@ -57,6 +58,13 @@ interface PaymentBody {
   deviceId?: string
   /** Sólo con la service key: el paciente en cuyo nombre se cobra (ondemand-despacho). */
   actuarComo?: string
+  /**
+   * S.O.S. bonificado (Mateo, 2026-10-22): el interruptor de la allowlist.
+   * Lo decide el servidor con el mail del JWT; para otra cuenta se ignora.
+   */
+  bonificar?: boolean
+  /** El interruptor apagado (ver `exentoEnServidor`). */
+  cobrar?: boolean
 }
 
 interface PlatformSettings {
@@ -150,7 +158,7 @@ Deno.serve(async (req) => {
      * la tarjeta, familiar, split, monto desde la base) se sigue validando igual
      * contra `actuarComo`, que pasa a ser "el usuario logueado".
      */
-    let user: { id: string } | null = null
+    let user: { id: string; email?: string | null } | null = null
     const esServicio = authHeader === `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
     if (esServicio && body.actuarComo) {
       user = { id: body.actuarComo }
@@ -194,7 +202,14 @@ Deno.serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
-      if (!cardToken || !paymentMethodId || !payerEmail) {
+      // Bonificado: lo decide ACÁ el mail del JWT (no el cliente). Con la
+      // service key (`actuarComo`) no hay mail, así que nunca se bonifica.
+      const bonificada = emergenciaBonificadaEnServidor({
+        email: user.email,
+        bonificar: body.bonificar,
+        cobrar: body.cobrar,
+      })
+      if (!bonificada && (!cardToken || !paymentMethodId || !payerEmail)) {
         return new Response(
           JSON.stringify({ data: null, error: 'Missing required fields for card charge: cardToken, paymentMethodId, payerEmail' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -247,6 +262,44 @@ Deno.serve(async (req) => {
       }
 
       const amount = round2(Number(sos?.ondemand_price ?? 0))
+
+      // S.O.S. bonificado: queda pago sin tocar Mercado Pago y sin fila en
+      // `payments` (no entró plata). `bonificada` es la marca que ven el
+      // despacho y el super admin, y la que deja cerrarla sin cobro.
+      if (bonificada) {
+        if (emergencia.status !== 'pending') {
+          return new Response(
+            JSON.stringify({ data: null, error: 'Esta emergencia ya no se puede bonificar' }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        const { data: marcada, error: bonErr } = await serviceSupabase
+          .from('emergencies')
+          .update({
+            paid_at: new Date().toISOString(),
+            bonificada: true,
+            ...(amount > 0 ? { price_at_request: amount } : {}),
+          })
+          .eq('id', emergencyId)
+          .is('paid_at', null)
+          .select('id')
+          .maybeSingle()
+        if (bonErr || !marcada) {
+          console.error('mp-payment (emergency): no se pudo bonificar:', bonErr?.message ?? 'ya estaba paga')
+          return new Response(
+            JSON.stringify({ data: null, error: bonErr ? 'No pudimos bonificar la emergencia. Probá de nuevo.' : 'Esta emergencia ya está paga' }),
+            { status: bonErr ? 500 : 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        return new Response(
+          JSON.stringify({
+            data: { paymentId: null, status: 'bonificada', approved: true, bonificada: true, statusDetail: null, chargedAmount: 0 },
+            error: null,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       if (!(amount > 0)) {
         return new Response(
           JSON.stringify({ data: null, error: 'El precio del servicio de emergencias no está configurado' }),

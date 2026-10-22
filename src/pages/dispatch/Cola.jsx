@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Siren, Phone, Ambulance, Clock, MapPin } from '@phosphor-icons/react'
+import { Siren, Phone, Ambulance, Clock, MapPin, Warning } from '@phosphor-icons/react'
 import { dispatchService, ubicacionEsReciente } from '../../services/dispatchService'
 import { emergencyService } from '../../services/emergencyService'
 import { mpService } from '../../services/mpService'
@@ -20,6 +20,12 @@ const ESTADO_EN_CURSO = {
 }
 
 const REFRESH_MS = 15_000
+
+/** S.O.S. bonificado (migración 210): no hay nada que cobrarle al paciente. */
+function BadgeBonificada({ req }) {
+  if (!req.bonificada) return null
+  return <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">Bonificada</span>
+}
 
 function parseSintomas(notes) {
   if (!notes) return []
@@ -58,6 +64,7 @@ function SolicitudCard({ req, tick, onAsignar }) {
             {req.triageCode || '—'}
           </span>
           <p className="font-semibold text-text-primary text-sm">{req.patient?.fullName || 'Paciente'}</p>
+          <BadgeBonificada req={req} />
         </div>
         <div className="flex items-center gap-1 text-text-secondary text-sm tabular-nums shrink-0">
           <Clock className="h-3.5 w-3.5" />
@@ -96,6 +103,11 @@ export default function DespachoCola({ profile }) {
   const [modalReq, setModalReq] = useState(null)
   const [asignando, setAsignando] = useState(null)
   const [terminando, setTerminando] = useState(null)
+  // Cierre sin pago: la emergencia no tiene reserva para cobrar (bonificada o
+  // sin preautorización). Se avisa y se pide un mensaje (Mateo, 2026-10-22).
+  const [sinPago, setSinPago] = useState(null) // { req, bonificada }
+  const [notaSinPago, setNotaSinPago] = useState('')
+  const [cerrandoSinPago, setCerrandoSinPago] = useState(false)
 
   const cargar = useCallback(async (providerId) => {
     try {
@@ -166,9 +178,14 @@ export default function DespachoCola({ profile }) {
   const terminar = async (req) => {
     setTerminando(req.id)
     try {
-      const { error: errorCobro } = await mpService.capturarEmergencia(req.id)
+      const { data: cobro, error: errorCobro } = await mpService.capturarEmergencia(req.id)
       if (errorCobro) {
         toast.error(`No se pudo cobrar: ${errorCobro}. El traslado sigue abierto.`)
+        return
+      }
+      if (cobro?.sinPago) {
+        setNotaSinPago('')
+        setSinPago({ req, bonificada: cobro.bonificada === true })
         return
       }
       await emergencyService.updateStatus(req.id, 'completed')
@@ -179,6 +196,29 @@ export default function DespachoCola({ profile }) {
       toast.error(err?.message || 'Error al terminar el traslado')
     } finally {
       setTerminando(null)
+    }
+  }
+
+  /** Sin nada que cobrar: se deja asentado el mensaje y se cierra, sin MP. */
+  const confirmarSinPago = async () => {
+    if (!sinPago || !notaSinPago.trim()) return
+    const { req } = sinPago
+    setCerrandoSinPago(true)
+    try {
+      const { error } = await mpService.cerrarEmergenciaSinPago(req.id, notaSinPago.trim())
+      if (error) {
+        toast.error(`No se pudo cerrar: ${error}`)
+        return
+      }
+      await emergencyService.updateStatus(req.id, 'completed')
+      await emergencyService.liberarAmbulancia(req.ambulancia?.id)
+      toast.success('Traslado terminado, sin cobro')
+      setSinPago(null)
+      cargar(entidad?.id)
+    } catch (err) {
+      toast.error(err?.message || 'Error al terminar el traslado')
+    } finally {
+      setCerrandoSinPago(false)
     }
   }
 
@@ -251,8 +291,11 @@ export default function DespachoCola({ profile }) {
               {enCurso.map(req => (
                 <div key={req.id} className="card space-y-3">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600">
-                      {ESTADO_EN_CURSO[req.status] || req.status}
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600">
+                        {ESTADO_EN_CURSO[req.status] || req.status}
+                      </span>
+                      <BadgeBonificada req={req} />
                     </span>
                     <p className="text-sm text-text-secondary">{req.ambulancia?.label || '—'} {req.ambulancia?.plate ? `· ${req.ambulancia.plate}` : ''}</p>
                   </div>
@@ -275,6 +318,46 @@ export default function DespachoCola({ profile }) {
           )}
         </div>
       </div>
+
+      <Modal open={!!sinPago} onClose={() => !cerrandoSinPago && setSinPago(null)} title="Terminar sin cobro">
+        {sinPago && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200" role="alert">
+              <Warning className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" weight="fill" />
+              <p className="text-sm text-text-primary">
+                <span className="font-semibold">Esta emergencia no tiene pago para cobrar.</span>{' '}
+                {sinPago.bonificada
+                  ? 'Está bonificada: se cierra sin cobrarle nada al paciente.'
+                  : 'No hay un monto reservado en la tarjeta del paciente.'}
+              </p>
+            </div>
+            <div>
+              <label htmlFor="nota-sin-pago" className="form-label">Mensaje de cierre</label>
+              <textarea
+                id="nota-sin-pago"
+                data-testid="nota-sin-pago"
+                className="form-textarea"
+                rows={3}
+                maxLength={1000}
+                value={notaSinPago}
+                onChange={e => setNotaSinPago(e.target.value)}
+                placeholder="Ej.: traslado hecho, emergencia bonificada"
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button className="btn-secondary" disabled={cerrandoSinPago} onClick={() => setSinPago(null)}>Volver</button>
+              <button
+                className="btn-primary"
+                data-testid="cerrar-sin-pago"
+                disabled={cerrandoSinPago || !notaSinPago.trim()}
+                onClick={confirmarSinPago}
+              >
+                {cerrandoSinPago ? 'Cerrando...' : 'Cerrar'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal open={!!modalReq} onClose={() => setModalReq(null)} title="Asignar móvil" size="lg">
         {modalReq && (

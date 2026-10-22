@@ -31,3 +31,24 @@ export function exentoEnServidor(p: {
   if (habilitada && p.cobrar === true) return false
   return p.paymentExempt === true || (habilitada && p.bonificar === true)
 }
+
+/**
+ * "Bonificar" del S.O.S. (Mateo, 2026-10-22) — la regla del servidor
+ * (`mp-payment`, rama `emergencyId`).
+ *
+ * Misma lista y mismo interruptor que Teleclínica, con una diferencia a
+ * propósito: acá `profiles.payment_exempt` NO bonifica solo. Hasta hoy el
+ * S.O.S. se cobraba a toda cuenta, exenta o no, y la pantalla de cualquier
+ * cuenta fuera de la lista sigue pidiendo tarjeta: si el servidor bonificara
+ * por el perfil, la pantalla diría "Reservar $X" y no se reservaría nada.
+ * Así, para cualquier otra cuenta `bonificar`/`cobrar` se ignoran y se cobra
+ * como siempre. Espejo: `sosBonificada` en `src/lib/bonificar.js` (web) y
+ * `src/lib/bonificar.ts` (app). Control: `node scripts/test-bonificar.mjs`.
+ */
+export function emergenciaBonificadaEnServidor(p: {
+  email: string | null | undefined
+  bonificar?: unknown
+  cobrar?: unknown
+}): boolean {
+  return exentoEnServidor({ paymentExempt: false, email: p.email, bonificar: p.bonificar, cobrar: p.cobrar })
+}
