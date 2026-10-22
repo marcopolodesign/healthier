@@ -26,7 +26,7 @@ import { esDeHoy } from '../../lib/consultaDraft'
 const NBSP = ' '
 const TZ = 'America/Argentina/Buenos_Aires'
 const numero = n => Number(n).toLocaleString('es-AR', { maximumFractionDigits: 1 })
-const HORA = new Intl.DateTimeFormat('es-AR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' })
+const HORA = new Intl.DateTimeFormat('es-AR', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 const DIA = new Intl.DateTimeFormat('es-AR', { timeZone: TZ, day: 'numeric', month: 'numeric' })
 const DIA_ANIO = new Intl.DateTimeFormat('es-AR', { timeZone: TZ, day: 'numeric', month: 'numeric', year: '2-digit' })
 const ANIO = new Intl.DateTimeFormat('es-AR', { timeZone: TZ, year: 'numeric' })
