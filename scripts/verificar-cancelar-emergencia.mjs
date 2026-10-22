@@ -19,6 +19,8 @@
  *      despachada (así nadie se saltea el cobro).
  *   F. RLS: el paciente SÍ puede seguir haciendo el triage (pending → awaiting_dispatch).
  *   G. `cancelled` es final: el despacho no puede revivirla en `dispatched`.
+ *   H. con móvil asignado, el paciente no libera la reserva con cancel-auth-emergency.
+ *   I. bonificada (210) con móvil → se cancela sin cargo.
  *
  * Al terminar borra lo que creó (emergencias y filas de `payments`).
  */
@@ -110,7 +112,8 @@ async function reservar(emergencyId, token) {
   const cardToken = await tokenDeTarjeta()
   const r = await llamar('mp-payment', {
     emergencyId, cardToken, paymentMethodId: process.env.MP_METHOD || 'master',
-    payerEmail: process.env.MP_PAYER_EMAIL || 'test_user_healthier@testuser.com',
+    // El sandbox contesta "Payer email forbidden" con el @testuser.com (2026-10-22).
+    payerEmail: process.env.MP_PAYER_EMAIL || 'comprador.prueba.healthier@gmail.com',
     payerDocType: 'DNI', payerDocNumber: '12345678',
   }, token)
   return r
@@ -231,6 +234,30 @@ async function main() {
     await admin.from('emergencies').update({ status: 'cancelled' }).eq('id', id)
     const { error: gErr } = await admin.from('emergencies').update({ status: 'dispatched' }).eq('id', id)
     ok(Boolean(gErr) && (await fila(id)).status === 'cancelled', 'G2. una cancelada no se puede volver a despachar', gErr?.message)
+  }
+
+  {
+    // H — con móvil asignado, el paciente no libera la reserva por la vía vieja
+    // (cancel-auth-emergency): se saltearía el cobro. Integración 2026-10-22.
+    const id = await crearEmergencia(userId)
+    await admin.from('emergencies').update({ status: 'awaiting_dispatch', paid_at: new Date().toISOString() }).eq('id', id)
+    await admin.from('emergencies').update({ status: 'dispatched' }).eq('id', id)
+    const { error } = await admin.from('payments').insert(filaPago(id, userId, { status: 'authorized', mp_payment_id: '999999999997' }))
+    if (error) throw error
+    const r = await llamar('mp-capture', { action: 'cancel-auth-emergency', emergencyId: id }, token)
+    const p = await pago(id)
+    ok(r.status === 409 && p?.status === 'authorized' && (await fila(id)).status === 'dispatched',
+      'H. el paciente NO libera la reserva con cancel-auth-emergency si hay móvil asignado', `${r.status} ${JSON.stringify(r.json)}`)
+  }
+  {
+    // I — S.O.S. bonificado (210: paid_at sin MP) con móvil: se cancela sin cargo.
+    const id = await crearEmergencia(userId)
+    await admin.from('emergencies').update({ status: 'awaiting_dispatch', paid_at: new Date().toISOString(), bonificada: true }).eq('id', id)
+    await admin.from('emergencies').update({ status: 'dispatched' }).eq('id', id)
+    const r = await llamar('mp-capture', { action: 'cancel-emergency', emergencyId: id }, token)
+    const f = await fila(id)
+    ok(r.status === 200 && r.json?.data?.cobrado === false && f.status === 'cancelled' && f.cancellation_charged === false,
+      'I. bonificada con móvil → cancela sin cargo', JSON.stringify(r.json))
   }
 
   // D — arrived → 409
