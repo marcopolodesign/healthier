@@ -218,6 +218,23 @@ try {
     debe(errTarde, 'cerrada, ya no se suben fotos', 'se subió una foto con la emergencia cerrada')
     if (!errTarde) subidas.push(`${em.id}/tarde.jpg`)
   }
+  bloque('Super admin: borrar sí, pero no una orden')
+  {
+    const sa = await comoUsuario('superadmin@healthier.app', 'superadmin')
+    const { error: errBorrarConOrden } = await sa.c.from('emergencies').delete().eq('id', em.id)
+    const { data: sigue } = await admin.from('emergencies').select('id').eq('id', em.id)
+    debe(errBorrarConOrden && sigue?.length, 'una emergencia con orden de traslado no se borra (ni la orden)', 'se pudo borrar una emergencia con su orden de traslado')
+    const { data: otra } = await admin.from('emergencies').insert({
+      patient_id: paciente.id, triage_code: 'VERDE', status: 'arrived', paid_at: new Date().toISOString(), price_at_request: 50,
+      patient_latitude: -34.6, patient_longitude: -58.38, provider_id: ENTIDAD, ambulance_id: MOVIL_2, professional_id: medico.id,
+      dispatched_at: new Date().toISOString(), dispatch_code: 'UTM-0214',
+    }).select('id').single()
+    const { data: cid } = await medico.c.rpc('iniciar_atencion_emergencia', { p_emergency_id: otra.id })
+    const { error: errBorrar } = await sa.c.from('emergencies').delete().eq('id', otra.id)
+    debe(!errBorrar, 'el super admin borra una emergencia con atención (sin orden)', `el super admin no pudo borrar: ${errBorrar?.message}`)
+    if (errBorrar) await admin.from('emergencies').delete().eq('id', otra.id)
+    if (cid) await admin.from('consultations').delete().eq('id', cid)
+  }
 } finally {
   bloque('Limpieza')
   await admin.from('emergency_transfer_orders').delete().eq('emergency_id', em.id)
