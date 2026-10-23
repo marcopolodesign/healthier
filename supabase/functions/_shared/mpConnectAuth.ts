@@ -42,3 +42,14 @@ export function isBrowserNavigation(req: Request): boolean {
   if (req.headers.get("sec-fetch-mode") === "navigate") return true;
   return (req.headers.get("accept") ?? "").includes("text/html");
 }
+
+/** URL de consentimiento de Mercado Pago con el `state` ya firmado. */
+export function buildMpAuthUrl(clientId: string, redirectUri: string, state: string): string {
+  const authUrl = new URL("https://auth.mercadopago.com/authorization");
+  authUrl.searchParams.set("client_id", clientId);
+  authUrl.searchParams.set("response_type", "code");
+  authUrl.searchParams.set("platform_id", "mp");
+  authUrl.searchParams.set("redirect_uri", redirectUri);
+  authUrl.searchParams.set("state", state); // vuelve en el callback, que verifica firma y vencimiento
+  return authUrl.toString();
+}

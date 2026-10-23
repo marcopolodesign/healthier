@@ -5,15 +5,7 @@ import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import { pharmacyAdminService } from '../../services/pharmacyAdminService'
 import { toast } from '../../components/Toast'
 import { useConectarMp } from '../../hooks/useConectarMp'
-
-// Vuelta del OAuth de Mercado Pago (pharmacy-mp-connect redirige acá con ?mp_connected=1 / ?mp_error=...).
-const MP_ERROR_MESSAGES = {
-  token_exchange: 'No pudimos completar la conexión con Mercado Pago. Probá de nuevo en unos minutos.',
-  db_save: 'La autorización salió bien pero no pudimos guardarla. Probá conectar de nuevo.',
-  invalid_state: 'No pudimos validar la conexión por seguridad. Iniciá el proceso de nuevo desde este botón.',
-  state_expired: 'La autorización de Mercado Pago venció. Volvé a tocar Conectar.',
-  reintentar: 'Actualizamos cómo se conecta Mercado Pago. Volvé a tocar Conectar.',
-}
+import { mensajeErrorMp } from '../../lib/mpErrores'
 
 export default function PharmacyConfiguracion({ profile }) {
   const [pharmacy, setPharmacy] = useState(null)
@@ -31,7 +23,7 @@ export default function PharmacyConfiguracion({ profile }) {
     const mpError = searchParams.get('mp_error')
     if (!connected && !mpError) return
     if (connected === '1') toast.success('Mercado Pago conectado')
-    if (mpError) toast.error(MP_ERROR_MESSAGES[mpError] ?? 'No pudimos conectar Mercado Pago. Probá de nuevo.')
+    if (mpError) toast.error(mensajeErrorMp(mpError))
     setSearchParams({}, { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -49,7 +41,7 @@ export default function PharmacyConfiguracion({ profile }) {
     setDisconnecting(true)
     const { error } = await pharmacyAdminService.disconnectMp()
     setDisconnecting(false)
-    if (error) return toast.error('Error al desconectar')
+    if (error) return toast.error(`No pudimos desconectar Mercado Pago: ${error}`)
     toast.success('Mercado Pago desconectado')
     setMpStatus({ connected: false })
   }

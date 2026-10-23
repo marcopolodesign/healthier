@@ -9,7 +9,7 @@ import { toast } from '../components/Toast'
  *
  * Dentro de la app, el WebView manda auth.mercadopago.com al browser del
  * sistema y la página se queda donde estaba: por eso `conectando` se libera
- * solo a los pocos segundos en vez de quedar trabado.
+ * solo a los 10 segundos en vez de quedar trabado.
  */
 export function useConectarMp(getUrl) {
   const [conectando, setConectando] = useState(false)
@@ -29,7 +29,7 @@ export function useConectarMp(getUrl) {
       return
     }
     window.location.assign(url)
-    setTimeout(liberar, 4000)
+    setTimeout(liberar, 10000)
   }, [getUrl])
 
   return { conectar, conectando }
