@@ -152,6 +152,10 @@ Deno.serve(async (req: Request) => {
         sisa_verified_at: now,
         ...(marcarVerificado ? {
           is_verified:         true,
+          // Verificado y no activo = invisible para los pacientes (search, mapa,
+          // reserva). `approve()` manual pone los dos; acá faltaba y los 13
+          // verificados por REFEPS entre el 16 y el 22/10 no se podían reservar.
+          is_active:           true,
           verification_source: 'sisa',
           verified_at:         now,
           verified_by:         user.id,
