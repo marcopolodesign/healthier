@@ -3,7 +3,7 @@
  * mp-connect (profesional) y pharmacy-mp-connect (farmacia).
  *
  * Formato v2: `v2.<entityId>.<exp>.<sig>`
- *   · exp   — vencimiento en segundos UNIX (corto: ver OAUTH_STATE_TTL_SECONDS).
+ *   · exp   — vencimiento en segundos UNIX (ver OAUTH_STATE_TTL_SECONDS).
  *   · sig   — primeros 32 hex de HMAC-SHA256(`<purpose>|<entityId>|<exp>`, secret).
  *   · purpose separa los dos flujos: un state del profesional no sirve en el
  *     callback de la farmacia ni al revés.
@@ -14,11 +14,15 @@
  * se firmaba cualquier id que llegara por query string, sin sesión: cualquiera
  * podía vincular SU cuenta de MP al perfil de otro y quedarse con los cobros.
  *
- * El formato viejo (`<id>.<hmac16>`, sin vencimiento) ya no se acepta.
+ * El formato viejo (`<id>.<hmac16>`, sin vencimiento) ya no se acepta (se informa como vencido).
  */
 
-/** Cuánto vive un state: lo que tarda alguien en loguearse en MP y aceptar. */
-export const OAUTH_STATE_TTL_SECONDS = 15 * 60;
+/**
+ * Cuánto vive un state: lo que tarda alguien en loguearse en MP y aceptar —
+ * incluido quien tiene que crearse la cuenta o validar identidad en el medio.
+ * Sólo importa si el state de la víctima se filtra; una hora alcanza y sobra.
+ */
+export const OAUTH_STATE_TTL_SECONDS = 60 * 60;
 
 export type OAuthPurpose = "mp-connect" | "pharmacy-mp-connect";
 
@@ -69,6 +73,10 @@ export async function verifyOAuthState(
 ): Promise<OAuthStateCheck> {
   if (!secret) return { ok: false, reason: "invalid" };
   const parts = state.split(".");
+  // Formato v1 (`<id>.<hmac16>`): un OAuth que arrancó antes del cambio. No se
+  // acepta, pero se informa como vencido ("volvé a tocar Conectar"), no como
+  // un problema de seguridad.
+  if (parts.length === 2) return { ok: false, reason: "expired" };
   if (parts.length !== 4 || parts[0] !== "v2") return { ok: false, reason: "invalid" };
   const [, entityId, expStr, receivedSig] = parts;
   const exp = Number(expStr);

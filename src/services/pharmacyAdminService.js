@@ -153,7 +153,9 @@ export const pharmacyAdminService = {
 
   async disconnectMp() {
     try {
-      await callEdgeFunction('pharmacy-mp-connect', { action: 'disconnect' })
+      // pharmacyId lo ignora la función nueva (resuelve la farmacia del lado del servidor); va igual
+      // para que el desconectar siga andando contra la versión vieja durante el pase.
+      await callEdgeFunction('pharmacy-mp-connect', { action: 'disconnect', pharmacyId: PHARMACY_ID })
       return { data: true, error: null }
     } catch (err) {
       return { data: null, error: err.message }

@@ -6,7 +6,7 @@
  *   Devuelve `{ data: { url }, error: null }` con la URL de autorización de MP;
  *   el front navega a ella. El `state` se arma con el `user.id` del JWT —
  *   cualquier professionalId que venga en la URL o el body se IGNORA— y vence
- *   a los 15 minutos (ver _shared/oauthState.ts).
+ *   a la hora (ver _shared/oauthState.ts).
  *   Sin sesión válida: 401 (o, si es una navegación del browser de un cliente
  *   viejo, redirect a /profesional/dashboard?mp_error=reintentar). Nunca OAuth.
  *
@@ -34,6 +34,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { encryptToken } from "../_shared/tokenCrypto.ts";
 import { buildOAuthState, verifyOAuthState } from "../_shared/oauthState.ts";
 import {
+  buildMpAuthUrl,
   corsHeaders,
   isBrowserNavigation,
   json,
@@ -81,13 +82,15 @@ serve(async (req: Request) => {
 
     // ─── 1. Authorize (exige la sesión del profesional) ─────────────────────
     if (action === "authorize") {
+      // Una navegación (link viejo) que no pasa los chequeos vuelve a la app con
+      // un aviso en vez de ver un JSON crudo. Nunca llega a Mercado Pago.
+      const rechazar = (status: number, error: string) =>
+        isBrowserNavigation(req)
+          ? Response.redirect(`${APP_URL}/profesional/dashboard?mp_error=reintentar`, 302)
+          : json({ error }, status);
+
       const user = await userFromRequest(req);
-      if (!user) {
-        if (isBrowserNavigation(req)) {
-          return Response.redirect(`${APP_URL}/profesional/dashboard?mp_error=reintentar`, 302);
-        }
-        return json({ error: "Unauthorized: iniciá sesión y volvé a tocar Conectar" }, 401);
-      }
+      if (!user) return rechazar(401, "Unauthorized: iniciá sesión y volvé a tocar Conectar");
 
       const { data: pro, error: proErr } = await serviceClient()
         .from("professional_profiles")
@@ -95,18 +98,10 @@ serve(async (req: Request) => {
         .eq("user_id", user.id)
         .maybeSingle();
       if (proErr) throw proErr;
-      if (!pro) return json({ error: "Forbidden: sólo un profesional puede conectar su Mercado Pago" }, 403);
+      if (!pro) return rechazar(403, "Forbidden: sólo un profesional puede conectar su Mercado Pago");
 
       const state = await buildOAuthState("mp-connect", user.id, MP_WEBHOOK_SECRET);
-
-      const authUrl = new URL("https://auth.mercadopago.com/authorization");
-      authUrl.searchParams.set("client_id", MP_CLIENT_ID);
-      authUrl.searchParams.set("response_type", "code");
-      authUrl.searchParams.set("platform_id", "mp");
-      authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
-      authUrl.searchParams.set("state", state); // carried back in callback, HMAC-verified there
-
-      return json({ data: { url: authUrl.toString() }, error: null });
+      return json({ data: { url: buildMpAuthUrl(MP_CLIENT_ID, REDIRECT_URI, state) }, error: null });
     }
 
     // ─── Disconnect (POST, dueño del JWT) ───────────────────────────────────

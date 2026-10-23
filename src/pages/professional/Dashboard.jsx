@@ -28,6 +28,7 @@ import Modal from '../../components/Modal'
 import { useWaitingPresence } from '../../hooks/useWaitingPresence'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { useConectarMp } from '../../hooks/useConectarMp'
+import { mensajeErrorMp } from '../../lib/mpErrores'
 import { toast } from '../../components/Toast'
 import DerivadoChip from '../../components/professional/DerivadoChip'
 import { useNavigate } from 'react-router-dom'
@@ -148,15 +149,6 @@ function getThisMonthEarnings(earningsData) {
   }))
 }
 
-const MP_ERROR_MESSAGES = {
-  token_exchange: 'No pudimos completar la conexión con Mercado Pago. Probá de nuevo en unos minutos.',
-  db_save: 'La autorización salió bien pero no pudimos guardarla. Probá conectar de nuevo.',
-  invalid_state: 'No pudimos validar la conexión por seguridad. Iniciá el proceso de nuevo desde este botón.',
-  state_expired: 'La autorización de Mercado Pago venció. Volvé a tocar Conectar.',
-  // Un link viejo (pestaña abierta de antes del cambio del 2026-10-23) llegó sin sesión.
-  reintentar: 'Actualizamos cómo se conecta Mercado Pago. Volvé a tocar Conectar.',
-}
-
 const ASK_ONDEMAND_KEY = 'prof-ask-ondemand'
 
 export default function ProfessionalDashboard({ profile }) {
@@ -194,7 +186,7 @@ export default function ProfessionalDashboard({ profile }) {
     const mpError = searchParams.get('mp_error')
     if (!connected && !mpError) return
     if (connected === '1') setShowMpConnectedModal(true)
-    if (mpError) toast.error(MP_ERROR_MESSAGES[mpError] ?? 'No pudimos conectar Mercado Pago. Probá de nuevo.')
+    if (mpError) toast.error(mensajeErrorMp(mpError))
     navigate('/profesional/dashboard', { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -837,9 +829,9 @@ export default function ProfessionalDashboard({ profile }) {
       {!loading && mpStatus && !mpStatus.connected && (
         <a
           href="#"
-            role="button"
-            onClick={conectarMp}
-            aria-busy={conectandoMp}
+          role="button"
+          onClick={conectarMp}
+          aria-busy={conectandoMp}
           data-tour="pro-mp"
           className="card flex items-center gap-4 border-red-300 bg-red-50 hover:border-red-400 transition-colors group aria-busy:opacity-60"
         >
