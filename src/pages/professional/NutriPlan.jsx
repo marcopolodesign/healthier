@@ -21,7 +21,7 @@ import {
   computeConsumedFood,
   computeTotals,
   buildPatientMealsData,
-  searchFatSecret,
+  searchAlimentosExternos,
   toLocalDateString,
   parseLocalDate,
   savePlan,
@@ -584,7 +584,7 @@ function TabDieta({ consumedFoods, addFood, removeFood, totals, results,
           ))}
         </div>
 
-        {/* FatSecret online search */}
+        {/* Búsqueda externa (Open Food Facts) */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => onFsSearch(search)}
@@ -593,7 +593,7 @@ function TabDieta({ consumedFoods, addFood, removeFood, totals, results,
             style={{ borderColor: SAGE, color: SAGE }}
           >
             <Globe className="h-4 w-4" />
-            {fsLoading ? 'Buscando...' : 'Buscar en FatSecret'}
+            {fsLoading ? 'Buscando...' : 'Buscar en la base online'}
           </button>
           {fsError && (
             <span className="text-xs text-red-500 flex items-center gap-1">
@@ -603,15 +603,15 @@ function TabDieta({ consumedFoods, addFood, removeFood, totals, results,
           )}
         </div>
 
-        {/* FatSecret results */}
+        {/* Resultados externos */}
         {fsSearched && fsResults.length === 0 && !fsLoading && (
-          <p className="text-sm text-gray-400 text-center py-2">Sin resultados en FatSecret para "{search}"</p>
+          <p className="text-sm text-gray-400 text-center py-2">Sin resultados en la base online para "{search}"</p>
         )}
         {fsResults.length > 0 && (
           <div>
             <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
               <Globe className="h-3 w-3" />
-              FatSecret — {fsResults.length} resultados
+              Base online — {fsResults.length} resultados · datos de Open Food Facts
             </p>
             <div className="divide-y divide-gray-50 max-h-48 overflow-y-auto">
               {fsResults.map(food => (
@@ -624,7 +624,7 @@ function TabDieta({ consumedFoods, addFood, removeFood, totals, results,
                     <p className="text-sm font-medium text-gray-800 truncate">{food.name}</p>
                     {food.brand && <p className="text-xs text-gray-400">{food.brand}</p>}
                     <p className="text-xs text-gray-400">
-                      {food.calories} kcal · P:{food.protein}g HC:{food.carbs}g G:{food.fat}g
+                      {food.calories} kcal/100g · P:{food.protein}g HC:{food.carbs}g G:{food.fat}g
                     </p>
                   </div>
                   <Plus className="h-4 w-4 shrink-0 text-gray-300 group-hover:text-sage transition-colors ml-2" style={{ color: SAGE }} />
@@ -665,7 +665,7 @@ function TabDieta({ consumedFoods, addFood, removeFood, totals, results,
         )}
         {localFiltered.length === 0 && search && (
           <p className="text-sm text-gray-400 text-center py-3">
-            Sin resultados locales para "{search}". Probá FatSecret.
+            Sin resultados locales para "{search}". Probá en la base online.
           </p>
         )}
       </div>
@@ -1127,7 +1127,7 @@ export default function NutriPlan({ profile }) {
   const [search, setSearch] = useState('')
   const [selectedCat, setSelectedCat] = useState('')
 
-  // FatSecret
+  // Búsqueda externa (Open Food Facts)
   const [fsResults, setFsResults] = useState([])
   const [fsLoading, setFsLoading] = useState(false)
   const [fsError, setFsError] = useState(false)
@@ -1436,8 +1436,6 @@ export default function NutriPlan({ profile }) {
   // profesional qué pasó y qué le queda, en vez de un "falló la búsqueda" que no
   // le sirve para decidir si esperar o cargar el alimento a mano.
   const MOTIVO_BUSQUEDA = {
-    ip_no_habilitada: 'La búsqueda externa de alimentos está pendiente de habilitación. Mientras tanto, buscá en el vademécum local o cargá el alimento a mano.',
-    no_configurado:   'La búsqueda externa de alimentos todavía no está configurada. Usá el vademécum local o cargá el alimento a mano.',
     error_proveedor:  'La búsqueda externa no respondió. Probá de nuevo, o buscá en el vademécum local.',
   }
 
@@ -1447,7 +1445,7 @@ export default function NutriPlan({ profile }) {
     setFsError(false)
     setFsSearched(false)
     try {
-      const { results, motivo } = await searchFatSecret(query)
+      const { results, motivo } = await searchAlimentosExternos(query)
       setFsResults(results)
       setFsSearched(true)
       if (motivo) {
