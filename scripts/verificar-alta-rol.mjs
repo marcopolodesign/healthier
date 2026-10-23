@@ -231,6 +231,12 @@ begin
       perform set_config('request.jwt.claims', json_build_object('sub', v_super, 'role', 'authenticated')::text, true);
       execute 'set local role authenticated';
       perform promote_user_to_admin('sa-' || v_sa || '@alta-rol.test', 'pharmacy_admin');
+      begin
+        perform promote_user_to_admin('nadie-' || v_sa || '@alta-rol.test', 'admin');
+        r := r || '{"promueve_inexistente":"NO AVISÓ"}';
+      exception when no_data_found then
+        r := r || '{"promueve_inexistente":"avisa"}';
+      end;
       update profiles set payment_exempt = true where id = v_app;
       execute 'reset role';
       r := r || jsonb_build_object('super_admin', jsonb_build_object(
@@ -294,6 +300,7 @@ async function parteBase() {
   if (typeof r.super_admin === 'string') ok(`(${r.super_admin})`)
   else esperar(r.super_admin?.promueve === 'pharmacy_admin' && r.super_admin?.bonifica === true,
     'super admin promueve y bonifica', `super admin: ${JSON.stringify(r.super_admin)}`)
+  if (typeof r.super_admin !== 'string') esperar(r.promueve_inexistente === 'avisa', 'promover un mail sin cuenta: avisa', `promover un mail sin cuenta: ${r.promueve_inexistente}`)
   esperar(r.service_role?.rol === 'emergency_operator' && r.service_role?.exento === false,
     'service role cambia rol y bonificación', `service role: ${JSON.stringify(r.service_role)}`)
 }
@@ -363,13 +370,25 @@ async function parteApi() {
       if (j.id) creados.push(j.id)
       return j
     }
-    const leerPerfil = async (id) => (await (await fetch(`${url}/rest/v1/profiles?id=eq.${id}&select=role,mail_bienvenida_enviado_at`, { headers: adminH })).json())[0]
+    const leerPerfil = async (id) => (await (await fetch(`${url}/rest/v1/profiles?id=eq.${id}&select=role,mail_bienvenida_enviado_at,requiere_onboarding`, { headers: adminH })).json())[0]
     const farm = await crearAdmin(`api-farm-${sello}@alta-rol.test`, { app_metadata: { role: 'pharmacy_admin' }, user_metadata: { full_name: 'API Farmacia' } })
     const pFarm = farm.id ? await leerPerfil(farm.id) : null
     esperar(pFarm?.role === 'pharmacy_admin' && pFarm?.mail_bienvenida_enviado_at, 'Admin API con app_metadata.role → farmacia, sin mail de bienvenida', `Admin API app_metadata → ${JSON.stringify(pFarm ?? farm)}`)
     const viejo = await crearAdmin(`api-viejo-${sello}@alta-rol.test`, { user_metadata: { role: 'emergency_admin', full_name: 'API Viejo' } })
     const pViejo = viejo.id ? await leerPerfil(viejo.id) : null
-    esperar(pViejo?.role === 'patient' && pViejo?.mail_bienvenida_enviado_at, 'Admin API con rol en user_metadata (seeds viejos) → paciente sin bienvenida, el rol lo pone el upsert', `Admin API user_metadata → ${JSON.stringify(pViejo ?? viejo)}`)
+    esperar(pViejo?.role === 'patient' && pViejo?.mail_bienvenida_enviado_at && pViejo?.requiere_onboarding === false, 'Admin API con rol en user_metadata (seeds viejos) → paciente sin bienvenida, el rol lo pone el upsert', `Admin API user_metadata → ${JSON.stringify(pViejo ?? viejo)}`)
+
+    // register() de la web: signUp + upsert del perfil con el mail como lo tipeó la persona
+    const mayus = `Api-Mayus-${sello}@Alta-Rol.test`
+    const may = await signUp(mayus, { role: 'patient', first_name: 'API', last_name: 'Mayus' })
+    if (may.token) {
+      const up = await fetch(`${url}/rest/v1/profiles?on_conflict=id`, {
+        method: 'POST',
+        headers: { apikey: anon, Authorization: `Bearer ${may.token}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ id: may.id, email: mayus, role: 'patient', first_name: 'API', last_name: 'Mayus', utm_source: 'prueba' }),
+      })
+      esperar(up.ok, 'alta con mayúsculas en el mail + upsert de register(): anda', `upsert con mayúsculas → ${up.status} ${await up.text()}`)
+    }
 
     const sinRol = await signUp(`api-sinrol-${sello}@alta-rol.test`, { full_name: 'API sin rol' })
     if (sinRol.token) {
