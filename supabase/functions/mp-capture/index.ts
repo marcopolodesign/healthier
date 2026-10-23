@@ -491,11 +491,20 @@ async function cancelarEmergencia(
         // Otro movió el estado mientras se capturaba. Se dice lo que pasó de
         // verdad, y si la canceló el despacho, la marca de cobro refleja la
         // captura que ya se hizo.
-        const { data: ahora } = await supabase
+        const { data: ahora, error: aErr } = await supabase
           .from("emergencies").select("status").eq("id", emergencyId).maybeSingle();
+        if (aErr) {
+          console.error(`mp-capture (cancel-emergency): ${emergencyId} capturada=${cobrada}, no se pudo releer el estado:`, aErr.message);
+          return { status: 500, data: null, error: "No pudimos cancelar la emergencia. Llamá a despacho." };
+        }
         if (ahora?.status === "cancelled") {
           if (cobrada) {
-            await supabase.from("emergencies").update({ cancellation_charged: true }).eq("id", emergencyId);
+            const { error: mErr } = await supabase
+              .from("emergencies").update({ cancellation_charged: true }).eq("id", emergencyId);
+            if (mErr) {
+              console.error(`mp-capture (cancel-emergency): ${emergencyId} capturada=true, cancelada por el despacho, no se pudo marcar cobrada:`, mErr.message);
+              return { status: 500, data: null, error: "Se cobró el servicio pero no pudimos registrarlo. Llamá a despacho." };
+            }
           }
           return { status: 200, data: cobrada ? { cobrado: true, monto } : { cobrado: false }, error: null };
         }
