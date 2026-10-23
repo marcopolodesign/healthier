@@ -122,7 +122,9 @@ async function leerClinico(sb: SupabaseClient, consultationId: string) {
   // electrónica se lista como receta (con su PDF) y NO se repite en
   // indicaciones. Repetirlo hace que el paciente crea que son dos cosas.
   const emitidas = (meds ?? []).filter((m: Record<string, string | null>) => m.rcta_status === 'issued')
-  const otras = (meds ?? []).filter((m: Record<string, string | null>) => m.rcta_status !== 'issued')
+  // Una receta anulada (migración 216) no es una indicación: el profesional la
+  // dio de baja. Listarla le diría al paciente que la tome.
+  const otras = (meds ?? []).filter((m: Record<string, string | null>) => m.rcta_status !== 'issued' && m.rcta_status !== 'anulada')
 
   const indicaciones: T.Indicacion[] = otras.map((m: Record<string, string | null>) => ({
     titulo: m.medication_name || m.nombre_droga || 'Indicación',
