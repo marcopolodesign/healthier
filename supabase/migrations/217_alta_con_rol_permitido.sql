@@ -30,7 +30,10 @@
 --   · el service role: un `profiles.upsert` con la service key (lo que ya hacen
 --     seed-despacho / seed-staging) o, al crear la cuenta por Admin API,
 --     `app_metadata: { role: '<rol>' }` — el usuario no puede escribir su
---     `app_metadata`, sólo su `user_metadata`.
+--     `app_metadata`, sólo su `user_metadata`. Ojo: GoTrue inserta el usuario
+--     con `app_metadata` = {provider, providers} y le escribe el resto DESPUÉS,
+--     en la misma transacción; por eso el rol de `app_metadata` lo aplica un
+--     trigger de UPDATE (sección 1b), no el del alta. Probado contra staging.
 --
 -- "Desde el cliente" = la sentencia la corre el rol `authenticated`/`anon` de
 -- PostgREST. Los triggers nuevos son SECURITY INVOKER a propósito: así
@@ -43,7 +46,8 @@
 -- la fila ya exista. Si ahí se pisara `is_verified` con false, el ON CONFLICT
 -- DO UPDATE lo copiaría y un profesional verificado se des-verificaría al
 -- guardar su configuración. Por eso el control del INSERT sólo actúa cuando la
--- fila NO existe; si existe, lo cuidan los controles del UPDATE.
+-- fila NO existe; si existe, la fila pasa al ON CONFLICT DO UPDATE y la cuidan
+-- los controles del UPDATE (094 y los de las secciones 2 y 3 de acá).
 -- ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -55,35 +59,41 @@ security definer
 set search_path = public
 as $$
 declare
-  -- `app_metadata` sólo lo escribe el service role (Admin API). Lo que manda el
-  -- cliente en el signUp cae en `user_metadata`.
+  -- `app_metadata` sólo lo escribe el service role. En un alta por GoTrue llega
+  -- vacío de rol (ver cabecera); sólo trae rol en un INSERT directo por SQL.
   v_rol_servidor text := nullif(trim(coalesce(new.raw_app_meta_data->>'role', '')), '');
   v_rol_cliente  text := nullif(trim(coalesce(new.raw_user_meta_data->>'role', '')), '');
   v_rol          text;
+  v_sin_bienvenida boolean := false;
 begin
   if v_rol_servidor is null and v_rol_cliente is null then
     return new;  -- Google u otro OAuth: el rol lo elige después. Ver la migración 095.
   end if;
 
-  if v_rol_servidor in ('patient', 'professional', 'admin', 'super_admin',
-                        'pharmacy_admin', 'pharmacy_operator', 'pharmacy_readonly',
-                        'emergency_admin', 'emergency_operator', 'emergency_crew') then
-    v_rol := v_rol_servidor;
+  if v_rol_servidor is not null then
+    v_rol := public.rol_de_servidor_valido(v_rol_servidor);
   elsif v_rol_cliente in ('patient', 'professional') then
     v_rol := v_rol_cliente;
+  elsif v_rol_cliente = 'paciente' then
+    v_rol := 'patient';            -- la app lo manda en castellano
   else
-    -- Cualquier otra cosa ('super_admin', 'paciente' de la app, basura): paciente.
+    -- Pidió un rol que el alta no da ('super_admin', 'pharmacy_admin', …). Queda
+    -- paciente, y sin el mail de bienvenida: o es alguien probando la API, o es
+    -- una cuenta de staff creada por Admin API a la que el service role le pone
+    -- el rol enseguida (seed-despacho) — a ninguno de los dos le corresponde.
     v_rol := 'patient';
+    v_sin_bienvenida := true;
   end if;
 
-  insert into public.profiles (id, email, full_name, first_name, last_name, role)
+  insert into public.profiles (id, email, full_name, first_name, last_name, role, mail_bienvenida_enviado_at)
   values (
     new.id,
     new.email,
     nullif(trim(coalesce(new.raw_user_meta_data->>'full_name', '')), ''),
     nullif(trim(coalesce(new.raw_user_meta_data->>'first_name', '')), ''),
     nullif(trim(coalesce(new.raw_user_meta_data->>'last_name', '')), ''),
-    v_rol
+    v_rol,
+    case when v_sin_bienvenida then now() end
   )
   on conflict (id) do nothing;
 
@@ -92,10 +102,86 @@ end;
 $$;
 
 comment on function public.crear_perfil_al_registrarse() is
-  'Alta: crea profiles desde auth.users. Del user_metadata (lo manda el cliente) sólo acepta patient/professional; cualquier otro valor queda patient. Un rol alto viene sólo de app_metadata.role (Admin API / service role). Migración 217.';
+  'Alta: crea profiles desde auth.users. Del user_metadata (lo manda el cliente) sólo acepta patient/professional (y ''paciente'' de la app); cualquier otro valor queda patient y sin mail de bienvenida. Un rol alto viene sólo de app_metadata.role (service role), que aplica sincronizar_rol_de_servidor. Migración 217.';
+
+-- Un rol de app_metadata mal escrito ('emergency_crw') no puede degradarse en
+-- silencio a paciente: corta la creación de la cuenta con el error a la vista.
+create or replace function public.rol_de_servidor_valido(p_rol text)
+returns text
+language plpgsql
+immutable
+set search_path = public
+as $$
+begin
+  if p_rol not in ('patient', 'professional', 'admin', 'super_admin',
+                   'pharmacy_admin', 'pharmacy_operator', 'pharmacy_readonly',
+                   'emergency_admin', 'emergency_operator', 'emergency_crew') then
+    raise exception 'app_metadata.role inválido: %', p_rol using errcode = 'check_violation';
+  end if;
+  return p_rol;
+end;
+$$;
+
+
+-- ── 1b. El rol que pone el service role en app_metadata ──────────────────────
+create or replace function public.sincronizar_rol_de_servidor()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_rol text := nullif(trim(coalesce(new.raw_app_meta_data->>'role', '')), '');
+begin
+  if v_rol is null then
+    return new;
+  end if;
+  v_rol := public.rol_de_servidor_valido(v_rol);
+
+  insert into public.profiles (id, email, full_name, first_name, last_name, role, mail_bienvenida_enviado_at)
+  values (
+    new.id,
+    new.email,
+    nullif(trim(coalesce(new.raw_user_meta_data->>'full_name', '')), ''),
+    nullif(trim(coalesce(new.raw_user_meta_data->>'first_name', '')), ''),
+    nullif(trim(coalesce(new.raw_user_meta_data->>'last_name', '')), ''),
+    v_rol,
+    case when v_rol <> 'patient' then now() end
+  )
+  on conflict (id) do update set role = excluded.role;
+
+  return new;
+end;
+$$;
+
+comment on function public.sincronizar_rol_de_servidor() is
+  'Cuando el service role escribe app_metadata.role (Admin API createUser/updateUserById), lo lleva a profiles.role. El usuario no puede escribir su app_metadata. Migración 217.';
+
+drop trigger if exists sincronizar_rol_de_servidor on auth.users;
+create trigger sincronizar_rol_de_servidor
+  after update of raw_app_meta_data on auth.users
+  for each row
+  when ((new.raw_app_meta_data->>'role') is distinct from (old.raw_app_meta_data->>'role'))
+  execute function public.sincronizar_rol_de_servidor();
 
 
 -- ── 2. profiles: lo que el cliente no escribe ────────────────────────────────
+-- El trigger de abajo es SECURITY INVOKER (necesita el current_user real), y
+-- `authenticated` no puede leer auth.users: este helper le da el email de la
+-- cuenta sin depender de que el JWT traiga el claim.
+create or replace function public.email_de_mi_cuenta()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select email from auth.users where id = auth.uid();
+$$;
+
+revoke all on function public.email_de_mi_cuenta() from public, anon;
+grant execute on function public.email_de_mi_cuenta() to authenticated;
+
 create or replace function public.blindar_perfil_desde_el_cliente()
 returns trigger
 language plpgsql
@@ -119,6 +205,9 @@ begin
         using errcode = '42501';
     end if;
 
+    -- El email es el de la cuenta, no el que mande el cliente: promote_user_to_admin
+    -- busca por email y la 094 ya lo trata como campo sensible (sólo en el UPDATE).
+    new.email := public.email_de_mi_cuenta();
     new.payment_exempt := false;
     new.titular_id := null;               -- los familiares los crea _crear_cuenta_familiar
     new.requiere_onboarding := null;      -- lo decide marcar_paciente_nuevo
@@ -134,8 +223,11 @@ begin
 
   -- UPDATE. El rol y el email los cuida impedir_autoascenso_de_rol (094).
   -- Estos dos no tiran error, se conservan: un cliente que reenvía el perfil
-  -- entero no tiene que romper el "guardar".
-  if coalesce(public.get_my_role(), '') <> 'super_admin' then
+  -- entero no tiene que romper el "guardar". Sólo el super admin, igual que
+  -- es_prueba / ve_ambos_mundos (profiles_marca_de_prueba).
+  if (new.payment_exempt is distinct from old.payment_exempt
+      or new.titular_id is distinct from old.titular_id)
+     and coalesce(public.get_my_role(), '') <> 'super_admin' then
     new.payment_exempt := old.payment_exempt;
     new.titular_id := old.titular_id;
   end if;
@@ -173,6 +265,25 @@ begin
       using errcode = '42501';
   end if;
 
+  if tg_op = 'UPDATE' then
+    -- Lo que escriben sólo Healthier, sisa-verify o mp-connect. Se conserva sin
+    -- error (Configuración reenvía el legajo entero). is_verified/is_active los
+    -- cuida bloquear_autoverificacion; el rechazo lo limpia el propio
+    -- profesional al reenviar el legajo, así que ése no se congela.
+    new.mp_connected := old.mp_connected;
+    new.mp_account_label := old.mp_account_label;
+    new.average_rating := old.average_rating;
+    new.total_reviews := old.total_reviews;
+    new.verification_source := old.verification_source;
+    new.verified_at := old.verified_at;
+    new.verified_by := old.verified_by;
+    new.sisa_status := old.sisa_status;
+    new.sisa_matricula := old.sisa_matricula;
+    new.sisa_raw := old.sisa_raw;
+    new.sisa_verified_at := old.sisa_verified_at;
+    return new;
+  end if;
+
   -- Upsert sobre un legajo que ya existe: decide el UPDATE (ver cabecera).
   if exists (select 1 from public.professional_profiles where user_id = new.user_id) then
     return new;
@@ -184,6 +295,7 @@ begin
   new.verified_by := null;
   new.verification_source := null;
   new.sisa_status := null;
+  new.sisa_matricula := null;
   new.sisa_raw := null;
   new.sisa_verified_at := null;
   new.rejection_reason := null;
@@ -213,10 +325,47 @@ end;
 $$;
 
 comment on function public.legajo_nace_sin_verificar() is
-  'professional_profiles, escrito por authenticated/anon: un legajo nuevo arranca sin verificar, sin rating, sin MP y sin estados del ministerio; el legajo no se borra desde la app (borrar y re-insertar salteaba la verificación y el rechazo permanente). Admin/super admin y service role pasan. Migración 217.';
+  'professional_profiles, escrito por authenticated/anon: un legajo nuevo arranca sin verificar, sin rating, sin MP y sin estados del ministerio; en el UPDATE MP, rating, verificación y SISA se conservan; el legajo no se borra desde la app (borrar y re-insertar salteaba la verificación y el rechazo permanente). Admin/super admin y service role pasan. Migración 217.';
 
 drop trigger if exists legajo_nace_sin_verificar on public.professional_profiles;
 create trigger legajo_nace_sin_verificar
-  before insert or delete on public.professional_profiles
+  before insert or update or delete on public.professional_profiles
   for each row
   execute function public.legajo_nace_sin_verificar();
+
+
+-- ── 4. promote_user_to_admin: promueve LA cuenta de ese mail, no todo perfil ──
+-- que diga ese mail. `profiles.email` no es único (los familiares llevan el
+-- contacto del titular), así que el UPDATE por email promovía también a los
+-- familiares. Se resuelve por auth.users, que sí es único, y si no existe la
+-- cuenta se avisa en vez de no hacer nada en silencio.
+create or replace function public.promote_user_to_admin(target_email text, new_role text default 'admin'::text)
+returns void
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  v_id uuid;
+begin
+  if not exists (
+    select 1 from profiles where id = auth.uid() and role = 'super_admin'
+  ) then
+    raise exception 'only super_admin can promote';
+  end if;
+  if new_role not in (
+    'admin', 'super_admin', 'professional', 'patient',
+    'pharmacy_admin', 'pharmacy_operator', 'pharmacy_readonly',
+    'emergency_admin', 'emergency_operator', 'emergency_crew'
+  ) then
+    raise exception 'invalid role: %', new_role;
+  end if;
+
+  select id into v_id from auth.users where lower(email) = lower(trim(target_email));
+  if v_id is null then
+    raise exception 'No hay ninguna cuenta con el mail %.', target_email using errcode = 'no_data_found';
+  end if;
+
+  update profiles set role = new_role where id = v_id;
+end;
+$$;
