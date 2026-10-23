@@ -168,6 +168,9 @@ export default function Emergency({ profile }) {
   const [guardadas, setGuardadas] = useState([])
   const [hojaDireccion, setHojaDireccion] = useState(false)
   const gpsRef = useRef(null)
+  // Mientras cancela, el aviso de cancelada lo da handleCancel (con lo que se
+  // cobró); el de realtime se calla para no pisarlo.
+  const cancelandoRef = useRef(false)
   const [conGps, setConGps] = useState(false)
   const precargada = useRef(false)
   // Lo último, para leerlo al pagar sin esperar un render: la precarga en
@@ -293,7 +296,7 @@ export default function Emergency({ profile }) {
       if (updated.status === 'completed') {
         setPhase('closing')
         setTimeout(() => navigate('/paciente/dashboard'), 2500)
-      } else if (updated.status === 'cancelled') {
+      } else if (updated.status === 'cancelled' && !cancelandoRef.current) {
         toast.info('La emergencia fue cancelada')
         navigate('/paciente/dashboard')
       }
@@ -486,17 +489,26 @@ export default function Emergency({ profile }) {
     }
   }
 
+  // Con la ambulancia asignada se cobra sólo si hay algo reservado: bonificado
+  // o sin reserva (`paid_at` vacío), cancelar no cuesta nada (mp-capture).
+  const sinCargoAlCancelar = !!emergency && (emergency.bonificada === true || !emergency.paidAt)
+
   /**
    * Cancelar. Qué pasa con la plata lo decide el servidor con el estado de la
    * base en ese momento (mp-capture action=cancel-emergency): sin ambulancia
    * asignada se libera la reserva; con ambulancia asignada se cobra igual
    * (regla de Mateo, 2026-09-25). Acá sólo se avisa antes y se cuenta después.
    */
-  const handleCancel = async () => {
+  const handleCancel = async (esperado) => {
     if (!emergency?.id) return
     setCancelling(true)
-    const { data, error } = await mpService.cancelarEmergencia(emergency.id)
+    cancelandoRef.current = true
+    // `esperado` es lo que el paciente leyó al confirmar: si la base ya está
+    // del otro lado (le asignaron un móvil mientras leía "no se te cobra
+    // nada"), el servidor contesta 409 y no cobra.
+    const { data, error } = await mpService.cancelarEmergencia(emergency.id, esperado)
     if (error) {
+      cancelandoRef.current = false
       toast.error(error || 'No pudimos cancelar. Intentá de nuevo.')
       setCancelling(false)
       setShowCancelConfirm(false)
@@ -623,7 +635,7 @@ export default function Emergency({ profile }) {
               tarjeta — no se te cobra nada.</>}
             </p>
             <div className="flex flex-col gap-3">
-              <button onClick={handleCancel} disabled={cancelling} className="btn-danger w-full py-4 text-[15px]">
+              <button onClick={() => handleCancel('sin_movil')} disabled={cancelling} className="btn-danger w-full py-4 text-[15px]">
                 {cancelling ? 'Cancelando…' : 'Sí, cancelar'}
               </button>
               <button onClick={() => setShowCancelConfirm(false)} className="btn-secondary w-full py-4 text-[15px]">
@@ -805,8 +817,8 @@ export default function Emergency({ profile }) {
                     Cancelar S.O.S
                   </button>
                   <p className="text-[12px] text-gray-500 text-center leading-snug">
-                    {emergency.bonificada
-                      ? 'Tu pedido está bonificado: cancelarlo no tiene costo.'
+                    {sinCargoAlCancelar
+                      ? (emergency.bonificada ? 'Tu pedido está bonificado: cancelarlo no tiene costo.' : 'Cancelarlo no tiene costo.')
                       : 'La ambulancia ya está asignada: si cancelás, se cobra igual el servicio.'}
                   </p>
                 </>
@@ -819,8 +831,8 @@ export default function Emergency({ profile }) {
           <div className="px-6 pt-2 pb-8">
             <h2 className="text-[20px] font-light text-gray-900 mb-2 text-center leading-tight">¿Cancelar la emergencia?</h2>
             <p className="text-gray-700 text-[14px] text-center mb-2 leading-snug">
-              {emergency.bonificada
-                ? 'La ambulancia ya está asignada. Tu pedido está bonificado: no se te cobra nada.'
+              {sinCargoAlCancelar
+                ? (emergency.bonificada ? 'La ambulancia ya está asignada. Tu pedido está bonificado: no se te cobra nada.' : 'La ambulancia ya está asignada. No hay nada reservado en tu tarjeta: no se te cobra nada.')
                 : <><span className="font-semibold">La ambulancia ya está asignada: si cancelás, se te cobra igual el servicio</span>
               {' '}(${emergency.priceAtRequest ?? sosSettings?.price ?? SOS_FALLBACK.price}).</>}
             </p>
@@ -828,8 +840,8 @@ export default function Emergency({ profile }) {
               La ambulancia va a dejar de estar en camino hacia vos.
             </p>
             <div className="flex flex-col gap-3">
-              <button onClick={handleCancel} disabled={cancelling} className="btn-danger w-full py-4 text-[15px]">
-                {cancelling ? 'Cancelando…' : emergency.bonificada ? 'Sí, cancelar' : 'Cancelar y pagar el servicio'}
+              <button onClick={() => handleCancel('con_movil')} disabled={cancelling} className="btn-danger w-full py-4 text-[15px]">
+                {cancelling ? 'Cancelando…' : sinCargoAlCancelar ? 'Sí, cancelar' : 'Cancelar y pagar el servicio'}
               </button>
               <button onClick={() => setShowCancelConfirm(false)} className="btn-secondary w-full py-4 text-[15px]">
                 Seguir esperando
