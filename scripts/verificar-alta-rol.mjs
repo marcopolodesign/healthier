@@ -134,11 +134,13 @@ begin
   begin
     perform set_config('request.jwt.claims', json_build_object('sub', v_sinrol, 'role', 'authenticated')::text, true);
     execute 'set local role authenticated';
+    -- con el mail de OTRA cuenta: promote_user_to_admin busca por mail
     insert into profiles (id, email, role, payment_exempt, titular_id)
-    values (v_sinrol, 'sinrol-' || v_sinrol || '@alta-rol.test', 'patient', true, v_app);
+    values (v_sinrol, 'app-' || v_app || '@alta-rol.test', 'patient', true, v_app);
     execute 'reset role';
-    select payment_exempt, titular_id into v_bool, v_uuid from profiles where id = v_sinrol;
-    r := r || jsonb_build_object('insert_paciente', jsonb_build_object('creado', true, 'exento', v_bool, 'con_titular', v_uuid is not null));
+    select payment_exempt, titular_id, email into v_bool, v_uuid, v_txt from profiles where id = v_sinrol;
+    r := r || jsonb_build_object('insert_paciente', jsonb_build_object('creado', true, 'exento', v_bool, 'con_titular', v_uuid is not null,
+      'mail_propio', v_txt = 'sinrol-' || v_sinrol || '@alta-rol.test'));
   exception when others then
     r := r || jsonb_build_object('insert_paciente', jsonb_build_object('creado', false, 'error', sqlerrm));
   end;
@@ -176,6 +178,15 @@ begin
   r := r || jsonb_build_object('legajo_nuevo', (select jsonb_build_object('verificado', is_verified, 'activo', is_active,
           'rating', average_rating, 'reviews', total_reviews, 'mp', mp_connected) from professional_profiles where user_id = v_pro));
 
+  -- …y después se pone MP, rating y matrícula SISA con un PATCH
+  perform set_config('request.jwt.claims', json_build_object('sub', v_pro, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  update professional_profiles set mp_connected = true, average_rating = 5, total_reviews = 999,
+         sisa_matricula = 'MN 999999', verification_source = 'sisa' where user_id = v_pro;
+  execute 'reset role';
+  r := r || jsonb_build_object('legajo_patch', (select jsonb_build_object('mp', mp_connected, 'reviews', total_reviews,
+          'sisa', sisa_matricula, 'origen', verification_source) from professional_profiles where user_id = v_pro));
+
   -- Healthier lo verifica (service role) y él guarda Configuración con el
   -- registro entero (upsert): tiene que seguir verificado.
   perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
@@ -203,6 +214,18 @@ begin
   end;
 
   -- 6 · Los caminos de Healthier siguen andando
+  -- GoTrue escribe app_metadata DESPUÉS del INSERT: se simula con un UPDATE,
+  -- sin JWT, como corre GoTrue.
+  perform set_config('request.jwt.claims', '', true);
+  update auth.users set raw_app_meta_data = raw_app_meta_data || '{"role":"emergency_admin"}' where id = v_pro;
+  r := r || jsonb_build_object('app_metadata_despues', (select role from profiles where id = v_pro));
+  begin
+    update auth.users set raw_app_meta_data = raw_app_meta_data || '{"role":"emergency_crw"}' where id = v_pro;
+    r := r || '{"app_metadata_invalido":"SE ACEPTÓ"}';
+  exception when check_violation then
+    r := r || '{"app_metadata_invalido":"rechazado"}';
+  end;
+
   if v_super is not null then
     begin
       perform set_config('request.jwt.claims', json_build_object('sub', v_super, 'role', 'authenticated')::text, true);
@@ -253,8 +276,8 @@ async function parteBase() {
   esperar(r.alta?.admin_api_farmacia === 'pharmacy_admin', 'Admin API con app_metadata.role → farmacia', `Admin API con app_metadata.role → ${r.alta?.admin_api_farmacia}`)
   esperar(r.alta?.sin_rol_crea_perfil === false, 'Google/Apple sin rol: no crea perfil (lo elige después)', 'Google/Apple sin rol creó perfil')
   esperar(r.insert_rol_alto === 'bloqueado', 'crearse el perfil con rol alto: bloqueado', `crearse el perfil con rol alto: ${r.insert_rol_alto}`)
-  esperar(r.insert_paciente?.creado && r.insert_paciente.exento === false && r.insert_paciente.con_titular === false,
-    'crearse el perfil de paciente anda, sin bonificación ni titular', `crearse el perfil de paciente: ${JSON.stringify(r.insert_paciente)}`)
+  esperar(r.insert_paciente?.creado && r.insert_paciente.exento === false && r.insert_paciente.con_titular === false && r.insert_paciente.mail_propio === true,
+    'crearse el perfil de paciente anda, sin bonificación, titular ni mail ajeno', `crearse el perfil de paciente: ${JSON.stringify(r.insert_paciente)}`)
   esperar(r.update_propio?.exento === false && r.update_propio?.con_titular === false,
     'paciente se pone payment_exempt / titular (PATCH y upsert): no cambia', `paciente se toca: ${JSON.stringify(r.update_propio)}`)
   esperar(r.update_rol === 'bloqueado', 'paciente se cambia el rol: bloqueado', `paciente se cambia el rol: ${r.update_rol}`)
@@ -263,6 +286,10 @@ async function parteBase() {
     'legajo nuevo insertado "verificado": nace sin verificar, sin rating ni MP', `legajo nuevo: ${JSON.stringify(l)}`)
   esperar(r.verificado_guarda_config?.verificado === true && r.verificado_guarda_config?.bio_guardada === true,
     'profesional verificado guarda su configuración (upsert): sigue verificado', `verificado que guarda: ${JSON.stringify(r.verificado_guarda_config)}`)
+  esperar(r.legajo_patch?.mp === false && r.legajo_patch?.reviews === 0 && r.legajo_patch?.sisa === null && r.legajo_patch?.origen === null,
+    'profesional se pone MP / rating / SISA / origen con un PATCH: no cambia', `PATCH del legajo: ${JSON.stringify(r.legajo_patch)}`)
+  esperar(r.app_metadata_despues === 'emergency_admin', 'app_metadata.role escrito después del alta (como GoTrue) → llega al perfil', `app_metadata después → ${r.app_metadata_despues}`)
+  esperar(r.app_metadata_invalido === 'rechazado', 'app_metadata.role mal escrito: corta con error', `app_metadata inválido: ${r.app_metadata_invalido}`)
   esperar(r.borrar_legajo === 'bloqueado', 'borrar el propio legajo: bloqueado', `borrar el propio legajo: ${r.borrar_legajo}`)
   if (typeof r.super_admin === 'string') ok(`(${r.super_admin})`)
   else esperar(r.super_admin?.promueve === 'pharmacy_admin' && r.super_admin?.bonifica === true,
@@ -326,6 +353,23 @@ async function parteApi() {
     } else {
       mal('el signUp no devolvió sesión (¿se prendió la confirmación de mail en staging?)')
     }
+
+    // Admin API de verdad (service role), como se crea una cuenta de farmacia
+    const adminH = { apikey: service, Authorization: `Bearer ${service}`, 'Content-Type': 'application/json' }
+    const crearAdmin = async (email, extra) => {
+      const r = await fetch(`${url}/auth/v1/admin/users`, { method: 'POST', headers: adminH,
+        body: JSON.stringify({ email, password: `Alta-${sello}!`, email_confirm: true, ...extra }) })
+      const j = await r.json()
+      if (j.id) creados.push(j.id)
+      return j
+    }
+    const leerPerfil = async (id) => (await (await fetch(`${url}/rest/v1/profiles?id=eq.${id}&select=role,mail_bienvenida_enviado_at`, { headers: adminH })).json())[0]
+    const farm = await crearAdmin(`api-farm-${sello}@alta-rol.test`, { app_metadata: { role: 'pharmacy_admin' }, user_metadata: { full_name: 'API Farmacia' } })
+    const pFarm = farm.id ? await leerPerfil(farm.id) : null
+    esperar(pFarm?.role === 'pharmacy_admin' && pFarm?.mail_bienvenida_enviado_at, 'Admin API con app_metadata.role → farmacia, sin mail de bienvenida', `Admin API app_metadata → ${JSON.stringify(pFarm ?? farm)}`)
+    const viejo = await crearAdmin(`api-viejo-${sello}@alta-rol.test`, { user_metadata: { role: 'emergency_admin', full_name: 'API Viejo' } })
+    const pViejo = viejo.id ? await leerPerfil(viejo.id) : null
+    esperar(pViejo?.role === 'patient' && pViejo?.mail_bienvenida_enviado_at, 'Admin API con rol en user_metadata (seeds viejos) → paciente sin bienvenida, el rol lo pone el upsert', `Admin API user_metadata → ${JSON.stringify(pViejo ?? viejo)}`)
 
     const sinRol = await signUp(`api-sinrol-${sello}@alta-rol.test`, { full_name: 'API sin rol' })
     if (sinRol.token) {

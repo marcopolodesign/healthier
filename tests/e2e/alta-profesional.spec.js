@@ -29,7 +29,7 @@ test.describe('Alta de cuenta de profesional', () => {
   /** @type {{ email: string, id: string | null } | null} */
   let creado = null
 
-  test('completa el formulario real y queda profesional, sin verificar', async ({ page }) => {
+  test('completa el formulario real y queda profesional', async ({ page }) => {
     const stamp = Date.now()
     const rand = Math.random().toString(36).slice(2, 8)
     const identidad = {
@@ -77,10 +77,8 @@ test.describe('Alta de cuenta de profesional', () => {
     expect(perfil.role).toBe('professional')
     expect(perfil.first_name).toBe(identidad.nombre)
     expect(perfil.last_name).toBe(identidad.apellido)
-
-    // Si el onboarding ya creó el legajo, tiene que estar sin verificar.
-    const { data: legajo } = await adminSb.from('professional_profiles').select('is_verified').eq('user_id', perfil.id).maybeSingle()
-    if (legajo) expect(legajo.is_verified).toBe(false)
+    // Que el legajo nazca sin verificar lo prueba scripts/verificar-alta-rol.mjs:
+    // este test corta en la redirección, antes de que el onboarding lo escriba.
   })
 
   test.afterEach(async () => {
@@ -89,7 +87,7 @@ test.describe('Alta de cuenta de profesional', () => {
       throw new Error(`Guarda de limpieza: "${creado.email}" no empieza con "${QA_PREFIX}" — NO se borra nada.`)
     }
     if (!creado.id) {
-      const { data } = await adminSb.auth.admin.listUsers({ perPage: 200 })
+      const { data } = await adminSb.auth.admin.listUsers({ perPage: 1000 })
       creado.id = data?.users?.find(u => u.email === creado.email)?.id ?? null
       if (!creado.id) return
     }
