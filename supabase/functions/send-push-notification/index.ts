@@ -1,6 +1,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
 import { AVISOS, construir, type Datos, type Tipo } from '../_shared/push/textos.ts'
+import { esServicio } from '../_shared/llamador.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -129,6 +130,19 @@ Deno.serve(async (req: Request) => {
     const payloadIn = await req.json()
     const { userId, tipo } = payloadIn as { userId?: string; tipo?: Tipo }
     if (!userId) throw new Error('userId required')
+
+    // `preview` devuelve el texto armado con datos reales de una consulta o
+    // receta ajena, y `tipo` escribe en la campanita del paciente: las dos
+    // cosas sólo las usa el servidor (triggers con la service key del vault,
+    // appointment-reminders). Con la key anónima o una sesión, 403. La forma
+    // vieja `{ userId, title, body, url }` sigue abierta a las sesiones porque
+    // el front todavía la usa (notificationService, walkInQueueService).
+    if (((payloadIn as { preview?: boolean }).preview || tipo) && !esServicio(req)) {
+      return new Response(JSON.stringify({ error: 'Sólo el servidor puede usar `preview` o `tipo`' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
