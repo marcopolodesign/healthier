@@ -64,8 +64,8 @@ const ok = (cond, msg, extra) => {
   if (!cond) fallas++
 }
 
-async function sesionDelPaciente() {
-  const { data, error } = await admin.auth.admin.generateLink({ type: 'magiclink', email: EMAIL_PACIENTE })
+async function sesionDelPaciente(email = EMAIL_PACIENTE) {
+  const { data, error } = await admin.auth.admin.generateLink({ type: 'magiclink', email })
   if (error) throw error
   const cliente = createClient(URL_, ANON, { auth: { persistSession: false } })
   const { data: s, error: e2 } = await cliente.auth.verifyOtp({ type: 'magiclink', token_hash: data.properties.hashed_token })
@@ -248,6 +248,42 @@ async function main() {
     const p = await pago(id)
     ok(r.status === 409 && p?.status === 'authorized' && (await fila(id)).status === 'dispatched',
       'H. el paciente NO libera la reserva con cancel-auth-emergency si hay móvil asignado', `${r.status} ${JSON.stringify(r.json)}`)
+  }
+  {
+    // H2 — tampoco libera la reserva de una emergencia viva SIN móvil: con un
+    // despacho en el medio quedaría una ambulancia en camino sin reserva.
+    const id = await crearEmergencia(userId)
+    await admin.from('emergencies').update({ status: 'awaiting_dispatch', paid_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await admin.from('payments').insert(filaPago(id, userId, { status: 'authorized', mp_payment_id: '999999999996' }))
+    if (error) throw error
+    const r = await llamar('mp-capture', { action: 'cancel-auth-emergency', emergencyId: id }, token)
+    ok(r.status === 409 && (await pago(id))?.status === 'authorized',
+      'H2. el paciente NO libera la reserva de una emergencia esperando móvil sin cancelarla', `${r.status} ${JSON.stringify(r.json)}`)
+  }
+  {
+    // J — el paciente confirmó leyendo "sin cargo" y mientras tanto le
+    // asignaron un móvil: 409, no se cobra nada.
+    const id = await crearEmergencia(userId)
+    await admin.from('emergencies').update({ status: 'awaiting_dispatch', paid_at: new Date().toISOString() }).eq('id', id)
+    await admin.from('emergencies').update({ status: 'dispatched' }).eq('id', id)
+    const { error } = await admin.from('payments').insert(filaPago(id, userId, { status: 'approved', mp_payment_id: '999999999995' }))
+    if (error) throw error
+    const r = await llamar('mp-capture', { action: 'cancel-emergency', emergencyId: id, esperado: 'sin_movil' }, token)
+    const f = await fila(id)
+    ok(r.status === 409 && f.status === 'dispatched', 'J. esperado sin_movil con móvil asignado → 409 y no se toca', `${r.status} ${JSON.stringify(r.json)}`)
+    const r2 = await llamar('mp-capture', { action: 'cancel-emergency', emergencyId: id, esperado: 'con_movil' }, token)
+    ok(r2.status === 200 && r2.json?.data?.cobrado === true, 'J. con esperado con_movil sí cancela y cobra', JSON.stringify(r2.json))
+  }
+  {
+    // K — nadie con sesión de usuario reescribe la marca de cobro: un médico
+    // del móvil no puede poner "cobrada" una cancelación sin cargo.
+    const medico = await sesionDelPaciente(process.env.MEDICO_EMAIL || 'clinica@staging.healthier.app')
+    const id = await crearEmergencia(userId)
+    await admin.from('emergencies').update({ professional_id: medico.userId }).eq('id', id)
+    await admin.from('emergencies').update({ status: 'cancelled' }).eq('id', id)
+    await medico.cliente.from('emergencies').update({ cancellation_charged: true, cancelled_at: '2020-01-01T00:00:00Z' }).eq('id', id)
+    const f = await fila(id)
+    ok(f.cancellation_charged === false && !String(f.cancelled_at).startsWith('2020'), 'K. un usuario no reescribe cancellation_charged/cancelled_at', JSON.stringify(f))
   }
   {
     // I — S.O.S. bonificado (210: paid_at sin MP) con móvil: se cancela sin cargo.

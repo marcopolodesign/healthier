@@ -350,6 +350,12 @@ const EMERGENCIA_CON_MOVIL = ["dispatched", "in_transit"];
  *   - con móvil (dispatched / in_transit)      → se captura y después se cancela.
  *   - arrived / completed / cancelled          → 409.
  *
+ * `esperado` ("sin_movil" | "con_movil") es lo que el paciente vio cuando
+ * confirmó. Si la base ya está en el otro lado (p. ej. le asignaron un móvil
+ * mientras leía "no se te cobra nada"), contesta 409 sin tocar nada: nunca se
+ * cobra algo que el paciente no aceptó. Sin `esperado` (app vieja) no se
+ * chequea. Un S.O.S. bonificado no tiene nada que cobrar: tampoco se chequea.
+ *
  * Sin carreras con el despacho: cada rama cambia el estado con un UPDATE
  * condicional (`.in("status", …)`). Si el operador asignó un móvil entre la
  * lectura y la escritura, el UPDATE no toca nada y se vuelve a decidir con el
@@ -360,37 +366,59 @@ const EMERGENCIA_CON_MOVIL = ["dispatched", "in_transit"];
  *     que entra en el medio deja una ambulancia en camino sin reserva.
  *   - Con móvil: primero se captura, después se cancela. Si la captura falla,
  *     la emergencia sigue activa y se devuelve el error.
+ *
+ * Cualquier error de lectura o escritura de la base corta con 500: un error
+ * no se confunde con "no hay reserva" ni con "cambió el estado".
  */
 async function cancelarEmergencia(
   supabase: SupabaseClient,
   emergencyId: string,
   userId: string,
-  isAdmin: boolean
+  isAdmin: boolean,
+  esperado?: string
 ): Promise<{ status: number; data: unknown; error: string | null }> {
+  const errorBase = (donde: string, e: { message: string }) => {
+    console.error(`mp-capture (cancel-emergency) ${donde}:`, e.message);
+    return { status: 500, data: null, error: "No pudimos cancelar la emergencia. Probá de nuevo." };
+  };
+
   for (let intento = 0; intento < 3; intento++) {
-    const { data: emergencia } = await supabase
+    const { data: emergencia, error: eErr } = await supabase
       .from("emergencies")
       .select("id, patient_id, status, price_at_request, bonificada")
       .eq("id", emergencyId)
       .maybeSingle();
-    if (!emergencia) return { status: 404, data: null, error: "Emergency not found" };
+    if (eErr) return errorBase("leer la emergencia", eErr);
+    if (!emergencia) return { status: 404, data: null, error: "No encontramos la emergencia." };
     if (emergencia.patient_id !== userId && !isAdmin) {
-      return { status: 403, data: null, error: "Forbidden" };
+      return { status: 403, data: null, error: "Esta emergencia no es tuya." };
     }
 
     const estado = emergencia.status as string;
+    const lado = EMERGENCIA_SIN_MOVIL.includes(estado) ? "sin_movil"
+      : EMERGENCIA_CON_MOVIL.includes(estado) ? "con_movil" : null;
+    if (esperado && lado && esperado !== lado && emergencia.bonificada !== true) {
+      return {
+        status: 409,
+        data: { estado },
+        error: lado === "con_movil"
+          ? "Mientras confirmabas se asignó una ambulancia: si cancelás ahora se cobra el servicio. Revisalo y volvé a confirmar."
+          : "La emergencia cambió de estado. Revisala y volvé a confirmar.",
+      };
+    }
 
-    if (EMERGENCIA_SIN_MOVIL.includes(estado)) {
-      const { data: cancelada } = await supabase
+    if (lado === "sin_movil") {
+      const { data: cancelada, error: uErr } = await supabase
         .from("emergencies")
         .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancellation_charged: false })
         .eq("id", emergencyId)
         .in("status", EMERGENCIA_SIN_MOVIL)
         .select("id")
         .maybeSingle();
+      if (uErr) return errorBase("cancelar sin móvil", uErr);
       if (!cancelada) continue; // el despacho se movió en el medio: se relee
 
-      const { data: payment } = await supabase
+      const { data: payment, error: pErr } = await supabase
         .from("payments")
         .select("*")
         .eq("emergency_id", emergencyId)
@@ -398,7 +426,11 @@ async function cancelarEmergencia(
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (payment) {
+      if (pErr) {
+        // Ya está cancelada y sin cargo: lo que no se pudo leer es la reserva,
+        // que vence sola. Queda en el log.
+        console.error("mp-capture (cancel-emergency): no se pudo leer la reserva para liberarla:", pErr.message);
+      } else if (payment) {
         // Si MP falla, la cancelación igual vale: la reserva vence sola y queda
         // en el log para mirarla. No se le cobra nada al paciente.
         const liberada = await resolverPreautorizacionDeEmergencia(
@@ -411,8 +443,8 @@ async function cancelarEmergencia(
       return { status: 200, data: { cobrado: false }, error: null };
     }
 
-    if (EMERGENCIA_CON_MOVIL.includes(estado)) {
-      const { data: payment } = await supabase
+    if (lado === "con_movil") {
+      const { data: payment, error: pErr } = await supabase
         .from("payments")
         .select("*")
         .eq("emergency_id", emergencyId)
@@ -420,6 +452,7 @@ async function cancelarEmergencia(
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (pErr) return errorBase("leer la reserva", pErr);
 
       let monto: number | null = null;
       if (payment) {
@@ -440,19 +473,41 @@ async function cancelarEmergencia(
         }
       }
 
-      const { data: cancelada } = await supabase
+      const cobrada = Boolean(payment);
+      const { data: cancelada, error: uErr } = await supabase
         .from("emergencies")
-        .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancellation_charged: Boolean(payment) })
+        .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancellation_charged: cobrada })
         .eq("id", emergencyId)
         .in("status", EMERGENCIA_CON_MOVIL)
         .select("id")
         .maybeSingle();
-      if (!cancelada) {
-        // La tripulación marcó "llegó" mientras se capturaba. El cobro queda
-        // hecho, que es lo que corresponde a un traslado que llegó.
-        return { status: 409, data: null, error: "La ambulancia ya llegó: la emergencia no se puede cancelar." };
+      if (uErr) {
+        // Puede que ya se haya capturado: queda en el log con el id para
+        // revisarlo a mano. La emergencia sigue como estaba.
+        console.error(`mp-capture (cancel-emergency): ${emergencyId} capturada=${cobrada} pero no se pudo cancelar:`, uErr.message);
+        return { status: 500, data: null, error: "No pudimos cancelar la emergencia. Llamá a despacho." };
       }
-      return payment
+      if (!cancelada) {
+        // Otro movió el estado mientras se capturaba. Se dice lo que pasó de
+        // verdad, y si la canceló el despacho, la marca de cobro refleja la
+        // captura que ya se hizo.
+        const { data: ahora } = await supabase
+          .from("emergencies").select("status").eq("id", emergencyId).maybeSingle();
+        if (ahora?.status === "cancelled") {
+          if (cobrada) {
+            await supabase.from("emergencies").update({ cancellation_charged: true }).eq("id", emergencyId);
+          }
+          return { status: 200, data: cobrada ? { cobrado: true, monto } : { cobrado: false }, error: null };
+        }
+        return {
+          status: 409,
+          data: null,
+          error: ahora?.status === "completed"
+            ? "La emergencia ya terminó."
+            : "La ambulancia ya llegó: la emergencia no se puede cancelar.",
+        };
+      }
+      return cobrada
         ? { status: 200, data: { cobrado: true, monto }, error: null }
         : { status: 200, data: { cobrado: false }, error: null };
     }
@@ -763,11 +818,14 @@ Deno.serve(async (req) => {
       // paciente no puede liberar la reserva por esta vía mientras hay un móvil
       // asignado (ni después de una cancelación cobrada): su camino es
       // `cancel-emergency`, que decide con el estado de la base.
+      // Y liberar sin cancelar tampoco: con la emergencia viva, un despacho que
+      // entra en el medio dejaría una ambulancia en camino sin reserva. El
+      // paciente sólo libera la reserva de una emergencia ya cancelada sin
+      // cargo (la vía vieja de la app: UPDATE a cancelled + esto).
       if (!isAdmin && !esDespacho) {
-        const liberable = ["pending", "awaiting_dispatch"].includes(emergencia.status) ||
-          (emergencia.status === "cancelled" && emergencia.cancellation_charged !== true);
+        const liberable = emergencia.status === "cancelled" && emergencia.cancellation_charged !== true;
         if (!liberable) {
-          return jsonResponse({ data: null, error: "Con la ambulancia asignada, la cancelación se cobra: usá Cancelar pedido." }, 409);
+          return jsonResponse({ data: null, error: "Para cancelar usá Cancelar pedido: la reserva se libera sola si corresponde." }, 409);
         }
       }
 
@@ -895,9 +953,12 @@ Deno.serve(async (req) => {
     // paciente sobre una emergencia despachada, así que no hay otra vía.
     // ────────────────────────────────────────────────────────────────────────
     if (action === "cancel-emergency") {
-      const { emergencyId } = body as { emergencyId?: string };
+      const { emergencyId, esperado } = body as { emergencyId?: string; esperado?: string };
       if (!emergencyId) return jsonResponse({ data: null, error: "Missing emergencyId" }, 400);
-      const result = await cancelarEmergencia(serviceSupabase, emergencyId, user.id, isAdmin);
+      const result = await cancelarEmergencia(
+        serviceSupabase, emergencyId, user.id, isAdmin,
+        esperado === "sin_movil" || esperado === "con_movil" ? esperado : undefined
+      );
       return jsonResponse({ data: result.data, error: result.error }, result.status);
     }
 

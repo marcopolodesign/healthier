@@ -270,9 +270,9 @@ export const mpService = {
    * reserva (`cobrado: false`); con ambulancia asignada se cobra igual
    * (`cobrado: true, monto`). Ya llegó / terminó / cancelada → error.
    */
-  async cancelarEmergencia(emergencyId) {
+  async cancelarEmergencia(emergencyId, esperado) {
     try {
-      const result = await callEdgeFunction('mp-capture', { action: 'cancel-emergency', emergencyId })
+      const result = await callEdgeFunction('mp-capture', { action: 'cancel-emergency', emergencyId, esperado })
       return { data: toCamelCase(result), error: null }
     } catch (err) {
       return { data: null, error: err.message }

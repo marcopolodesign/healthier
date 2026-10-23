@@ -49,19 +49,35 @@ CREATE POLICY "emergency_patient_cancel" ON public.emergencies
     AND cancellation_charged IS NOT TRUE
   );
 
--- ── 2. `cancelled` es final + marca de cuándo ─────────────────────────────
+-- ── 2. `cancelled` es final + marca de cuándo y de si se cobró ───────────
+-- `cancelled_at` y `cancellation_charged` los escribe sólo el servidor
+-- (mp-capture con service role, donde auth.uid() es NULL) o el super admin.
+-- Con una sesión de usuario (paciente, despacho, tripulación, profesional) se
+-- ignoran: al cancelar quedan "ahora, sin cargo" y después no se tocan. Así
+-- nadie puede marcar como cobrada una cancelación que Mercado Pago no cobró,
+-- ni al revés (integración 2026-10-22, code-review).
 CREATE OR REPLACE FUNCTION public.emergencia_cancelada_es_final()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  v_servidor boolean := auth.uid() IS NULL OR COALESCE(public.get_my_role(), '') = 'super_admin';
 BEGIN
   IF OLD.status = 'cancelled' AND NEW.status IS DISTINCT FROM 'cancelled' THEN
     RAISE EXCEPTION 'La emergencia ya está cancelada'
       USING ERRCODE = 'check_violation';
   END IF;
   IF NEW.status = 'cancelled' AND OLD.status IS DISTINCT FROM 'cancelled' THEN
-    NEW.cancelled_at := COALESCE(NEW.cancelled_at, now());
-    NEW.cancellation_charged := COALESCE(NEW.cancellation_charged, false);
+    IF v_servidor THEN
+      NEW.cancelled_at := COALESCE(NEW.cancelled_at, now());
+      NEW.cancellation_charged := COALESCE(NEW.cancellation_charged, false);
+    ELSE
+      NEW.cancelled_at := now();
+      NEW.cancellation_charged := false;
+    END IF;
+  ELSIF NOT v_servidor THEN
+    NEW.cancelled_at := OLD.cancelled_at;
+    NEW.cancellation_charged := OLD.cancellation_charged;
   END IF;
   RETURN NEW;
 END;
@@ -69,5 +85,5 @@ $$;
 
 DROP TRIGGER IF EXISTS emergencies_cancelada_es_final ON public.emergencies;
 CREATE TRIGGER emergencies_cancelada_es_final
-  BEFORE UPDATE OF status ON public.emergencies
+  BEFORE UPDATE ON public.emergencies
   FOR EACH ROW EXECUTE FUNCTION public.emergencia_cancelada_es_final();

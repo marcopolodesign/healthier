@@ -149,12 +149,6 @@ export default function SuperAdminEmergencias() {
                         <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${STATUS_BADGE[e.status] ?? 'bg-gray-100 text-gray-500'}`}>
                           {STATUS_LABEL[e.status] ?? e.status}
                         </span>
-                        {/* Migración 175: cancelar con la ambulancia asignada se cobra. */}
-                        {e.status === 'cancelled' && (
-                          <p className={`text-[10px] mt-1 ${e.cancellationCharged ? 'text-danger font-semibold' : 'text-text-tertiary'}`}>
-                            {e.cancellationCharged ? 'Con móvil asignado · cobrada' : 'Sin cargo'}
-                          </p>
-                        )}
                       </td>
                       <td className="table-cell">
                         <p className="text-text-primary truncate max-w-[160px]">{e.patient?.fullName || '—'}</p>
