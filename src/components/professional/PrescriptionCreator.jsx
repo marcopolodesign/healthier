@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   MagnifyingGlass, X, CircleNotch, Check, Pill,
-  Plus, Copy, FilePdf, ArrowSquareOut, Warning, Info,
+  Plus, Copy, FilePdf, ArrowSquareOut, Warning, Info, Prohibit,
 } from '@phosphor-icons/react'
+import Modal from '../Modal'
 import { supabase } from '../../lib/supabase'
 import { capitalizarNombreCatalogo } from '../../lib/format'
 import MedicationSearch from './MedicationSearch'
@@ -28,6 +29,17 @@ function ddmmDe(fechaIso) {
   const [a, m, d] = String(fechaIso ?? '').slice(0, 10).split('-')
   return d && m ? `${d}/${m}` : ''
 }
+
+/** AAAA-MM-DD de hoy en hora argentina (el mismo "hoy" que usa rcta-anular). */
+function hoyArIso() {
+  return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10)
+}
+
+/** Una posdatada que todavía no empezó (se anula junto con la original). */
+const noEmpezo = p => String(p.vigencia_desde ?? '') > hoyArIso()
+
+/** Anulada acá pero el servicio de recetas todavía no lo confirmó. */
+const anulacionPendiente = x => x.rcta_status === 'anulada' && x.rcta_anulacion_estado === 'error'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -72,6 +84,10 @@ const STATUS_MAP = {
 const RCTA_STATUS_MAP = {
   issued:  { label: 'Receta emitida', cls: 'bg-green-100 text-green-700', spin: false },
   error:   { label: 'Error al emitir', cls: 'bg-red-100 text-red-700',     spin: false },
+  // Migración 216. "Pendiente" = anulada en Healthier, sin confirmar todavía
+  // por el servicio de recetas.
+  anulada: { label: 'Receta anulada', cls: 'bg-danger-muted text-danger', spin: false },
+  anulada_pendiente: { label: 'Anulación pendiente', cls: 'bg-amber-100 text-amber-800', spin: false },
 }
 
 /**
@@ -91,19 +107,21 @@ const RCTA_PENDING_COLGADO  = { label: 'Emisión sin confirmar', cls: 'bg-amber-
 function StatusBadge({ status }) {
   const s = STATUS_MAP[status?.toLowerCase()] ?? STATUS_MAP.draft
   return (
-    <span className={`inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full ${s.cls}`}>
+    <span className={`inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full ${s.cls}`}>
       {s.label}
     </span>
   )
 }
 
-function RctaBadge({ rcta, enCurso = false }) {
+function RctaBadge({ rcta, enCurso = false, pendiente = false }) {
   if (!rcta) return null
   const s = rcta === 'pending'
     ? (enCurso ? RCTA_PENDING_EN_CURSO : RCTA_PENDING_COLGADO)
-    : RCTA_STATUS_MAP[rcta] ?? RCTA_STATUS_MAP.error
+    : rcta === 'anulada' && pendiente
+      ? RCTA_STATUS_MAP.anulada_pendiente
+      : RCTA_STATUS_MAP[rcta] ?? RCTA_STATUS_MAP.error
   return (
-    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${s.cls}`}>
+    <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${s.cls}`}>
       {s.spin && <CircleNotch className="h-3 w-3 animate-spin" />}
       {s.label}
     </span>
@@ -112,7 +130,10 @@ function RctaBadge({ rcta, enCurso = false }) {
 
 // ── Prescription row ───────────────────────────────────────────────────────────
 
-function PrescriptionRow({ rx, selectable, checked, onToggle, enCurso = false, posdatadas = [] }) {
+function PrescriptionRow({ rx, selectable, checked, onToggle, enCurso = false, posdatadas = [], onAnular, onReintentar, reintentando = false }) {
+  const anulada = rx.rcta_status === 'anulada'
+  // La original confirmada pero alguna posdatada no: igual se avisa en la fila.
+  const pendiente = anulada && [rx, ...posdatadas].some(anulacionPendiente)
   const [copied, setCopied] = useState(false)
 
   function handleCopy() {
@@ -163,8 +184,8 @@ function PrescriptionRow({ rx, selectable, checked, onToggle, enCurso = false, p
                 <span className="font-normal text-text-secondary"> {rx.concentration}</span>
               )}
             </p>
-            <StatusBadge status={rx.status} />
-            {rx.rcta_status && <RctaBadge rcta={rx.rcta_status} enCurso={enCurso} />}
+            {!anulada && <StatusBadge status={rx.status} />}
+            {rx.rcta_status && <RctaBadge rcta={rx.rcta_status} enCurso={enCurso} pendiente={pendiente} />}
           </div>
 
           {(rx.presentation || rx.route) && (
@@ -200,7 +221,11 @@ function PrescriptionRow({ rx, selectable, checked, onToggle, enCurso = false, p
           {posdatadas.length > 0 && (
             <p className="text-sm text-text-secondary mt-1.5 flex flex-wrap items-center gap-x-1.5">
               <span>Recetas: hoy</span>
-              {posdatadas.map(p => (
+              {posdatadas.map(p => p.rcta_status === 'anulada' ? (
+                <span key={p.id}>
+                  · <span className="line-through text-text-tertiary">desde {ddmmDe(p.vigencia_desde)}</span> (anulada)
+                </span>
+              ) : (
                 <span key={p.id}>
                   · desde {ddmmDe(p.vigencia_desde)}
                   {p.rcta_pdf_url && (
@@ -210,6 +235,15 @@ function PrescriptionRow({ rx, selectable, checked, onToggle, enCurso = false, p
                   )}
                 </span>
               ))}
+            </p>
+          )}
+          {pendiente && onReintentar && (
+            <p className="text-sm text-amber-700 mt-1.5">
+              La anulación todavía no se confirmó.{' '}
+              <button type="button" onClick={() => onReintentar(rx)} disabled={reintentando}
+                className="font-medium underline disabled:opacity-50">
+                {reintentando ? 'Reintentando…' : 'Reintentar'}
+              </button>
             </p>
           )}
         </div>
@@ -223,15 +257,78 @@ function PrescriptionRow({ rx, selectable, checked, onToggle, enCurso = false, p
           {/* Emitida: lo que el profesional busca es la receta, no "un PDF".
               Antes era un link chiquito al costado; ahora se lee como la acción
               que es. (Mateo, 2026-07-31) */}
-          {rx.rcta_pdf_url && (
+          {rx.rcta_pdf_url && !anulada && (
             <a href={rx.rcta_pdf_url} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:bg-brand/10 border border-brand/30 rounded-lg px-2.5 py-1.5 transition-colors">
               <FilePdf className="h-3.5 w-3.5" /> Ver receta
             </a>
           )}
+          {onAnular && (
+            <button type="button" onClick={() => onAnular(rx)}
+              className="flex items-center gap-1 text-[11px] text-text-secondary hover:text-danger hover:bg-danger-muted px-2 py-1 rounded-lg transition-colors">
+              <Prohibit className="h-3 w-3" /> Anular
+            </button>
+          )}
         </div>
       </div>
     </div>
+  )
+}
+
+// ── Anular una receta emitida (migración 216) ──────────────────────────────────
+
+/**
+ * Confirmación de "Anular". Se anula la receta entera (todos sus medicamentos)
+ * y, con tratamiento prolongado, las posdatadas que todavía no empezaron. Las
+ * que ya empezaron siguen vigentes (decisión de Mateo, 2026-10-22). Diseño
+ * revisado por Felipe.
+ */
+function AnularRecetaModal({ objetivo, onCerrar, onConfirmar, anulando }) {
+  const [motivo, setMotivo] = useState('')
+  useEffect(() => { if (objetivo) setMotivo('') }, [objetivo])
+  if (!objetivo) return null
+  const { medicamentos, posdatadas } = objetivo
+  const seAnulan = posdatadas.filter(noEmpezo)
+  const siguen = posdatadas.filter(p => !noEmpezo(p))
+  const total = 1 + seAnulan.length
+
+  return (
+    <Modal open onClose={anulando ? () => {} : onCerrar} title="Anular receta" size="sm">
+      <div className="space-y-3">
+        <p className="text-sm text-text-secondary">
+          Vas a anular la receta de{' '}
+          <span className="font-medium text-text-primary">{medicamentos.map(capitalizarNombreCatalogo).join(', ')}</span>.
+          La farmacia ya no va a poder dispensarla.
+        </p>
+        {posdatadas.length > 0 && (
+          <div className="text-sm text-text-secondary space-y-1">
+            <p>Se anulan: {[`hoy (${ddmmDe(objetivo.emitidaIso)})`, ...seAnulan.map(p => `desde ${ddmmDe(p.vigencia_desde)}`)].join(' · ')}</p>
+            {siguen.length > 0 && (
+              <p>Sigue vigente: {siguen.map(p => `desde ${ddmmDe(p.vigencia_desde)}`).join(' · ')} (ya empezó)</p>
+            )}
+          </div>
+        )}
+        <div>
+          <label className="form-label text-xs" htmlFor="anular-motivo">Motivo (opcional)</label>
+          <textarea id="anular-motivo" value={motivo} onChange={e => setMotivo(e.target.value)}
+            placeholder="Ej.: cambio de dosis" rows={2} maxLength={500}
+            className="form-textarea resize-none" />
+        </div>
+        <p className="text-sm text-amber-800 rounded-lg bg-amber-50 border border-amber-200 p-3">
+          No se puede deshacer. Si el paciente sigue con el tratamiento, vas a tener que emitir una receta nueva.
+        </p>
+        <div className="flex gap-2 pt-1">
+          <button type="button" onClick={onCerrar} disabled={anulando}
+            className="btn-secondary flex-1 py-2">Cancelar</button>
+          <button type="button" onClick={() => onConfirmar(motivo.trim() || null)} disabled={anulando}
+            className="btn-danger flex-1 py-2 flex items-center justify-center gap-1.5">
+            {anulando
+              ? <><CircleNotch className="h-4 w-4 animate-spin" /> Anulando…</>
+              : total > 1 ? `Anular ${total} recetas` : 'Anular receta'}
+          </button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
@@ -545,6 +642,12 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
   // un atajo. `null` = la hoja está cerrada.
   const [emisionEnEspera, setEmisionEnEspera] = useState(null)
 
+  // Anular (migración 216): la receta elegida para confirmar, y la que se está
+  // reintentando.
+  const [aAnular, setAAnular] = useState(null)
+  const [anulando, setAnulando] = useState(false)
+  const [reintentandoId, setReintentandoId] = useState(null)
+
   // Con la consulta cerrada no se agrega ni se emite nada: cerrar es el momento en
   // que la consulta queda congelada. Una receta emitida después del cierre sería un
   // acto médico fuera del acto médico.
@@ -610,6 +713,60 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
   const toggleSeleccion = id => setSelectedIds(prev =>
     prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
   )
+
+  // Sólo quien la emitió, y nunca en la práctica. Se puede con la consulta
+  // cerrada: anular no es emitir, y suele darse después (Mateo, 2026-10-22).
+  const puedeAnular = rx => !enPracticaRx
+    && rx.rcta_status === 'issued' && rx.status === 'active' && !rx.posdatada_de
+    && !!professionalId && rx.professional_id === professionalId
+
+  function pedirAnular(rx) {
+    // La receta entera: todos los medicamentos con el mismo número.
+    const filas = originales.filter(o => o.rcta_prescription_id && o.rcta_prescription_id === rx.rcta_prescription_id)
+    const grupo = filas.length ? filas : [rx]
+    setAAnular({
+      medicationId: rx.id,
+      medicamentos: grupo.map(g => g.medication_name),
+      emitidaIso: (rx.rcta_issued_at ?? rx.created_at ?? '').slice(0, 10),
+      posdatadas: grupo.flatMap(g => posdatadasDe(g.id)).filter(p => p.rcta_status === 'issued' && p.status === 'active'),
+    })
+  }
+
+  function avisarResultado(result) {
+    if (result.sinConfirmar > 0) {
+      toast.warning('La receta quedó anulada en Healthier, pero el servicio de recetas no lo confirmó. Reintentá desde la receta.')
+    } else {
+      const n = result.anuladas?.length ?? 1
+      toast.success(n > 1 ? `Se anularon ${n} recetas` : 'Receta anulada')
+    }
+  }
+
+  async function confirmarAnular(motivo) {
+    if (!aAnular) return
+    setAnulando(true)
+    try {
+      const result = await clinicalService.anularReceta(aAnular.medicationId, { motivo, patientId })
+      avisarResultado(result)
+      setAAnular(null)
+    } catch (err) {
+      toast.error(mensajeDeError(err))
+    } finally {
+      await recargarRecetas()
+      setAnulando(false)
+    }
+  }
+
+  async function reintentarAnular(rx) {
+    setReintentandoId(rx.id)
+    try {
+      avisarResultado(await clinicalService.anularReceta(rx.id, { patientId }))
+    } catch (err) {
+      toast.error(mensajeDeError(err))
+    } finally {
+      await recargarRecetas()
+      setReintentandoId(null)
+    }
+  }
 
   /** Relee las recetas del encuentro y devuelve las filas, para poder mirarlas. */
   async function recargarRecetas() {
@@ -720,6 +877,13 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
 
   return (
     <div className="space-y-3">
+      <AnularRecetaModal
+        objetivo={aAnular}
+        anulando={anulando}
+        onCerrar={() => setAAnular(null)}
+        onConfirmar={confirmarAnular}
+      />
+
       {/* Se abre sola al apretar "Emitir receta" sin firma cargada, y al
           guardarla sigue con la emisión. Ver FirmaSheet. */}
       <FirmaSheet
@@ -769,6 +933,9 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
                 checked={selectable && seleccionados.includes(rx.id)}
                 onToggle={toggleSeleccion}
                 enCurso={issuing && seleccionados.includes(rx.id)}
+                onAnular={puedeAnular(rx) ? pedirAnular : undefined}
+                onReintentar={rx.professional_id === professionalId ? reintentarAnular : undefined}
+                reintentando={reintentandoId === rx.id}
               />
             )
           })}

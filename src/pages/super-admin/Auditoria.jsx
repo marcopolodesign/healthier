@@ -49,6 +49,9 @@ const OUTCOME_LABELS = {
   api_error:        { label: 'Rechazada',         cls: 'bg-red-100 text-red-700',     Icon: XCircle },
   network_error:    { label: 'Sin respuesta',     cls: 'bg-red-100 text-red-700',     Icon: XCircle },
   persist_error:    { label: 'Emitida sin guardar', cls: 'bg-red-100 text-red-700',   Icon: XCircle },
+  // Migración 216: anulaciones (DELETE al servicio de recetas).
+  anulada:          { label: 'Anulada',           cls: 'bg-gray-100 text-gray-700',   Icon: CheckCircle },
+  anulacion_error:  { label: 'Anulación sin confirmar', cls: 'bg-amber-100 text-amber-800', Icon: XCircle },
 }
 
 export default function SuperAdminAuditoria() {

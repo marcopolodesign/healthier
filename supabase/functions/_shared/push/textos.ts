@@ -209,6 +209,20 @@ export const AVISOS = {
     }),
   },
 
+  // Migración 216: tratamiento prolongado. Cada receta posdatada se puede
+  // comprar recién desde su fecha; ese día se le avisa una vez.
+  'receta-habilitada': {
+    para: 'paciente' as Destinatario,
+    cuando: 'Empieza a valer una receta posdatada (tratamiento prolongado). Una vez por receta, a las 9 de la mañana del día en que se habilita.',
+    build: (d: Datos): Aviso => ({
+      title: d.medicamentos?.length
+        ? `Ya podés comprar tu ${d.medicamentos[0]}`
+        : 'Ya podés comprar tu medicamento',
+      body: 'Tu próxima receta está habilitada desde hoy. Pedila en la farmacia de la app o presentala en cualquier farmacia.',
+      url: '/paciente/farmacia',
+    }),
+  },
+
   'pedido-confirmado': {
     para: 'paciente' as Destinatario,
     cuando: 'Se acredita el pago del pedido de farmacia.',

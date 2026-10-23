@@ -349,6 +349,26 @@ export const clinicalService = {
     return data
   },
 
+  /**
+   * Anula una receta emitida y, si tiene posdatadas, las que todavía no
+   * empezaron (migración 216, Edge Function `rcta-anular`). Llamarla otra vez
+   * sobre una receta ya anulada reintenta lo que el servicio de recetas no
+   * confirmó. Devuelve `{ anuladas, sinConfirmar, siguenVigentes }`.
+   */
+  async anularReceta(medicationId, { motivo = null, patientId = null } = {}) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rcta-anular`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ medicationId, motivo }),
+    })
+    const result = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(result.error ?? `No se pudo anular la receta (${res.status})`)
+    // Asiento de auditoría (Ley 26.529 Art. 14): anular es suspender la indicación.
+    logClinicalAccess({ resourceType: 'medication', resourceId: medicationId, patientId, action: 'stop' })
+    return result
+  },
+
   async getEncounterWithDetail(encounterId) {
     if (esSimulado(encounterId)) return simulacion.encuentro()
     const { data: encounter, error: encounterError } = await supabase

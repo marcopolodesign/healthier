@@ -732,6 +732,30 @@ export function recetaEmitida(r: { patientName: string; professionalName: string
   }
 }
 
+/**
+ * Tratamiento prolongado (migración 216): el día que empieza a valer una receta
+ * posdatada. La dispara el cron `avisar-posdatadas-habilitadas`, una vez por
+ * receta.
+ */
+export function recetaHabilitada(r: { patientName: string; professionalName: string; medicamento: string; pdfUrl: string | null }): Sent {
+  const body = [
+    p(`Hola <strong style="color:${C.ink}">${esc(r.patientName)}</strong>, tu próxima receta de <strong style="color:${C.ink}">${esc(r.medicamento)}</strong> está habilitada desde hoy. Es la que te dejó <strong style="color:${C.ink}">${esc(r.professionalName)}</strong> para seguir con el tratamiento.`),
+    note('Podés pedirlo en la farmacia de la app y que te lo lleven, o presentar la receta <strong>desde el celular</strong> en cualquier farmacia.', 'sage'),
+    button(`${APP_URL}/paciente/farmacia`, 'Comprar en la farmacia', 'sage'),
+    r.pdfUrl ? link(r.pdfUrl, 'Ver la receta') : '',
+  ].join('')
+
+  return {
+    subject: `Ya podés comprar tu ${r.medicamento}`,
+    html: renderEmail({
+      preheader: 'Tu próxima receta está habilitada desde hoy.',
+      eyebrow: 'Receta electrónica', accent: 'sage',
+      title: 'Tu próxima receta ya está habilitada', body,
+      footnote: 'La receta electrónica tiene la misma validez legal que la de papel.',
+    }),
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 12 · Auth — las plantillas que usa Supabase Auth
 // ═══════════════════════════════════════════════════════════════════════════

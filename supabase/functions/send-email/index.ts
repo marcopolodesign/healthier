@@ -390,6 +390,33 @@ Deno.serve(async (req) => {
         return await salida({ usuarioId: meds[0].patient_id as string }, [{ to: paciente?.email, ...mail }])
       }
 
+      // Tratamiento prolongado (migración 216): empieza a valer una posdatada.
+      // Si entre que el cron la tomó y ahora se anuló, no sale.
+      case 'receta-habilitada': {
+        if (!body.prescriptionId) return json({ error: 'Falta prescriptionId' }, 400)
+        const { data: meds } = await sb
+          .from('clinical_medications')
+          .select('medication_name, nombre_droga, rcta_pdf_url, patient_id, professional_id, rcta_status, posdatada_de')
+          .eq('rcta_prescription_id', body.prescriptionId)
+          .not('posdatada_de', 'is', null)
+        if (!meds?.length) return json({ error: 'Receta no encontrada' }, 404)
+        if (!body.preview && meds.every((m: Record<string, string | null>) => m.rcta_status !== 'issued')) {
+          return json({ skipped: true, reason: 'la receta ya no está vigente' })
+        }
+
+        const [paciente, profesional] = await Promise.all([
+          leerPerfil(sb, meds[0].patient_id as string),
+          leerPerfil(sb, meds[0].professional_id as string),
+        ])
+        const mail = T.recetaHabilitada({
+          patientName: primerNombre(paciente?.full_name) ?? 'Paciente',
+          professionalName: profesional?.full_name ?? 'tu profesional',
+          medicamento: (meds[0].medication_name || meds[0].nombre_droga || 'medicamento') as string,
+          pdfUrl: (meds[0].rcta_pdf_url as string) ?? null,
+        })
+        return await salida({ usuarioId: meds[0].patient_id as string }, [{ to: paciente?.email, ...mail }])
+      }
+
       // ── Cuentas ────────────────────────────────────────────────────────────
       // Los tres que sólo necesitan el perfil de una persona comparten la
       // misma forma; lo único que cambia es qué plantilla se arma.

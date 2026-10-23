@@ -33,6 +33,7 @@ const TIPOS = {
   'pedido-confirmado': 'Pedido de farmacia',
   'pedido-estado':     'Estado del pedido',
   'receta':            'Receta emitida',
+  'receta-habilitada': 'Receta posdatada habilitada',
   'bienvenida':        'Bienvenida',
   'pro-verificado':    'Profesional verificado',
   'pro-observado':     'Documentación observada',
