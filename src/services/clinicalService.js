@@ -3,6 +3,7 @@ import { MENSAJE_SIN_MATRICULA } from '../lib/firmaHistoriaClinica'
 // Ver la nota de la valla en `consultationsService.js`.
 import * as simulacion from '../lib/simulacion'
 import { esSimulado } from '../lib/simulacion'
+import { callEdgeFunction } from '../lib/edgeFunction'
 
 /**
  * Rastro de auditoría de la historia clínica.
@@ -355,17 +356,13 @@ export const clinicalService = {
    * sobre una receta ya anulada reintenta lo que el servicio de recetas no
    * confirmó. Devuelve `{ anuladas, sinConfirmar, siguenVigentes }`.
    */
-  async anularReceta(medicationId, { motivo = null, patientId = null } = {}) {
-    const { data: { session } } = await supabase.auth.getSession()
-    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rcta-anular`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-      body: JSON.stringify({ medicationId, motivo }),
-    })
-    const result = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(result.error ?? `No se pudo anular la receta (${res.status})`)
-    // Asiento de auditoría (Ley 26.529 Art. 14): anular es suspender la indicación.
-    logClinicalAccess({ resourceType: 'medication', resourceId: medicationId, patientId, action: 'stop' })
+  async anularReceta(medicationId, { motivo = null, patientId = null, encounterId = null } = {}) {
+    // La práctica no tiene recetas reales que anular.
+    if (esSimulado(encounterId) || esSimulado(medicationId)) throw new Error('En la práctica no se anulan recetas.')
+    const result = await callEdgeFunction('rcta-anular', { medicationId, motivo })
+    // Asiento de auditoría (Ley 26.529 Art. 14): anular es suspender la
+    // indicación. Una vez: el "Reintentar" no vuelve a suspender nada.
+    if (!result?.reintento) logClinicalAccess({ resourceType: 'medication', resourceId: medicationId, patientId, action: 'stop' })
     return result
   },
 

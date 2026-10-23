@@ -289,8 +289,10 @@ grant execute on function public.farmacia_recetas_de(uuid, uuid) to service_role
 -- ── 5. "Ya podés comprar tu …" el día que empieza cada posdatada ────────────
 -- Corre todos los días a las 9 de Argentina. Marca y avisa en el mismo UPDATE
 -- (`aviso_habilitada_at`), así dos corridas en paralelo no avisan dos veces.
--- Toma las que empezaron y siguen dentro de su vigencia: si un día el cron no
--- corre, el aviso sale al día siguiente en vez de perderse.
+-- Toma las que empiezan hoy o ayer: si un día el cron no corre, el aviso sale
+-- al día siguiente en vez de perderse, y una de hace semanas no recibe un
+-- "habilitada desde hoy" que ya no es cierto. Usa la misma regla de validez que
+-- la farmacia (`farmacia_recetas_de`): no se avisa algo que no se puede comprar.
 create or replace function public.avisar_posdatadas_habilitadas()
 returns integer
 language plpgsql
@@ -299,13 +301,9 @@ set search_path to 'public'
 as $$
 declare
   v_hoy date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
-  v_vig integer;
   r     record;
   v_n   integer := 0;
 begin
-  select least(30, coalesce(max(receta_vigencia_dias), 30)) into v_vig
-    from public.platform_settings where id = 1;
-
   for r in
     update public.clinical_medications cm
        set aviso_habilitada_at = now()
@@ -314,8 +312,13 @@ begin
        and cm.status = 'active'
        and cm.aviso_habilitada_at is null
        and cm.rcta_prescription_id is not null
-       and cm.vigencia_desde <= v_hoy
-       and cm.vigencia_desde > v_hoy - coalesce(v_vig, 30)
+       and cm.vigencia_desde between v_hoy - 1 and v_hoy
+       and exists (
+         select 1 from public.clinical_medications o
+          where o.id = cm.posdatada_de
+            and (o.status = 'active'
+                 or (o.stopped_at is not null
+                     and cm.vigencia_desde <= (o.stopped_at at time zone 'America/Argentina/Buenos_Aires')::date)))
        and not exists (
          select 1
            from public.medication_order_items it
@@ -346,6 +349,13 @@ grant execute on function public.avisar_posdatadas_habilitadas() to service_role
 
 comment on function public.avisar_posdatadas_habilitadas() is
   'Migración 216. Push + mail al paciente el día que empieza cada receta posdatada ("Ya podés comprar tu …"), una sola vez (aviso_habilitada_at). La corre el cron avisar-posdatadas-habilitadas a las 9 de Argentina.';
+
+-- Las posdatadas que ya empezaron antes de esta migración no se avisan tarde.
+update public.clinical_medications
+   set aviso_habilitada_at = now()
+ where posdatada_de is not null
+   and aviso_habilitada_at is null
+   and vigencia_desde < (now() at time zone 'America/Argentina/Buenos_Aires')::date;
 
 do $$
 begin
