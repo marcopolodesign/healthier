@@ -137,11 +137,11 @@ export function buildPatientMealsData(meals, foods, dist) {
 
 // ── Búsqueda de alimentos ───────────────────────────────────────────────────
 //
-// Pasa por la Edge Function `fatsecret-search`, NO por el browser. Antes se
-// llamaba a FatSecret desde acá a través de un proxy público (`corsproxy.io`),
-// con el client id y el secret escritos como constantes en este archivo — o sea
-// compilados dentro del bundle, a la vista de cualquiera. Ese proxy además dejó
-// de aceptar llamadas anónimas, así que la búsqueda estaba rota.
+// Pasa por la Edge Function `buscar-alimentos`, que consulta Open Food Facts del
+// lado del servidor. Antes era FatSecret (primero desde el browser por un proxy
+// público, después desde una función), pero su cuenta exige una lista blanca de
+// IPs que las Edge Functions no pueden cumplir. Valores por 100 g, igual que el
+// vademécum local.
 //
 // La función devuelve `{ results, motivo? }` y nunca tira: si la fuente externa
 // no está disponible, devuelve una lista vacía con el motivo, y el buscador cae
@@ -149,10 +149,10 @@ export function buildPatientMealsData(meals, foods, dist) {
 
 /**
  * Busca alimentos en la fuente externa.
- * @returns {Promise<{results: Array, motivo?: 'ip_no_habilitada'|'no_configurado'|'error_proveedor'}>}
+ * @returns {Promise<{results: Array, motivo?: 'error_proveedor'}>}
  */
-export async function searchFatSecret(query) {
-  const { data, error } = await supabase.functions.invoke('fatsecret-search', {
+export async function searchAlimentosExternos(query) {
+  const { data, error } = await supabase.functions.invoke('buscar-alimentos', {
     body: { query },
   })
   if (error) return { results: [], motivo: 'error_proveedor' }
