@@ -1,38 +1,45 @@
 /**
- * mp-connect — MercadoPago Marketplace OAuth Connect
+ * mp-connect — MercadoPago Marketplace OAuth Connect (profesional)
  *
- * GET /mp-connect?action=authorize&professionalId=UUID   (also accepts professional_id)
- *   Redirects the professional to the MP OAuth consent page. The `state` param
- *   is CSRF-hardened: `${professionalId}.${hmac16}` where hmac16 is the first
- *   16 hex chars of HMAC-SHA256(professionalId, MP_WEBHOOK_SECRET).
+ * POST /mp-connect  { action: "authorize" }        Authorization: Bearer <JWT del profesional>
+ *   (también GET ?action=authorize con el mismo header)
+ *   Devuelve `{ data: { url }, error: null }` con la URL de autorización de MP;
+ *   el front navega a ella. El `state` se arma con el `user.id` del JWT —
+ *   cualquier professionalId que venga en la URL o el body se IGNORA— y vence
+ *   a los 15 minutos (ver _shared/oauthState.ts).
+ *   Sin sesión válida: 401 (o, si es una navegación del browser de un cliente
+ *   viejo, redirect a /profesional/dashboard?mp_error=reintentar). Nunca OAuth.
  *
- * GET /mp-connect?action=callback&code=XXX&state=PROFESSIONAL_ID.HMAC
- *   Verifies the state HMAC, exchanges the auth code for tokens, persists them
- *   (incl. expires_at/live_mode) in mp_accounts, and sets
- *   professional_profiles.mp_connected = true. Redirects to
- *   /profesional/dashboard?mp_connected=1 on success.
+ *   🔴 Hasta el 2026-10-23 este paso aceptaba `?professionalId=<cualquiera>`
+ *   sin sesión y firmaba el state con ese id: cualquiera podía completar el
+ *   OAuth con SU cuenta de MP y el callback la guardaba como la del profesional
+ *   víctima — los cobros iban a la cuenta del atacante.
  *
- *   Also fetches the seller identity via GET /users/me (nickname/email) —
- *   best-effort, non-fatal — and stores it as mp_accounts.mp_nickname/mp_email
- *   plus a denormalized professional_profiles.mp_account_label so both the
- *   professional's own Configuración page and the super-admin Profesionales
- *   list can show "connected as <label>".
+ * GET /mp-connect?code=XXX&state=v2.<id>.<exp>.<sig>   (lo llama Mercado Pago)
+ *   Verifica el state (firma + vencimiento), canjea el code por tokens, los
+ *   guarda en mp_accounts y marca professional_profiles.mp_connected = true.
+ *   Redirige a /profesional/dashboard?mp_connected=1 (o ?mp_error=...).
+ *   También trae la identidad del vendedor (GET /users/me) — best-effort — y
+ *   la guarda como mp_accounts.mp_nickname/mp_email + el label desnormalizado
+ *   professional_profiles.mp_account_label.
  *
- * POST /mp-connect  { action: "disconnect" }  (authenticated — the owning professional)
- *   Marks mp_accounts.active = false and professional_profiles.mp_connected = false
- *   (and clears mp_account_label) for the caller.
+ * POST /mp-connect  { action: "disconnect" }       Authorization: Bearer <JWT>
+ *   Desconecta la cuenta del dueño del JWT (nunca la de un id del body).
+ *
+ * `verify_jwt = false` en supabase/config.toml (el callback llega sin JWT):
+ * cada acción valida su propia autenticación acá adentro.
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { encryptToken } from "../_shared/tokenCrypto.ts";
 import { buildOAuthState, verifyOAuthState } from "../_shared/oauthState.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+import {
+  corsHeaders,
+  isBrowserNavigation,
+  json,
+  serviceClient,
+  userFromRequest,
+} from "../_shared/mpConnectAuth.ts";
 
 const IS_PROD = Deno.env.get("MP_IS_PROD") === "true";
 const MP_CLIENT_ID = IS_PROD
@@ -41,18 +48,11 @@ const MP_CLIENT_ID = IS_PROD
 const MP_CLIENT_SECRET = IS_PROD
   ? Deno.env.get("MP_CLIENT_SECRET_PROD")!
   : Deno.env.get("MP_CLIENT_SECRET_SANDBOX")!;
-const REDIRECT_URI = Deno.env.get("MP_REDIRECT_URI")!; // e.g. https://aixjejdoofervrkggbkd.supabase.co/functions/v1/mp-connect?action=callback
+const REDIRECT_URI = Deno.env.get("MP_REDIRECT_URI")!; // e.g. https://aixjejdoofervrkggbkd.supabase.co/functions/v1/mp-connect
 const APP_URL = Deno.env.get("APP_URL") ?? "https://healthier.com.ar"; // fallback
 const MP_WEBHOOK_SECRET = Deno.env.get("MP_WEBHOOK_SECRET")!; // reused pragmatically as the state-signing secret
 
-// ─── CSRF-hardened state helpers ───────────────────────────────────────────
-
-const buildState = (professionalId: string) => buildOAuthState(professionalId, MP_WEBHOOK_SECRET);
-/** Returns the professionalId if the state's HMAC checks out, otherwise null. */
-const verifyState = (state: string) => verifyOAuthState(state, MP_WEBHOOK_SECRET);
-
 serve(async (req: Request) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -70,49 +70,52 @@ serve(async (req: Request) => {
         url.searchParams.get("professionalId") ??
         url.searchParams.get("professional_id")
       ) {
-        action = "authorize";
+        action = "authorize"; // links viejos: caen en el 401 / redirect de abajo
       }
     }
-
-    // ─── POST: disconnect (authenticated, owning professional only) ─────────
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({} as Record<string, unknown>));
-      const postAction = (body as { action?: string }).action ?? action;
+      action = (body as { action?: string }).action ?? action;
+      if (action === "callback") return json({ error: "callback is GET-only" }, 405);
+    }
 
-      if (postAction !== "disconnect") {
-        return new Response(
-          JSON.stringify({ error: `Unknown POST action: ${postAction ?? "(none)"}` }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    // ─── 1. Authorize (exige la sesión del profesional) ─────────────────────
+    if (action === "authorize") {
+      const user = await userFromRequest(req);
+      if (!user) {
+        if (isBrowserNavigation(req)) {
+          return Response.redirect(`${APP_URL}/profesional/dashboard?mp_error=reintentar`, 302);
+        }
+        return json({ error: "Unauthorized: iniciá sesión y volvé a tocar Conectar" }, 401);
       }
 
-      const authHeader = req.headers.get("Authorization");
-      if (!authHeader) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      const { data: pro, error: proErr } = await serviceClient()
+        .from("professional_profiles")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (proErr) throw proErr;
+      if (!pro) return json({ error: "Forbidden: sólo un profesional puede conectar su Mercado Pago" }, 403);
 
-      const authedSupabase = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_ANON_KEY")!,
-        { global: { headers: { Authorization: authHeader } } }
-      );
+      const state = await buildOAuthState("mp-connect", user.id, MP_WEBHOOK_SECRET);
 
-      const { data: { user }, error: authErr } = await authedSupabase.auth.getUser();
-      if (authErr || !user) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      const authUrl = new URL("https://auth.mercadopago.com/authorization");
+      authUrl.searchParams.set("client_id", MP_CLIENT_ID);
+      authUrl.searchParams.set("response_type", "code");
+      authUrl.searchParams.set("platform_id", "mp");
+      authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
+      authUrl.searchParams.set("state", state); // carried back in callback, HMAC-verified there
 
-      const serviceSupabase = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-      );
+      return json({ data: { url: authUrl.toString() }, error: null });
+    }
 
+    // ─── Disconnect (POST, dueño del JWT) ───────────────────────────────────
+    if (action === "disconnect") {
+      if (req.method !== "POST") return json({ error: "disconnect is POST-only" }, 405);
+      const user = await userFromRequest(req);
+      if (!user) return json({ error: "Unauthorized" }, 401);
+
+      const serviceSupabase = serviceClient();
       const { error: mpErr } = await serviceSupabase
         .from("mp_accounts")
         .update({ active: false })
@@ -125,67 +128,28 @@ serve(async (req: Request) => {
 
       if (mpErr || profErr) {
         console.error("mp-connect disconnect error:", mpErr?.message, profErr?.message);
-        return new Response(
-          JSON.stringify({ data: null, error: "Failed to disconnect MercadoPago account" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return json({ data: null, error: "Failed to disconnect MercadoPago account" }, 500);
       }
 
-      return new Response(
-        JSON.stringify({ data: { disconnected: true }, error: null }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // ─── 1. Authorize ────────────────────────────────────────────────────────
-    if (action === "authorize") {
-      const professionalId =
-        url.searchParams.get("professionalId") ?? url.searchParams.get("professional_id");
-      if (!professionalId) {
-        return new Response(
-          JSON.stringify({ error: "Missing professionalId" }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      const state = await buildState(professionalId);
-
-      const authUrl = new URL("https://auth.mercadopago.com/authorization");
-      authUrl.searchParams.set("client_id", MP_CLIENT_ID);
-      authUrl.searchParams.set("response_type", "code");
-      authUrl.searchParams.set("platform_id", "mp");
-      authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
-      authUrl.searchParams.set("state", state); // carried back in callback, HMAC-verified there
-
-      return Response.redirect(authUrl.toString(), 302);
+      return json({ data: { disconnected: true }, error: null });
     }
 
     // ─── 2. Callback ─────────────────────────────────────────────────────────
-    if (action === "callback") {
+    if (action === "callback" && req.method === "GET") {
       const code = url.searchParams.get("code");
       const state = url.searchParams.get("state");
 
       if (!code || !state) {
-        return new Response(
-          JSON.stringify({ error: "Missing code or state" }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+        return json({ error: "Missing code or state" }, 400);
       }
 
-      const professionalId = await verifyState(state);
-      if (!professionalId) {
-        console.warn("mp-connect callback: invalid state HMAC");
-        return Response.redirect(
-          `${APP_URL}/profesional/dashboard?mp_error=invalid_state`,
-          302
-        );
+      const check = await verifyOAuthState("mp-connect", state, MP_WEBHOOK_SECRET);
+      if (!check.ok) {
+        console.warn(`mp-connect callback: state ${check.reason}`);
+        const mpError = check.reason === "expired" ? "state_expired" : "invalid_state";
+        return Response.redirect(`${APP_URL}/profesional/dashboard?mp_error=${mpError}`, 302);
       }
+      const professionalId = check.entityId;
 
       // Exchange authorization code for tokens
       const tokenRes = await fetch(
@@ -225,10 +189,7 @@ serve(async (req: Request) => {
       };
 
       // Persist to mp_accounts using service role (bypasses RLS)
-      const supabase = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-      );
+      const supabase = serviceClient();
 
       const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
 
@@ -320,23 +281,9 @@ serve(async (req: Request) => {
     }
 
     // ─── Unknown action ───────────────────────────────────────────────────────
-    return new Response(
-      JSON.stringify({ error: `Unknown action: ${action ?? "(none)"}` }),
-      {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return json({ error: `Unknown action: ${action ?? "(none)"}` }, 400);
   } catch (err) {
     console.error("mp-connect error:", err);
-    return new Response(
-      JSON.stringify({
-        error: err instanceof Error ? err.message : "Internal error",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return json({ error: err instanceof Error ? err.message : "Internal error" }, 500);
   }
 });

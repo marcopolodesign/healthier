@@ -1,8 +1,19 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { LinkSimple, Lock } from '@phosphor-icons/react'
 import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import { pharmacyAdminService } from '../../services/pharmacyAdminService'
 import { toast } from '../../components/Toast'
+import { useConectarMp } from '../../hooks/useConectarMp'
+
+// Vuelta del OAuth de Mercado Pago (pharmacy-mp-connect redirige acá con ?mp_connected=1 / ?mp_error=...).
+const MP_ERROR_MESSAGES = {
+  token_exchange: 'No pudimos completar la conexión con Mercado Pago. Probá de nuevo en unos minutos.',
+  db_save: 'La autorización salió bien pero no pudimos guardarla. Probá conectar de nuevo.',
+  invalid_state: 'No pudimos validar la conexión por seguridad. Iniciá el proceso de nuevo desde este botón.',
+  state_expired: 'La autorización de Mercado Pago venció. Volvé a tocar Conectar.',
+  reintentar: 'Actualizamos cómo se conecta Mercado Pago. Volvé a tocar Conectar.',
+}
 
 export default function PharmacyConfiguracion({ profile }) {
   const [pharmacy, setPharmacy] = useState(null)
@@ -12,6 +23,18 @@ export default function PharmacyConfiguracion({ profile }) {
   const [form, setForm] = useState({ name: '', address: '', phone: '', commissionRate: 0.2 })
 
   const isAdmin = profile?.role === 'pharmacy_admin' || profile?.role === 'super_admin'
+  const { conectar: conectarMp, conectando: conectandoMp } = useConectarMp(pharmacyAdminService.getMpConnectUrl)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  useEffect(() => {
+    const connected = searchParams.get('mp_connected')
+    const mpError = searchParams.get('mp_error')
+    if (!connected && !mpError) return
+    if (connected === '1') toast.success('Mercado Pago conectado')
+    if (mpError) toast.error(MP_ERROR_MESSAGES[mpError] ?? 'No pudimos conectar Mercado Pago. Probá de nuevo.')
+    setSearchParams({}, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     pharmacyAdminService.getPharmacy().then(p => {
@@ -91,9 +114,9 @@ export default function PharmacyConfiguracion({ profile }) {
               <p className="text-sm font-semibold text-text-primary">No conectado</p>
               <p className="text-xs text-text-secondary mt-0.5">La farmacia no puede cobrar pedidos hasta conectar su cuenta.</p>
             </div>
-            <a href={pharmacyAdminService.getMpConnectUrl()} className="flex items-center gap-1.5 text-xs font-semibold text-white bg-brand px-3 py-2 rounded-full hover:bg-brand-hover transition-colors shrink-0">
-              <LinkSimple className="h-3.5 w-3.5" /> Conectar
-            </a>
+            <button type="button" onClick={conectarMp} disabled={conectandoMp} className="flex items-center gap-1.5 text-xs font-semibold text-white bg-brand px-3 py-2 rounded-full hover:bg-brand-hover transition-colors shrink-0 disabled:opacity-60">
+              <LinkSimple className="h-3.5 w-3.5" /> {conectandoMp ? 'Abriendo…' : 'Conectar'}
+            </button>
           </div>
         )}
       </div>

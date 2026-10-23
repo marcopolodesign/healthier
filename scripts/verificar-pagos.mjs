@@ -20,7 +20,9 @@
  * descubrió porque una profesional lo reportó por WhatsApp.** Este script tarda
  * segundos y lo habría cazado el mismo día.
  *
- * Sólo lee: no toca ninguna base, ni ninguna función, ni Mercado Pago.
+ * Sólo lee: no toca ninguna base, ni ninguna función, ni Mercado Pago. Abre
+ * una sesión con las cuentas de prueba documentadas para probar el vínculo de
+ * MP como lo hace el front (el `authorize` exige sesión desde el 2026-10-23).
  */
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -42,6 +44,38 @@ const ENTORNOS = {
 // `reactivar-cuenta` (188) no es de pagos, pero también es pública a propósito:
 // la llama alguien sin sesión desde el registro y valida con su propio token.
 const PUBLICAS = ['mp-connect', 'mp-webhook', 'pharmacy-mp-connect', 'mp-refresh-tokens', 'reactivar-cuenta']
+
+// Cuentas de prueba documentadas en docs/testing.md (no rotarlas). Abrir una
+// sesión con ellas no escribe datos de negocio.
+const CUENTAS = {
+  produccion: {
+    profesional: { email: 'profesional@healthier.app', password: 'profesional' },
+    farmacia: { email: env.HEALTHIER_FARMACIA_PANEL_EMAIL, password: env.HEALTHIER_FARMACIA_PANEL_PASSWORD },
+  },
+  staging: {
+    profesional: { email: 'clinica@staging.healthier.app', password: 'staging' },
+    farmacia: { email: 'farmacia@staging.healthier.app', password: 'staging' },
+  },
+}
+const FARMACIA_ID = '10000000-0000-0000-0000-000000000001' // único tenant (migración 103)
+
+async function anonKey(ref) {
+  const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/api-keys`, {
+    headers: { Authorization: `Bearer ${env.SUPABASE_ACCESS_TOKEN}` },
+  })
+  const keys = await r.json().catch(() => [])
+  return Array.isArray(keys) ? keys.find(k => k.name === 'anon')?.api_key : undefined
+}
+
+async function login(url, anon, { email, password }) {
+  if (!anon) return null
+  const r = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+    method: 'POST', headers: { apikey: anon, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  const j = await r.json().catch(() => ({}))
+  return j.access_token ? j : null
+}
 
 let fallas = 0
 const ok   = (m) => console.log(`   ✅ ${m}`)
@@ -70,24 +104,60 @@ async function revisar(nombre, { ref, url, web, clave }) {
   }
   if (!fallas) ok('cada function tiene el flag que le corresponde')
 
-  // ── 2) El profesional puede arrancar el vínculo ───────────────────────────
-  console.log('\n▸ Vínculo de Mercado Pago (lo que hace el browser del profesional)')
-  const authRes = await fetch(
-    `${url}/functions/v1/mp-connect?action=authorize&professionalId=00000000-0000-0000-0000-000000000001`,
-    { redirect: 'manual' },
-  )
-  const destino = authRes.headers.get('location') ?? ''
-  if (authRes.status === 401) {
-    mal(`401 del gateway — ES EL BUG DEL 2026-08-07. El profesional ve "Missing authorization header".`)
-  } else if (destino.includes('auth.mercadopago.com')) {
-    ok('redirige a Mercado Pago')
-    const cid = new URL(destino).searchParams.get('client_id')
-    if (!cid || cid === 'undefined') mal(`client_id=${cid} — falta MP_CLIENT_ID_* en los secrets de este entorno`)
-    else ok(`client_id presente (${cid})`)
-    if (!new URL(destino).searchParams.get('state')?.includes('.')) mal('el state no viene firmado (HMAC)')
-    else ok('el state viaja firmado')
-  } else {
-    mal(`no redirige a Mercado Pago (HTTP ${authRes.status})`)
+  // ── 2) El vínculo de Mercado Pago ─────────────────────────────────────────
+  // Desde el 2026-10-23 el paso `authorize` exige la sesión: antes aceptaba
+  // `?professionalId=<cualquiera>` sin JWT y firmaba el state con ese id, así
+  // que cualquiera podía vincular SU cuenta de MP al perfil de otro y quedarse
+  // con los cobros. Se chequean las dos caras: sin sesión NO hay OAuth, y con
+  // sesión el profesional / la farmacia SÍ llegan a Mercado Pago, con el state
+  // armado con quien está logueado (nunca con el id que venga en el pedido).
+  console.log('\n▸ Vínculo de Mercado Pago')
+  const ID_AJENO = '00000000-0000-0000-0000-000000000001'
+  for (const [fn, query] of [['mp-connect', `professionalId=${ID_AJENO}`], ['pharmacy-mp-connect', `pharmacyId=${ID_AJENO}`]]) {
+    for (const [como, headers] of [['fetch', {}], ['navegación', { Accept: 'text/html', 'Sec-Fetch-Mode': 'navigate' }]]) {
+      const r = await fetch(`${url}/functions/v1/${fn}?action=authorize&${query}`, { redirect: 'manual', headers })
+      const loc = r.headers.get('location') ?? ''
+      if (r.headers.get('sb-error-code') === 'UNAUTHORIZED_NO_AUTH_HEADER') {
+        mal(`${fn}: 401 del gateway — ES EL BUG DEL 2026-08-07 (verify_jwt prendido). Nadie puede vincular.`)
+      } else if (loc.includes('mercadopago.com')) {
+        mal(`${fn} (${como}, sin sesión): arranca el OAuth — HUECO: cualquiera puede vincular su Mercado Pago a otro perfil`)
+      } else if (como === 'fetch' && r.status === 401) {
+        ok(`${fn} sin sesión → 401`)
+      } else if (como === 'navegación' && r.status === 302) {
+        ok(`${fn} link viejo sin sesión → vuelve a la app (${new URL(loc).pathname}${new URL(loc).search})`)
+      } else {
+        mal(`${fn} (${como}, sin sesión): HTTP ${r.status} — se esperaba ${como === 'fetch' ? '401' : '302 a la app'}`)
+      }
+    }
+  }
+
+  const anon = await anonKey(ref)
+  const cuentas = CUENTAS[nombre] ?? {}
+  for (const [fn, cuenta, esperado] of [
+    ['mp-connect', cuentas.profesional, (sesion) => sesion.user.id],
+    ['pharmacy-mp-connect', cuentas.farmacia, () => FARMACIA_ID],
+  ]) {
+    if (!cuenta?.email || !cuenta?.password) { nota(`${fn}: sin cuenta de prueba en este entorno — no pruebo el caso con sesión`); continue }
+    const sesion = await login(url, anon, cuenta)
+    if (!sesion) { mal(`${fn}: no pude iniciar sesión como ${cuenta.email}`); continue }
+    const r = await fetch(`${url}/functions/v1/${fn}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sesion.access_token}` },
+      // un id ajeno a propósito: el servidor tiene que ignorarlo
+      body: JSON.stringify({ action: 'authorize', professionalId: ID_AJENO, pharmacyId: ID_AJENO }),
+    })
+    const cuerpo = await r.json().catch(() => ({}))
+    const destino = cuerpo?.data?.url ?? ''
+    if (!r.ok || !destino.includes('auth.mercadopago.com')) { mal(`${fn} con sesión (${cuenta.email}): HTTP ${r.status} ${JSON.stringify(cuerpo).slice(0, 120)}`); continue }
+    const params = new URL(destino).searchParams
+    const cid = params.get('client_id')
+    if (!cid || cid === 'undefined') mal(`${fn}: client_id=${cid} — falta MP_CLIENT_ID_* en los secrets de este entorno`)
+    const [v, idDelState, exp] = (params.get('state') ?? '').split('.')
+    const vence = Number(exp) * 1000 - Date.now()
+    if (v !== 'v2') mal(`${fn}: el state no viene en el formato firmado con vencimiento (v2)`)
+    else if (idDelState !== esperado(sesion)) mal(`${fn}: el state lleva ${idDelState} en vez de ${esperado(sesion)} — se firmó con el id del pedido`)
+    else if (!(vence > 0 && vence <= 16 * 60_000)) mal(`${fn}: el state vence en ${Math.round(vence / 60_000)} min — tiene que ser corto`)
+    else ok(`${fn} con sesión → Mercado Pago (client_id ${cid}), state de quien está logueado, vence en ${Math.round(vence / 60_000)} min`)
   }
 
   // ── 3) El webhook de Mercado Pago entra ───────────────────────────────────

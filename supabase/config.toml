@@ -29,6 +29,13 @@
 # Las tres validan por su cuenta quién las llama (HMAC en el `state` del OAuth,
 # firma del webhook): la seguridad no depende del gateway.
 #
+# 🔴 Desde el 2026-10-23, `authorize` y `disconnect` de las dos *-mp-connect
+# exigen el JWT del usuario y lo validan ADENTRO de la función (el front pide
+# la URL de MP con su sesión). `verify_jwt = false` sigue haciendo falta por el
+# callback, que lo llama Mercado Pago sin JWT — pero "pública en el gateway"
+# no quiere decir "sin sesión": antes `authorize` firmaba cualquier id que le
+# pasaran y cualquiera podía vincular su MP al perfil de otro.
+#
 # El resto de las funciones queda con `verify_jwt = true`, que es lo correcto:
 # las llama la app con la sesión del usuario, o un cron con la service key.
 #

@@ -140,13 +140,20 @@ export const pharmacyAdminService = {
   },
 
   // ── Mercado Pago ──────────────────────────────────────────────────────
-  getMpConnectUrl() {
-    return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pharmacy-mp-connect?action=authorize&pharmacyId=${PHARMACY_ID}`
+  /** URL de autorización de MP pedida con la sesión — ver mpService.getMpConnectUrl. La farmacia la resuelve el servidor. */
+  async getMpConnectUrl() {
+    try {
+      const result = await callEdgeFunction('pharmacy-mp-connect', { action: 'authorize' })
+      if (!result?.url) throw new Error('No recibimos el enlace de Mercado Pago')
+      return { data: result.url, error: null }
+    } catch (err) {
+      return { data: null, error: err.message }
+    }
   },
 
   async disconnectMp() {
     try {
-      await callEdgeFunction('pharmacy-mp-connect?action=disconnect', { pharmacyId: PHARMACY_ID })
+      await callEdgeFunction('pharmacy-mp-connect', { action: 'disconnect' })
       return { data: true, error: null }
     } catch (err) {
       return { data: null, error: err.message }
