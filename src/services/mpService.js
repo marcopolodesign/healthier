@@ -280,14 +280,22 @@ export const mpService = {
   },
 
   /**
-   * Returns the OAuth initiation URL for connecting a professional's MP account.
-   * Points to the `mp-connect` Edge Function which redirects to MP OAuth.
+   * Pide a `mp-connect` la URL de autorización de Mercado Pago con la sesión
+   * del profesional (JWT). El servidor arma el `state` con el usuario de la
+   * sesión — por eso no recibe ningún id: desde el 2026-10-23 un link armado
+   * con `?professionalId=` ya no inicia el OAuth (era un hueco: cualquiera
+   * podía vincular su cuenta de MP al perfil de otro).
    *
-   * @param {string} professionalId
-   * @returns {string}
+   * @returns {Promise<{ data: string|null, error: string|null }>}
    */
-  getMpConnectUrl(professionalId) {
-    return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mp-connect?action=authorize&professionalId=${professionalId}`
+  async getMpConnectUrl() {
+    try {
+      const result = await callEdgeFunction('mp-connect', { action: 'authorize' })
+      if (!result?.url) throw new Error('No recibimos el enlace de Mercado Pago')
+      return { data: result.url, error: null }
+    } catch (err) {
+      return { data: null, error: err.message }
+    }
   },
 
   /**
@@ -295,9 +303,9 @@ export const mpService = {
    * (mp-connect?action=disconnect — spec C1). Marks mp_accounts.active=false
    * and professional_profiles.mp_connected=false server-side.
    */
-  async disconnectMp(professionalId) {
+  async disconnectMp() {
     try {
-      await callEdgeFunction('mp-connect?action=disconnect', { professionalId })
+      await callEdgeFunction('mp-connect', { action: 'disconnect' })
       return { data: true, error: null }
     } catch (err) {
       return { data: null, error: err.message }
