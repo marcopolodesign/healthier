@@ -280,8 +280,11 @@ function interpretar(status: number, r: any): { estado: 'confirmada' | 'no_hacia
   const codigo = (r?.error ?? null) as string | null
   const mensaje = String(r?.mensaje ?? r?.raw ?? '').trim() || null
   if (status >= 200 && status < 300) return { estado: 'confirmada', detalle: mensaje, codigo: null }
-  if (codigo === 'QBI79' || /VENCID/i.test(mensaje ?? '')) return { estado: 'no_hacia_falta', detalle: mensaje, codigo }
-  if (/ANULAD|DADA DE BAJA/i.test(mensaje ?? '')) return { estado: 'confirmada', detalle: mensaje, codigo }
+  if (codigo === 'QBI79' || /HA VENCIDO/i.test(mensaje ?? '')) return { estado: 'no_hacia_falta', detalle: mensaje, codigo }
+  // Respuesta real de homologación (2026-10-22): "La receta ya habia sido
+  // previamente anulada". Se mira la frase entera: un "no puede ser anulada"
+  // no es una anulación hecha.
+  if (/PREVIAMENTE ANULADA|YA HAB[IÍ]A SIDO ANULADA/i.test(mensaje ?? '')) return { estado: 'confirmada', detalle: mensaje, codigo }
   return { estado: 'error', detalle: mensaje ?? `El servicio de recetas respondió ${status}.`, codigo }
 }
 
