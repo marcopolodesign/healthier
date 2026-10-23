@@ -59,7 +59,7 @@ All paths are prefixed `/apirecipe`.
 | POST | `/Receta/Preview` | **Render the PDF WITHOUT issuing anything.** Body: `RecetaPreviewDto` (a subset of `RecetaRequestDto` — no `medicamentos`, no `paciente`; it fills in sample data). Returns the PDF bytes. The right tool for iterating on the receta's appearance: costs no prescriptions, leaves no trace, is not a medical act. ⚠️ **More permissive than the real issue call** — a payload Preview accepts can still be rejected by `POST /Receta` (that is exactly what hid the `subemisor` logo bug for a month). Use it to see *how it looks*, not to conclude *that it works*. |
 | PUT | `/Receta` | Persist a receta to Innovamed's DB **without** sending to the mandataria or generating a PDF. Body: `PersistirRecetaRequestDto`. |
 | GET | `/Receta/S3Link` | Get the PDF S3 link for a receta by hash. Body: `S3LinkRequestDto` (yes, GET with body). |
-| DELETE | `/Receta/{idRecetaHash}` | Cancel/anular a prescription. Body: `RecetaAnularRequestDto` (`clienteAppId`). |
+| DELETE | `/Receta/{idRecetaHash}` | Cancel/anular a prescription. Body: `RecetaAnularRequestDto` (`clienteAppId`). **`idRecetaHash` is the `id` field of each item in `recetas[]` (30 alphanumeric chars, e.g. `CSTGUS4JK1YUL6Z3BO0ICDFAWYKUE8`), NOT `idReceta`** — with the idReceta the API answers `404 QBI2 OPERACION INVALIDA — No se pudo recuperar la receta` (verified against homologación 2026-10-22). Healthier stores it in `clinical_medications.rcta_hash` (migration 216). On an expired receta it answers `400 QBI79 — LA RECETA HA VENCIDO EL DIA dd/mm/aaaa`. 200 returns `FarmalinkResult` `{ codigoRespuesta, mensaje }`. Used by the `rcta-anular` Edge Function — see §7bis. |
 
 ### Prescriptions — practices / studies / other
 
@@ -249,6 +249,28 @@ Both also render the logo, but **top left**, over/replacing the prescription
 barcode. Not useful.
 
 ---
+
+## 7bis. Anular una receta — `rcta-anular` (migración 216, 2026-10-22)
+
+Decisión de Mateo: si el médico anula la receta de hoy, se anulan también sus
+posdatadas que todavía no empezaron; las ya empezadas quedan como están.
+
+- Panel del profesional → recetario → "Anular" en una receta emitida (sólo
+  quien la emitió; también con la consulta cerrada).
+- La función marca **primero** nuestra base (`status = 'cancelled'`,
+  `rcta_status = 'anulada'`, `stopped_at/by`, `stop_reason` = motivo) y
+  **después** llama `DELETE /apirecipe/Receta/{rcta_hash}` por cada receta.
+  El resultado queda en `rcta_anulacion_estado` (`confirmada` /
+  `no_hacia_falta` si ya estaba vencida allá / `error`) y cada llamada en
+  `rcta_issue_log` (`outcome` `anulada` / `anulacion_error`).
+- Si el servicio no confirma, la receta igual queda anulada en Healthier (la
+  farmacia no la vende, el paciente deja de verla) y el panel ofrece
+  "Reintentar" — la misma llamada sobre una receta ya anulada reintenta sólo
+  lo que quedó en error.
+- Una receta emitida ya no cambia de estado desde el cliente: el trigger
+  `proteger_emision_de_receta` lo rechaza ("Una receta emitida se anula desde
+  'Anular receta'").
+- Control: `node scripts/verificar-posdatadas-anular-avisar.mjs` (staging).
 
 ## 8. Env vars
 

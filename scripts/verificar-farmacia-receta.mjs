@@ -111,10 +111,34 @@ const CASOS = [
           ${como(PRO)} update clinical_medications set vigencia_desde = current_date + 29 where id = '${RX4}';`,
     espera: { error: '42501' },
   },
+  // Migración 216 (Mateo, "se anulan y sí avisamos"): al anular la original,
+  // `rcta-anular` anula las posdatadas que no empezaron; la que ya empezó queda
+  // como está. Antes (214) caía con la original.
   {
-    nombre: 'Si el médico suspende la original, las posdatadas no se venden',
+    nombre: 'Anulada la original, la posdatada que ya empezó se sigue vendiendo',
+    sql: `${preparar} ${posdatada("current_date - 1")} ${usarLaPrimera}
+          ${reset} ${comoServicio} update clinical_medications set status = 'cancelled', rcta_status = 'anulada', stopped_at = now() where id = '${RX3}';
+          ${como(PACIENTE)} select (agregar_item_pedido_medicamentos('${PROD_C}', 1) is not null)::text as r;`,
+    espera: { valor: 'true' },
+  },
+  {
+    nombre: 'Una posdatada que empezó DESPUÉS de anularse la original no se vende (aunque haya quedado activa)',
+    sql: `${preparar} ${posdatada("current_date")} ${usarLaPrimera}
+          ${reset} ${comoServicio} update clinical_medications set status = 'cancelled', rcta_status = 'anulada', stopped_at = now() - interval '2 days' where id = '${RX3}';
+          select count(*)::text as r from farmacia_recetas_de('${PACIENTE}') where clinical_medication_id = '${RX4}';`,
+    espera: { valor: '0' },
+  },
+  {
+    nombre: 'Original suspendida sin fecha de anulación: no deja ninguna posdatada',
     sql: `${preparar} ${posdatada("current_date - 1")} ${usarLaPrimera}
           ${reset} ${comoServicio} update clinical_medications set status = 'stopped' where id = '${RX3}';
+          select count(*)::text as r from farmacia_recetas_de('${PACIENTE}') where clinical_medication_id = '${RX4}';`,
+    espera: { valor: '0' },
+  },
+  {
+    nombre: 'Una posdatada anulada no se vende',
+    sql: `${preparar} ${posdatada("current_date - 1")} ${usarLaPrimera}
+          ${reset} ${comoServicio} update clinical_medications set status = 'cancelled', rcta_status = 'anulada' where id = '${RX4}';
           ${como(PACIENTE)} select agregar_item_pedido_medicamentos('${PROD_C}', 1);`,
     espera: { error: 'HR001' },
   },
