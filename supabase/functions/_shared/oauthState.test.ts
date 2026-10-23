@@ -11,7 +11,7 @@ Deno.test('ida y vuelta: el state firmado devuelve el mismo id', async () => {
   assertEquals(await verifyOAuthState('mp-connect', s, SECRET, T0 + 60_000), { ok: true, entityId: ID })
 })
 
-Deno.test('vence a los 15 minutos', async () => {
+Deno.test('vence a la hora', async () => {
   const s = await buildOAuthState('mp-connect', ID, SECRET, T0)
   const despues = T0 + (OAUTH_STATE_TTL_SECONDS + 1) * 1000
   assertEquals(await verifyOAuthState('mp-connect', s, SECRET, despues), { ok: false, reason: 'expired' })
@@ -31,8 +31,8 @@ Deno.test('cambiar el id o estirar el vencimiento rompe la firma', async () => {
   assertEquals((await verifyOAuthState('mp-connect', masTarde, SECRET, T0)).ok, false)
 })
 
-Deno.test('el formato viejo (id.hmac16, sin vencimiento) ya no se acepta', async () => {
-  assertEquals((await verifyOAuthState('mp-connect', `${ID}.0123456789abcdef`, SECRET, T0)).ok, false)
+Deno.test('el formato viejo (id.hmac16, sin vencimiento) ya no se acepta — se informa como vencido', async () => {
+  assertEquals(await verifyOAuthState('mp-connect', `${ID}.0123456789abcdef`, SECRET, T0), { ok: false, reason: 'expired' })
 })
 
 Deno.test('sin secreto no se firma ni se valida', async () => {

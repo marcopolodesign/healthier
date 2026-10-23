@@ -117,7 +117,11 @@ async function revisar(nombre, { ref, url, web, clave }) {
     for (const [como, headers] of [['fetch', {}], ['navegación', { Accept: 'text/html', 'Sec-Fetch-Mode': 'navigate' }]]) {
       const r = await fetch(`${url}/functions/v1/${fn}?action=authorize&${query}`, { redirect: 'manual', headers })
       const loc = r.headers.get('location') ?? ''
-      if (r.headers.get('sb-error-code') === 'UNAUTHORIZED_NO_AUTH_HEADER') {
+      // El 401 de la FUNCIÓN es `{ error: "Unauthorized…" }`; el del gateway (verify_jwt
+      // prendido) trae `sb-error-code` y/o `{ code, message }`. No confundirlos.
+      const cuerpo401 = r.status === 401 ? await r.json().catch(() => ({})) : {}
+      const esDeLaFuncion = typeof cuerpo401.error === 'string' && /unauthorized/i.test(cuerpo401.error)
+      if (r.headers.get('sb-error-code') || (r.status === 401 && !esDeLaFuncion)) {
         mal(`${fn}: 401 del gateway — ES EL BUG DEL 2026-08-07 (verify_jwt prendido). Nadie puede vincular.`)
       } else if (loc.includes('mercadopago.com')) {
         mal(`${fn} (${como}, sin sesión): arranca el OAuth — HUECO: cualquiera puede vincular su Mercado Pago a otro perfil`)
@@ -156,7 +160,7 @@ async function revisar(nombre, { ref, url, web, clave }) {
     const vence = Number(exp) * 1000 - Date.now()
     if (v !== 'v2') mal(`${fn}: el state no viene en el formato firmado con vencimiento (v2)`)
     else if (idDelState !== esperado(sesion)) mal(`${fn}: el state lleva ${idDelState} en vez de ${esperado(sesion)} — se firmó con el id del pedido`)
-    else if (!(vence > 0 && vence <= 16 * 60_000)) mal(`${fn}: el state vence en ${Math.round(vence / 60_000)} min — tiene que ser corto`)
+    else if (!(vence > 0 && vence <= 61 * 60_000)) mal(`${fn}: el state vence en ${Math.round(vence / 60_000)} min — tiene que ser corto (≤ 1 h)`)
     else ok(`${fn} con sesión → Mercado Pago (client_id ${cid}), state de quien está logueado, vence en ${Math.round(vence / 60_000)} min`)
   }
 
