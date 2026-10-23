@@ -4,16 +4,23 @@
  * separate rather than parameterizing mp-connect, same reasoning as
  * pharmacy_mp_accounts being its own table.
  *
- * GET /pharmacy-mp-connect?action=authorize&pharmacyId=UUID
- *   Redirects to the MP OAuth consent page. `state` = `${pharmacyId}.${hmac16}`.
+ * POST /pharmacy-mp-connect  { action: "authorize" }   Authorization: Bearer <JWT>
+ *   (también GET ?action=authorize con el mismo header)
+ *   Sólo pharmacy_admin / super_admin. Devuelve `{ data: { url } }` con la URL
+ *   de autorización de MP. La farmacia del state la resuelve el servidor (hoy:
+ *   el único tenant de `pharmacies`); cualquier pharmacyId de la URL o el body
+ *   se IGNORA. Sin sesión: 401 (o redirect a /farmacia/configuracion?mp_error=
+ *   reintentar si es una navegación del browser de un cliente viejo).
+ *   🔴 Hasta el 2026-10-23 aceptaba `?pharmacyId=<cualquiera>` sin sesión — ver
+ *   el comentario de mp-connect.
  *
- * GET /pharmacy-mp-connect?action=callback&code=XXX&state=PHARMACY_ID.HMAC
+ * GET /pharmacy-mp-connect?code=XXX&state=v2.<pharmacyId>.<exp>.<sig>   (Mercado Pago)
  *   Exchanges the code, persists tokens in pharmacy_mp_accounts, sets
  *   pharmacies.mp_connected = true. Redirects to /farmacia/configuracion?mp_connected=1.
  *
- * POST /pharmacy-mp-connect  { action: "disconnect", pharmacyId }
- *   (authenticated — pharmacy_admin or super_admin) Marks
- *   pharmacy_mp_accounts.active = false and pharmacies.mp_connected = false.
+ * POST /pharmacy-mp-connect  { action: "disconnect" }   Authorization: Bearer <JWT>
+ *   (pharmacy_admin o super_admin) Marks pharmacy_mp_accounts.active = false
+ *   and pharmacies.mp_connected = false, sobre la farmacia que resuelve el server.
  *
  * ⚠️ Requires a dedicated MP_REDIRECT_URI registered in the MercadoPago
  * developer app's allowed redirect URLs (manual step, not doable via API) —
@@ -21,14 +28,15 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { encryptToken } from "../_shared/tokenCrypto.ts";
 import { buildOAuthState, verifyOAuthState } from "../_shared/oauthState.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import {
+  corsHeaders,
+  isBrowserNavigation,
+  json,
+  serviceClient,
+  userFromRequest,
+} from "../_shared/mpConnectAuth.ts";
 
 const IS_PROD = Deno.env.get("MP_IS_PROD") === "true";
 const MP_CLIENT_ID = IS_PROD
@@ -37,12 +45,47 @@ const MP_CLIENT_ID = IS_PROD
 const MP_CLIENT_SECRET = IS_PROD
   ? Deno.env.get("MP_CLIENT_SECRET_PROD")!
   : Deno.env.get("MP_CLIENT_SECRET_SANDBOX")!;
-const REDIRECT_URI = Deno.env.get("PHARMACY_MP_REDIRECT_URI")!; // e.g. https://aixjejdoofervrkggbkd.supabase.co/functions/v1/pharmacy-mp-connect?action=callback
+const REDIRECT_URI = Deno.env.get("PHARMACY_MP_REDIRECT_URI")!; // e.g. https://aixjejdoofervrkggbkd.supabase.co/functions/v1/pharmacy-mp-connect
 const APP_URL = Deno.env.get("APP_URL") ?? "https://healthier.com.ar";
 const MP_WEBHOOK_SECRET = Deno.env.get("MP_WEBHOOK_SECRET")!; // reused as the state-signing secret, same as mp-connect
 
-const buildState = (pharmacyId: string) => buildOAuthState(pharmacyId, MP_WEBHOOK_SECRET);
-const verifyState = (state: string) => verifyOAuthState(state, MP_WEBHOOK_SECRET);
+const PHARMACY_STAFF_ROLES = ["pharmacy_admin", "super_admin"];
+
+type StaffCheck = { ok: true; pharmacyId: string } | { ok: false; res: Response };
+
+/**
+ * El que llama tiene que ser staff con permiso (pharmacy_admin/super_admin) y
+ * la farmacia sale del servidor, no del pedido. Hoy `pharmacies` es un único
+ * tenant (migración 103) y no existe un vínculo usuario→farmacia; si algún día
+ * hay más de una, esto corta (fail closed) hasta que ese vínculo exista.
+ */
+async function requirePharmacyStaff(req: Request): Promise<StaffCheck> {
+  const user = await userFromRequest(req);
+  if (!user) return { ok: false, res: json({ error: "Unauthorized" }, 401) };
+
+  const supabase = serviceClient();
+  const { data: profile, error: profErr } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profErr) throw profErr;
+  if (!profile || !PHARMACY_STAFF_ROLES.includes(profile.role)) {
+    return { ok: false, res: json({ error: "Forbidden" }, 403) };
+  }
+
+  const { data: pharmacies, error: phErr } = await supabase
+    .from("pharmacies")
+    .select("id")
+    .eq("active", true)
+    .limit(2);
+  if (phErr) throw phErr;
+  if (!pharmacies || pharmacies.length !== 1) {
+    console.error(`pharmacy-mp-connect: expected a single active pharmacy, got ${pharmacies?.length ?? 0}`);
+    return { ok: false, res: json({ error: "No se pudo determinar la farmacia" }, 409) };
+  }
+  return { ok: true, pharmacyId: pharmacies[0].id };
+}
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -56,94 +99,24 @@ serve(async (req: Request) => {
       if (url.searchParams.get("code") && url.searchParams.get("state")) {
         action = "callback";
       } else if (url.searchParams.get("pharmacyId")) {
-        action = "authorize";
+        action = "authorize"; // links viejos: caen en el 401 / redirect de abajo
       }
     }
-
-    // ─── POST: disconnect (authenticated, pharmacy_admin/super_admin only) ──
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({} as Record<string, unknown>));
-      const postAction = (body as { action?: string }).action ?? action;
-      const pharmacyId = (body as { pharmacyId?: string }).pharmacyId;
-
-      if (postAction !== "disconnect") {
-        return new Response(
-          JSON.stringify({ error: `Unknown POST action: ${postAction ?? "(none)"}` }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (!pharmacyId) {
-        return new Response(JSON.stringify({ error: "Missing pharmacyId" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const authHeader = req.headers.get("Authorization");
-      if (!authHeader) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const authedSupabase = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_ANON_KEY")!,
-        { global: { headers: { Authorization: authHeader } } }
-      );
-      const { data: { user }, error: authErr } = await authedSupabase.auth.getUser();
-      if (authErr || !user) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const serviceSupabase = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-      );
-
-      // Caller must be pharmacy_admin or super_admin — enforced here since
-      // this endpoint runs as service_role and bypasses RLS.
-      const { data: callerProfile } = await serviceSupabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (!callerProfile || !["pharmacy_admin", "super_admin"].includes(callerProfile.role)) {
-        return new Response(JSON.stringify({ error: "Forbidden" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const [{ error: mpErr }, { error: pharmErr }] = await Promise.all([
-        serviceSupabase.from("pharmacy_mp_accounts").update({ active: false }).eq("pharmacy_id", pharmacyId),
-        serviceSupabase.from("pharmacies").update({ mp_connected: false }).eq("id", pharmacyId),
-      ]);
-
-      if (mpErr || pharmErr) {
-        console.error("pharmacy-mp-connect disconnect error:", mpErr?.message, pharmErr?.message);
-        return new Response(
-          JSON.stringify({ data: null, error: "Failed to disconnect MercadoPago account" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      return new Response(
-        JSON.stringify({ data: { disconnected: true }, error: null }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      action = (body as { action?: string }).action ?? action;
+      if (action === "callback") return json({ error: "callback is GET-only" }, 405);
     }
 
-    // ─── 1. Authorize ──────────────────────────────────────────────────────
+    // ─── 1. Authorize (exige sesión de staff de la farmacia) ──────────────
     if (action === "authorize") {
-      const pharmacyId = url.searchParams.get("pharmacyId");
-      if (!pharmacyId) {
-        return new Response(JSON.stringify({ error: "Missing pharmacyId" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (!req.headers.get("Authorization") && isBrowserNavigation(req)) {
+        return Response.redirect(`${APP_URL}/farmacia/configuracion?mp_error=reintentar`, 302);
       }
+      const staff = await requirePharmacyStaff(req);
+      if (!staff.ok) return staff.res;
 
-      const state = await buildState(pharmacyId);
+      const state = await buildOAuthState("pharmacy-mp-connect", staff.pharmacyId, MP_WEBHOOK_SECRET);
       const authUrl = new URL("https://auth.mercadopago.com/authorization");
       authUrl.searchParams.set("client_id", MP_CLIENT_ID);
       authUrl.searchParams.set("response_type", "code");
@@ -151,25 +124,45 @@ serve(async (req: Request) => {
       authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
       authUrl.searchParams.set("state", state);
 
-      return Response.redirect(authUrl.toString(), 302);
+      return json({ data: { url: authUrl.toString() }, error: null });
+    }
+
+    // ─── Disconnect (POST, pharmacy_admin/super_admin) ─────────────────────
+    if (action === "disconnect") {
+      if (req.method !== "POST") return json({ error: "disconnect is POST-only" }, 405);
+      const staff = await requirePharmacyStaff(req);
+      if (!staff.ok) return staff.res;
+
+      const serviceSupabase = serviceClient();
+      const [{ error: mpErr }, { error: pharmErr }] = await Promise.all([
+        serviceSupabase.from("pharmacy_mp_accounts").update({ active: false }).eq("pharmacy_id", staff.pharmacyId),
+        serviceSupabase.from("pharmacies").update({ mp_connected: false }).eq("id", staff.pharmacyId),
+      ]);
+
+      if (mpErr || pharmErr) {
+        console.error("pharmacy-mp-connect disconnect error:", mpErr?.message, pharmErr?.message);
+        return json({ data: null, error: "Failed to disconnect MercadoPago account" }, 500);
+      }
+
+      return json({ data: { disconnected: true }, error: null });
     }
 
     // ─── 2. Callback ───────────────────────────────────────────────────────
-    if (action === "callback") {
+    if (action === "callback" && req.method === "GET") {
       const code = url.searchParams.get("code");
       const state = url.searchParams.get("state");
 
       if (!code || !state) {
-        return new Response(JSON.stringify({ error: "Missing code or state" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ error: "Missing code or state" }, 400);
       }
 
-      const pharmacyId = await verifyState(state);
-      if (!pharmacyId) {
-        console.warn("pharmacy-mp-connect callback: invalid state HMAC");
-        return Response.redirect(`${APP_URL}/farmacia/configuracion?mp_error=invalid_state`, 302);
+      const check = await verifyOAuthState("pharmacy-mp-connect", state, MP_WEBHOOK_SECRET);
+      if (!check.ok) {
+        console.warn(`pharmacy-mp-connect callback: state ${check.reason}`);
+        const mpError = check.reason === "expired" ? "state_expired" : "invalid_state";
+        return Response.redirect(`${APP_URL}/farmacia/configuracion?mp_error=${mpError}`, 302);
       }
+      const pharmacyId = check.entityId;
 
       const tokenRes = await fetch("https://api.mercadopago.com/oauth/token", {
         method: "POST",
@@ -199,10 +192,7 @@ serve(async (req: Request) => {
         live_mode?: boolean;
       };
 
-      const supabase = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-      );
+      const supabase = serviceClient();
 
       const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
 
@@ -264,15 +254,9 @@ serve(async (req: Request) => {
       return Response.redirect(`${APP_URL}/farmacia/configuracion?mp_connected=1`, 302);
     }
 
-    return new Response(
-      JSON.stringify({ error: `Unknown action: ${action ?? "(none)"}` }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return json({ error: `Unknown action: ${action ?? "(none)"}` }, 400);
   } catch (err) {
     console.error("pharmacy-mp-connect error:", err);
-    return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : "Internal error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return json({ error: err instanceof Error ? err.message : "Internal error" }, 500);
   }
 });

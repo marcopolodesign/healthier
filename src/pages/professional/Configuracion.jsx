@@ -19,6 +19,7 @@ import { toast } from '../../components/Toast'
 import FirmaPad from '../../components/professional/FirmaPad'
 import CambiarCorreo from '../../components/CambiarCorreo'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { useConectarMp } from '../../hooks/useConectarMp'
 
 const MODALITIES = [
   { id: 'virtual',    label: 'Solo virtual',        icon: VideoCamera },
@@ -147,6 +148,7 @@ export default function Configuracion({ profile }) {
 
   // ── Mercado Pago state ──────────────────────────────────────
   const [mpStatus, setMpStatus] = useState(null) // { connected, email }
+  const { conectar: conectarMp, conectando: conectandoMp } = useConectarMp(mpService.getMpConnectUrl)
   const [mpDisconnecting, setMpDisconnecting] = useState(false)
   // Cuántos días tarda MP en liberar la plata (B3) — null mientras carga o
   // sin cobros todavía; { count: 0, ... } es el estado vacío real.
@@ -164,7 +166,7 @@ export default function Configuracion({ profile }) {
     if (!confirm('¿Desconectar Mercado Pago? No vas a poder recibir nuevos turnos hasta que vuelvas a conectarte.')) return
     setMpDisconnecting(true)
     try {
-      const { error } = await mpService.disconnectMp(profile.id)
+      const { error } = await mpService.disconnectMp()
       if (error) throw new Error(error)
       toast.success('Mercado Pago desconectado')
       loadMpStatus()
@@ -702,12 +704,14 @@ export default function Configuracion({ profile }) {
                   <p className="text-sm font-semibold text-text-primary">No conectado</p>
                   <p className="text-xs text-text-secondary mt-0.5">No podés recibir turnos hasta conectar tu cuenta.</p>
                 </div>
-                <a
-                  href={mpService.getMpConnectUrl(profile.id)}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-white bg-brand px-3 py-2 rounded-full hover:bg-brand-hover transition-colors shrink-0"
+                <button
+                  type="button"
+                  onClick={conectarMp}
+                  disabled={conectandoMp}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-white bg-brand px-3 py-2 rounded-full hover:bg-brand-hover transition-colors shrink-0 disabled:opacity-60"
                 >
-                  <LinkSimple className="h-3.5 w-3.5" /> Conectar
-                </a>
+                  <LinkSimple className="h-3.5 w-3.5" /> {conectandoMp ? 'Abriendo…' : 'Conectar'}
+                </button>
               </div>
             )}
           </div>

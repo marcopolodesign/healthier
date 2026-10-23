@@ -27,6 +27,7 @@ import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import Modal from '../../components/Modal'
 import { useWaitingPresence } from '../../hooks/useWaitingPresence'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { useConectarMp } from '../../hooks/useConectarMp'
 import { toast } from '../../components/Toast'
 import DerivadoChip from '../../components/professional/DerivadoChip'
 import { useNavigate } from 'react-router-dom'
@@ -151,6 +152,9 @@ const MP_ERROR_MESSAGES = {
   token_exchange: 'No pudimos completar la conexión con Mercado Pago. Probá de nuevo en unos minutos.',
   db_save: 'La autorización salió bien pero no pudimos guardarla. Probá conectar de nuevo.',
   invalid_state: 'No pudimos validar la conexión por seguridad. Iniciá el proceso de nuevo desde este botón.',
+  state_expired: 'La autorización de Mercado Pago venció. Volvé a tocar Conectar.',
+  // Un link viejo (pestaña abierta de antes del cambio del 2026-10-23) llegó sin sesión.
+  reintentar: 'Actualizamos cómo se conecta Mercado Pago. Volvé a tocar Conectar.',
 }
 
 const ASK_ONDEMAND_KEY = 'prof-ask-ondemand'
@@ -179,6 +183,7 @@ export default function ProfessionalDashboard({ profile }) {
   const [loading, setLoading] = useState(true)
   const [activeEmergency, setActiveEmergency] = useState(null)
   const [mpStatus, setMpStatus] = useState(null)
+  const { conectar: conectarMp, conectando: conectandoMp } = useConectarMp(mpService.getMpConnectUrl)
   const [confirmingId, setConfirmingId] = useState(null)
   const [walkInQueue, setWalkInQueue] = useState([])
   const [claimingId, setClaimingId] = useState(null)
@@ -430,8 +435,11 @@ export default function ProfessionalDashboard({ profile }) {
         <div className="flex flex-col lg:flex-row lg:items-stretch gap-6">
         {!loading && mpStatus && !mpStatus.connected && (
           <a
-            href={mpService.getMpConnectUrl(profile.id)}
-            className="card flex-1 min-w-0 flex items-center gap-4 lg:flex-col lg:items-start lg:gap-3 border-red-300 bg-red-50 hover:border-red-400 transition-colors group"
+            href="#"
+            role="button"
+            onClick={conectarMp}
+            aria-busy={conectandoMp}
+            className="card flex-1 min-w-0 flex items-center gap-4 lg:flex-col lg:items-start lg:gap-3 border-red-300 bg-red-50 hover:border-red-400 transition-colors group aria-busy:opacity-60"
           >
             <div className="w-12 h-12 rounded-2xl bg-white border border-red-200 flex items-center justify-center shrink-0">
               <MercadoPagoMark className="w-8 h-8" />
@@ -831,9 +839,12 @@ export default function ProfessionalDashboard({ profile }) {
       {/* MercadoPago connection banner — red/urgent: bookings are blocked without it (spec D4) */}
       {!loading && mpStatus && !mpStatus.connected && (
         <a
-          href={mpService.getMpConnectUrl(profile.id)}
+          href="#"
+            role="button"
+            onClick={conectarMp}
+            aria-busy={conectandoMp}
           data-tour="pro-mp"
-          className="card flex items-center gap-4 border-red-300 bg-red-50 hover:border-red-400 transition-colors group"
+          className="card flex items-center gap-4 border-red-300 bg-red-50 hover:border-red-400 transition-colors group aria-busy:opacity-60"
         >
           <div className="w-12 h-12 rounded-2xl bg-white border border-red-200 flex items-center justify-center shrink-0">
             <MercadoPagoMark className="w-8 h-8" />
