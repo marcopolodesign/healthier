@@ -49,6 +49,8 @@ export default function RecetaDetalle({ profile }) {
   const disponibles = medicamentos.filter(m => m.product && m.estado !== 'proxima')
   const proximaDesde = medicamentos.find(m => m.estado === 'proxima')?.valeDesde ?? null
   const faltantes = medicamentos.filter(m => !m.product)
+  // Migración 216: el profesional la anuló (se llega acá desde un aviso viejo).
+  const anulada = medicamentos.length > 0 && medicamentos.every(m => m.medication.rctaStatus === 'anulada')
 
   /*
    * Deja anotado en el carrito de qué receta salió. Sin esto el pedido nace sin
@@ -128,7 +130,13 @@ export default function RecetaDetalle({ profile }) {
           ].filter(Boolean).join(' · ')}
         </p>
 
-        {cabecera?.rctaPdfUrl && (
+        {anulada && (
+          <p className="text-[14px] text-text-secondary bg-bg-secondary border border-border-default rounded-2xl p-4 mb-6">
+            Tu profesional anuló esta receta. Ya no sirve para comprar en ninguna farmacia.
+          </p>
+        )}
+
+        {cabecera?.rctaPdfUrl && !anulada && (
           <a
             href={cabecera.rctaPdfUrl}
             target="_blank"
@@ -162,7 +170,7 @@ export default function RecetaDetalle({ profile }) {
                   </p>
                 )}
 
-                {product ? (
+                {anulada ? null : product ? (
                   <div className="mt-3 pt-3 border-t border-border-default">
                     {difiere && (
                       <p className="text-[11px] text-text-tertiary mb-1.5">
@@ -235,7 +243,7 @@ export default function RecetaDetalle({ profile }) {
               </p>
             )}
           </>
-        ) : proximaDesde ? (
+        ) : anulada ? null : proximaDesde ? (
           <p className="text-[13px] text-text-tertiary text-center mt-6">
             Esta receta la podés usar en la farmacia desde el {new Date(proximaDesde).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}.
           </p>

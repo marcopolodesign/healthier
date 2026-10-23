@@ -267,6 +267,29 @@ Dos lecciones, y la segunda es la que importa:
 
 ---
 
+## 10. Anular: con el hash, y primero en nuestra base (2026-10-22)
+
+- **El identificador para anular es el `id` de la respuesta de la emisión, no
+  el `idReceta`.** Con el `idReceta` la API contesta "No se pudo recuperar la
+  receta", que parece "no existe" y no "mandaste el campo equivocado". Desde
+  la migración 216 `rcta-issue` lo guarda en `rcta_hash`; para lo emitido
+  antes, la 216 lo rellenó desde `rcta_issue_log` (la respuesta entera estaba
+  guardada — otra vez el "guardá el intercambio, no el resumen").
+- **Una receta vencida no se anula** (`QBI79`): para nosotros cuenta como
+  "no hacía falta", no como error.
+- **Primero nuestra base, después el servicio.** Al revés, si la escritura
+  fallara, la receta quedaría anulada allá y a la venta en la farmacia de
+  Healthier. Si el servicio no confirma, se reintenta desde el panel.
+- **Las posdatadas que ya empezaron no se tocan** (decisión de Mateo). La
+  farmacia las sigue vendiendo aunque la original esté anulada; una que
+  empezara *después* de la anulación no se vende nunca, aunque haya quedado
+  activa por error (`farmacia_recetas_de` mira `stopped_at` de la original).
+- El aviso al paciente el día que empieza cada posdatada sale de la base
+  (cron `avisar-posdatadas-habilitadas`, 9 h de Argentina), una vez por receta
+  (`aviso_habilitada_at`).
+
+---
+
 ## 10bis. Los catálogos de los dos ambientes NO son el mismo
 
 Verificado el 2026-08-28 comparando `GetFinanciadores` en los dos ambientes:

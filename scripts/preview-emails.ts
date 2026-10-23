@@ -125,6 +125,11 @@ const CASOS: Caso[] = [
     medicamentos: ['Amoxicilina 500 mg — 21 comprimidos', 'Ibuprofeno 400 mg — 20 comprimidos'],
     pdfUrl: 'https://gethealthier.vercel.app/paciente/recetas', prescriptionId: 'rx-1',
   })),
+  caso('receta-habilitada', 'Receta posdatada habilitada (tratamiento prolongado)', 'Post consulta', T.recetaHabilitada({
+    patientName: 'Sofía', professionalName: 'Dra. Valentina Ortiz',
+    medicamento: 'Losartán 50 mg comp. x 30',
+    pdfUrl: 'https://www.healthier.com.ar/paciente/recetas',
+  })),
 
   caso('farmacia-confirmado', 'Pedido de farmacia confirmado', 'Farmacia', T.pedidoFarmaciaConfirmado(pedido)),
   caso('farmacia-preparacion', 'Pedido en preparación', 'Farmacia', T.pedidoFarmaciaEstado({ ...pedido, estado: 'en_preparacion' })),

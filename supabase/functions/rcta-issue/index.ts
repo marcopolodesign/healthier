@@ -293,6 +293,15 @@ Deno.serve(async (req: Request) => {
 
     const yaEmitida = meds.find((m: { rcta_status: string }) => m.rcta_status === 'issued')
     if (yaEmitida) return await fallar('validation_error', { error: 'Already issued', code: 'RCTA_YA_EMITIDA' }, 409)
+    // Una receta anulada (migración 216) o una medicación suspendida no se
+    // vuelve a emitir desde la misma fila: si el tratamiento sigue, es una
+    // prescripción nueva.
+    if (!esPractica && meds.some((m: { rcta_status: string; status: string }) => m.rcta_status === 'anulada' || m.status !== 'active')) {
+      return await fallar('validation_error', {
+        error: 'Esta medicación está anulada o suspendida. Cargala de nuevo para emitir otra receta.',
+        code: 'RCTA_ANULADA',
+      }, 409)
+    }
 
     // ── Recetas posdatadas ───────────────────────────────────────────────────
     // Sólo para tratamiento prolongado y NUNCA para un controlado: psicotrópicos
@@ -772,6 +781,9 @@ Deno.serve(async (req: Request) => {
       rcta_verificador:     receta.verificador ?? null,
       rcta_pdf_url:         pdfUrl,
       rcta_issued_at:       issuedAt,
+      // El identificador con el que el servicio de recetas la anula (migración
+      // 216): el `id` de la respuesta, no el idReceta.
+      rcta_hash:            receta.id ?? null,
     })
 
     if (persistErr) {
@@ -785,6 +797,7 @@ Deno.serve(async (req: Request) => {
         rcta_transaction_id:  rctaData.idTransaccion ?? null,
         rcta_verificador:     receta.verificador ?? null,
         rcta_pdf_url:         pdfUrl,
+        rcta_hash:            receta.id ?? null,
       })
 
       if (reintentoErr) {
@@ -839,6 +852,8 @@ Deno.serve(async (req: Request) => {
           rcta_verificador: r.verificador ?? null,
           rcta_pdf_url: r.s3Link ?? null,
           rcta_issued_at: issuedAt,
+          rcta_hash: r.id ?? null,
+          aviso_habilitada_at: null,
         }))
         const { error: posErr } = await supabase.from('clinical_medications').insert(filas)
         if (posErr) {

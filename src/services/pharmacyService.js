@@ -96,7 +96,7 @@ export const pharmacyService = {
     const [{ data: meds, error: medsErr }, { data: products, error: prodErr }, { data: orders, error: ordersErr }, lineas] = await Promise.all([
       supabase
         .from('clinical_medications')
-        .select('id, medication_name, presentation, dosage_text, frequency, duration_days, quantity, notes, rcta_prescription_id, rcta_pdf_url, rcta_issued_at, created_at, professional:profiles!professional_id(full_name)')
+        .select('id, medication_name, presentation, dosage_text, frequency, duration_days, quantity, notes, rcta_prescription_id, rcta_pdf_url, rcta_issued_at, rcta_status, created_at, professional:profiles!professional_id(full_name)')
         .eq('patient_id', patientId)
         .eq('rcta_prescription_id', prescriptionId)
         .order('created_at', { ascending: true }),
