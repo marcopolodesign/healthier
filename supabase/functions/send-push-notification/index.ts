@@ -1,7 +1,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
 import { AVISOS, construir, type Datos, type Tipo } from '../_shared/push/textos.ts'
-import { esServicio } from '../_shared/llamador.ts'
+import { rolDelLlamador } from '../_shared/llamador.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -128,21 +128,31 @@ Deno.serve(async (req: Request) => {
 
   try {
     const payloadIn = await req.json()
-    const { userId, tipo } = payloadIn as { userId?: string; tipo?: Tipo }
-    if (!userId) throw new Error('userId required')
+    const { userId, tipo, preview } = payloadIn as { userId?: string; tipo?: Tipo; preview?: boolean }
 
-    // `preview` devuelve el texto armado con datos reales de una consulta o
-    // receta ajena, y `tipo` escribe en la campanita del paciente: las dos
-    // cosas sólo las usa el servidor (triggers con la service key del vault,
-    // appointment-reminders). Con la key anónima o una sesión, 403. La forma
-    // vieja `{ userId, title, body, url }` sigue abierta a las sesiones porque
-    // el front todavía la usa (notificationService, walkInQueueService).
-    if (((payloadIn as { preview?: boolean }).preview || tipo) && !esServicio(req)) {
-      return new Response(JSON.stringify({ error: 'Sólo el servidor puede usar `preview` o `tipo`' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    // Quién puede qué, antes de leer nada de la base:
+    //  · `preview` (devuelve el texto armado con datos reales de una consulta o
+    //    receta ajena) y `tipo` (catálogo + campanita del paciente): sólo el
+    //    servidor — triggers con la service key del vault, appointment-reminders.
+    //  · La forma vieja `{ userId, title, body, url }`: además del servidor
+    //    (rcta-issue), una sesión de verdad, porque el front todavía la usa
+    //    (walkInQueueService). La key anónima, no: con ella cualquiera le
+    //    mandaba un aviso con texto propio a cualquier usuario. Y desde una
+    //    sesión el link tiene que ser una ruta de la app, no un sitio de afuera.
+    const rol = rolDelLlamador(req)
+    const servidor = rol === 'service_role'
+    const prohibido = (msg: string) => new Response(JSON.stringify({ error: msg }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+    if ((preview || tipo) && !servidor) return prohibido('Sólo el servidor puede usar `preview` o `tipo`')
+    if (!servidor && rol !== 'authenticated') return prohibido('Hace falta una sesión')
+    const urlPedida = (payloadIn as { url?: unknown }).url
+    if (!servidor && urlPedida != null && !(typeof urlPedida === 'string' && /^\/(?![\/\\])/.test(urlPedida))) {
+      return prohibido('El link tiene que ser una ruta de la app')
     }
+
+    if (!userId) throw new Error('userId required')
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -153,7 +163,7 @@ Deno.serve(async (req: Request) => {
     // cuenta de prueba con una real no sale. La base ya impide crearla; esto es
     // la segunda red para las filas cruzadas de antes. Si el chequeo falla, el
     // aviso sale igual.
-    if (payloadIn.consultationId && !(payloadIn as { preview?: boolean }).preview) {
+    if (payloadIn.consultationId && !preview) {
       const { data: cruza, error: cruzaErr } = await supabase
         .rpc('consulta_cruza_mundos', { p_consultation_id: payloadIn.consultationId })
       if (cruzaErr) console.error('send-push-notification cruza_mundos:', cruzaErr.message)
@@ -190,7 +200,7 @@ Deno.serve(async (req: Request) => {
     // Igual que `send-email`: arma el aviso con los datos reales y lo devuelve
     // sin mandarlo. Es la forma de comprobar el texto contra una consulta o un
     // pedido de verdad sin hacerle sonar el teléfono a nadie.
-    if ((payloadIn as { preview?: boolean }).preview) {
+    if (preview) {
       return new Response(JSON.stringify({ preview: { title, body, url } }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })

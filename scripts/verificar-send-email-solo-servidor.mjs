@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
  * Control: `send-email` (entera) y el `preview` / `tipo` de
- * `send-push-notification` sólo responden a la service key.
+ * `send-push-notification` sólo responden a la service key; la forma vieja del
+ * push no acepta la key anónima ni links de afuera.
  *
  *   node scripts/verificar-send-email-solo-servidor.mjs            # staging (default)
- *   node scripts/verificar-send-email-solo-servidor.mjs produccion # sólo lectura también
+ *   node scripts/verificar-send-email-solo-servidor.mjs produccion # sin datos de pacientes
  *   node scripts/verificar-send-email-solo-servidor.mjs --estatico # sin red: sólo el código
  *
  * Por qué existe (2026-10-23): `send-email` aceptaba cualquier JWT del
@@ -13,20 +14,22 @@
  * secuenciales: cualquiera podía leer el mail y el PDF de una receta ajena, o el
  * código de cambio de correo / el link de reactivación de otra persona.
  *
- * No manda nada: todas las llamadas que deben pasar son `preview`, y las que
- * deben fallar se cortan antes de leer la base. Las dos que mandarían si la
- * función estuviera abierta (envío de mail y push sin `preview`) sólo corren en
- * staging: contra producción el control se puede correr antes del pase sin
- * escribirle a nadie.
+ * No manda nada que no sea de prueba:
+ *  - Lo que debe pasar es siempre `preview`.
+ *  - Lo que mandaría de verdad si la función estuviera abierta (envío de mail,
+ *    push sin `preview`) sólo corre en staging.
+ *  - En producción se usan ids que no existen: abierta da 404, cerrada 403, y
+ *    nunca se carga el mail de un paciente real.
  *
  * Chequea:
  *   1. (código) config.toml no le apaga `verify_jwt` a ninguna de las dos — sin
- *      el gateway el claim `role` se puede inventar.
- *   2. (código) send-email llama a `esServicio(req)` antes de leer el body.
- *   3. (red) key anónima → 403 en send-email (preview de receta, envío) y en el
- *      preview/tipo de push.
- *   4. (red, sólo staging) sesión de un paciente → 403.
- *   5. (red) service key → 200 con el preview de una receta real.
+ *      el gateway el claim `role` se puede inventar — y las dos deciden quién
+ *      llama antes de tocar la base.
+ *   2. (base) la key con la que llaman los triggers (vault `push_service_key`)
+ *      es service_role: si no, todos los mails de la base darían 403 en silencio.
+ *   3. (red) un JWT inventado con role=service_role → 401 (el gateway verifica).
+ *   4. (red) key anónima → 403; (staging) sesión de un paciente → 403.
+ *   5. (red) service key → pasa.
  */
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -37,12 +40,13 @@ const raiz = join(dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
 const soloEstatico = args.includes('--estatico')
 const entorno = args.includes('produccion') ? 'produccion' : 'staging'
+const enStaging = entorno === 'staging'
 
 let fallas = 0
 const ok = (m) => console.log(`  ✅ ${m}`)
 const mal = (m) => { fallas++; console.log(`  ❌ ${m}`) }
 
-// ── 1 y 2: el código ─────────────────────────────────────────────────────────
+// ── 1: el código ─────────────────────────────────────────────────────────────
 console.log('Código')
 const config = readFileSync(join(raiz, 'supabase/config.toml'), 'utf8')
 for (const fn of ['send-email', 'send-push-notification']) {
@@ -50,18 +54,21 @@ for (const fn of ['send-email', 'send-push-notification']) {
   if (bloque && /verify_jwt\s*=\s*false/.test(bloque[0])) mal(`config.toml apaga verify_jwt en ${fn}`)
   else ok(`${fn} conserva verify_jwt = true`)
 }
-const fuente = readFileSync(join(raiz, 'supabase/functions/send-email/index.ts'), 'utf8')
-const iGate = fuente.indexOf('if (!esServicio(req))')
-const iBody = fuente.indexOf('await req.json()')
-if (iGate > 0 && iGate < iBody) ok('send-email corta con esServicio(req) antes de leer el body')
+const antesDe = (archivo, gate, despues) => {
+  const src = readFileSync(join(raiz, 'supabase/functions', archivo, 'index.ts'), 'utf8')
+  const handler = src.slice(src.indexOf('Deno.serve('))
+  const i = handler.indexOf(gate)
+  const j = handler.indexOf(despues)
+  return i > 0 && (j < 0 || i < j)
+}
+if (antesDe('send-email', 'if (!esServicio(req))', 'await req.json()')) ok('send-email decide quién llama antes de leer el body')
 else mal('send-email ya no corta con esServicio(req) antes de leer el body')
-const push = readFileSync(join(raiz, 'supabase/functions/send-push-notification/index.ts'), 'utf8')
-if (/preview[\s\S]{0,80}tipo\)\s*&&\s*!esServicio\(req\)/.test(push)) ok('send-push-notification corta preview/tipo sin service key')
-else mal('send-push-notification ya no corta preview/tipo sin service key')
+if (antesDe('send-push-notification', 'rolDelLlamador(req)', 'createClient(')) ok('send-push-notification decide quién llama antes de tocar la base')
+else mal('send-push-notification ya no mira rolDelLlamador(req) antes de tocar la base')
 
 if (soloEstatico) terminar()
 
-// ── 3, 4 y 5: contra el entorno ──────────────────────────────────────────────
+// ── credenciales ─────────────────────────────────────────────────────────────
 const leer = (p) => {
   try {
     return Object.fromEntries(
@@ -71,14 +78,32 @@ const leer = (p) => {
 }
 const g = leer(join(homedir(), 'Local', '.env'))
 const prod = { ...leer(join(homedir(), 'Local/Healthier/website/.env.test')), ...leer(join(raiz, '.env.test')) }
-const cfg = entorno === 'staging'
-  ? { url: g.HEALTHIER_STAGING_SUPABASE_URL, anon: g.HEALTHIER_STAGING_SUPABASE_ANON_KEY, service: g.HEALTHIER_STAGING_SUPABASE_SERVICE_ROLE_KEY }
-  : { url: prod.VITE_SUPABASE_URL, anon: prod.VITE_SUPABASE_ANON_KEY, service: prod.SUPABASE_SERVICE_ROLE_KEY }
+const cfg = enStaging
+  ? { ref: 'itjhrvlzuqvyhqtffumc', url: g.HEALTHIER_STAGING_SUPABASE_URL, anon: g.HEALTHIER_STAGING_SUPABASE_ANON_KEY, service: g.HEALTHIER_STAGING_SUPABASE_SERVICE_ROLE_KEY }
+  : { ref: 'aixjejdoofervrkggbkd', url: prod.VITE_SUPABASE_URL, anon: prod.VITE_SUPABASE_ANON_KEY, service: prod.SUPABASE_SERVICE_ROLE_KEY }
 if (!cfg.url || !cfg.anon || !cfg.service) {
   console.error(`Faltan credenciales de ${entorno} (~/Local/.env o website/.env.test).`)
   process.exit(1)
 }
 
+// ── 2: la key de los triggers ────────────────────────────────────────────────
+console.log(`\nBase — ${entorno}`)
+if (!g.SUPABASE_ACCESS_TOKEN) mal('falta SUPABASE_ACCESS_TOKEN en ~/Local/.env para leer el vault')
+else {
+  // Sólo se lee el claim `role`, nunca la key.
+  const sql = `select case when decrypted_secret like 'eyJ%' then (convert_from(decode(rpad(translate(split_part(decrypted_secret,'.',2),'-_','+/'), ((length(split_part(decrypted_secret,'.',2))+3)/4)*4, '='),'base64'),'utf8')::json->>'role') end as rol from vault.decrypted_secrets where name = 'push_service_key'`
+  const r = await fetch(`https://api.supabase.com/v1/projects/${cfg.ref}/database/query`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${g.SUPABASE_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: sql }),
+  })
+  const filas = await r.json().catch(() => null)
+  const rol = Array.isArray(filas) ? filas[0]?.rol : null
+  if (rol === 'service_role') ok('la key de los triggers (vault push_service_key) es service_role')
+  else mal(`la key de los triggers no es service_role (${rol ?? JSON.stringify(filas)?.slice(0, 100)}): los mails de la base darían 403`)
+}
+
+// ── 3, 4 y 5: contra las funciones ───────────────────────────────────────────
 const llamar = async (fn, token, body) => {
   const r = await fetch(`${cfg.url}/functions/v1/${fn}`, {
     method: 'POST',
@@ -90,52 +115,82 @@ const llamar = async (fn, token, body) => {
   return { status: r.status, j }
 }
 
-// Una receta real cualquiera (la más nueva) y su paciente: lo que buscaría quien ataca.
-const r = await fetch(
-  `${cfg.url}/rest/v1/clinical_medications?select=rcta_prescription_id,patient_id&rcta_prescription_id=not.is.null&order=created_at.desc&limit=1`,
-  { headers: { apikey: cfg.service, Authorization: `Bearer ${cfg.service}` } },
-)
-const [med] = await r.json()
-if (!med) { console.error(`No hay ninguna receta emitida en ${entorno} para probar.`); process.exit(1) }
-const receta = { tipo: 'receta', preview: true, prescriptionId: med.rcta_prescription_id }
+// En staging, una receta real (lo que buscaría quien ataca). En producción, ids
+// que no existen: no hace falta el mail de nadie para saber si la puerta está cerrada.
+const FALSO = '00000000-0000-4000-8000-00000000dead'
+let receta = { id: 'NO-EXISTE-0', paciente: FALSO }
+if (enStaging) {
+  const r = await fetch(
+    `${cfg.url}/rest/v1/clinical_medications?select=rcta_prescription_id,patient_id&rcta_prescription_id=not.is.null&order=created_at.desc&limit=1`,
+    { headers: { apikey: cfg.service, Authorization: `Bearer ${cfg.service}` } },
+  )
+  const filas = await r.json().catch(() => null)
+  if (!r.ok || !Array.isArray(filas)) { console.error(`No pude leer recetas de staging (${r.status}): ${JSON.stringify(filas)?.slice(0, 160)}`); process.exit(1) }
+  if (!filas[0]) { console.error('No hay ninguna receta emitida en staging para probar.'); process.exit(1) }
+  receta = { id: filas[0].rcta_prescription_id, paciente: filas[0].patient_id }
+}
+const previewReceta = { tipo: 'receta', preview: true, prescriptionId: receta.id }
+const previewPush = { userId: receta.paciente, tipo: 'receta-emitida', prescriptionId: receta.id, preview: true }
 
-// Los dos casos sin `preview` mandarían de verdad si la función estuviera
-// abierta: sólo se prueban en staging, nunca contra pacientes reales.
-const casos = [
-  ['send-email', receta, 'preview de una receta ajena'],
-  ['send-email', { tipo: 'bienvenida', userId: med.patient_id, preview: true }, 'preview de un mail de cuenta'],
-  ['send-push-notification', { userId: med.patient_id, tipo: 'receta-emitida', prescriptionId: med.rcta_prescription_id, preview: true }, 'preview de un push'],
-  ...(entorno === 'staging' ? [
-    ['send-email', { tipo: 'receta', prescriptionId: med.rcta_prescription_id }, 'envío del mail de una receta'],
-    ['send-push-notification', { userId: med.patient_id, tipo: 'receta-emitida', prescriptionId: med.rcta_prescription_id }, 'push del catálogo (`tipo`)'],
+const casosDeServidor = [
+  ['send-email', previewReceta, 'preview de una receta ajena'],
+  ['send-email', { tipo: 'bienvenida', userId: receta.paciente, preview: true }, 'preview de un mail de cuenta'],
+  ['send-push-notification', previewPush, 'preview de un push'],
+  // Mandarían de verdad si estuvieran abiertos: sólo en staging.
+  ...(enStaging ? [
+    ['send-email', { tipo: 'receta', prescriptionId: receta.id }, 'envío del mail de una receta'],
+    ['send-push-notification', { ...previewPush, preview: undefined }, 'push del catálogo (`tipo`)'],
   ] : []),
 ]
+const pushLibre = { userId: receta.paciente, title: 'Prueba de control', body: 'No debería llegar', url: '/' }
 
-const debeNegar = async (quien, token) => {
+const debeNegar = async (quien, token, casos, esperado = [401, 403]) => {
   for (const [fn, body, que] of casos) {
     const { status, j } = await llamar(fn, token, body)
-    const filtra = JSON.stringify(j ?? '').includes('"preview"') || JSON.stringify(j ?? '').includes('"sent"')
-    if ((status === 401 || status === 403) && !filtra) ok(`${quien} → ${status} en ${fn}: ${que}`)
-    else mal(`${quien} → ${status} en ${fn}: ${que} (debería ser 401/403) ${JSON.stringify(j).slice(0, 120)}`)
+    const txt = JSON.stringify(j ?? '')
+    const filtra = txt.includes('"preview"') || txt.includes('"sent"')
+    if (esperado.includes(status) && !filtra) ok(`${quien} → ${status} en ${fn}: ${que}`)
+    else mal(`${quien} → ${status} en ${fn}: ${que} (debería ser ${esperado.join('/')}) ${txt.slice(0, 120)}`)
   }
 }
 
-console.log(`\nRed — ${entorno}`)
-await debeNegar('key anónima', cfg.anon)
+console.log(`\nFunciones — ${entorno}`)
 
-if (entorno === 'staging') {
+// 3. Un JWT con role=service_role pero firmado por cualquiera: lo tiene que
+// parar el gateway. Si da 200/403, alguien le apagó verify_jwt a la función.
+const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url')
+const inventado = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ role: 'service_role', iss: 'supabase', exp: 4102444800 })}.${b64('firma')}`
+await debeNegar('JWT inventado', inventado, [
+  ['send-email', previewReceta, 'preview con role=service_role sin firmar'],
+  ['send-push-notification', previewPush, 'preview de push sin firmar'],
+], [401])
+
+// 4. Key anónima y sesión.
+await debeNegar('key anónima', cfg.anon, [
+  ...casosDeServidor,
+  ...(enStaging ? [['send-push-notification', pushLibre, 'push con texto libre']] : []),
+])
+if (enStaging) {
   const s = await fetch(`${cfg.url}/auth/v1/token?grant_type=password`, {
     method: 'POST',
     headers: { apikey: cfg.anon, 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: 'paciente.completo@staging.healthier.app', password: 'staging' }),
   }).then(x => x.json())
-  if (s.access_token) await debeNegar('sesión de un paciente', s.access_token)
-  else mal(`no pude abrir la sesión del paciente de staging: ${JSON.stringify(s).slice(0, 120)}`)
+  if (s.access_token) {
+    await debeNegar('sesión de un paciente', s.access_token, [
+      ...casosDeServidor,
+      ['send-push-notification', { ...pushLibre, url: 'https://ejemplo.com' }, 'push con link de afuera'],
+    ])
+  } else mal(`no pude abrir la sesión del paciente de staging: ${JSON.stringify(s).slice(0, 120)}`)
 }
 
-const srv = await llamar('send-email', cfg.service, receta)
-if (srv.status === 200 && Array.isArray(srv.j?.preview) && srv.j.preview[0]?.subject) ok(`service key → 200 con el preview ("${srv.j.preview[0].subject}")`)
-else mal(`service key → ${srv.status} en el preview de send-email ${JSON.stringify(srv.j).slice(0, 160)}`)
+// 5. La service key pasa. En producción, con un id que no existe: 404 = pasó la puerta.
+const srv = await llamar('send-email', cfg.service, previewReceta)
+if (enStaging) {
+  if (srv.status === 200 && Array.isArray(srv.j?.preview) && srv.j.preview[0]?.subject) ok(`service key → 200 con el preview ("${srv.j.preview[0].subject}")`)
+  else mal(`service key → ${srv.status} en el preview de send-email ${JSON.stringify(srv.j).slice(0, 160)}`)
+} else if (srv.status === 404) ok('service key → pasa la puerta (404 con una receta que no existe)')
+else mal(`service key → ${srv.status} en send-email (esperaba 404 con una receta que no existe) ${JSON.stringify(srv.j).slice(0, 160)}`)
 
 terminar()
 
