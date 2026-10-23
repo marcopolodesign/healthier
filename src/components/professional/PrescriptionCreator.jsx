@@ -727,16 +727,20 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
     setAAnular({
       medicationId: rx.id,
       medicamentos: grupo.map(g => g.medication_name),
-      emitidaIso: (rx.rcta_issued_at ?? rx.created_at ?? '').slice(0, 10),
+      // El día argentino de la emisión (el timestamp viene en UTC).
+      emitidaIso: new Date(rx.rcta_issued_at ?? rx.created_at ?? Date.now())
+        .toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }),
       posdatadas: grupo.flatMap(g => posdatadasDe(g.id)).filter(p => p.rcta_status === 'issued' && p.status === 'active'),
     })
   }
 
   function avisarResultado(result) {
-    if (result.sinConfirmar > 0) {
+    if (!result.anuladas?.length) {
+      toast.info('No había nada pendiente de anular en esta receta.')
+    } else if (result.sinConfirmar > 0) {
       toast.warning('La receta quedó anulada en Healthier, pero el servicio de recetas no lo confirmó. Reintentá desde la receta.')
     } else {
-      const n = result.anuladas?.length ?? 1
+      const n = result.anuladas.length
       toast.success(n > 1 ? `Se anularon ${n} recetas` : 'Receta anulada')
     }
   }
@@ -745,7 +749,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
     if (!aAnular) return
     setAnulando(true)
     try {
-      const result = await clinicalService.anularReceta(aAnular.medicationId, { motivo, patientId })
+      const result = await clinicalService.anularReceta(aAnular.medicationId, { motivo, patientId, encounterId })
       avisarResultado(result)
       setAAnular(null)
     } catch (err) {
@@ -759,7 +763,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
   async function reintentarAnular(rx) {
     setReintentandoId(rx.id)
     try {
-      avisarResultado(await clinicalService.anularReceta(rx.id, { patientId }))
+      avisarResultado(await clinicalService.anularReceta(rx.id, { patientId, encounterId }))
     } catch (err) {
       toast.error(mensajeDeError(err))
     } finally {

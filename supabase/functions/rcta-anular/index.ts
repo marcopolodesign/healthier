@@ -193,8 +193,14 @@ Deno.serve(async (req: Request) => {
       let codigo: string | null = null
 
       const hash = f0.rcta_hash ?? await hashDesdeElLog(supabase, prescriptionId)
+      // Ya se compró en la farmacia de Healthier: está dispensada, el servicio
+      // de recetas no la va a anular y "Reintentar" fallaría para siempre.
+      const dispensada = await yaSeCompro(supabase, filas.map(x => x.id))
 
-      if (!RCTA_API_URL || !RCTA_API_KEY || !RCTA_CLIENT_APP_ID) {
+      if (dispensada) {
+        estado = 'no_hacia_falta'
+        detalle = 'Ya se dispensó en la farmacia de Healthier.'
+      } else if (!RCTA_API_URL || !RCTA_API_KEY || !RCTA_CLIENT_APP_ID) {
         detalle = 'El servicio de recetas no está configurado en este entorno.'
         codigo = 'RCTA_NOT_CONFIGURED'
       } else if (!hash) {
@@ -285,7 +291,23 @@ function interpretar(status: number, r: any): { estado: 'confirmada' | 'no_hacia
   // previamente anulada". Se mira la frase entera: un "no puede ser anulada"
   // no es una anulación hecha.
   if (/PREVIAMENTE ANULADA|YA HAB[IÍ]A SIDO ANULADA/i.test(mensaje ?? '')) return { estado: 'confirmada', detalle: mensaje, codigo }
+  // Dispensada en otra farmacia: ya no hay nada que anular allá.
+  if (/DISPENSAD/i.test(mensaje ?? '')) return { estado: 'no_hacia_falta', detalle: mensaje, codigo }
   return { estado: 'error', detalle: mensaje ?? `El servicio de recetas respondió ${status}.`, codigo }
+}
+
+/** ¿Alguna de estas filas se usó en un pedido pagado de la farmacia? */
+// deno-lint-ignore no-explicit-any
+async function yaSeCompro(supabase: any, ids: string[]): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('medication_order_items')
+    .select('id, order:medication_orders!inner(payment_status, status)')
+    .in('clinical_medication_id', ids)
+    .in('order.payment_status', ['pagado', 'exento'])
+    .neq('order.status', 'cancelado')
+    .limit(1)
+  if (error) { console.error('rcta-anular: no se pudo mirar si ya se compró:', error.message); return false }
+  return (data ?? []).length > 0
 }
 
 /**

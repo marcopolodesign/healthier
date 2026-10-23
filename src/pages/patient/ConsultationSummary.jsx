@@ -100,7 +100,8 @@ export default function ConsultationSummary({ profile }) {
   // Las indicaciones son las medicaciones del encuentro. Las que salieron por
   // receta electrónica ya se listan arriba con su PDF, así que acá quedan las
   // otras — lo indicado que no es una receta emitida (venta libre, pautas).
-  const indicaciones = (encuentro?.medications ?? []).filter(m => m.rctaStatus !== 'issued')
+  // Una receta anulada (migración 216) no es una indicación a seguir.
+  const indicaciones = (encuentro?.medications ?? []).filter(m => m.rctaStatus !== 'issued' && m.rctaStatus !== 'anulada' && m.status !== 'cancelled')
   // La evolución la escribe el profesional en la consulta. `closingNotes` es
   // lo que dejó al cerrar; pueden convivir y no son lo mismo.
   const evolucion = (encuentro?.entries ?? []).filter(e => (e.content ?? '').trim())

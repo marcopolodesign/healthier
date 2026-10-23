@@ -129,6 +129,22 @@ const CASOS_BASE = [
     espera: { valor: 'true' },
   },
   {
+    nombre: 'Una posdatada que empezó hace días no recibe un "habilitada desde hoy" tardío',
+    sql: `${comoServicio} ${sembrar}
+          update clinical_medications set vigencia_desde = vigencia_desde - 5 where id = '${POS1}';
+          select avisar_posdatadas_habilitadas();
+          select (aviso_habilitada_at is null)::text as r from clinical_medications where id = '${POS1}';`,
+    espera: { valor: 'true' },
+  },
+  {
+    nombre: 'No se avisa si la original quedó inactiva sin anulación (la farmacia no la vendería)',
+    sql: `${comoServicio} ${sembrar}
+          update clinical_medications set status = 'stopped' where id = '${RX}';
+          select avisar_posdatadas_habilitadas();
+          select (aviso_habilitada_at is null)::text as r from clinical_medications where id = '${POS1}';`,
+    espera: { valor: 'true' },
+  },
+  {
     nombre: 'El cron del aviso está programado a las 9 de Argentina',
     sql: `select schedule as r from cron.job where jobname = 'avisar-posdatadas-habilitadas';`,
     espera: { valor: '0 12 * * *' },
