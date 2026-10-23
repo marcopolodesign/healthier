@@ -10,9 +10,12 @@
  * función por mail, `supabase functions deploy` tendría que acertar N veces y
  * el día que cambie el `from` habría N lugares donde cambiarlo.
  *
- * Se la llama con la service key (los triggers ya lo hacen así). No es pública:
- * `verify_jwt` queda en true, que es el default — a diferencia de las cuatro de
- * Mercado Pago, esta nunca la invoca un tercero.
+ * 🔴 Sólo la llama el servidor, con la service key: los triggers (pg_net con la
+ * `push_service_key` del vault), `appointment-reminders`, `reactivar-cuenta` y
+ * `scripts/avisar-sin-precio.mjs`. Cualquier otro token —la key anónima, la
+ * sesión de un paciente o de un profesional— recibe 403 antes de leer nada
+ * (ver `_shared/llamador.ts`). `verify_jwt` sigue en true: es lo que hace que
+ * el claim `role` sea confiable. Control: `scripts/verificar-send-email-solo-servidor.mjs`.
  *
  * Si falta `RESEND_API_KEY` devuelve 200 y no manda nada: así se puede deployar
  * antes de tener el dominio verificado sin romper ningún flujo.
@@ -25,6 +28,7 @@
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { enviarTodos, hayClave, type Contexto } from '../_shared/email/send.ts'
 import * as T from '../_shared/email/templates.ts'
+import { esServicio } from '../_shared/llamador.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -253,6 +257,12 @@ type Body = {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
+
+  // Todo lo de esta función es del servidor: el `preview` devuelve el mail
+  // armado (con el PDF de la receta, el código de cambio de correo o el link de
+  // reactivación) y el envío le escribe a cualquier paciente. Con la key
+  // anónima o una sesión cualquiera, nada.
+  if (!esServicio(req)) return json({ error: 'Sólo el servidor puede usar esta función' }, 403)
 
   // Deployable sin clave: no manda, pero tampoco rompe el flujo que lo llamó.
   let body: Body
