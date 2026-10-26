@@ -17,6 +17,6 @@ export const PATIENT_CONSENT_ITEMS = [
     key: 'equipo_tratante',
     title: 'Acceso del equipo médico',
     desc: 'Acepto que los profesionales que me atiendan en Healthier puedan acceder a mi información clínica compartida para una atención integral y coordinada. Ver Términos y Condiciones.',
-    link: '/terminos',
+    link: '/terminos#datos-de-salud',
   },
 ]

@@ -36,7 +36,6 @@ import CompleteProfile from './pages/auth/CompleteProfile'
 import RecuperarContrasena from './pages/auth/RecuperarContrasena'
 import RestablecerContrasena from './pages/auth/RestablecerContrasena'
 import ReactivarCuenta from './pages/auth/ReactivarCuenta'
-import TerminosYCondiciones from './pages/TerminosYCondiciones'
 import ReferralLanding from './pages/ReferralLanding'
 // La guía de uso se carga aparte: trae su CSS y sus textos, y no hace falta en la app.
 const PaginaGuia = lazy(() => import('./guia/Guia'))
@@ -153,7 +152,7 @@ function RedirectToProfesional() {
 /**
  * Paciente nuevo con el onboarding sin terminar (migración 206): no usa nada
  * de /paciente/* hasta completar los tres pasos obligatorios. Siguen abiertas,
- * porque están fuera de este bloque: /terminos, /guia, y cerrar sesión (que va
+ * porque están fuera de este bloque: /guia (y /terminos y /privacidad, que son HTML estáticos), y cerrar sesión (que va
  * dentro del wizard). Un paciente nuevo no puede tener una consulta o una
  * emergencia en curso antes de terminar, así que no hay que dejarlas pasar.
  */
@@ -413,7 +412,9 @@ export default function App() {
         <Route path="/landing/sin-cobertura-medica" element={<LandingSinCoberturaMedica />} />
         <Route path="/landing/medico-online"   element={<LandingMedicoOnline />} />
         <Route path="/landing/profesionales"   element={<LandingProfesionales />} />
-        <Route path="/terminos" element={<TerminosYCondiciones />} />
+        {/* /terminos y /privacidad NO son rutas de la SPA: son HTML estáticos
+            (public/terminos.html, public/privacidad.html) servidos por vercel.json,
+            legibles sin JS para el revisor de Google. Se linkean con <a>, no con <Link>. */}
         {/* Link de referido del profesional. Público: quien lo recibe por
             WhatsApp todavía no tiene cuenta. */}
         <Route path="/r/:codigo" element={<ReferralLanding profile={profile} />} />

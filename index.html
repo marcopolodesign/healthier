@@ -9,6 +9,33 @@
     <link rel="canonical" href="https://www.healthier.com.ar/" />
     <meta name="theme-color" content="#F6F5F0" />
 
+    <!-- Inicio legible sin JavaScript (verificación de marca de "Iniciar sesión con Google").
+         El revisor de Google no ejecuta JS: sin esto la principal es un shell vacío y
+         rechaza la marca. El bloque #inicio-estatico (dentro de #root) describe la app
+         con el mismo contenido que la landing; React lo reemplaza al montar. Con JS
+         prendido se oculta desde el primer pintado para que no parpadee: quien tiene JS
+         ve lo mismo que veía antes (la pantalla vacía hasta que carga la app). -->
+    <script>
+      document.documentElement.classList.add('js')
+      // Red de seguridad: si la app no montó en 8 s (bundle que no cargó, bloqueador,
+      // red caída), se muestra el contenido estático en vez de dejar la pantalla vacía.
+      // Cuando React monta, #inicio-estatico ya no existe y esto no hace nada.
+      setTimeout(function () {
+        if (document.getElementById('inicio-estatico')) document.documentElement.classList.remove('js')
+      }, 8000)
+    </script>
+    <style>
+      .js #inicio-estatico { display: none; }
+      #inicio-estatico { max-width: 720px; margin: 0 auto; padding: 40px 16px 64px; color: #2D2A26; background: #F6F5F0; font: 16px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+      #inicio-estatico h1 { font-size: 40px; line-height: 1.1; font-weight: 300; margin: 0 0 12px; }
+      #inicio-estatico h2 { font-size: 20px; font-weight: 400; margin: 32px 0 8px; }
+      #inicio-estatico p { margin: 0 0 12px; }
+      #inicio-estatico ul { margin: 0 0 12px; padding-left: 22px; list-style: disc; }
+      #inicio-estatico li { margin-bottom: 6px; }
+      #inicio-estatico a { color: #4f7f5c; text-decoration: underline; }
+      #inicio-estatico footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #D8D4CE; font-size: 14px; color: #6B6560; }
+    </style>
+
     <!-- Lo que se ve al compartir el link (WhatsApp, Instagram, LinkedIn, Slack, iMessage).
          La imagen la genera `node scripts/gen-og-image.mjs` desde scripts/og-template.html.
          🔴 Al regenerarla hay que subirle el `?v=` de las dos URLs de abajo: los scrapers
@@ -59,7 +86,27 @@
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TKJ3Q37Z"
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <!-- End Google Tag Manager (noscript) -->
-    <div id="root"></div>
+    <div id="root">
+      <main id="inicio-estatico">
+        <h1>Healthier</h1>
+        <p><strong>Tu salud, cuando la necesitás.</strong> Healthier es una plataforma de salud digital que te conecta con profesionales de la salud matriculados y verificados en Argentina.</p>
+        <h2>Qué podés hacer en Healthier</h2>
+        <ul>
+          <li>Videoconsultas con médicos y profesionales de la salud: agendadas o en el momento, con la consulta inmediata.</li>
+          <li>Recetas electrónicas emitidas por el profesional que te atiende.</li>
+          <li>Tu historia clínica, tus estudios y tus documentos en un solo lugar.</li>
+          <li>Farmacia y emergencias en Buenos Aires.</li>
+          <li>Para profesionales: agenda, consultas por video, historia clínica, recetas y cobros.</li>
+        </ul>
+        <h2>Iniciar sesión con Google</h2>
+        <p>Podés crear tu cuenta de Healthier y entrar con tu cuenta de Google. Healthier usa sólo tu nombre, tu email y tu foto de perfil para crear tu cuenta e identificarte cada vez que entrás. No accede a ningún otro dato de tu cuenta de Google. El detalle está en la <a href="/privacidad">política de privacidad</a>.</p>
+        <p><a href="/login">Iniciar sesión</a> · <a href="/registro">Crear una cuenta</a></p>
+        <footer>
+          <p>Healthier es operada por United Health S.A. — Maipú 325, piso 1, depto. A, Ciudad Autónoma de Buenos Aires, Argentina. Contacto: <a href="mailto:info@healthier.com.ar">info@healthier.com.ar</a> · WhatsApp +54 9 11 7271-3599.</p>
+          <p><a href="/privacidad">Política de privacidad</a> · <a href="/terminos">Términos y condiciones</a> · <a href="/eliminar-cuenta.html">Eliminar mi cuenta</a></p>
+        </footer>
+      </main>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

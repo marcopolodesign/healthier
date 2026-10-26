@@ -10,7 +10,9 @@ export function LandingFooter() {
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-6 mb-14">
           <div className="flex flex-wrap gap-x-7 gap-y-2 text-sm">
-            <Link to="/terminos" className="hover:text-white transition-colors">Términos y condiciones</Link>
+            {/* Páginas estáticas (public/*.html): con <a>, no <Link>, para que las sirva el servidor. */}
+            <a href="/terminos" className="hover:text-white transition-colors">Términos y condiciones</a>
+            <a href="/privacidad" className="hover:text-white transition-colors">Política de privacidad</a>
             <Link to="/login" className="hover:text-white transition-colors">Iniciar sesión</Link>
             <Link to="/landing/profesionales" className="hover:text-white transition-colors">Profesionales</Link>
             <a
@@ -23,7 +25,7 @@ export function LandingFooter() {
             </a>
           </div>
           <div className="text-xs text-white/30 sm:text-right leading-relaxed">
-            <p>© {new Date().getFullYear()} Healthier · Buenos Aires, Argentina</p>
+            <p>© {new Date().getFullYear()} Healthier · United Health S.A. · Buenos Aires, Argentina</p>
             <p>Ley 26.529 · Ley 27.553 · Ley 25.326</p>
           </div>
         </div>
