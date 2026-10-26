@@ -3,6 +3,8 @@
 //
 // Si cambia, hay que cambiarlo también en `mobile/src/lib/support.ts` — son
 // dos repos, no hay import compartido.
+// También está escrito a mano en los HTML estáticos que se leen sin JS:
+// `index.html` (#inicio-estatico), `public/privacidad.html` y `public/terminos.html`.
 export const SUPPORT_WHATSAPP_NUMBER = '5491172713599'
 
 /** El mismo número, formateado para mostrarlo como texto. */

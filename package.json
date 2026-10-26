@@ -17,7 +17,8 @@
     "test:guia": "node scripts/prueba-guia.mjs",
     "test:cobertura": "node --test scripts/test-cobertura-sugerida.mjs",
     "test:geo": "node --test scripts/test-geo-direcciones.mjs",
-    "test:teleclinica": "node --test scripts/test-checkout-teleclinica.mjs"
+    "test:teleclinica": "node --test scripts/test-checkout-teleclinica.mjs",
+    "test:legibles": "node scripts/verificar-legibles-sin-js.mjs"
   },
   "dependencies": {
     "@daily-co/daily-js": "^0.87.0",

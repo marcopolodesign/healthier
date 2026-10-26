@@ -370,7 +370,7 @@ export default function PatientOnboarding({ profile, onProfileUpdate }) {
               <>
                 <p className="text-sm text-text-secondary">
                   Necesitamos tu consentimiento para poder atenderte en Healthier. El detalle completo está en los{' '}
-                  <Link to="/terminos" target="_blank" className="text-brand font-medium hover:underline">Términos y Condiciones</Link>.
+                  <a href="/terminos" target="_blank" rel="noreferrer" className="text-brand font-medium hover:underline">Términos y Condiciones</a>.
                 </p>
                 <div className="border border-border-default rounded-xl p-4 space-y-4 bg-bg-primary">
                   {PATIENT_CONSENT_ITEMS.map(item => (
