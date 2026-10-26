@@ -30,11 +30,32 @@ function versionDelBuild() {
 
 const buildInfo = versionDelBuild()
 
+/**
+ * /privacidad y /terminos son HTML estáticos (public/*.html) que en Vercel sirve
+ * vercel.json. En `vite dev` / `vite preview` no hay vercel.json: sin esto el
+ * fallback de la SPA devuelve index.html y el router manda al inicio.
+ */
+const PAGINAS_ESTATICAS = { '/privacidad': '/privacidad.html', '/terminos': '/terminos.html' }
+function paginasEstaticas() {
+  const middleware = (req, _res, next) => {
+    const [ruta, query] = req.url.split('?')
+    const destino = PAGINAS_ESTATICAS[ruta.replace(/\/$/, '')]
+    if (destino) req.url = destino + (query ? `?${query}` : '')
+    next()
+  }
+  return {
+    name: 'paginas-estaticas',
+    configureServer: (server) => { server.middlewares.use(middleware) },
+    configurePreviewServer: (server) => { server.middlewares.use(middleware) },
+  }
+}
+
 export default defineConfig({
   define: {
     __BUILD_INFO__: JSON.stringify(buildInfo),
   },
   plugins: [
+    paginasEstaticas(),
     react(),
     tailwindcss(),
     // Sube source maps a Sentry para que los stack traces minificados se

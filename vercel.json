@@ -1,3 +1,13 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "redirects": [
+    { "source": "/compilance-argentina.html", "destination": "/privacidad", "permanent": true },
+    { "source": "/compliance-argentina.html", "destination": "/privacidad", "permanent": true }
+  ],
+  "rewrites": [
+    { "source": "/privacidad", "destination": "/privacidad.html" },
+    { "source": "/privacidad/", "destination": "/privacidad.html" },
+    { "source": "/terminos", "destination": "/terminos.html" },
+    { "source": "/terminos/", "destination": "/terminos.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
