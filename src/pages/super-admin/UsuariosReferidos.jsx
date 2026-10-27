@@ -6,7 +6,7 @@ import { toast } from '../../components/Toast'
 import { formatDate } from '../../lib/format'
 import MetricCard from '../../components/super-admin/MetricCard'
 import PacienteOnboardingDrawer from '../../components/super-admin/PacienteOnboardingDrawer'
-import { esLead, CAMPOS_ONBOARDING } from '../../lib/pacienteOnboarding'
+import { esLead, entraEnEmbudo, CAMPOS_ONBOARDING, CONSULTA_VIGENTE } from '../../lib/pacienteOnboarding'
 
 /**
  * Pacientes referidos (Mateo, 2026-10-26): los que llegaron por el link de un
@@ -30,12 +30,16 @@ export default function SuperAdminUsuariosReferidos() {
             .not('referred_by_professional_id', 'is', null)
             .is('deleted_at', null)
             .order('created_at', { ascending: false }),
-          supabase.from('consultations').select('patient_id'),
+          supabase.from('consultations').select('patient_id, status'),
         ])
         if (pacientesRes.error) throw pacientesRes.error
         if (consultasRes.error) throw consultasRes.error
         const consultas = {}
-        for (const c of consultasRes.data || []) consultas[c.patient_id] = (consultas[c.patient_id] || 0) + 1
+        const vigentes = new Set()
+        for (const c of consultasRes.data || []) {
+          consultas[c.patient_id] = (consultas[c.patient_id] || 0) + 1
+          if (CONSULTA_VIGENTE.includes(c.status)) vigentes.add(c.patient_id)
+        }
         // El nombre del profesional va en una segunda consulta: PostgREST no
         // resuelve el embed de profiles sobre sí misma por esta FK (PGRST200).
         const idsPro = [...new Set((pacientesRes.data || []).map(p => p.referred_by_professional_id))]
@@ -48,6 +52,8 @@ export default function SuperAdminUsuariosReferidos() {
           ...p,
           referente: proPorId.get(p.referred_by_professional_id) ?? null,
           _lead: esLead(toCamelCase(p)),
+          _embudo: entraEnEmbudo(toCamelCase(p)),
+          _vigente: vigentes.has(p.id),
           _consultas: consultas[p.id] || 0,
         })))
       } catch (err) {
@@ -59,8 +65,12 @@ export default function SuperAdminUsuariosReferidos() {
     cargar()
   }, [])
 
-  const leads = filas.filter(f => f._lead).length
-  const conConsulta = filas.filter(f => f._consultas > 0).length
+  // Las métricas, como en Pacientes, sin cuentas de prueba; el % de leads sobre
+  // los que pasaron por el wizard (los de antes no pueden ser lead).
+  const reales = filas.filter(f => !f.es_prueba)
+  const enEmbudo = reales.filter(f => f._embudo).length
+  const leads = reales.filter(f => f._lead).length
+  const conConsulta = reales.filter(f => f._vigente).length
   const pct = (a, b) => (b > 0 ? `${Math.round((a / b) * 100)}%` : '')
 
   return (
@@ -71,9 +81,9 @@ export default function SuperAdminUsuariosReferidos() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <MetricCard label="Referidos" value={loading ? '—' : filas.length} />
-        <MetricCard label="Leads" value={loading ? '—' : leads} hint={loading ? '' : pct(leads, filas.length)} tone="ok" />
-        <MetricCard label="Con consulta" value={loading ? '—' : conConsulta} hint={loading ? '' : pct(conConsulta, filas.length)} />
+        <MetricCard label="Referidos" value={loading ? '—' : reales.length} />
+        <MetricCard label="Leads" value={loading ? '—' : leads} hint={loading ? '' : pct(leads, enEmbudo)} tone="ok" />
+        <MetricCard label="Con consulta" value={loading ? '—' : conConsulta} hint={loading ? '' : pct(conConsulta, reales.length)} />
       </div>
 
       <div className="card">

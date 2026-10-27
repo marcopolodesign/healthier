@@ -39,9 +39,11 @@ for (const [nombre, { ref, dominios }] of Object.entries(ENTORNOS)) {
   const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/config/auth`, { headers: { Authorization: `Bearer ${tk}` } })
   if (!res.ok) { console.error(`✗ ${nombre}: no pude leer la config (${res.status})`); fallas++; continue }
   const cfg = await res.json()
-  const permitidos = [cfg.site_url, ...(cfg.uri_allow_list || '').split(',')].filter(Boolean)
+  // Hace falta el comodín: el login vuelve a `${origin}/login`, y una entrada
+  // sin `/**` no cubre esa ruta (Supabase compara como glob).
+  const permitidos = (cfg.uri_allow_list || '').split(',').map(p => p.trim()).filter(Boolean)
   for (const d of dominios) {
-    const ok = permitidos.some(p => p === d || p.startsWith(`${d}/`))
+    const ok = d === cfg.site_url?.replace(/\/$/, '') || permitidos.includes(`${d}/**`)
     console.log(`${ok ? '✓' : '✗'} ${nombre}: ${d}`)
     if (!ok) fallas++
   }

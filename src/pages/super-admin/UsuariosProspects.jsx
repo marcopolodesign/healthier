@@ -8,7 +8,7 @@ import { useBulkSelection } from '../../hooks/useBulkSelection';
 import BulkActionBar from '../../components/super-admin/BulkActionBar';
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog';
 import PacienteOnboardingDrawer from '../../components/super-admin/PacienteOnboardingDrawer';
-import { PASOS_PACIENTE, esProspecto, completitudPaciente, CAMPOS_ONBOARDING } from '../../lib/pacienteOnboarding';
+import { PASOS_PACIENTE, esProspecto, CAMPOS_ONBOARDING } from '../../lib/pacienteOnboarding';
 
 
 // Prospecto (Mateo, 2026-10-26): se registró y no terminó el onboarding. El que
@@ -56,17 +56,19 @@ export default function SuperAdminUsuariosProspects() {
       const filtered = (data || []).filter((p) => !p.es_prueba && esProspecto(toCamelCase(p)));
 
       // Google vs. email vive en auth.users — misma vista que Prospectos de profesionales (110).
-      const { data: providersData } = await supabase
-        .from('auth_providers_super_admin')
-        .select('id, auth_provider')
-        .in('id', filtered.map((p) => p.id));
-      const providerById = new Map((providersData || []).map((r) => [r.id, r.auth_provider]));
+      // En tandas: con cientos de prospectos, un solo `.in()` pasa el largo de URL.
+      const ids = filtered.map((p) => p.id);
+      const providerById = new Map();
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data: providersData, error: provErr } = await supabase
+          .from('auth_providers_super_admin')
+          .select('id, auth_provider')
+          .in('id', ids.slice(i, i + 100));
+        if (provErr) throw provErr;
+        for (const r of providersData || []) providerById.set(r.id, r.auth_provider);
+      }
 
-      setProspects(filtered.map((p) => ({
-        ...p,
-        auth_provider: providerById.get(p.id) ?? null,
-        _c: completitudPaciente(toCamelCase(p)),
-      })));
+      setProspects(filtered.map((p) => ({ ...p, auth_provider: providerById.get(p.id) ?? null })));
     } catch (err) {
       console.error(err);
       toast.error('Error al cargar los prospectos.');
