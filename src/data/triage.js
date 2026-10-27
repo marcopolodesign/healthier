@@ -39,18 +39,7 @@ import { SYMPTOMS, OTHER_SYMPTOM, COMMON_QUESTIONS, MEDICATION_QUESTION } from '
 
 // ── Preguntas que se repiten entre verticales ────────────────────────────────
 
-const DURACION = {
-  id: 'duracion',
-  label: '¿Hace cuánto que te pasa?',
-  type: 'single',
-  options: [
-    { value: 'menos_24h', label: 'Menos de 24 horas' },
-    { value: '1_3_dias',  label: 'Entre 1 y 3 días' },
-    { value: '4_7_dias',  label: 'Entre 4 y 7 días' },
-    { value: 'mas_semana', label: 'Más de una semana' },
-    { value: 'mas_mes',    label: 'Más de un mes' },
-  ],
-}
+const DURACION = COMMON_QUESTIONS.find(q => q.id === 'duracion')
 
 const INTENSIDAD = COMMON_QUESTIONS.find(q => q.id === 'intensidad')
 

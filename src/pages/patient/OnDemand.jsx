@@ -475,7 +475,7 @@ export default function OnDemand({ profile }) {
       <div className={vista === 'preguntas' ? 'flex-1 min-h-0 flex flex-col w-full max-w-[488px] mx-auto' : 'hidden'}>
         {preconsultaLista ? (
           <PreconsultaForm
-            key={paraId || profile?.id || 'yo'}
+            key={`${verticalId}:${paraId || profile?.id || 'yo'}`}
             inline
             isOpen={vista === 'preguntas'}
             consultationId={null}

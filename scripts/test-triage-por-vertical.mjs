@@ -18,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { TRIAGES, triageDe, preguntasDe, cierreDe } from '../src/data/triage.js'
 import { ALL_SYMPTOMS, COMMON_QUESTIONS } from '../src/data/symptoms.js'
-import { armarPreconsulta, pasosDe, estaRespondida, motivoCompleto, parseNumero, NO_SE } from '../src/lib/armarPreconsulta.js'
+import { armarPreconsulta, pasosDe, estaRespondida, todasRespondidas, motivoCompleto, parseNumero, NO_SE } from '../src/lib/armarPreconsulta.js'
 import { verticalDeConsulta } from '../src/lib/verticalDeConsulta.js'
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -261,10 +261,6 @@ test('todas las verticales: opciones con value único, ids de pregunta únicos p
   }
 })
 
-function todasRespondidas(preguntas, respuestas, detalles) {
-  return preguntas.every(q => estaRespondida(q, respuestas, detalles))
-}
-
 test('los pasos vacíos se saltean y la cuenta sale de la lista', () => {
   for (const [v, t] of Object.entries(TRIAGES)) {
     const motivo = t.motivo.tipo === 'lista' ? t.motivo.opciones[0] : null
@@ -279,14 +275,17 @@ test('los pasos vacíos se saltean y la cuenta sale de la lista', () => {
 
 // ── La vertical de una consulta agendada ─────────────────────────────────────
 
-test('verticalDeConsulta: la de la consulta si el triage la reconoce, si no la de la especialidad, si no null', () => {
+test('verticalDeConsulta: la de la consulta si la trae, si no la de la especialidad, si no null', () => {
   const esp = [{ slug: 'psicologia_clinica', verticalId: 'mente' }, { slug: 'pediatria', verticalId: 'pediatria' }]
-  const con = (vertical, specialty) => ({ vertical, professional: { professionalProfiles: [{ specialty }] } })
+  // Como lo devuelve PostgREST: objeto (user_id es único). También se acepta arreglo.
+  const con = (vertical, specialty) => ({ vertical, professional: { professionalProfiles: { specialty } } })
+  const conArreglo = (vertical, specialty) => ({ vertical, professional: { professionalProfiles: [{ specialty }] } })
   assert.equal(verticalDeConsulta(con('mente', 'pediatria'), esp), 'mente')
-  assert.equal(verticalDeConsulta(con('Psicología', null), esp), 'Psicología', 'el alias viejo se reconoce')
-  assert.equal(verticalDeConsulta(con('salud', 'pediatria'), esp), 'salud')
-  assert.equal(verticalDeConsulta(con(undefined, 'psicologia_clinica'), esp), 'mente')
-  assert.equal(verticalDeConsulta(con('rara', 'pediatria'), esp), 'pediatria')
+  assert.equal(verticalDeConsulta(con('Psicología', null), esp), 'Psicología', 'el alias viejo lo resuelve triageDe')
+  assert.equal(verticalDeConsulta(con(undefined, 'psicologia_clinica'), esp), 'mente', 'objeto')
+  assert.equal(verticalDeConsulta(conArreglo(undefined, 'psicologia_clinica'), esp), 'mente', 'arreglo')
+  assert.equal(verticalDeConsulta(con('fonoaudiologia', 'pediatria'), esp), 'fonoaudiologia', 'una vertical nueva va al genérico, no a Clínica')
+  assert.equal(triageDe('fonoaudiologia').motivo.tipo, 'abierto')
   assert.equal(verticalDeConsulta(con(undefined, 'otra'), esp), null)
   assert.equal(verticalDeConsulta(con(undefined, undefined), []), null)
   assert.equal(verticalDeConsulta(null, esp), null)
