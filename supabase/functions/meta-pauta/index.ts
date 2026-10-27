@@ -4,7 +4,8 @@
 // Sólo lectura: el token es el del system user con `ads_read` (no puede crear,
 // pausar ni editar nada — lo impone Meta, no este código). Vive en los secrets
 // META_ADS_READ_TOKEN / META_AD_ACCOUNT_ID y nunca sale de acá: el navegador
-// recibe sólo los números ya agregados. Sólo responde a un super_admin.
+// recibe sólo los números ya agregados. Sólo responde a un super_admin de
+// `MAILS_PAUTA`.
 //
 // Devuelve, para el rango pedido:
 //   - `anuncios`: una fila por anuncio (campaña + nombre de anuncio = utm_content)
@@ -17,6 +18,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 const GRAPH = 'https://graph.facebook.com/v21.0'
+// Misma lista que `MAILS_PAUTA` en src/lib/permisos.js (Mateo, 2026-10-27: sólo
+// la cuenta de Marco Polo). Ésta es la que cierra la puerta; la del front sólo
+// esconde el menú.
+const MAILS_PAUTA = ['marcopolo@healthier.app']
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
@@ -51,7 +56,9 @@ Deno.serve(async (req: Request) => {
 
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
     const { data: perfil } = await admin.from('profiles').select('role').eq('id', user.id).single()
-    if (perfil?.role !== 'super_admin') return json({ error: 'Sólo super_admin' }, 403)
+    if (perfil?.role !== 'super_admin' || !MAILS_PAUTA.includes((user.email ?? '').trim().toLowerCase())) {
+      return json({ error: 'Esta cuenta no tiene acceso a Pauta' }, 403)
+    }
 
     const token = Deno.env.get('META_ADS_READ_TOKEN')
     const cuenta = Deno.env.get('META_AD_ACCOUNT_ID')

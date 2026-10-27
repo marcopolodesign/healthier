@@ -116,7 +116,7 @@ import SuperAdminCoberturas from './pages/super-admin/Coberturas'
 import SuperAdminConsultorios from './pages/super-admin/Consultorios'
 import SuperAdminFederador from './pages/super-admin/Federador'
 import SuperAdminSubidas from './pages/super-admin/Subidas'
-import { veSubidas } from './lib/permisos'
+import { veSubidas, vePauta } from './lib/permisos'
 import SuperAdminUsuarios from './pages/super-admin/Usuarios'
 import SuperAdminUsuariosProspects from './pages/super-admin/UsuariosProspects'
 import SuperAdminUsuariosReferidos from './pages/super-admin/UsuariosReferidos'
@@ -596,7 +596,7 @@ export default function App() {
         }>
           <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
           <Route path="/super-admin/pagos" element={<SuperAdminPayments />} />
-          <Route path="/super-admin/pauta" element={<SuperAdminPauta />} />
+          <Route path="/super-admin/pauta" element={<RequierePermiso permitido={vePauta(profile)}><SuperAdminPauta /></RequierePermiso>} />
           <Route path="/super-admin/consultas" element={<SuperAdminConsultas />} />
           <Route path="/super-admin/admins" element={<SuperAdminAdmins />} />
           <Route path="/super-admin/zonas" element={<SuperAdminZones />} />

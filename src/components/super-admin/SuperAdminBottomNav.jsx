@@ -6,7 +6,7 @@ import {
   Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning, Path, EnvelopeSimple, UploadSimple, UsersThree, BookOpenText, Lightning, ShareFat, ShareNetwork, Megaphone } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
-import { veSubidas } from '../../lib/permisos'
+import { veSubidas, vePauta } from '../../lib/permisos'
 
 // Nav de super admin en mobile. Hasta ahora el único acceso era la hamburguesa
 // del header: en un teléfono eso deja Pagos —lo que más se mira— a dos toques y
@@ -47,7 +47,6 @@ const MORE_GROUPS = [
   {
     title: 'Otros',
     links: [
-      { path: '/super-admin/pauta', icon: Megaphone, label: 'Pauta', sub: 'Meta: gasto y embudo' },
       { path: '/super-admin/auditoria', icon: Eye, label: 'Auditoría HC', sub: 'Accesos a historias clínicas' },
       { path: '/super-admin/teleclinica', icon: Lightning, label: 'Teleclínica', sub: 'Pedidos de consulta inmediata' },
       { path: '/super-admin/mails', icon: EnvelopeSimple, label: 'Mails', sub: 'Qué salió y qué falló' },
@@ -70,6 +69,9 @@ export default function SuperAdminBottomNav({ className = '', profile = null }) 
   const grupos = MORE_GROUPS.map(g => g.title !== 'Otros' ? g : {
     ...g,
     links: [
+      ...(vePauta(profile)
+        ? [{ path: '/super-admin/pauta', icon: Megaphone, label: 'Pauta', sub: 'Meta: gasto y embudo' }]
+        : []),
       ...g.links,
       ...(veSubidas(profile)
         ? [{ path: '/super-admin/subidas', icon: UploadSimple, label: 'Subidas', sub: 'Qué documento rebotó y por qué' }]
