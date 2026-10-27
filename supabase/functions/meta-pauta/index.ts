@@ -70,7 +70,7 @@ Deno.serve(async (req: Request) => {
     const hoy = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' })
     const inicioMes = `${hoy.slice(0, 8)}01`
 
-    const [porAnuncio, porDia] = await Promise.all([
+    const [porAnuncio, porDia, datosCuenta] = await Promise.all([
       insights(cuenta, token, {
         level: 'ad',
         fields: 'campaign_id,campaign_name,ad_name,spend,impressions,inline_link_clicks,actions',
@@ -82,10 +82,13 @@ Deno.serve(async (req: Request) => {
         time_increment: '1',
         time_range: JSON.stringify({ since: inicioMes, until: hoy }),
       }),
+      fetch(`${GRAPH}/${cuenta}?fields=currency&access_token=${token}`).then(r => r.json()),
     ])
 
     return json({
       actualizado: new Date().toISOString(),
+      // La cuenta se llama "Healthier - USD" pero factura en ARS: la moneda manda Meta.
+      moneda: datosCuenta?.currency ?? 'ARS',
       anuncios: porAnuncio.map(f => ({
         campana: f.campaign_name,
         anuncio: f.ad_name,

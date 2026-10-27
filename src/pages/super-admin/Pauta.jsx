@@ -23,7 +23,8 @@ const RANGOS = [
   { key: 'todo', label: 'Desde el inicio', desde: () => '2026-08-01' },
 ]
 
-const ars = (n) => `$${Math.round(n).toLocaleString('es-AR')}`
+let moneda = 'ARS'
+const ars = (n) => (moneda === 'ARS' ? `$${Math.round(n).toLocaleString('es-AR')}` : `${moneda} ${Math.round(n).toLocaleString('es-AR')}`)
 // A mano: el compacto de es-AR mezcla "k" y "K" según el número.
 const compacto = (n) => {
   const corto = (v, suf) => `${v.toLocaleString('es-AR', { maximumFractionDigits: 1 })} ${suf}`
@@ -66,27 +67,30 @@ export default function SuperAdminPauta() {
     const hasta = hoyAR()
     const desde = RANGOS.find(r => r.key === rango).desde(hasta)
     setLoading(true)
-    Promise.all([
+    setMeta(null)
+    // allSettled: si Meta falla, el embudo de la base se ve igual (y al revés).
+    Promise.allSettled([
       pautaService.meta(desde, hasta),
       pautaService.registros('patient', desde, hasta),
       pautaService.registros('professional', desde, hasta),
-    ])
-      .then(([m, pac, pro]) => {
-        if (cancelado) return
-        setMeta(m)
-        setRegistros({ pacientes: pac, profesionales: pro })
+    ]).then(([m, pac, pro]) => {
+      if (cancelado) return
+      if (m.status === 'fulfilled') { moneda = m.value.moneda || 'ARS'; setMeta(m.value) } else toast.error(`Meta: ${m.reason?.message || 'no respondió'}`)
+      if (pac.status === 'rejected' || pro.status === 'rejected') toast.error((pac.reason || pro.reason)?.message || 'No se pudieron cargar los registros')
+      setRegistros({
+        pacientes: pac.status === 'fulfilled' ? pac.value : [],
+        profesionales: pro.status === 'fulfilled' ? pro.value : [],
       })
-      .catch(err => toast.error(err.message || 'No se pudo cargar la pauta'))
-      .finally(() => !cancelado && setLoading(false))
+      setLoading(false)
+    })
     return () => { cancelado = true }
   }, [rango])
 
   const vista = useMemo(() => {
-    if (!meta) return null
+    if (loading) return null
     const { patron } = PUBLICO[tab]
-    const anuncios = meta.anuncios.filter(a => patron.test(a.campana))
-    const campanas = new Set(anuncios.map(a => a.campana))
-    const regs = registros[tab].filter(r => campanas.has(r.utm_campaign))
+    const anuncios = (meta?.anuncios ?? []).filter(a => patron.test(a.campana))
+    const regs = registros[tab].filter(r => patron.test(r.utm_campaign))
     const sum = (arr, k) => arr.reduce((s, x) => s + (x[k] || 0), 0)
     const cuenta = (k) => regs.filter(r => r[k]).length
     const totales = {
@@ -116,7 +120,7 @@ export default function SuperAdminPauta() {
     }
     const porAnuncio = [...filas.values()].sort((a, b) => (a.anuncio === null) - (b.anuncio === null) || b.gasto - a.gasto)
     return { totales, porAnuncio, clave }
-  }, [meta, registros, tab])
+  }, [meta, registros, tab, loading])
 
   // Gasto diario de toda la cuenta, mes en curso; los días que faltan, al promedio.
   const diario = useMemo(() => {
@@ -128,7 +132,9 @@ export default function SuperAdminPauta() {
     for (const d of meta.diario) porDia[d.fecha] = (porDia[d.fecha] || 0) + d.gasto
     const diaHoy = Number(hoy.slice(8, 10))
     const gastado = Object.values(porDia).reduce((s, x) => s + x, 0)
-    const promedio = diaHoy > 0 ? gastado / diaHoy : 0
+    // El promedio sale de los días cerrados: hoy todavía no terminó.
+    const cerrados = gastado - (porDia[hoy] || 0)
+    const promedio = diaHoy > 1 ? cerrados / (diaHoy - 1) : gastado
     const datos = Array.from({ length: diasMes }, (_, i) => {
       const fecha = `${hoy.slice(0, 8)}${String(i + 1).padStart(2, '0')}`
       const futuro = i + 1 > diaHoy
@@ -146,7 +152,7 @@ export default function SuperAdminPauta() {
         <div>
           <h1 className="page-title-lg">Pauta</h1>
           <p className="text-text-secondary mt-1">
-            {meta ? `Meta · actualizado ${new Date(meta.actualizado).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}` : '…'}
+            {meta ? `Meta · ${meta.moneda || 'ARS'} · actualizado ${new Date(meta.actualizado).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}` : '…'}
           </p>
         </div>
         <select value={rango} onChange={e => setRango(e.target.value)} className="form-input w-auto">
