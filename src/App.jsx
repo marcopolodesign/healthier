@@ -119,6 +119,7 @@ import SuperAdminSubidas from './pages/super-admin/Subidas'
 import { veSubidas } from './lib/permisos'
 import SuperAdminUsuarios from './pages/super-admin/Usuarios'
 import SuperAdminUsuariosProspects from './pages/super-admin/UsuariosProspects'
+import SuperAdminUsuariosReferidos from './pages/super-admin/UsuariosReferidos'
 import SuperAdminProfesionalesProspects from './pages/super-admin/ProfesionalesProspects'
 import SuperAdminProfesionales from './pages/super-admin/Profesionales'
 import SuperAdminProfesionalesRecorrido from './pages/super-admin/ProfesionalesRecorrido'
@@ -602,6 +603,7 @@ export default function App() {
           <Route path="/super-admin/settings" element={<SuperAdminSettings />} />
           <Route path="/super-admin/usuarios" element={<SuperAdminUsuarios />} />
           <Route path="/super-admin/usuarios/prospects" element={<SuperAdminUsuariosProspects />} />
+          <Route path="/super-admin/usuarios/referidos" element={<SuperAdminUsuariosReferidos />} />
           <Route path="/super-admin/usuarios/grupos-familiares" element={<SuperAdminGruposFamiliares />} />
           <Route path="/super-admin/profesionales" element={<SuperAdminProfesionales />} />
           <Route path="/super-admin/profesionales/prospects" element={<SuperAdminProfesionalesProspects />} />

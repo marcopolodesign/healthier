@@ -9,17 +9,9 @@ import BulkActionBar from '../../components/super-admin/BulkActionBar';
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog';
 import PacienteOnboardingDrawer from '../../components/super-admin/PacienteOnboardingDrawer';
 import { toCamelCase } from '../../lib/supabase';
-import { completitudPaciente, PASOS_PACIENTE } from '../../lib/pacienteOnboarding';
+import { completitudPaciente, esLead, entraEnEmbudo, CAMPOS_ONBOARDING } from '../../lib/pacienteOnboarding';
+import MetricCard from '../../components/super-admin/MetricCard';
 
-// Datos que mira el onboarding por pasos (lib/pacienteOnboarding.js). Los de
-// salud y emergencia se traen sólo para saber si están cargados: el drawer no
-// muestra el valor.
-const CAMPOS_ONBOARDING = 'phone, titular_id, dni, gender, birth_date, coverage_type, financiador_id, insurance_name, insurance_num, height_cm, weight_kg, blood_type, allergies, emergency_name, emergency_phone, consentimiento_at, consentimiento_version, paciente_paso_onboarding, onboarding_completado_at, requiere_onboarding';
-
-/** Dónde se frenó: 'completo' si terminó el wizard (aunque haya salteado lo opcional), si no el primer paso sin hacer. */
-function etapa(c, p) {
-  return p?.onboarding_completado_at || c.completados === c.total ? 'completo' : PASOS_PACIENTE[c.primerPendiente].key;
-}
 
 const fechaCorta = (ts) => new Date(ts).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' });
 
@@ -47,7 +39,7 @@ export default function SuperAdminUsuarios() {
   const [filter, setFilter] = useState('todos');
   const [search, setSearch] = useState('');
   const [perfilFilter, setPerfilFilter] = useState('todos');
-  const [etapaFilter, setEtapaFilter] = useState(null);
+  const [verCampanas, setVerCampanas] = useState(false);
   const [abierto, setAbierto] = useState(null);
 
   useEffect(() => {
@@ -77,7 +69,10 @@ export default function SuperAdminUsuarios() {
         map[row.patient_id] = (map[row.patient_id] || 0) + 1;
       }
 
-      setPatients((profilesRes.data || []).map((p) => ({ ...p, _c: completitudPaciente(toCamelCase(p)) })));
+      setPatients((profilesRes.data || []).map((p) => {
+        const cc = toCamelCase(p);
+        return { ...p, _c: completitudPaciente(cc), _nuevo: entraEnEmbudo(cc) && !p.es_prueba, _lead: esLead(cc) && !p.es_prueba };
+      }));
       setConsultationMap(map);
     } catch (err) {
       toast.error('Error al cargar usuarios');
@@ -91,10 +86,9 @@ export default function SuperAdminUsuarios() {
     const count = consultationMap[p.id] || 0;
     if (filter === 'con_consultas' && count === 0) return false;
     if (filter === 'sin_consultas' && count > 0) return false;
-    if (perfilFilter === 'completo' && !p._c.obligatoriosCompletos) return false;
+    if (perfilFilter === 'leads' && !p._lead) return false;
     if (perfilFilter === 'incompleto' && p._c.obligatoriosCompletos) return false;
     if (perfilFilter === 'sin_consentimiento' && p.consentimiento_at) return false;
-    if (etapaFilter && (p.titular_id || !p.requiere_onboarding || etapa(p._c, p) !== etapaFilter)) return false;
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -116,7 +110,7 @@ export default function SuperAdminUsuarios() {
   }
 
   function exportCSV() {
-    const headers = ['Nombre', 'Email', 'UTM Source', 'UTM Campaign', 'Consultas', 'Registro', 'Perfil', 'Le falta', 'Consentimiento'];
+    const headers = ['Nombre', 'Email', 'UTM Source', 'UTM Campaign', 'Consultas', 'Registro', 'Perfil', 'Lead', 'Le falta', 'Consentimiento'];
     const rows = filteredPatients.map((p) => [
       p.full_name || '',
       p.email || '',
@@ -125,6 +119,7 @@ export default function SuperAdminUsuarios() {
       consultationMap[p.id] || 0,
       formatDate(p.created_at),
       `${p._c.completados}/${p._c.total}`,
+      p._lead ? 'Sí' : '',
       p._c.faltan.join(' · '),
       p.consentimiento_at ? formatDate(p.consentimiento_at) : 'Sin consentimiento',
     ]);
@@ -164,16 +159,25 @@ export default function SuperAdminUsuarios() {
     }
   }
 
-  // Embudo: dónde se frena cada paciente NUEVO (migración 206). Los que ya
-  // existían no pasan por el wizard, y los familiares a cargo tampoco.
-  // Clic en una columna filtra la tabla.
-  const titulares = patients.filter((p) => !p.titular_id && p.requiere_onboarding);
-  const embudo = [...PASOS_PACIENTE.map((s) => ({ key: s.key, label: s.corto })), { key: 'completo', label: 'Completo' }]
-    .map((e) => ({ ...e, n: titulares.filter((p) => etapa(p._c, p) === e.key).length }));
+  // Lead = terminó el onboarding (Mateo, 2026-10-26; `esLead`). Sólo cuentan los
+  // que pasaron por el wizard y no son de prueba. Dónde se frena el resto está
+  // en Prospectos, no acá, para no ver el mismo número en dos pantallas.
+  const nuevos = patients.filter((p) => p._nuevo);
+  const leads = nuevos.filter((p) => p._lead);
+  const leadsConConsulta = leads.filter((p) => consultationMap[p.id] > 0);
+  const pct = (a, b) => (b > 0 ? `${Math.round((a / b) * 100)}%` : '');
+  const porCampana = Object.values(nuevos.reduce((acc, p) => {
+    const k = p.utm_campaign || 'Sin UTM';
+    acc[k] ??= { campana: k, registros: 0, leads: 0, conConsulta: 0 };
+    acc[k].registros += 1;
+    if (p._lead) acc[k].leads += 1;
+    if (p._lead && consultationMap[p.id] > 0) acc[k].conConsulta += 1;
+    return acc;
+  }, {})).sort((a, b) => b.registros - a.registros);
 
   const perfilPills = [
     { key: 'todos', label: 'Todos los perfiles' },
-    { key: 'completo', label: 'Perfil completo' },
+    { key: 'leads', label: 'Leads' },
     { key: 'incompleto', label: 'Le faltan datos obligatorios' },
     { key: 'sin_consentimiento', label: 'Sin consentimiento' },
   ];
@@ -200,32 +204,41 @@ export default function SuperAdminUsuarios() {
         </button>
       </div>
 
-      {/* Embudo del onboarding por pasos */}
       {!loading && (
-        <div className="card p-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-medium text-gray-500">Pacientes nuevos: dónde se frenan en el registro</p>
-            {etapaFilter && (
-              <button type="button" onClick={() => setEtapaFilter(null)} className="text-sm font-medium text-brand hover:underline">
-                Ver todos
-              </button>
-            )}
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-4">
+            <MetricCard label="Registros nuevos" value={nuevos.length} />
+            <button type="button" onClick={() => setVerCampanas((v) => !v)} className={`text-left rounded-2xl ${verCampanas ? 'ring-1 ring-brand' : ''}`}>
+              <MetricCard label="Leads" value={leads.length} hint={pct(leads.length, nuevos.length)} tone="ok" />
+            </button>
+            <MetricCard label="Con consulta" value={leadsConConsulta.length} hint={pct(leadsConConsulta.length, leads.length)} />
           </div>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-            {embudo.map((e) => (
-              <button
-                type="button"
-                key={e.key}
-                onClick={() => setEtapaFilter((prev) => (prev === e.key ? null : e.key))}
-                className={`text-center rounded-lg py-2 transition-colors ${
-                  etapaFilter === e.key ? 'bg-brand-muted ring-1 ring-brand' : 'hover:bg-gray-50'
-                }`}
-              >
-                <p className="text-2xl font-bold text-gray-900 tabular-nums">{e.n}</p>
-                <p className="text-sm text-gray-500 mt-0.5">{e.label}</p>
-              </button>
-            ))}
-          </div>
+          {verCampanas && (
+            <div className="card overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="table-header">Campaña</th>
+                    <th className="table-header text-right">Registros</th>
+                    <th className="table-header text-right">Leads</th>
+                    <th className="table-header text-right">%</th>
+                    <th className="table-header text-right">Con consulta</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {porCampana.map((f) => (
+                    <tr key={f.campana} className="table-row">
+                      <td className="table-cell">{f.campana === 'Sin UTM' ? <span className="text-text-tertiary">Sin UTM</span> : f.campana}</td>
+                      <td className="table-cell text-right tabular-nums">{f.registros}</td>
+                      <td className="table-cell text-right tabular-nums font-semibold">{f.leads}</td>
+                      <td className="table-cell text-right tabular-nums text-text-secondary">{pct(f.leads, f.registros)}</td>
+                      <td className="table-cell text-right tabular-nums">{f.conConsulta}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -356,7 +369,12 @@ export default function SuperAdminUsuarios() {
                           <span className="text-sm text-text-tertiary">Familiar a cargo</span>
                         ) : (
                           <div className="space-y-1.5">
-                            <PuntosPerfil c={patient._c} />
+                            <div className="flex items-center gap-2">
+                              <PuntosPerfil c={patient._c} />
+                              {patient._lead && (
+                                <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-800">Lead</span>
+                              )}
+                            </div>
                             {patient._c.faltan.length > 0 && (
                               <div className="flex gap-1 flex-wrap">
                                 {patient._c.faltan.filter((f) => f !== 'Sin consentimiento').slice(0, 1).map((f) => (
