@@ -18,6 +18,7 @@
     "test:cobertura": "node --test scripts/test-cobertura-sugerida.mjs",
     "test:geo": "node --test scripts/test-geo-direcciones.mjs",
     "test:teleclinica": "node --test scripts/test-checkout-teleclinica.mjs",
+    "test:triage": "node --import tsx --test scripts/test-triage-por-vertical.mjs",
     "test:legibles": "node scripts/verificar-legibles-sin-js.mjs"
   },
   "dependencies": {

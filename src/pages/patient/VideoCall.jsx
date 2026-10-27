@@ -10,6 +10,8 @@ import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 import PreconsultaForm from '../../components/patient/PreconsultaForm'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { verticalDeConsulta } from '../../lib/verticalDeConsulta'
 import { terminoLaLlamada } from '../../lib/cierreConsulta'
 
 // Margen antes de cerrarle la llamada al paciente cuando el profesional se va: un
@@ -69,6 +71,8 @@ export default function PatientVideoCall() {
   const professionalJoinedRef = useRef(false)
 
   const [consultation, setConsultation] = useState(null)
+  const { especialidades } = useEspecialidades()
+  const verticalPre = verticalDeConsulta(consultation, especialidades)
   const [loadingConsultation, setLoadingConsultation] = useState(true)
   /**
    * Compuerta para ENTRAR a Daily: late una vez y no vuelve atrás. Misma razón que
@@ -660,6 +664,8 @@ export default function PatientVideoCall() {
 
       {/* Pre-consulta sheet */}
       <PreconsultaForm
+        key={verticalPre ?? 'clinica'}
+        vertical={verticalPre}
         isOpen={showPreconsulta}
         onClose={handlePreconsultaClose}
         consultationId={consultation?.id ?? null}

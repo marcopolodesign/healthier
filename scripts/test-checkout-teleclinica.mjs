@@ -54,7 +54,7 @@ test('las preguntas no dicen "Pagar" y cuentan el pago en N', () => {
   assert.match(pantalla, /textoFinal="Continuar"/)
   assert.match(pantalla, /pasosExtra=\{1\}/)
   assert.doesNotMatch(pantalla, /textoFinal="[^"]*[Pp]ag/)
-  assert.match(form, /ultimoPaso \+ 1 \+ pasosExtra/)
+  assert.match(form, /pasos\.length \+ pasosExtra/)
 })
 
 test('la tarjeta nueva también dice "Pagar y solicitar"', () => {
