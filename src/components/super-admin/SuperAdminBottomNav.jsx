@@ -3,10 +3,10 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ChartBar, CurrencyDollar, ShieldCheck, Users, DotsThree, X,
-  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning, Path, EnvelopeSimple, UploadSimple, UsersThree, BookOpenText, ShareFat, Lightning, ShareNetwork } from '@phosphor-icons/react'
+  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning, Path, EnvelopeSimple, UploadSimple, UsersThree, BookOpenText, ShareFat, Lightning, ShareNetwork, Megaphone } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
-import { veSubidas } from '../../lib/permisos'
+import { veSubidas, vePauta } from '../../lib/permisos'
 
 // Nav de super admin en mobile. Hasta ahora el único acceso era la hamburguesa
 // del header: en un teléfono eso deja Pagos —lo que más se mira— a dos toques y
@@ -69,6 +69,9 @@ export default function SuperAdminBottomNav({ className = '', profile = null }) 
   const grupos = MORE_GROUPS.map(g => g.title !== 'Otros' ? g : {
     ...g,
     links: [
+      ...(vePauta(profile)
+        ? [{ path: '/super-admin/pauta', icon: Megaphone, label: 'Pauta', sub: 'Meta: gasto y embudo' }]
+        : []),
       ...g.links,
       ...(veSubidas(profile)
         ? [{ path: '/super-admin/subidas', icon: UploadSimple, label: 'Subidas', sub: 'Qué documento rebotó y por qué' }]

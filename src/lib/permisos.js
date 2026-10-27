@@ -20,3 +20,14 @@ const MAILS_SUBIDAS = ['marcopolo@healthier.app']
 export function veSubidas(profile) {
   return MAILS_SUBIDAS.includes((profile?.email || '').trim().toLowerCase())
 }
+
+/**
+ * Quién ve `/super-admin/pauta` (Mateo, 2026-10-27: "que se vea con el usuario
+ * de Marco Polo del admin nada más"). La puerta de verdad es la Edge Function
+ * `meta-pauta`, que tiene la misma lista: sin ella no llega ni un número de Meta.
+ */
+export const MAILS_PAUTA = ['marcopolo@healthier.app']
+
+export function vePauta(profile) {
+  return MAILS_PAUTA.includes((profile?.email || '').trim().toLowerCase())
+}

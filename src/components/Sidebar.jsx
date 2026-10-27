@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, MapTrifold, Ambulance, UploadSimple, Barbell, UsersThree, BookOpenText, IdentificationCard, IdentificationBadge, Buildings, ShareFat, Lightning } from '@phosphor-icons/react';
+import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, MapTrifold, Ambulance, UploadSimple, Barbell, UsersThree, BookOpenText, IdentificationCard, IdentificationBadge, Buildings, ShareFat, Lightning, Megaphone } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
-import { veSubidas } from '../lib/permisos'
+import { veSubidas, vePauta } from '../lib/permisos'
 import { GUIA_DE_ROL, urlDeGuia } from '../guia/roles'
 import { toast } from './Toast'
 import { CompanyLogo } from './common/CompanyLogo'
@@ -41,6 +41,7 @@ const NAV_BY_ROLE = {
   super_admin: [
     { to: '/super-admin/dashboard',              icon: ChartBar,        label: 'Dashboard' },
     { to: '/super-admin/pagos',                  icon: CurrencyDollar,  label: 'Pagos' },
+    { to: '/super-admin/pauta',                  icon: Megaphone,       label: 'Pauta', permiso: 'pauta' },
     {
       group: 'consultas', label: 'Consultas', icon: CalendarCheck,
       items: [
@@ -119,11 +120,12 @@ export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onCl
   const navigate = useNavigate()
   const { pathname, search } = useLocation()
   const allItems = NAV_BY_ROLE[role] || []
-  // `specialty` filtra por vertical; `permiso` filtra por cuenta — hoy sólo
-  // "Subidas", que ve una sola persona. Ver `lib/permisos.js`.
+  // `specialty` filtra por vertical; `permiso` filtra por cuenta — "Subidas"
+  // y "Pauta", que ve sólo la cuenta de Marco Polo. Ver `lib/permisos.js`.
+  const PERMISOS = { subidas: veSubidas, pauta: vePauta }
   const items = allItems.filter(item =>
     (!item.specialty || item.specialty === profSpecialty) &&
-    (item.permiso !== 'subidas' || veSubidas(profile)))
+    (!item.permiso || PERMISOS[item.permiso]?.(profile)))
 
   // Grupos colapsables (Configuración, Consultas+Emergencias, Pacientes,
   // Profesionales): abiertos por default si la ruta activa está adentro, si
