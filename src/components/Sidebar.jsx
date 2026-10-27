@@ -57,6 +57,7 @@ const NAV_BY_ROLE = {
         { to: '/super-admin/usuarios/grupos-familiares', icon: UsersThree,   label: 'Grupos familiares' },
         { to: '/super-admin/coberturas',               icon: IdentificationCard, label: 'Coberturas por DNI' },
         { to: '/super-admin/federador',                icon: IdentificationBadge, label: 'Federador' },
+        { to: '/super-admin/usuarios/referidos',       icon: ShareNetwork,   label: 'Referidos' },
       ],
     },
     {

@@ -1,18 +1,42 @@
 import { useState, useEffect } from 'react';
-import { MagnifyingGlass, Users, WarningCircle, CheckCircle, Trash } from '@phosphor-icons/react';
-import { supabase } from '../../lib/supabase';
+import { MagnifyingGlass, Users, CheckCircle, Trash } from '@phosphor-icons/react';
+import { supabase, toCamelCase } from '../../lib/supabase';
 import { toast } from '../../components/Toast';
 import { adminService } from '../../services/adminService';
 import { MENSAJE_BAJA } from '../../services/bajaService';
 import { useBulkSelection } from '../../hooks/useBulkSelection';
 import BulkActionBar from '../../components/super-admin/BulkActionBar';
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog';
+import PacienteOnboardingDrawer from '../../components/super-admin/PacienteOnboardingDrawer';
+import { PASOS_PACIENTE, esProspecto, completitudPaciente, CAMPOS_ONBOARDING } from '../../lib/pacienteOnboarding';
+
+
+// Prospecto (Mateo, 2026-10-26): se registró y no terminó el onboarding. El que
+// lo terminó es un lead y está en Pacientes. Los pacientes de antes del wizard
+// no son ni una cosa ni la otra (ver `entraEnEmbudo` en pacienteOnboarding.js).
+
+function daysSince(dateStr) {
+  return Math.floor((Date.now() - new Date(dateStr)) / 86400000);
+}
+
+function DaysPill({ days }) {
+  const tono = days < 7 ? 'bg-green-100 text-green-700' : days <= 30 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${tono}`}>
+      {days} días
+    </span>
+  );
+}
 
 export default function SuperAdminUsuariosProspects() {
   const [prospects, setProspects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [utmFilter, setUtmFilter] = useState('');
+  const [campaignFilter, setCampaignFilter] = useState('');
+  // null = sin filtro, número = índice de PASOS_PACIENTE, 'sin_dato' = nunca guardó un paso.
+  const [stepFilter, setStepFilter] = useState(null);
+  const [abierto, setAbierto] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -21,43 +45,28 @@ export default function SuperAdminUsuariosProspects() {
   async function fetchData() {
     try {
       setLoading(true);
-      const [profilesRes, consultationsRes] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('id, email, full_name, created_at, dni, utm_source, utm_medium, utm_campaign, referrer_url')
-          .eq('role', 'patient')
-          .is('deleted_at', null) // bajas lógicas (188) fuera
-          .order('created_at', { ascending: false }),
-        // Sólo videoconsultas que siguen valiendo: una cancelada o vencida no
-        // cuenta como "ya agendó", vuelve a ser un prospecto.
-        supabase
-          .from('consultations')
-          .select('patient_id, modality, status'),
-      ]);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(`id, email, full_name, created_at, utm_source, utm_medium, utm_campaign, utm_content, es_prueba, ${CAMPOS_ONBOARDING}`)
+        .eq('role', 'patient')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
 
-      if (profilesRes.error) throw profilesRes.error;
-      if (consultationsRes.error) throw consultationsRes.error;
+      const filtered = (data || []).filter((p) => !p.es_prueba && esProspecto(toCamelCase(p)));
 
-      const VIGENTES = ['pending', 'confirmed', 'in_progress', 'completed'];
-      const conVideo = new Set(
-        (consultationsRes.data || [])
-          .filter((c) => c.modality === 'video' && VIGENTES.includes(c.status))
-          .map((c) => c.patient_id)
-      );
+      // Google vs. email vive en auth.users — misma vista que Prospectos de profesionales (110).
+      const { data: providersData } = await supabase
+        .from('auth_providers_super_admin')
+        .select('id, auth_provider')
+        .in('id', filtered.map((p) => p.id));
+      const providerById = new Map((providersData || []).map((r) => [r.id, r.auth_provider]));
 
-      // Definición de prospecto (Mateo, 2026-08-05): arrancó el onboarding y no
-      // lo terminó, o todavía no agendó una videoconsulta. `dni` es el campo
-      // obligatorio del paso de salud: si está vacío, el onboarding quedó a
-      // mitad de camino.
-      const filtered = (profilesRes.data || [])
-        .map((p) => {
-          const onboardingIncompleto = !p.dni;
-          const sinVideo = !conVideo.has(p.id);
-          return { ...p, onboardingIncompleto, sinVideo };
-        })
-        .filter((p) => p.onboardingIncompleto || p.sinVideo);
-
-      setProspects(filtered);
+      setProspects(filtered.map((p) => ({
+        ...p,
+        auth_provider: providerById.get(p.id) ?? null,
+        _c: completitudPaciente(toCamelCase(p)),
+      })));
     } catch (err) {
       console.error(err);
       toast.error('Error al cargar los prospectos.');
@@ -67,16 +76,24 @@ export default function SuperAdminUsuariosProspects() {
   }
 
   const uniqueUtmSources = [...new Set(prospects.map((p) => p.utm_source).filter(Boolean))];
+  const uniqueCampaigns = [...new Set(prospects.map((p) => p.utm_campaign).filter(Boolean))];
+
+  const pasoDe = (p) => (p.paciente_paso_onboarding == null ? 'sin_dato' : p.paciente_paso_onboarding);
 
   const filtered = prospects.filter((p) => {
     const q = search.toLowerCase();
-    const matchSearch =
-      !q ||
-      (p.full_name || '').toLowerCase().includes(q) ||
-      (p.email || '').toLowerCase().includes(q);
+    const matchSearch = !q || (p.full_name || '').toLowerCase().includes(q) || (p.email || '').toLowerCase().includes(q);
     const matchUtm = !utmFilter || p.utm_source === utmFilter;
-    return matchSearch && matchUtm;
+    const matchCampaign = !campaignFilter || p.utm_campaign === campaignFilter;
+    const matchStep = stepFilter === null || pasoDe(p) === stepFilter;
+    return matchSearch && matchUtm && matchCampaign && matchStep;
   });
+
+  // El embudo cuenta sobre los filtros de fuente y campaña (no sobre el de paso):
+  // así se ve dónde se frena la gente de UNA campaña.
+  const base = prospects.filter((p) => (!utmFilter || p.utm_source === utmFilter) && (!campaignFilter || p.utm_campaign === campaignFilter));
+  const funnelCounts = PASOS_PACIENTE.map((_, i) => base.filter((p) => pasoDe(p) === i).length);
+  const sinDato = base.filter((p) => pasoDe(p) === 'sin_dato').length;
 
   const selection = useBulkSelection(filtered.map((p) => p.id));
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -97,32 +114,6 @@ export default function SuperAdminUsuariosProspects() {
     }
   }
 
-  function daysSince(dateStr) {
-    return Math.floor((Date.now() - new Date(dateStr)) / 86400000);
-  }
-
-  function DaysPill({ days }) {
-    if (days < 7) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-          {days} días
-        </span>
-      );
-    }
-    if (days <= 30) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-          {days} días
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
-        {days} días
-      </span>
-    );
-  }
-
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -130,28 +121,55 @@ export default function SuperAdminUsuariosProspects() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Prospectos — Pacientes</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {loading ? '…' : `${prospects.length} pacientes por recuperar`}
+            {loading ? '…' : `${prospects.length} sin terminar el registro`}
           </p>
         </div>
         <Users size={32} className="text-brand mt-1" weight="duotone" />
       </div>
 
-      {/* Callout */}
-      <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-2 flex items-start gap-3">
-        <WarningCircle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" weight="fill" />
-        <p className="text-sm text-amber-800">
-          Pacientes que dejaron el onboarding a medias o que todavía no agendaron una
-          videoconsulta. Una consulta cancelada o vencida no cuenta como agendada.
-        </p>
-      </div>
+      {/* Embudo: hasta qué paso llegó cada uno */}
+      {!loading && prospects.length > 0 && (
+        <div className="card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-medium text-gray-500">Dónde quedaron</p>
+            {stepFilter !== null && (
+              <button type="button" onClick={() => setStepFilter(null)} className="text-xs font-medium text-brand hover:underline">
+                Ver todos
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+            {PASOS_PACIENTE.map((paso, i) => (
+              <button
+                type="button"
+                key={paso.key}
+                onClick={() => setStepFilter((prev) => (prev === i ? null : i))}
+                className={`text-center rounded-lg py-2 transition-colors ${
+                  stepFilter === i ? 'bg-brand-muted ring-1 ring-brand' : 'hover:bg-gray-50'
+                }`}
+              >
+                <p className="text-2xl font-bold text-gray-900 tabular-nums">{funnelCounts[i]}</p>
+                <p className="text-sm text-gray-500 mt-0.5">{paso.corto}</p>
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setStepFilter((prev) => (prev === 'sin_dato' ? null : 'sin_dato'))}
+              className={`text-center rounded-lg py-2 transition-colors ${
+                stepFilter === 'sin_dato' ? 'bg-gray-200 ring-1 ring-gray-400' : 'hover:bg-gray-50'
+              }`}
+            >
+              <p className="text-2xl font-bold text-gray-400 tabular-nums">{sinDato}</p>
+              <p className="text-sm text-gray-400 mt-0.5">Sin dato</p>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <MagnifyingGlass
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-          />
+          <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             placeholder="Buscar por nombre o email…"
@@ -160,17 +178,13 @@ export default function SuperAdminUsuariosProspects() {
             className="form-input pl-9 w-full"
           />
         </div>
-        <select
-          value={utmFilter}
-          onChange={(e) => setUtmFilter(e.target.value)}
-          className="form-input sm:w-56"
-        >
+        <select value={utmFilter} onChange={(e) => setUtmFilter(e.target.value)} className="form-input sm:w-48">
           <option value="">Todas las fuentes</option>
-          {uniqueUtmSources.map((src) => (
-            <option key={src} value={src}>
-              {src}
-            </option>
-          ))}
+          {uniqueUtmSources.map((src) => <option key={src} value={src}>{src}</option>)}
+        </select>
+        <select value={campaignFilter} onChange={(e) => setCampaignFilter(e.target.value)} className="form-input sm:w-64">
+          <option value="">Todas las campañas</option>
+          {uniqueCampaigns.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
 
@@ -178,21 +192,17 @@ export default function SuperAdminUsuariosProspects() {
       <div className="card overflow-x-auto">
         {loading ? (
           <div className="space-y-3 p-4">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />
-            ))}
+            {[...Array(6)].map((_, i) => <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />)}
           </div>
-        ) : filtered.length === 0 && prospects.length === 0 ? (
+        ) : prospects.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <CheckCircle size={40} className="text-brand" weight="duotone" />
-            <p className="text-gray-500 text-sm">
-              ¡Todos los pacientes ya realizaron una consulta!
-            </p>
+            <p className="text-gray-500 text-sm">Todos los pacientes nuevos terminaron el registro</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <MagnifyingGlass size={32} className="text-gray-300" />
-            <p className="text-gray-400 text-sm">Sin resultados para la búsqueda actual.</p>
+            <p className="text-gray-400 text-sm">Sin resultados</p>
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -202,66 +212,48 @@ export default function SuperAdminUsuariosProspects() {
                   <input type="checkbox" checked={selection.isAllSelected} onChange={selection.toggleAll} className="rounded border-border-default" />
                 </th>
                 <th className="table-header">Paciente</th>
-                <th className="table-header">Motivo</th>
-                <th className="table-header">Fuente UTM</th>
+                <th className="table-header">Quedó en</th>
+                <th className="table-header">Método</th>
+                <th className="table-header">Fuente</th>
                 <th className="table-header">Campaña</th>
-                <th className="table-header">Días desde registro</th>
-                <th className="table-header">Acción</th>
+                <th className="table-header">Registro</th>
                 <th className="table-header w-8" />
               </tr>
             </thead>
             <tbody>
               {filtered.map((p) => {
-                const days = daysSince(p.created_at);
+                const paso = pasoDe(p);
                 return (
-                  <tr key={p.id} className="table-row">
+                  <tr key={p.id} className="table-row cursor-pointer" onClick={() => setAbierto(p)}>
                     <td className="table-cell">
-                      <input type="checkbox" checked={selection.isSelected(p.id)} onChange={() => selection.toggle(p.id)} className="rounded border-border-default" />
+                      <input type="checkbox" checked={selection.isSelected(p.id)} onChange={() => selection.toggle(p.id)} onClick={(e) => e.stopPropagation()} className="rounded border-border-default" />
                     </td>
                     <td className="table-cell">
-                      <div className="font-medium text-gray-900">
-                        {p.full_name || '(sin nombre)'}
-                      </div>
+                      <div className="font-medium text-gray-900">{p.full_name || '(sin nombre)'}</div>
                       <div className="text-xs text-gray-400">{p.email}</div>
                     </td>
-                    {/* Por qué está en la lista: sin esto un prospecto que dejó
-                        el onboarding a medias y uno que sólo no agendó todavía
-                        se ven idénticos, y la acción para recuperarlos no es la
-                        misma. */}
                     <td className="table-cell">
-                      <div className="flex flex-col gap-1 items-start">
-                        {p.onboardingIncompleto && (
-                          <span className="status-badge status-pending">Onboarding incompleto</span>
-                        )}
-                        {p.sinVideo && (
-                          <span className="status-badge status-in-progress">Sin videoconsulta</span>
-                        )}
-                      </div>
+                      {paso === 'sin_dato'
+                        ? <span className="text-gray-300">—</span>
+                        : <span className="status-badge status-pending whitespace-nowrap">{PASOS_PACIENTE[paso]?.corto}</span>}
+                    </td>
+                    <td className="table-cell text-gray-700">
+                      {p.auth_provider === 'google' ? 'Google' : p.auth_provider === 'apple' ? 'Apple' : p.auth_provider === 'email' ? 'Email' : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="table-cell">
-                      {p.utm_source ? (
-                        <span className="text-gray-700">{p.utm_source}</span>
-                      ) : (
-                        <span className="text-gray-300">—</span>
-                      )}
+                      {p.utm_source ? <span className="text-gray-700">{p.utm_source}</span> : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="table-cell">
                       {p.utm_campaign ? (
-                        <span className="text-gray-700">{p.utm_campaign}</span>
-                      ) : (
-                        <span className="text-gray-300">—</span>
-                      )}
+                        <div>
+                          <p className="text-gray-700">{p.utm_campaign}</p>
+                          {p.utm_content && <p className="text-xs text-gray-400">{p.utm_content}</p>}
+                        </div>
+                      ) : <span className="text-gray-300">—</span>}
                     </td>
+                    <td className="table-cell"><DaysPill days={daysSince(p.created_at)} /></td>
                     <td className="table-cell">
-                      <DaysPill days={days} />
-                    </td>
-                    <td className="table-cell">
-                      <a href="#" className="btn-secondary text-xs">
-                        Ver perfil
-                      </a>
-                    </td>
-                    <td className="table-cell">
-                      <button onClick={() => { selection.toggle(p.id); setConfirmOpen(true); }} className="p-1 text-text-tertiary hover:text-danger transition-colors" title="Eliminar">
+                      <button onClick={(e) => { e.stopPropagation(); selection.toggle(p.id); setConfirmOpen(true); }} className="p-1 text-text-tertiary hover:text-danger transition-colors" title="Eliminar">
                         <Trash className="h-4 w-4" />
                       </button>
                     </td>
@@ -272,6 +264,8 @@ export default function SuperAdminUsuariosProspects() {
           </table>
         )}
       </div>
+
+      {abierto && <PacienteOnboardingDrawer paciente={abierto} onClose={() => setAbierto(null)} />}
 
       <BulkActionBar count={selection.count} onDelete={() => setConfirmOpen(true)} onClear={selection.clear} />
       <ConfirmDeleteDialog

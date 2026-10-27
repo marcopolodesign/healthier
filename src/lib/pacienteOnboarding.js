@@ -16,6 +16,13 @@
  */
 import { dniValido } from './dni.js'
 
+/**
+ * Columnas de `profiles` que mira el onboarding (super admin: Pacientes y
+ * Prospectos). Los de salud y emergencia se traen sólo para saber si están
+ * cargados: el drawer no muestra el valor.
+ */
+export const CAMPOS_ONBOARDING = 'phone, titular_id, dni, gender, birth_date, coverage_type, financiador_id, insurance_name, insurance_num, height_cm, weight_kg, blood_type, allergies, emergency_name, emergency_phone, consentimiento_at, consentimiento_version, paciente_paso_onboarding, onboarding_completado_at, requiere_onboarding'
+
 /** Versión del texto de consentimiento. Subirla vuelve a pedirlo. */
 export const CONSENT_VERSION = '3.0'
 
@@ -89,6 +96,27 @@ export function completitudPaciente(p) {
     total: pasos.length,
     primerPendiente: primer === -1 ? pasos.length - 1 : primer,
   }
+}
+
+/**
+ * ¿Es un lead? (Mateo, 2026-10-26): "alguien que completó el onboarding, no
+ * solamente que se registró". Registrado sin terminar = prospecto.
+ *
+ * Lead = terminó el wizard (`onboarding_completado_at`). Sólo cuentan los que
+ * pasaron por él (`entraEnEmbudo`): los pacientes de antes del wizard (206) y
+ * los familiares a cargo no son ni lead ni prospecto (decidido por Mateo,
+ * 2026-10-26 — esa base no vino por la pauta).
+ */
+export function entraEnEmbudo(p) {
+  return !p?.titularId && p?.requiereOnboarding === true
+}
+
+export function esLead(p) {
+  return entraEnEmbudo(p) && !!p?.onboardingCompletadoAt
+}
+
+export function esProspecto(p) {
+  return entraEnEmbudo(p) && !p?.onboardingCompletadoAt
 }
 
 /**
