@@ -29,9 +29,10 @@
  * pregunta con id `medicacion` va a `medication`; el resto, a `answers`.
  *
  * `redFlag` sigue sin decidir nada solo: destaca la respuesta para el
- * profesional. `aviso` le muestra un recuadro al paciente cuando elige esa opción —frase,
- * botones para llamar, el 911 y un cierre—
- * (lo usa la pregunta de riesgo de salud mental) y no frena el pedido.
+ * profesional. `aviso` le muestra un recuadro al paciente cuando elige esa opción
+ * (frase, botones para llamar, emergencias y un cierre) y no frena el pedido.
+ * Hoy ninguna opción lo usa: era de la pregunta de riesgo de salud mental, que
+ * Mateo sacó el 2026-10-27. Queda el soporte por si vuelve.
  *
  * 🔴 Copia en `mobile/src/data/triage.ts`. Si se cambia una, se cambia la otra.
  */
@@ -51,32 +52,6 @@ const ALERGIAS = {
     { value: 'no', label: 'No' },
     { value: 'no_se', label: 'No sé' },
     { value: 'si', label: 'Sí', detailLabel: '¿A cuál?', detailRequired: true },
-  ],
-}
-
-// Las líneas son del Centro de Asistencia al Suicida: 135 gratis desde CABA y
-// GBA, 0800 345 1435 desde todo el país, las 24 horas.
-const AVISO_CRISIS = {
-  texto: 'Si sentís que podés hacerte daño ahora, hay gente para escucharte las 24 horas.',
-  llamadas: [
-    { label: 'Llamar al 135', detalle: 'Gratis desde CABA y GBA', tel: '135' },
-    { label: 'Llamar al 0800 345 1435', detalle: 'Desde todo el país', tel: '08003451435' },
-  ],
-  emergencia: '911',
-  cierre: 'Podés seguir y pedir la consulta igual.',
-}
-
-// Lo único que un profesional de salud mental necesita saber sí o sí antes de
-// atender a alguien que pide ayuda ya. Preguntarlo directo no aumenta el riesgo.
-const RIESGO = {
-  id: 'riesgo',
-  label: 'En estos días, ¿tuviste pensamientos de hacerte daño o de no querer vivir?',
-  ayuda: 'Se lo preguntamos a todos. Lo lee tu profesional antes de la consulta.',
-  type: 'single',
-  options: [
-    { value: 'no', label: 'No' },
-    { value: 'a_veces', label: 'Sí, a veces', redFlag: true },
-    { value: 'ahora', label: 'Sí, ahora mismo', redFlag: true, aviso: AVISO_CRISIS },
   ],
 }
 
@@ -269,9 +244,9 @@ const PEDIATRIA = {
 }
 
 // ── Psicología ───────────────────────────────────────────────────────────────
-// No hay lista de síntomas: el motivo se cuenta con palabras, y es opcional —
-// mucha gente prefiere decirlo en la consulta. Lo único que se pregunta sí o sí
-// es el riesgo. Sin cierre: la psicóloga no receta.
+// No hay lista de síntomas ni preguntas: el motivo se cuenta con palabras, y es
+// opcional — mucha gente prefiere decirlo en la consulta. Sin cierre: la
+// psicóloga no receta. (Hubo una pregunta de riesgo; Mateo la sacó, 2026-10-27.)
 
 const MENTE = {
   motivo: {
@@ -283,9 +258,8 @@ const MENTE = {
     opcional: true,
     sinTexto: 'Prefiere contarlo en la consulta',
   },
-  tituloPreguntas: 'Una pregunta más',
   antes: [],
-  despues: [RIESGO],
+  despues: [],
   cierre: null,
 }
 
@@ -322,7 +296,6 @@ const PSIQUIATRIA = {
   },
   antes: [],
   despues: [
-    RIESGO,
     {
       id: 'tratamiento', label: '¿Hacés tratamiento con un psiquiatra o un psicólogo?', type: 'single',
       options: [

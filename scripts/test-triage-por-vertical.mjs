@@ -24,24 +24,35 @@ import { verticalDeConsulta } from '../src/lib/verticalDeConsulta.js'
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..')
 const ids = qs => qs.map(q => q.id)
 
-// ── 1. Salud mental: motivo abierto, sólo la pregunta de riesgo ──────────────
+// ── 1. Salud mental: sólo el motivo abierto, opcional ────────────────────────
+// (La pregunta de riesgo la sacó Mateo el 2026-10-27: no tiene que volver.)
 
-test('mente: motivo abierto, sin catálogo, una sola pregunta (riesgo) y sin cierre', () => {
+test('mente: motivo abierto, sin catálogo, sin preguntas y sin cierre — un solo paso', () => {
   const t = triageDe('mente')
   assert.equal(t.motivo.tipo, 'abierto')
   assert.equal(t.motivo.opciones, undefined, 'no hay lista de síntomas')
-  assert.deepEqual(ids(preguntasDe(t, null)), ['riesgo'])
+  assert.deepEqual(preguntasDe(t, null), [])
   assert.deepEqual(cierreDe(t), [])
-  assert.deepEqual(pasosDe({ triage: t }), ['motivo', 'preguntas'])
-  assert.deepEqual(pasosDe({ triage: t, pideDatos: true }), ['motivo', 'preguntas', 'datos'])
+  assert.deepEqual(pasosDe({ triage: t }), ['motivo'])
+  assert.deepEqual(pasosDe({ triage: t, pideDatos: true }), ['motivo', 'datos'])
   // Los alias viejos de la base caen en el mismo triage.
   assert.equal(triageDe('Psicología'), t)
   assert.equal(triageDe('psicologia'), t)
 })
 
+test('salud mental: ninguna pregunta de riesgo en psicología ni psiquiatría', () => {
+  for (const v of ['mente', 'psiquiatria']) {
+    const t = triageDe(v)
+    const motivos = t.motivo.tipo === 'lista' ? t.motivo.opciones : [null]
+    for (const m of motivos) {
+      assert.ok(!ids(preguntasDe(t, m)).includes('riesgo'), `${v}: sin pregunta de riesgo`)
+    }
+  }
+})
+
 test('mente: con el texto vacío el main_complaint NO es vacío (la Edge Function lo descarta)', () => {
   const t = triageDe('mente')
-  const p = armarPreconsulta({ triage: t, motivo: null, textoMotivo: '   ', respuestas: { riesgo: 'no' } })
+  const p = armarPreconsulta({ triage: t, motivo: null, textoMotivo: '   ', respuestas: {} })
   assert.ok(p.main_complaint.trim().length > 0)
   assert.equal(p.main_complaint, t.motivo.sinTexto)
   assert.equal(p.symptom.id, 'abierto')
@@ -51,30 +62,16 @@ test('mente: con el texto vacío el main_complaint NO es vacío (la Edge Functio
   assert.equal(motivoCompleto({ triage: t, motivo: null, textoMotivo: '' }), true, 'el motivo es opcional')
 })
 
-test('mente: con texto lo cuenta con sus palabras; no hay medicación', () => {
+test('mente: con texto lo cuenta con sus palabras; no hay medicación ni respuestas', () => {
   const t = triageDe('mente')
-  const p = armarPreconsulta({ triage: t, motivo: null, textoMotivo: ' Me cuesta dormir ', respuestas: { riesgo: 'no' } })
+  const p = armarPreconsulta({ triage: t, motivo: null, textoMotivo: ' Me cuesta dormir ', respuestas: {} })
   assert.equal(p.symptom.label, 'Lo cuenta con sus palabras')
   assert.equal(p.symptom.free_text, 'Me cuesta dormir')
   assert.equal(p.main_complaint, 'Me cuesta dormir')
   assert.equal(p.current_medications, null)
   assert.deepEqual(p.medication, { taking: false, detail: null })
-  assert.deepEqual(p.answers.map(a => a.question_id), ['riesgo'])
+  assert.deepEqual(p.answers, [])
   assert.equal(p.has_red_flags, false)
-})
-
-test('mente: "Sí, ahora mismo" da red_flag y has_red_flags; el aviso trae las líneas', () => {
-  const t = triageDe('mente')
-  const [riesgo] = preguntasDe(t, null)
-  const ahora = riesgo.options.find(o => o.redFlag && o.aviso)
-  assert.ok(ahora, 'una opción de riesgo inmediato con aviso')
-  assert.ok(ahora.aviso.llamadas.some(l => l.tel === '135'))
-  assert.ok(ahora.aviso.llamadas.some(l => l.tel === '08003451435'))
-  assert.equal(ahora.aviso.emergencia, '911')
-  const p = armarPreconsulta({ triage: t, motivo: null, textoMotivo: '', respuestas: { riesgo: ahora.value } })
-  assert.equal(p.answers[0].red_flag, true)
-  assert.equal(p.has_red_flags, true)
-  assert.deepEqual(p.answers[0].values, [ahora.value])
 })
 
 // ── 2. Las que recetan: medicación y alergias; pediatría, el peso ────────────
