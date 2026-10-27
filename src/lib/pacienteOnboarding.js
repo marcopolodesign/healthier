@@ -107,6 +107,9 @@ export function completitudPaciente(p) {
  * los familiares a cargo no son ni lead ni prospecto (decidido por Mateo,
  * 2026-10-26 — esa base no vino por la pauta).
  */
+/** Estados de consulta que cuentan como "ya consultó": una cancelada o vencida no. */
+export const CONSULTA_VIGENTE = ['pending', 'confirmed', 'in_progress', 'completed']
+
 export function entraEnEmbudo(p) {
   return !p?.titularId && p?.requiereOnboarding === true
 }

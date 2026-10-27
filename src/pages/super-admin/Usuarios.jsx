@@ -9,7 +9,7 @@ import BulkActionBar from '../../components/super-admin/BulkActionBar';
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog';
 import PacienteOnboardingDrawer from '../../components/super-admin/PacienteOnboardingDrawer';
 import { toCamelCase } from '../../lib/supabase';
-import { completitudPaciente, esLead, entraEnEmbudo, CAMPOS_ONBOARDING } from '../../lib/pacienteOnboarding';
+import { completitudPaciente, esLead, entraEnEmbudo, CAMPOS_ONBOARDING, CONSULTA_VIGENTE } from '../../lib/pacienteOnboarding';
 import MetricCard from '../../components/super-admin/MetricCard';
 
 
@@ -35,6 +35,7 @@ function PuntosPerfil({ c }) {
 export default function SuperAdminUsuarios() {
   const [patients, setPatients] = useState([]);
   const [consultationMap, setConsultationMap] = useState({});
+  const [conVigente, setConVigente] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('todos');
   const [search, setSearch] = useState('');
@@ -58,7 +59,7 @@ export default function SuperAdminUsuarios() {
           .order('created_at', { ascending: false }),
         supabase
           .from('consultations')
-          .select('patient_id'),
+          .select('patient_id, status'),
       ]);
 
       if (profilesRes.error) throw profilesRes.error;
@@ -74,6 +75,7 @@ export default function SuperAdminUsuarios() {
         return { ...p, _c: completitudPaciente(cc), _nuevo: entraEnEmbudo(cc) && !p.es_prueba, _lead: esLead(cc) && !p.es_prueba };
       }));
       setConsultationMap(map);
+      setConVigente(new Set((consultationsRes.data || []).filter((c) => CONSULTA_VIGENTE.includes(c.status)).map((c) => c.patient_id)));
     } catch (err) {
       toast.error('Error al cargar usuarios');
       console.error(err);
@@ -164,14 +166,14 @@ export default function SuperAdminUsuarios() {
   // en Prospectos, no acá, para no ver el mismo número en dos pantallas.
   const nuevos = patients.filter((p) => p._nuevo);
   const leads = nuevos.filter((p) => p._lead);
-  const leadsConConsulta = leads.filter((p) => consultationMap[p.id] > 0);
+  const leadsConConsulta = leads.filter((p) => conVigente.has(p.id));
   const pct = (a, b) => (b > 0 ? `${Math.round((a / b) * 100)}%` : '');
   const porCampana = Object.values(nuevos.reduce((acc, p) => {
     const k = p.utm_campaign || 'Sin UTM';
     acc[k] ??= { campana: k, registros: 0, leads: 0, conConsulta: 0 };
     acc[k].registros += 1;
     if (p._lead) acc[k].leads += 1;
-    if (p._lead && consultationMap[p.id] > 0) acc[k].conConsulta += 1;
+    if (p._lead && conVigente.has(p.id)) acc[k].conConsulta += 1;
     return acc;
   }, {})).sort((a, b) => b.registros - a.registros);
 
