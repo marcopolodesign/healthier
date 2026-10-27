@@ -120,6 +120,7 @@ import { veSubidas } from './lib/permisos'
 import SuperAdminUsuarios from './pages/super-admin/Usuarios'
 import SuperAdminUsuariosProspects from './pages/super-admin/UsuariosProspects'
 import SuperAdminUsuariosReferidos from './pages/super-admin/UsuariosReferidos'
+import SuperAdminPauta from './pages/super-admin/Pauta'
 import SuperAdminProfesionalesProspects from './pages/super-admin/ProfesionalesProspects'
 import SuperAdminProfesionales from './pages/super-admin/Profesionales'
 import SuperAdminProfesionalesRecorrido from './pages/super-admin/ProfesionalesRecorrido'
@@ -595,6 +596,7 @@ export default function App() {
         }>
           <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />
           <Route path="/super-admin/pagos" element={<SuperAdminPayments />} />
+          <Route path="/super-admin/pauta" element={<SuperAdminPauta />} />
           <Route path="/super-admin/consultas" element={<SuperAdminConsultas />} />
           <Route path="/super-admin/admins" element={<SuperAdminAdmins />} />
           <Route path="/super-admin/zonas" element={<SuperAdminZones />} />

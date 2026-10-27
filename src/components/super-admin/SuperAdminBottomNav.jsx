@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ChartBar, CurrencyDollar, ShieldCheck, Users, DotsThree, X,
-  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning, Path, EnvelopeSimple, UploadSimple, UsersThree, BookOpenText, Lightning, ShareFat, ShareNetwork } from '@phosphor-icons/react'
+  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning, Path, EnvelopeSimple, UploadSimple, UsersThree, BookOpenText, Lightning, ShareFat, ShareNetwork, Megaphone } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
 import { veSubidas } from '../../lib/permisos'
@@ -47,6 +47,7 @@ const MORE_GROUPS = [
   {
     title: 'Otros',
     links: [
+      { path: '/super-admin/pauta', icon: Megaphone, label: 'Pauta', sub: 'Meta: gasto y embudo' },
       { path: '/super-admin/auditoria', icon: Eye, label: 'Auditoría HC', sub: 'Accesos a historias clínicas' },
       { path: '/super-admin/teleclinica', icon: Lightning, label: 'Teleclínica', sub: 'Pedidos de consulta inmediata' },
       { path: '/super-admin/mails', icon: EnvelopeSimple, label: 'Mails', sub: 'Qué salió y qué falló' },

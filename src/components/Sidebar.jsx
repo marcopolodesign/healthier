@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, MapTrifold, Ambulance, UploadSimple, Barbell, UsersThree, BookOpenText, Lightning, IdentificationCard, IdentificationBadge, Buildings, ShareFat } from '@phosphor-icons/react';
+import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, MapTrifold, Ambulance, UploadSimple, Barbell, UsersThree, BookOpenText, Lightning, IdentificationCard, IdentificationBadge, Buildings, ShareFat, Megaphone } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
 import { veSubidas } from '../lib/permisos'
 import { GUIA_DE_ROL, urlDeGuia } from '../guia/roles'
@@ -41,6 +41,7 @@ const NAV_BY_ROLE = {
   super_admin: [
     { to: '/super-admin/dashboard',              icon: ChartBar,        label: 'Dashboard' },
     { to: '/super-admin/pagos',                  icon: CurrencyDollar,  label: 'Pagos' },
+    { to: '/super-admin/pauta',                  icon: Megaphone,       label: 'Pauta' },
     {
       group: 'consultas', label: 'Consultas', icon: CalendarCheck,
       items: [
