@@ -14,8 +14,10 @@ import BuscandoMedico from '../../components/teleclinica/BuscandoMedico'
 import PreconsultaForm from '../../components/patient/PreconsultaForm'
 import BarraDePasos from '../../components/patient/BarraDePasos'
 import { faltanDatosPaciente } from '../../lib/datosReceta'
-import { preguntasTeleclinica, vistaTeleclinica, puedeSolicitar, etiquetaBotonPago, ETIQUETA_PAGAR } from '../../lib/checkoutTeleclinica'
+import { vistaTeleclinica, puedeSolicitar, etiquetaBotonPago, ETIQUETA_PAGAR } from '../../lib/checkoutTeleclinica'
 import { resumenPreconsulta } from '../../lib/resumenPreconsulta'
+import { pasosDe } from '../../lib/armarPreconsulta'
+import { triageDe } from '../../data/triage'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import { explicarPagoMP, explicarErrorDePago } from '../../lib/mercadoPago'
@@ -81,7 +83,12 @@ export default function OnDemand({ profile }) {
   // Con `?para=` el familiar se conoce cuando carga el grupo: hasta entonces
   // no se abre la preconsulta, o los datos de la receta irían al titular.
   const preconsultaLista = !cargandoFamiliares && (!paraId || paraId === profile?.id || Boolean(familiarElegido))
-  const cantPreguntas = preguntasTeleclinica({ pideDatos: faltanDatosPaciente(perfilAtendido).length > 0 })
+  // Cuántos pasos tiene el formulario: lo dice el propio formulario
+  // (`onPasosChange`), porque depende del triage de la vertical, del motivo
+  // elegido y de si faltan datos. Mientras no avisó, el cálculo con lo que ya
+  // se sabe (sin motivo todavía).
+  const [pasosForm, setPasosForm] = useState(null)
+  const cantPreguntas = pasosForm ?? pasosDe({ triage: triageDe(verticalId), pideDatos: faltanDatosPaciente(perfilAtendido).length > 0 }).length
   const navigate = useNavigate()
   const { verticalesById, cargando: cargandoVerticales } = useVerticales()
   const { porSlug } = useEspecialidades()
@@ -478,6 +485,8 @@ export default function OnDemand({ profile }) {
             step={pasoPre}
             onStepChange={setPasoPre}
             pasosExtra={1}
+            onPasosChange={setPasosForm}
+            vertical={verticalId}
             textoFinal="Continuar"
             arriba={familiares.length > 0 && (
               // Para quién va antes de la primera pregunta: lo que se contesta es

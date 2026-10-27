@@ -48,15 +48,18 @@ export function preconsultaToText(preconsulta) {
     const s = typeof raw === 'string' ? { label: raw } : raw
     const code = s.icd10Code ?? s.icd10_code
     const freeText = s.freeText ?? s.free_text
-    lines.push(`Motivo: ${s.label ?? 'no especificado'}${code ? ` (CIE-10 ${code})` : ' (sin codificar)'}`)
+    // Motivo abierto (psicología): no tiene código ni le falta, no se aclara.
+    lines.push(`Motivo: ${s.label ?? 'no especificado'}${code ? ` (CIE-10 ${code})` : (s.id === 'abierto' ? '' : ' (sin codificar)')}`)
     if (freeText) lines.push(`En sus palabras: ${freeText}`)
     for (const a of Array.isArray(preconsulta.answers) ? preconsulta.answers : []) {
       const qlabel = a.questionLabel ?? a.question_label
       const redFlag = a.redFlag ?? a.red_flag
       lines.push(`${qlabel}: ${(a.labels ?? []).join(' · ')}${redFlag ? '  [signo de alarma]' : ''}`)
     }
-    const med = preconsulta.medication ?? {}
-    lines.push(`Medicación actual: ${med.taking ? (med.detail || 'sí, sin detalle') : 'no toma medicación'}`)
+    if (preguntoMedicacion(preconsulta)) {
+      const med = preconsulta.medication ?? {}
+      lines.push(`Medicación actual: ${med.taking ? (med.detail || 'sí, sin detalle') : 'no toma medicación'}`)
+    }
   } else {
     for (const f of V1_FIELDS) {
       if (preconsulta[f.key]) lines.push(`${f.label}: ${preconsulta[f.key]}`)
@@ -64,6 +67,16 @@ export function preconsultaToText(preconsulta) {
   }
 
   return lines.join('\n')
+}
+
+/**
+ * ¿La pre-consulta preguntó por la medicación? Los payloads viejos siempre la
+ * traen; los de una vertical que no receta (psicología) no, y ahí "Medicación
+ * actual" no se muestra — mostrar "No toma medicación" sería inventar un dato.
+ */
+function preguntoMedicacion(preconsulta) {
+  const actual = preconsulta.currentMedications ?? preconsulta.current_medications
+  return actual != null || preconsulta.medication?.taking === true
 }
 
 // El payload se escribe en snake_case, pero `consultationsService.getById` pasa
@@ -97,7 +110,7 @@ function Structured({ preconsulta }) {
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white border border-brand/30 text-brand cursor-help">{code}</span>
             </InfoTooltip>
           )
-          : (
+          : s.id !== 'abierto' && (
             <InfoTooltip
               className="shrink-0"
               title="Sin código CIE-10"
@@ -128,12 +141,14 @@ function Structured({ preconsulta }) {
         })}
       </div>
 
-      <div>
-        <p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wide">Medicación actual</p>
-        <p className="text-xs text-text-primary leading-relaxed">
-          {med.taking ? (med.detail || 'Sí, sin detalle') : 'No toma medicación'}
-        </p>
-      </div>
+      {preguntoMedicacion(preconsulta) && (
+        <div>
+          <p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wide">Medicación actual</p>
+          <p className="text-xs text-text-primary leading-relaxed">
+            {med.taking ? (med.detail || 'Sí, sin detalle') : 'No toma medicación'}
+          </p>
+        </div>
+      )}
     </>
   )
 }

@@ -8,6 +8,8 @@ import { toast } from '../../components/Toast'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 import { inicialesDe } from '../../lib/format'
 import { textoSalaHabilitada } from '../../lib/salaEspera'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { verticalDeConsulta } from '../../lib/verticalDeConsulta'
 
 /**
  * The pre-consulta payload is written by PreconsultaForm as snake_case JSON, but
@@ -53,6 +55,8 @@ export default function WaitingRoom({ profile }) {
   const navigate = useNavigate()
 
   const [consultation, setConsultation] = useState(null)
+  const { especialidades } = useEspecialidades()
+  const verticalPre = verticalDeConsulta(consultation, especialidades)
   // "Habilitado" es distinto de "la consulta arrancó": el profesional puede
   // habilitarte antes de entrar él. Antes esto dependía de que abriera la
   // videollamada, y el paciente esperaba sin ninguna señal (migración 071).
@@ -247,6 +251,8 @@ export default function WaitingRoom({ profile }) {
           isOpen
           required
           consultationId={consultationId}
+          key={verticalPre ?? 'clinica'}
+          vertical={verticalPre}
           profile={consultation?.patientId && consultation.patientId !== profile?.id
             ? { ...consultation.patient, id: consultation.patientId }
             : profile}

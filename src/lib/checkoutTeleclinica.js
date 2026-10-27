@@ -16,7 +16,11 @@
 
 export const ETIQUETA_PAGAR = 'Pagar y solicitar'
 
-/** Cuántas preguntas hay antes del pago: 3, o 4 si faltan datos para la receta. */
+/**
+ * Cuántas preguntas hay antes del pago en Clínica: 3, o 4 si faltan datos para la
+ * receta. Ya no cuenta el recorrido real (depende del triage de la vertical, ver
+ * `pasosDe` en `armarPreconsulta.js`); queda como referencia del caso de Clínica.
+ */
 export function preguntasTeleclinica({ pideDatos }) {
   return pideDatos ? 4 : 3
 }

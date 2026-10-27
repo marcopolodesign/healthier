@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { X, CircleNotch, ClipboardText, ArrowLeft, Check } from '@phosphor-icons/react'
+import { X, CircleNotch, ClipboardText, ArrowLeft, Check, Phone } from '@phosphor-icons/react'
 import PatientSheet from './PatientSheet'
 import { toast } from '../Toast'
 import { supabase } from '../../lib/supabase'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
-import { ALL_SYMPTOMS, MEDICATION_QUESTION, questionsFor } from '../../data/symptoms'
+import { triageDe, preguntasDe, cierreDe } from '../../data/triage'
+import { armarPreconsulta, pasosDe, todasRespondidas, motivoCompleto, NO_SE, LIMITES } from '../../lib/armarPreconsulta'
 import { faltanDatosPaciente, listar, OPCIONES_SEXO } from '../../lib/datosReceta'
 import { profilesService } from '../../services/profilesService'
 import BarraDePasos from './BarraDePasos'
@@ -62,15 +63,150 @@ function OptionButton({ selected, label, onClick, blanco = false, multi = false 
 }
 
 /**
+ * Aviso debajo de una pregunta cuando el paciente elige una opción con `aviso`
+ * (hoy: la de riesgo de salud mental). No bloquea nada. Sobrio a propósito
+ * (Felipe): recuadro lavanda suave sin borde ni ícono de alerta ni rojo, la frase,
+ * un botón para llamar por cada línea, el 911 y un cierre. Al aparecer se
+ * asegura de quedar a la vista, que no lo tape el botón fijo de abajo.
+ */
+function Aviso({ aviso }) {
+  const ref = useRef(null)
+  useEffect(() => { ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) }, [])
+  return (
+    <div ref={ref} data-testid="preconsulta-aviso" className="rounded-2xl bg-brand-tertiary-muted p-4 space-y-3">
+      <p className="text-[16px] font-normal text-text-primary leading-snug">{aviso.texto}</p>
+      {(aviso.llamadas ?? []).map(l => (
+        <a
+          key={l.tel}
+          href={`tel:${l.tel}`}
+          className="flex items-center gap-3 min-h-12 px-4 py-2.5 rounded-2xl bg-white border-[1.5px] border-border-default"
+        >
+          <Phone className="w-5 h-5 text-brand shrink-0" weight="bold" />
+          <span className="flex-1 min-w-0">
+            <span className="block text-[16px] font-medium text-text-primary">{l.label}</span>
+            {l.detalle && <span className="block text-[14px] text-text-secondary">{l.detalle}</span>}
+          </span>
+        </a>
+      ))}
+      {aviso.emergencia && (
+        <p className="text-[14px] text-text-primary">
+          Si estás en peligro, llamá al <a href={`tel:${aviso.emergencia}`} className="font-medium underline underline-offset-2">{aviso.emergencia}</a>.
+        </p>
+      )}
+      {aviso.cierre && <p className="text-[14px] text-text-secondary">{aviso.cierre}</p>}
+    </div>
+  )
+}
+
+/**
+ * Una pregunta del triage, de cualquier tipo: single, multi, single_with_detail,
+ * texto o numero. Vive en el módulo por la misma razón que `OptionButton`.
+ */
+function Pregunta({ q, respuestas, detalles, onSingle, onMulti, onTexto, onNumero, onDetalle, inline, ayuda, fondoCampo }) {
+  const raw = respuestas[q.id]
+  const eligio = o => (q.type === 'multi' ? Array.isArray(raw) && raw.includes(o.value) : raw === o.value)
+  const avisos = (q.options ?? []).filter(o => o.aviso && eligio(o))
+  const elegidaConDetalle = q.type === 'single_with_detail' ? q.options.find(o => o.value === raw && o.detailLabel) : null
+  // En `inline` los campos van a 16 px: con menos, Safari de iOS hace zoom al enfocarlos.
+  const campo = `w-full ${fondoCampo} border-[1.5px] border-gray-200 rounded-2xl px-4 py-3 outline-none placeholder:text-gray-400 focus:border-brand transition-colors ${
+    inline ? 'text-[16px] font-normal text-text-primary' : 'text-[15px] font-medium text-gray-900'
+  }`
+
+  return (
+    <div className="space-y-2">
+      <div>
+        <p className={inline ? 'text-[16px] font-medium text-text-primary' : 'text-[15px] font-bold text-gray-900'}>{q.label}</p>
+        {q.ayuda && <p className={`${ayuda} mt-1 leading-[1.4]`}>{q.ayuda}</p>}
+      </div>
+      {q.type === 'multi' && <p className={`${ayuda} font-medium -mt-1`}>Podés elegir más de una</p>}
+
+      {(q.type === 'single' || q.type === 'multi' || q.type === 'single_with_detail') && q.options.map(o => (
+        <OptionButton
+          blanco={inline}
+          multi={q.type === 'multi'}
+          key={o.value}
+          selected={eligio(o)}
+          label={o.label}
+          onClick={() => (q.type === 'multi' ? onMulti(q, o) : onSingle(q, o))}
+        />
+      ))}
+
+      {elegidaConDetalle && (
+        <div className="pt-2">
+          <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">{elegidaConDetalle.detailLabel}</label>
+          <textarea
+            rows={2}
+            maxLength={LIMITES.detalle}
+            value={detalles[q.id] ?? ''}
+            onChange={e => onDetalle(q.id, e.target.value)}
+            placeholder={q.id === 'medicacion' ? 'Ej: Omeprazol 20mg, Ibuprofeno 400mg' : ''}
+            className={`${campo} resize-none`}
+          />
+        </div>
+      )}
+
+      {q.type === 'texto' && (
+        <textarea
+          rows={2}
+          maxLength={LIMITES.texto}
+          value={raw ?? ''}
+          onChange={e => onTexto(q.id, e.target.value)}
+          placeholder={q.placeholder ?? ''}
+          aria-label={q.label}
+          className={`${campo} resize-none`}
+        />
+      )}
+
+      {q.type === 'numero' && (<>
+        <div className="relative">
+          <input
+            type="text"
+            inputMode="decimal"
+            maxLength={6}
+            value={raw === NO_SE ? '' : (raw ?? '')}
+            onChange={e => onNumero(q.id, e.target.value.replace(/[^\d.,]/g, ''))}
+            aria-label={q.label}
+            className={`${campo} ${q.unidad ? 'pr-14' : ''}`}
+          />
+          {q.unidad && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[16px] text-text-secondary pointer-events-none">{q.unidad}</span>}
+        </div>
+        {/* "No lo sé" y el número se excluyen: escribir uno saca el otro. */}
+        {q.opcionNoSe && (
+          <button
+            type="button"
+            onClick={() => onNumero(q.id, raw === NO_SE ? '' : NO_SE)}
+            aria-pressed={raw === NO_SE}
+            className={`w-full text-left px-4 py-3 rounded-lg text-[16px] font-normal border-[1.5px] ${
+              raw === NO_SE ? 'border-brand bg-brand/[0.08] text-text-primary' : 'border-gray-200 bg-white text-gray-800'
+            }`}
+          >
+            {q.opcionNoSe}
+          </button>
+        )}
+      </>)}
+
+      {/* Los avisos viven en una región `aria-live`: al elegir la opción se anuncian. */}
+      <div aria-live="polite">
+        {avisos.map(o => <Aviso key={o.value} aviso={o.aviso} />)}
+      </div>
+    </div>
+  )
+}
+
+/**
  * PreconsultaForm
  *
- * Pre-consulta estructurada: el paciente elige UN síntoma de un catálogo
- * codificado en ICD-10 (ver `src/data/symptoms.js`) y después contesta preguntas
- * de calificación propias de ese síntoma. Nada de campos libres — antes eran
- * 3 textareas y lo que llegaba al profesional era texto suelto que no se podía
- * cruzar con la historia clínica ni medir.
+ * Pre-consulta estructurada, con el triage PROPIO de cada vertical (ver
+ * `src/data/triage.js`): en Clínica el paciente elige UN síntoma de un catálogo
+ * codificado en ICD-10 y contesta las preguntas de ese síntoma; en psicología
+ * cuenta el motivo con sus palabras; cada vertical pregunta lo que su
+ * profesional necesita. Los pasos se arman de una lista (`pasosDe`) y se saltean
+ * los que quedan vacíos. El payload lo arma `armarPreconsulta`, función pura.
  *
  * Props:
+ *   vertical       – id de la vertical cuyo triage se usa. Sin vertical (o null) es
+ *                    Clínica, lo de siempre. Para una consulta agendada, ver
+ *                    `verticalDeConsulta`.
  *   isOpen         – boolean, controla visibilidad
  *   onClose        – dismiss sin enviar (ignorado cuando `required`)
  *   consultationId – string | null — UUID de la consulta; si es null se saltea el guardado
@@ -92,11 +228,14 @@ function OptionButton({ selected, label, onClick, blanco = false, multi = false 
  *                    la flecha de la página retrocede un paso).
  *   pasosExtra     – pasos que vienen DESPUÉS de las preguntas (el pago), para
  *                    que N cuente el recorrido entero.
+ *   onPasosChange  – se llama con la cantidad de pasos del formulario (sin
+ *                    `pasosExtra`) cada vez que cambia: depende de la vertical, del
+ *                    motivo elegido y de si faltan datos. Así el padre no la duplica.
  *   textoFinal     – el botón del último paso. En Teleclínica, "Continuar": no
  *                    dice "Pagar" porque todavía no se paga (Mateo).
  *   arriba         – algo que va arriba del primer paso ("La consulta es: Para mí").
  */
-export default function PreconsultaForm({ isOpen, onClose, consultationId, onSubmitted, required = false, profile = null, onProfileUpdate, pedirDatos = required, permitirOmitir = !required, inline = false, step: stepControlado, onStepChange, pasosExtra = 0, textoFinal, arriba = null }) {
+export default function PreconsultaForm({ isOpen, onClose, consultationId, onSubmitted, required = false, profile = null, onProfileUpdate, pedirDatos = required, permitirOmitir = !required, inline = false, step: stepControlado, onStepChange, pasosExtra = 0, onPasosChange, textoFinal, arriba = null, vertical = null }) {
   // Datos que Innovamed exige para emitir una receta y que el paciente puede no
   // tener cargados. Se pregunta SOLO lo que falta: quien ya los tiene no ve este
   // paso. Y se pregunta acá porque es el único momento obligatorio antes de la
@@ -108,8 +247,30 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
   const [submitting, setSubmitting] = useState(false)
   const [saveError, setSaveError] = useState(null)
 
-  const [stepInterno, setStepInterno] = useState(0) // 0 = elegir síntoma, 1 = preguntas, 2 = medicación, 3 = datos
-  const step = stepControlado ?? stepInterno
+  const triage = useMemo(() => triageDe(vertical), [vertical])
+  const [motivoId, setMotivoId] = useState(null)
+  const [textoMotivo, setTextoMotivo] = useState('')  // motivo abierto, o el de "Otro motivo"
+  const [respuestas, setRespuestas] = useState({})   // { [questionId]: value | value[] }
+  const [detalles, setDetalles] = useState({})       // { [questionId]: texto del detalle }
+
+  const abierto = triage.motivo.tipo === 'abierto'
+  const motivo = useMemo(
+    () => (abierto ? null : (triage.motivo.opciones.find(o => o.id === motivoId) ?? null)),
+    [triage, abierto, motivoId],
+  )
+  const preguntas = useMemo(() => preguntasDe(triage, motivo), [triage, motivo])
+  const cierre = useMemo(() => cierreDe(triage), [triage])
+
+  // Los pasos salen de acá: título, validación, ayudas, barra, "Paso X de N" y
+  // el último paso. Un paso sin preguntas no existe.
+  const pasos = useMemo(() => pasosDe({ triage, motivo, pideDatos }), [triage, motivo, pideDatos])
+  const ultimoPaso = pasos.length - 1
+  const totalPasos = pasos.length + pasosExtra
+  useEffect(() => { onPasosChange?.(pasos.length) }, [pasos.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [stepInterno, setStepInterno] = useState(0)
+  const step = Math.min(stepControlado ?? stepInterno, ultimoPaso)
+  const paso = pasos[step]
   // Cambiar de paso vuelve el scroll arriba: si no, al pasar del listado de
   // síntomas (más largo que la pantalla) se aterriza a mitad de las preguntas.
   const cuerpoRef = useRef(null)
@@ -119,28 +280,36 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
     if (onStepChange) onStepChange(n)
     else setStepInterno(n)
   }
-  const [symptomId, setSymptomId] = useState(null)
-  const [freeText, setFreeText] = useState('')   // solo para "Otro motivo"
-  const [answers, setAnswers] = useState({})     // { [questionId]: value | value[] }
-  const [medication, setMedication] = useState({ value: null, detail: '' })
 
-  const symptom = useMemo(() => ALL_SYMPTOMS.find(s => s.id === symptomId) ?? null, [symptomId])
-  const questions = useMemo(() => (symptom ? questionsFor(symptom) : []), [symptom])
-
-  const answeredAll = questions.every(q => {
-    const v = answers[q.id]
-    return q.type === 'multi' ? Array.isArray(v) && v.length > 0 : Boolean(v)
-  })
-  const symptomStepOk = Boolean(symptom) && (!symptom.freeText || freeText.trim().length > 0)
-  const medicationOk =
-    medication.value === 'no' ||
-    (medication.value === 'si' && medication.detail.trim().length > 0)
+  const motivoOk = motivoCompleto({ triage, motivo, textoMotivo })
+  const preguntasOk = todasRespondidas(preguntas, respuestas, detalles)
+  const cierreOk = todasRespondidas(cierre, respuestas, detalles)
+  // El paso de datos solo se da por completo cuando está lo que falta.
+  const datosOk = !pideDatos || faltantes.every(f => String(datos[f.campo] ?? '').trim() !== '')
+  const okDe = { motivo: motivoOk, preguntas: preguntasOk, cierre: cierreOk, datos: datosOk }
+  const pasoOk = okDe[paso]
 
   // ── Answer handlers ─────────────────────────────────────────────────────────
-  const pickSingle = (qid, value) => setAnswers(prev => ({ ...prev, [qid]: value }))
+  const pickSingle = (q, o) => {
+    setRespuestas(prev => ({ ...prev, [q.id]: o.value }))
+    // Cambiar de opción tira el detalle de la anterior.
+    if (q.type === 'single_with_detail' && !o.detailLabel) setDetalles(prev => ({ ...prev, [q.id]: '' }))
+  }
+  const setRespuesta = (qid, valor) => setRespuestas(prev => ({ ...prev, [qid]: valor }))
+  const setDetalle = (qid, texto) => setDetalles(prev => ({ ...prev, [qid]: texto }))
+
+  // Al cambiar de motivo se limpian las respuestas de SUS preguntas (paso 2),
+  // no las del cierre: la medicación no depende del motivo.
+  const elegirMotivo = (o) => {
+    const ids = new Set(preguntas.map(q => q.id))
+    const sinIds = obj => Object.fromEntries(Object.entries(obj).filter(([k]) => !ids.has(k)))
+    setRespuestas(sinIds)
+    setDetalles(sinIds)
+    setMotivoId(o.id)
+  }
 
   const toggleMulti = (question, option) => {
-    setAnswers(prev => {
+    setRespuestas(prev => {
       const current = Array.isArray(prev[question.id]) ? prev[question.id] : []
       // "Ninguno de estos" se excluye mutuamente con el resto — marcarlo limpia
       // las demás, y marcar cualquier otra lo saca.
@@ -157,50 +326,11 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
   }
 
   // ── Payload ─────────────────────────────────────────────────────────────────
-  const buildPayload = () => {
-    const structured = questions.map(q => {
-      const raw = answers[q.id]
-      const values = Array.isArray(raw) ? raw : [raw]
-      const picked = values.map(v => q.options.find(o => o.value === v)).filter(Boolean)
-      return {
-        question_id: q.id,
-        question_label: q.label,
-        values,
-        labels: picked.map(o => o.label),
-        red_flag: picked.some(o => o.redFlag),
-      }
-    })
-
-    const medicationLabel =
-      medication.value === 'si' ? medication.detail.trim() : 'No toma medicación'
-
-    // `main_complaint` / `symptoms` / `current_medications` se siguen escribiendo
-    // derivados a propósito: el panel del profesional (PreconsultaSummary) y el
-    // gate de la sala de espera los leen, y romperlos dejaría consultas viejas y
-    // nuevas en dos formatos incompatibles.
-    return {
-      version: 2,
-      symptom: {
-        id: symptom.id,
-        label: symptom.label,
-        icd10_code: symptom.icd10Code,
-        icd10_display: symptom.icd10Display,
-        free_text: symptom.freeText ? freeText.trim() : null,
-      },
-      answers: structured,
-      medication: {
-        taking: medication.value === 'si',
-        detail: medication.value === 'si' ? medication.detail.trim() : null,
-      },
-      has_red_flags: structured.some(a => a.red_flag),
-
-      main_complaint: symptom.freeText
-        ? `Otro motivo (sin codificar): ${freeText.trim()}`
-        : `${symptom.label} (${symptom.icd10Code})`,
-      symptoms: structured.map(a => `${a.question_label} ${a.labels.join(', ')}`).join('\n'),
-      current_medications: medicationLabel,
-    }
-  }
+  // `main_complaint` / `symptoms` / `current_medications` se siguen escribiendo
+  // derivados a propósito (lo hace `armarPreconsulta`): el panel del profesional
+  // (PreconsultaSummary) y el gate de la sala de espera los leen, y romperlos
+  // dejaría consultas viejas y nuevas en dos formatos incompatibles.
+  const buildPayload = () => armarPreconsulta({ triage, motivo, textoMotivo, respuestas, detalles })
 
   // Los datos del paciente van al perfil, no a la consulta: son suyos y
   // sirven para todas las recetas futuras. Se piden una sola vez.
@@ -219,7 +349,7 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
   }
 
   const handleSubmit = async () => {
-    if (submitting || !symptomStepOk || !answeredAll || !medicationOk) return
+    if (submitting || !motivoOk || !preguntasOk || !cierreOk || !datosOk) return
     setSubmitting(true)
     setSaveError(null)
 
@@ -264,15 +394,17 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
     }
   }
 
-  const ultimoPaso = pideDatos ? 3 : 2
-  const totalPasos = ultimoPaso + 1 + pasosExtra
   // En Teleclínica el texto secundario va a 14 px (Felipe); en el modal, como siempre.
   const fondoCampo = inline ? 'bg-white' : 'bg-bg-primary'
   const ayuda = inline ? 'text-[14px] text-gray-500' : 'text-[12px] text-gray-400'
-  const stepTitles = ['¿Qué te pasa?', `Contanos más sobre: ${symptom?.label ?? ''}`, 'Medicación', 'Tus datos']
-
-  // El paso de datos solo se da por completo cuando está lo que falta.
-  const datosOk = !pideDatos || faltantes.every(f => String(datos[f.campo] ?? '').trim() !== '')
+  const titulos = {
+    motivo: triage.motivo.titulo,
+    preguntas: triage.tituloPreguntas ?? motivo?.label ?? triage.motivo.titulo,
+    cierre: triage.cierre?.titulo ?? '',
+    datos: 'Tus datos',
+  }
+  const ayudaDelPaso = paso === 'motivo' ? triage.motivo.ayuda : paso === 'preguntas' ? 'Contanos un poco más.' : null
+  const ANCHO_PROGRESO = { 1: ['w-full'], 2: ['w-1/2', 'w-full'], 3: ['w-1/3', 'w-2/3', 'w-full'], 4: ['w-1/4', 'w-2/4', 'w-3/4', 'w-full'] }
 
   if (required && !isOpen) return null
 
@@ -295,9 +427,9 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
           {step < ultimoPaso ? (
             <button
               onClick={() => setStep(s => s + 1)}
-              disabled={step === 0 ? !symptomStepOk : step === 1 ? !answeredAll : !medicationOk}
+              disabled={!pasoOk}
               className={`w-full py-4 rounded-[20px] font-bold text-[16px] transition-colors ${
-                (step === 0 ? symptomStepOk : step === 1 ? answeredAll : medicationOk)
+                pasoOk
                   ? 'bg-brand text-white hover:bg-brand-hover'
                   : 'bg-[#E9EBEA] text-[#9AA0A6] cursor-not-allowed'
               }`}
@@ -307,9 +439,9 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
           ) : (
             <button
               onClick={handleSubmit}
-              disabled={submitting || !medicationOk || !datosOk}
+              disabled={submitting || !pasoOk}
               className={`w-full py-4 rounded-[20px] font-bold text-[16px] transition-colors flex justify-center items-center gap-2 ${
-                submitting || !medicationOk || !datosOk
+                submitting || !pasoOk
                   ? 'bg-[#E9EBEA] text-[#9AA0A6] cursor-not-allowed'
                   : 'bg-brand text-white hover:bg-brand-hover'
               }`}
@@ -320,28 +452,15 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
             </button>
           )}
 
-          {step === 0 && !symptomStepOk && (
+          {!pasoOk && (
             <p className={`${ayuda} text-center font-medium`}>
-              Elegí un motivo para continuar.
-            </p>
-          )}
-          {step === 1 && !answeredAll && (
-            <p className={`${ayuda} text-center font-medium`}>
-              Contestá todas las preguntas para continuar.
-            </p>
-          )}
-          {step === 2 && !medicationOk && (
-            <p className={`${ayuda} text-center font-medium`}>
-              Contanos si estás tomando medicación.
-            </p>
-          )}
-          {step === 3 && !datosOk && (
-            <p className={`${ayuda} text-center font-medium`}>
-              Completá {listar(faltantes)} para continuar.
+              {paso === 'motivo' && (abierto || motivo?.freeText ? 'Contanos qué te pasa para continuar.' : 'Elegí un motivo para continuar.')}
+              {(paso === 'preguntas' || paso === 'cierre') && 'Contestá todas las preguntas para continuar.'}
+              {paso === 'datos' && `Completá ${listar(faltantes)} para continuar.`}
             </p>
           )}
 
-          {permitirOmitir && step === 0 && (
+          {permitirOmitir && paso === 'motivo' && (
             <button
               onClick={() => onSubmitted()}
               disabled={submitting}
@@ -360,20 +479,15 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
         // debajo con un corte limpio (Felipe).
         <div className="px-4 sm:px-6 pt-1 pb-4 flex-shrink-0 bg-bg-primary border-b border-gray-200/70">
           <BarraDePasos paso={step + 1} total={totalPasos} className="mb-5" />
-          <h2 className="text-[28px] font-light text-gray-900 leading-tight">{step === 1 ? (symptom?.label ?? '') : stepTitles[step]}</h2>
-          {step === 0 && (
-            <p className="text-[14px] text-gray-500 leading-snug mt-1">
-              Elegí lo que más te molesta. El profesional lo lee antes de aceptar.
-            </p>
-          )}
-          {step === 1 && <p className="text-[14px] text-gray-500 leading-snug mt-1">Contanos un poco más.</p>}
+          <h2 className="text-[28px] font-light text-gray-900 leading-tight">{titulos[paso]}</h2>
+          {ayudaDelPaso && <p className="text-[14px] text-gray-500 leading-snug mt-1">{ayudaDelPaso}</p>}
         </div>
       ) : (<>
       {/* Header */}
       <div className="px-6 pt-4 pb-3 flex items-center gap-3 flex-shrink-0 border-b border-border-default">
         {step > 0 ? (
           <button
-            onClick={() => setStep(s => s - 1)}
+            onClick={() => setStep(step - 1)}
             className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center hover:bg-gray-50 flex-shrink-0"
           >
             <ArrowLeft className="w-4 h-4 text-gray-500" />
@@ -384,8 +498,8 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <h2 className="text-[20px] font-black text-gray-900 leading-none truncate">{stepTitles[step]}</h2>
-          <p className="text-[12px] text-gray-400 font-medium mt-0.5">Paso {step + 1} de {ultimoPaso + 1}</p>
+          <h2 className="text-[20px] font-black text-gray-900 leading-none truncate">{titulos[paso]}</h2>
+          <p className="text-[12px] text-gray-400 font-medium mt-0.5">Paso {step + 1} de {pasos.length}</p>
         </div>
         {!required && (
           <button
@@ -399,108 +513,87 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
 
       {/* Progress */}
       <div className="h-1 bg-gray-100 flex-shrink-0">
-        <div className={`h-full bg-brand transition-all duration-300 ${
-          step >= ultimoPaso ? 'w-full' : step === 0 ? 'w-1/4' : step === 1 ? 'w-2/4' : 'w-3/4'
-        }`} />
+        <div className={`h-full bg-brand transition-all duration-300 ${ANCHO_PROGRESO[pasos.length]?.[step] ?? 'w-full'}`} />
       </div>
       </>)}
 
       {/* Body */}
       <div ref={cuerpoRef} className={`flex-1 overflow-y-auto scrollbar-hide space-y-5 ${inline ? 'px-4 sm:px-6 pt-5 pb-10' : 'px-6 py-5'}`}>
 
-        {/* ── Step 0 — elegir síntoma ── */}
-        {step === 0 && (
+        {/* ── Motivo ── */}
+        {paso === 'motivo' && (
           <div className="space-y-2">
             {arriba}
-            {!inline && (
-              <p className="text-[13px] text-gray-500 font-medium mb-3">
-                Elegí lo que más te molesta. Si tenés varias cosas, empezá por la principal.
-              </p>
+            {!inline && triage.motivo.ayuda && (
+              <p className="text-[13px] text-gray-500 font-medium mb-3">{triage.motivo.ayuda}</p>
             )}
-            {ALL_SYMPTOMS.map(s => (
-              <OptionButton
-                blanco={inline}
-                key={s.id}
-                selected={symptomId === s.id}
-                label={s.label}
-                onClick={() => { setSymptomId(s.id); setAnswers({}) }}
+
+            {abierto ? (
+              // El título del paso ya hace la pregunta: el campo no repite el label
+              // a la vista, sólo para lectores de pantalla (Felipe).
+              <textarea
+                rows={5}
+                maxLength={LIMITES.motivo}
+                value={textoMotivo}
+                onChange={e => setTextoMotivo(e.target.value)}
+                placeholder={triage.motivo.placeholder ?? ''}
+                aria-label={triage.motivo.label}
+                data-testid="preconsulta-motivo-abierto"
+                className={`w-full bg-white border-[1.5px] border-gray-200 rounded-2xl px-4 py-3 outline-none placeholder:text-gray-400 focus:border-brand transition-colors resize-none ${
+                  inline ? 'text-[16px] font-normal text-text-primary' : 'text-[15px] font-medium text-gray-900'
+                }`}
               />
-            ))}
-            {symptom?.freeText && (
-              <div className="pt-2">
-                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">
-                  {symptom.freeTextLabel}
-                </label>
-                <textarea
-                  rows={2}
-                  value={freeText}
-                  onChange={e => setFreeText(e.target.value)}
-                  placeholder="Ej: me duele la rodilla desde ayer"
-                  className={`w-full ${fondoCampo} border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors resize-none`}
+            ) : (<>
+              {triage.motivo.opciones.map(o => (
+                <OptionButton
+                  blanco={inline}
+                  key={o.id}
+                  selected={motivoId === o.id}
+                  label={o.label}
+                  onClick={() => elegirMotivo(o)}
                 />
-              </div>
-            )}
+              ))}
+              {motivo?.freeText && (
+                <div className="pt-2">
+                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">
+                    {motivo.freeTextLabel}
+                  </label>
+                  <textarea
+                    rows={2}
+                    maxLength={LIMITES.motivo}
+                    value={textoMotivo}
+                    onChange={e => setTextoMotivo(e.target.value)}
+                    placeholder="Ej: me duele la rodilla desde ayer"
+                    className={`w-full ${fondoCampo} border-[1.5px] border-gray-200 rounded-2xl px-4 py-3 outline-none placeholder:text-gray-400 focus:border-brand transition-colors resize-none ${
+                      inline ? 'text-[16px] font-normal text-text-primary' : 'text-[15px] font-medium text-gray-900'
+                    }`}
+                  />
+                </div>
+              )}
+            </>)}
           </div>
         )}
 
-        {/* ── Step 1 — preguntas de calificación ── */}
-        {step === 1 && questions.map(q => (
-          <div key={q.id} className="space-y-2">
-            <p className={inline ? 'text-[16px] font-medium text-text-primary' : 'text-[15px] font-bold text-gray-900'}>{q.label}</p>
-            {q.type === 'multi' && (
-              <p className={`${ayuda} font-medium -mt-1`}>Podés elegir más de una</p>
-            )}
-            {q.options.map(o => {
-              const raw = answers[q.id]
-              const selected = q.type === 'multi'
-                ? Array.isArray(raw) && raw.includes(o.value)
-                : raw === o.value
-              return (
-                <OptionButton
-                blanco={inline}
-                  multi={q.type === 'multi'}
-                  key={o.value}
-                  selected={selected}
-                  label={o.label}
-                  onClick={() => (q.type === 'multi' ? toggleMulti(q, o) : pickSingle(q.id, o.value))}
-                />
-              )
-            })}
-          </div>
+        {/* ── Preguntas del motivo y cierre (medicación, alergias, peso) ── */}
+        {(paso === 'preguntas' || paso === 'cierre') && (paso === 'preguntas' ? preguntas : cierre).map(q => (
+          <Pregunta
+            key={q.id}
+            q={q}
+            respuestas={respuestas}
+            detalles={detalles}
+            onSingle={pickSingle}
+            onMulti={toggleMulti}
+            onTexto={setRespuesta}
+            onNumero={setRespuesta}
+            onDetalle={setDetalle}
+            inline={inline}
+            ayuda={ayuda}
+            fondoCampo={fondoCampo}
+          />
         ))}
 
-        {/* ── Step 2 — medicación ── */}
-        {step === 2 && (
-          <div className="space-y-2">
-            <p className={inline ? 'text-[16px] font-medium text-text-primary' : 'text-[15px] font-bold text-gray-900'}>{MEDICATION_QUESTION.label}</p>
-            {MEDICATION_QUESTION.options.map(o => (
-              <OptionButton
-                blanco={inline}
-                key={o.value}
-                selected={medication.value === o.value}
-                label={o.label}
-                onClick={() => setMedication({ value: o.value, detail: o.value === 'si' ? medication.detail : '' })}
-              />
-            ))}
-            {medication.value === 'si' && (
-              <div className="pt-2">
-                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5">
-                  ¿Cuál o cuáles?
-                </label>
-                <textarea
-                  rows={2}
-                  value={medication.detail}
-                  onChange={e => setMedication(m => ({ ...m, detail: e.target.value }))}
-                  placeholder="Ej: Omeprazol 20mg, Ibuprofeno 400mg"
-                  className={`w-full ${fondoCampo} border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors resize-none`}
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Paso 3 — datos que faltan para la receta ── */}
-        {step === 3 && pideDatos && (
+        {/* ── Datos que faltan para la receta ── */}
+        {paso === 'datos' && (
           <div className="space-y-4">
             <p className={`${inline ? 'text-[14px]' : 'text-[13px]'} text-gray-500 leading-snug`}>
               Necesitamos {listar(faltantes)} para que el profesional pueda emitirte una
@@ -514,7 +607,7 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
                   type="text" inputMode="numeric" value={datos.dni}
                   onChange={e => setDatos(d => ({ ...d, dni: e.target.value.replace(/\D/g, '') }))}
                   placeholder="Sin puntos, ej: 30111222"
-                  className={`w-full ${fondoCampo} border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400 focus:border-brand transition-colors`}
+                  className={`w-full ${fondoCampo} border border-gray-200 rounded-2xl px-4 py-3 outline-none ${inline ? 'text-[16px] font-normal text-text-primary' : 'text-[15px] font-medium text-gray-900'} placeholder:text-gray-400 focus:border-brand transition-colors`}
                 />
               </div>
             )}
@@ -526,7 +619,7 @@ export default function PreconsultaForm({ isOpen, onClose, consultationId, onSub
                   type="date" value={datos.birthDate}
                   onChange={e => setDatos(d => ({ ...d, birthDate: e.target.value }))}
                   max={new Date().toISOString().slice(0, 10)}
-                  className={`w-full ${fondoCampo} border border-gray-200 rounded-2xl px-4 py-3 outline-none text-[15px] font-medium text-gray-900 focus:border-brand transition-colors`}
+                  className={`w-full ${fondoCampo} border border-gray-200 rounded-2xl px-4 py-3 outline-none ${inline ? 'text-[16px] font-normal text-text-primary' : 'text-[15px] font-medium text-gray-900'} focus:border-brand transition-colors`}
                 />
               </div>
             )}
