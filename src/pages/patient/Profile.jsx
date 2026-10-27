@@ -127,6 +127,22 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   const [mpPublicKey, setMpPublicKey] = useState(null)
 
   const [pushEnabled, setPushEnabled] = useState(false)
+  // Eliminar cuenta — dos pasos, igual que la app: qué se borra → confirmación final.
+  const [bajaPaso, setBajaPaso] = useState(0)
+  const [eliminando, setEliminando] = useState(false)
+
+  const eliminarCuenta = async () => {
+    setEliminando(true)
+    try {
+      await authService.eliminarMiCuenta()
+      track('account_delete', { flow: 'paciente' })
+      toast.success('Tu cuenta fue eliminada')
+      navigate('/')
+    } catch (err) {
+      setEliminando(false)
+      toast.error(`No pudimos eliminar tu cuenta: ${err.message}`)
+    }
+  }
   const [pushTogglingOn, setPushTogglingOn] = useState(false)
 
   useEffect(() => {
@@ -864,6 +880,15 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
         </button>
       )}
 
+      {!editing && (
+        <button
+          onClick={() => setBajaPaso(1)}
+          className="w-full mt-3 py-3 text-[13px] font-semibold text-text-tertiary hover:text-danger transition-colors flex justify-center items-center gap-2"
+        >
+          <Trash className="w-4 h-4" /> Eliminar mi cuenta
+        </button>
+      )}
+
       {/* Qué build estás viendo — ver src/lib/buildInfo.js. Un bundle cacheado y
           un fix que no anduvo se ven exactamente igual; esto los distingue. */}
       <p className="text-center text-[11px] text-text-tertiary/70 pt-6 pb-2 font-mono select-all">
@@ -952,6 +977,32 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           <p className="text-[12px] text-text-tertiary text-center mt-4 px-4">
             Los datos de tu tarjeta se procesan directamente con Mercado Pago. Healthier solo guarda la marca y los últimos 4 dígitos.
           </p>
+        </div>
+      </PatientSheet>
+
+      {/* Eliminar cuenta — mismos textos que la app (mobile/app/(tabs)/profile.tsx) */}
+      <PatientSheet open={bajaPaso > 0} onClose={() => !eliminando && setBajaPaso(0)} maxWidth="max-w-md">
+        <div className="p-6 pb-8 space-y-4">
+          <h2 className="text-xl font-semibold text-text-primary">
+            {bajaPaso === 1 ? 'Eliminar cuenta' : 'Confirmación final'}
+          </h2>
+          <p className="text-[15px] text-text-secondary leading-relaxed">
+            {bajaPaso === 1
+              ? 'Se va a eliminar tu cuenta de forma permanente: tus datos personales, de contacto y de perfil se borran. Por ley (26.529) tu historia clínica se conserva de forma anónima por 10 años, sin vincularse a vos. No vas a poder volver a entrar con esta cuenta.'
+              : 'Esta acción no se puede deshacer. ¿Eliminar tu cuenta ahora?'}
+          </p>
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={() => setBajaPaso(0)}
+              disabled={eliminando}
+              className="flex-1 py-3.5 rounded-full border border-border-default bg-white font-semibold text-[15px] text-text-secondary hover:bg-bg-primary disabled:opacity-40"
+            >Cancelar</button>
+            <button
+              onClick={() => (bajaPaso === 1 ? setBajaPaso(2) : eliminarCuenta())}
+              disabled={eliminando}
+              className="flex-1 py-3.5 rounded-full bg-danger text-white font-semibold text-[15px] hover:opacity-90 disabled:opacity-60"
+            >{bajaPaso === 1 ? 'Continuar' : eliminando ? 'Eliminando…' : 'Eliminar mi cuenta'}</button>
+          </div>
         </div>
       </PatientSheet>
 

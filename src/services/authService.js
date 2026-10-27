@@ -1,6 +1,7 @@
 import { supabase, toCamelCase, olvidarSesion } from '../lib/supabase'
 import { armarNombreCompleto } from '../lib/nombreApellido'
 import { bajaService } from './bajaService'
+import { callEdgeFunction } from '../lib/edgeFunction'
 
 // Shared insert payload for a new `profiles` row — used both by email/password
 // registration and by first-time Google sign-in completion.
@@ -146,6 +147,19 @@ export const authService = {
   async logout() {
     olvidarSesion()
     await supabase.auth.signOut()
+    localStorage.removeItem('userProfile')
+  },
+
+  /**
+   * El propio usuario elimina su cuenta (paridad con "Eliminar mi cuenta" de la
+   * app). Usa la misma Edge Function `delete-account`: anonimiza el perfil y
+   * cierra el acceso para siempre; la historia clínica se conserva por ley
+   * 26.529, desvinculada. Después cierra la sesión local.
+   */
+  async eliminarMiCuenta() {
+    await callEdgeFunction('delete-account', {})
+    await supabase.auth.signOut({ scope: 'local' })
+    olvidarSesion()
     localStorage.removeItem('userProfile')
   },
 
