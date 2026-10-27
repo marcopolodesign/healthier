@@ -74,9 +74,14 @@ export function preconsultaToText(preconsulta) {
  * traen; los de una vertical que no receta (psicología) no, y ahí "Medicación
  * actual" no se muestra — mostrar "No toma medicación" sería inventar un dato.
  */
+// Sólo se oculta cuando el payload dice explícitamente que no se preguntó
+// (`current_medications: null`, lo que arma `armarPreconsulta` en psicología o
+// kinesiología). Un payload sin la clave —fixtures, versiones viejas— se sigue
+// mostrando como siempre.
 function preguntoMedicacion(preconsulta) {
-  const actual = preconsulta.currentMedications ?? preconsulta.current_medications
-  return actual != null || preconsulta.medication?.taking === true
+  if (preconsulta.medication?.taking === true) return true
+  const clave = 'currentMedications' in preconsulta ? 'currentMedications' : 'current_medications'
+  return preconsulta[clave] !== null
 }
 
 // El payload se escribe en snake_case, pero `consultationsService.getById` pasa

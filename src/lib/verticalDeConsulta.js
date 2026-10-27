@@ -1,16 +1,10 @@
-import { triageDe } from '../data/triage'
-
-// `triageDe` devuelve el genérico para una vertical que no conoce; ese objeto
-// es la forma de saber si una vertical tiene triage propio sin duplicar la lista.
-const GENERICO = triageDe('__sin_triage__')
-const reconoce = v => Boolean(v) && triageDe(v) !== GENERICO
-
 /**
  * La vertical de una consulta (agendada) para elegir su triage.
  *
- *   1. `consultation.vertical`, si el triage la reconoce (los valores viejos
- *      'salud' / 'Psicología' ya tienen alias en `triageDe`).
- *   2. Si no, la vertical de la especialidad del profesional
+ *   1. `consultation.vertical`, tal cual. `triageDe` resuelve los valores
+ *      viejos ('salud', 'Psicología') y le da el triage genérico a una vertical
+ *      que todavía no tiene uno propio — igual que la consulta inmediata.
+ *   2. Si no hay, la vertical de la especialidad del profesional
  *      (`specialties.vertical_id`).
  *   3. Si no se puede, `null` = Clínica, lo de siempre.
  *
@@ -19,8 +13,13 @@ const reconoce = v => Boolean(v) && triageDe(v) !== GENERICO
  */
 export function verticalDeConsulta(consultation, especialidades = []) {
   if (!consultation) return null
-  if (reconoce(consultation.vertical)) return consultation.vertical
-  const slug = consultation.professional?.professionalProfiles?.[0]?.specialty
+  if (consultation.vertical) return consultation.vertical
+  // `professional_profiles.user_id` es único: PostgREST lo devuelve como
+  // objeto, no como arreglo (mismo criterio que `perfilDelProfesional` en
+  // consultationsService, que no se importa para no arrastrar el cliente de
+  // Supabase a la prueba).
+  const pp = consultation.professional?.professionalProfiles
+  const slug = (Array.isArray(pp) ? pp[0] : pp)?.specialty
   const esp = slug ? especialidades.find(e => e.slug === slug) : null
   return esp?.verticalId ?? null
 }

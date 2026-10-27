@@ -71,8 +71,12 @@ export default function PatientVideoCall() {
   const professionalJoinedRef = useRef(false)
 
   const [consultation, setConsultation] = useState(null)
-  const { especialidades } = useEspecialidades()
+  // La vertical sale de la especialidad del profesional cuando la consulta no
+  // la trae: hasta que llega esa lista no se abre el formulario, porque abrirlo
+  // con Clínica y cambiarlo después le borra lo que ya contestó.
+  const { especialidades, cargando: cargandoEspecialidades } = useEspecialidades()
   const verticalPre = verticalDeConsulta(consultation, especialidades)
+  const verticalLista = Boolean(consultation?.vertical) || !cargandoEspecialidades
   const [loadingConsultation, setLoadingConsultation] = useState(true)
   /**
    * Compuerta para ENTRAR a Daily: late una vez y no vuelve atrás. Misma razón que
@@ -666,7 +670,7 @@ export default function PatientVideoCall() {
       <PreconsultaForm
         key={verticalPre ?? 'clinica'}
         vertical={verticalPre}
-        isOpen={showPreconsulta}
+        isOpen={showPreconsulta && verticalLista}
         onClose={handlePreconsultaClose}
         consultationId={consultation?.id ?? null}
         onSubmitted={handlePreconsultaSubmitted}

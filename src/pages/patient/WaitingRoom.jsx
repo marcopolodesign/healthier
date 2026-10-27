@@ -55,8 +55,12 @@ export default function WaitingRoom({ profile }) {
   const navigate = useNavigate()
 
   const [consultation, setConsultation] = useState(null)
-  const { especialidades } = useEspecialidades()
+  // La vertical sale de la especialidad del profesional cuando la consulta no
+  // la trae: hasta que llega esa lista no se abre el formulario, porque abrirlo
+  // con Clínica y cambiarlo después le borra lo que ya contestó.
+  const { especialidades, cargando: cargandoEspecialidades } = useEspecialidades()
   const verticalPre = verticalDeConsulta(consultation, especialidades)
+  const verticalLista = Boolean(consultation?.vertical) || !cargandoEspecialidades
   // "Habilitado" es distinto de "la consulta arrancó": el profesional puede
   // habilitarte antes de entrar él. Antes esto dependía de que abriera la
   // videollamada, y el paciente esperaba sin ninguna señal (migración 071).
@@ -247,7 +251,7 @@ export default function WaitingRoom({ profile }) {
             fondo para el instante previo a que monte. */}
         {/* Consulta de un familiar (migración 181): los datos que faltan para
             la receta son los SUYOS, y se guardan en su perfil. */}
-        <PreconsultaForm
+        {verticalLista && <PreconsultaForm
           isOpen
           required
           consultationId={consultationId}
@@ -258,7 +262,7 @@ export default function WaitingRoom({ profile }) {
             : profile}
           onClose={() => {}}
           onSubmitted={() => setPreconsultaDone(true)}
-        />
+        />}
       </div>
     )
   }
