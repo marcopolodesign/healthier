@@ -30,7 +30,13 @@ export default function MfaGuard({ profile, children }) {
   const clave = esSuperAdmin ? profile.id : null
 
   useEffect(() => {
-    if (!clave) return undefined
+    // Sin sesión (cerró sesión, o nunca hubo): olvidar el resultado. Si no, el
+    // mismo super admin que sale y vuelve a entrar SIN recargar hereda el
+    // `NINGUNO` de la sesión anterior y el panel monta con aal1 antes del desafío.
+    if (!clave) {
+      setResultado(null)
+      return undefined
+    }
     let vigente = true
     mfaService.estado()
       .then(e => {

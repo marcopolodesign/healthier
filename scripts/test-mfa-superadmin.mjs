@@ -87,3 +87,11 @@ test('/super-admin/seguridad existe como ruta y NO está linkeada en el menú', 
   assert.match(leer('src/App.jsx'), new RegExp(`path="${RUTA_SEGURIDAD}"`))
   assert.doesNotMatch(leer('src/components/Sidebar.jsx'), /super-admin\/seguridad/)
 })
+
+test('MfaGuard olvida el resultado al cerrar sesión (re-login sin recargar no hereda el NINGUNO viejo)', () => {
+  const guard = leer('src/components/auth/MfaGuard.jsx')
+  // el efecto que evalúa tiene que vaciar el resultado cuando no hay clave (sin sesión de super admin)
+  assert.match(guard, /if \(!clave\) \{\s*setResultado\(null\)\s*return undefined/)
+  // y el resultado sólo vale si es de la misma cuenta que está ahora
+  assert.match(guard, /resultado\?\.clave === clave \? resultado : null/)
+})
