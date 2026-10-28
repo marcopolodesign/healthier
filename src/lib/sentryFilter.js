@@ -23,19 +23,58 @@ const MASCARA = '[filtrado]'
 // se restauran después. Un id de usuario o de consulta no es un dato personal.
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi
 
-// El orden importa: lo más específico primero, los números sueltos al final.
-//
 // Los errores de Postgres/PostgREST traen la FILA que falló en `details` y la
 // clave duplicada en el mensaje: "Failing row contains (…, Juan Pérez, Av. X 123, …)",
 // "Key (email)=(x) already exists". Llegan por breadcrumbs de consola y por
-// rejections serializadas, y la fila entera es un dato personal aunque ninguna
-// de sus columnas parezca un mail o un DNI: se esconde TODA la línea.
-const REGLAS = [
-  // Filas y claves de errores de la base
-  [/("(?:details|hint)"\s*:\s*)"(?:[^"\\]|\\.)*"/gi, '$1"[filtrado]"'],
+// rejections serializadas (una o dos veces: `"details":"…"` y `\"details\":\"…\"`),
+// y la fila entera es un dato personal aunque ninguna de sus columnas parezca un
+// mail o un DNI: se esconde el valor ENTERO, no se intenta reconocer sus partes.
+const REGLAS_DB = [
+  // `details` / `hint` serializados en JSON, a cualquier nivel de escape. El valor
+  // `null` se deja; el string se corta en la comilla de cierre de SU nivel.
+  [/((\\*)"(?:details|hint)\2"\s*:\s*)(null\b|\2"[\s\S]*?(?<!\\)\2"(?=\s*(?:[,}\]]|$)))/gi,
+    (m, previo, barras, valor) => (/^null/i.test(valor) ? m : `${previo}${barras}"[filtrado]${barras}"`)],
+  // `details: '…'` en el log de un objeto
   [/(\b(?:details|hint)\b\s*:\s*)(['"`])(?:(?!\2)[^\\]|\\.)*\2/gi, '$1$2[filtrado]$2'],
-  [/Failing row contains[^\n]*/gi, 'Failing row contains [filtrado]'],
-  [/\bKey \(([^)]*)\)=\([^)]*\)/g, 'Key ($1)=([filtrado])'],
+  // Clave duplicada o referenciada: `Key (col)=(valor)`. La columna puede ser una
+  // expresión (`lower(full_name::text)`) y el valor puede llevar paréntesis, así que
+  // se cierra en lo que SIGUE (" already exists", fin de línea, comilla o llave de
+  // JSON); si no hay terminador reconocible se esconde el resto de la línea.
+  [/\bKey \(([^\n]*?)\)=\([^\n]*?\)(?=\s+(?:already exists|is not present|is still referenced)|[.,;]?\s*(?:["',}\]]|$))/gm,
+    'Key ($1)=([filtrado])'],
+  [/\bKey \(([^\n]*?)\)=\((?!\[filtrado\])[^\n]*/g, 'Key ($1)=([filtrado])'],
+]
+
+/**
+ * "Failing row contains (…)": se esconde toda la fila. Si el texto está DENTRO de
+ * un string JSON (comillas sin cerrar antes, en la misma línea) se corta en la
+ * comilla que cierra ese string —también cuando va escapada, `\"`— para no llevarse
+ * el resto del JSON (`code`, `message`…); si no, se esconde hasta el fin de línea.
+ */
+function esconderFilas(t) {
+  const re = /Failing row contains/gi
+  let salida = ''
+  let desde = 0
+  let m
+  while ((m = re.exec(t))) {
+    const ini = m.index
+    const finLinea = t.indexOf('\n', ini) === -1 ? t.length : t.indexOf('\n', ini)
+    const prefijo = t.slice(t.lastIndexOf('\n', ini) + 1, ini)
+    const dentroDeString = ((prefijo.match(/(?<!\\)"/g) || []).length % 2) === 1
+    let fin = finLinea
+    if (dentroDeString) {
+      const cierre = /\\*"(?=\s*(?:[,}\]:]|$))/.exec(t.slice(ini, finLinea))
+      if (cierre) fin = ini + cierre.index
+    }
+    salida += t.slice(desde, ini) + 'Failing row contains [filtrado]'
+    desde = fin
+    re.lastIndex = fin
+  }
+  return salida + t.slice(desde)
+}
+
+// El orden importa: lo más específico primero, los números sueltos al final.
+const REGLAS = [
   // Tokens y secretos
   [/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g, '[token]'],
   [/\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [token]'],
@@ -61,6 +100,8 @@ export function limpiarTexto(texto) {
   if (typeof texto !== 'string' || texto === '') return texto
   const guardados = []
   let t = texto.replace(UUID, (u) => `⟦u${guardados.push(u) - 1}⟧`)
+  for (const [re, reemplazo] of REGLAS_DB) t = t.replace(re, reemplazo)
+  t = esconderFilas(t)
   for (const [re, reemplazo] of REGLAS) t = t.replace(re, reemplazo)
   return t.replace(/⟦u(\d+)⟧/g, (_, i) => guardados[Number(i)])
 }
