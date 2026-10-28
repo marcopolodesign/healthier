@@ -226,6 +226,10 @@ as $$
 $$;
 
 revoke all on function public._aal_actor_es_admin() from public, anon, authenticated, service_role;
+-- Esta sí se concede: el WHEN de los triggers de consultations y professional_profiles
+-- se evalúa con los permisos de quien escribe (paciente, profesional…). Sólo
+-- contesta si LA PROPIA sesión es de un administrador: no revela nada de nadie más.
+grant execute on function public._aal_actor_es_admin() to anon, authenticated, service_role;
 
 -- ── 5. profiles: altas, bajas, cambios de rol, edición por un admin ──────────
 create or replace function public.registrar_admin_profiles()
@@ -513,8 +517,8 @@ end $$;
 -- ── 10. Configuración y borrados hechos desde el panel ───────────────────────
 -- Genérico: sólo registra si quien escribe es admin/super_admin (las escrituras
 -- del sistema o de otros roles sobre estas mismas tablas no son de este registro).
---   argumento 'valores'  → antes/después de las columnas que cambiaron (cortos).
---   argumento 'nombres'  → sólo los nombres de las columnas (+ status/payment_status).
+--   modo 'valores'  → antes/después de las columnas que cambiaron (cortos).
+--   modo 'nombres'  → sólo los nombres de las columnas (+ status/payment_status).
 create or replace function public.registrar_admin_config()
 returns trigger
 language plpgsql
@@ -522,13 +526,19 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_modo   text := coalesce(tg_argv[0], 'valores');
-  v_old    jsonb;
-  v_new    jsonb;
-  v_fila   jsonb;
-  v_cols   text[];
-  v_detail jsonb;
-  v_pk     text;
+  -- Argumentos del trigger (se fijan al crearlo, ver _aal_trigger_config):
+  --   0 = modo ('valores' | 'nombres')
+  --   1 = columnas de la clave primaria, separadas por coma
+  --   2 = columnas operativas que NO se registran (p. ej. ambulances.status)
+  v_modo     text   := coalesce(tg_argv[0], 'valores');
+  v_pk       text[] := string_to_array(nullif(tg_argv[1], ''), ',');
+  v_ignorar  text[] := string_to_array(nullif(tg_argv[2], ''), ',');
+  v_old      jsonb;
+  v_new      jsonb;
+  v_fila     jsonb;
+  v_cols     text[];
+  v_detail   jsonb;
+  v_id       text;
 begin
   if not public._aal_actor_es_admin() then
     return null;
@@ -539,10 +549,11 @@ begin
   v_fila := coalesce(v_new, v_old);
 
   if tg_op = 'UPDATE' then
-    v_cols := public._aal_cols_cambiadas(v_old, v_new);
+    v_cols := array(select c from unnest(public._aal_cols_cambiadas(v_old, v_new)) c
+                     where v_ignorar is null or c <> all (v_ignorar));
     if coalesce(array_length(v_cols, 1), 0) = 0 then return null; end if;
     v_detail := case when v_modo = 'valores'
-      then jsonb_build_object('cambios', public._aal_diff(v_old, v_new))
+      then jsonb_build_object('cambios', public._aal_diff(v_old, v_new, v_cols))
       else jsonb_build_object('columnas', to_jsonb(v_cols),
                               'estado', public._aal_diff(v_old, v_new, array['status', 'payment_status']))
     end;
@@ -556,20 +567,44 @@ begin
 
   -- El id del asiento es la clave primaria REAL de la tabla (id, rnos, droga…;
   -- si es compuesta, los valores unidos con "/").
-  select string_agg(v_fila ->> a.attname, '/' order by array_position(i.indkey::int2[], a.attnum))
-    into v_pk
-    from pg_index i
-    join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any (i.indkey)
-   where i.indrelid = tg_relid and i.indisprimary;
+  select string_agg(v_fila ->> c, '/' order by o) into v_id from unnest(v_pk) with ordinality u(c, o);
 
   perform public._aal_escribir(null,
     case tg_op when 'INSERT' then 'alta_' when 'UPDATE' then 'modificacion_' else 'eliminacion_' end || tg_table_name,
-    tg_table_name, v_pk, null, v_detail);
+    tg_table_name, v_id, null, v_detail);
   return null;
 end;
 $$;
 
 revoke all on function public.registrar_admin_config() from public, anon, authenticated, service_role;
+
+-- Armado de los triggers de esta sección (se borra al final de la migración).
+-- La clave primaria se resuelve UNA vez, al crear el trigger, no en cada fila.
+create or replace function public._aal_trigger_config(
+  p_tabla   text,
+  p_nombre  text,
+  p_eventos text,                                    -- 'insert or update or delete', 'delete'…
+  p_modo    text,
+  p_cuando  text default 'auth.uid() is not null',
+  p_ignorar text default ''
+)
+returns void
+language plpgsql
+as $$
+declare
+  v_pk text;
+begin
+  if to_regclass('public.' || p_tabla) is null then return; end if;
+  select string_agg(a.attname, ',' order by array_position(i.indkey::int2[], a.attnum)) into v_pk
+    from pg_index i
+    join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any (i.indkey)
+   where i.indrelid = ('public.' || p_tabla)::regclass and i.indisprimary;
+  execute format('drop trigger if exists %I on public.%I', p_nombre, p_tabla);
+  execute format('create trigger %I after %s on public.%I for each row when (%s)
+                  execute function public.registrar_admin_config(%L, %L, %L)',
+                 p_nombre, p_eventos, p_tabla, p_cuando, p_modo, coalesce(v_pk, ''), p_ignorar);
+end;
+$$;
 
 do $$
 declare
@@ -578,41 +613,36 @@ begin
   -- Configuración de la plataforma: altas, cambios y bajas, con antes/después.
   foreach t in array array['platform_settings', 'zones', 'specialties', 'vertical_settings',
                            'cobertura_rnos', 'emergency_providers', 'emergency_provider_staff',
-                           'ambulances', 'ambulance_crew', 'pharmacies',
-                           'farmacia_drogas_bajo_receta']
+                           'ambulance_crew', 'pharmacies', 'farmacia_drogas_bajo_receta']
   loop
-    if to_regclass('public.' || t) is not null then
-      execute format('drop trigger if exists zz_registro_admin on public.%I', t);
-      execute format('create trigger zz_registro_admin after insert or update or delete on public.%I
-                      for each row when (auth.uid() is not null)
-                      execute function public.registrar_admin_config(%L)', t, 'valores');
-    end if;
+    perform public._aal_trigger_config(t, 'zz_registro_admin', 'insert or update or delete', 'valores');
   end loop;
+
+  -- Las ambulancias: el estado (disponible / en servicio) cambia en cada
+  -- asignación del despacho diario y NO es una acción de administración.
+  perform public._aal_trigger_config('ambulances', 'zz_registro_admin', 'insert or update or delete',
+                                     'valores', 'auth.uid() is not null', 'status');
 
   -- Borrados que sólo puede hacer el super admin desde el panel: queda quién y qué id.
-  foreach t in array array['payments', 'emergencies', 'medication_orders', 'rcta_issue_log', 'waitlist']
+  foreach t in array array['payments', 'emergencies', 'medication_orders', 'rcta_issue_log',
+                           'waitlist', 'professional_profiles']
   loop
-    if to_regclass('public.' || t) is not null then
-      execute format('drop trigger if exists zz_registro_admin_baja on public.%I', t);
-      execute format('create trigger zz_registro_admin_baja after delete on public.%I
-                      for each row when (auth.uid() is not null)
-                      execute function public.registrar_admin_config(%L)', t, 'nombres');
-    end if;
+    perform public._aal_trigger_config(t, 'zz_registro_admin_baja', 'delete', 'nombres');
   end loop;
+
+  -- La lista de espera la marca como avisada el super admin (nombres, sin datos de contacto).
+  perform public._aal_trigger_config('waitlist', 'zz_registro_admin_upd', 'update', 'nombres');
+
+  -- Un legajo profesional dado de alta por un admin (el INSERT verificado ya tiene su asiento).
+  perform public._aal_trigger_config('professional_profiles', 'zz_registro_admin_cfg_ins', 'insert', 'nombres',
+                                     'auth.uid() is not null and public._aal_actor_es_admin()');
+
+  -- Consultas: el super admin las edita (estado, fecha, cobro, profesional, precio…),
+  -- las crea y las borra. TODAS las columnas, pero el WHEN deja afuera sin leer
+  -- nada a las escrituras del servidor y, con una sola consulta indexada al rol,
+  -- a las de pacientes y profesionales (el mismo costo que ya paga la policy).
+  perform public._aal_trigger_config('consultations', 'zz_registro_admin', 'insert or update or delete', 'nombres',
+                                     'auth.uid() is not null and public._aal_actor_es_admin()');
 end $$;
 
--- Una consulta editada por un admin (estado, fecha, cobro): columnas + estado.
-drop trigger if exists zz_registro_admin on public.consultations;
-create trigger zz_registro_admin
-  after update on public.consultations
-  for each row
-  -- Lo que edita el super admin desde Consultas: estado, fecha, cobro y motivo.
-  -- El resto de las actualizaciones (latidos, salas, avisos) no despierta nada.
-  when (
-    auth.uid() is not null
-    and (new.status is distinct from old.status
-         or new.scheduled_at is distinct from old.scheduled_at
-         or new.payment_status is distinct from old.payment_status
-         or new.cancel_reason is distinct from old.cancel_reason)
-  )
-  execute function public.registrar_admin_config('nombres');
+drop function public._aal_trigger_config(text, text, text, text, text, text);

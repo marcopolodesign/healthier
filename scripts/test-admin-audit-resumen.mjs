@@ -40,6 +40,14 @@ test('cambios anidados {campo:{antes,despues}} no quedan en blanco', () => {
   assert.match(k, /status: a → b/)
 })
 
+test('un par que no cambió no se muestra', () => {
+  assert.equal(r('cambio_de_exencion_o_titular', { payment_exempt: { antes: false, despues: true }, titular_id: { antes: null, despues: null } }),
+    'payment_exempt: false → true')
+  assert.equal(r('cambio_de_marca_de_prueba', { es_prueba: { antes: true, despues: true }, ve_ambos_mundos: { antes: false, despues: true } }),
+    've_ambos_mundos: false → true')
+  assert.equal(r('modificacion_consultations', { columnas: ['status'], estado: { status: { antes: 'a', despues: 'a' } } }), 'Columnas: status')
+})
+
 test('altas y bajas de configuración dicen qué había', () => {
   assert.match(r('alta_zones', { despues: { name: 'Palermo', active: true } }), /^Nuevo: name=Palermo, active=true/)
   assert.match(r('eliminacion_zones', { antes: { name: 'Palermo' } }), /^Anterior: name=Palermo/)
