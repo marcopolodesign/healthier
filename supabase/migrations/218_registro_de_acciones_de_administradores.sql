@@ -196,7 +196,25 @@ $$;
 
 revoke all on function public._aal_escribir(uuid, text, text, text, uuid, jsonb) from public, anon, authenticated, service_role;
 
--- ¿La persona que hace el cambio es administradora?
+-- Roles de administración: los dos de la plataforma y el admin de cada tenant
+-- (emergencias, farmacia), que dan de alta y baja a su propio personal.
+-- ¿Esta cuenta tiene un rol de administración?
+create or replace function public._aal_id_es_admin(p_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select p_id is not null and exists (
+    select 1 from public.profiles
+     where id = p_id and role in ('admin', 'super_admin', 'emergency_admin', 'pharmacy_admin')
+  );
+$$;
+
+revoke all on function public._aal_id_es_admin(uuid) from public, anon, authenticated, service_role;
+
+-- ¿La persona que hace el cambio (la sesión) es administradora?
 create or replace function public._aal_actor_es_admin()
 returns boolean
 language sql
@@ -204,7 +222,7 @@ stable
 security definer
 set search_path = public, pg_temp
 as $$
-  select auth.uid() is not null and coalesce(public.get_my_role(), '') in ('admin', 'super_admin');
+  select auth.uid() is not null and public._aal_id_es_admin(auth.uid());
 $$;
 
 revoke all on function public._aal_actor_es_admin() from public, anon, authenticated, service_role;
@@ -239,12 +257,21 @@ begin
       jsonb_build_object('antes', old.role, 'despues', new.role));
   end if;
 
+  -- Sólo cuando la hace un administrador (la baja del panel entra por service
+  -- role con `deleted_by` = el admin). La que se hace la propia persona
+  -- (delete-account) y la reactivación por el link del mail no son acciones
+  -- de administración: no se asientan acá.
   if old.deleted_at is null and new.deleted_at is not null then
-    perform public._aal_escribir(new.deleted_by, 'baja_de_cuenta', 'profiles', new.id::text, new.id,
-      jsonb_build_object('rol', new.role));
+    if coalesce(auth.uid(), new.deleted_by) is distinct from new.id
+       and public._aal_id_es_admin(coalesce(auth.uid(), new.deleted_by)) then
+      perform public._aal_escribir(new.deleted_by, 'baja_de_cuenta', 'profiles', new.id::text, new.id,
+        jsonb_build_object('rol', new.role));
+    end if;
   elsif old.deleted_at is not null and new.deleted_at is null then
-    perform public._aal_escribir(null, 'reactivacion_de_cuenta', 'profiles', new.id::text, new.id,
-      jsonb_build_object('rol', new.role));
+    if auth.uid() is distinct from new.id and public._aal_actor_es_admin() then
+      perform public._aal_escribir(null, 'reactivacion_de_cuenta', 'profiles', new.id::text, new.id,
+        jsonb_build_object('rol', new.role));
+    end if;
   end if;
 
   if (new.payment_exempt is distinct from old.payment_exempt
@@ -266,7 +293,7 @@ begin
   -- Un admin editando el perfil de OTRA persona: se anotan los nombres de las
   -- columnas (no los valores: son datos personales). El rol, la baja y la
   -- exención ya tienen su propio asiento arriba.
-  if auth.uid() is distinct from new.id and public._aal_actor_es_admin() then
+  if auth.uid() is not null and auth.uid() <> new.id and public._aal_actor_es_admin() then
     v_cols := array(
       select c from unnest(public._aal_cols_cambiadas(to_jsonb(old), to_jsonb(new))) c
        where c not in ('role', 'deleted_at', 'deleted_by', 'payment_exempt', 'titular_id',
@@ -305,7 +332,10 @@ create trigger zz_registro_admin
     or new.titular_id is distinct from old.titular_id
     or new.es_prueba is distinct from old.es_prueba
     or new.ve_ambos_mundos is distinct from old.ve_ambos_mundos
-    or auth.uid() is distinct from new.id
+    -- Edición del perfil de OTRA persona: tiene que haber una sesión y no ser la
+    -- propia. Las escrituras del servidor (service role) y los guardados propios
+    -- no despiertan la función.
+    or (auth.uid() is not null and auth.uid() <> new.id)
   )
   execute function public.registrar_admin_profiles();
 
@@ -333,9 +363,13 @@ begin
                          'fuente', new.verification_source));
   end if;
 
-  -- Sólo cuando se EMITE un rechazo/pedido de revisión; limpiarlo al reenviar
-  -- lo hace el propio profesional y no es una acción de administración.
-  if new.rejection_type is not null and new.rejection_type is distinct from old.rejection_type then
+  -- Cuando un ADMIN emite un rechazo o pedido de revisión, o lo repite con otro
+  -- motivo. Limpiarlo al reenviar lo hace el propio profesional y no es una
+  -- acción de administración (por eso exige actor admin).
+  if new.rejection_type is not null
+     and (new.rejection_type is distinct from old.rejection_type
+          or new.rejection_reason is distinct from old.rejection_reason)
+     and public._aal_id_es_admin(coalesce(auth.uid(), new.verified_by)) then
     perform public._aal_escribir(new.verified_by, 'rechazo_profesional', 'professional_profiles',
       new.id::text, new.user_id,
       jsonb_build_object('tipo', new.rejection_type, 'motivo', left(new.rejection_reason, 300)));
@@ -347,7 +381,9 @@ begin
       jsonb_build_object('antes', old.is_active, 'despues', new.is_active));
   end if;
 
-  if new.refes_revisado_por is distinct from old.refes_revisado_por and new.refes_revisado_por is not null then
+  if new.refes_revisado_por is not null
+     and (new.refes_revisado_por is distinct from old.refes_revisado_por
+          or new.refes_revisado_at is distinct from old.refes_revisado_at) then
     perform public._aal_escribir(new.refes_revisado_por, 'decision_consultorio', 'professional_profiles',
       new.id::text, new.user_id,
       jsonb_build_object('estado', new.refes_estado, 'nota', left(new.refes_error, 300)));
@@ -372,8 +408,10 @@ create trigger zz_registro_admin
   when (
     new.is_verified is distinct from old.is_verified
     or new.rejection_type is distinct from old.rejection_type
+    or new.rejection_reason is distinct from old.rejection_reason
     or new.is_active is distinct from old.is_active
     or new.refes_revisado_por is distinct from old.refes_revisado_por
+    or new.refes_revisado_at is distinct from old.refes_revisado_at
   )
   execute function public.registrar_admin_professional_profiles();
 
@@ -490,6 +528,7 @@ declare
   v_fila   jsonb;
   v_cols   text[];
   v_detail jsonb;
+  v_pk     text;
 begin
   if not public._aal_actor_es_admin() then
     return null;
@@ -515,9 +554,17 @@ begin
     v_detail := '{}'::jsonb;
   end if;
 
+  -- El id del asiento es la clave primaria REAL de la tabla (id, rnos, droga…;
+  -- si es compuesta, los valores unidos con "/").
+  select string_agg(v_fila ->> a.attname, '/' order by array_position(i.indkey::int2[], a.attnum))
+    into v_pk
+    from pg_index i
+    join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any (i.indkey)
+   where i.indrelid = tg_relid and i.indisprimary;
+
   perform public._aal_escribir(null,
     case tg_op when 'INSERT' then 'alta_' when 'UPDATE' then 'modificacion_' else 'eliminacion_' end || tg_table_name,
-    tg_table_name, coalesce(v_fila ->> 'id', v_fila ->> 'key'), null, v_detail);
+    tg_table_name, v_pk, null, v_detail);
   return null;
 end;
 $$;
@@ -537,7 +584,8 @@ begin
     if to_regclass('public.' || t) is not null then
       execute format('drop trigger if exists zz_registro_admin on public.%I', t);
       execute format('create trigger zz_registro_admin after insert or update or delete on public.%I
-                      for each row execute function public.registrar_admin_config(%L)', t, 'valores');
+                      for each row when (auth.uid() is not null)
+                      execute function public.registrar_admin_config(%L)', t, 'valores');
     end if;
   end loop;
 
@@ -547,7 +595,8 @@ begin
     if to_regclass('public.' || t) is not null then
       execute format('drop trigger if exists zz_registro_admin_baja on public.%I', t);
       execute format('create trigger zz_registro_admin_baja after delete on public.%I
-                      for each row execute function public.registrar_admin_config(%L)', t, 'nombres');
+                      for each row when (auth.uid() is not null)
+                      execute function public.registrar_admin_config(%L)', t, 'nombres');
     end if;
   end loop;
 end $$;
@@ -557,5 +606,13 @@ drop trigger if exists zz_registro_admin on public.consultations;
 create trigger zz_registro_admin
   after update on public.consultations
   for each row
-  when (auth.uid() is not null)
+  -- Lo que edita el super admin desde Consultas: estado, fecha, cobro y motivo.
+  -- El resto de las actualizaciones (latidos, salas, avisos) no despierta nada.
+  when (
+    auth.uid() is not null
+    and (new.status is distinct from old.status
+         or new.scheduled_at is distinct from old.scheduled_at
+         or new.payment_status is distinct from old.payment_status
+         or new.cancel_reason is distinct from old.cancel_reason)
+  )
   execute function public.registrar_admin_config('nombres');
