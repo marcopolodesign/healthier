@@ -185,6 +185,8 @@ export const SEGMENTOS_CONOCIDOS = new Set        ([
   'verificar_consultorio_al_cambiar', 'verificar_que_puede_recetar', 'verify', 'vertical_settings',
   'verticales', 'video', 'videollamada', 'vitales_fecha_sigue_al_valor', 'waiting', 'waitlist',
   'walk-in', 'walk_in_queue', 'web', 'websocket', 'webview-session', 'zonas', 'zones',
+  // Pantallas de las ramas release de la app (no están en main de mobile, 2026-10-28)
+  '(pestanas)', 'actualizacion', 'ajustes', 'bloqueo', 'carrito', 'codigo-familiar', 'confirmar-apellido', 'derivacion', 'dev-login', 'direccion-agregar', 'direcciones', 'editar-movil', 'elegir-direccion', 'emergencia-hoja', 'estado-inmediata', 'flota', 'grupo-familiar', 'guardia', 'mascota', 'mis-profesionales', 'movil', 'necesitas-receta', 'nuevo-movil', 'pedido-codigo', 'pedido-vitales', 'profesional-ficha', 'profesional-perfil', 'recuperar', 'sin-disponibilidad', 'solicitud', 'terminado', 'traslado', 'tripulante',
 ])
 const CALIFICADORES_STORAGE = new Set(['image', 'sign', 'public', 'authenticated', 'info', 'upload', 'list'])
 
