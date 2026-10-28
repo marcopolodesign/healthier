@@ -129,6 +129,8 @@ import SuperAdminGruposFamiliares from './pages/super-admin/GruposFamiliares'
 import SuperAdminDerivaciones from './pages/super-admin/Derivaciones'
 import SuperAdminEmergencias from './pages/super-admin/Emergencias'
 import SuperAdminFarmacia from './pages/super-admin/Farmacia'
+import SuperAdminSeguridad from './pages/super-admin/Seguridad'
+import MfaGuard from './components/auth/MfaGuard'
 
 import PharmacyOrders from './pages/pharmacy/Pedidos'
 import PharmacyOrderDetail from './pages/pharmacy/PedidoDetail'
@@ -407,6 +409,7 @@ export default function App() {
       {/* Quien ya tenía cuenta sin el apellido por separado lo confirma acá, una vez (migración 183). */}
       <ConfirmarApellido profile={profile} onProfileUpdate={setProfile} />
       <CioPageTracker />
+      <MfaGuard profile={profile}>
       <Routes>
         {/* Public */}
         <Route path="/" element={<Landing />} />
@@ -620,6 +623,8 @@ export default function App() {
           <Route path="/super-admin/teleclinica" element={<SuperAdminTeleclinica />} />
           <Route path="/super-admin/subidas" element={<RequierePermiso permitido={veSubidas(profile)}><SuperAdminSubidas /></RequierePermiso>} />
           <Route path="/super-admin/farmacia" element={<SuperAdminFarmacia />} />
+          {/* Segundo factor (TOTP). SIN link en el menú a propósito — ver lib/mfa.js. */}
+          <Route path="/super-admin/seguridad" element={<SuperAdminSeguridad />} />
         </Route>
 
         {/* Farmacia */}
@@ -650,6 +655,7 @@ export default function App() {
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </MfaGuard>
     </Router>
   )
 }
