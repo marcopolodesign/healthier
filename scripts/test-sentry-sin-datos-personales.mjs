@@ -35,7 +35,7 @@ const PROHIBIDAS = [
   '+54 9 11 5555-1234', '11 5555-1234', '5491155551234',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
   'sb_secret_abcdefghijklmnop',
-  'Juan Pérez', 'iPhone de Mateo',
+  'Juan Pérez', 'iPhone de Mateo', 'Av. Santa Fe 1234',
 ]
 
 const sinFugas = (valor, etiqueta = '') => {
@@ -179,6 +179,35 @@ test('objetos circulares y muy profundos no cuelgan el filtro', () => {
   sinFugas(e, 'circular/profundo')
 })
 
+// ── 2b. Errores de la base: la FILA que falló es un dato personal ───────────
+test('los details/hint de Postgres y "Failing row contains" se esconden enteros', () => {
+  const fila = 'Failing row contains (6d520ef9-2afe-459c-93a5-e0fa376e63a7, Juan Pérez, Av. Santa Fe 1234, null, t)'
+  // 1. texto suelto (breadcrumb de consola)
+  const texto = limpiarTexto(`falló el alta: null value in column "x" violates not-null constraint. ${fila}.`)
+  sinFugas(texto, 'texto suelto')
+  assert.match(texto, /violates not-null constraint/, 'el mensaje del error se conserva')
+  // 2. rejection serializada como JSON
+  const json = JSON.stringify({ code: '23502', details: fila, hint: 'Revisá a Juan Pérez', message: 'null value in column "x"' })
+  const limpio = limpiarTexto(json)
+  sinFugas(limpio, 'JSON serializado')
+  assert.match(limpio, /"code":"23502"/)
+  assert.match(limpio, /null value in column/)
+  assert.doesNotThrow(() => JSON.parse(limpio), 'el JSON sigue siendo JSON')
+  // 3. objeto con details/hint como claves (extra, data de breadcrumb, contextos)
+  const evento = limpiarEvento({
+    extra: { error: { code: '23505', details: fila, hint: 'Av. Santa Fe 1234', message: 'duplicate key' } },
+    breadcrumbs: [{ category: 'console', message: `PostgrestError ${fila}`, data: { arguments: [{ details: fila }] } }],
+  })
+  sinFugas(evento, 'objeto')
+  assert.equal(evento.extra.error.code, '23505')
+  assert.equal(evento.extra.error.message, 'duplicate key')
+  // 4. clave duplicada: el valor se esconde, la columna se conserva
+  assert.equal(limpiarTexto('Key (dni)=(30123456) already exists.'), 'Key (dni)=([filtrado]) already exists.')
+  assert.equal(limpiarTexto('Key (full_name)=(Juan Pérez) already exists.'), 'Key (full_name)=([filtrado]) already exists.')
+  // 5. details: '…' en un log de objeto
+  sinFugas(limpiarTexto(`error { details: 'Av. Santa Fe 1234, Juan Pérez', code: '23505' }`), 'details literal')
+})
+
 // ── 3. Configuración de Sentry.init ─────────────────────────────────────────
 test('las opciones privadas están completas', () => {
   assert.equal(OPCIONES_PRIVADAS.sendDefaultPii, false)
@@ -215,7 +244,9 @@ test('un error forzado con un mail y un DNI en el mensaje sale enmascarado del S
   Sentry.setUser({ id: 'u-1', email: 'juan.perez@gmail.com', username: 'Juan Pérez', ip_address: '1.2.3.4' })
   Sentry.addBreadcrumb({ category: 'fetch', data: { url: 'https://x.supabase.co/rest/v1/profiles?dni=eq.12345678' } })
   Sentry.addBreadcrumb({ category: 'console', message: 'form de juan.perez@gmail.com' })
-  Sentry.captureException(new Error('Falló el pago de juan.perez@gmail.com, DNI 12345678, cel +54 9 11 5555-1234'))
+  // Un error de PostgREST tal como llega a la consola: la fila va en `details`.
+  console.error('PostgrestError', JSON.stringify({ code: '23502', details: 'Failing row contains (6d520ef9-2afe-459c-93a5-e0fa376e63a7, Juan Pérez, Av. Santa Fe 1234, null)', hint: null, message: 'null value in column "x"' }))
+  Sentry.captureException(Object.assign(new Error('Falló el pago de juan.perez@gmail.com, DNI 12345678, cel +54 9 11 5555-1234'), { details: 'Failing row contains (Juan Pérez, Av. Santa Fe 1234)' }))
   await Sentry.flush(2000)
 
   assert.ok(enviados.length >= 1, 'el evento tendría que haber llegado al transporte')
