@@ -154,6 +154,8 @@ try {
                                   refes_estado, refes_revisado_por, refes_revisado_at, refes_error
                            from public.professional_profiles pp
                            where user_id = (select id from public.profiles where email = 'profesional@healthier.app' limit 1)`)
+  if (!pro) console.log('· (aviso) falta profesional@healthier.app con su legajo en staging: se saltean las pruebas de verificación, consultorio y legajo')
+  if (pro) {
   // Se restaura con la sesión del super admin: un trigger de la base no deja
   // cambiar is_verified a nadie que no sea administrador.
   restaurar.push(() => rest(`professional_profiles?id=eq.${pro.id}`, {
@@ -199,6 +201,8 @@ try {
   const dc = await asientos(`action = 'decision_consultorio' and entity_id = '${pro.id}'`)
   ok(dc.length === 2 && dc[0].detail.estado === 'aprobado_manual' && dc[1].detail.estado === 'rechazado_manual' && dc.every(a => a.actor_id === sup.id),
     'dos decisiones seguidas del mismo admin: las dos quedan asentadas')
+
+  }
 
   // 4 ─ Edge Functions de admin: "iniciar sesión como" y baja de cuenta
   const imp = await funcion('impersonate-user', { targetUserId: userId }, sup.token)
@@ -301,6 +305,8 @@ try {
   // prueba y se borra ésa, nunca una existente.
   const [pacDemo] = await sql(`select id from public.profiles where email = 'paciente@healthier.app' and titular_id is null limit 1`)
   const [proDemo] = await sql(`select id from public.profiles where email = 'profesional@healthier.app' limit 1`)
+  if (!pacDemo || !proDemo) console.log('· (aviso) faltan paciente@healthier.app / profesional@healthier.app en staging: se saltea el chequeo de consultas')
+  else {
   const consR = await sql(`do $$
     declare v uuid; v2 uuid; filas int; pac int; a int; b int; c int; d int;
     begin
@@ -331,6 +337,8 @@ try {
   ok(/CONS filas=1 pac=0 precio=1 factura=1 baja=1 alta=1/.test(consR),
     `consultas: el paciente edita la suya (1 fila, nada asentado); el admin cambia precio y factura, crea y borra → todo asentado (${consR.match(/CONS [^\n]*/)?.[0] ?? consR.slice(0, 220)})`)
 
+  }
+
   // 11b ─ El despacho diario (estado de la ambulancia) NO es una acción de administración
   const [hayAmb] = await sql(`select exists (select 1 from public.ambulances where id = '40000000-0000-0000-0000-000000000001')
                                 and exists (select 1 from public.profiles where id = '30000000-0000-0000-0000-000000000001' and role = 'emergency_admin') as ok`)
@@ -357,6 +365,7 @@ try {
 
   // 3b ─ Un admin edita el legajo de un profesional (matrícula, dirección del consultorio):
   // el UPDATE de professional_profiles se asienta aunque no toque ninguna columna de verificación.
+  if (pro) {
   const leg = await sql(`do $$
     declare n int; det jsonb;
     begin
@@ -365,10 +374,13 @@ try {
       update public.professional_profiles set license_number = coalesce(license_number, '') || '0', address = coalesce(address, '') || ' ' where id = '${pro.id}';
       reset role;
       select count(*), min(detail::text)::jsonb into n, det from public.admin_action_log
-       where entity_id = '${pro.id}' and action = 'modificacion_professional_profiles' and actor_id = '${sup.id}';
+       where entity_id = '${pro.id}' and action = 'modificacion_professional_profiles' and actor_id = '${sup.id}'
+         and target_user_id = '${pro.user_id}';
       raise exception 'LEG % %', n, det->'columnas';
     end $$;`).then(() => '', e => e.message)
-  ok(/LEG 1 /.test(leg) && /address/.test(leg) && /license_number/.test(leg), `edición de matrícula y dirección del consultorio asentada, sólo los nombres de columna (${leg.match(/LEG [^\n]*/)?.[0] ?? leg.slice(0, 200)})`)
+  ok(/LEG 1 /.test(leg) && /address/.test(leg) && /license_number/.test(leg), `edición de matrícula y dirección del consultorio asentada sobre la persona (target_user_id), sólo con los nombres de columna (${leg.match(/LEG [^\n]*/)?.[0] ?? leg.slice(0, 200)})`)
+
+  }
 
   // 8 ─ Append-only, para todos
   const [{ n: total }] = await sql('select count(*)::int n from public.admin_action_log')
@@ -415,10 +427,22 @@ try {
   // Operaciones cubiertas SÓLO por un trigger que filtra columnas, con su justificación.
   const PARCIALES = {
     profiles: { UPDATE: 'asienta rol, baja, exención/titular y marca de prueba, y la edición de OTRA persona con sesión (cualquier columna); lo que cada persona se guarda a sí misma no es una acción de administración' },
+    professional_profiles: { UPDATE: 'toda columna que edite un admin se asienta salvo las de verificación, rechazo, estado y consultorio (con su propio trigger) y las que se mueven solas con ellas (reverificación, SISA, REFEPS) o ya asienta profiles (solo_pruebas)' },
+    ambulances: { UPDATE: 'el estado (disponible / en servicio) cambia en cada asignación del despacho diario: no es una acción de administración' },
   }
   const BIT = { INSERT: 4, DELETE: 8, UPDATE: 16 }
-  // ¿El trigger filtra por columnas? (UPDATE OF …, o un WHEN que mira old./new.)
-  const filtraColumnas = (def) => /\bUPDATE OF\b/i.test(def) || /\bWHEN\b[\s\S]*\b(old|new)\./i.test(def)
+  // ¿El trigger filtra por columnas? Se lee del CATÁLOGO, no del texto de la definición:
+  //   · tgattr (UPDATE OF …) no vacío;
+  //   · el WHEN (tgqual, el árbol del catálogo) mira OLD o una columna NEW que no sea la de la
+  //     persona afectada (la guarda de actor `auth.uid() <> new.user_id` no cuenta);
+  //   · el trigger recibe una lista de columnas excluidas (3.er argumento de registrar_admin_config).
+  const filtraColumnas = (tg, op = 'UPDATE') => {
+    if (op === 'UPDATE' && tg.attr) return true      // UPDATE OF …
+    if (op === 'UPDATE' && tg.ignorar) return true   // columnas excluidas por argumento (sólo valen en el UPDATE)
+    if (tg.old_vars > 0) return true         // el WHEN compara con OLD
+    // El WHEN mira una columna NEW que NO es la de la persona (guarda de actor tipo `auth.uid() <> new.user_id`)
+    return tg.new_attnums.some((n) => n !== tg.persona_attnum)
+  }
   const ops = await sql(`
     with pol as (
       select p.tablename, o.op
@@ -428,14 +452,23 @@ try {
          and ((coalesce(p.qual, '') || coalesce(p.with_check, '')) ~ 'super_admin|''admin''|emergency_admin|pharmacy_admin')
        group by p.tablename, o.op)
     select pol.tablename, pol.op,
-           coalesce((select json_agg(json_build_object('tipo', t.tgtype::int, 'def', pg_get_triggerdef(t.oid)))
+           coalesce((select json_agg(json_build_object(
+                         'tipo', t.tgtype::int,
+                         'attr', t.tgattr::text,
+                         -- el WHEN, leído del árbol del catálogo: OLD = varno 1, NEW = varno 2
+                         'old_vars', (select count(*) from regexp_matches(coalesce(t.tgqual::text, ''), ':varno 1 ', 'g')),
+                         'new_attnums', (select coalesce(json_agg(m[1]::int), '[]'::json) from regexp_matches(coalesce(t.tgqual::text, ''), ':varno 2 :varattno (\\d+)', 'g') m),
+                         -- argumentos de registrar_admin_config: [2] columnas excluidas, [4] columna de la persona afectada
+                         'ignorar', coalesce((string_to_array(encode(t.tgargs, 'escape'), E'\\\\000'))[3], ''),
+                         'persona_attnum', (select a.attnum from pg_attribute a where a.attrelid = t.tgrelid
+                                              and a.attname = nullif((string_to_array(encode(t.tgargs, 'escape'), E'\\\\000'))[5], ''))))
                        from pg_trigger t
                       where t.tgrelid = ('public.' || pol.tablename)::regclass
                         and t.tgname like 'zz_registro_admin%' and not t.tgisinternal), '[]'::json) as triggers
       from pol order by 1, 2`)
   const clasificar = (r) => {
     const que = r.triggers.filter(tg => (tg.tipo & BIT[r.op]) > 0)
-    if (que.some(tg => !filtraColumnas(tg.def))) return 'completa'
+    if (que.some(tg => !filtraColumnas(tg, r.op))) return 'completa'
     if (que.length) return 'parcial'
     return 'ninguna'
   }
@@ -450,10 +483,15 @@ try {
     else huecos.push(`${r.tablename}.${r.op}${c === 'parcial' ? ' (sólo un trigger que filtra columnas, sin justificar)' : ''}`)
   }
   // Autochequeo del clasificador: tiene que distinguir un trigger total de uno por columnas.
-  ok(!filtraColumnas('CREATE TRIGGER t AFTER UPDATE ON public.x FOR EACH ROW WHEN (((auth.uid() IS NOT NULL) AND _aal_actor_es_admin())) EXECUTE FUNCTION f()')
-     && filtraColumnas('CREATE TRIGGER t AFTER UPDATE ON public.x FOR EACH ROW WHEN ((new.a IS DISTINCT FROM old.a)) EXECUTE FUNCTION f()')
-     && filtraColumnas('CREATE TRIGGER t AFTER UPDATE OF a ON public.x FOR EACH ROW EXECUTE FUNCTION f()'),
-    'el clasificador distingue un trigger sobre toda la fila de uno que filtra columnas')
+  const base = { attr: '', ignorar: '', old_vars: 0, new_attnums: [], persona_attnum: null }
+  ok(!filtraColumnas(base)
+     && !filtraColumnas({ ...base, new_attnums: [2], persona_attnum: 2 })          // guarda de actor sobre la columna de la persona
+     && filtraColumnas({ ...base, old_vars: 2, new_attnums: [5] })                  // new.a IS DISTINCT FROM old.a
+     && filtraColumnas({ ...base, new_attnums: [7], persona_attnum: 2 })            // new.is_verified IS TRUE
+     && filtraColumnas({ ...base, new_attnums: [2] })                               // una columna NEW sin persona declarada
+     && filtraColumnas({ ...base, attr: '5' })                                      // UPDATE OF
+     && filtraColumnas({ ...base, ignorar: 'status' }),                             // columnas excluidas
+    'el clasificador (catálogo) distingue un trigger sobre toda la fila de uno que filtra columnas, y no confunde una guarda de actor con un filtro')
   const tablas = [...new Set(ops.map(r => r.tablename))]
   ok(huecos.length === 0,
     huecos.length
