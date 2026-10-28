@@ -235,10 +235,10 @@ test('"Failing row contains" dentro de un string JSON no se lleva el resto del J
   assert.equal(o.code, '23502', 'el code sobrevive')
   assert.equal(o.hint, null)
   assert.match(o.message, /^null value\. Failing row contains \[filtrado\]/)
-  // en texto plano se esconde hasta el fin de línea y la línea siguiente queda
+  // en texto plano se esconde hasta el final (una fila puede tener saltos de línea)
   const t = limpiarTexto('error\nFailing row contains (Juan Pérez, Av. Santa Fe 1234)\nsiguiente línea')
   sinFugas(t, 'texto plano')
-  assert.match(t, /\nsiguiente línea$/)
+  assert.match(t, /^error\nFailing row contains \[filtrado\]$/)
 })
 
 test('details/hint doble-serializados (\\"details\\":\\"…\\") y con comillas escapadas adentro', () => {
@@ -259,6 +259,93 @@ test('details/hint doble-serializados (\\"details\\":\\"…\\") y con comillas e
   const s = limpiarTexto(simple)
   sinFugas(s, 'nivel simple con comillas')
   assert.deepEqual(JSON.parse(s), { details: '[filtrado]', code: '1', hint: null })
+})
+
+test('filas con columnas jsonb o valores con comillas: se tapa TODO y el JSON sigue entero', () => {
+  const casos = [
+    'Failing row contains (1, {"nombre": "Juan Pérez", "dir": "Av Santa Fe 1234"}, null).',
+    'Failing row contains (1, Juan "Flaco", Av Libertador 4500, null).',
+    'Failing row contains (1, {"a": "x", "b": ["Juan Pérez", {"c": "Av Santa Fe 1234"}]}, "Juan \\"Flaco\\"", null).',
+  ]
+  for (const fila of casos) {
+    // un nivel
+    const uno = limpiarTexto(JSON.stringify({ error: fila, code: '23502', status: 400 }))
+    sinFugas(uno, `un nivel: ${fila}`)
+    for (const p of ['Av Santa Fe 1234', 'Av Libertador 4500', 'Flaco']) assert.ok(!uno.includes(p), `se coló ${p}`)
+    const o1 = JSON.parse(uno)
+    assert.equal(o1.code, '23502')
+    assert.equal(o1.status, 400)
+    assert.match(o1.error, /^Failing row contains/)
+    // doble serialización
+    const dos = limpiarTexto(JSON.stringify({ body: JSON.stringify({ error: fila, code: '23502' }), status: 400 }))
+    sinFugas(dos, `doble: ${fila}`)
+    for (const p of ['Av Santa Fe 1234', 'Av Libertador 4500', 'Flaco']) assert.ok(!dos.includes(p), `se coló ${p}`)
+    const o2 = JSON.parse(dos)
+    assert.equal(o2.status, 400)
+    assert.equal(JSON.parse(o2.body).code, '23502')
+    // dentro de texto suelto (consola): "PostgrestError {…}"
+    const consola = limpiarTexto(`PostgrestError ${JSON.stringify({ error: fila, code: '23502' })}`)
+    sinFugas(consola, `consola: ${fila}`)
+    assert.equal(JSON.parse(consola.replace(/^PostgrestError /, '')).code, '23502')
+  }
+})
+
+test('Key (…)=(…) en JSON doble-serializado conserva code y status', () => {
+  const dos = limpiarTexto(JSON.stringify({ body: JSON.stringify({ message: 'Key (full_name)=(Juan Pérez)', code: '23505' }), status: 400 }))
+  sinFugas(dos, 'Key doble')
+  const o = JSON.parse(dos)
+  assert.equal(o.status, 400)
+  const interno = JSON.parse(o.body)
+  assert.equal(interno.code, '23505')
+  assert.equal(interno.message, 'Key (full_name)=([filtrado])')
+  // un nivel, con índice de expresión y valor con paréntesis
+  const uno = limpiarTexto(JSON.stringify({ message: 'Key (lower(full_name::text))=(Juan (el flaco) Pérez) already exists.', code: '23505' }))
+  sinFugas(uno, 'Key un nivel')
+  assert.equal(JSON.parse(uno).code, '23505')
+  assert.match(JSON.parse(uno).message, /already exists/)
+})
+
+test('JSON ilegible (truncado) y texto suelto: ante la duda se tapa de más, nunca se filtra', () => {
+  // truncado: no se puede parsear, se tapa el resto de la línea desde details
+  const truncado = limpiarTexto('{"code":"23502","details":"Failing row contains (Juan Pérez, Av. Santa Fe 1234, ')
+  sinFugas(truncado, 'truncado')
+  // varios JSON en una misma línea de consola
+  const varios = limpiarTexto(`falló ${JSON.stringify({ nombre: 'Juan Pérez', code: 1 })} y ${JSON.stringify({ mail: 'juan.perez@gmail.com', ok: true })}`)
+  sinFugas(varios, 'varios JSON')
+  assert.match(varios, /"code":1/)
+  assert.match(varios, /"ok":true/)
+  // un número sin comillas dentro del JSON (un DNI) también se enmascara
+  const num = limpiarTexto('{"valor": 30123456, "ts": 1793208573515}')
+  assert.ok(!num.includes('30123456'))
+  assert.ok(num.includes('1793208573515'), 'una marca de tiempo no se toca')
+  // string JSON entero
+  const s = limpiarTexto(JSON.stringify('Failing row contains (Juan Pérez, Av. Santa Fe 1234)'))
+  sinFugas(s, 'string JSON')
+  assert.equal(JSON.parse(s).startsWith('Failing row contains'), true)
+  // la fila tapa hasta el final del texto suelto, aunque tenga saltos de línea
+  sinFugas(limpiarTexto('error\nFailing row contains (Juan Pérez,\nAv. Santa Fe 1234)\nsiguiente'), 'multilínea')
+})
+
+test('fuzz: ninguna fila con comillas, llaves, paréntesis o barras se filtra, a ningún nivel de serialización', () => {
+  // generador determinístico
+  let semilla = 20261028
+  const azar = (n) => { semilla = (semilla * 1664525 + 1013904223) % 4294967296; return semilla % n }
+  const piezas = ['"', '\\', '{', '}', '[', ']', '(', ')', ',', ':', ' ', '\n', "'", '`', '"nombre": "', 'SECRETO', '\\"', '}"', ')=(']
+  const valorRaro = () => Array.from({ length: 3 + azar(10) }, () => piezas[azar(piezas.length)]).join('') + 'SECRETO'
+  const encabezados = ['Failing row contains (', 'Key (full_name)=(', 'Key (lower(x::text))=(']
+  for (let n = 0; n < Number(process.env.FUZZ_N ?? 400); n++) {
+    const cuerpo = encabezados[azar(encabezados.length)] + valorRaro() + valorRaro() + (azar(2) ? ')' : '')
+    const forma = azar(5)
+    let entrada
+    if (forma === 0) entrada = cuerpo
+    else if (forma === 1) entrada = `PostgrestError ${JSON.stringify({ code: '23502', details: cuerpo, message: 'm' })}`
+    else if (forma === 2) entrada = JSON.stringify({ error: cuerpo, code: '23502', status: 400 })
+    else if (forma === 3) entrada = JSON.stringify({ body: JSON.stringify({ message: cuerpo, code: '23505' }), status: 400 })
+    else entrada = JSON.stringify({ body: JSON.stringify({ body: JSON.stringify({ message: cuerpo }) }) })
+    const salida = limpiarTexto(entrada)
+    assert.ok(!salida.includes('SECRETO'), `forma ${forma}: se coló en ${JSON.stringify(salida).slice(0, 300)} (entrada ${JSON.stringify(entrada).slice(0, 300)})`)
+    if (forma >= 2 && forma <= 3) JSON.parse(salida)   // lo que era JSON sigue siendo JSON
+  }
 })
 
 // ── 3. Configuración de Sentry.init ─────────────────────────────────────────
