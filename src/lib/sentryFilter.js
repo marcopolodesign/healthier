@@ -170,7 +170,7 @@ export const SEGMENTOS_CONOCIDOS = new Set        ([
   'reset_reminder_on_reschedule', 'resolver_link_de_referido',
   'responder_consentimiento_derivacion', 'rest', 'restablecer-contrasena', 'resumen',
   'resumen_de_referidos', 'review', 'reviews', 'reviews_recalc_rating_trigger',
-  'rol_de_servidor_valido', 'rpc', 'sala-espera', 'salud', 'search-professional',
+  'rol_de_servidor_valido', 'rpc', 'sala-espera', 'salud', 'search-professional', 'seguridad',
   'selecting-service', 'sellar_cierre_emergencia', 'sellar_orden_traslado', 'send-email',
   'send-push-notification', 'sessions', 'set_updated_at', 'settings', 'sign', 'signup',
   'sin-cobertura-medica', 'sincronizar_nombre_completo', 'sincronizar_pago_de_pedido',
