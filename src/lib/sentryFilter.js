@@ -24,7 +24,18 @@ const MASCARA = '[filtrado]'
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi
 
 // El orden importa: lo más específico primero, los números sueltos al final.
+//
+// Los errores de Postgres/PostgREST traen la FILA que falló en `details` y la
+// clave duplicada en el mensaje: "Failing row contains (…, Juan Pérez, Av. X 123, …)",
+// "Key (email)=(x) already exists". Llegan por breadcrumbs de consola y por
+// rejections serializadas, y la fila entera es un dato personal aunque ninguna
+// de sus columnas parezca un mail o un DNI: se esconde TODA la línea.
 const REGLAS = [
+  // Filas y claves de errores de la base
+  [/("(?:details|hint)"\s*:\s*)"(?:[^"\\]|\\.)*"/gi, '$1"[filtrado]"'],
+  [/(\b(?:details|hint)\b\s*:\s*)(['"`])(?:(?!\2)[^\\]|\\.)*\2/gi, '$1$2[filtrado]$2'],
+  [/Failing row contains[^\n]*/gi, 'Failing row contains [filtrado]'],
+  [/\bKey \(([^)]*)\)=\([^)]*\)/g, 'Key ($1)=([filtrado])'],
   // Tokens y secretos
   [/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g, '[token]'],
   [/\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [token]'],
@@ -61,7 +72,7 @@ export function limpiarUrl(url) {
 }
 
 // Claves cuyo VALOR se esconde entero, sea lo que sea que tengan.
-const CLAVE_SENSIBLE = /(e-?mail|\bmail\b|dni|documento|cuit|cuil|phone|tel[eé]fono|celular|whatsapp|passw|contrase|token|authorization|api[_-]?key|apikey|secret|cookie|full_?name|first_?name|last_?name|nombre|apellido|username|display_?name|address|direcci[oó]n|nacimiento|birth|fecha_de_nac)/i
+const CLAVE_SENSIBLE = /(^(details|hint|detail)$|e-?mail|\bmail\b|dni|documento|cuit|cuil|phone|tel[eé]fono|celular|whatsapp|passw|contrase|token|authorization|api[_-]?key|apikey|secret|cookie|full_?name|first_?name|last_?name|nombre|apellido|username|display_?name|address|direcci[oó]n|nacimiento|birth|fecha_de_nac)/i
 
 // Cuerpos de request/response: nunca viajan.
 const CLAVE_CUERPO = /^(body|data|request_body|response_body|requestbody|responsebody|payload)$/i
