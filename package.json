@@ -14,6 +14,7 @@
     "emails": "tsx scripts/preview-emails.ts && tsx scripts/push-textos.ts",
     "emails:auth": "tsx scripts/aplicar-mails-de-auth.ts",
     "push": "tsx scripts/push-textos.ts",
+    "test:sentry": "node --test scripts/test-sentry-sin-datos-personales.mjs",
     "test:guia": "node scripts/prueba-guia.mjs",
     "test:cobertura": "node --test scripts/test-cobertura-sugerida.mjs",
     "test:teleclinica": "node --test scripts/test-checkout-teleclinica.mjs",
