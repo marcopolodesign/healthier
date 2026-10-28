@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { ShieldCheck } from '@phosphor-icons/react'
+import { supabase } from '../../lib/supabase'
 import { mfaService } from '../../services/mfaService'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
 import {
   decidirPasoMfa, PASO_MFA, MFA_SUPERADMIN_OBLIGATORIO, RUTA_SEGURIDAD, EVENTO_MFA_CAMBIO, limpiarCodigo,
+  sesionIdDeToken, claveDeEvaluacion, resultadoVigente,
 } from '../../lib/mfa'
 
 /**
@@ -18,16 +20,45 @@ import {
  *     /super-admin/seguridad;
  *   - el resto → pasa.
  *
- * El resultado se guarda atado al id del perfil: al cambiar de cuenta se vuelve
- * a evaluar y mientras tanto se muestra un spinner (nunca el panel).
+ * El resultado se guarda atado a la cuenta Y a la sesión (`claveDeEvaluacion`):
+ * un login nuevo —aunque sea de la misma cuenta y sin cerrar sesión, o un
+ * SIGNED_IN desde otra pestaña— vuelve a evaluar, y mientras tanto se muestra
+ * un spinner (nunca el panel).
  */
+// null = no hay sesión. Con sesión pero sin claim `session_id` en el token (no
+// debería pasar) se cae al id de la cuenta: nunca queda el spinner para siempre.
+const idDeSesion = session =>
+  session?.access_token ? (sesionIdDeToken(session.access_token) ?? session.user?.id ?? 'sin-id') : null
+
 export default function MfaGuard({ profile, children }) {
   const [resultado, setResultado] = useState(null) // { clave, paso } | { clave, error }
   const [reintento, setReintento] = useState(0)
   const location = useLocation()
 
   const esSuperAdmin = profile?.role === 'super_admin'
-  const clave = esSuperAdmin ? profile.id : null
+
+  // Id de la SESIÓN actual (no de la persona). `undefined` = todavía no se leyó.
+  // Se mantiene con el listener de auth —sólo setState, sin esperar a Supabase
+  // adentro del callback (deadlock del candado, ver App.jsx)— así que un login
+  // nuevo de la misma cuenta sin pasar por `profile = null` (re-login en /login,
+  // o un SIGNED_IN que viene de otra pestaña) cambia la clave y fuerza re-evaluar.
+  const [sesionId, setSesionId] = useState(undefined)
+  useEffect(() => {
+    if (!esSuperAdmin) {
+      setSesionId(undefined)
+      return undefined
+    }
+    let vigente = true
+    supabase.auth.getSession().then(({ data }) => {
+      if (vigente) setSesionId(idDeSesion(data.session))
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_evento, session) => {
+      setSesionId(idDeSesion(session))
+    })
+    return () => { vigente = false; subscription.unsubscribe() }
+  }, [esSuperAdmin])
+
+  const clave = esSuperAdmin ? claveDeEvaluacion(profile.id, sesionId) : null
 
   useEffect(() => {
     // Sin sesión (cerró sesión, o nunca hubo): olvidar el resultado. Si no, el
@@ -65,7 +96,7 @@ export default function MfaGuard({ profile, children }) {
 
   if (!esSuperAdmin) return children
 
-  const actual = resultado?.clave === clave ? resultado : null
+  const actual = resultadoVigente(resultado, clave)
 
   if (!actual) {
     return (
