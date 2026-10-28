@@ -28,10 +28,14 @@
  *   6. edición del perfil de otra persona: asienta los NOMBRES de columna, no los valores
  *   7. devolución decidida por el super admin (disparada desde SQL, se deshace)
  *   8. append-only: UPDATE / DELETE / INSERT / TRUNCATE rechazados para todos
- *   9. cobertura: toda tabla que el admin (o el admin de un tenant: emergencias,
- *      farmacia) puede escribir tiene su trigger o una excepción explicada acá abajo
+ *   9. cobertura POR OPERACIÓN: por cada INSERT / UPDATE / DELETE que las policies le
+ *      dan a un admin (o al admin de un tenant: emergencias, farmacia) tiene que
+ *      haber un trigger que lo asiente, o una excepción explicada acá abajo
  *   10. el id del asiento de configuración es la clave primaria real (rnos, droga…)
- *   11. el admin de emergencias queda asentado en las tablas de su tenant
+ *   11. el admin de emergencias queda asentado en las tablas de su tenant, pero NO
+ *       el despacho diario (ambulances.status)
+ *   12. consultas: el admin edita cualquier columna (precio, profesional…), crea y
+ *       borra, y queda asentado; un paciente que edita la suya, no
  *
  * Deja la base como la encontró (los asientos de prueba quedan: son inmutables).
  */
@@ -291,6 +295,54 @@ try {
   if (/TENANT sin-datos/.test(tenant)) console.log('· (aviso) no hay un emergency_admin con personal asignado en staging: se saltea el chequeo del tenant')
   else ok(/TENANT 1/.test(tenant), `un emergency_admin que cambia su personal queda asentado (${tenant.match(/TENANT \d+/)?.[0] ?? tenant.slice(0, 160)})`)
 
+  // 12 ─ Consultas: cualquier columna, también crear y borrar; un paciente no cuenta
+  const [cons] = await sql('select id, patient_id from public.consultations where patient_id is not null limit 1')
+  const consR = await sql(`do $$
+    declare a int; b int; c int; d int;
+    begin
+      perform set_config('request.jwt.claims', json_build_object('sub', '${sup.id}', 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      update public.consultations set price_at_booking = coalesce(price_at_booking, 0) + 1 where id = '${cons.id}';
+      update public.consultations set invoice_url = 'https://example.test/f.pdf' where id = '${cons.id}';
+      delete from public.consultations where id = '${cons.id}';
+      reset role;
+      select count(*) into a from public.admin_action_log where entity_id = '${cons.id}' and action = 'modificacion_consultations' and actor_id = '${sup.id}' and detail->'columnas' ? 'price_at_booking';
+      select count(*) into b from public.admin_action_log where entity_id = '${cons.id}' and action = 'modificacion_consultations' and detail->'columnas' ? 'invoice_url';
+      select count(*) into c from public.admin_action_log where entity_id = '${cons.id}' and action = 'eliminacion_consultations' and actor_id = '${sup.id}';
+      raise exception 'CONS %/%/%', a, b, c;
+    end $$;`).then(() => '', e => e.message)
+  ok(/CONS 1\/1\/1/.test(consR), `consultas: el admin cambia el precio y la factura y borra → los tres asentados (${consR.match(/CONS [\d/]+/)?.[0] ?? consR.slice(0, 200)})`)
+  const consP = await sql(`do $$
+    declare n int;
+    begin
+      perform set_config('request.jwt.claims', json_build_object('sub', '${cons.patient_id}', 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      update public.consultations set cancel_reason = 'prueba' where id = '${cons.id}';
+      reset role;
+      select count(*) into n from public.admin_action_log where entity_id = '${cons.id}' and created_at >= now() - interval '1 minute';
+      raise exception 'PAC %', n;
+    end $$;`).then(() => '', e => e.message)
+  ok(/PAC 0/.test(consP), `consultas: un paciente que edita la suya no se asienta (${consP.match(/PAC \d+/)?.[0] ?? consP.slice(0, 200)})`)
+
+  // 11b ─ El despacho diario (estado de la ambulancia) NO es una acción de administración
+  const amb = await sql(`do $$
+    declare adm uuid := '30000000-0000-0000-0000-000000000001'; amb uuid := '40000000-0000-0000-0000-000000000001'; a int; b int; st text;
+    begin
+      select status into st from public.ambulances where id = amb;
+      perform set_config('request.jwt.claims', json_build_object('sub', adm, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      update public.ambulances set status = case when st = 'en_servicio' then 'disponible' else 'en_servicio' end where id = amb;
+      reset role;
+      select count(*) into a from public.admin_action_log where entity_id = amb::text and action = 'modificacion_ambulances';
+      perform set_config('request.jwt.claims', json_build_object('sub', adm, 'role', 'authenticated')::text, true);
+      set local role authenticated;
+      update public.ambulances set label = label || ' (prueba)' where id = amb;
+      reset role;
+      select count(*) into b from public.admin_action_log where entity_id = amb::text and action = 'modificacion_ambulances';
+      raise exception 'AMB %/%', a, b;
+    end $$;`).then(() => '', e => e.message)
+  ok(/AMB 0\/1/.test(amb), `ambulancias: cambiar el estado no se asienta, cambiar la etiqueta sí (${amb.match(/AMB [\d/]+/)?.[0] ?? amb.slice(0, 200)})`)
+
   // 8 ─ Append-only, para todos
   const [{ n: total }] = await sql('select count(*)::int n from public.admin_action_log')
   const [una] = await sql('select id from public.admin_action_log limit 1')
@@ -322,26 +374,38 @@ try {
   ok(leeSuper.ok && leeSuper.data.length === 1, 'el super admin sí lo lee')
 
   // 9 ─ Cobertura: toda tabla que un admin puede escribir tiene su trigger
+  // Excepciones, POR OPERACIÓN y con el motivo. '*' = todas las que dé la policy.
   const EXENTAS = {
-    clinical_access_log: 'el DELETE lo frena el trigger de la 033 (retención de la HC); es ya un registro',
-    professional_verification_log: 'es el registro de decisiones; la decisión queda en professional_profiles (trigger)',
-    ambulance_locations: 'telemetría GPS de las ambulancias, no una acción de administración',
-    pharmacy_products: 'catálogo operativo que edita la propia farmacia (importaciones masivas)',
-    emergencies: 'operación diaria del despacho (asignaciones); sólo se asientan los borrados del super admin',
-    medication_orders: 'operación diaria de la farmacia (pedidos); sólo se asientan los borrados del super admin',
+    clinical_access_log: { DELETE: 'el DELETE lo frena el trigger de la 033 (retención de la HC); es ya un registro' },
+    professional_verification_log: { '*': 'es el registro de decisiones; la decisión queda en professional_profiles (trigger)' },
+    ambulance_locations: { '*': 'telemetría GPS de las ambulancias, no una acción de administración' },
+    pharmacy_products: { '*': 'catálogo operativo que edita la propia farmacia (importaciones masivas)' },
+    emergencies: { UPDATE: 'operación diaria del despacho (asignaciones); sólo se asientan los borrados del super admin' },
+    medication_orders: { UPDATE: 'operación diaria de la farmacia (pedidos); sólo se asientan los borrados del super admin' },
   }
-  const tablas = await sql(`
-    select p.tablename,
-           exists (select 1 from pg_trigger t where t.tgrelid = ('public.' || p.tablename)::regclass
-                    and t.tgname like 'zz_registro_admin%' and not t.tgisinternal) as cubierta
-      from pg_policies p
-     where p.schemaname = 'public' and p.cmd in ('INSERT', 'UPDATE', 'DELETE', 'ALL')
-       and ((coalesce(p.qual, '') || coalesce(p.with_check, '')) ~ 'super_admin|''admin''|emergency_admin|pharmacy_admin')
-     group by p.tablename order by 1`)
-  const sinCubrir = tablas.filter(t => !t.cubierta && !EXENTAS[t.tablename]).map(t => t.tablename)
+  const BIT = { INSERT: 4, DELETE: 8, UPDATE: 16 }
+  const ops = await sql(`
+    with pol as (
+      select p.tablename, o.op
+        from pg_policies p
+        cross join lateral unnest(case when p.cmd = 'ALL' then array['INSERT', 'UPDATE', 'DELETE'] else array[p.cmd] end) o(op)
+       where p.schemaname = 'public' and p.cmd in ('INSERT', 'UPDATE', 'DELETE', 'ALL')
+         and ((coalesce(p.qual, '') || coalesce(p.with_check, '')) ~ 'super_admin|''admin''|emergency_admin|pharmacy_admin')
+       group by p.tablename, o.op)
+    select pol.tablename, pol.op,
+           coalesce((select array_agg(t.tgtype::int) from pg_trigger t
+                      where t.tgrelid = ('public.' || pol.tablename)::regclass
+                        and t.tgname like 'zz_registro_admin%' and not t.tgisinternal), '{}') as triggers
+      from pol order by 1, 2`)
+  const cubierta = (r) => r.triggers.some(tg => (tg & BIT[r.op]) > 0)
+  const exenta = (r) => EXENTAS[r.tablename]?.[r.op] || EXENTAS[r.tablename]?.['*']
+  const sinCubrir = ops.filter(r => !cubierta(r) && !exenta(r)).map(r => `${r.tablename}.${r.op}`)
+  const tablas = [...new Set(ops.map(r => r.tablename))]
   ok(sinCubrir.length === 0,
-    sinCubrir.length ? `tablas que el admin escribe SIN registro: ${sinCubrir.join(', ')} — agregales el trigger o una excepción explicada` : `cobertura: ${tablas.length} tablas, ${tablas.filter(t => t.cubierta).length} con trigger, ${Object.keys(EXENTAS).length} exentas explicadas`)
-  const sobran = Object.keys(EXENTAS).filter(k => !tablas.some(t => t.tablename === k))
+    sinCubrir.length
+      ? `operaciones que el admin puede hacer SIN registro: ${sinCubrir.join(', ')} — agregales el trigger o una excepción explicada`
+      : `cobertura: ${ops.length} operaciones en ${tablas.length} tablas; ${ops.filter(cubierta).length} con trigger, ${ops.filter(r => !cubierta(r) && exenta(r)).length} exentas explicadas`)
+  const sobran = Object.entries(EXENTAS).flatMap(([t, m]) => Object.keys(m).filter(op => !ops.some(r => r.tablename === t && (op === '*' || r.op === op))).map(op => `${t}.${op}`))
   if (sobran.length) console.log(`· (aviso) excepciones que ya no hacen falta: ${sobran.join(', ')}`)
 } catch (e) {
   fallas++

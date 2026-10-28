@@ -54,6 +54,7 @@ const corto = (v) => {
 
 const esPar = (v) => v !== null && typeof v === 'object' && !Array.isArray(v) && 'antes' in v && 'despues' in v
 const esObjeto = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
+const cambio = (v) => JSON.stringify(v.antes) !== JSON.stringify(v.despues)
 const par = (k, v) => `${k ? `${k}: ` : ''}${corto(v.antes)} → ${corto(v.despues)}`
 const pares = (o) => Object.entries(o).slice(0, 4).map(([k, v]) => `${k}=${corto(v)}`).join(', ')
 
@@ -74,14 +75,16 @@ export function resumenDetalle(row) {
   if (d.monto !== undefined && d.monto !== null) partes.push(`$${d.monto}`)
 
   // antes → después de un solo valor (también cuando antes es null: alta)
-  if ('antes' in d && 'despues' in d && !esObjeto(d.antes) && !esObjeto(d.despues)) partes.push(par('', d))
+  if ('antes' in d && 'despues' in d && !esObjeto(d.antes) && !esObjeto(d.despues)) {
+    if (cambio(d) || d.antes === null) partes.push(par('', d))   // verificación en INSERT: "— → true"
+  }
   else if (esObjeto(d.despues) && !('antes' in d)) partes.push(`Nuevo: ${pares(d.despues)}`)
   else if (esObjeto(d.antes) && !('despues' in d)) partes.push(`Anterior: ${pares(d.antes)}`)
 
   for (const [k, v] of Object.entries(d)) {
-    if (esPar(v)) partes.push(par(k, v))
+    if (esPar(v)) { if (cambio(v)) partes.push(par(k, v)) }     // un par que no cambió no dice nada
     else if ((k === 'cambios' || k === 'estado') && esObjeto(v)) {
-      for (const [campo, pv] of Object.entries(v)) if (esPar(pv)) partes.push(par(campo, pv))
+      for (const [campo, pv] of Object.entries(v)) if (esPar(pv) && cambio(pv)) partes.push(par(campo, pv))
     }
   }
 
