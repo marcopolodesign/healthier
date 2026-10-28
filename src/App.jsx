@@ -7,6 +7,7 @@ import AuthLayout from './layouts/AuthLayout'
 import PatientMobileLayout from './layouts/PatientMobileLayout'
 import { authService } from './services/authService'
 import { supabase } from './lib/supabase'
+import { Sentry } from './lib/sentry'
 import { professionalService } from './services/professionalService'
 import { track, setAnalyticsUser, clearAnalyticsUser } from './utils/analytics'
 import {
@@ -262,6 +263,12 @@ export default function App() {
   // el `profile` del closure puede estar viejo. El ref siempre tiene el último.
   const profileRef = useRef(null)
   profileRef.current = profile
+
+  // Sentry: a la persona se la identifica sólo por su id (UUID). El resto —quién es,
+  // qué mail tiene— lo resolvemos nosotros adentro; a Sentry no sale (ver sentryFilter).
+  useEffect(() => {
+    Sentry.setUser(profile?.id ? { id: profile.id } : null)
+  }, [profile?.id])
 
   const loadProfSpecialty = async (userId) => {
     try {
