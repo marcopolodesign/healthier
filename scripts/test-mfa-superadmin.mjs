@@ -9,7 +9,9 @@
 //   4. el flag de "obligatorio" arranca prendido;
 //   5. el guard sale de App.jsx, deja de envolver las rutas, deja de mostrar la
 //      pantalla de código o de llamar a mfaService.verificar;
-//   6. la pantalla /super-admin/seguridad aparece linkeada desde el menú (hoy NO
+//   6. un login nuevo de la MISMA cuenta (re-login sin cerrar sesión, SIGNED_IN desde otra
+//      pestaña) deja de forzar la re-evaluación y hereda el resultado de la sesión anterior;
+//   7. la pantalla /super-admin/seguridad aparece linkeada desde el menú (hoy NO
 //      se muestra, decisión de Mateo).
 //   npm run test:mfa
 import { test } from 'node:test'
@@ -17,7 +19,10 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { decidirPasoMfa, PASO_MFA, MFA_SUPERADMIN_OBLIGATORIO, RUTA_SEGURIDAD, limpiarCodigo } from '../src/lib/mfa.js'
+import {
+  decidirPasoMfa, PASO_MFA, MFA_SUPERADMIN_OBLIGATORIO, RUTA_SEGURIDAD, limpiarCodigo,
+  sesionIdDeToken, claveDeEvaluacion, resultadoVigente,
+} from '../src/lib/mfa.js'
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..')
 const leer = ruta => readFileSync(join(RAIZ, ruta), 'utf8')
@@ -93,5 +98,52 @@ test('MfaGuard olvida el resultado al cerrar sesión (re-login sin recargar no h
   // el efecto que evalúa tiene que vaciar el resultado cuando no hay clave (sin sesión de super admin)
   assert.match(guard, /if \(!clave\) \{\s*setResultado\(null\)\s*return undefined/)
   // y el resultado sólo vale si es de la misma cuenta que está ahora
-  assert.match(guard, /resultado\?\.clave === clave \? resultado : null/)
+  assert.match(guard, /resultadoVigente\(resultado, clave\)/)
+})
+
+// ── Re-login de la misma cuenta sin pasar por "sin sesión" ──────────────────
+const jwt = claims => `x.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.y`
+const CUENTA = 'aaaa-1111'
+
+test('sesionIdDeToken lee el claim session_id; sin token o sin claim → null', () => {
+  assert.equal(sesionIdDeToken(jwt({ session_id: 's1', aal: 'aal1' })), 's1')
+  assert.equal(sesionIdDeToken(jwt({ aal: 'aal1' })), null)
+  assert.equal(sesionIdDeToken('basura'), null)
+  assert.equal(sesionIdDeToken(null), null)
+})
+
+test('re-login de la misma cuenta (sesión nueva) NO hereda el NINGUNO de la sesión anterior', () => {
+  // 1. sesión vieja, ya en aal2: el guard guardó "ninguno" bajo su clave
+  const claveVieja = claveDeEvaluacion(CUENTA, sesionIdDeToken(jwt({ session_id: 'vieja', aal: 'aal2' })))
+  const guardado = { clave: claveVieja, paso: PASO_MFA.NINGUNO }
+  assert.equal(resultadoVigente(guardado, claveVieja), guardado)
+
+  // 2. la misma cuenta entra de nuevo SIN cerrar sesión (o llega un SIGNED_IN de otra pestaña):
+  //    sesión nueva en aal1 → otra clave → el resultado viejo ya no vale y hay que re-evaluar (spinner)
+  const claveNueva = claveDeEvaluacion(CUENTA, sesionIdDeToken(jwt({ session_id: 'nueva', aal: 'aal1' })))
+  assert.notEqual(claveNueva, claveVieja)
+  assert.equal(resultadoVigente(guardado, claveNueva), null)
+
+  // 3. con la sesión nueva evaluada en aal1 y con factor, el paso es pedir el código
+  assert.equal(decidirPasoMfa({ role: 'super_admin', currentLevel: 'aal1', tieneFactor: true }), PASO_MFA.VERIFICAR)
+})
+
+test('el refresh del token (misma sesión) y el paso a aal2 conservan la clave: no hay spinner cada hora', () => {
+  const a = claveDeEvaluacion(CUENTA, sesionIdDeToken(jwt({ session_id: 's1', aal: 'aal1', iat: 1 })))
+  const b = claveDeEvaluacion(CUENTA, sesionIdDeToken(jwt({ session_id: 's1', aal: 'aal2', iat: 999 })))
+  assert.equal(a, b)
+})
+
+test('sin cuenta o sin sesión no hay clave; un resultado nunca vale sin clave', () => {
+  assert.equal(claveDeEvaluacion(null, 's1'), null)
+  assert.equal(claveDeEvaluacion(CUENTA, null), null)
+  assert.equal(resultadoVigente({ clave: 'x', paso: PASO_MFA.NINGUNO }, null), null)
+})
+
+test('MfaGuard keyea por sesión: escucha onAuthStateChange sin await adentro, y no usa profile.id a secas', () => {
+  const guard = leer('src/components/auth/MfaGuard.jsx')
+  assert.match(guard, /supabase\.auth\.onAuthStateChange\(\(_evento, session\) => \{\s*setSesionId\(idDeSesion\(session\)\)/)
+  assert.match(guard, /claveDeEvaluacion\(profile\.id, sesionId\)/)
+  assert.match(guard, /resultadoVigente\(resultado, clave\)/)
+  assert.doesNotMatch(guard, /const clave = esSuperAdmin \? profile\.id : null/)
 })

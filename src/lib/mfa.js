@@ -50,3 +50,34 @@ export const EVENTO_MFA_CAMBIO = 'healthier:mfa-cambio'
 export function limpiarCodigo(valor) {
   return String(valor ?? '').replace(/\D/g, '').slice(0, 6)
 }
+
+/**
+ * Id de la SESIÓN (claim `session_id` del JWT de Supabase), no de la persona.
+ * Cada login crea una sesión nueva con su propio id; el refresh del token y el
+ * paso aal1 → aal2 de la misma sesión lo conservan. Sin token o sin claim → null.
+ */
+export function sesionIdDeToken(accessToken) {
+  try {
+    const payload = String(accessToken ?? '').split('.')[1]
+    if (!payload) return null
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+    return JSON.parse(json).session_id ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Clave con la que `MfaGuard` guarda el resultado de la evaluación: cuenta +
+ * sesión. Un login nuevo de la misma cuenta (re-login sin cerrar sesión, o un
+ * SIGNED_IN que viene de otra pestaña) es OTRA clave, así que nunca hereda el
+ * resultado de la sesión anterior. `null` = no hay nada que evaluar todavía.
+ */
+export function claveDeEvaluacion(userId, sesionId) {
+  return userId && sesionId ? `${userId}:${sesionId}` : null
+}
+
+/** El resultado guardado sólo vale si es de la MISMA clave de ahora; si no, hay que re-evaluar. */
+export function resultadoVigente(resultado, clave) {
+  return clave && resultado?.clave === clave ? resultado : null
+}
