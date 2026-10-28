@@ -38,6 +38,9 @@
  *   12. consultas: el admin edita cualquier columna (precio, profesional…), crea y
  *       borra, y queda asentado; un paciente que edita la suya, no
  *
+ * Código de salida: 0 todo probado y verde · 1 fallas · 3 sin fallas pero NO PROBADO por falta de
+ * cuentas/datos demo en staging (cuenta como rojo: no se da por bueno lo que no se corrió).
+ *
  * Deja la base como la encontró (los asientos de prueba quedan: son inmutables).
  */
 import { readFileSync } from 'node:fs'
@@ -108,6 +111,10 @@ async function sesionDe(email) {
 
 let fallas = 0
 const ok = (cond, msg) => { console.log(`${cond ? '✅' : '❌'} ${msg}`); if (!cond) fallas++ }
+// Lo que NO se pudo probar porque faltan cuentas o datos demo de staging. Un control que se saltea
+// pruebas en silencio y sale en verde miente: se informa y el script termina con código 3.
+const noProbado = []
+const noProbadoItem = (que, porQue) => { noProbado.push(que); console.log(`⚠️  NO PROBADO: ${que} — ${porQue}`) }
 
 const [{ ahora }] = await sql('select now() as ahora')
 const asientos = (where) => sql(`select * from public.admin_action_log where created_at >= '${ahora}' and ${where} order by created_at`)
@@ -154,7 +161,7 @@ try {
                                   refes_estado, refes_revisado_por, refes_revisado_at, refes_error
                            from public.professional_profiles pp
                            where user_id = (select id from public.profiles where email = 'profesional@healthier.app' limit 1)`)
-  if (!pro) console.log('· (aviso) falta profesional@healthier.app con su legajo en staging: se saltean las pruebas de verificación, consultorio y legajo')
+  if (!pro) noProbadoItem('verificación, rechazo, consultorio y legajo de un profesional', 'falta profesional@healthier.app con su legajo en staging')
   if (pro) {
   // Se restaura con la sesión del super admin: un trigger de la base no deja
   // cambiar is_verified a nadie que no sea administrador.
@@ -297,7 +304,7 @@ try {
       select count(*) into n from public.admin_action_log where actor_id = adm and action = 'modificacion_emergency_provider_staff' and entity_id = fila::text;
       raise exception 'TENANT %', n;
     end $$;`).then(() => '', e => e.message)
-  if (/TENANT sin-datos/.test(tenant)) console.log('· (aviso) no hay un emergency_admin con personal asignado en staging: se saltea el chequeo del tenant')
+  if (/TENANT sin-datos/.test(tenant)) noProbadoItem('el admin de emergencias queda asentado en su tenant', 'no hay un emergency_admin con personal asignado en staging')
   else ok(/TENANT 1/.test(tenant), `un emergency_admin que cambia su personal queda asentado (${tenant.match(/TENANT \d+/)?.[0] ?? tenant.slice(0, 160)})`)
 
   // 12 ─ Consultas: cualquier columna, también crear y borrar; un paciente no cuenta.
@@ -305,7 +312,7 @@ try {
   // prueba y se borra ésa, nunca una existente.
   const [pacDemo] = await sql(`select id from public.profiles where email = 'paciente@healthier.app' and titular_id is null limit 1`)
   const [proDemo] = await sql(`select id from public.profiles where email = 'profesional@healthier.app' limit 1`)
-  if (!pacDemo || !proDemo) console.log('· (aviso) faltan paciente@healthier.app / profesional@healthier.app en staging: se saltea el chequeo de consultas')
+  if (!pacDemo || !proDemo) noProbadoItem('consultas (admin edita, crea y borra; el paciente no cuenta)', 'faltan paciente@healthier.app / profesional@healthier.app en staging')
   else {
   const consR = await sql(`do $$
     declare v uuid; v2 uuid; filas int; pac int; a int; b int; c int; d int;
@@ -342,7 +349,7 @@ try {
   // 11b ─ El despacho diario (estado de la ambulancia) NO es una acción de administración
   const [hayAmb] = await sql(`select exists (select 1 from public.ambulances where id = '40000000-0000-0000-0000-000000000001')
                                 and exists (select 1 from public.profiles where id = '30000000-0000-0000-0000-000000000001' and role = 'emergency_admin') as ok`)
-  if (!hayAmb.ok) console.log('· (aviso) no están los seeds de despacho de staging (ambulancia 4000…01 / emergency_admin 3000…01): se saltea 11b')
+  if (!hayAmb.ok) noProbadoItem('el despacho diario (ambulances.status) no se asienta', 'no están los seeds de despacho de staging (ambulancia 4000…01 / emergency_admin 3000…01)')
   else {
   const amb = await sql(`do $$
     declare adm uuid := '30000000-0000-0000-0000-000000000001'; amb uuid := '40000000-0000-0000-0000-000000000001'; a int; b int; st text;
@@ -523,5 +530,7 @@ try {
   }
 }
 
-console.log(fallas ? `\n❌ ${fallas} falla(s)` : '\n✅ registro de acciones admin OK')
-process.exit(fallas ? 1 : 0)
+if (noProbado.length) console.log(`\n⚠️  ${noProbado.length} bloque(s) NO PROBADO(S): ${noProbado.join(' | ')}`)
+console.log(fallas ? `\n❌ ${fallas} falla(s)` : noProbado.length ? '\n⚠️  sin fallas, pero con partes NO PROBADAS (código de salida 3)' : '\n✅ registro de acciones admin OK')
+// 0 = todo probado y verde · 1 = hay fallas · 3 = sin fallas pero faltaron cuentas/datos demo (no es verde)
+process.exit(fallas ? 1 : noProbado.length ? 3 : 0)
