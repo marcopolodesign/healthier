@@ -52,20 +52,52 @@ const corto = (v) => {
   return t.length > 60 ? `${t.slice(0, 60)}…` : t
 }
 
-/** Una línea con el antes/después mínimo que guardó el trigger. */
+const esPar = (v) => v !== null && typeof v === 'object' && !Array.isArray(v) && 'antes' in v && 'despues' in v
+const esObjeto = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
+const par = (k, v) => `${k ? `${k}: ` : ''}${corto(v.antes)} → ${corto(v.despues)}`
+const pares = (o) => Object.entries(o).slice(0, 4).map(([k, v]) => `${k}=${corto(v)}`).join(', ')
+
+/**
+ * Una línea con el antes/después mínimo que guardó el trigger. Entiende todas
+ * las formas de `detail` de la migración 218:
+ *   · {antes, despues[, motivo, fuente]}            → "a → b · motivo"
+ *   · {campo: {antes, despues}, …}                  → "campo: a → b · …"
+ *   · {cambios|estado: {campo: {antes, despues}}}   → ídem
+ *   · {antes: {…}} / {despues: {…}}                 → "Anterior: k=v, …" / "Nuevo: k=v, …"
+ *   · {columnas: [...]}                             → "Columnas: a, b"
+ *   · {monto, tipo, motivo} · {tasa, …} · {rol}     → "$1000 · tipo · motivo"
+ */
 export function resumenDetalle(row) {
   const d = row.detail ?? {}
-  if (d.antes !== undefined && d.despues !== undefined && typeof d.antes !== 'object') {
-    return `${corto(d.antes)} → ${corto(d.despues)}${d.motivo ? ` · ${corto(d.motivo)}` : ''}`
+  const partes = []
+
+  if (d.monto !== undefined && d.monto !== null) partes.push(`$${d.monto}`)
+
+  // antes → después de un solo valor (también cuando antes es null: alta)
+  if ('antes' in d && 'despues' in d && !esObjeto(d.antes) && !esObjeto(d.despues)) partes.push(par('', d))
+  else if (esObjeto(d.despues) && !('antes' in d)) partes.push(`Nuevo: ${pares(d.despues)}`)
+  else if (esObjeto(d.antes) && !('despues' in d)) partes.push(`Anterior: ${pares(d.antes)}`)
+
+  for (const [k, v] of Object.entries(d)) {
+    if (esPar(v)) partes.push(par(k, v))
+    else if ((k === 'cambios' || k === 'estado') && esObjeto(v)) {
+      for (const [campo, pv] of Object.entries(v)) if (esPar(pv)) partes.push(par(campo, pv))
+    }
   }
-  if (d.cambios) {
-    return Object.entries(d.cambios).map(([k, v]) => `${k}: ${corto(v.antes)} → ${corto(v.despues)}`).join(' · ')
-  }
-  if (d.columnas) return `Columnas: ${d.columnas.join(', ')}`
-  if (d.tipo) return `${d.tipo}${d.motivo ? ` · ${corto(d.motivo)}` : ''}`
-  if (d.estado && typeof d.estado === 'string') return d.estado
-  if (d.monto !== undefined) return `$${d.monto}${d.motivo ? ` · ${corto(d.motivo)}` : ''}`
-  if (d.tasa !== undefined) return `tasa ${d.tasa === null ? 'general' : d.tasa}${d.motivo ? ` · ${corto(d.motivo)}` : ''}`
-  if (d.rol) return `rol ${d.rol}`
+
+  if (Array.isArray(d.columnas)) partes.push(`Columnas: ${d.columnas.join(', ')}`)
+  if (typeof d.estado === 'string' && d.estado) partes.push(d.estado)
+  if (d.tipo) partes.push(String(d.tipo))
+  if (d.tasa !== undefined) partes.push(`tasa ${d.tasa === null ? 'general' : d.tasa}`)
+  if (d.vigente_hasta) partes.push(`hasta ${String(d.vigente_hasta).slice(0, 10)}`)
+  if (d.rol) partes.push(`rol ${d.rol}`)
+  if (d.fuente) partes.push(`fuente ${d.fuente}`)
+  if (d.motivo) partes.push(corto(d.motivo))
+  if (d.nota) partes.push(corto(d.nota))
+
+  if (partes.length) return partes.join(' · ')
+  // Sin datos mínimos: al menos qué tipo de movimiento fue.
+  const m = /^(alta|modificacion|eliminacion)_/.exec(row.action ?? '')
+  if (m) return { alta: 'Registro nuevo', modificacion: 'Registro modificado', eliminacion: 'Registro eliminado' }[m[1]]
   return ''
 }
