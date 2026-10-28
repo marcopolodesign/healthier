@@ -531,10 +531,13 @@ declare
   --   1 = columnas de la clave primaria, separadas por coma
   --   2 = columnas operativas que NO se registran (p. ej. ambulances.status)
   --   3 = '1' si el WHEN del trigger ya verificó que quien escribe es admin
+  --   4 = columna que apunta a la PERSONA afectada (p. ej. user_id), para que el panel muestre el nombre
   v_modo     text   := coalesce(tg_argv[0], 'valores');
   v_pk       text[] := string_to_array(nullif(tg_argv[1], ''), ',');
   v_ignorar  text[] := string_to_array(nullif(tg_argv[2], ''), ',');
   v_ya_admin boolean := coalesce(tg_argv[3], '') = '1';
+  v_col_persona text := nullif(tg_argv[4], '');
+  v_persona  uuid;
   v_old      jsonb;
   v_new      jsonb;
   v_fila     jsonb;
@@ -571,10 +574,11 @@ begin
   -- El id del asiento es la clave primaria REAL de la tabla (id, rnos, droga…;
   -- si es compuesta, los valores unidos con "/").
   select string_agg(v_fila ->> c, '/' order by o) into v_id from unnest(v_pk) with ordinality u(c, o);
+  if v_col_persona is not null then v_persona := (v_fila ->> v_col_persona)::uuid; end if;
 
   perform public._aal_escribir(null,
     case tg_op when 'INSERT' then 'alta_' when 'UPDATE' then 'modificacion_' else 'eliminacion_' end || tg_table_name,
-    tg_table_name, v_id, null, v_detail);
+    tg_table_name, v_id, v_persona, v_detail);
   return null;
 end;
 $$;
@@ -589,7 +593,9 @@ create or replace function public._aal_trigger_config(
   p_eventos text,                                    -- 'insert or update or delete', 'delete'…
   p_modo    text,
   p_cuando  text default 'auth.uid() is not null',
-  p_ignorar text default ''
+  p_ignorar text default '',
+  p_admin_en_when boolean default false,             -- el WHEN ya verifica que quien escribe es admin
+  p_persona text default ''                          -- columna de la persona afectada, si la hay
 )
 returns void
 language plpgsql
@@ -604,9 +610,9 @@ begin
    where i.indrelid = ('public.' || p_tabla)::regclass and i.indisprimary;
   execute format('drop trigger if exists %I on public.%I', p_nombre, p_tabla);
   execute format('create trigger %I after %s on public.%I for each row when (%s)
-                  execute function public.registrar_admin_config(%L, %L, %L, %L)',
+                  execute function public.registrar_admin_config(%L, %L, %L, %L, %L)',
                  p_nombre, p_eventos, p_tabla, p_cuando, p_modo, coalesce(v_pk, ''), p_ignorar,
-                 case when p_cuando like '%_aal_actor_es_admin%' then '1' else '0' end);
+                 case when p_admin_en_when then '1' else '0' end, p_persona);
 end;
 $$;
 
@@ -628,37 +634,45 @@ begin
                                      'valores', 'auth.uid() is not null', 'status');
 
   -- Borrados que sólo puede hacer el super admin desde el panel: queda quién y qué id.
-  foreach t in array array['payments', 'emergencies', 'medication_orders', 'rcta_issue_log',
-                           'waitlist', 'professional_profiles']
+  foreach t in array array['payments', 'emergencies', 'medication_orders', 'rcta_issue_log', 'waitlist']
   loop
     perform public._aal_trigger_config(t, 'zz_registro_admin_baja', 'delete', 'nombres');
   end loop;
+
+  -- Un legajo borrado por un admin (el asiento apunta a la persona, para ver su nombre).
+  perform public._aal_trigger_config('professional_profiles', 'zz_registro_admin_baja', 'delete', 'nombres',
+                                     'auth.uid() is not null', '', false, 'user_id');
 
   -- La lista de espera la marca como avisada el super admin (nombres, sin datos de contacto).
   perform public._aal_trigger_config('waitlist', 'zz_registro_admin_upd', 'update', 'nombres');
 
   -- Un legajo profesional dado de alta por un admin (el INSERT verificado ya tiene su asiento).
   perform public._aal_trigger_config('professional_profiles', 'zz_registro_admin_cfg_ins', 'insert', 'nombres',
-                                     'auth.uid() is not null and public._aal_actor_es_admin()');
+                                     'auth.uid() is not null and public._aal_actor_es_admin()', '', true, 'user_id');
 
   -- Un legajo editado por un admin (matrícula, dirección del consultorio, tarifas, documentos…):
   -- TODAS las columnas, con los nombres (son datos personales). Las de verificación,
   -- rechazo, estado activo y consultorio ya tienen su propio asiento (trigger de
   -- arriba) y las que se mueven solas con ellas (reverificación, SISA, REFEPS) no son
   -- una edición: quedan afuera para no asentar dos veces lo mismo.
+  -- El WHEN corta primero los guardados del propio profesional (latido de disponibilidad
+  -- cada pocos segundos): `auth.uid() <> new.user_id` va ANTES del chequeo de admin.
   perform public._aal_trigger_config('professional_profiles', 'zz_registro_admin_cfg_upd', 'update', 'nombres',
-    'auth.uid() is not null and public._aal_actor_es_admin()',
+    'auth.uid() is not null and auth.uid() <> new.user_id and public._aal_actor_es_admin()',
     'is_verified,verified_by,verified_at,verification_source,rejection_type,rejection_reason,rejected_at,is_active,'
     'refes_id,refes_estado,refes_nombre,refes_raw,refes_actualizado_at,refes_intentos,refes_proximo_intento,refes_error,'
     'refes_revisado_por,refes_revisado_at,reverification_pending,reverification_requested_at,reverification_changes,'
-    'mail_verificacion_enviado_at,sisa_status,sisa_matricula,sisa_raw,sisa_verified_at,dado_de_baja');
+    'mail_verificacion_enviado_at,sisa_status,sisa_matricula,sisa_raw,sisa_verified_at,dado_de_baja,'
+    -- `solo_pruebas` ya lo asienta profiles como marca de prueba
+    'solo_pruebas',
+    true, 'user_id');
 
   -- Consultas: el super admin las edita (estado, fecha, cobro, profesional, precio…),
   -- las crea y las borra. TODAS las columnas, pero el WHEN deja afuera sin leer
   -- nada a las escrituras del servidor y, con una sola consulta indexada al rol,
   -- a las de pacientes y profesionales (el mismo costo que ya paga la policy).
   perform public._aal_trigger_config('consultations', 'zz_registro_admin', 'insert or update or delete', 'nombres',
-                                     'auth.uid() is not null and public._aal_actor_es_admin()');
+                                     'auth.uid() is not null and public._aal_actor_es_admin()', '', true);
 end $$;
 
-drop function public._aal_trigger_config(text, text, text, text, text, text);
+drop function public._aal_trigger_config(text, text, text, text, text, text, boolean, text);
