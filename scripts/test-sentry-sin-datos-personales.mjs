@@ -208,6 +208,59 @@ test('los details/hint de Postgres y "Failing row contains" se esconden enteros'
   sinFugas(limpiarTexto(`error { details: 'Av. Santa Fe 1234, Juan Pérez', code: '23505' }`), 'details literal')
 })
 
+test('Key (…)=(…) con índice de expresión y con paréntesis en el valor', () => {
+  // índice de expresión en la columna
+  const a = limpiarTexto('duplicate key value violates unique constraint "x". Key (lower(full_name::text))=(Juan Pérez) already exists.')
+  sinFugas(a, 'índice de expresión')
+  assert.match(a, /already exists/)
+  assert.match(a, /Key \(lower\(full_name::text\)\)=\(\[filtrado\]\)/)
+  // paréntesis dentro del valor
+  const b = limpiarTexto('Key (full_name)=(Juan (el flaco) Pérez) already exists.')
+  sinFugas(b, 'paréntesis en el valor')
+  assert.equal(b, 'Key (full_name)=([filtrado]) already exists.')
+  // sin terminador conocido: se esconde el resto de la línea
+  sinFugas(limpiarTexto('Key (full_name)=(Juan Pérez, Av. Santa Fe 1234 y algo más sin cierre'), 'sin terminador')
+  // clave compuesta, referenciada, y al final del string de un JSON
+  sinFugas(limpiarTexto('Key (dni, full_name)=(12345678, Juan Pérez) is not present in table "profiles".'), 'compuesta')
+  const j = limpiarTexto('{"message":"Key (full_name)=(Juan Pérez)","code":"23503"}')
+  sinFugas(j, 'dentro de un JSON')
+  assert.equal(JSON.parse(j).code, '23503')
+})
+
+test('"Failing row contains" dentro de un string JSON no se lleva el resto del JSON', () => {
+  const j = JSON.stringify({ message: 'null value. Failing row contains (1, Juan Pérez, Av. Santa Fe 1234, null).', code: '23502', hint: null })
+  const l = limpiarTexto(j)
+  sinFugas(l, 'string JSON')
+  const o = JSON.parse(l)   // sigue siendo JSON válido
+  assert.equal(o.code, '23502', 'el code sobrevive')
+  assert.equal(o.hint, null)
+  assert.match(o.message, /^null value\. Failing row contains \[filtrado\]/)
+  // en texto plano se esconde hasta el fin de línea y la línea siguiente queda
+  const t = limpiarTexto('error\nFailing row contains (Juan Pérez, Av. Santa Fe 1234)\nsiguiente línea')
+  sinFugas(t, 'texto plano')
+  assert.match(t, /\nsiguiente línea$/)
+})
+
+test('details/hint doble-serializados (\\"details\\":\\"…\\") y con comillas escapadas adentro', () => {
+  const fila = 'Failing row contains (Juan Pérez, Av. Santa Fe 1234)'
+  const interno = JSON.stringify({ code: '23502', details: fila, hint: 'Revisá a Juan Pérez', extra: null, hint2: 'x' })
+  const doble = JSON.stringify({ body: interno, status: 400 })     // "{\"code\":…,\"details\":\"…\"}"
+  const l = limpiarTexto(doble)
+  sinFugas(l, 'doble serialización')
+  const externo = JSON.parse(l)                                   // el JSON externo sigue válido
+  assert.equal(externo.status, 400)
+  const internoLimpio = JSON.parse(externo.body)                  // y el interno también
+  assert.equal(internoLimpio.code, '23502')
+  assert.equal(internoLimpio.details, '[filtrado]')
+  assert.equal(internoLimpio.hint, '[filtrado]')
+  assert.equal(internoLimpio.hint2, 'x', 'otras claves no se tocan')
+  // nivel simple, con comillas escapadas dentro del valor y `null` intacto
+  const simple = JSON.stringify({ details: 'fila "Juan Pérez", Av. Santa Fe 1234', code: '1', hint: null })
+  const s = limpiarTexto(simple)
+  sinFugas(s, 'nivel simple con comillas')
+  assert.deepEqual(JSON.parse(s), { details: '[filtrado]', code: '1', hint: null })
+})
+
 // ── 3. Configuración de Sentry.init ─────────────────────────────────────────
 test('las opciones privadas están completas', () => {
   assert.equal(OPCIONES_PRIVADAS.sendDefaultPii, false)
