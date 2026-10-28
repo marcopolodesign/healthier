@@ -530,9 +530,11 @@ declare
   --   0 = modo ('valores' | 'nombres')
   --   1 = columnas de la clave primaria, separadas por coma
   --   2 = columnas operativas que NO se registran (p. ej. ambulances.status)
+  --   3 = '1' si el WHEN del trigger ya verificó que quien escribe es admin
   v_modo     text   := coalesce(tg_argv[0], 'valores');
   v_pk       text[] := string_to_array(nullif(tg_argv[1], ''), ',');
   v_ignorar  text[] := string_to_array(nullif(tg_argv[2], ''), ',');
+  v_ya_admin boolean := coalesce(tg_argv[3], '') = '1';
   v_old      jsonb;
   v_new      jsonb;
   v_fila     jsonb;
@@ -540,7 +542,8 @@ declare
   v_detail   jsonb;
   v_id       text;
 begin
-  if not public._aal_actor_es_admin() then
+  -- Si el WHEN ya preguntó por el rol, no se vuelve a leer profiles.
+  if not v_ya_admin and not public._aal_actor_es_admin() then
     return null;
   end if;
 
@@ -601,8 +604,9 @@ begin
    where i.indrelid = ('public.' || p_tabla)::regclass and i.indisprimary;
   execute format('drop trigger if exists %I on public.%I', p_nombre, p_tabla);
   execute format('create trigger %I after %s on public.%I for each row when (%s)
-                  execute function public.registrar_admin_config(%L, %L, %L)',
-                 p_nombre, p_eventos, p_tabla, p_cuando, p_modo, coalesce(v_pk, ''), p_ignorar);
+                  execute function public.registrar_admin_config(%L, %L, %L, %L)',
+                 p_nombre, p_eventos, p_tabla, p_cuando, p_modo, coalesce(v_pk, ''), p_ignorar,
+                 case when p_cuando like '%_aal_actor_es_admin%' then '1' else '0' end);
 end;
 $$;
 
@@ -636,6 +640,18 @@ begin
   -- Un legajo profesional dado de alta por un admin (el INSERT verificado ya tiene su asiento).
   perform public._aal_trigger_config('professional_profiles', 'zz_registro_admin_cfg_ins', 'insert', 'nombres',
                                      'auth.uid() is not null and public._aal_actor_es_admin()');
+
+  -- Un legajo editado por un admin (matrícula, dirección del consultorio, tarifas, documentos…):
+  -- TODAS las columnas, con los nombres (son datos personales). Las de verificación,
+  -- rechazo, estado activo y consultorio ya tienen su propio asiento (trigger de
+  -- arriba) y las que se mueven solas con ellas (reverificación, SISA, REFEPS) no son
+  -- una edición: quedan afuera para no asentar dos veces lo mismo.
+  perform public._aal_trigger_config('professional_profiles', 'zz_registro_admin_cfg_upd', 'update', 'nombres',
+    'auth.uid() is not null and public._aal_actor_es_admin()',
+    'is_verified,verified_by,verified_at,verification_source,rejection_type,rejection_reason,rejected_at,is_active,'
+    'refes_id,refes_estado,refes_nombre,refes_raw,refes_actualizado_at,refes_intentos,refes_proximo_intento,refes_error,'
+    'refes_revisado_por,refes_revisado_at,reverification_pending,reverification_requested_at,reverification_changes,'
+    'mail_verificacion_enviado_at,sisa_status,sisa_matricula,sisa_raw,sisa_verified_at,dado_de_baja');
 
   -- Consultas: el super admin las edita (estado, fecha, cobro, profesional, precio…),
   -- las crea y las borra. TODAS las columnas, pero el WHEN deja afuera sin leer
