@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Eye, PencilSimple, MagnifyingGlass, CircleNotch, Copy, FilePdf, CheckCircle, XCircle, Trash } from '@phosphor-icons/react'
+import { Eye, PencilSimple, MagnifyingGlass, CircleNotch, Copy, FilePdf, CheckCircle, XCircle, Trash, ShieldCheck } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
+import { adminAuditService, ACCIONES_ADMIN, etiquetaAccion, resumenDetalle } from '../../services/adminAuditService'
 import { toast } from '../../components/Toast'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
 
 /**
- * Auditoría. Dos solapas:
+ * Auditoría. Tres solapas:
  *
  * 1. **Historia clínica** — Ley 26.529 Art. 14 (la HC tiene que poder decir
  *    quién accedió) y Ley 25.326 Art. 9 (medidas de seguridad sobre datos
@@ -22,6 +23,11 @@ import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialo
  *    Ese id es el que hay que copiar para certificar la integración y el único
  *    con el que se puede hablar de una receta puntual con ellos. Antes vivía en
  *    un .md escrito a mano.
+ *
+ * 3. **Acciones de administradores** — altas, bajas, cambios de rol, verificación
+ *    de profesionales y configuración, con quién, cuándo y antes/después
+ *    (`admin_action_log`, migración 218). Sólo lectura: la tabla es append-only
+ *    y no tiene botón de borrar a propósito.
  */
 
 const ACTION_LABELS = {
@@ -177,12 +183,14 @@ export default function SuperAdminAuditoria() {
         <p className="text-text-secondary mt-1">
           {tab === 'hc'
             ? 'Quién accedió y quién escribió en la HC de cada paciente. Sólo metadatos — el contenido clínico no se expone acá.'
-            : 'Cada emisión de receta electrónica, con el id de transacción del proveedor.'}
+            : tab === 'admin'
+              ? 'Lo que hicieron los administradores: quién, cuándo y qué cambió. El registro no se puede editar ni borrar y se conserva como mínimo 2 años.'
+              : 'Cada emisión de receta electrónica, con el id de transacción del proveedor.'}
         </p>
       </div>
 
       <div className="flex gap-6 border-b border-border-default">
-        {[['hc', 'Historia clínica'], ['recetas', 'Recetas electrónicas']].map(([v, label]) => (
+        {[['hc', 'Historia clínica'], ['admin', 'Acciones de administradores'], ['recetas', 'Recetas electrónicas']].map(([v, label]) => (
           <button
             key={v}
             onClick={() => setTab(v)}
@@ -197,7 +205,9 @@ export default function SuperAdminAuditoria() {
         ))}
       </div>
 
-      {tab === 'recetas' ? (
+      {tab === 'admin' ? (
+        <AccionesAdminTab />
+      ) : tab === 'recetas' ? (
         <>
           <RecetasTab
             recetas={recetas}
@@ -433,5 +443,125 @@ function RecetasTab({ recetas, loading, onCopiar, selection, onDeleteOne }) {
         </tbody>
       </table>
     </div>
+  )
+}
+
+/**
+ * Registro de acciones de administradores. Sin selección ni borrado: es
+ * append-only y la base rechaza cualquier UPDATE/DELETE.
+ */
+function AccionesAdminTab() {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [query, setQuery] = useState('')
+  const [accion, setAccion] = useState('todas')
+
+  useEffect(() => {
+    let vivo = true
+    adminAuditService.list({ limit: 300 })
+      .then(data => { if (vivo) setRows(data) })
+      .catch(err => toast.error(err.message))
+      .finally(() => { if (vivo) setLoading(false) })
+    return () => { vivo = false }
+  }, [])
+
+  const acciones = [...new Set(rows.map(r => r.action))].sort()
+  const filtradas = rows.filter(r => {
+    if (accion !== 'todas' && r.action !== accion) return false
+    if (!query.trim()) return true
+    const needle = query.trim().toLowerCase()
+    return [r.actor_email, r.actor_name, r.target_label, etiquetaAccion(r.action)]
+      .filter(Boolean)
+      .some(v => v.toLowerCase().includes(needle))
+  })
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-16">
+        <CircleNotch className="h-6 w-6 animate-spin text-brand" />
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="relative flex-1 min-w-56">
+          <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary pointer-events-none" />
+          <input
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Buscar por administrador, persona o acción…"
+            className="form-input pl-9"
+          />
+        </div>
+        <select className="form-select w-auto" value={accion} onChange={e => setAccion(e.target.value)}>
+          <option value="todas">Todas las acciones</option>
+          {acciones.map(a => (
+            <option key={a} value={a}>{ACCIONES_ADMIN[a] ?? etiquetaAccion(a)}</option>
+          ))}
+        </select>
+      </div>
+
+      {filtradas.length === 0 ? (
+        <div className="text-center py-16 text-text-secondary">
+          <ShieldCheck className="h-10 w-10 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">Sin acciones registradas</p>
+          <p className="text-sm mt-1">Se asienta sola cada vez que un administrador cambia algo.</p>
+        </div>
+      ) : (
+        <div className="card p-0 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border-default text-left text-xs uppercase tracking-wide text-text-tertiary">
+                <th className="px-4 py-3 font-semibold">Fecha</th>
+                <th className="px-4 py-3 font-semibold">Quién</th>
+                <th className="px-4 py-3 font-semibold">Acción</th>
+                <th className="px-4 py-3 font-semibold">Sobre</th>
+                <th className="px-4 py-3 font-semibold">Detalle</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtradas.map(r => (
+                <tr key={r.id} className="border-b border-border-default last:border-0 align-top">
+                  <td className="px-4 py-3 text-text-secondary whitespace-nowrap">
+                    {new Date(r.created_at).toLocaleString('es-AR', {
+                      day: '2-digit', month: '2-digit', year: '2-digit',
+                      hour: '2-digit', minute: '2-digit', second: '2-digit',
+                    })}
+                  </td>
+                  <td className="px-4 py-3">
+                    {r.actor_id ? (
+                      <>
+                        <span className="text-text-primary font-medium">{r.actor_name || r.actor_email || r.actor_id}</span>
+                        {r.actor_role && <span className="text-text-tertiary text-xs"> · {r.actor_role}</span>}
+                        {r.actor_name && r.actor_email && (
+                          <span className="block text-[11px] text-text-tertiary">{r.actor_email}</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-text-tertiary">Sistema</span>
+                    )}
+                    {r.via === 'servidor' && r.actor_id && (
+                      <span className="block text-[11px] text-text-tertiary">vía servidor</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-text-primary whitespace-nowrap">{etiquetaAccion(r.action)}</td>
+                  <td className="px-4 py-3 text-text-secondary">
+                    {r.target_label ?? (r.entity_id ? <span className="font-mono text-xs">{r.entity_type} {String(r.entity_id).slice(0, 8)}</span> : '—')}
+                  </td>
+                  <td className="px-4 py-3 text-text-secondary break-words max-w-sm">{resumenDetalle(r) || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {rows.length >= 300 && (
+        <p className="text-xs text-text-tertiary text-center">Mostrando las últimas 300 acciones.</p>
+      )}
+    </>
   )
 }
