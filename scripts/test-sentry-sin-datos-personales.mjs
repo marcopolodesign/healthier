@@ -20,12 +20,13 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 import {
   limpiarEvento, limpiarBreadcrumb, rutaSinQuery, valorSeguro, mensajeSeguro, codigoDe, OPCIONES_PRIVADAS,
+  SEGMENTOS_CONOCIDOS, BUCKETS_CONOCIDOS,
 } from '../src/lib/sentryFilter.js'
 
 const raiz = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -76,12 +77,53 @@ test('captureMessage: sólo un literal conocido o un código; si no, "[mensaje]"
   assert.equal(codigoDe('nada que ver'), undefined)
 })
 
-test('las URLs pierden query y fragmento; sin mails ni números largos en la ruta', () => {
+test('URLs con lista blanca: sólo segmentos conocidos o UUID; el resto ":dato"; el storage se corta en el bucket', () => {
+  // la query y el fragmento nunca viajan
   assert.equal(rutaSinQuery('https://x.supabase.co/rest/v1/profiles?email=eq.juan.perez@gmail.com&select=*'), 'https://x.supabase.co/rest/v1/profiles')
   assert.equal(rutaSinQuery('https://www.healthier.com.ar/auth#access_token=eyJabc&type=magiclink'), 'https://www.healthier.com.ar/auth')
-  assert.equal(rutaSinQuery('/paciente/buscar/juan.perez@gmail.com'), '/paciente/buscar/:email')
-  assert.equal(rutaSinQuery('/profesional/paciente/30123456'), '/profesional/paciente/:numero')
+  // la API y las rutas de la app se conservan
+  assert.equal(rutaSinQuery('https://x.supabase.co/rest/v1/rpc/buscar_profesionales_cobrables'), 'https://x.supabase.co/rest/v1/rpc/buscar_profesionales_cobrables')
+  assert.equal(rutaSinQuery('https://x.supabase.co/functions/v1/send-email'), 'https://x.supabase.co/functions/v1/send-email')
   assert.equal(rutaSinQuery(`/paciente/consulta/${UID}`), `/paciente/consulta/${UID}`)
+  assert.equal(rutaSinQuery('/paciente/perfil'), '/paciente/perfil')
+  // repro de la revisión: el storage lleva el nombre del archivo del usuario
+  assert.equal(rutaSinQuery(`https://x.supabase.co/storage/v1/object/patient-docs/${UID}/1730000000000_Juan_Perez_VIH_positivo.pdf`),
+    'https://x.supabase.co/storage/v1/object/patient-docs')
+  assert.equal(rutaSinQuery(`https://x.supabase.co/storage/v1/object/sign/patient-docs/${UID}/estudio_Juan_Perez.pdf?token=eyJabc`),
+    'https://x.supabase.co/storage/v1/object/sign/patient-docs')
+  assert.equal(rutaSinQuery(`https://x.supabase.co/storage/v1/object/public/avatars/${UID}/foto.png`), 'https://x.supabase.co/storage/v1/object/public/avatars')
+  assert.equal(rutaSinQuery(`https://x.supabase.co/storage/v1/render/image/public/avatars/${UID}/foto.png`), 'https://x.supabase.co/storage/v1/render/image/public/avatars')
+  assert.equal(rutaSinQuery('https://x.supabase.co/storage/v1/object/un-bucket-que-no-existe/archivo.pdf'), 'https://x.supabase.co/storage/v1/object/:dato')
+  // repro de la revisión: DNI con puntos, CUIT con guiones, teléfono con +, mail, nombre
+  assert.equal(rutaSinQuery('/x/12.345.678'), '/:dato/:dato')
+  assert.equal(rutaSinQuery('/x/20-12345678-9'), '/:dato/:dato')
+  assert.equal(rutaSinQuery('/x/+5491155551234'), '/:dato/:dato')
+  assert.equal(rutaSinQuery('/paciente/buscar/juan.perez@gmail.com'), '/paciente/buscar/:dato')
+  assert.equal(rutaSinQuery('/profesional/paciente/30123456'), '/profesional/paciente/:dato')
+  assert.equal(rutaSinQuery('/paciente/Juan%20P%C3%A9rez'), '/paciente/:dato')
+  // un host con forma rara o con usuario no viaja
+  assert.equal(rutaSinQuery('https://juan.perez@gmail.com:clave@x.supabase.co/rest/v1/profiles'), 'https://x.supabase.co/rest/v1/profiles')
+  assert.equal(rutaSinQuery('https://Juan Pérez/rest/v1/profiles'), 'https://:host/rest/v1/profiles')
+  assert.equal(rutaSinQuery(''), undefined)
+  assert.equal(rutaSinQuery(undefined), undefined)
+})
+
+test('la lista de segmentos conocidos incluye las rutas, funciones y buckets reales del proyecto', () => {
+  const app = readFileSync(join(raiz, 'src/App.jsx'), 'utf8')
+  const rutas = new Set()
+  for (const m of app.matchAll(/path=["']([^"']+)["']/g)) for (const seg of m[1].split('/')) if (seg && !seg.startsWith(':') && seg !== '*') rutas.add(seg)
+  const faltan = [...rutas].filter((x) => !SEGMENTOS_CONOCIDOS.has(x))
+  assert.deepEqual(faltan, [], `rutas de App.jsx que faltan en SEGMENTOS_CONOCIDOS (regenerá la lista, en la web y en la app): ${faltan.join(', ')}`)
+  const funciones = readdirSync(join(raiz, 'supabase/functions'), { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith('_')).map((d) => d.name)
+  const sinFuncion = funciones.filter((x) => !SEGMENTOS_CONOCIDOS.has(x))
+  assert.deepEqual(sinFuncion, [], `Edge Functions que faltan en SEGMENTOS_CONOCIDOS: ${sinFuncion.join(', ')}`)
+  const migraciones = readdirSync(join(raiz, 'supabase/migrations')).filter((f) => f.endsWith('.sql')).map((f) => readFileSync(join(raiz, 'supabase/migrations', f), 'utf8')).join('\n')
+  const buckets = new Set([...migraciones.matchAll(/bucket_id\s*=\s*'([a-z0-9_-]+)'/gi)].map((m) => m[1]))
+  const sinBucket = [...buckets].filter((b) => !BUCKETS_CONOCIDOS.has(b))
+  assert.deepEqual(sinBucket, [], `buckets que faltan en BUCKETS_CONOCIDOS: ${sinBucket.join(', ')}`)
+  const tablas = new Set([...migraciones.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?"?([a-z][a-z0-9_]*)"?/gi)].map((m) => m[1]).filter((n) => !n.startsWith('_')))
+  const sinTabla = [...tablas].filter((x) => !SEGMENTOS_CONOCIDOS.has(x))
+  assert.deepEqual(sinTabla, [], `tablas que faltan en SEGMENTOS_CONOCIDOS: ${sinTabla.join(', ')}`)
 })
 
 test('breadcrumbs: sin texto ni datos; sólo ruta sin query, método y estado en navegación y red', () => {
@@ -91,8 +133,11 @@ test('breadcrumbs: sin texto ni datos; sólo ruta sin query, método y estado en
   assert.deepEqual(clic, { category: 'ui.click', level: 'info', timestamp: 2 })
   const fetchB = limpiarBreadcrumb({ category: 'fetch', type: 'http', level: 'info', timestamp: 3, data: { url: 'https://x.supabase.co/rest/v1/profiles?dni=eq.12345678', method: 'get', status_code: 200, body: { dni: '12345678' }, request_body_size: 10 } })
   assert.deepEqual(fetchB, { category: 'fetch', type: 'http', level: 'info', timestamp: 3, data: { url: 'https://x.supabase.co/rest/v1/profiles', method: 'GET', status_code: 200 } })
-  const nav = limpiarBreadcrumb({ category: 'navigation', timestamp: 4, data: { from: '/a?mail=juan.perez@gmail.com', to: '/b?phone=%2B5491155551234#x' } })
-  assert.deepEqual(nav, { category: 'navigation', timestamp: 4, data: { from: '/a', to: '/b' } })
+  const nav = limpiarBreadcrumb({ category: 'navigation', timestamp: 4, data: { from: '/paciente/perfil?mail=juan.perez@gmail.com', to: '/paciente/consultas/30123456?phone=%2B5491155551234#x' } })
+  assert.deepEqual(nav, { category: 'navigation', timestamp: 4, data: { from: '/paciente/perfil', to: '/paciente/consultas/:dato' } })
+  const storage = limpiarBreadcrumb({ category: 'xhr', type: 'http', timestamp: 5, data: { url: `https://x.supabase.co/storage/v1/object/patient-docs/${UID}/1730000000000_Juan_Perez_VIH_positivo.pdf`, method: 'POST', status_code: 200 } })
+  assert.deepEqual(storage.data, { url: 'https://x.supabase.co/storage/v1/object/patient-docs', method: 'POST', status_code: 200 })
+  sinFugas(storage, 'storage')
   assert.equal(limpiarBreadcrumb(undefined), undefined)
 })
 
@@ -118,6 +163,7 @@ function eventoSucio() {
       data: { dni: '12345678' }, cookies: { sb: 'x' }, headers: { Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9' }, query_string: 'email=juan.perez@gmail.com',
     },
     transaction: '/paciente/perfil?dni=12345678',
+    // (repro de la revisión final) un pedido al storage con el nombre del archivo en la ruta
     breadcrumbs: [{ category: 'console', level: 'error', timestamp: 1, message: 'login juan.perez@gmail.com', data: { arguments: [30123456, { name: 'Juan Pérez', calle: 'Av. Santa Fe 1234' }] } }],
     extra: { form: { email: 'juan.perez@gmail.com', dni: '12345678' }, 'juan.perez@gmail.com': 'clave que es un mail', 30123456: 'clave que es un DNI' },
     tags: { cuit: '20-12345678-9', canal: 'staging', pantalla: 'perfil', email: 'juan.perez@gmail.com' },
@@ -219,6 +265,19 @@ test('src/lib/sentry.js usa las opciones privadas y no habilita replay ni feedba
     assert.match(src, /maskAllInputs:\s*true/)
     assert.match(src, /blockAllMedia:\s*true/)
   }
+})
+
+// ── 5. El filtro de la web y el de la app son EL MISMO código ───────────────
+// `mobile/src/lib/sentryFilter.ts` (sin tipos) tiene que ser idéntico a este archivo. Cada repo
+// guarda el hash de referencia: si alguien toca el filtro en un lado y no en el otro, el test
+// falla en ese repo. Para cambiar el filtro: editá el .ts de la app, generá el .js con
+// `stripTypeScriptTypes(ts, { mode: 'strip' })` (node:module), copialo acá y poné el hash nuevo
+// en los DOS tests.
+const HASH_FILTRO = 'a075597e5236f17749b2900e124328b95ef5c535beee1332910c2e86663f4630'
+test('el filtro de la web coincide con la referencia compartida con la app (hash)', async () => {
+  const { createHash } = await import('node:crypto')
+  const actual = createHash('sha256').update(readFileSync(join(raiz, 'src/lib/sentryFilter.js'))).digest('hex')
+  assert.equal(actual, HASH_FILTRO, `src/lib/sentryFilter.js cambió (sha256 ${actual}). Pasá el MISMO cambio a mobile/src/lib/sentryFilter.ts y actualizá HASH_FILTRO en los tests de los dos repos.`)
 })
 
 // ── 4. Punta a punta: SDK real, todos los repro de las rondas, transporte interceptado ──
