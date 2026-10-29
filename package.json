@@ -20,6 +20,7 @@
     "test:teleclinica": "node --test scripts/test-checkout-teleclinica.mjs",
     "test:triage": "node --import tsx --test scripts/test-triage-por-vertical.mjs",
     "test:legibles": "node scripts/verificar-legibles-sin-js.mjs",
+    "test:contrasena": "node --test scripts/test-contrasena-superadmin.mjs",
     "test:registro-admin": "node scripts/verificar-registro-admin.mjs",
     "test:resumen-auditoria": "node --test scripts/test-admin-audit-resumen.mjs",
     "test:mfa": "node --test scripts/test-mfa-superadmin.mjs"

@@ -131,6 +131,7 @@ import SuperAdminDerivaciones from './pages/super-admin/Derivaciones'
 import SuperAdminEmergencias from './pages/super-admin/Emergencias'
 import SuperAdminFarmacia from './pages/super-admin/Farmacia'
 import SuperAdminSeguridad from './pages/super-admin/Seguridad'
+import SuperAdminContrasena from './pages/super-admin/Contrasena'
 import MfaGuard from './components/auth/MfaGuard'
 
 import PharmacyOrders from './pages/pharmacy/Pedidos'
@@ -632,6 +633,8 @@ export default function App() {
           <Route path="/super-admin/farmacia" element={<SuperAdminFarmacia />} />
           {/* Segundo factor (TOTP). SIN link en el menú a propósito — ver lib/mfa.js. */}
           <Route path="/super-admin/seguridad" element={<SuperAdminSeguridad />} />
+          {/* Poner/cambiar la contraseña propia. Sí va en el menú (Configuración). */}
+          <Route path="/super-admin/perfil" element={<SuperAdminContrasena />} />
         </Route>
 
         {/* Farmacia */}
