@@ -9,8 +9,11 @@
 export function traducirErrorDeAuth(error, { contexto = 'recuperacion' } = {}) {
   const code = error?.code || ''
   const msg = error?.message || 'Error desconocido'
-  if (code === 'over_email_send_rate_limit' || /rate limit|only request this after/i.test(msg)) {
-    return 'Pediste demasiados mails en poco tiempo. Esperá unos minutos y probá de nuevo.'
+  if (code === 'over_email_send_rate_limit' || code === 'over_request_rate_limit' || /rate limit|only request this after/i.test(msg)) {
+    // En el panel no se pidió ningún mail (se verificó la contraseña actual o se cambió la nueva).
+    return contexto === 'panel'
+      ? 'Demasiados intentos. Esperá unos minutos y probá de nuevo.'
+      : 'Pediste demasiados mails en poco tiempo. Esperá unos minutos y probá de nuevo.'
   }
   if (code === 'same_password') return 'La contraseña nueva tiene que ser distinta de la anterior.'
   if (code === 'weak_password') return 'La contraseña es muy débil. Usá al menos 6 caracteres.'

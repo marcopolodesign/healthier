@@ -512,7 +512,7 @@ try {
 
   // ── 13. Contraseña propia (migración 219): tengo_contrasena + asiento cambio_de_contrasena ──
   // Con cuentas DESCARTABLES: la demo (superadmin@) no se toca ni se le asientan cambios falsos.
-  // El asiento sólo existe si hubo un cambio REAL (updateUser) reciente, y "primera vez" lo calcula el servidor.
+  // El asiento sólo existe si hubo un cambio REAL (updateUser) reciente, y la nota ("puso o cambió" / "cambió") la calcula el servidor.
   {
     const rpc = (nombre, body, token) => rest(`rpc/${nombre}`, { method: 'POST', body: body ?? {}, token })
     const asientosDe = (id) => sql(`select * from public.admin_action_log where action = 'cambio_de_contrasena' and target_user_id = '${id}' order by created_at`)
@@ -578,8 +578,8 @@ try {
         'los asientos quedan con la persona como actor (via=usuario) sobre su propia cuenta')
       ok(filas.every(f => JSON.stringify(Object.keys(f.detail)) === JSON.stringify(['nota'])),
         'el asiento lleva exactamente una clave, `nota` (ningún valor de contraseña ni hash)')
-      ok(filas.map(f => f.detail.nota).join('|') === 'Puso su contraseña por primera vez|Cambió su contraseña',
-        'la nota la calcula el servidor: primera vez, y después "cambió"')
+      ok(filas.map(f => f.detail.nota).join('|') === 'Puso o cambió su contraseña|Cambió su contraseña',
+        'la nota la calcula el servidor: sin evidencia previa "puso o cambió" (nunca afirma "primera vez"), y con un cambio anterior "cambió"')
 
       // 🔴 Anotar el cambio NUNCA puede bloquear la escritura de auth.users: si el insert del trigger falla
       // (acá: la tabla "desaparece" renombrada, dentro de un bloque que se deshace entero), GoTrue tiene que
@@ -597,6 +597,29 @@ try {
       ok(/RESULTADO:true/.test(simulado), `con la tabla de anotaciones rota, el UPDATE de encrypted_password en auth.users igual pasa (${String(simulado).match(/RESULTADO:\w+|ERROR:[^\n]*/)?.[0] ?? simulado.slice(0, 120)})`)
       const [{ n: despuesTabla }] = await sql(`select count(*)::int n from public._cambios_de_contrasena`)
       ok(despuesTabla === antesTabla, `la simulación se deshizo entera: la tabla sigue con su nombre y sus ${antesTabla} renglones`)
+
+      // 🔴 Tabla BLOQUEADA por otra conexión (un ALTER, un VACUUM FULL…): el trigger espera como mucho 200 ms
+      // (lock_timeout de la función) y el cambio de contraseña sigue. Sin eso, un lock largo trabaría toda
+      // recuperación de contraseña. Dos pedidos en paralelo: uno retiene ACCESS EXCLUSIVE 6 s, el otro cambia el hash.
+      const bloqueador = sql(`do $$ begin
+          lock table public._cambios_de_contrasena in access exclusive mode;
+          perform pg_sleep(6);
+          raise exception 'FIN-BLOQUEO';
+        end $$;`).then(() => 'sin-error', e => e.message)
+      await new Promise(r => setTimeout(r, 1500))
+      const t0 = Date.now()
+      const conLock = await sql(`do $$
+        declare h text; nuevo text;
+        begin
+          select encrypted_password into h from auth.users where id = '${adminDesc.id}';
+          update auth.users set encrypted_password = md5(random()::text) where id = '${adminDesc.id}';
+          select encrypted_password into nuevo from auth.users where id = '${adminDesc.id}';
+          raise exception 'RESULTADO:%', (nuevo is distinct from h)::text;
+        end $$;`).then(() => 'sin-error', e => e.message)
+      const ms = Date.now() - t0
+      const finBloqueo = await bloqueador
+      ok(/FIN-BLOQUEO/.test(finBloqueo), 'el pedido que retenía el bloqueo corrió entero (el otro sí se hizo en paralelo)')
+      ok(/RESULTADO:true/.test(conLock) && ms < 3000, `con la tabla bloqueada por otra conexión, el UPDATE de encrypted_password igual pasa y rápido (${ms} ms, el bloqueo duraba 6 s)`)
 
       // Un cambio viejo (> 5 min) ya no se puede asentar.
       const c3 = await adminDesc.cliente.auth.updateUser({ password: `Prueba-${ts}-Cc3` })
@@ -621,7 +644,6 @@ try {
     } finally {
       const lista = creadas.map(id => `'${id}'`).join(', ')
       await sql(`delete from public._cambios_de_contrasena where user_id in (${lista});
-                 delete from public._contrasena_propia where user_id in (${lista});
                  delete from public.profiles where id in (${lista});`).catch(e => console.error('limpieza 13:', e.message))
       for (const id of creadas) await admin.auth.admin.deleteUser(id).catch(e => console.error('limpieza 13 auth:', e.message))
       const [{ n }] = await sql(`select count(*)::int n from public.admin_action_log where created_at >= '${ahora}' and entity_id in (${lista})`)
