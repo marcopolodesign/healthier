@@ -19,6 +19,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { MIN_CONTRASENA, validarContrasena } from '../src/lib/contrasena.js'
 import { traducirErrorDeAuth } from '../src/lib/errorDeAuth.js'
+import { esErrorTransitorio, asentarConReintento } from '../src/lib/reintento.js'
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..')
 const leer = ruta => readFileSync(join(RAIZ, ruta), 'utf8')
@@ -55,7 +56,7 @@ test('traducirErrorDeAuth en el panel: sesión vencida manda a volver a entrar, 
     [{ message: 'AAL2 session is required to update email or password when MFA is enabled.' }, /código de tu app de códigos/],
     [{ code: 'same_password' }, /distinta de la anterior/],
     [{ code: 'weak_password' }, /muy débil/],
-    [{ code: 'over_email_send_rate_limit' }, /demasiados mails/],
+    [{ code: 'over_email_send_rate_limit' }, /^Demasiados intentos/],
   ]
   for (const [error, esperado] of casos) assert.match(traducirErrorDeAuth(error, panel), esperado, JSON.stringify(error))
   for (const [error] of casos.slice(0, 2)) assert.doesNotMatch(traducirErrorDeAuth(error, panel), /otro mail/)
@@ -95,7 +96,7 @@ test('el flujo: comprueba si tiene contraseña, verifica la actual, cambia con u
   assert.match(fn, /clienteVerificador\(\)/, 'la actual se verifica con un cliente aparte, sin tocar la sesión de la pestaña')
   assert.match(servicio, /_verificador \?\?= crearClienteDescartable\(\)/, 'el cliente verificador se crea una sola vez (lazy), no uno por intento')
   assert.match(fn, /const \{ error: errSalida \} = await verificador\.auth\.signOut/, 'se revisa el error del signOut del verificador')
-  assert.match(fn, /intento < 2/, 'si el asiento falla se reintenta una vez')
+  assert.match(fn, /asentarConReintento\(\{/, 'el asiento se pide con la regla de reintento (sólo red / 5xx)')
   assert.doesNotMatch(fn, /registrar_cambio_de_contrasena', \{/, 'el cliente no le dice al servidor si es la primera vez')
   assert.match(servicio, /rpc\('tengo_contrasena'\)/)
   assert.match(fn, /La contraseña actual no es correcta\./)
@@ -107,21 +108,25 @@ test('la migración 219: el estado y el asiento dependen de la base, no del clie
   // tengo_contrasena: el hash solo no alcanza, y la señal persiste (no sólo mfa_amr_claims)
   assert.match(sinComentarios, /function public\._tiene_contrasena[\s\S]*?encrypted_password <> ''/)
   assert.match(sinComentarios, /_cambios_de_contrasena x[\s\S]*?mfa_amr_claims/, 'señales: cambio anotado, marca, y (legado) sesión con contraseña')
-  assert.match(sinComentarios, /_contrasena_propia c where c\.user_id = u\.id/)
+  assert.doesNotMatch(sinComentarios, /create table[^;]*_contrasena_propia/, 'la marca redundante se quitó')
   // el cambio real lo anota un trigger sobre auth.users, sin copiar el hash
   assert.match(sinComentarios, /create trigger anotar_cambio_de_contrasena\s+after update of encrypted_password on auth\.users/)
   assert.match(sinComentarios, /old\.encrypted_password is distinct from new\.encrypted_password/)
   assert.doesNotMatch(sinComentarios, /insert into public\._cambios_de_contrasena \([^)]*encrypted_password/)
   // 🔴 el trigger corre dentro del UPDATE de GoTrue: un error acá bloquearía TODA recuperación de contraseña
-  assert.match(sinComentarios, /function public\._anotar_cambio_de_contrasena[\s\S]*?begin\s+insert into public\._cambios_de_contrasena[\s\S]*?exception when others then\s+raise warning/,
+  assert.match(sinComentarios, /function public\._anotar_cambio_de_contrasena[\s\S]*?begin\s+insert into public\._cambios_de_contrasena[\s\S]*?exception when query_canceled or others then\s+(?:--[^\n]*\s+)*raise warning/,
     'el insert del trigger tiene que ir en un bloque con exception when others → raise warning')
+  assert.match(sinComentarios, /function public\._anotar_cambio_de_contrasena[\s\S]*?set lock_timeout = '200ms'\s+as \$\$/, 'lock_timeout como SET de la función (no `set local`: no le achica el timeout al resto de la transacción de GoTrue)')
+  assert.match(sinComentarios, /exception when query_canceled or others then/, '`others` no atrapa query_canceled')
+  assert.doesNotMatch(sinComentarios, /set local lock_timeout/)
   // el asiento: sin parámetros del cliente, atado a un cambio real, reciente y no asentado, sólo admins
   assert.match(sinComentarios, /function public\.registrar_cambio_de_contrasena\(\)/)
   assert.match(sinComentarios, /drop function if exists public\.registrar_cambio_de_contrasena\(boolean\)/)
   assert.match(sinComentarios, /asentado_at is null and created_at > now\(\) - interval '5 minutes'/)
   assert.match(sinComentarios, /public\._aal_actor_es_admin\(\)/)
-  assert.match(sinComentarios, /v_primera := not public\._tiene_contrasena\(v_uid, v_cambio\.created_at\)/)
-  assert.match(sinComentarios, /insert into public\._contrasena_propia/)
+  assert.match(sinComentarios, /v_conocia := public\._tiene_contrasena\(v_uid, v_cambio\.created_at\)/)
+  assert.match(sinComentarios, /'Puso o cambió su contraseña'/, 'sin evidencia no se afirma "primera vez"')
+  assert.doesNotMatch(sinComentarios, /'[^']*por primera vez'/)
   assert.match(sinComentarios, /'cambio_de_contrasena'/)
   // permisos: sólo sesiones, nunca anon; las tablas internas sin acceso para nadie
   assert.match(sinComentarios, /revoke all on function public\.tengo_contrasena\(\) from public, anon;/)
@@ -139,4 +144,67 @@ test('la ruta existe y se llega desde el menú de escritorio y desde "Más" del 
 test('el segundo factor sigue sin promocionarse en los menús', () => {
   assert.doesNotMatch(leer('src/components/Sidebar.jsx'), /super-admin\/seguridad/)
   assert.doesNotMatch(leer('src/components/super-admin/SuperAdminBottomNav.jsx'), /super-admin\/seguridad/)
+})
+
+test('rate limit en el panel no habla de mails; en la recuperación sí', () => {
+  for (const error of [{ code: 'over_request_rate_limit' }, { code: 'over_email_send_rate_limit' }, { message: 'Request rate limit reached' }]) {
+    assert.equal(traducirErrorDeAuth(error, { contexto: 'panel' }), 'Demasiados intentos. Esperá unos minutos y probá de nuevo.', JSON.stringify(error))
+    assert.match(traducirErrorDeAuth(error), /demasiados mails/, JSON.stringify(error))
+  }
+})
+
+test('esErrorTransitorio: sólo red caída o 5xx se reintenta', () => {
+  const casos = [
+    [{ error: { message: 'TypeError: Failed to fetch' }, status: 0 }, true],
+    [{ error: { message: 'Bad gateway' }, status: 502 }, true],
+    [{ error: { message: 'timeout' }, status: 504 }, true],
+    [{ error: { code: 'P0001', message: 'No hay un cambio' }, status: 400 }, false],
+    [{ error: { code: '42501', message: 'Sólo un administrador' }, status: 403 }, false],
+    [{ error: { code: 'PGRST202' }, status: 404 }, false],
+    [{ error: null, status: 204 }, false],
+  ]
+  for (const [respuesta, esperado] of casos) assert.equal(esErrorTransitorio(respuesta), esperado, JSON.stringify(respuesta))
+})
+
+test('asentarConReintento: cuántas veces llama y qué cuenta, caso por caso', async () => {
+  const red = { error: { message: 'TypeError: Failed to fetch' }, status: 0 }
+  const ok = { error: null, status: 204 }
+  const p0001 = { error: { code: 'P0001', message: 'No hay un cambio de contraseña reciente para asentar.' }, status: 400 }
+  const prohibido = { error: { code: '42501', message: 'Sólo un administrador asienta' }, status: 403 }
+  const correr = async (respuestas, quedo = false) => {
+    let llamadas = 0, consultas = 0
+    const res = await asentarConReintento({
+      llamar: async () => respuestas[llamadas++],
+      quedoAsentado: async () => { consultas++; return quedo },
+    })
+    return { res, llamadas, consultas }
+  }
+  // ok a la primera: una llamada
+  assert.deepEqual(await correr([ok]), { res: { registrado: true }, llamadas: 1, consultas: 0 })
+  // error de la base o de permisos: NO se reintenta, se informa el motivo real
+  for (const e of [p0001, prohibido]) {
+    const r = await correr([e])
+    assert.equal(r.llamadas, 1, 'no se reintenta un error de la base')
+    assert.equal(r.res.registrado, false)
+    assert.equal(r.res.motivoSinRegistro, e.error.message)
+  }
+  // red caída y el reintento anda: dos llamadas
+  assert.deepEqual(await correr([red, ok]), { res: { registrado: true }, llamadas: 2, consultas: 0 })
+  // red caída dos veces: se informa el último error
+  const dosRed = await correr([red, red])
+  assert.equal(dosRed.llamadas, 2)
+  assert.equal(dosRed.res.registrado, false)
+  // red caída, y el reintento da P0001: el primero probablemente llegó. Se consulta; si quedó, no se dice que falló
+  const quedo = await correr([red, p0001], true)
+  assert.deepEqual(quedo, { res: { registrado: true }, llamadas: 2, consultas: 1 })
+  const noQuedo = await correr([red, p0001], false)
+  assert.equal(noQuedo.consultas, 1)
+  assert.equal(noQuedo.res.registrado, false)
+})
+
+test('el ojito no afecta la contraseña actual: su input es siempre type="password"', () => {
+  const form = leer('src/components/auth/NuevaContrasenaForm.jsx')
+  const actual = form.slice(form.indexOf('id="actual-contrasena"'), form.indexOf('placeholder="••••••••"', form.indexOf('id="actual-contrasena"')))
+  assert.match(actual, /type="password"/)
+  assert.doesNotMatch(actual, /type=\{tipo\}/)
 })

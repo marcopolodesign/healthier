@@ -13,6 +13,8 @@ import { MIN_CONTRASENA, validarContrasena } from '../../lib/contrasena'
  *     `actual` sólo viene si `pedirActual`.
  *   · `pedirActual` — agrega "Contraseña actual" arriba (obligatoria). Para el
  *     cambio desde adentro de una sesión, cuando la cuenta ya tiene contraseña.
+ *     El ojito de "Contraseña nueva" muestra/oculta sólo los dos campos nuevos:
+ *     la actual siempre queda oculta.
  *   · `email` — se pone en un input oculto `autocomplete="username"` para que el
  *     gestor de contraseñas guarde la nueva contra la cuenta correcta.
  *   · `autoFocus` (true por defecto) y `placeholderNueva` — textos/foco del primer campo.
@@ -56,7 +58,7 @@ export default function NuevaContrasenaForm({
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
             <input
               id="actual-contrasena"
-              type={tipo}
+              type="password"
               required
               autoComplete="current-password"
               autoFocus={autoFocus}

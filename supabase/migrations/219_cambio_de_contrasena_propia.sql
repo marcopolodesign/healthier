@@ -19,34 +19,30 @@
 -- ── Qué hay ──────────────────────────────────────────────────────────────────
 --   · `_cambios_de_contrasena` — un renglón por cambio real de contraseña
 --     (user_id, cuándo, y cuándo se asentó en el registro de admins).
---   · `_contrasena_propia` — marca "esta cuenta puso su contraseña" (la escribe
---     `registrar_cambio_de_contrasena`; no se puede volver a "sin contraseña").
 --   · `tengo_contrasena()` — ¿MI cuenta ya tiene una contraseña que conoce? Booleano,
 --     nunca el hash. 🔴 `encrypted_password <> ''` NO alcanza: GoTrue le guarda un hash
 --     ALEATORIO de 60 caracteres a toda cuenta creada sin contraseña (Admin API, magic
 --     link, generate_link) — marcopolo@healthier.app lo tiene — así que se exige además:
 --       a) un cambio real anotado por el trigger, o
---       b) la marca `_contrasena_propia`, o
---       c) (cuentas anteriores a esta migración, que no tienen anotación) una sesión
+--       b) (cuentas anteriores a esta migración, que no tienen anotación) una sesión
 --          viva que nació con contraseña (`auth.mfa_amr_claims` = 'password').
 --     Límite: una cuenta con contraseña real anterior a esta migración, con sólo sesiones
 --     por magic link y que nunca la cambió, contesta false hasta que entre con ella.
 --   · `registrar_cambio_de_contrasena()` — deja el asiento `cambio_de_contrasena` en
 --     `admin_action_log` (migración 218). SÓLO asienta si hay un cambio real de la
 --     contraseña de auth.uid() en los últimos 5 minutos que todavía no tenga asiento;
---     "primera vez" lo calcula el servidor (no existía contraseña antes de ese cambio).
+--     la nota la decide el servidor: "Cambió su contraseña" si la cuenta ya tenía una que
+--     conocía (había un cambio anterior anotado, o una sesión con contraseña); si no hay
+--     forma de saberlo dice "Puso o cambió su contraseña" (nunca afirma "primera vez":
+--     una cuenta anterior a esta migración con contraseña real y sólo sesiones por magic link
+--     no deja rastro). Había además una marca `_contrasena_propia`: era redundante (toda
+--     marca nacía de un cambio anotado) y se quitó.
 --     Sin cambio reciente → error y nada asentado. Sólo administradores
 --     (`_aal_actor_es_admin`).
 -- ─────────────────────────────────────────────────────────────────────────────
 
--- Cuentas que pusieron su contraseña desde la pantalla (el "_" es a propósito: tabla
--- interna, no entra en la lista de segmentos de Sentry). Sólo la escribe el RPC.
-create table if not exists public._contrasena_propia (
-  user_id uuid primary key,
-  desde   timestamptz not null default now()
-);
-alter table public._contrasena_propia enable row level security;
-revoke all on public._contrasena_propia from public, anon, authenticated, service_role;
+-- La marca `_contrasena_propia` de versiones anteriores de esta migración (sólo existió en staging).
+drop table if exists public._contrasena_propia;
 
 -- Un renglón por cambio real de contraseña. Sin FK a auth.users: sobrevive a la cuenta.
 create table if not exists public._cambios_de_contrasena (
@@ -64,6 +60,10 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public, pg_temp
+-- SET de la función (no `set local`): vale sólo mientras corre y después se restaura, así no le
+-- achica el lock_timeout al resto de la transacción de GoTrue. Si la tabla está bloqueada
+-- (un ALTER, un VACUUM FULL…) el insert espera 200 ms como máximo y el cambio de contraseña sigue.
+set lock_timeout = '200ms'
 as $$
 begin
   -- 🔴 Esto corre DENTRO del UPDATE de auth.users que hace GoTrue: si el insert tirara
@@ -73,7 +73,8 @@ begin
   -- como WARNING en los logs de Postgres.
   begin
     insert into public._cambios_de_contrasena (user_id) values (new.id);
-  exception when others then
+  exception when query_canceled or others then
+    -- `others` no atrapa query_canceled (statement_timeout / cancelación): se nombra aparte.
     raise warning 'no se pudo anotar el cambio de contraseña de %: %', new.id, sqlerrm;
   end;
   return null;
@@ -100,8 +101,7 @@ set search_path = public, auth, pg_temp
 as $$
   select coalesce(
     (select u.encrypted_password is not null and u.encrypted_password <> ''
-            and (exists (select 1 from public._contrasena_propia c where c.user_id = u.id)
-                 or exists (select 1 from public._cambios_de_contrasena x
+            and (exists (select 1 from public._cambios_de_contrasena x
                              where x.user_id = u.id and (p_antes_de is null or x.created_at < p_antes_de))
                  or exists (select 1
                               from auth.mfa_amr_claims a
@@ -138,7 +138,7 @@ as $$
 declare
   v_uid     uuid := auth.uid();
   v_cambio  public._cambios_de_contrasena%rowtype;
-  v_primera boolean;
+  v_conocia boolean;
 begin
   if v_uid is null then
     raise exception 'Hace falta una sesión.' using errcode = '42501';
@@ -159,15 +159,14 @@ begin
     raise exception 'No hay un cambio de contraseña reciente para asentar.' using errcode = 'P0001';
   end if;
 
-  -- Primera vez = antes de ese cambio la cuenta no tenía contraseña que conociera.
-  v_primera := not public._tiene_contrasena(v_uid, v_cambio.created_at);
+  -- ¿Tenía antes de ese cambio una contraseña que conocía? Sólo se afirma "cambió" con evidencia;
+  -- sin ella no se afirma "primera vez" (no hay forma de saberlo): "puso o cambió".
+  v_conocia := public._tiene_contrasena(v_uid, v_cambio.created_at);
 
   update public._cambios_de_contrasena set asentado_at = now() where id = v_cambio.id;
-  insert into public._contrasena_propia (user_id) values (v_uid) on conflict (user_id) do nothing;
-
   perform public._aal_escribir(
     null, 'cambio_de_contrasena', 'cuenta', v_uid::text, v_uid,
-    jsonb_build_object('nota', case when v_primera then 'Puso su contraseña por primera vez' else 'Cambió su contraseña' end));
+    jsonb_build_object('nota', case when v_conocia then 'Cambió su contraseña' else 'Puso o cambió su contraseña' end));
 end;
 $$;
 

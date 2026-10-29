@@ -1,5 +1,6 @@
 import { supabase, toCamelCase, olvidarSesion, crearClienteDescartable } from '../lib/supabase'
 import { traducirErrorDeAuth } from '../lib/errorDeAuth'
+import { asentarConReintento } from '../lib/reintento'
 import { armarNombreCompleto } from '../lib/nombreApellido'
 import { bajaService } from './bajaService'
 import { normalizarDni } from '../lib/dni'
@@ -344,18 +345,23 @@ export const authService = {
       if (errSalida) console.warn('[cambiarContrasenaPropia] no se pudo cerrar la sesión del verificador:', errSalida.message)
     }
 
+    // Margen de 1 minuto por si el reloj de la persona y el del servidor no coinciden.
+    const desde = new Date(Date.now() - 60_000).toISOString()
     const { error } = await supabase.auth.updateUser({ password: nueva })
     if (error) throw new Error(traducirErrorDeAuth(error, { contexto: 'panel' }))
 
     // El asiento lo decide el servidor: sólo existe si hubo un cambio real y reciente
-    // (migración 219). Si falla, una vez más; el estado "tiene contraseña" no depende de esto.
-    let errAsiento = null
-    for (let intento = 0; intento < 2; intento++) {
-      ;({ error: errAsiento } = await supabase.rpc('registrar_cambio_de_contrasena'))
-      if (!errAsiento) break
-    }
-    return errAsiento
-      ? { registrado: false, motivoSinRegistro: errAsiento.message }
-      : { registrado: true }
+    // (migración 219). Sólo se reintenta ante un fallo de red / 5xx; el estado "tiene
+    // contraseña" no depende de esto.
+    return asentarConReintento({
+      llamar: () => supabase.rpc('registrar_cambio_de_contrasena'),
+      quedoAsentado: async () => {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.user?.id) return false
+        const { data } = await supabase.from('admin_action_log').select('id')
+          .eq('action', 'cambio_de_contrasena').eq('actor_id', session.user.id).gte('created_at', desde).limit(1)
+        return (data?.length ?? 0) > 0
+      },
+    })
   },
 }
