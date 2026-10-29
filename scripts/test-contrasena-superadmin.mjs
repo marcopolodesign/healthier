@@ -112,6 +112,9 @@ test('la migración 219: el estado y el asiento dependen de la base, no del clie
   assert.match(sinComentarios, /create trigger anotar_cambio_de_contrasena\s+after update of encrypted_password on auth\.users/)
   assert.match(sinComentarios, /old\.encrypted_password is distinct from new\.encrypted_password/)
   assert.doesNotMatch(sinComentarios, /insert into public\._cambios_de_contrasena \([^)]*encrypted_password/)
+  // 🔴 el trigger corre dentro del UPDATE de GoTrue: un error acá bloquearía TODA recuperación de contraseña
+  assert.match(sinComentarios, /function public\._anotar_cambio_de_contrasena[\s\S]*?begin\s+insert into public\._cambios_de_contrasena[\s\S]*?exception when others then\s+raise warning/,
+    'el insert del trigger tiene que ir en un bloque con exception when others → raise warning')
   // el asiento: sin parámetros del cliente, atado a un cambio real, reciente y no asentado, sólo admins
   assert.match(sinComentarios, /function public\.registrar_cambio_de_contrasena\(\)/)
   assert.match(sinComentarios, /drop function if exists public\.registrar_cambio_de_contrasena\(boolean\)/)

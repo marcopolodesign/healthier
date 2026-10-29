@@ -581,6 +581,23 @@ try {
       ok(filas.map(f => f.detail.nota).join('|') === 'Puso su contraseña por primera vez|Cambió su contraseña',
         'la nota la calcula el servidor: primera vez, y después "cambió"')
 
+      // 🔴 Anotar el cambio NUNCA puede bloquear la escritura de auth.users: si el insert del trigger falla
+      // (acá: la tabla "desaparece" renombrada, dentro de un bloque que se deshace entero), GoTrue tiene que
+      // poder cambiar la contraseña igual — la recuperación por mail de cualquier paciente depende de eso.
+      const [{ n: antesTabla }] = await sql(`select count(*)::int n from public._cambios_de_contrasena`)
+      const simulado = await sql(`do $$
+        declare h text; nuevo text;
+        begin
+          select encrypted_password into h from auth.users where id = '${adminDesc.id}';
+          alter table public._cambios_de_contrasena rename to _cambios_x;
+          update auth.users set encrypted_password = md5(random()::text) where id = '${adminDesc.id}';
+          select encrypted_password into nuevo from auth.users where id = '${adminDesc.id}';
+          raise exception 'RESULTADO:%', (nuevo is distinct from h)::text;
+        end $$;`).then(() => 'sin-error', e => e.message)
+      ok(/RESULTADO:true/.test(simulado), `con la tabla de anotaciones rota, el UPDATE de encrypted_password en auth.users igual pasa (${String(simulado).match(/RESULTADO:\w+|ERROR:[^\n]*/)?.[0] ?? simulado.slice(0, 120)})`)
+      const [{ n: despuesTabla }] = await sql(`select count(*)::int n from public._cambios_de_contrasena`)
+      ok(despuesTabla === antesTabla, `la simulación se deshizo entera: la tabla sigue con su nombre y sus ${antesTabla} renglones`)
+
       // Un cambio viejo (> 5 min) ya no se puede asentar.
       const c3 = await adminDesc.cliente.auth.updateUser({ password: `Prueba-${ts}-Cc3` })
       ok(!c3.error, 'updateUser real (3.º)')
