@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, MapTrifold, Ambulance, UploadSimple, Barbell, UsersThree, BookOpenText, IdentificationCard, IdentificationBadge, Buildings, ShareFat, Lightning, Megaphone } from '@phosphor-icons/react';
+import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, MapTrifold, Ambulance, UploadSimple, Barbell, UsersThree, BookOpenText, IdentificationCard, IdentificationBadge, Buildings, ShareFat, Lightning, Megaphone, Key } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
 import { veSubidas, vePauta } from '../lib/permisos'
 import { GUIA_DE_ROL, urlDeGuia } from '../guia/roles'
@@ -83,6 +83,7 @@ const NAV_BY_ROLE = {
         { to: '/super-admin/zonas',         icon: MapPin,       label: 'Zonas' },
         { to: '/super-admin/verticales',    icon: Stethoscope,  label: 'Verticales' },
         { to: '/super-admin/admins',        icon: ShieldCheck,  label: 'Admins' },
+        { to: '/super-admin/perfil',    icon: Key,          label: 'Mi contraseña' },
       ],
     },
     // Farmacia (rama feature/farmacia-medicamentos, mergeada a staging el

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ChartBar, CurrencyDollar, ShieldCheck, Users, DotsThree, X,
-  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning, Path, EnvelopeSimple, UploadSimple, UsersThree, BookOpenText, ShareFat, Lightning, ShareNetwork, Megaphone } from '@phosphor-icons/react'
+  Siren, UserCirclePlus, MapPin, Stethoscope, Eye, Gear, SignOut, ShieldWarning, Path, EnvelopeSimple, UploadSimple, UsersThree, BookOpenText, ShareFat, Lightning, ShareNetwork, Megaphone, Key } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
 import { veSubidas, vePauta } from '../../lib/permisos'
@@ -60,6 +60,7 @@ const MORE_GROUPS = [
       { path: '/super-admin/zonas',       icon: MapPin,      label: 'Zonas',      sub: 'Cobertura' },
       { path: '/super-admin/verticales',  icon: Stethoscope, label: 'Verticales', sub: 'Precios y disponibilidad' },
       { path: '/super-admin/admins',      icon: ShieldCheck, label: 'Admins',     sub: 'Equipo interno' },
+      { path: '/super-admin/perfil',  icon: Key,         label: 'Mi contraseña', sub: 'Acceso con mail' },
     ],
   },
 ]

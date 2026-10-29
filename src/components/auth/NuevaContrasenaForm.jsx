@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { Lock, Eye, EyeSlash, WarningCircle } from '@phosphor-icons/react'
 
-export const MIN_CONTRASENA = 6
+import { MIN_CONTRASENA, validarContrasena } from '../../lib/contrasena'
+
+export { MIN_CONTRASENA }
 
 /**
  * Contraseña nueva + repetirla, con su validación y el error real abajo.
  * Lo usan "Restablecer contraseña" y "Recuperar cuenta" (migración 188).
  * `onSubmit(password)` puede tirar: el mensaje se muestra tal cual.
  */
-export default function NuevaContrasenaForm({ onSubmit, boton, botonCargando }) {
+export default function NuevaContrasenaForm({ onSubmit, boton, botonCargando, autoFocus = true, placeholderNueva = '••••••••' }) {
   const [form, setForm] = useState({ password: '', repetir: '' })
   const [ver, setVer] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -17,8 +19,8 @@ export default function NuevaContrasenaForm({ onSubmit, boton, botonCargando }) 
   const submit = async (e) => {
     e.preventDefault()
     setError('')
-    if (form.password.length < MIN_CONTRASENA) return setError(`La contraseña tiene que tener al menos ${MIN_CONTRASENA} caracteres.`)
-    if (form.password !== form.repetir) return setError('Las dos contraseñas no coinciden.')
+    const invalida = validarContrasena(form.password, form.repetir)
+    if (invalida) return setError(invalida)
 
     setLoading(true)
     try {
@@ -43,10 +45,10 @@ export default function NuevaContrasenaForm({ onSubmit, boton, botonCargando }) 
             required
             minLength={MIN_CONTRASENA}
             autoComplete="new-password"
-            autoFocus
+            autoFocus={autoFocus}
             value={form.password}
             onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
-            placeholder="••••••••"
+            placeholder={placeholderNueva}
             className="form-input pl-9 pr-11"
           />
           <button
