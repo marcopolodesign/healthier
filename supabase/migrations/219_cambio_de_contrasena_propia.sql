@@ -66,7 +66,16 @@ security definer
 set search_path = public, pg_temp
 as $$
 begin
-  insert into public._cambios_de_contrasena (user_id) values (new.id);
+  -- 🔴 Esto corre DENTRO del UPDATE de auth.users que hace GoTrue: si el insert tirara
+  -- un error (tabla renombrada, permisos, disco), GoTrue no podría cambiar la contraseña
+  -- de NINGUNA cuenta (la recuperación por mail de los pacientes incluida). Anotar el
+  -- cambio es secundario: nunca puede bloquear la escritura de auth. Lo que falle queda
+  -- como WARNING en los logs de Postgres.
+  begin
+    insert into public._cambios_de_contrasena (user_id) values (new.id);
+  exception when others then
+    raise warning 'no se pudo anotar el cambio de contraseña de %: %', new.id, sqlerrm;
+  end;
   return null;
 end;
 $$;
