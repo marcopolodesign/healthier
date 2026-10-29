@@ -36,6 +36,7 @@ export const ACCIONES_ADMIN = {
   devolucion_forzada:              'Devolución forzada',
   conversion_de_credito_a_mp:      'Crédito convertido a Mercado Pago',
   cambio_de_comision:              'Cambio de comisión',
+  cambio_de_contrasena:            'Cambio de contraseña propia',
 }
 
 /** Nombre legible de una acción; las de configuración (`alta_zones`…) se arman solas. */

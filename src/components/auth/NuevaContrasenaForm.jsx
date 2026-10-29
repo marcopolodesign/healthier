@@ -3,15 +3,24 @@ import { Lock, Eye, EyeSlash, WarningCircle } from '@phosphor-icons/react'
 
 import { MIN_CONTRASENA, validarContrasena } from '../../lib/contrasena'
 
-export { MIN_CONTRASENA }
-
 /**
  * Contraseña nueva + repetirla, con su validación y el error real abajo.
- * Lo usan "Restablecer contraseña" y "Recuperar cuenta" (migración 188).
- * `onSubmit(password)` puede tirar: el mensaje se muestra tal cual.
+ * Lo usan "Restablecer contraseña", "Recuperar cuenta" (migración 188) y
+ * "Mi contraseña" del super admin (/super-admin/perfil).
+ *
+ * Props:
+ *   · `onSubmit(password, actual)` puede tirar: el mensaje se muestra tal cual.
+ *     `actual` sólo viene si `pedirActual`.
+ *   · `pedirActual` — agrega "Contraseña actual" arriba (obligatoria). Para el
+ *     cambio desde adentro de una sesión, cuando la cuenta ya tiene contraseña.
+ *   · `email` — se pone en un input oculto `autocomplete="username"` para que el
+ *     gestor de contraseñas guarde la nueva contra la cuenta correcta.
+ *   · `autoFocus` (true por defecto) y `placeholderNueva` — textos/foco del primer campo.
  */
-export default function NuevaContrasenaForm({ onSubmit, boton, botonCargando, autoFocus = true, placeholderNueva = '••••••••' }) {
-  const [form, setForm] = useState({ password: '', repetir: '' })
+export default function NuevaContrasenaForm({
+  onSubmit, boton, botonCargando, autoFocus = true, placeholderNueva = '••••••••', pedirActual = false, email,
+}) {
+  const [form, setForm] = useState({ actual: '', password: '', repetir: '' })
   const [ver, setVer] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -19,12 +28,13 @@ export default function NuevaContrasenaForm({ onSubmit, boton, botonCargando, au
   const submit = async (e) => {
     e.preventDefault()
     setError('')
+    if (pedirActual && !form.actual) return setError('Ingresá tu contraseña actual.')
     const invalida = validarContrasena(form.password, form.repetir)
     if (invalida) return setError(invalida)
 
     setLoading(true)
     try {
-      await onSubmit(form.password)
+      await onSubmit(form.password, pedirActual ? form.actual : undefined)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -35,6 +45,30 @@ export default function NuevaContrasenaForm({ onSubmit, boton, botonCargando, au
   const tipo = ver ? 'text' : 'password'
   return (
     <form onSubmit={submit} className="space-y-4">
+      {email && (
+        <input type="text" name="username" autoComplete="username" value={email} readOnly tabIndex={-1} aria-hidden="true" className="sr-only" />
+      )}
+
+      {pedirActual && (
+        <div>
+          <label className="form-label" htmlFor="actual-contrasena">Contraseña actual</label>
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+            <input
+              id="actual-contrasena"
+              type={tipo}
+              required
+              autoComplete="current-password"
+              autoFocus={autoFocus}
+              value={form.actual}
+              onChange={e => setForm(p => ({ ...p, actual: e.target.value }))}
+              placeholder="••••••••"
+              className="form-input pl-9"
+            />
+          </div>
+        </div>
+      )}
+
       <div>
         <label className="form-label" htmlFor="nueva-contrasena">Contraseña nueva</label>
         <div className="relative">
@@ -45,7 +79,7 @@ export default function NuevaContrasenaForm({ onSubmit, boton, botonCargando, au
             required
             minLength={MIN_CONTRASENA}
             autoComplete="new-password"
-            autoFocus={autoFocus}
+            autoFocus={autoFocus && !pedirActual}
             value={form.password}
             onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
             placeholder={placeholderNueva}

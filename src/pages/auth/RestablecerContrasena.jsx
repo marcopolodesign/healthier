@@ -3,7 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { CheckCircle, WarningCircle } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { ROLE_REDIRECTS } from '../../lib/roleRedirects'
-import NuevaContrasenaForm, { MIN_CONTRASENA } from '../../components/auth/NuevaContrasenaForm'
+import NuevaContrasenaForm from '../../components/auth/NuevaContrasenaForm'
+import { MIN_CONTRASENA } from '../../lib/contrasena'
 
 // Paso 2 de "¿Olvidaste tu contraseña?": acá llega el link del mail.
 //

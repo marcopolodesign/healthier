@@ -19,6 +19,16 @@ export const supabase = createClient(supabaseUrl, anonKey, {
 })
 
 /**
+ * Cliente aparte, sin guardar ni refrescar nada: sirve para verificar una
+ * contraseña (`signInWithPassword`) sin tocar la sesión de la pestaña.
+ */
+export function crearClienteDescartable() {
+  return createClient(supabaseUrl, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'sb-descartable' },
+  })
+}
+
+/**
  * La sesión del WebView de la app se perdía sola (2026-09-28, iPhone de
  * Mateo en `/profesional/atencion/:id`): entraba con sesión, y a los ~15 s
  * todo salía como anónimo —el borrador de la consulta y "Guardar en la HC"

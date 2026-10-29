@@ -634,7 +634,7 @@ export default function App() {
           {/* Segundo factor (TOTP). SIN link en el menú a propósito — ver lib/mfa.js. */}
           <Route path="/super-admin/seguridad" element={<SuperAdminSeguridad />} />
           {/* Poner/cambiar la contraseña propia. Sí va en el menú (Configuración). */}
-          <Route path="/super-admin/perfil" element={<SuperAdminContrasena />} />
+          <Route path="/super-admin/perfil" element={<SuperAdminContrasena profile={profile} />} />
         </Route>
 
         {/* Farmacia */}

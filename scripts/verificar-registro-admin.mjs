@@ -509,6 +509,64 @@ try {
     ...Object.entries(PARCIALES).flatMap(([t, m]) => Object.keys(m).filter(op => !ops.some(r => r.tablename === t && r.op === op && clasificar(r) === 'parcial')).map(op => `${t}.${op} (parcial)`)),
   ]
   if (sobran.length) console.log(`· (aviso) excepciones que ya no hacen falta: ${sobran.join(', ')}`)
+
+  // ── 13. Contraseña propia (migración 219): tengo_contrasena + asiento cambio_de_contrasena ──
+  {
+    const rpc = (nombre, body, token) => rest(`rpc/${nombre}`, { method: 'POST', body: body ?? {}, token })
+    // La cuenta demo del super admin tiene contraseña; una creada sin contraseña (magic link) no.
+    const t1 = await rpc('tengo_contrasena', {}, sup.token)
+    ok(t1.ok && t1.data === true, 'tengo_contrasena: una cuenta con contraseña (superadmin@) contesta true')
+    const mail13 = `registro.admin.pw.${ts}@staging.healthier.app`
+    const { data: nuevo13, error: e13 } = await admin.auth.admin.createUser({ email: mail13, email_confirm: true })
+    if (e13) throw e13
+    try {
+      const ses13 = await sesionDe(mail13)
+      const t2 = await rpc('tengo_contrasena', {}, ses13.token)
+      ok(t2.ok && t2.data === false, 'tengo_contrasena: una cuenta que entró por magic link (sin contraseña) contesta false')
+      // GoTrue le guarda un hash aleatorio a toda cuenta creada sin contraseña: si la RPC mirara sólo
+      // `encrypted_password`, esta cuenta (como marcopolo@) quedaría "con contraseña" y sin poder ponerla.
+      const [{ largo }] = await sql(`select length(encrypted_password) largo from auth.users where id = '${nuevo13.user.id}'`)
+      ok(largo > 0, `la cuenta sin contraseña tiene igual un hash aleatorio (${largo} caracteres): por eso no alcanza con mirar el hash`)
+      const clave13 = `Prueba-${ts}-Aa1`
+      await admin.auth.admin.updateUserById(nuevo13.user.id, { password: clave13 })
+      const t3a = await rpc('tengo_contrasena', {}, ses13.token)
+      ok(t3a.ok && t3a.data === false, 'tengo_contrasena: con la contraseña puesta pero sin haber entrado nunca con ella, todavía false (límite documentado)')
+      const conClave = createClient(URL, ANON, { auth: { persistSession: false } })
+      const { data: sClave, error: eClave } = await conClave.auth.signInWithPassword({ email: mail13, password: clave13 })
+      ok(!eClave, `entrar con la contraseña funciona (${eClave?.message ?? 'ok'})`)
+      const t3 = await rpc('tengo_contrasena', {}, sClave?.session?.access_token)
+      ok(t3.ok && t3.data === true, 'tengo_contrasena: contesta true en cuanto la persona entró con su contraseña')
+      // Cada cuenta ve sólo lo suyo: la función no recibe ningún id.
+      const t4 = await rpc('tengo_contrasena', { p_id: nuevo13.user.id }, sup.token)
+      ok(!(t4.ok && t4.data === false), 'tengo_contrasena no acepta el id de otra cuenta (no se puede consultar a un tercero)')
+      // Sin sesión: nada.
+      const t5 = await rest('rpc/tengo_contrasena', { method: 'POST', body: {}, token: ANON })
+      ok(!t5.ok, `tengo_contrasena: anónimo rechazado (HTTP ${t5.status})`)
+      // Quien no es admin no puede asentar nada.
+      const noAdmin = await rpc('registrar_cambio_de_contrasena', { p_primera_vez: true }, ses13.token)
+      ok(!noAdmin.ok, `registrar_cambio_de_contrasena: una cuenta sin rol de administración es rechazada (HTTP ${noAdmin.status})`)
+      const sinSesion = await rest('rpc/registrar_cambio_de_contrasena', { method: 'POST', body: {}, token: ANON })
+      ok(!sinSesion.ok, `registrar_cambio_de_contrasena: anónimo rechazado (HTTP ${sinSesion.status})`)
+      const servidor = await rest('rpc/registrar_cambio_de_contrasena', { method: 'POST', body: {}, service: true })
+      ok(!servidor.ok, `registrar_cambio_de_contrasena: el servidor sin persona detrás no puede asentar (HTTP ${servidor.status})`)
+    } finally {
+      await admin.auth.admin.deleteUser(nuevo13.user.id).catch(e => console.error('limpieza 13:', e.message))
+    }
+    // El super admin sí: asiento con la persona como actor y sin el valor de ninguna contraseña.
+    const antes13 = (await asientos(`action = 'cambio_de_contrasena'`)).length
+    const a1 = await rpc('registrar_cambio_de_contrasena', { p_primera_vez: false }, sup.token)
+    const a2 = await rpc('registrar_cambio_de_contrasena', { p_primera_vez: true }, sup.token)
+    ok(a1.ok && a2.ok, `registrar_cambio_de_contrasena: el super admin asienta su cambio (HTTP ${a1.status}/${a2.status})`)
+    const filas13 = await asientos(`action = 'cambio_de_contrasena'`)
+    const nuevas = filas13.slice(antes13)
+    ok(nuevas.length === 2
+       && nuevas.every(f => f.actor_id === sup.id && f.via === 'usuario' && f.actor_role === 'super_admin' && f.target_user_id === sup.id),
+      'el asiento queda con el super admin como actor (via=usuario) sobre su propia cuenta')
+    ok(nuevas.every(f => !/pass|contrase[ñn]a\s*[:=]|hash/i.test(JSON.stringify({ ...f.detail, entity_id: undefined })) || /^(Puso|Cambió) su contraseña/.test(f.detail?.nota ?? '')),
+      'el asiento no lleva ningún valor de contraseña (sólo la nota "Puso/Cambió su contraseña")')
+    ok(nuevas.map(f => f.detail?.nota).join('|') === 'Cambió su contraseña|Puso su contraseña por primera vez',
+      'la nota distingue el cambio de la primera vez')
+  }
 } catch (e) {
   fallas++
   console.error('❌ el recorrido se cortó:', e.message)
