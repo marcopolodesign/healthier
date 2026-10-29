@@ -65,3 +65,9 @@ test('el resto de las formas', () => {
   assert.equal(etiquetaAccion('baja_de_cuenta'), 'Baja de cuenta')
   assert.equal(etiquetaAccion('modificacion_pharmacies'), 'Cambio en pharmacies')
 })
+
+test("el cambio de contraseña propia se lee entero: etiqueta y nota, sin valores", () => {
+  assert.equal(etiquetaAccion("cambio_de_contrasena"), "Cambio de contraseña propia")
+  assert.equal(r("cambio_de_contrasena", { nota: "Puso su contraseña por primera vez" }), "Puso su contraseña por primera vez")
+  assert.equal(r("cambio_de_contrasena", { nota: "Cambió su contraseña" }), "Cambió su contraseña")
+})

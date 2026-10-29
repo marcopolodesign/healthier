@@ -1,4 +1,5 @@
-import { supabase, toCamelCase, olvidarSesion } from '../lib/supabase'
+import { supabase, toCamelCase, olvidarSesion, crearClienteDescartable } from '../lib/supabase'
+import { traducirErrorDeAuth } from '../lib/errorDeAuth'
 import { armarNombreCompleto } from '../lib/nombreApellido'
 import { bajaService } from './bajaService'
 import { normalizarDni } from '../lib/dni'
@@ -294,20 +295,52 @@ export const authService = {
     if (error) throw new Error(traducirErrorDeAuth(error))
     return data.user
   },
-}
 
-// Los mensajes de GoTrue vienen en inglés. Se traducen los que la persona
-// puede resolver; el resto se muestra tal cual — nunca un error mudo.
-function traducirErrorDeAuth(error) {
-  const code = error?.code || ''
-  const msg = error?.message || 'Error desconocido'
-  if (code === 'over_email_send_rate_limit' || /rate limit|only request this after/i.test(msg)) {
-    return 'Pediste demasiados mails en poco tiempo. Esperá unos minutos y probá de nuevo.'
-  }
-  if (code === 'same_password') return 'La contraseña nueva tiene que ser distinta de la anterior.'
-  if (code === 'weak_password') return 'La contraseña es muy débil. Usá al menos 6 caracteres.'
-  if (code === 'session_not_found' || /auth session missing/i.test(msg)) {
-    return 'Tu sesión para cambiar la contraseña venció. Pedí otro mail.'
-  }
-  return msg
+  // ── Cambiar la contraseña propia desde el panel (/super-admin/perfil) ────
+  //
+  // Supabase Auth de este proyecto no pide la actual ni reautenticación
+  // (`security_update_password_require_*` = false): una sesión viva alcanzaría
+  // para cambiarla. Por eso el chequeo vive acá: si la cuenta YA tiene
+  // contraseña, se verifica la actual antes del `updateUser`. Una cuenta que
+  // entró siempre por magic link no tiene ninguna y la pone sin ella.
+
+  /** ¿Mi cuenta ya tiene contraseña? (RPC `tengo_contrasena`, migración 219.) */
+  async tengoContrasena() {
+    const { data, error } = await supabase.rpc('tengo_contrasena')
+    if (error) throw new Error(error.message || 'No pudimos comprobar tu cuenta.')
+    return data === true
+  },
+
+  /**
+   * Cambia la contraseña de la sesión actual. `actual` es obligatoria si la
+   * cuenta ya tiene una. Devuelve `{ registrado, motivoSinRegistro }`: el
+   * cambio ya salió bien aunque el asiento del registro de administradores
+   * (migración 219) falle, y eso se le dice a la persona aparte.
+   */
+  async cambiarContrasenaPropia({ nueva, actual, tieneContrasena }) {
+    if (tieneContrasena) {
+      if (!actual) throw new Error('Ingresá tu contraseña actual.')
+      const { data: { session } } = await supabase.auth.getSession()
+      const email = session?.user?.email
+      if (!email) throw new Error(traducirErrorDeAuth({ code: 'session_not_found' }, { contexto: 'panel' }))
+      // Cliente descartable: un signIn en el cliente principal reemplazaría la
+      // sesión (y, con segundo factor, la bajaría a aal1 y volvería a pedir el código).
+      const verificador = crearClienteDescartable()
+      const { error } = await verificador.auth.signInWithPassword({ email, password: actual })
+      if (error) {
+        throw new Error(error.code === 'invalid_credentials' || /invalid login credentials/i.test(error.message || '')
+          ? 'La contraseña actual no es correcta.'
+          : traducirErrorDeAuth(error, { contexto: 'panel' }))
+      }
+      await verificador.auth.signOut({ scope: 'local' }).catch(() => {})
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: nueva })
+    if (error) throw new Error(traducirErrorDeAuth(error, { contexto: 'panel' }))
+
+    const { error: errAsiento } = await supabase.rpc('registrar_cambio_de_contrasena', { p_primera_vez: !tieneContrasena })
+    return errAsiento
+      ? { registrado: false, motivoSinRegistro: errAsiento.message }
+      : { registrado: true }
+  },
 }
