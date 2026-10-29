@@ -23,7 +23,8 @@
     "test:contrasena": "node --test scripts/test-contrasena-superadmin.mjs",
     "test:registro-admin": "node scripts/verificar-registro-admin.mjs",
     "test:resumen-auditoria": "node --test scripts/test-admin-audit-resumen.mjs",
-    "test:mfa": "node --test scripts/test-mfa-superadmin.mjs"
+    "test:mfa": "node --test scripts/test-mfa-superadmin.mjs",
+    "test:referidos": "node --test scripts/test-referidos-dominio.mjs"
   },
   "dependencies": {
     "@daily-co/daily-js": "^0.87.0",
