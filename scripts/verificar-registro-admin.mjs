@@ -511,61 +511,105 @@ try {
   if (sobran.length) console.log(`· (aviso) excepciones que ya no hacen falta: ${sobran.join(', ')}`)
 
   // ── 13. Contraseña propia (migración 219): tengo_contrasena + asiento cambio_de_contrasena ──
+  // Con cuentas DESCARTABLES: la demo (superadmin@) no se toca ni se le asientan cambios falsos.
+  // El asiento sólo existe si hubo un cambio REAL (updateUser) reciente, y "primera vez" lo calcula el servidor.
   {
     const rpc = (nombre, body, token) => rest(`rpc/${nombre}`, { method: 'POST', body: body ?? {}, token })
-    // La cuenta demo del super admin tiene contraseña; una creada sin contraseña (magic link) no.
+    const asientosDe = (id) => sql(`select * from public.admin_action_log where action = 'cambio_de_contrasena' and target_user_id = '${id}' order by created_at`)
+    const demoAntes = (await asientos(`action = 'cambio_de_contrasena' and actor_id = '${sup.id}'`)).length
+
     const t1 = await rpc('tengo_contrasena', {}, sup.token)
-    ok(t1.ok && t1.data === true, 'tengo_contrasena: una cuenta con contraseña (superadmin@) contesta true')
-    const mail13 = `registro.admin.pw.${ts}@staging.healthier.app`
-    const { data: nuevo13, error: e13 } = await admin.auth.admin.createUser({ email: mail13, email_confirm: true })
-    if (e13) throw e13
+    ok(t1.ok && t1.data === true, 'tengo_contrasena: una cuenta con contraseña (superadmin@, entró con ella) contesta true')
+
+    const crear = async (rol, mail) => {
+      const { data, error } = await admin.auth.admin.createUser({ email: mail, email_confirm: true })
+      if (error) throw error
+      const r = await rest('profiles', { method: 'POST', service: true, body: { id: data.user.id, email: mail, full_name: 'Prueba contraseña', role: rol } })
+      if (!r.ok) throw new Error(`perfil de prueba: ${JSON.stringify(r.data)}`)
+      // Cliente real de esa persona: el cambio de contraseña se hace como lo hace la pantalla (updateUser).
+      const { data: link } = await admin.auth.admin.generateLink({ type: 'magiclink', email: mail })
+      const cliente = createClient(URL, ANON, { auth: { persistSession: false, autoRefreshToken: false } })
+      const { data: ses, error: eSes } = await cliente.auth.verifyOtp({ type: 'magiclink', token_hash: link.properties.hashed_token })
+      if (eSes) throw eSes
+      return { id: data.user.id, mail, cliente, token: ses.session.access_token }
+    }
+    const adminDesc = await crear('super_admin', `registro.admin.pw.${ts}@staging.healthier.app`)
+    const pacienteDesc = await crear('patient', `registro.admin.pw.p.${ts}@staging.healthier.app`)
+    const creadas = [adminDesc.id, pacienteDesc.id]
     try {
-      const ses13 = await sesionDe(mail13)
-      const t2 = await rpc('tengo_contrasena', {}, ses13.token)
+      // Sin contraseña: GoTrue igual le guarda un hash aleatorio (por eso no alcanza con mirar el hash).
+      const [{ largo }] = await sql(`select length(encrypted_password) largo from auth.users where id = '${adminDesc.id}'`)
+      ok(largo > 0, `la cuenta sin contraseña tiene igual un hash aleatorio (${largo} caracteres)`)
+      const t2 = await rpc('tengo_contrasena', {}, adminDesc.token)
       ok(t2.ok && t2.data === false, 'tengo_contrasena: una cuenta que entró por magic link (sin contraseña) contesta false')
-      // GoTrue le guarda un hash aleatorio a toda cuenta creada sin contraseña: si la RPC mirara sólo
-      // `encrypted_password`, esta cuenta (como marcopolo@) quedaría "con contraseña" y sin poder ponerla.
-      const [{ largo }] = await sql(`select length(encrypted_password) largo from auth.users where id = '${nuevo13.user.id}'`)
-      ok(largo > 0, `la cuenta sin contraseña tiene igual un hash aleatorio (${largo} caracteres): por eso no alcanza con mirar el hash`)
-      const clave13 = `Prueba-${ts}-Aa1`
-      await admin.auth.admin.updateUserById(nuevo13.user.id, { password: clave13 })
-      const t3a = await rpc('tengo_contrasena', {}, ses13.token)
-      ok(t3a.ok && t3a.data === false, 'tengo_contrasena: con la contraseña puesta pero sin haber entrado nunca con ella, todavía false (límite documentado)')
-      const conClave = createClient(URL, ANON, { auth: { persistSession: false } })
-      const { data: sClave, error: eClave } = await conClave.auth.signInWithPassword({ email: mail13, password: clave13 })
-      ok(!eClave, `entrar con la contraseña funciona (${eClave?.message ?? 'ok'})`)
-      const t3 = await rpc('tengo_contrasena', {}, sClave?.session?.access_token)
-      ok(t3.ok && t3.data === true, 'tengo_contrasena: contesta true en cuanto la persona entró con su contraseña')
-      // Cada cuenta ve sólo lo suyo: la función no recibe ningún id.
-      const t4 = await rpc('tengo_contrasena', { p_id: nuevo13.user.id }, sup.token)
-      ok(!(t4.ok && t4.data === false), 'tengo_contrasena no acepta el id de otra cuenta (no se puede consultar a un tercero)')
-      // Sin sesión: nada.
+      const t4 = await rpc('tengo_contrasena', { p_id: adminDesc.id }, sup.token)
+      ok(!(t4.ok && t4.data === false), 'tengo_contrasena no acepta el id de otra cuenta')
       const t5 = await rest('rpc/tengo_contrasena', { method: 'POST', body: {}, token: ANON })
       ok(!t5.ok, `tengo_contrasena: anónimo rechazado (HTTP ${t5.status})`)
-      // Quien no es admin no puede asentar nada.
-      const noAdmin = await rpc('registrar_cambio_de_contrasena', { p_primera_vez: true }, ses13.token)
-      ok(!noAdmin.ok, `registrar_cambio_de_contrasena: una cuenta sin rol de administración es rechazada (HTTP ${noAdmin.status})`)
+
+      // Sin cambio real reciente, no hay asiento (aunque sea administrador).
+      const sinCambio = await rpc('registrar_cambio_de_contrasena', {}, adminDesc.token)
+      ok(!sinCambio.ok && (await asientosDe(adminDesc.id)).length === 0, `registrar sin un cambio real reciente: error y nada asentado (HTTP ${sinCambio.status})`)
+
+      // 1.er cambio real → "primera vez" lo decide el servidor.
+      const c1 = await adminDesc.cliente.auth.updateUser({ password: `Prueba-${ts}-Aa1` })
+      ok(!c1.error, `updateUser real (primera contraseña): ${c1.error?.message ?? 'ok'}`)
+      const [{ n: anotados }] = await sql(`select count(*)::int n from public._cambios_de_contrasena where user_id = '${adminDesc.id}'`)
+      ok(anotados === 1, `el trigger anotó el cambio real (${anotados} renglón)`)
+      const cols = await sql(`select column_name from information_schema.columns where table_name = '_cambios_de_contrasena' order by 1`)
+      ok(!cols.some(c => /pass|hash/i.test(c.column_name)), 'el renglón no copia el hash de la contraseña')
+      const t3 = await rpc('tengo_contrasena', {}, adminDesc.token)
+      ok(t3.ok && t3.data === true, 'tengo_contrasena: true en cuanto hubo un cambio real, sin depender de las sesiones (mfa_amr_claims)')
+      const a1 = await rpc('registrar_cambio_de_contrasena', {}, adminDesc.token)
+      ok(a1.ok, `registrar tras el cambio real: asienta (HTTP ${a1.status})`)
+      const rep = await rpc('registrar_cambio_de_contrasena', {}, adminDesc.token)
+      ok(!rep.ok && (await asientosDe(adminDesc.id)).length === 1, `el mismo cambio no se asienta dos veces (HTTP ${rep.status})`)
+
+      // 2.º cambio real: el cliente NO puede forzar "primera vez" (la función ya no recibe nada).
+      const c2 = await adminDesc.cliente.auth.updateUser({ password: `Prueba-${ts}-Bb2` })
+      ok(!c2.error, `updateUser real (cambio): ${c2.error?.message ?? 'ok'}`)
+      const forzado = await rpc('registrar_cambio_de_contrasena', { p_primera_vez: true }, adminDesc.token)
+      ok(!forzado.ok && (await asientosDe(adminDesc.id)).length === 1, `registrar no acepta un "primera vez" del cliente (HTTP ${forzado.status})`)
+      const a2 = await rpc('registrar_cambio_de_contrasena', {}, adminDesc.token)
+      ok(a2.ok, `registrar tras el 2.º cambio real: asienta (HTTP ${a2.status})`)
+      const filas = await asientosDe(adminDesc.id)
+      ok(filas.length === 2
+         && filas.every(f => f.actor_id === adminDesc.id && f.via === 'usuario' && f.actor_role === 'super_admin' && f.entity_id === adminDesc.id),
+        'los asientos quedan con la persona como actor (via=usuario) sobre su propia cuenta')
+      ok(filas.every(f => JSON.stringify(Object.keys(f.detail)) === JSON.stringify(['nota'])),
+        'el asiento lleva exactamente una clave, `nota` (ningún valor de contraseña ni hash)')
+      ok(filas.map(f => f.detail.nota).join('|') === 'Puso su contraseña por primera vez|Cambió su contraseña',
+        'la nota la calcula el servidor: primera vez, y después "cambió"')
+
+      // Un cambio viejo (> 5 min) ya no se puede asentar.
+      const c3 = await adminDesc.cliente.auth.updateUser({ password: `Prueba-${ts}-Cc3` })
+      ok(!c3.error, 'updateUser real (3.º)')
+      await sql(`update public._cambios_de_contrasena set created_at = now() - interval '10 minutes' where user_id = '${adminDesc.id}' and asentado_at is null`)
+      const viejo = await rpc('registrar_cambio_de_contrasena', {}, adminDesc.token)
+      ok(!viejo.ok && (await asientosDe(adminDesc.id)).length === 2, `un cambio de hace más de 5 minutos no se asienta (HTTP ${viejo.status})`)
+
+      // Quien no es administrador no asienta, aunque haya cambiado su contraseña de verdad.
+      const cp = await pacienteDesc.cliente.auth.updateUser({ password: `Prueba-${ts}-Pp1` })
+      ok(!cp.error, 'updateUser real de un paciente de prueba')
+      const noAdmin = await rpc('registrar_cambio_de_contrasena', {}, pacienteDesc.token)
+      ok(!noAdmin.ok && (await asientosDe(pacienteDesc.id)).length === 0, `un paciente no asienta nada (HTTP ${noAdmin.status})`)
       const sinSesion = await rest('rpc/registrar_cambio_de_contrasena', { method: 'POST', body: {}, token: ANON })
-      ok(!sinSesion.ok, `registrar_cambio_de_contrasena: anónimo rechazado (HTTP ${sinSesion.status})`)
+      ok(!sinSesion.ok, `registrar: anónimo rechazado (HTTP ${sinSesion.status})`)
       const servidor = await rest('rpc/registrar_cambio_de_contrasena', { method: 'POST', body: {}, service: true })
-      ok(!servidor.ok, `registrar_cambio_de_contrasena: el servidor sin persona detrás no puede asentar (HTTP ${servidor.status})`)
+      ok(!servidor.ok, `registrar: el servidor sin persona detrás no puede asentar (HTTP ${servidor.status})`)
+
+      // La demo no recibió ningún asiento falso.
+      const demoDespues = (await asientos(`action = 'cambio_de_contrasena' and actor_id = '${sup.id}'`)).length
+      ok(demoDespues === demoAntes, `ningún asiento falso del superadmin demo (${demoAntes} → ${demoDespues})`)
     } finally {
-      await admin.auth.admin.deleteUser(nuevo13.user.id).catch(e => console.error('limpieza 13:', e.message))
+      const lista = creadas.map(id => `'${id}'`).join(', ')
+      await sql(`delete from public._cambios_de_contrasena where user_id in (${lista});
+                 delete from public._contrasena_propia where user_id in (${lista});
+                 delete from public.profiles where id in (${lista});`).catch(e => console.error('limpieza 13:', e.message))
+      for (const id of creadas) await admin.auth.admin.deleteUser(id).catch(e => console.error('limpieza 13 auth:', e.message))
+      const [{ n }] = await sql(`select count(*)::int n from public.admin_action_log where created_at >= '${ahora}' and entity_id in (${lista})`)
+      console.log(`· sección 13: ${n} asiento(s) inmutables quedan en staging (alta + 2 cambios de contraseña + baja de las cuentas de prueba)`)
     }
-    // El super admin sí: asiento con la persona como actor y sin el valor de ninguna contraseña.
-    const antes13 = (await asientos(`action = 'cambio_de_contrasena'`)).length
-    const a1 = await rpc('registrar_cambio_de_contrasena', { p_primera_vez: false }, sup.token)
-    const a2 = await rpc('registrar_cambio_de_contrasena', { p_primera_vez: true }, sup.token)
-    ok(a1.ok && a2.ok, `registrar_cambio_de_contrasena: el super admin asienta su cambio (HTTP ${a1.status}/${a2.status})`)
-    const filas13 = await asientos(`action = 'cambio_de_contrasena'`)
-    const nuevas = filas13.slice(antes13)
-    ok(nuevas.length === 2
-       && nuevas.every(f => f.actor_id === sup.id && f.via === 'usuario' && f.actor_role === 'super_admin' && f.target_user_id === sup.id),
-      'el asiento queda con el super admin como actor (via=usuario) sobre su propia cuenta')
-    ok(nuevas.every(f => !/pass|contrase[ñn]a\s*[:=]|hash/i.test(JSON.stringify({ ...f.detail, entity_id: undefined })) || /^(Puso|Cambió) su contraseña/.test(f.detail?.nota ?? '')),
-      'el asiento no lleva ningún valor de contraseña (sólo la nota "Puso/Cambió su contraseña")')
-    ok(nuevas.map(f => f.detail?.nota).join('|') === 'Cambió su contraseña|Puso su contraseña por primera vez',
-      'la nota distingue el cambio de la primera vez')
   }
 } catch (e) {
   fallas++

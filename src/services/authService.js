@@ -51,6 +51,10 @@ function errorDeAlta(code, mensaje) {
   return Object.assign(new Error(mensaje), { code })
 }
 
+// Un solo cliente "verificador" por pestaña (lazy): no se crea un GoTrueClient por intento.
+let _verificador = null
+const clienteVerificador = () => (_verificador ??= crearClienteDescartable())
+
 export const authService = {
   /** `nombres` = `{ nombre, apellido }`, los dos obligatorios (migración 183). */
   async register(email, password, role, nombres, utms = {}, phone = null, referredByProfessionalId = null, { ignorarBaja = false } = {}) {
@@ -310,7 +314,8 @@ export const authService = {
    * Cambia la contraseña de la sesión actual. `actual` es obligatoria si la
    * cuenta ya tiene una. Devuelve `{ registrado, motivoSinRegistro }`: el
    * cambio ya salió bien aunque el asiento del registro de administradores
-   * (migración 219) falle, y eso se le dice a la persona aparte.
+   * (migración 219) falle (se reintenta una vez), y el error real se le muestra
+   * a la persona aparte.
    */
   async cambiarContrasenaPropia({ nueva, actual, tieneContrasena }) {
     if (tieneContrasena) {
@@ -318,22 +323,32 @@ export const authService = {
       const { data: { session } } = await supabase.auth.getSession()
       const email = session?.user?.email
       if (!email) throw new Error(traducirErrorDeAuth({ code: 'session_not_found' }, { contexto: 'panel' }))
-      // Cliente descartable: un signIn en el cliente principal reemplazaría la
-      // sesión (y, con segundo factor, la bajaría a aal1 y volvería a pedir el código).
-      const verificador = crearClienteDescartable()
+      // Cliente descartable (uno solo por pestaña): un signIn en el cliente principal
+      // reemplazaría la sesión (y, con segundo factor, la bajaría a aal1 y volvería a
+      // pedir el código). Esta verificación es UX, no el control de seguridad: ver
+      // la migración 219.
+      const verificador = clienteVerificador()
       const { error } = await verificador.auth.signInWithPassword({ email, password: actual })
       if (error) {
         throw new Error(error.code === 'invalid_credentials' || /invalid login credentials/i.test(error.message || '')
           ? 'La contraseña actual no es correcta.'
           : traducirErrorDeAuth(error, { contexto: 'panel' }))
       }
-      await verificador.auth.signOut({ scope: 'local' }).catch(() => {})
+      // Revoca la sesión que acaba de abrir; si falla, queda viva hasta que venza.
+      const { error: errSalida } = await verificador.auth.signOut({ scope: 'local' })
+      if (errSalida) console.warn('[cambiarContrasenaPropia] no se pudo cerrar la sesión del verificador:', errSalida.message)
     }
 
     const { error } = await supabase.auth.updateUser({ password: nueva })
     if (error) throw new Error(traducirErrorDeAuth(error, { contexto: 'panel' }))
 
-    const { error: errAsiento } = await supabase.rpc('registrar_cambio_de_contrasena', { p_primera_vez: !tieneContrasena })
+    // El asiento lo decide el servidor: sólo existe si hubo un cambio real y reciente
+    // (migración 219). Si falla, una vez más; el estado "tiene contraseña" no depende de esto.
+    let errAsiento = null
+    for (let intento = 0; intento < 2; intento++) {
+      ;({ error: errAsiento } = await supabase.rpc('registrar_cambio_de_contrasena'))
+      if (!errAsiento) break
+    }
     return errAsiento
       ? { registrado: false, motivoSinRegistro: errAsiento.message }
       : { registrado: true }
