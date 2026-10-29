@@ -1,5 +1,12 @@
 import { supabase, toCamelCase } from '../lib/supabase'
 
+export const SITIO_PUBLICO = 'https://www.healthier.com.ar'
+
+/** Origen que se comparte afuera: el de producción si se está en el dominio viejo. */
+export function origenPublico({ hostname, origin }) {
+  return hostname === 'gethealthier.vercel.app' ? SITIO_PUBLICO : origin
+}
+
 export const referralService = {
   /**
    * Resuelve `/r/<codigo>` y registra la visita.
@@ -43,9 +50,14 @@ export const referralService = {
     return toCamelCase(data ?? [])
   },
 
-  /** El link tal cual se comparte. Una sola definición para toda la app. */
+  /**
+   * El link tal cual se comparte. Una sola definición para toda la app.
+   * Si se entró por el dominio viejo de Vercel (los mails de Supabase todavía
+   * mandan ahí), el link sale igual con el de producción: es el que viaja por
+   * WhatsApp. Staging y localhost conservan su propio origen.
+   */
   buildUrl(codigo) {
-    return `${window.location.origin}/r/${codigo}`
+    return `${origenPublico(window.location)}/r/${codigo}`
   },
 
   /**
