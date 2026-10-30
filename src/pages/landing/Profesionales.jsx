@@ -8,6 +8,7 @@ import {
 import { CompanyLogo } from '../../components/common/CompanyLogo'
 import { LandingFooter } from '../../components/landing/LandingFooter'
 import { AnimatedHeadline } from '../../components/landing/AnimatedHeadline'
+import { AppDownload } from '../../components/landing/AppDownload'
 import { captureUtms } from '../../lib/utms'
 
 const FEATURES = [
@@ -138,6 +139,9 @@ export default function LandingProfesionales() {
         </div>
       </section>
 
+      {/* La app para profesionales: captura real + badges de las tiendas */}
+      <AppDownload variant="profesional" layout="a" id="app" />
+
       {/* Trust & compliance */}
       <section className="py-24 px-4 sm:px-6 bg-bg-primary rounded-t-3xl">
         <div className="max-w-6xl mx-auto">
@@ -185,6 +189,9 @@ export default function LandingProfesionales() {
           </div>
         </div>
       </section>
+
+      {/* La app (B): después del testimonio, lejos del cierre oscuro */}
+      <AppDownload variant="profesional-b" layout="b" id="app-b" />
 
       {/* Growth callout — reuses PRO_BENEFITS icon language from main landing */}
       <section className="py-20 px-4 sm:px-6 bg-bg-primary rounded-t-3xl">
