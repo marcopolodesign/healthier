@@ -8,6 +8,7 @@ import {
 } from '@phosphor-icons/react'
 import { CompanyLogo } from '../components/common/CompanyLogo'
 import { LandingFooter } from '../components/landing/LandingFooter'
+import { AppDownload } from '../components/landing/AppDownload'
 import { captureUtms } from '../lib/utms'
 
 const SPECIALTIES = [
@@ -187,6 +188,9 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ── La app (B): entre el hero y Especialidades, lejos de los bloques oscuros ── */}
+      <AppDownload variant="paciente-b" layout="b" id="app-b" />
+
       {/* ── Especialidades — photo category grid ── */}
       <section className="py-16 px-4 sm:px-6 bg-white rounded-t-3xl">
         <div className="max-w-7xl mx-auto">
@@ -313,6 +317,9 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* ── La app: captura real + badges de las tiendas ── */}
+      <AppDownload variant="paciente" layout="a" id="app" />
 
       {/* ── Para profesionales — dark olive with light beam, lime accents ── */}
       <section className="relative overflow-hidden py-28 px-4 sm:px-6 bg-[#26331F] rounded-t-3xl">
