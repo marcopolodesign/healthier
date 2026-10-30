@@ -237,6 +237,11 @@ export const TOMAS = [
       [1, txt('Comisión Healthier (%)', 'label').locator('..')], [2, txt('Ventana de reembolso', 'label').locator('..')], [3, txt('Turnos', 'h2').locator('xpath=ancestor::*[contains(@class,"card")][1]')]] },
   { id: 'sa-verticales', quien: SA, url: '/super-admin/verticales', espera: 2500, alto: 1350, marcas: [
       [1, txt('Especialidades', 'button').locator('..')], [2, css('tbody tr, .card').filter({ has: css('input') }).first()], [3, txt('Emergencias S.O.S', '*').locator('xpath=ancestor::div[2]')]] },
+  { id: 'sa-especialidades', quien: SA, url: '/super-admin/verticales', espera: 1500, pasos: async (p) => {
+      await clic(p, p.getByRole('button', { name: 'Especialidades', exact: true }), 2000)
+      await clic(p, p.locator('[title="Agregar sub-especialidad"]'), 900) },
+    marcas: [
+      [1, css('[title="Agregar sub-especialidad"]')], [2, css('form').filter({ hasText: 'Nueva sub-especialidad de' })], [3, css('div.pl-8.border-l-2')], [4, css('div.pl-8.border-l-2 [title="Editar"]')]] },
   { id: 'sa-zonas', quien: SA, url: '/super-admin/zonas', espera: 2500, marcas: [
       [1, txt('Lista de espera', 'button').locator('..')], [2, css('input[placeholder="Nueva zona (ej. Villa Crespo)"]').locator('..')]] },
   { id: 'sa-admins', quien: SA, url: '/super-admin/admins', espera: 2500, marcas: [
