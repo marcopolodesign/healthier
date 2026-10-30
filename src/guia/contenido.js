@@ -1074,6 +1074,17 @@ const superAdmin = {
       tips: [{ tipo: 'tip', texto: 'El precio de la consulta inmediata vale para todos los profesionales de esa vertical. Los turnos siguen con el precio de cada profesional.' }],
     },
     {
+      id: 'especialidades', titulo: 'Sub-especialidades', captura: 'sa-especialidades', grupo: 'Configuración',
+      bajada: 'En la pestaña Especialidades, cada especialidad puede tener sub-especialidades que el profesional elige al registrarse.',
+      marcas: {
+        1: 'Agregar una sub-especialidad a esa especialidad.',
+        2: 'Escribí el nombre y guardá.',
+        3: 'Las sub-especialidades quedan debajo de su especialidad.',
+        4: 'Cambiarle el nombre. Al lado: activarla o desactivarla, y borrarla.',
+      },
+      tips: [{ tipo: 'tip', texto: 'Si ya hay profesionales que la eligieron, desactivala en vez de borrarla.' }],
+    },
+    {
       id: 'zonas', titulo: 'Zonas', captura: 'sa-zonas', grupo: 'Configuración',
       bajada: 'Los barrios donde se atiende presencial y la lista de espera de otras ciudades.',
       marcas: {
