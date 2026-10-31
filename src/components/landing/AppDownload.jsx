@@ -8,10 +8,9 @@ export const STORE_LINKS = {
   android: 'https://play.google.com/store/apps/details?id=ar.com.healthier.app',
 }
 
-// Badges oficiales, servidos por Apple y Google sin modificar el dibujo.
-// TODO: pasarlos a public/images/badges/ (falta el OK directo de Mateo para bajarlos).
-const BADGE_APPLE = 'https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/es-mx'
-const BADGE_GOOGLE = 'https://play.google.com/intl/en_us/badges/static/images/badges/es-419_badge_web_generic.png'
+// Badges oficiales de Apple (es-MX) y Google (es-419), sin modificar el dibujo.
+const BADGE_APPLE = '/images/badges/app-store-es.svg'
+const BADGE_GOOGLE = '/images/badges/google-play-es.png'
 
 const img = (name) => `/images/landing/app/${name}.webp`
 
