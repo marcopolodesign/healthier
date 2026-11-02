@@ -88,6 +88,10 @@ const RCTA_STATUS_MAP = {
   // por el servicio de recetas.
   anulada: { label: 'Receta anulada', cls: 'bg-danger-muted text-danger', spin: false },
   anulada_pendiente: { label: 'Anulación pendiente', cls: 'bg-amber-100 text-amber-800', spin: false },
+  // Migración 223: emitida, pero el validador de la obra social todavía no la
+  // autorizó (`response[].status` "Pendiente de autorización"). Existe, pero
+  // la farmacia no la dispensa hasta que se autorice.
+  issued_pendiente: { label: 'Pendiente de autorización', cls: 'bg-amber-100 text-amber-800', spin: false },
 }
 
 /**
@@ -113,13 +117,15 @@ function StatusBadge({ status }) {
   )
 }
 
-function RctaBadge({ rcta, enCurso = false, pendiente = false }) {
+function RctaBadge({ rcta, enCurso = false, pendiente = false, autorizacion = null }) {
   if (!rcta) return null
   const s = rcta === 'pending'
     ? (enCurso ? RCTA_PENDING_EN_CURSO : RCTA_PENDING_COLGADO)
     : rcta === 'anulada' && pendiente
       ? RCTA_STATUS_MAP.anulada_pendiente
-      : RCTA_STATUS_MAP[rcta] ?? RCTA_STATUS_MAP.error
+      : rcta === 'issued' && autorizacion === 'pendiente'
+        ? RCTA_STATUS_MAP.issued_pendiente
+        : RCTA_STATUS_MAP[rcta] ?? RCTA_STATUS_MAP.error
   return (
     <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${s.cls}`}>
       {s.spin && <CircleNotch className="h-3 w-3 animate-spin" />}
@@ -185,7 +191,7 @@ function PrescriptionRow({ rx, selectable, checked, onToggle, enCurso = false, p
               )}
             </p>
             {!anulada && <StatusBadge status={rx.status} />}
-            {rx.rcta_status && <RctaBadge rcta={rx.rcta_status} enCurso={enCurso} pendiente={pendiente} />}
+            {rx.rcta_status && <RctaBadge rcta={rx.rcta_status} enCurso={enCurso} pendiente={pendiente} autorizacion={rx.rcta_autorizacion} />}
           </div>
 
           {(rx.presentation || rx.route) && (
@@ -234,6 +240,25 @@ function PrescriptionRow({ rx, selectable, checked, onToggle, enCurso = false, p
                       className="ml-1 font-semibold text-brand hover:underline">PDF</a>
                   )}
                 </span>
+              ))}
+            </p>
+          )}
+          {/* Por qué no salió (lote con errores parciales, migración 223). */}
+          {rx.rcta_status === 'error' && rx.rcta_error_detalle && (
+            <p className="text-sm text-danger mt-1.5" data-testid="rcta-error-detalle">{rx.rcta_error_detalle}</p>
+          )}
+          {rx.rcta_status === 'issued' && rx.rcta_autorizacion === 'pendiente' && (
+            <p className="text-sm text-amber-700 mt-1.5">
+              La obra social todavía no la autorizó. El paciente la ve como pendiente y no la puede comprar hasta que se autorice.
+            </p>
+          )}
+          {/* Si el servicio la repartió en varias recetas, cada una con su PDF. */}
+          {Array.isArray(rx.rcta_recetas) && rx.rcta_recetas.length > 1 && !anulada && (
+            <p className="text-sm text-text-secondary mt-1.5 flex flex-wrap gap-x-2">
+              <span>Salió en {rx.rcta_recetas.length} recetas:</span>
+              {rx.rcta_recetas.map((r, i) => r.s3Link && (
+                <a key={r.idReceta ?? i} href={r.s3Link} target="_blank" rel="noopener noreferrer"
+                  className="font-semibold text-brand hover:underline">PDF {i + 1}</a>
               ))}
             </p>
           )}
@@ -848,16 +873,31 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
       // devolvió homologación y de ahí en más el chequeo de abajo es el mismo.
       if (enPractica) marcarRecetaEmitida(medicationIds, result)
       const filas = await recargarRecetas()
+      // Un lote puede salir a medias (wiki, "split de prescripciones"): lo que
+      // salió queda emitido y lo que no, en error con su motivo. Se chequea
+      // contra lo que la función dice que salió, no contra todo lo pedido.
+      const esperadas = enPractica ? medicationIds : (result.emitidas ?? medicationIds)
       const confirmadas = filas.filter(
-        rx => medicationIds.includes(rx.id) && rx.rcta_status === 'issued'
+        rx => esperadas.includes(rx.id) && rx.rcta_status === 'issued'
       )
 
-      if (confirmadas.length !== medicationIds.length) {
+      if (confirmadas.length !== esperadas.length) {
         toast.error('La receta no quedó registrada. Revisá el renglón e intentá de nuevo.')
         return
       }
 
-      if (result.posdatadasFaltantes > 0) {
+      const noSalieron = [...(result.fallidas ?? []), ...(result.sinUbicar ?? [])]
+      if (noSalieron.length) {
+        toast.warning(`Se emitió la receta, pero ${noSalieron.map(f => f.nombre ?? 'un medicamento').join(', ')} no ${noSalieron.length === 1 ? 'salió' : 'salieron'}. El motivo está en ${noSalieron.length === 1 ? 'su renglón' : 'cada renglón'}.`)
+      }
+      if (result.pendientesDeAutorizacion > 0) {
+        toast.info('La receta quedó pendiente de autorización de la obra social. El paciente la va a ver así hasta que se autorice.')
+      }
+      if (result.avisoDelServicio) toast.info(result.avisoDelServicio)
+
+      if (noSalieron.length) {
+        // El aviso de lo que no salió ya va arriba.
+      } else if (result.posdatadasFaltantes > 0) {
         toast.warning(`Se emitió la receta de hoy, pero ${result.posdatadasFaltantes === 1 ? 'una posdatada no se generó' : `${result.posdatadasFaltantes} posdatadas no se generaron`}. Revisalo antes de cerrar la consulta.`)
       } else if (result.posdatadas?.length) {
         toast.success(`Emitidas ${result.posdatadas.length + 1} recetas: hoy, ${result.posdatadas.map(p => p.fecha.slice(0, 5)).join(' y ')}`)

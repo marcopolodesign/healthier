@@ -1,0 +1,36 @@
+# Notas de la versión - QBI2 - QBIV - v1.07 - Oct 29 15:49 (v1, 2026-10-29)
+ Cómo utilizar esta página: 
+ Encuentra las incidencias de Jira seleccionadas en la tabla de abajo. Selecciona el icono de expandir para usarlas como fuente de información y escribir las notas de la publicación.
+ Publicación 
+ https://innovamed.atlassian.net/projects/QBR/versions/15116 
+ Fecha 
+ 29 oct 2026 
+ Versión 
+ QBIV - v1.07
+ Descripción 
+ Nuevo endpoint medication/generic (búsqueda por droga y presentación) para flujo de genérico OSDE
+ Colaboradores 
+ gabriel.ambrosio 
+   Incidencias de esta publicación Antes de compartir la página, revisa los contenidos de cada incidencia de Jira y elimina cualquier dato sensible.
+ Incidencia 
+ Resumen 
+ Tipo de Incidencia 
+ Persona asignada 
+ QBR-2803 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIV - Migrar Vademecum API a .NET 10 (DEV/QA) y reducir cortes del Daily Update
+ Task
+ gabriel.ambrosio 
+ QBR-2785 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ Nuevo endpoint medication/generic — búsqueda por droga y presentación
+ Task
+ gabriel.ambrosio 
+ Resumen
+ Nuevas funciones
+ Mejoras en las funciones existentes
+ Corrección de errores

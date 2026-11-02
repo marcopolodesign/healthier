@@ -1,0 +1,86 @@
+# Anular Receta (v10, 2026-04-09)
+ [data-colorid=a266p99gay]{color:#36b37e} html[data-color-mode=dark] [data-colorid=a266p99gay]{color:#4cc994}[data-colorid=ykjrah0os4]{color:#ff5630} html[data-color-mode=dark] [data-colorid=ykjrah0os4]{color:#cf2600} 
+ Versión de documentación: v2.0
+ Fecha de modificación: 29/12/2025
+ Este Endpoint requiere Autenticación , por lo que se debe enviar un token válido en los Headers para autorizar las solicitudes.
+ Descripción
+ Este servicio se utiliza para anular una prescripción de cualquier tipo determinada utilizando el código HASH de la misma.
+ Documentación Técnica
+ URL 
+ DELETE {{baseUrl}}/apirecipe/Receta/{id}
+ Parámetros
+ Los parámetros serán requeridos como URL params:
+ Obligatorios
+ Parámetro 
+ Tipo 
+ Descripción 
+ Ejemplo 
+ id 
+ String
+ HASH identificador de la prescripción. Este se puede visualizar en el response al momento de prescribir. No es el número de la receta ( idReceta ).
+ A0MIYNR5XP2OH8HWGFQP7BG 
+ El siguiente parámetro deberá indicarse en el body:
+ Parámetro 
+ Tipo 
+ Descripción 
+ Ejemplo 
+ clienteAppId 
+ Int
+ ID correspondiente al cliente. Este parámetro se debe indicar como parámetro del Body.
+ 123
+ Ejemplo de solicitud
+ curl --location --request DELETE '<base_URL>/apirecipe/Receta/O8IRHZ8JHHNZU2JMGJ585K3N3BPD9H1' \
+--header 'Authorization: Bearer <tu_token_de_acceso> \
+--header 'Content-Type: application/json' \
+--data '{
+ "clienteAppId": 142
+}'
+ Respuesta
+ Todas las respuestas serán en formato JSON
+ Exitosa
+ Código de estado
+ 200 OK 
+ Cuerpo de respuesta:
+ {
+ "codigoRespuesta": 0,
+ "mensaje": "Receta anulada correctamente"
+}
+ Fallida
+ Código de estado
+ 400 Bad Request 
+ Cuerpo de respuesta
+ {
+ "error": "QBI2 OPERACION INVALIDA.",
+ "mensaje": "La receta ya habia sido previamente anulada"
+}
+ {
+ "error": "QBI2 OPERACION INVALIDA.",
+ "mensaje": "No se pudo recuperar la receta"
+}
+ Errores y Posibles Causas
+ Código 
+ Mensaje 
+ Código HTTP 
+ Causa 
+ QBI79 
+ LA RECETA HA VENCIDO EL DIA
+ 400
+ La receta que se desea anular está vencida. 
+ QBI2 
+ QBI2 OPERACION INVALIDA.
+ 400
+ La receta ya había sido previamente anulada / No se pudo obtener información de la receta que se precisa anular.
+ QBI106 
+ ERROR AL GENERAR EL TOKEN
+ 400
+ Ocurre cuando se intenta generar un token para llamar a una API de mandataria y ésta falla.
+ Notas Técnicas
+ No se pueden anular recetas que ya fueron anuladas previamente.
+ Versionado de documentación
+ Versión 
+ Fecha 
+ Cambios realizados 
+ v1.0
+ 02/01/2025
+ Se genera documentación inicial
+ 

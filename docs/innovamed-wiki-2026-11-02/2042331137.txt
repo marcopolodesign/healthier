@@ -1,0 +1,13 @@
+# Documentación para Clientes (v6, 2025-08-07)
+ En este apartado se podrá acceder a la documentación que se orienta exclusivamente a clientes.
+ Se podrá acceder a información relacionada con los servicios:
+ QBI2 Recipe 
+ 🌡️ Buscador de Diagnósticos 
+ ⚕️ Buscador de Financiadores 
+ 💊 Buscador de Medicamentos 
+ 🔬 Buscador de Prácticas 
+ 🧾 Generar Receta 
+ ⭕ Anular Receta 
+ 💉 Generar Práctica 
+ 🖊️ Generar Otras Prescripciones 
+ 

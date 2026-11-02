@@ -10,6 +10,7 @@ import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { conCoordenadas, validarDireccionConsultorio } from '../../lib/geo'
 import { toast } from '../../components/Toast'
 import { isLikelyTooSmallForFace } from '../../lib/imageCompression'
+import { PROVINCIAS_MATRICULA, faltaProvinciaMatricula } from '../../lib/provinciasMatricula'
 import { camposSensiblesQueCambian, enumerarCampos, requiereReverificacion } from '../../lib/reverificacion'
 import { inicialesDe } from '../../lib/format'
 import NombreApellidoInputs from '../../components/common/NombreApellidoInputs'
@@ -21,6 +22,7 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
   const [form, setForm] = useState({
     specialty: '', subSpecialty: '', bio: '',
     address: '', latitude: null, longitude: null,
+    licenseProvince: '',
   })
 
   // El profesional puede tener guardado un slug que el super admin desactivó o
@@ -65,6 +67,7 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
         address:      p.address      || '',
         latitude:     p.latitude     || null,
         longitude:    p.longitude    || null,
+        licenseProvince: p.licenseProvince || '',
       })
     }).finally(() => setLoading(false))
   }, [profile?.id])
@@ -103,6 +106,12 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
       setConfirmandoReverificacion(false)
       return
     }
+    // Sin la provincia una matrícula provincial no puede recetar (QBI65).
+    if (faltaProvinciaMatricula(profData?.licenseType, form.licenseProvince)) {
+      toast.error('Elegí la provincia de tu matrícula.')
+      setConfirmandoReverificacion(false)
+      return
+    }
     setSaving(true)
     try {
       if (avatarFile) {
@@ -112,7 +121,10 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
       // Las coordenadas van SIEMPRE con la dirección que se guarda: antes, si
       // no se podía geocodificar, se borraban del payload y quedaban las de la
       // dirección anterior — el pin del mapa seguía en la vieja.
-      const payload = { ...profData, ...form, ...(await conCoordenadas(form)) }
+      const payload = {
+        ...profData, ...form, ...(await conCoordenadas(form)),
+        licenseProvince: profData?.licenseType === 'MP' ? (form.licenseProvince || null) : (profData?.licenseProvince ?? null),
+      }
       const guardado = await professionalService.upsert(profile.id, payload)
       // Quedarse con lo que devolvió el servidor y no con el payload:
       // `is_verified` y `reverification_pending` los decide el trigger, así que
@@ -227,6 +239,31 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
               />
             )}
           </div>
+
+          {/* La matrícula la revisa Healthier: número y tipo no se editan acá. La
+              provincia de una MP sí, porque sin ella no se puede recetar (QBI65)
+              y a los MP dados de alta antes de la migración 223 les falta. */}
+          {profData?.licenseNumber && (
+            <div>
+              <label className="form-label">Matrícula</label>
+              <p className="text-sm text-text-primary">{profData.licenseType || 'MN'} {profData.licenseNumber}</p>
+              {profData.licenseType === 'MP' && (
+                <div className="mt-3">
+                  <label className="form-label" htmlFor="perfil-provincia-matricula">Provincia de la matrícula</label>
+                  <select
+                    id="perfil-provincia-matricula"
+                    value={form.licenseProvince}
+                    onChange={e => setForm(p => ({ ...p, licenseProvince: e.target.value }))}
+                    className="form-select"
+                    data-testid="perfil-provincia-matricula"
+                  >
+                    <option value="">Elegí la provincia que la emitió</option>
+                    {PROVINCIAS_MATRICULA.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="form-label">Bio / Presentación</label>

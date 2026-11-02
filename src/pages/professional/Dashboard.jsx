@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams, useOutletContext } from 'react-router-dom'
-import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle, X, CircleNotch, WhatsappLogo, FileText, Lightning, ArrowsClockwise, MapPin, GraduationCap } from '@phosphor-icons/react';
+import { Calendar, Star, Users, Clock, Warning, XCircle, Siren, TrendUp, ArrowRight, CurrencyDollar, LinkSimple, CheckCircle, X, CircleNotch, WhatsappLogo, FileText, Lightning, ArrowsClockwise, MapPin, GraduationCap, IdentificationCard } from '@phosphor-icons/react';
 import { consultationsService } from '../../services/consultationsService'
 import { consultationEventsService, CONSULTATION_EVENTS } from '../../services/consultationEventsService'
 import { professionalService } from '../../services/professionalService'
@@ -34,6 +34,7 @@ import DerivadoChip from '../../components/professional/DerivadoChip'
 import { useNavigate } from 'react-router-dom'
 import { nombreDePila } from '../../lib/format'
 import { direccionTieneNumero } from '../../lib/geo'
+import { faltaProvinciaMatricula } from '../../lib/provinciasMatricula'
 
 const CODE_COLORS = { ROJO: 'bg-red-600', AMARILLO: 'bg-amber-500', VERDE: 'bg-emerald-600' }
 
@@ -219,6 +220,11 @@ export default function ProfessionalDashboard({ profile }) {
     : !direccionTieneNumero(profProfile.address) ? 'sin_numero'
     : (profProfile.latitude == null || profProfile.longitude == null) ? 'sin_coordenadas'
     : null
+
+  // Matrícula provincial sin provincia: el servicio de recetas no la acepta
+  // (QBI65, migración 223). Los MP dados de alta antes no la tienen cargada.
+  const faltaProvincia = !loading && !!profProfile && puedeRecetar(profProfile.specialty)
+    && faltaProvinciaMatricula(profProfile.licenseType, profProfile.licenseProvince)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -828,6 +834,26 @@ export default function ProfessionalDashboard({ profile }) {
                     : 'La necesitás para aparecer en el mapa de pacientes, aunque atiendas sólo por videollamada.')
                 : 'Volvé a cargarla en tu perfil eligiendo una de las sugerencias, así los pacientes te encuentran en el mapa.'}
             </p>
+          </div>
+          <div className="flex items-center gap-1 text-amber-700 text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">
+            Cargar <ArrowRight className="h-4 w-4" />
+          </div>
+        </Link>
+      )}
+
+      {faltaProvincia && (
+        <Link
+          to="/profesional/perfil"
+          data-testid="aviso-provincia-matricula"
+          className="card flex items-center gap-4 border-amber-300 bg-amber-50 hover:border-amber-400 transition-colors group"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-white border border-amber-200 flex items-center justify-center shrink-0">
+            <IdentificationCard className="h-6 w-6 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-amber-700 font-bold uppercase tracking-wide">Falta un dato</p>
+            <p className="text-base font-semibold text-text-primary mt-0.5">Cargá la provincia de tu matrícula</p>
+            <p className="text-xs text-text-secondary mt-0.5">Tu matrícula es provincial: sin la provincia no se pueden emitir recetas.</p>
           </div>
           <div className="flex items-center gap-1 text-amber-700 text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">
             Cargar <ArrowRight className="h-4 w-4" />

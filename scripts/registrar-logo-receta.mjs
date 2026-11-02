@@ -22,7 +22,7 @@
  * "una organización que está usando el cliente app para prescribir, por ej. una
  * sucursal de una cadena de clínicas". Healthier **es** el cliente app.
  *
- * El mecanismo correcto es registrar el logo UNA vez por ambiente. Verificado
+ * El mecanismo correcto es registrar el logo UNA vez por ambiente, contra `/admin/v1/logo`. Verificado
  * emitiendo contra homologación el 2026-09-11: sale arriba al centro, a color,
  * con el payload limpio.
  *
@@ -98,7 +98,10 @@ const clienteAppId = Number(APP_ID)
 // 0 = el logo por defecto, el que aplica a cualquier financiador. El contrato
 // permite uno distinto por obra social; no lo usamos.
 const idFinanciador = 0
-const ENDPOINT = `${URL_BASE}/apirecipe/admin/Logo`
+// La ruta viva es `/admin/v1/logo`, SIN `/apirecipe` adelante (2026-11-02:
+// `/apirecipe/admin/Logo` da 404 en homologación; `/admin/v1/logo` responde).
+// Control: `npm run test:rcta-armado` falla si vuelve la ruta vieja.
+const ENDPOINT = `${URL_BASE}/admin/v1/logo`
 
 console.log(`Entorno: ${ENTORNO} · ${URL_BASE} · clienteAppId ${clienteAppId}`)
 

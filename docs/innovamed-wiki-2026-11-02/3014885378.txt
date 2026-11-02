@@ -1,0 +1,155 @@
+# Notas de la versión - QBI2 - QBIR - v1.55 - Oct 20 17:21 (v1, 2026-10-20)
+ Cómo utilizar esta página: 
+ Encuentra las incidencias de Jira seleccionadas en la tabla de abajo. Selecciona el icono de expandir para usarlas como fuente de información y escribir las notas de la publicación.
+ Publicación 
+ https://innovamed.atlassian.net/projects/QBR/versions/15011 
+ Fecha 
+ 20 oct 2026 
+ Versión 
+ QBIR - v1.55
+ Descripción 
+ APIS administrativas para backoffice
+ Colaboradores 
+ Angeli Barboza Santiago Rodriguez [Streambe] gabriel.ambrosio Denis Caramichos [Streambe] 
+   Incidencias de esta publicación Antes de compartir la página, revisa los contenidos de cada incidencia de Jira y elimina cualquier dato sensible.
+ Incidencia 
+ Resumen 
+ Tipo de Incidencia 
+ Persona asignada 
+ QBR-2797 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - GET de medicamentos agrupados devuelve 404 
+ Incidencias
+ Angeli Barboza 
+ QBR-2796 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - GET de medicamentos no devuelve descripcionCategoriaPresentacion
+ Incidencias
+ Santiago Rodriguez [Streambe] 
+ QBR-2792 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Modificación de cliente app devuelve habilitado en false para un cliente habilitado
+ Incidencias
+ Santiago Rodriguez [Streambe] 
+ QBR-2782 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Desbloqueo con financiador inexistente responde 200 en lugar de QBI108
+ Incidencias
+ Santiago Rodriguez [Streambe] 
+ QBR-2781 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Informar cuando se desbloquea un financiador que no tiene bloqueo vigente
+ Task
+ Santiago Rodriguez [Streambe] 
+ QBR-2780 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Desbloqueo de financiador elimina físicamente el registro de la blacklist
+ Task
+ Santiago Rodriguez [Streambe] 
+ QBR-2779 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Alta de bloqueo en blacklist devuelve nombreFinanciador en null
+ Incidencias
+ Santiago Rodriguez [Streambe] 
+ QBR-2778 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Modificación de cliente app por admin exige el token del cliente en lugar de autenticar solo por X-Api-Key
+ Incidencias
+ Santiago Rodriguez [Streambe] 
+ QBR-2777 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Alta de cliente app crea el registro con habilitado = 0
+ Incidencias
+ Santiago Rodriguez [Streambe] 
+ QBR-2776 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Alta de cliente app devuelve 500 con campos booleanos y numéricos en null o vacíos
+ Incidencias
+ Santiago Rodriguez [Streambe] 
+ QBR-2775 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Alta de cliente app con CUIT inválido devuelve error genérico QBI999 en inglés
+ Incidencias
+ Santiago Rodriguez [Streambe] 
+ QBR-2763 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Identificar los códigos CIE-10 de tres caracteres y los informados con punto en el diagnóstico de las prescripciones
+ Task
+ gabriel.ambrosio 
+ QBR-2708 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Mejoras sobre apis admin
+ Condición Previa
+ Santiago Rodriguez [Streambe] 
+ QBR-2632 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ Casos de prueba - 2630
+ Subtarea
+ Sin Responsable Asignado
+ QBR-2631 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ Casos de prueba - QBR-2629
+ Subtarea
+ Sin Responsable Asignado
+ QBR-2630 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Permitir administrar la blacklist de financiadores del cliente app
+ Task
+ Denis Caramichos [Streambe] 
+ QBR-2629 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Permitir consultar y modificar la configuración del cliente app
+ Task
+ Denis Caramichos [Streambe] 
+ QBR-2626 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Permitir inhabilitar y rehabilitar un cliente app [Script]
+ Task
+ Denis Caramichos [Streambe] 
+ QBR-2625 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Permitir consultar y modificar los datos del cliente app
+ Task
+ Denis Caramichos [Streambe] 
+ Resumen
+ Nuevas funciones
+ Mejoras en las funciones existentes
+ Corrección de errores
