@@ -187,7 +187,6 @@ Deno.serve(async (req: Request) => {
       const faltan = [
         !quien.dni && 'tu DNI',
         !legajo?.license_number && 'tu número de matrícula',
-        legajo?.license_type === 'MP' && !legajo?.license_province && 'la provincia de tu matrícula',
         !legajo?.address && 'la dirección de tu consultorio',
         !tieneFirma && 'tu firma',
       ].filter(Boolean)
@@ -439,11 +438,10 @@ Deno.serve(async (req: Request) => {
       }, 422)
     }
 
-    // ── La matrícula (QBI65) ──────────────────────────────────────────────────
-    // Una MP sin provincia la rechaza el servicio. Se corta antes, con un
-    // mensaje que dice dónde cargarla. La provincia vive en el legajo
-    // (`license_province`, migración 223); tipo y número, en la foto que se
-    // guardó con la medicación.
+    // ── La matrícula ──────────────────────────────────────────────────────────
+    // La provincia de una MP vive en el legajo (`license_province`, migración
+    // 223) y se manda si está; si falta se emite igual (Mateo, 2026-11-02: se
+    // pide sin bloquear). Tipo y número, de la foto guardada con la medicación.
     const legajo = med.professional?.professional_profiles ?? {}
     const matricula = matriculaDe(legajo, { tipo: med.professional_license_type, numero: med.professional_license_number })
     const faltaMatricula = problemaDeMatricula(matricula)

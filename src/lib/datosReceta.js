@@ -1,5 +1,3 @@
-import { faltaProvinciaMatricula } from './provinciasMatricula'
-
 /**
  * Qué datos hacen falta para poder emitir una receta electrónica (RCTA).
  *
@@ -34,9 +32,6 @@ export const CAMPOS_PERFIL_PROFESIONAL = [
   { campo: 'address',       label: 'Domicilio de atención',      qbi: 'QBI248' },
 ]
 
-/** Sólo para una matrícula provincial (MP), migración 223. */
-export const CAMPO_PROVINCIA_MATRICULA = { campo: 'licenseProvince', label: 'Provincia de la matrícula', qbi: 'QBI65' }
-
 const vacio = v => v == null || String(v).trim() === ''
 
 /**
@@ -57,7 +52,6 @@ export function faltanDatosProfesional(profile, profProfile) {
   return [
     ...CAMPOS_PROFESIONAL.filter(c => vacio(profile?.[c.campo])),
     ...CAMPOS_PERFIL_PROFESIONAL.filter(c => vacio(profProfile?.[c.campo])),
-    ...(faltaProvinciaMatricula(profProfile?.licenseType, profProfile?.licenseProvince) ? [CAMPO_PROVINCIA_MATRICULA] : []),
   ]
 }
 
@@ -87,14 +81,14 @@ export const OPCIONES_SEXO = [
  * de etiquetas: [] = puede recetar. Lo usa el super admin para ver de un
  * vistazo quién se va a trabar al recetar y cargárselo antes (2026-09-28). La
  * firma entra porque `rcta-issue` corta sin ella (RCTA_FIRMA_FALTANTE).
- * @param {{dni?, gender?, licenseNumber?, licenseType?, licenseProvince?, address?, hasSignature?}} d
+ * La provincia de una MP NO está: se pide sin bloquear (Mateo, 2026-11-02).
+ * @param {{dni?, gender?, licenseNumber?, address?, hasSignature?}} d
  */
 export function faltanParaRecetar(d = {}) {
   return [
     vacio(d.dni)           && 'DNI',
     vacio(d.gender)        && 'sexo',
     vacio(d.licenseNumber) && 'matrícula',
-    faltaProvinciaMatricula(d.licenseType, d.licenseProvince) && 'provincia de la matrícula',
     vacio(d.address)       && 'dirección',
     !d.hasSignature        && 'firma',
   ].filter(Boolean)

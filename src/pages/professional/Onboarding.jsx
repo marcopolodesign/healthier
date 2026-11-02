@@ -11,7 +11,7 @@ import { useVerticales } from '../../hooks/useVerticales'
 import { AnimatedTagCascade } from '../../components/common/AnimatedTagCascade'
 import FileUpload from '../../components/FileUpload'
 import { OPCIONES_SEXO } from '../../lib/datosReceta'
-import { PROVINCIAS_MATRICULA, etiquetaProvincia, faltaProvinciaMatricula } from '../../lib/provinciasMatricula'
+import { PROVINCIAS_MATRICULA, etiquetaProvincia } from '../../lib/provinciasMatricula'
 import { toast } from '../../components/Toast'
 import { isLikelyTooSmallForFace } from '../../lib/imageCompression'
 import OnboardingPreview from '../../components/professional/OnboardingPreview'
@@ -193,8 +193,6 @@ export default function Onboarding({ profile }) {
       if (!categoryId) falta.push('elegir tu área')
       if (!form.specialty) falta.push('elegir tu especialidad')
       if (!(form.licenseNumber ?? '').trim()) falta.push('el número de matrícula')
-      // Sin la provincia una MP no puede recetar (QBI65, migración 223).
-      if (faltaProvinciaMatricula(form.licenseType, form.licenseProvince)) falta.push('la provincia de tu matrícula')
       return falta
     }
     if (step === 1) {
@@ -599,7 +597,7 @@ export default function Onboarding({ profile }) {
                 <p className="text-xs text-text-tertiary mt-1">Número de matrícula</p>
                 {form.licenseType === 'MP' && (
                   <div className="mt-3">
-                    <label className="form-label">Provincia de la matrícula <span className="text-danger">*</span></label>
+                    <label className="form-label">Provincia de la matrícula</label>
                     <select
                       value={form.licenseProvince}
                       onChange={e => setForm(p => ({ ...p, licenseProvince: e.target.value }))}

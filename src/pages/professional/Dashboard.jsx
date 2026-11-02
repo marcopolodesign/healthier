@@ -221,8 +221,8 @@ export default function ProfessionalDashboard({ profile }) {
     : (profProfile.latitude == null || profProfile.longitude == null) ? 'sin_coordenadas'
     : null
 
-  // Matrícula provincial sin provincia: el servicio de recetas no la acepta
-  // (QBI65, migración 223). Los MP dados de alta antes no la tienen cargada.
+  // Matrícula provincial sin provincia (migración 223). Se pide sin bloquear
+  // (Mateo, 2026-11-02): se receta igual; el aviso queda hasta que la cargue.
   const faltaProvincia = !loading && !!profProfile && puedeRecetar(profProfile.specialty)
     && faltaProvinciaMatricula(profProfile.licenseType, profProfile.licenseProvince)
 
@@ -850,7 +850,7 @@ export default function ProfessionalDashboard({ profile }) {
           <div className="flex-1 min-w-0">
             <p className="text-xs text-amber-700 font-bold uppercase tracking-wide">Falta un dato</p>
             <p className="text-base font-semibold text-text-primary mt-0.5">Cargá la provincia de tu matrícula</p>
-            <p className="text-xs text-text-secondary mt-0.5">Tu matrícula es provincial: sin la provincia no se pueden emitir recetas.</p>
+            <p className="text-xs text-text-secondary mt-0.5">Tu matrícula es provincial: cargá la provincia que la emitió para que salga en tus recetas.</p>
           </div>
           <div className="flex items-center gap-1 text-amber-700 text-sm font-semibold shrink-0 group-hover:gap-2 transition-all">
             Cargar <ArrowRight className="h-4 w-4" />
