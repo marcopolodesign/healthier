@@ -12,8 +12,8 @@
 --    supabase/functions/_shared/rcta/provincias.ts.
 --    NO es obligatoria en la base a propósito: los MP que ya existen la tienen
 --    vacía, y un NOT NULL o un check les rompería cualquier guardado del
---    perfil. La exigen el onboarding y `rcta-issue` (422
---    RCTA_MATRICULA_SIN_PROVINCIA antes de llamar al servicio).
+--    perfil. Se pide sin bloquear (Mateo, 2026-11-02): si falta, `rcta-issue` no
+--    la manda y traduce el rechazo del servicio (QBI62) a un mensaje claro.
 --    Tampoco está en `columnas_sensibles_del_profesional()` (132): cargarla por
 --    primera vez no puede devolver a revisión a un profesional verificado.
 --

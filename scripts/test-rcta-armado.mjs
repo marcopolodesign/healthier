@@ -73,7 +73,8 @@ test('la provincia se pide sin bloquear: nada la exige para emitir ni para avanz
   const iss = leer('supabase/functions/rcta-issue/index.ts')
   assert.match(iss, /problemaDeMatricula\(matricula\)/)
   assert.match(iss, /license_province, address\)/)
-  assert.doesNotMatch(iss, /RCTA_MATRICULA_SIN_PROVINCIA|'la provincia de tu matrícula'/)
+  // No se corta ANTES de llamar: sólo se traduce el rechazo del servicio (QBI62/QBI65).
+  assert.doesNotMatch(iss, /'la provincia de tu matrícula'/)
   assert.doesNotMatch(leer('supabase/functions/_shared/rcta/medico.ts'), /RCTA_MATRICULA_SIN_PROVINCIA/)
   // El onboarding la ofrece pero no frena el paso; el perfil no frena el guardado.
   const onb = leer('src/pages/professional/Onboarding.jsx')
@@ -241,4 +242,52 @@ test('el script del logo apunta a /admin/v1/logo', () => {
   const s = leer('scripts/registrar-logo-receta.mjs')
   assert.match(s, /const ENDPOINT = `\$\{URL_BASE\}\/admin\/v1\/logo`/)
   assert.doesNotMatch(s, /\$\{URL_BASE\}\/apirecipe\/admin\/Logo/)
+})
+
+// ── Revisión pre-prod (2026-11-02): lo que dejaba re-emitir una receta que ya salió ──
+test('un error que nombra un medicamento no cae sobre otro parecido', () => {
+  const meds = [
+    { id: 'a', reg_no: '1', medication_name: 'Ibuprofeno 400 comprimidos' },
+    { id: 'b', reg_no: '2', medication_name: 'Ibuprofeno 600 comprimidos' },
+  ]
+  const e = leerEmision({
+    recetas: [{ id: 'H', idReceta: '9', medicamentos: ['2'] }],
+    errores: [{ error: 'QBI26', medicamento: 'IBUPROFENO 400 MG, COMPRIMIDOS' }],
+  })
+  const a = asignarRecetas(e, meds)
+  assert.equal(a.fallidas.has('b'), false, 'la de 600 salió y no puede quedar fallida')
+  assert.equal(a.recetasDe.get('b')[0].idReceta, '9')
+  assert.deepEqual(a.sinUbicar, ['a'])
+})
+
+test('una sola medicación y una receta emitida: es suya aunque haya un error sin atribuir', () => {
+  const a = asignarRecetas(leerEmision({ recetas: [{ id: 'H', idReceta: '9' }], errores: [{ error: 'QBIxx', medicamento: 'otro' }] }),
+    [{ id: 'a', reg_no: '1', medication_name: 'Actron' }])
+  assert.equal(a.recetasDe.get('a')[0].id, 'H')
+  assert.deepEqual(a.sinUbicar, [])
+})
+
+test('"p. 3" es el piso, no la altura', () => {
+  assert.deepEqual(domicilioDe('Av. Santa Fe 1900 p. 3'), { calle: 'Av. Santa Fe', numero: '1900' })
+})
+
+test('rcta-issue: provincia faltante, lote a revisar y posdatadas no ubicadas', () => {
+  const iss = leer('supabase/functions/rcta-issue/index.ts')
+  // QBI62/QBI65 no dispara el reintento sin firma y dice qué cargar.
+  assert.match(iss, /\['QBI62', 'QBI65'\]\.includes\(result\.json\?\.error\)/)
+  assert.ok(iss.indexOf("['QBI62', 'QBI65']") < iss.indexOf('if (firmabase64 && esRechazoDe4xx)'))
+  // Lo que salió pero no se pudo atribuir queda guardado y bloquea la re-emisión.
+  assert.match(iss, /code: 'RCTA_LOTE_A_REVISAR'/)
+  assert.match(iss, /rcta_recetas: principales\.map\(resumenReceta\)/)
+  assert.match(iss, /rcta_recetas: emision\.recetas\.map\(resumenReceta\)/)
+  // La receta de hoy con posdatadas no puede ser una posdatada sin ubicar.
+  assert.match(iss, /fechaArgentina\(r\.fecha\) === hoy/)
+  // Una escritura por grupo de recetas.
+  assert.match(iss, /update\(datos\)\.in\('id', medIds\)/)
+})
+
+test('rcta-anular: arrastra a las medicaciones que comparten receta y busca el hash en lotes parciales', () => {
+  const an = leer('supabase/functions/rcta-anular/index.ts')
+  assert.match(an, /eq\('rcta_transaction_id', fila\.rcta_transaction_id\)/)
+  assert.match(an, /\.in\('outcome', \['issued', 'issued_partial'\]\)/)
 })

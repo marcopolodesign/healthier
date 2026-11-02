@@ -298,6 +298,15 @@ Deno.serve(async (req: Request) => {
 
     const yaEmitida = meds.find((m: { rcta_status: string }) => m.rcta_status === 'issued')
     if (yaEmitida) return await fallar('validation_error', { error: 'Already issued', code: 'RCTA_YA_EMITIDA' }, 409)
+    // Un lote anterior dejó recetas emitidas en esta fila sin poder confirmar
+    // cuál es cuál (migración 223): re-emitir podría duplicar una receta legal.
+    if (!esPractica && meds.some((m: { rcta_status: string; rcta_recetas: unknown[] | null }) =>
+      m.rcta_status === 'error' && Array.isArray(m.rcta_recetas) && m.rcta_recetas.length)) {
+      return await fallar('validation_error', {
+        error: LOTE_A_REVISAR,
+        code: 'RCTA_LOTE_A_REVISAR',
+      }, 409)
+    }
     // Una receta anulada (migración 216) o una medicación suspendida no se
     // vuelve a emitir desde la misma fila: si el tratamiento sigue, es una
     // prescripción nueva.
@@ -633,6 +642,16 @@ Deno.serve(async (req: Request) => {
       // seguido en `rcta_issue_log`, hay algo roto que hay que arreglar — no
       // es ruido.
       const esRechazoDe4xx = result.status >= 400 && result.status < 500
+      // Falta la provincia de una MP (QBI62/QBI65): no es la firma, no se
+      // reintenta, y el profesional ve qué cargar en vez de "RCTA API error".
+      if (['QBI62', 'QBI65'].includes(result.json?.error)) {
+        await setStatus('error', { rcta_error_detalle: 'Falta la provincia de tu matrícula provincial.' })
+        return await fallar('api_error', {
+          error: 'El servicio de recetas pide la provincia de tu matrícula provincial. Cargala en tu perfil (Matrícula → Provincia) y volvé a emitir.',
+          code: 'RCTA_MATRICULA_SIN_PROVINCIA',
+          detail: result.body,
+        }, 422, { response: result.json, error_code: result.json?.error ?? null })
+      }
       if (firmabase64 && esRechazoDe4xx) {
         console.error(`rcta-issue: rechazo con la firma puesta (status ${result.status}), reintentando UNA vez sin firma`)
         const { firmabase64: _sinFirma, ...medicoSinFirma } = payload.medico
@@ -711,13 +730,25 @@ Deno.serve(async (req: Request) => {
       const conEsaFecha = emision.recetas.filter(r => fechaArgentina(r.fecha) === f)
       return conEsaFecha.length === 1 ? conEsaFecha[0] : null
     })
-    const principales = emision.recetas.filter(r => !posdatadasDevueltas.includes(r))
+    // Con posdatadas, la de hoy es la que no cae en ninguna fecha posdatada y,
+    // si hay más de una candidata, la que tiene fecha de hoy: una posdatada que
+    // no se ubicó nunca puede quedar como la receta de hoy (revisión 2026-11-02).
+    const noPosdatadas = emision.recetas.filter(r => !posdatadasDevueltas.includes(r))
+    const hoy = fechaArgentina(new Date().toISOString())
+    const principales = !fechasPosdatadas.length || noPosdatadas.length <= 1
+      ? noPosdatadas.filter(r => !fechasPosdatadas.includes(fechaArgentina(r.fecha)))
+      : noPosdatadas.filter(r => fechaArgentina(r.fecha) === hoy).slice(0, 1)
     const motivos = emision.errores.map(e => e.mensaje).filter(Boolean).join(' · ')
 
-    // Nada salió: es un rechazo, aunque haya venido con 200.
+    // Nada salió hoy. Si igual salió algo (una posdatada, una receta que no se
+    // pudo ubicar), se guarda en la fila —en error, "a revisar"— para que no se
+    // pueda re-emitir a ciegas y no se pierda el rastro (guard RCTA_LOTE_A_REVISAR).
     if (!principales.length) {
-      console.error('rcta-issue: el servicio no devolvió ninguna receta', JSON.stringify(rctaData))
-      await setStatus('error', { rcta_error_detalle: motivos || null })
+      console.error('rcta-issue: el servicio no devolvió la receta de hoy', JSON.stringify(rctaData))
+      await setStatus('error', {
+        rcta_error_detalle: emision.recetas.length ? LOTE_A_REVISAR : (motivos || null),
+        ...(emision.recetas.length ? { rcta_recetas: emision.recetas.map(resumenReceta), rcta_transaction_id: emision.idTransaccion } : {}),
+      })
       return await fallar('api_error', {
         error: motivos ? `El servicio de recetas no emitió la receta: ${motivos}` : 'El servicio de recetas no devolvió ninguna receta.',
         code: 'RCTA_SIN_RECETAS',
@@ -755,7 +786,7 @@ Deno.serve(async (req: Request) => {
     // escritura NO puede fallar en silencio: el 2026-07-31 falló con 22008 por
     // la fecha en DD/MM/AAAA y la función igual devolvía 200. Si falla se
     // reintenta sin la fecha, que es el campo con formato ajeno.
-    const persistirEmitida = async (medId: string, recetas: RecetaEmitida[]) => {
+    const persistirEmitida = async (medIds: string[], recetas: RecetaEmitida[]) => {
       if (esPractica) return null
       const r0 = recetas[0]
       const datos = {
@@ -776,23 +807,31 @@ Deno.serve(async (req: Request) => {
         rcta_autorizacion:    autorizacionDeLasRecetas(recetas),
         rcta_error_detalle:   null,
       }
-      const { error } = await supabase.from('clinical_medications').update(datos).eq('id', medId)
+      const { error } = await supabase.from('clinical_medications').update(datos).in('id', medIds)
       if (!error) return null
       console.error('rcta-issue: la receta se emitio pero no se pudo guardar:', error.message)
       const { rcta_issued_at: _f, vigencia_desde: _v, posdatada_de: _p, ...sinFecha } = datos
-      const { error: reintentoErr } = await supabase.from('clinical_medications').update(sinFecha).eq('id', medId)
+      const { error: reintentoErr } = await supabase.from('clinical_medications').update(sinFecha).in('id', medIds)
       if (reintentoErr) console.error('rcta-issue: reintento sin fecha tambien fallo:', reintentoErr.message)
       return reintentoErr ? error.message : null
     }
 
-    const sinPersistir: { medicationId: string; detalle: string }[] = []
+    // Una escritura por grupo de medicaciones con las mismas recetas (en el caso
+    // normal, una sola para toda la receta).
+    const grupos = new Map<string, { ids: string[]; recetas: RecetaEmitida[] }>()
     for (const [medId, recetas] of asignacion.recetasDe) {
-      const fallo = await persistirEmitida(medId, recetas)
-      if (fallo) sinPersistir.push({ medicationId: medId, detalle: fallo })
+      const k = recetas.map(r => r.idReceta ?? r.id).join('|')
+      const g = grupos.get(k) ?? { ids: [], recetas }
+      g.ids.push(medId)
+      grupos.set(k, g)
     }
-    // Lo que no salió, con su motivo. Lo que no se sabe si salió, con un motivo
-    // que dice que NO se reemita a ciegas.
-    const SIN_UBICAR = 'El servicio de recetas informó un error en el lote y no se pudo confirmar si este medicamento salió. Revisá las recetas emitidas antes de volver a emitirlo.'
+    const sinPersistir: { medicationId: string; detalle: string }[] = []
+    for (const { ids: idsGrupo, recetas } of grupos.values()) {
+      const fallo = await persistirEmitida(idsGrupo, recetas)
+      if (fallo) for (const id of idsGrupo) sinPersistir.push({ medicationId: id, detalle: fallo })
+    }
+    // Lo que no salió, con su motivo. Lo que no se sabe si salió queda "a
+    // revisar" con las recetas del lote guardadas: no se puede re-emitir a ciegas.
     if (!esPractica) {
       for (const [medId, err] of asignacion.fallidas) {
         await supabase.from('clinical_medications')
@@ -800,7 +839,10 @@ Deno.serve(async (req: Request) => {
       }
       if (asignacion.sinUbicar.length) {
         await supabase.from('clinical_medications')
-          .update({ rcta_status: 'error', rcta_error_detalle: SIN_UBICAR }).in('id', asignacion.sinUbicar)
+          .update({
+            rcta_status: 'error', rcta_error_detalle: LOTE_A_REVISAR,
+            rcta_recetas: principales.map(resumenReceta), rcta_transaction_id: emision.idTransaccion,
+          }).in('id', asignacion.sinUbicar)
       }
     }
 
@@ -901,7 +943,7 @@ Deno.serve(async (req: Request) => {
       emitidas: [...asignacion.recetasDe.keys()],
       recetas: principales.map(r => ({ prescriptionId: r.idReceta, pdfUrl: r.s3Link, autorizacion: r.autorizacion })),
       fallidas,
-      sinUbicar: asignacion.sinUbicar.map(id => ({ medicationId: id, nombre: nombreDe(id) })),
+      sinUbicar: asignacion.sinUbicar.map(id => ({ medicationId: id, nombre: nombreDe(id), mensaje: LOTE_A_REVISAR })),
       pendientesDeAutorizacion: principales.filter(r => r.autorizacion === 'pendiente').length
         + posdatadasGuardadas.filter(p => p.autorizacion === 'pendiente').length,
       avisoDelServicio: accionPdfAviso(emision),
@@ -997,6 +1039,9 @@ async function notifyPharmacyMatch(supabase: any, med: any) {
     },
   })
 }
+
+/** Motivo de una fila que quedó con recetas emitidas sin poder confirmar cuál es suya. */
+const LOTE_A_REVISAR = 'El servicio de recetas informó un error en el lote y no se pudo confirmar si este medicamento salió. Ya hay recetas emitidas en esta consulta: revisalas antes de volver a emitir, o contactá a soporte.'
 
 /** Lo que se guarda de cada receta en `clinical_medications.rcta_recetas` (migración 223). */
 function resumenReceta(r: RecetaEmitida) {
