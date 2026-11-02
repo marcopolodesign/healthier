@@ -57,7 +57,7 @@ const MP_PLATFORM_ACCESS_TOKEN = IS_PROD
 /**
  * Verify MercadoPago's X-Signature header.
  * Format: "ts=<timestamp>,v1=<hex-hmac>"
- * Signed string: "id:<notificationId>;request-id:<x-request-id>;ts:<timestamp>;"
+ * Signed string: "id:<data.id de la query>;request-id:<x-request-id>;ts:<timestamp>;"
  *
  * Docs: https://www.mercadopago.com.ar/developers/en/docs/your-integrations/notifications/webhooks
  */
@@ -201,11 +201,20 @@ serve(async (req: Request) => {
     const notificationType = body.type ?? body.action ?? "";
     const notificationId = String(body.id ?? body.data?.id ?? "");
 
+    // MP firma `data.id` — el id del RECURSO (el pago), que llega en la query
+    // (`?data.id=...`) — y no `body.id`, que es el id del EVENTO. Hasta el
+    // 2026-11-02 se firmaba con `body.id`: todo aviso de pago daba 401 y nunca
+    // se guardaron el neto real, la comisión de MP ni la fecha de liberación.
+    // Si el id es alfanumérico MP lo firma en minúscula.
+    const signedDataId = String(
+      new URL(req.url).searchParams.get("data.id") ?? body.data?.id ?? notificationId,
+    ).toLowerCase();
+
     // ── Signature verification ───────────────────────────────────────────────
     const xSignature = req.headers.get("x-signature");
 
     if (MP_WEBHOOK_SECRET && xSignature) {
-      const valid = await verifySignature(req, xSignature, notificationId);
+      const valid = await verifySignature(req, xSignature, signedDataId);
       if (!valid) {
         console.warn("mp-webhook: invalid signature");
         return new Response(JSON.stringify({ error: "Invalid signature" }), {
