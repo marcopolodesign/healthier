@@ -125,6 +125,10 @@ const CASOS: Caso[] = [
     medicamentos: ['Amoxicilina 500 mg — 21 comprimidos', 'Ibuprofeno 400 mg — 20 comprimidos'],
     pdfUrl: 'https://gethealthier.vercel.app/paciente/recetas', prescriptionId: 'rx-1',
   })),
+  caso('certificado', 'Certificado emitido (constancia o reposo)', 'Post consulta', T.certificadoEmitido({
+    patientName: 'Sofía', professionalName: 'Dra. Laura Gómez', tipo: 'reposo',
+    detalle: 'Reposo por 3 días desde el 2 de noviembre', pdfUrl: 'https://example.com/certificado.pdf',
+  })),
   caso('receta-habilitada', 'Receta posdatada habilitada (tratamiento prolongado)', 'Post consulta', T.recetaHabilitada({
     patientName: 'Sofía', professionalName: 'Dra. Valentina Ortiz',
     medicamento: 'Losartán 50 mg comp. x 30',

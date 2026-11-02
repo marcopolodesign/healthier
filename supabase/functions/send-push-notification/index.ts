@@ -102,6 +102,19 @@ async function datosDelAviso(
     )
   }
 
+  if (p.certificadoId) {
+    datos.certificadoId = p.certificadoId as string
+    const { data } = await supabase
+      .from('clinical_certificates')
+      .select('tipo, professional:profiles!professional_id(full_name)')
+      .eq('id', p.certificadoId)
+      .maybeSingle()
+    if (data) {
+      datos.certificadoTipo = data.tipo as string
+      datos.professionalName = (data.professional as { full_name?: string } | null)?.full_name ?? null
+    }
+  }
+
   return datos
 }
 

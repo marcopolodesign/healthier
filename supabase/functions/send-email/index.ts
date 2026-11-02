@@ -250,6 +250,7 @@ type Body = {
   motivo?: string | null
   /** receta */
   prescriptionId?: string
+  certificadoId?: string
   /** derivacion */
   derivacionId?: string
   /** cambio-correo */
@@ -427,6 +428,36 @@ Deno.serve(async (req) => {
           pdfUrl: (meds[0].rcta_pdf_url as string) ?? null,
         })
         return await salida({ usuarioId: meds[0].patient_id as string }, [{ to: paciente?.email, ...mail }])
+      }
+
+      // ── Certificados (migración 222) ─────────────────────────────────────
+      case 'certificado': {
+        if (!body.certificadoId) return json({ error: 'Falta certificadoId' }, 400)
+        const { data: c } = await sb
+          .from('clinical_certificates')
+          .select('tipo, dias, desde, atencion_at, rcta_pdf_url, status, patient_id, professional_id')
+          .eq('id', body.certificadoId)
+          .maybeSingle()
+        if (!c) return json({ error: 'Certificado no encontrado' }, 404)
+        if (!body.preview && c.status !== 'issued') return json({ skipped: true, reason: 'el certificado no está vigente' })
+
+        const [paciente, profesional] = await Promise.all([
+          leerPerfil(sb, c.patient_id as string),
+          leerPerfil(sb, c.professional_id as string),
+        ])
+        const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', timeZone: 'America/Argentina/Buenos_Aires' })
+        const dias = Number(c.dias ?? 0)
+        const detalle = c.tipo === 'reposo'
+          ? `Reposo por ${dias} ${dias === 1 ? 'día' : 'días'} desde el ${fecha(`${c.desde}T12:00:00Z`)}`
+          : `Atención del ${fecha(c.atencion_at as string)}`
+        const mail = T.certificadoEmitido({
+          patientName: primerNombre(paciente?.full_name) ?? 'Paciente',
+          professionalName: profesional?.full_name ?? 'tu profesional',
+          tipo: c.tipo as 'constancia' | 'reposo',
+          detalle,
+          pdfUrl: (c.rcta_pdf_url as string) ?? null,
+        })
+        return await salida({ usuarioId: c.patient_id as string }, [{ to: paciente?.email, ...mail }])
       }
 
       // ── Cuentas ────────────────────────────────────────────────────────────
