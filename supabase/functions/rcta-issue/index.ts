@@ -457,7 +457,27 @@ Deno.serve(async (req: Request) => {
     if (faltaMatricula) return await fallar('validation_error', faltaMatricula, 422)
 
     // ── Mark as pending ───────────────────────────────────────────────────────
-    await setStatus('pending')
+    // Toma atómica (revisión, ronda 2): dos llamadas en paralelo —doble clic, dos
+    // pestañas, la app y la web— no pueden llegar las dos a emitir. Sólo pasa a
+    // `pending` lo que no está pendiente, emitido ni anulado; si alguna fila no
+    // se pudo tomar, otra emisión la tiene.
+    if (!esPractica) {
+      const { data: tomadas, error: tomaErr } = await supabase.from('clinical_medications')
+        .update({ rcta_status: 'pending' })
+        .in('id', ids)
+        .or('rcta_status.is.null,rcta_status.eq.error')
+        .select('id')
+      if (tomaErr) return await fallar('server_error', { error: tomaErr.message }, 500)
+      if ((tomadas ?? []).length !== ids.length) {
+        // Devolver las que sí se tomaron a como estaban no hace falta: la otra
+        // emisión en curso las va a resolver; si quedaron colgadas, se ven como
+        // "Emisión sin confirmar".
+        return await fallar('validation_error', {
+          error: 'Esta receta ya se está emitiendo (o quedó una emisión sin confirmar). Esperá unos segundos y recargá antes de volver a intentar.',
+          code: 'RCTA_EMISION_EN_CURSO',
+        }, 409)
+      }
+    }
 
     // ── Check credentials ─────────────────────────────────────────────────────
     // En practica se emite SIEMPRE contra homologacion. Si este deployment ya
@@ -733,11 +753,10 @@ Deno.serve(async (req: Request) => {
     // Con posdatadas, la de hoy es la que no cae en ninguna fecha posdatada y,
     // si hay más de una candidata, la que tiene fecha de hoy: una posdatada que
     // no se ubicó nunca puede quedar como la receta de hoy (revisión 2026-11-02).
-    const noPosdatadas = emision.recetas.filter(r => !posdatadasDevueltas.includes(r))
-    const hoy = fechaArgentina(new Date().toISOString())
-    const principales = !fechasPosdatadas.length || noPosdatadas.length <= 1
-      ? noPosdatadas.filter(r => !fechasPosdatadas.includes(fechaArgentina(r.fecha)))
-      : noPosdatadas.filter(r => fechaArgentina(r.fecha) === hoy).slice(0, 1)
+    // Sin depender del reloj del servidor (revisión, ronda 2): una receta con
+    // fecha de posdatada nunca es la de hoy, aunque no se haya podido ubicar.
+    const principales = emision.recetas
+      .filter(r => !posdatadasDevueltas.includes(r) && !fechasPosdatadas.includes(fechaArgentina(r.fecha)))
     const motivos = emision.errores.map(e => e.mensaje).filter(Boolean).join(' · ')
 
     // Nada salió hoy. Si igual salió algo (una posdatada, una receta que no se

@@ -70,7 +70,7 @@ export default function RecetasPorAutorizar({ puedeAutorizar = false, conHistori
                 <td className="table-cell">
                   <p className="font-medium text-text-primary text-sm">{f.medicationName}</p>
                   <p className="text-xs text-text-secondary">
-                    {f.presentacion || ''}{f.rctaPrescriptionId ? ` · N° ${f.rctaPrescriptionId}` : ''}
+                    {f.presentacion || ''}{f.rctaPrescriptionId ? ` · N° ${f.recetasPendientes || f.rctaPrescriptionId}` : ''}
                     {f.pdfUrl && <> · <a href={f.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-brand font-semibold">ver PDF</a></>}
                   </p>
                 </td>
@@ -109,7 +109,7 @@ export default function RecetasPorAutorizar({ puedeAutorizar = false, conHistori
         {aConfirmar && (
           <div className="space-y-4">
             <p className="text-sm text-text-secondary">
-              Vas a autorizar la receta de <strong className="text-text-primary">{aConfirmar.medicationName}</strong> de{' '}
+              Vas a autorizar la receta {aConfirmar.recetasPendientes || aConfirmar.rctaPrescriptionId ? <>N° <strong className="text-text-primary">{aConfirmar.recetasPendientes || aConfirmar.rctaPrescriptionId}</strong> </> : ''}de <strong className="text-text-primary">{aConfirmar.medicationName}</strong> de{' '}
               <strong className="text-text-primary">{aConfirmar.paciente || 'el paciente'}</strong>. Confirmá que la obra social la aprobó: desde ahora el paciente la puede comprar.
             </p>
             <p className="text-xs text-text-tertiary flex items-center gap-1.5">

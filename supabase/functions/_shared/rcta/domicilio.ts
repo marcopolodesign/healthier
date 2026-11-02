@@ -17,9 +17,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ALTURA_SOLA = /^\d{1,5}\s?[A-Za-z]?$/
-// `p.` no lleva `\b` después (el punto no es palabra: "p. 3" no se recortaba
-// y el piso salía como altura — revisión 2026-11-02).
-const UNIDAD = /\s*\b(?:piso|p\.|dto\.?|depto\.?|departamento|of\.?|oficina|local)(?=[\s\d]|$).*$/i
+// `p.` es piso sólo si sigue un número ("p. 3", "p.3"): "Av. P. Goyena 1234" es
+// una calle (revisión 2026-11-02, rondas 1 y 2).
+const UNIDAD = /\s*(?:\b(?:piso|dto\.?|depto\.?|departamento|of\.?|oficina|local)(?=[\s\d]|$)|\bp\.(?=\s*\d)).*$/i
 // Números que son parte del NOMBRE de la calle, no la altura. Los mismos tres
 // recortes que `direccionTieneNumero`.
 const NOMBRES_CON_NUMERO = [

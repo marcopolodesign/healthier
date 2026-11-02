@@ -39,6 +39,9 @@ function hoyArIso() {
 const noEmpezo = p => String(p.vigencia_desde ?? '') > hoyArIso()
 
 /** Anulada acá pero el servicio de recetas todavía no lo confirmó. */
+// Migración 223: quedó en error pero con recetas del lote emitidas (no se pudo
+// confirmar cuál es suya). No se re-emite; se revisa o se anula.
+const aRevisar = x => x.rcta_status === 'error' && Array.isArray(x.rcta_recetas) && x.rcta_recetas.length > 0
 const anulacionPendiente = x => x.rcta_status === 'anulada' && x.rcta_anulacion_estado === 'error'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -253,9 +256,9 @@ function PrescriptionRow({ rx, selectable, checked, onToggle, enCurso = false, p
             </p>
           )}
           {/* Si el servicio la repartió en varias recetas, cada una con su PDF. */}
-          {Array.isArray(rx.rcta_recetas) && rx.rcta_recetas.length > 1 && !anulada && (
+          {Array.isArray(rx.rcta_recetas) && (rx.rcta_recetas.length > 1 || aRevisar(rx)) && !anulada && (
             <p className="text-sm text-text-secondary mt-1.5 flex flex-wrap gap-x-2">
-              <span>Salió en {rx.rcta_recetas.length} recetas:</span>
+              <span>{aRevisar(rx) ? 'Recetas emitidas en este lote (revisá antes de volver a emitir):' : `Salió en ${rx.rcta_recetas.length} recetas:`}</span>
               {rx.rcta_recetas.map((r, i) => r.s3Link && (
                 <a key={r.idReceta ?? i} href={r.s3Link} target="_blank" rel="noopener noreferrer"
                   className="font-semibold text-brand hover:underline">PDF {i + 1}</a>
@@ -681,7 +684,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
 
   const emitibles = congelada
     ? []
-    : prescriptions.filter(rx => rx.status === 'active' && rx.rcta_status !== 'issued')
+    : prescriptions.filter(rx => rx.status === 'active' && rx.rcta_status !== 'issued' && !aRevisar(rx))
   const seleccionados = selectedIds.filter(id => emitibles.some(rx => rx.id === id))
 
   // Las posdatadas son filas propias (`posdatada_de`): en la lista van debajo
@@ -731,7 +734,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
   // seguir siendo un clic, y desmarcar es más fácil que marcar.
   useEffect(() => {
     setSelectedIds(prescriptions
-      .filter(rx => rx.status === 'active' && rx.rcta_status !== 'issued')
+      .filter(rx => rx.status === 'active' && rx.rcta_status !== 'issued' && !aRevisar(rx))
       .map(rx => rx.id))
   }, [prescriptions])
 
@@ -742,7 +745,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
   // Sólo quien la emitió, y nunca en la práctica. Se puede con la consulta
   // cerrada: anular no es emitir, y suele darse después (Mateo, 2026-10-22).
   const puedeAnular = rx => !enPracticaRx
-    && rx.rcta_status === 'issued' && rx.status === 'active' && !rx.posdatada_de
+    && (rx.rcta_status === 'issued' || aRevisar(rx)) && rx.status === 'active' && !rx.posdatada_de
     && !!professionalId && rx.professional_id === professionalId
 
   function pedirAnular(rx) {
