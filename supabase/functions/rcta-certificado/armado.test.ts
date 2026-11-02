@@ -6,22 +6,24 @@
 //   deno test supabase/functions/rcta-certificado/      (o npm run test:certificados)
 import { assert, assertEquals, assertMatch } from 'jsr:@std/assert@1'
 import {
-  armarPayloadCertificado, problemasDelPayload, validarCertificado, domicilioDe,
-  provinciaMatricula, textoDelCertificado, type Certificado,
+  armarPayloadCertificado, problemasDelPayload, validarCertificado, textoDelCertificado, vistaPrevia,
+  type Certificado,
 } from './armado.ts'
 
 const FIRMA = 'iVBORw0KGgo' + 'A'.repeat(200)
 const paciente = { first_name: 'Paciente', last_name: 'Demo', dni: '30.123.456', gender: 'femenino', birth_date: '1990-03-15', phone: null }
 const profesional = { first_name: 'Laura', last_name: 'Gómez', dni: '28456789', gender: 'femenino', birth_date: '1981-06-09' }
-const legajo = { specialty: 'medicina_general', license_type: 'MN', license_number: '112233', address: 'Coronel Ramón Lorenzo Falcón 1500, Flores, Buenos Aires, Ciudad Autónoma de Buenos Aires' }
+const legajo = { specialty: 'medicina_general', license_type: 'MN', license_number: '112233', license_province: null, address: 'Coronel Ramón Lorenzo Falcón 1500, Flores, Buenos Aires, Ciudad Autónoma de Buenos Aires' }
 
 const armar = (c: Certificado, extra: Record<string, unknown> = {}) => armarPayloadCertificado({
   clienteAppId: 597, certificado: c, patient: paciente, professional: profesional, legajo,
   especialidadLabel: 'Medicina General', firmabase64: FIRMA, ...extra,
 })
 
-const REPOSO: Certificado = { tipo: 'reposo', dias: 3, desde: '2026-11-02', indicaciones: 'Evitar esfuerzos físicos' }
-const CONSTANCIA: Certificado = { tipo: 'constancia', atencionAt: '2026-11-02T17:30:00Z' }
+const ATENCION = '2026-11-02T17:30:00Z'
+const REPOSO: Certificado = { tipo: 'reposo', atencionAt: ATENCION, dias: 3, desde: '2026-11-02', indicaciones: 'Evitar esfuerzos físicos' }
+const ESCOLAR: Certificado = { tipo: 'escolar', atencionAt: ATENCION, dias: 2, desde: '2026-11-03', indicaciones: 'Reincorporarse con alta' }
+const CONSTANCIA: Certificado = { tipo: 'constancia', atencionAt: ATENCION, indicaciones: 'Control en 7 días' }
 
 Deno.test('reposo: cumple los obligatorios de la wiki', () => {
   const p = armar(REPOSO)
@@ -29,21 +31,45 @@ Deno.test('reposo: cumple los obligatorios de la wiki', () => {
   assertEquals(p.clienteAppId, 597)
   assertEquals(p.prescripcion[0].prescripcion, 'Certificado de reposo laboral')
   assertEquals(p.prescripcion[0].observaciones,
-    'Se indica a Paciente Demo, DNI 30123456, reposo por 3 (tres) días, del 02/11/2026 al 04/11/2026 inclusive.')
+    'Se indica reposo por 3 (tres) días, del 02/11/2026 al 04/11/2026 inclusive.')
   assertEquals(p.indicaciones, 'Evitar esfuerzos físicos')
   assertEquals(p.paciente.nroDoc, '30123456')
   assertEquals(p.paciente.sexo, 'F')
   assertEquals(p.medico.especialidad, 'Medicina General') // legible, nunca el slug
-  assertEquals(p.medico.matricula, { tipo: 'MN', numero: '112233', provincia: '', profesion: 'Médico', especialidad: 'Medicina General' })
+  assertEquals(p.medico.matricula, { tipo: 'MN', numero: '112233', profesion: 'Médica', especialidad: 'Medicina General' })
+  assertEquals(p.medico.profesion, 'Médica') // de la especialidad y el género
   assert(!String(p.medico.firmabase64).startsWith('data:'))
 })
 
-Deno.test('constancia: fecha y hora en hora argentina, sin segunda hoja', () => {
+Deno.test('constancia: fecha y hora en hora argentina; indicaciones a la segunda hoja', () => {
   const p = armar(CONSTANCIA)
   assertEquals(problemasDelPayload(p), [])
-  assertEquals(p.prescripcion[0].prescripcion, 'Constancia de atención médica')
-  assertMatch(p.prescripcion[0].observaciones, /el 02\/11\/2026 a las 14:30 h\.$/)
-  assertEquals('indicaciones' in p, false)
+  assertEquals(p.prescripcion[0].prescripcion, 'Constancia de atención')
+  assertMatch(p.prescripcion[0].observaciones, /^Se deja constancia de que el\/la paciente fue atendido\/a en consulta médica el 02\/11\/2026 a las 14:30\.$/)
+  assertEquals(p.indicaciones, 'Control en 7 días')
+  assertEquals('indicaciones' in armar({ ...CONSTANCIA, indicaciones: '  ' }), false)
+})
+
+Deno.test('escolar: días de inasistencia y fecha de la atención', () => {
+  const p = armar(ESCOLAR)
+  assertEquals(problemasDelPayload(p), [])
+  assertEquals(p.prescripcion[0].prescripcion, 'Certificado médico escolar')
+  assertEquals(p.prescripcion[0].observaciones,
+    'Se justifica la inasistencia a clases por 2 (dos) días, del 03/11/2026 al 04/11/2026 inclusive. Puede reintegrarse el 05/11/2026.')
+  assertEquals(p.indicaciones, 'Reincorporarse con alta')
+})
+
+Deno.test('vista previa: los mismos datos que el payload, en el orden del PDF', () => {
+  const p = armar({ ...REPOSO, cie10Code: 'J06.9', cie10Display: 'Infección aguda de las vías respiratorias superiores', imprimirDiagnostico: true })
+  const v = vistaPrevia(p, '2026-11-02', null)
+  assertEquals(v.titulo, p.prescripcion[0].prescripcion)
+  assertEquals(v.cuerpo, p.prescripcion[0].observaciones)
+  assertEquals(v.diagnostico, 'J06.9')
+  assertEquals(v.medico.linea, 'MÉDICA - MEDICINA GENERAL')
+  assertEquals(v.medico.matricula, 'Matrícula Nac.: 112233')
+  assertEquals(v.paciente, { nombre: 'Paciente Demo', dni: '30123456', sexo: 'Femenino', nacimiento: '15/03/1990' })
+  assertEquals(v.indicaciones, 'Evitar esfuerzos físicos')
+  assertEquals(vistaPrevia(armar(REPOSO), '2026-11-02', null).diagnostico, null)
 })
 
 Deno.test('diagnóstico: con el interruptor apagado NO viaja (con N igual se imprimía)', () => {
@@ -62,17 +88,22 @@ Deno.test('diagnóstico: prendido viaja el código con S', () => {
 })
 
 Deno.test('reposo de 1 día y que cruza de mes', () => {
-  assertMatch(textoDelCertificado({ tipo: 'reposo', dias: 1, desde: '2026-11-02' }, 'A B', '1').cuerpo, /1 \(un\) día, el 02\/11\/2026\.$/)
-  assertMatch(textoDelCertificado({ tipo: 'reposo', dias: 3, desde: '2026-11-30' }, 'A B', '1').cuerpo, /del 30\/11\/2026 al 02\/12\/2026/)
+  assertMatch(textoDelCertificado({ tipo: 'reposo', dias: 1, desde: '2026-11-02' }).cuerpo, /1 \(un\) día, el 02\/11\/2026\.$/)
+  assertMatch(textoDelCertificado({ tipo: 'reposo', dias: 3, desde: '2026-11-30' }).cuerpo, /del 30\/11\/2026 al 02\/12\/2026/)
 })
 
 Deno.test('validación de lo que manda el profesional', () => {
   assertEquals(validarCertificado(REPOSO), null)
   assertEquals(validarCertificado(CONSTANCIA), null)
-  assert(validarCertificado({ tipo: 'reposo', dias: 0, desde: '2026-11-02' }))
-  assert(validarCertificado({ tipo: 'reposo', dias: 31, desde: '2026-11-02' }))
-  assert(validarCertificado({ tipo: 'reposo', dias: 2, desde: '' }))
+  assertEquals(validarCertificado(ESCOLAR, '2026-11-02'), null)
+  assert(validarCertificado({ ...REPOSO, dias: 0 }))
+  assert(validarCertificado({ ...REPOSO, dias: 31 }))
+  assert(validarCertificado({ ...REPOSO, desde: '' }))
+  assert(validarCertificado({ ...ESCOLAR, dias: null }))
   assert(validarCertificado({ tipo: 'constancia', atencionAt: null }))
+  // No antes del día de la consulta (Mateo, 2026-11-02).
+  assert(validarCertificado({ ...REPOSO, desde: '2026-11-01' }, '2026-11-02'))
+  assertEquals(validarCertificado({ ...REPOSO, desde: '2026-11-02' }, '2026-11-02'), null)
   assert(validarCertificado({ ...REPOSO, imprimirDiagnostico: true }))
   // deno-lint-ignore no-explicit-any
   assert(validarCertificado({ tipo: 'apto' as any }))
@@ -93,22 +124,20 @@ Deno.test('falta de datos se detecta antes de llamar', () => {
   assert(problemasDelPayload({ ...armar(REPOSO), imprimirDiagnostico: 'X' }).includes('imprimirDiagnostico'))
 })
 
-Deno.test('matrícula provincial lleva provincia', () => {
-  const p = armar(REPOSO, { legajo: { ...legajo, license_type: 'MP' } })
-  assertEquals(p.medico.matricula.provincia, 'Ciudad Autonoma de Bs As')
+Deno.test('matrícula provincial lleva la provincia del legajo', () => {
+  const p = armar(REPOSO, { legajo: { ...legajo, license_type: 'MP', license_province: 'Santa Fe' } })
+  assertEquals(p.medico.matricula.provincia, 'Santa Fe')
   assertEquals(problemasDelPayload(p), [])
-  const sinProv = armar(REPOSO, { legajo: { ...legajo, license_type: 'MP', address: 'Calle Falsa 123' } })
+  const sinProv = armar(REPOSO, { legajo: { ...legajo, license_type: 'MP', license_province: null } })
   assert(problemasDelPayload(sinProv).includes('medico.matricula.provincia'))
-  assertEquals(provinciaMatricula('Bv. Oroño 500, Rosario, Santa Fe'), 'Santa Fe')
 })
 
-Deno.test('domicilio: las formas en que se guarda la dirección', () => {
-  assertEquals(domicilioDe('Av. Santa Fe 1900, Recoleta, Buenos Aires'), { calle: 'Av. Santa Fe', numero: '1900', direccion: 'Av. Santa Fe 1900, Recoleta, Buenos Aires' })
-  assertEquals(domicilioDe('3709, Arenales, Palermo, CABA')?.calle, 'Arenales')
-  assertEquals(domicilioDe('3709, Arenales, Palermo, CABA')?.numero, '3709')
-  assertEquals(domicilioDe('IFER, 2259, Gorriti, Palermo')?.calle, 'Gorriti')
-  // Sin altura: sólo `direccion`, nunca una calle sin número.
-  assertEquals(domicilioDe('Hospital Italiano, Almagro'), { direccion: 'Hospital Italiano, Almagro' })
-  assertEquals(domicilioDe(''), null)
-  assertEquals(problemasDelPayload(armar(REPOSO, { legajo: { ...legajo, address: 'Hospital Italiano, Almagro' } })), [])
+Deno.test('domicilio de la atención: calle y número, o dirección sola', () => {
+  const p = armar(REPOSO)
+  assertEquals(p.lugarAtencion?.domicilio, { calle: 'Coronel Ramón Lorenzo Falcón', numero: '1500', localidad: 'Flores' })
+  const nominatim = armar(REPOSO, { legajo: { ...legajo, address: 'IFER, 2259, Gorriti, Palermo, CABA' } })
+  assertEquals(problemasDelPayload(nominatim), [])
+  const sinAltura = armar(REPOSO, { legajo: { ...legajo, address: 'Hospital Italiano, Almagro' } })
+  assertEquals(sinAltura.lugarAtencion?.domicilio, { direccion: 'Hospital Italiano, Almagro' })
+  assertEquals(problemasDelPayload(sinAltura), [])
 })

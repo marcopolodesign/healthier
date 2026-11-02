@@ -1,11 +1,17 @@
 import { useState } from 'react'
-import { Pill, TestTube } from '@phosphor-icons/react'
+import { Certificate, Pill, TestTube } from '@phosphor-icons/react'
 import PrescriptionCreator from './PrescriptionCreator'
 import EstudiosCreator from './EstudiosCreator'
+import CertificadoCreator from './CertificadoCreator'
+import { esSimulado } from '../../lib/simulacion'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 
+// Tres tarjetas con el ícono arriba para que entren en el panel angosto de la
+// videollamada (Felipe, 2026-11-02). "Certificado": constancia, reposo, escolar.
 const OPCIONES = [
-  { id: 'medicamentos', label: 'Recetar medicamentos', icon: Pill },
-  { id: 'estudios',     label: 'Recetar estudios',     icon: TestTube },
+  { id: 'medicamentos', label: 'Medicamentos', icon: Pill },
+  { id: 'estudios',     label: 'Estudios',     icon: TestTube },
+  { id: 'certificado',  label: 'Certificado',  icon: Certificate },
 ]
 
 /**
@@ -24,14 +30,18 @@ const OPCIONES = [
 export default function Recetario({
   patientId, encounterId, ensureEncounter, professionalId, profProfile, bloqueada,
   cobertura, profile, paciente, consultationId, onIssued, onDatosActualizados,
-  onEntryAdded,
+  onEntryAdded, consultaFecha,
 }) {
   const [modo, setModo] = useState('medicamentos')
+  // Certificados: sólo las especialidades que recetan, mismo criterio que la
+  // receta (Mateo, 2026-11-02). El corte real lo hace `rcta-certificado`.
+  const { puedeRecetar } = useEspecialidades()
+  const opciones = OPCIONES.filter(o => o.id !== 'certificado' || puedeRecetar(profProfile?.specialty))
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2.5">
-        {OPCIONES.map(o => {
+      <div className={`grid gap-2.5 ${opciones.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+        {opciones.map(o => {
           const selected = modo === o.id
           return (
             <button
@@ -39,13 +49,13 @@ export default function Recetario({
               type="button"
               onClick={() => setModo(o.id)}
               aria-pressed={selected}
-              className={`flex items-center justify-center gap-1.5 py-4 px-2 rounded-2xl border font-semibold text-xs transition-colors ${
+              className={`flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-2xl border font-semibold text-xs transition-colors ${
                 selected
                   ? 'bg-brand-muted/20 border-brand text-brand'
                   : 'bg-white border-border-default text-text-primary hover:border-brand hover:text-brand hover:bg-brand-muted/20'
               }`}
             >
-              <o.icon className="h-4 w-4 shrink-0" weight={selected ? 'fill' : 'regular'} />
+              <o.icon className="h-5 w-5 shrink-0" weight={selected ? 'fill' : 'regular'} />
               {o.label}
             </button>
           )
@@ -66,6 +76,19 @@ export default function Recetario({
           onIssued={onIssued}
           onDatosActualizados={onDatosActualizados}
           bloqueada={bloqueada}
+        />
+      ) : modo === 'certificado' ? (
+        <CertificadoCreator
+          consultationId={consultationId}
+          encounterId={encounterId}
+          consultaFecha={consultaFecha}
+          professionalId={professionalId}
+          profile={profile}
+          profProfile={profProfile}
+          paciente={paciente}
+          patientId={patientId}
+          onDatosActualizados={onDatosActualizados}
+          enPractica={esSimulado(encounterId) || esSimulado(consultationId)}
         />
       ) : (
         <EstudiosCreator

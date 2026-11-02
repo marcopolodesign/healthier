@@ -243,9 +243,11 @@ export const AVISOS = {
   // Migración 222: constancia de atención o certificado de reposo.
   'certificado-emitido': {
     para: 'paciente' as Destinatario,
-    cuando: 'El profesional emite un certificado (constancia de atención o reposo).',
+    cuando: 'El profesional emite un certificado (constancia de atención, reposo o escolar).',
     build: (d: Datos): Aviso => ({
-      title: d.certificadoTipo === 'reposo' ? 'Tu certificado de reposo ya está disponible' : 'Tu constancia de atención ya está disponible',
+      title: d.certificadoTipo === 'reposo' ? 'Tu certificado de reposo ya está disponible'
+        : d.certificadoTipo === 'escolar' ? 'Tu certificado escolar ya está disponible'
+        : 'Tu constancia de atención ya está disponible',
       body: `${d.professionalName ?? 'Tu profesional'} te lo emitió. Lo encontrás en tu Bóveda, listo para compartir.`,
       url: '/paciente/certificados',
     }),
