@@ -55,7 +55,10 @@ function identificadores(v: unknown): string[] {
     const o = v as Record<string, unknown>
     return [o.regNo, o.codigo, o.nombreProducto, o.nombre, o.medicamento].flatMap(identificadores)
   }
-  return String(v).split(/[,;]/).map(s => s.trim()).filter(Boolean)
+  // Entero: partirlo por comas dejaba palabras sueltas ("COMPRIMIDOS") que
+  // coincidían con cualquier medicación (revisión 2026-11-02).
+  const t = String(v).trim()
+  return t ? [t] : []
 }
 
 /** La respuesta 200 de POST /apirecipe/Receta, normalizada. */
@@ -115,6 +118,8 @@ export function accionPdfAviso(e: Emision): string | null {
 export type MedParaAsignar = { id: string; reg_no?: string | null; medication_name?: string | null }
 
 export type Asignacion = {
+  // `sinUbicar` puede convivir con recetas emitidas: quien llama las guarda en
+  // la fila (sin marcarla emitida) para que no se pueda re-emitir a ciegas.
   /** medicación → las recetas que la contienen (normalmente una). */
   recetasDe: Map<string, RecetaEmitida[]>
   /** medicación → el error con que no salió. */
@@ -125,12 +130,14 @@ export type Asignacion = {
 
 const norm = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase()
 
+// Conservador a propósito: marcar fallida una medicación que salió la deja
+// re-emitible (receta duplicada). Código exacto, o nombre igual.
 function coincide(med: MedParaAsignar, ids: string[]): boolean {
   const reg = norm(med.reg_no)
-  const nombre = norm(med.medication_name)
+  const nombre = norm(med.medication_name).replace(/\s+/g, ' ')
   return ids.some(x => {
-    const n = norm(x)
-    return (reg && n === reg) || (nombre && n.length >= 3 && (n === nombre || nombre.includes(n) || n.includes(nombre)))
+    const n = norm(x).replace(/\s+/g, ' ')
+    return (reg && n === reg) || (nombre.length >= 3 && n === nombre)
   })
 }
 
@@ -163,9 +170,12 @@ export function asignarRecetas(e: Emision, meds: MedParaAsignar[]): Asignacion {
   }
 
   const sinUbicar: string[] = []
+  const restantes = meds.filter(m => !fallidas.has(m.id) && !recetasDe.has(m.id))
   for (const m of meds) {
     if (fallidas.has(m.id) || recetasDe.has(m.id)) continue
-    if (sinLista.length && !errorSinMedicamento) recetasDe.set(m.id, sinLista)
+    // Una sola medicación sin ubicar y recetas sin lista: es ella (una receta
+    // no sale sin medicamento), aunque haya un error sin atribuir.
+    if (sinLista.length && (!errorSinMedicamento || restantes.length === 1)) recetasDe.set(m.id, sinLista)
     else if (!e.errores.length && !sinLista.length && conLista.length) {
       // Recetas que listan medicamentos con otro código que el nuestro: salió
       // todo (no hay errores), sólo no se reconoce cuál es cuál.

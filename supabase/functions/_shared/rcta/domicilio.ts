@@ -17,7 +17,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ALTURA_SOLA = /^\d{1,5}\s?[A-Za-z]?$/
-const UNIDAD = /\s*\b(piso|p\.|dto\.?|depto\.?|departamento|of\.?|oficina|local)\b.*$/i
+// `p.` no lleva `\b` después (el punto no es palabra: "p. 3" no se recortaba
+// y el piso salía como altura — revisión 2026-11-02).
+const UNIDAD = /\s*\b(?:piso|p\.|dto\.?|depto\.?|departamento|of\.?|oficina|local)(?=[\s\d]|$).*$/i
 // Números que son parte del NOMBRE de la calle, no la altura. Los mismos tres
 // recortes que `direccionTieneNumero`.
 const NOMBRES_CON_NUMERO = [
