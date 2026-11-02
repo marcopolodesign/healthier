@@ -31,7 +31,7 @@ import { consultationsService } from '../../services/consultationsService'
 import { paymentsService } from '../../services/paymentsService'
 import { primerTurnoLibre } from '../../lib/agendaTurnos'
 import { cumplePrecioMinimo } from '../../lib/tarifas'
-import { ofreceModalidad } from '../../lib/modalidad'
+import { atiendePresencial } from '../../lib/profileCompleteness'
 
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
@@ -125,9 +125,6 @@ export default function PatientDashboard({ profile }) {
 
   const mapMarkers = useMemo(() =>
     proPool
-      // El mapa es de consultorios: sólo quien ofrece presencial (atiende
-      // presencial, precio presencial y dirección con número), igual que la app.
-      .filter(pro => ofreceModalidad(pro, 'presencial').ok)
       .map(pro => {
         const type = verticalDeEspecialidad[pro.specialty]
         if (!type) return null
@@ -254,8 +251,7 @@ export default function PatientDashboard({ profile }) {
       verticalId: type,
       disponibleAhora: disponible,
       tienePrecio: [pro.priceVideo, pro.pricePresencial, pro.sessionPrice].some(cumplePrecioMinimo),
-      // La opción "Presencial" de la hoja sólo si ofrece presencial de verdad.
-      atiendePresencial: ofreceModalidad(pro, 'presencial').ok,
+      atiendePresencial: atiendePresencial(pro),
       latitude:   pro.latitude ?? null,
       longitude:  pro.longitude ?? null,
     })
