@@ -102,7 +102,7 @@ export default function SuperAdminAuditoria() {
       try {
         const { data, error } = await supabase
           .from('rcta_issue_log')
-          .select('id, created_at, outcome, error_code, purpose, api_base_url, id_transaccion, id_receta, s3_link, http_status, request, patient:profiles!patient_id(full_name), professional:profiles!professional_id(full_name)')
+          .select('id, created_at, outcome, error_code, purpose, api_base_url, certificado_id, id_transaccion, id_receta, s3_link, http_status, request, patient:profiles!patient_id(full_name), professional:profiles!professional_id(full_name)')
           .order('created_at', { ascending: false })
           .limit(PAGE_SIZE)
         if (error) throw error
@@ -397,6 +397,9 @@ function RecetasTab({ recetas, loading, onCopiar, selection, onDeleteOne }) {
                   })}
                   {r.purpose === 'certificacion' && (
                     <span className="block text-[11px] text-text-tertiary">prueba de certificación</span>
+                  )}
+                  {r.certificado_id && (
+                    <span className="block text-[11px] text-text-tertiary">certificado ({r.request?.prescripcion?.[0]?.prescripcion ?? 'anulación'})</span>
                   )}
                 </td>
                 <td className="px-4 py-3">

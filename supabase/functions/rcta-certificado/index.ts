@@ -5,7 +5,8 @@
 //   DELETE /apirecipe/OtrasPrescripciones/{id}      (anular, `id` = hash)
 //
 // Body:
-//   { accion: 'emitir', consultationId, encounterId?, tipo: 'constancia'|'reposo',
+//   { accion: 'emitir' | 'vista_previa', consultationId, encounterId?,
+//     tipo: 'constancia'|'reposo'|'escolar',
 //     dias?, desde? (AAAA-MM-DD), indicaciones?, cie10Code?, cie10Display?,
 //     imprimirDiagnostico? }
 //   { accion: 'anular', certificadoId }
@@ -30,8 +31,11 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import {
-  CORS, json, rolDelJwt, resolverFirma, llamarRcta, interpretarAnulacion,
-  armarPayloadCertificado, problemasDelPayload, validarCertificado, type Certificado,
+  resolverFirma, llamarRcta, interpretarAnulacion, etiquetaEspecialidad, matriculaDe, problemaDeMatricula,
+} from '../_shared/rcta/mod.ts'
+import {
+  CORS, json, rolDelJwt, armarPayloadCertificado, problemasDelPayload, validarCertificado,
+  vistaPrevia, conDias, diaAr, TIPOS, type Certificado,
 } from './armado.ts'
 
 const ENDPOINT = '/apirecipe/OtrasPrescripciones'
@@ -133,7 +137,8 @@ Deno.serve(async (req: Request) => {
     // ═══════════════════════════════════════════════════════════════════════
     // Emitir
     // ═══════════════════════════════════════════════════════════════════════
-    if (body.accion !== 'emitir') return json({ error: "accion tiene que ser 'emitir' o 'anular'" }, 400)
+    const esVistaPrevia = body.accion === 'vista_previa'
+    if (body.accion !== 'emitir' && !esVistaPrevia) return json({ error: "accion tiene que ser 'emitir', 'vista_previa' o 'anular'" }, 400)
     if (typeof body.consultationId !== 'string') return json({ error: 'consultationId requerido' }, 400)
 
     const { data: consulta, error: cErr } = await supabase
@@ -154,14 +159,15 @@ Deno.serve(async (req: Request) => {
       // La atención: cuándo empezó; si no quedó registrado, el turno; si es
       // una inmediata sin turno, cuándo se cerró o se pidió.
       atencionAt: consulta.started_at ?? consulta.scheduled_at ?? consulta.completed_at ?? consulta.created_at,
-      dias: body.tipo === 'reposo' ? Number(body.dias) : null,
-      desde: body.tipo === 'reposo' ? String(body.desde ?? '') : null,
+      dias: conDias(body.tipo) ? Number(body.dias) : null,
+      desde: conDias(body.tipo) ? String(body.desde ?? '') : null,
       indicaciones: typeof body.indicaciones === 'string' ? body.indicaciones.trim() || null : null,
       cie10Code: typeof body.cie10Code === 'string' ? body.cie10Code.trim() || null : null,
       cie10Display: typeof body.cie10Display === 'string' ? body.cie10Display.trim() || null : null,
       imprimirDiagnostico: body.imprimirDiagnostico === true,
     }
-    const invalido = validarCertificado(certificado)
+    if (!TIPOS.includes(body.tipo)) return json({ error: 'Elegí el tipo de certificado.', code: 'CERT_DATOS_INVALIDOS' }, 422)
+    const invalido = validarCertificado(certificado, diaAr(certificado.atencionAt!))
     if (invalido) return json({ error: invalido, code: 'CERT_DATOS_INVALIDOS' }, 422)
 
     const { data: puede, error: permErr } = await supabase
@@ -177,31 +183,44 @@ Deno.serve(async (req: Request) => {
         .eq('id', consulta.patient_id).single(),
       supabase.from('profiles')
         .select(`id, full_name, first_name, last_name, dni, gender, birth_date, phone,
-                 professional_profiles!professional_profiles_user_id_fkey(specialty, license_type, license_number, address)`)
+                 professional_profiles!professional_profiles_user_id_fkey(specialty, license_type, license_number, license_province, address)`)
         .eq('id', consulta.professional_id).single(),
     ])
     const legajo = Array.isArray(professional?.professional_profiles)
       ? professional.professional_profiles[0] : professional?.professional_profiles
-    const { data: esp } = await supabase.from('specialties').select('label').eq('slug', legajo?.specialty ?? '').maybeSingle()
+    const especialidadLabel = await etiquetaEspecialidad(supabase, legajo?.specialty)
+    const probMatricula = problemaDeMatricula(matriculaDe(legajo))
+    if (probMatricula) return json(probMatricula, 422)
 
     const firmabase64 = await resolverFirma(supabase, consulta.professional_id)
-    if (!firmabase64) {
+    // La vista previa no necesita firma ni credenciales: no sale nada afuera.
+    // Muestra si falta la firma, para que el profesional se entere antes.
+    if (!firmabase64 && !esVistaPrevia) {
       return json({
         error: 'Para emitir el certificado necesitás cargar tu firma. Se hace una sola vez y queda para todo.',
         code: 'RCTA_FIRMA_FALTANTE',
       }, 422)
     }
-    if (!RCTA_API_URL || !RCTA_API_KEY || !RCTA_CLIENT_APP_ID) {
+    if (!esVistaPrevia && (!RCTA_API_URL || !RCTA_API_KEY || !RCTA_CLIENT_APP_ID)) {
       return json({ error: 'La emisión todavía no está habilitada en este entorno.', code: 'RCTA_NOT_CONFIGURED' }, 503)
     }
 
     const payload = armarPayloadCertificado({
-      clienteAppId: Number(RCTA_CLIENT_APP_ID), certificado, patient, professional, legajo,
-      especialidadLabel: esp?.label ?? legajo?.specialty ?? null, firmabase64,
+      clienteAppId: Number(RCTA_CLIENT_APP_ID ?? 0), certificado, patient, professional, legajo,
+      especialidadLabel, firmabase64,
     })
 
     // Lo que falta se dice con nombre, no con un QBI.
     const problemas = problemasDelPayload(payload)
+    if (esVistaPrevia) {
+      return json({
+        vistaPrevia: vistaPrevia(payload, diaAr(new Date().toISOString()), // Con un CIE-10 el servicio imprime SU descripción oficial, no la que
+        // escribió el profesional: la vista previa muestra sólo el código.
+        certificado.imprimirDiagnostico && !certificado.cie10Code ? certificado.cie10Display ?? null : null),
+        faltan: problemas,
+        sinFirma: !firmabase64,
+      })
+    }
     if (problemas.length) {
       const NOMBRE: Record<string, string> = {
         'paciente.nroDoc': 'el DNI del paciente', 'paciente.sexo': 'el sexo del paciente',
@@ -249,7 +268,7 @@ Deno.serve(async (req: Request) => {
       supabase.from('clinical_certificates').update({ status: 'error', error_detalle: detalle.slice(0, 1000) }).eq('id', fila.id)
 
     let enviado: Record<string, unknown> = payload
-    let res = await llamarRcta('POST', RCTA_API_URL, RCTA_API_KEY, ENDPOINT, payload)
+    let res = await llamarRcta('POST', RCTA_API_URL!, RCTA_API_KEY!, ENDPOINT, payload)
     // deno-lint-ignore no-explicit-any
     let reintento: Record<string, any> | null = null
 
@@ -258,7 +277,7 @@ Deno.serve(async (req: Request) => {
       // prueba UNA vez sin la firma, por si la imagen es lo que no le gustó.
       const { firmabase64: _f, ...medicoSinFirma } = payload.medico
       const sinFirma = { ...payload, medico: medicoSinFirma }
-      const otra = await llamarRcta('POST', RCTA_API_URL, RCTA_API_KEY, ENDPOINT, sinFirma)
+      const otra = await llamarRcta('POST', RCTA_API_URL!, RCTA_API_KEY!, ENDPOINT, sinFirma)
       reintento = { sin_firma: true, rechazo_status: res.status, rechazo_detalle: res.body }
       if (otra.kind === 'ok') { console.error('rcta-certificado: emitido SIN FIRMA tras reintento', res.body); res = otra; enviado = sinFirma }
       else if (otra.kind === 'rejected') reintento.ok = false

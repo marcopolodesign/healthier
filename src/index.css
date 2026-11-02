@@ -1303,3 +1303,10 @@
     & > i:nth-child(3) { transform: scale(1); opacity: .14; }
   }
 }
+
+/* Vista previa del certificado (CertificadoCreator): imita la hoja A4 del PDF
+   del servicio de recetas, que va en Arial. */
+@utility hoja-certificado {
+  font-family: Arial, Helvetica, sans-serif;
+  aspect-ratio: 1 / 1.414;
+}
