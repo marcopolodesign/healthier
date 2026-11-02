@@ -2,6 +2,7 @@ import { Star, SealCheck, VideoCamera, MapPin, CalendarPlus, X, Lightning } from
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import PatientSheet from './PatientSheet'
 import { inicialesDe } from '../../lib/format'
+import { ofreceModalidad } from '../../lib/modalidad'
 
 /**
  * ProfessionalModal
@@ -28,9 +29,7 @@ export default function ProfessionalModal({ pro, open, onClose, modality, onBook
   const reviews = pro.totalReviews   ?? 0
   const label   = porSlug[pro.specialty] ?? pro.specialty ?? '—'
 
-  const price = modality === 'presencial'
-    ? (pro.pricePresencial ?? pro.priceVideo ?? null)
-    : (pro.priceVideo ?? pro.pricePresencial ?? null)
+  const price = ofreceModalidad(pro, modality === 'presencial' ? 'presencial' : 'virtual').precio
 
   const accentColor = vertical?.color ?? 'var(--color-brand)'
   const accentBg    = vertical?.bg    ?? 'var(--color-brand-muted)'

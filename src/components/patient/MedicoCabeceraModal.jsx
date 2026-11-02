@@ -5,6 +5,7 @@ import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { verticalForSpecialty } from '../../lib/verticals'
 import { track } from '../../utils/analytics'
 import { disponibleAhora } from '../../services/professionalService'
+import { ofreceModalidad } from '../../lib/modalidad'
 
 /**
  * Popup post-onboarding para el paciente que llegó por el link de un
@@ -96,6 +97,7 @@ export default function MedicoCabeceraModal({ open, onClose, professional }) {
                 <p className="text-text-secondary text-xs">Elegí día y horario</p>
               </div>
             </button>
+            {ofreceModalidad(professional, 'presencial').ok && (
             <button
               onClick={() => handleAgendar('presencial')}
               className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white border border-border-default hover:border-brand transition-all"
@@ -108,6 +110,7 @@ export default function MedicoCabeceraModal({ open, onClose, professional }) {
                 <p className="text-text-secondary text-xs">En el consultorio</p>
               </div>
             </button>
+            )}
           </div>
         )}
 

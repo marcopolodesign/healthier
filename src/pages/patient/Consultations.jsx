@@ -18,6 +18,7 @@ import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import { track } from '../../utils/analytics'
+import { ofreceModalidad, modalidadParaBase } from '../../lib/modalidad'
 
 const ESPECIALIDADES = {
   clinica:     ['Médico Generalista', 'Cardiología', 'Dermatología', 'Pediatría', 'Traumatología'],
@@ -59,6 +60,9 @@ function groupSlotsByDate(slots) {
 
 // Map BuscarProfesional URL modality values to Consultations internal modality state
 const MODALITY_PARAM_MAP = { video: 'Videollamada', presencial: 'Presencial' }
+// El estado interno de esta pantalla ('Videollamada' | 'Presencial') en el
+// vocabulario de `lib/modalidad.js` ('virtual' | 'presencial'). Nunca por descarte.
+const modalidadDeEstado = m => (m === 'Videollamada' ? 'virtual' : m === 'Presencial' ? 'presencial' : null)
 
 // Recordar la última vertical elegida — mismo comportamiento que tenía este
 // carrusel cuando vivía en el Inicio (se mudó acá, spec 2026-09-23: "Agendá
@@ -213,14 +217,21 @@ export default function PatientConsultations({ profile }) {
         .then(data => {
           const match = data.find(p => p.userId === proId)
           if (!match) return
+          // Llegó con ?modality=presencial a alguien que no atiende presencial
+          // (o sin consultorio/precio): no se abre el turno, se explica.
+          const oferta = ofreceModalidad(match, modalidadDeEstado(modalityState))
+          if (!oferta.ok) {
+            toast.error(oferta.motivo)
+            return
+          }
           const proObj = {
             id:              match.userId,
             name:            match.profiles?.fullName || 'Profesional',
             img:             match.profiles?.avatarUrl || null,
             rating:          String(match.averageRating ?? '—'),
             reviews:         match.totalReviews ?? 0,
-            pricePresencial: match.pricePresencial ?? null,
-            priceVideo:      match.priceVideo ?? null,
+            pricePresencial: ofreceModalidad(match, 'presencial').precio,
+            priceVideo:      ofreceModalidad(match, 'virtual').precio,
           }
           setProfessional(proObj)
           openModal(vert)
@@ -239,9 +250,10 @@ export default function PatientConsultations({ profile }) {
   useEffect(() => {
     if (step !== 'payment') return
     // Resolve amount from professional prices based on modality
-    const amount = modality === 'Videollamada'
-      ? (professional?.priceVideo ?? professional?.pricePresencial ?? null)
-      : (professional?.pricePresencial ?? professional?.priceVideo ?? null)
+    // Sin cruzar precios: el de video nunca hace de presencial ni al revés.
+    const amount = modality === 'Videollamada' ? (professional?.priceVideo ?? null)
+      : modality === 'Presencial' ? (professional?.pricePresencial ?? null)
+        : null
     setPaymentAmount(amount)
     setMpConfigLoading(true)
     mpService.getPaymentPlatformConfig()
@@ -274,7 +286,9 @@ export default function PatientConsultations({ profile }) {
     if (!slugs.length) { setPros([]); return }
     setProsLoading(true)
     professionalService.search({})
-      .then(data => setPros(data.filter(p => slugs.includes(p.specialty))))
+      .then(data => setPros(data.filter(p =>
+        slugs.includes(p.specialty) && (!modalidadDeEstado(modality) || ofreceModalidad(p, modalidadDeEstado(modality)).ok),
+      )))
       .catch(() => setPros([]))
       .finally(() => setProsLoading(false))
   }
@@ -310,8 +324,8 @@ export default function PatientConsultations({ profile }) {
       rating:  String(pro.averageRating ?? '—'),
       reviews: pro.totalReviews ?? 0,
       // Price resolved later in payment step based on modality
-      pricePresencial: pro.pricePresencial ?? null,
-      priceVideo:      pro.priceVideo ?? null,
+      pricePresencial: ofreceModalidad(pro, 'presencial').precio,
+      priceVideo:      ofreceModalidad(pro, 'virtual').precio,
       mpConnected:     pro.mpConnected !== false,
     }
     setProfessional(proObj)
@@ -338,7 +352,7 @@ export default function PatientConsultations({ profile }) {
       patientId:      profile.id,
       professionalId: professional.id,
       scheduledAt:    selectedSlot.startTime,
-      modality:       modality === 'Videollamada' ? 'video' : 'presencial',
+      modality:       modalidadParaBase(modalidadDeEstado(modality)),
       status:         'pending',
       paymentStatus:  'pending_payment',
       priceAtBooking: paymentAmount ?? null,
