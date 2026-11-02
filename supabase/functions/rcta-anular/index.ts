@@ -111,6 +111,25 @@ Deno.serve(async (req: Request) => {
       .is('posdatada_de', null)
     if (grupoErr) return json({ error: grupoErr.message }, 500)
     const grupo = (grupoData ?? []) as Fila[]
+
+    // Migración 223: una fila puede estar en más de una receta (`rcta_recetas`).
+    // Anular esas recetas anula también a las otras medicaciones que las
+    // comparten, aunque su receta "principal" sea otra: entran al grupo, si no
+    // quedarían a la venta con una receta ya anulada del otro lado.
+    const idRecetasDe = (f: Fila) => (f.rcta_recetas?.length ? f.rcta_recetas.map(r => r.idReceta) : [f.rcta_prescription_id])
+      .filter(Boolean) as string[]
+    const recetasDelGrupo = new Set(grupo.flatMap(idRecetasDe))
+    if (grupo.some(g => (g.rcta_recetas?.length ?? 0) > 1)) {
+      const { data: hermanas, error: hermErr } = await supabase
+        .from('clinical_medications').select(COLUMNAS)
+        .eq('patient_id', fila.patient_id)
+        .eq('rcta_transaction_id', fila.rcta_transaction_id)
+        .is('posdatada_de', null)
+      if (hermErr) return json({ error: hermErr.message }, 500)
+      for (const h of (hermanas ?? []) as Fila[]) {
+        if (!grupo.some(g => g.id === h.id) && idRecetasDe(h).some(id => recetasDelGrupo.has(id))) grupo.push(h)
+      }
+    }
     const idsGrupo = grupo.map(g => g.id)
 
     const hoyAr = new Date(Date.now() - TZ_OFFSET_MS).toISOString().slice(0, 10)
@@ -325,7 +344,7 @@ async function hashDesdeElLog(supabase: any, idReceta: string): Promise<string |
   const { data } = await supabase
     .from('rcta_issue_log')
     .select('response')
-    .eq('outcome', 'issued')
+    .in('outcome', ['issued', 'issued_partial'])
     .contains('response', { recetas: [{ idReceta }] })
     .order('created_at', { ascending: false })
     .limit(1)
