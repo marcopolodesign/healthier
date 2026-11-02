@@ -125,11 +125,12 @@ begin
 
   -- 223: la farmacia autoriza una pendiente. Sólo desde
   -- farmacia_autorizar_receta() (que verifica el rol y marca la transacción) y
-  -- sólo ese cambio: pendiente → ok, quién, cuándo y el estado dentro de
-  -- rcta_recetas. Cualquier otra columna distinta y sigue de largo al resto.
+  -- sólo ese cambio: el estado de autorización (pendiente → ok, o sigue
+  -- pendiente si a la fila le queda otra receta sin autorizar), quién, cuándo
+  -- y el estado dentro de rcta_recetas. Cualquier otra columna distinta y sigue de largo al resto.
   if tg_op = 'UPDATE'
      and current_setting('healthier.autorizar_receta', true) = '1'
-     and old.rcta_autorizacion = 'pendiente' and new.rcta_autorizacion = 'ok'
+     and old.rcta_autorizacion = 'pendiente' and new.rcta_autorizacion in ('ok', 'pendiente')
      and (to_jsonb(new) - array['rcta_autorizacion','rcta_autorizada_por','rcta_autorizada_at','rcta_recetas'])
        = (to_jsonb(old) - array['rcta_autorizacion','rcta_autorizada_por','rcta_autorizada_at','rcta_recetas']) then
     return new;
@@ -374,8 +375,11 @@ alter table public.rcta_issue_log add constraint rcta_issue_log_outcome_check
                      'persist_error', 'anulada', 'anulacion_error'));
 
 -- ── 6 · La farmacia autoriza una receta pendiente ────────────────────────────
--- Autoriza la receta entera (todas sus filas activas pendientes con el mismo
--- idReceta del mismo paciente). Devuelve cuántas filas cambió.
+-- Autoriza RECETAS, no filas (revisión, ronda 2): las recetas pendientes de la
+-- fila elegida (o su receta principal si no tiene detalle). Esas recetas pasan
+-- a ok en TODAS las filas activas del paciente que las contienen, y cada fila
+-- queda ok sólo si no le queda otra receta pendiente. Al paciente le llega un
+-- push por receta. Devuelve cuántas filas cambiaron.
 create or replace function public.farmacia_autorizar_receta(p_medication_id uuid)
 returns integer
 language plpgsql
@@ -383,15 +387,17 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_rol  text := public.get_my_role();
-  v_fila record;
-  v_n    integer;
+  v_rol     text := public.get_my_role();
+  v_fila    record;
+  v_recetas text[];
+  v_n       integer;
+  v_id      text;
 begin
   if auth.uid() is null or v_rol is null or v_rol not in ('pharmacy_admin', 'pharmacy_operator', 'super_admin') then
     raise exception 'Sólo la farmacia puede autorizar una receta.' using errcode = '42501';
   end if;
 
-  select id, patient_id, rcta_prescription_id, rcta_status, status, rcta_autorizacion
+  select id, patient_id, rcta_prescription_id, rcta_status, status, rcta_autorizacion, rcta_recetas
     into v_fila
     from public.clinical_medications
    where id = p_medication_id
@@ -404,27 +410,54 @@ begin
     raise exception 'Esta receta no está pendiente de autorización.' using errcode = '22023';
   end if;
 
+  select coalesce(array_agg(e->>'idReceta'), '{}')
+    into v_recetas
+    from jsonb_array_elements(coalesce(v_fila.rcta_recetas, '[]'::jsonb)) e
+   where e->>'autorizacion' = 'pendiente' and e->>'idReceta' is not null;
+  if cardinality(v_recetas) = 0 then
+    v_recetas := array[v_fila.rcta_prescription_id];
+  end if;
+
   perform set_config('healthier.autorizar_receta', '1', true);
+  with nuevas as (
+    select cm.id,
+           case when cm.rcta_recetas is null then null else (
+             select coalesce(jsonb_agg(case when e->>'idReceta' = any (v_recetas)
+                                            then e || '{"autorizacion":"ok"}'::jsonb else e end), '[]'::jsonb)
+               from jsonb_array_elements(cm.rcta_recetas) e) end as rr
+      from public.clinical_medications cm
+     where cm.patient_id = v_fila.patient_id
+       and cm.rcta_status = 'issued'
+       and cm.status = 'active'
+       and cm.rcta_autorizacion = 'pendiente'
+       and (cm.rcta_prescription_id = any (v_recetas)
+            or exists (select 1 from jsonb_array_elements(coalesce(cm.rcta_recetas, '[]'::jsonb)) e
+                        where e->>'idReceta' = any (v_recetas)))
+  ), final as (
+    select n.id, n.rr,
+           (n.rr is null or not exists (select 1 from jsonb_array_elements(n.rr) e
+                                         where e->>'autorizacion' = 'pendiente')) as queda_ok
+      from nuevas n
+  )
   update public.clinical_medications cm
-     set rcta_autorizacion   = 'ok',
-         rcta_autorizada_por = auth.uid(),
-         rcta_autorizada_at  = now(),
-         rcta_recetas        = case when cm.rcta_recetas is null then null else (
-           select coalesce(jsonb_agg(case when e->>'autorizacion' = 'pendiente'
-                                          then e || '{"autorizacion":"ok"}'::jsonb else e end), '[]'::jsonb)
-             from jsonb_array_elements(cm.rcta_recetas) e) end
-   where cm.patient_id = v_fila.patient_id
-     and cm.rcta_prescription_id = v_fila.rcta_prescription_id
-     and cm.rcta_status = 'issued'
-     and cm.status = 'active'
-     and cm.rcta_autorizacion = 'pendiente';
+     set rcta_recetas        = f.rr,
+         rcta_autorizacion   = case when f.queda_ok then 'ok' else 'pendiente' end,
+         rcta_autorizada_por = case when f.queda_ok then auth.uid() else cm.rcta_autorizada_por end,
+         rcta_autorizada_at  = case when f.queda_ok then now() else cm.rcta_autorizada_at end
+    from final f
+   where f.id = cm.id;
   get diagnostics v_n = row_count;
   perform set_config('healthier.autorizar_receta', '', true);
 
   perform public._aal_escribir(
     null, 'autorizacion_de_receta', 'clinical_medications', p_medication_id::text, v_fila.patient_id,
-    jsonb_build_object('rcta_prescription_id', v_fila.rcta_prescription_id, 'filas', v_n,
-                       'antes', 'pendiente', 'despues', 'ok'));
+    jsonb_build_object('recetas', to_jsonb(v_recetas), 'filas', v_n, 'antes', 'pendiente', 'despues', 'ok'));
+
+  -- El paciente se entera (push; el mismo canal que el resto de los avisos).
+  foreach v_id in array v_recetas loop
+    perform public.enviar_push_tipo(v_fila.patient_id, 'receta-autorizada',
+                                    jsonb_build_object('prescriptionId', v_id));
+  end loop;
   return v_n;
 end;
 $$;
@@ -433,10 +466,13 @@ revoke all on function public.farmacia_autorizar_receta(uuid) from public, anon;
 grant execute on function public.farmacia_autorizar_receta(uuid) to authenticated;
 
 comment on function public.farmacia_autorizar_receta(uuid) is
-  'Migración 223. La farmacia (admin/operador) o el super admin pasa una receta "Pendiente de autorización" a ok. Guarda quién y cuándo y deja el asiento en admin_action_log.';
+  'Migración 223. La farmacia (admin/operador) o el super admin autoriza las recetas "Pendiente de autorización" de una medicación, en todas las filas que las contienen. Guarda quién y cuándo, deja el asiento en admin_action_log y le avisa al paciente.';
 
 -- Las pendientes (y, si se pide, las autorizadas de los últimos 90 días) para
 -- el panel de la farmacia y el del super admin. Nada para otros roles.
+-- Se dropea antes porque cambió la forma de la tabla que devuelve (en staging
+-- existió una versión previa de esta misma migración).
+drop function if exists public.farmacia_recetas_por_autorizar(boolean);
 create or replace function public.farmacia_recetas_por_autorizar(p_incluir_autorizadas boolean default false)
 returns table (
   clinical_medication_id uuid,
@@ -448,6 +484,7 @@ returns table (
   profesional            text,
   emitida_at             timestamptz,
   pdf_url                text,
+  recetas_pendientes     text,
   autorizacion           text,
   autorizada_por         text,
   autorizada_at          timestamptz
@@ -461,6 +498,8 @@ as $$
          coalesce(cm.presentacion, concat_ws(' ', cm.presentation, cm.concentration)),
          pa.full_name, pa.dni, pr.full_name,
          coalesce(cm.rcta_issued_at, cm.created_at), cm.rcta_pdf_url,
+         (select string_agg(e->>'idReceta', ', ') from jsonb_array_elements(coalesce(cm.rcta_recetas, '[]'::jsonb)) e
+           where e->>'autorizacion' = 'pendiente'),
          cm.rcta_autorizacion, coalesce(nullif(au.full_name, ''), au.email), cm.rcta_autorizada_at
     from public.clinical_medications cm
     left join public.profiles pa on pa.id = cm.patient_id

@@ -209,6 +209,20 @@ export const AVISOS = {
     }),
   },
 
+  // Migración 223: la farmacia autorizó una receta que había quedado
+  // "Pendiente de autorización" de la obra social.
+  'receta-autorizada': {
+    para: 'paciente' as Destinatario,
+    cuando: 'La farmacia de Healthier autoriza una receta que estaba pendiente de autorización de la obra social. Una vez por receta.',
+    build: (d: Datos): Aviso => ({
+      title: d.medicamentos?.length
+        ? `Ya podés comprar tu ${d.medicamentos[0]}`
+        : 'Ya podés comprar tu medicamento',
+      body: 'Tu obra social autorizó la receta. Pedila en la farmacia de la app.',
+      url: '/paciente/farmacia',
+    }),
+  },
+
   // Migración 216: tratamiento prolongado. Cada receta posdatada se puede
   // comprar recién desde su fecha; ese día se le avisa una vez.
   'receta-habilitada': {
