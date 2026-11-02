@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Package, MapPin } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
+import RecetasPorAutorizar from '../../components/pharmacy/RecetasPorAutorizar'
 import { formatARS, formatDate } from '../../lib/format'
 import { STATUS_LABEL, NEXT_STATUS, etiquetaDePago, claseDePago } from '../../lib/pharmacyOrders'
 
@@ -57,6 +58,10 @@ export default function PharmacyOrders({ profile }) {
         <h1 className="text-2xl font-bold text-text-primary">Pedidos</h1>
         <p className="text-text-secondary mt-1">{orders.length} pedido{orders.length !== 1 ? 's' : ''}</p>
       </div>
+
+      {/* Migración 223: recetas emitidas que la obra social todavía no
+          autorizó. Las autoriza la farmacia; el paciente no puede comprarlas antes. */}
+      <RecetasPorAutorizar puedeAutorizar={canEdit} />
 
       <div className="flex gap-3">
         <select className="form-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
