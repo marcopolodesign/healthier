@@ -87,17 +87,15 @@ export function matriculaDe(
 
 /**
  * Qué impide firmar con esta matrícula, ANTES de llamar al servicio: un código
- * nuestro con un mensaje que dice qué hacer, en vez del QBI65 crudo.
+ * nuestro con un mensaje que dice qué hacer.
+ *
+ * 🔴 La provincia de una MP NO bloquea (decisión de Mateo, 2026-11-02): se pide
+ * sin frenar. Si está, se manda; si falta, se emite igual sin `provincia` y el
+ * aviso de "cargá la provincia" sigue en el inicio y en el perfil.
  */
 export function problemaDeMatricula(m: Matricula): { code: string; error: string } | null {
   if (!m.numero) {
     return { code: 'RCTA_MATRICULA_FALTANTE', error: 'Falta tu número de matrícula. Cargalo en tu perfil para poder emitir.' }
-  }
-  if (m.tipo === 'MP' && !m.provincia) {
-    return {
-      code: 'RCTA_MATRICULA_SIN_PROVINCIA',
-      error: 'Tu matrícula es provincial y falta la provincia que la emitió. Cargala en tu perfil (Matrícula → Provincia) para poder emitir.',
-    }
   }
   return null
 }
@@ -133,7 +131,8 @@ export function armarMedico(
     matricula: {
       tipo: matricula.tipo,
       numero: matricula.numero,
-      ...(matricula.tipo === 'MP' ? { provincia: matricula.provincia ?? '' } : {}),
+      // Sólo si está cargada: una MP sin provincia se emite igual, sin la clave.
+      ...(matricula.tipo === 'MP' && matricula.provincia ? { provincia: matricula.provincia } : {}),
       profesion,
       especialidad,
     },

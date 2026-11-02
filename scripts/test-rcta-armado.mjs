@@ -42,7 +42,7 @@ test('las provincias son exactamente las de la wiki, y el front y las funciones 
   for (const { value } of PROVINCIAS_MATRICULA) assert.ok(sql.includes(`'${value}'`), `falta ${value} en la 223`)
 })
 
-test('una MP manda la provincia; sin provincia se corta antes de llamar al servicio', () => {
+test('una MP manda la provincia si está; sin provincia se emite igual, sin la clave', () => {
   const legajo = { license_type: 'MP', license_number: 'MP 43.243', license_province: 'Cordoba', specialty: 'medicina_general' }
   const m = armarMedico({ first_name: 'Juan', last_name: 'Castro', dni: '25.123.456', gender: 'masculino' }, legajo, 'Medicina General', 'AAAA')
   assert.equal(m.matricula.tipo, 'MP')
@@ -50,10 +50,17 @@ test('una MP manda la provincia; sin provincia se corta antes de llamar al servi
   assert.equal(m.nroDoc, '25123456')
   assert.equal(problemaDeMatricula(matriculaDe(legajo)), null)
 
+  // MP sin provincia → se emite sin provincia (Mateo, 2026-11-02: se pide sin bloquear).
   const sinProvincia = matriculaDe({ ...legajo, license_province: null })
-  assert.equal(problemaDeMatricula(sinProvincia)?.code, 'RCTA_MATRICULA_SIN_PROVINCIA')
-  // Un valor que no es de la lista es como no tenerla.
-  assert.equal(problemaDeMatricula(matriculaDe({ ...legajo, license_province: 'Córdoba' }))?.code, 'RCTA_MATRICULA_SIN_PROVINCIA')
+  assert.equal(problemaDeMatricula(sinProvincia), null)
+  const mpSin = armarMedico({ full_name: 'Juan Castro' }, { ...legajo, license_province: null }, 'Medicina General', null)
+  assert.equal(mpSin.matricula.tipo, 'MP')
+  assert.equal('provincia' in mpSin.matricula, false, 'sin provincia no se manda la clave (ni vacía)')
+  // Un valor que no es de la lista es como no tenerla: tampoco bloquea ni viaja.
+  assert.equal(problemaDeMatricula(matriculaDe({ ...legajo, license_province: 'Córdoba' })), null)
+  assert.equal('provincia' in armarMedico({}, { ...legajo, license_province: 'Córdoba' }, '', null).matricula, false)
+  // Sin número sí bloquea, como siempre.
+  assert.equal(problemaDeMatricula(matriculaDe({ license_type: 'MP', license_number: '' }))?.code, 'RCTA_MATRICULA_FALTANTE')
   // Una MN no lleva provincia ni la necesita.
   const mn = armarMedico({ full_name: 'Ana Pérez' }, { license_type: 'MN', license_number: '123', license_province: 'Cordoba' }, '', null)
   assert.equal('provincia' in mn.matricula, false)
@@ -62,19 +69,26 @@ test('una MP manda la provincia; sin provincia se corta antes de llamar al servi
   assert.equal(matriculaDe(legajo, { tipo: 'MN', numero: '999' }).tipo, 'MN')
 })
 
-test('rcta-issue corta con la provincia faltante y la lee del legajo', () => {
+test('la provincia se pide sin bloquear: nada la exige para emitir ni para avanzar', () => {
   const iss = leer('supabase/functions/rcta-issue/index.ts')
   assert.match(iss, /problemaDeMatricula\(matricula\)/)
   assert.match(iss, /license_province, address\)/)
-  // El front pide la provincia en el onboarding, el perfil, el super admin y el aviso del panel.
-  assert.match(leer('src/pages/professional/Onboarding.jsx'), /faltaProvinciaMatricula\(form\.licenseType, form\.licenseProvince\)/)
-  assert.match(leer('src/pages/professional/Profile.jsx'), /perfil-provincia-matricula/)
+  assert.doesNotMatch(iss, /RCTA_MATRICULA_SIN_PROVINCIA|'la provincia de tu matrícula'/)
+  assert.doesNotMatch(leer('supabase/functions/_shared/rcta/medico.ts'), /RCTA_MATRICULA_SIN_PROVINCIA/)
+  // El onboarding la ofrece pero no frena el paso; el perfil no frena el guardado.
+  const onb = leer('src/pages/professional/Onboarding.jsx')
+  assert.match(onb, /onboarding-provincia-matricula/)
+  assert.doesNotMatch(onb, /falta\.push\('la provincia/)
+  const perfil = leer('src/pages/professional/Profile.jsx')
+  assert.match(perfil, /perfil-provincia-matricula/)
+  assert.match(perfil, /perfil-aviso-provincia/)
+  assert.doesNotMatch(perfil, /Elegí la provincia de tu matrícula/)
   assert.match(leer('src/pages/super-admin/Profesionales.jsx'), /license_province: provincia/)
   assert.match(leer('src/pages/professional/Dashboard.jsx'), /aviso-provincia-matricula/)
   assert.equal(faltaProvinciaMatricula('MP', ''), true)
   assert.equal(faltaProvinciaMatricula('MN', ''), false)
-  assert.ok(faltanParaRecetar({ dni: '1', gender: 'f', licenseNumber: '1', licenseType: 'MP', address: 'x', hasSignature: true })
-    .includes('provincia de la matrícula'))
+  // El super admin no la cuenta como "no puede recetar".
+  assert.deepEqual(faltanParaRecetar({ dni: '1', gender: 'f', licenseNumber: '1', licenseType: 'MP', address: 'x', hasSignature: true }), [])
 })
 
 // ── 3 · Domicilio del consultorio ────────────────────────────────────────────

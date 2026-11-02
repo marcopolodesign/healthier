@@ -106,12 +106,6 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
       setConfirmandoReverificacion(false)
       return
     }
-    // Sin la provincia una matrícula provincial no puede recetar (QBI65).
-    if (faltaProvinciaMatricula(profData?.licenseType, form.licenseProvince)) {
-      toast.error('Elegí la provincia de tu matrícula.')
-      setConfirmandoReverificacion(false)
-      return
-    }
     setSaving(true)
     try {
       if (avatarFile) {
@@ -260,6 +254,12 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
                     <option value="">Elegí la provincia que la emitió</option>
                     {PROVINCIAS_MATRICULA.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                   </select>
+                  {/* Se pide sin bloquear (Mateo, 2026-11-02): sin ella se receta igual. */}
+                  {faltaProvinciaMatricula(profData.licenseType, form.licenseProvince) && (
+                    <p className="text-sm text-amber-700 mt-1.5" data-testid="perfil-aviso-provincia">
+                      Cargala para que salga en tus recetas. Mientras tanto podés recetar igual.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
