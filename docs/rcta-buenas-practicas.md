@@ -290,6 +290,31 @@ Dos lecciones, y la segunda es la que importa:
 
 ---
 
+## 10ter. Lo que dice la wiki oficial y antes no se hacía (2026-11-02)
+
+La wiki de Innovamed está bajada en `docs/innovamed-wiki-2026-11-02/` (Generar
+Receta = `2086174790.txt`). Los armados viven en **`supabase/functions/_shared/rcta/`**
+y los usan la emisión, la anulación, el catálogo y las Otras Prescripciones.
+Control: `npm run test:rcta-armado`.
+
+- **Matrícula MP = provincia obligatoria** (QBI65). Va en
+  `professional_profiles.license_province` (migración 223) con el valor EXACTO de la
+  lista de la wiki ("Ciudad Autonoma de Bs As", "Cordoba"). Sin ella `rcta-issue`
+  corta con `RCTA_MATRICULA_SIN_PROVINCIA` antes de llamar.
+- **Un lote puede salir a medias.** 200 con `recetas` Y `errores`: lo que salió se
+  guarda (todas las `recetas[]` en `rcta_recetas`, cada una anulable) y queda
+  emitido; lo que falló queda en `error` con `rcta_error_detalle`. Marcar todo como
+  error hacía que el profesional reintentara y **duplicara una receta legal**.
+- **`response[].status` = "Pendiente de autorización"** se guarda en
+  `rcta_autorizacion`. La farmacia de Healthier no la vende (`farmacia_recetas_de`
+  le da estado `pendiente`).
+- **`accionPDF`** distinto de 0 se le avisa al profesional.
+- **Domicilio**: `calle` + `numero` reales, o `direccion` sola (QBI240/241). Mismo
+  criterio que `direccionTieneNumero`.
+- **`profesion`** ("Médico/Médica") + la especialidad legible; el slug salía impreso.
+- **`Accept: application/json`** en toda llamada.
+- **Logo**: `POST {base}/admin/v1/logo` (sin `/apirecipe`).
+
 ## 10bis. Los catálogos de los dos ambientes NO son el mismo
 
 Verificado el 2026-08-28 comparando `GetFinanciadores` en los dos ambientes:
