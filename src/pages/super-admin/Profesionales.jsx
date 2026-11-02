@@ -21,7 +21,7 @@ import { cumplePrecioMinimo } from '../../lib/tarifas'
 import { CAMPOS_SENSIBLES } from '../../lib/reverificacion'
 import { faltanParaRecetar, OPCIONES_SEXO } from '../../lib/datosReceta'
 import AddressAutocomplete from '../../components/common/AddressAutocomplete'
-import { conCoordenadas } from '../../lib/geo'
+import { conCoordenadas, validarDireccionConsultorio } from '../../lib/geo'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
@@ -473,6 +473,9 @@ function ProfessionalDrawer({ pro, duplicados = [], generalRate, onClose, onUpda
     // profesional atienda sólo por video (Innovamed QBI248). Se la carga el
     // super admin cuando el profesional no llega (Mateo, 2026-09-28).
     if (direccion.address.trim() !== (detail?.address ?? '')) {
+      // Calle y número, sí o sí (Mateo, 2026-11-02).
+      const errorDir = validarDireccionConsultorio(direccion.address)
+      if (errorDir) { toast.error(errorDir); return }
       const ubicada = await conCoordenadas(direccion)
       const { error } = await supabase
         .from('professional_profiles')
@@ -796,6 +799,7 @@ function ProfessionalDrawer({ pro, duplicados = [], generalRate, onClose, onUpda
                       </div>
                       <AddressAutocomplete
                         label="Dirección del consultorio"
+                        exigirNumero
                         value={direccion}
                         onChange={setDireccion}
                       />
