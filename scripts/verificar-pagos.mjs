@@ -179,6 +179,27 @@ async function revisar(nombre, { ref, url, web, clave }) {
     nota(`responde ${wh.status}: ${cuerpo.slice(0, 80)}`)
   }
 
+  // ── 3b) Los avisos REALES de MP pasan la firma ────────────────────────────
+  // Que la función valide la firma no alcanza: hasta el 2026-11-02 firmaba con
+  // `body.id` (el id del evento) en vez de `data.id` (el pago), así que TODOS
+  // los avisos de pago daban 401 "invalid signature". El cobro igual quedaba
+  // aprobado —lo escribe `mp-payment` al cobrar—, pero nunca se guardaban el
+  // neto real, la comisión de MP ni la fecha en que se libera la plata: una
+  // profesional creyó que no le habían pagado. Se mira lo que MP mandó de
+  // verdad (los avisos traen `?data.id=` en la URL; el POST de arriba, no).
+  const desde = new Date(Date.now() - 3 * 24 * 3600_000).toISOString()
+  const sql = `select countIf(event_message like '%| 2__ |%') as ok, countIf(event_message like '%| 401 |%') as rechazados from logs where event_message like 'POST |%mp-webhook?data.id=%type=payment%'`
+  const lr = await fetch(`https://api.supabase.com/v1/projects/${ref}/analytics/endpoints/logs?` + new URLSearchParams({
+    sql, iso_timestamp_start: desde, iso_timestamp_end: new Date().toISOString(),
+  }), { headers: { Authorization: `Bearer ${env.SUPABASE_ACCESS_TOKEN}` } })
+  const lj = await lr.json().catch(() => ({}))
+  const fila = lj.result?.[0]
+  if (!fila) nota(`no pude leer los logs del webhook (${JSON.stringify(lj).slice(0, 100)})`)
+  else if (Number(fila.rechazados) > 0 && Number(fila.ok) === 0) mal(`los últimos 3 días MP mandó ${fila.rechazados} avisos de pago y la función rechazó TODOS — la firma no valida (¿secret o id firmado?)`)
+  else if (Number(fila.rechazados) > 0) nota(`avisos de pago: ${fila.ok} aceptados, ${fila.rechazados} rechazados en 3 días`)
+  else if (Number(fila.ok) > 0) ok(`avisos de pago de MP aceptados: ${fila.ok} en 3 días`)
+  else nota('MP no mandó avisos de pago en 3 días — sin datos para juzgar la firma')
+
   // ── 4) La web tokeniza con la clave de SU entorno ─────────────────────────
   // El 2026-10-08 la web de staging tenía VITE_MP_IS_PROD=true y la public key
   // de producción: cada pago de prueba fallaba con "Card Token not found" (el
