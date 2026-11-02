@@ -17,6 +17,7 @@ import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../../components/Toast'
 import { track } from '../../utils/analytics'
 import { inicialesDe } from '../../lib/format'
+import { ofreceModalidad } from '../../lib/modalidad'
 
 // Verticals that trigger the clinica auto-match flow
 const SPECIES = ['Perro', 'Gato', 'Conejo', 'Ave', 'Otro']
@@ -70,13 +71,15 @@ function getSteps(verticalId, skipPro, conPara) {
 
 // ── Normalise a raw professionalService row into a lean card object ──────────
 function normalizeProCard(raw, modality = null) {
-  const priceVideo      = raw.priceVideo      ?? raw.sessionPrice ?? null
-  const pricePresencial = raw.pricePresencial ?? raw.sessionPrice ?? null
+  // El precio sale de la regla de modalidad (`lib/modalidad.js`): el presencial
+  // NUNCA cae al de video ni al `sessionPrice`.
+  const priceVideo      = ofreceModalidad(raw, 'virtual').precio
+  const pricePresencial = ofreceModalidad(raw, 'presencial').precio
   const price = modality === 'virtual'
     ? priceVideo
     : modality === 'presencial'
       ? pricePresencial
-      : (priceVideo ?? pricePresencial ?? null)
+      : null
   return {
     id:              raw.userId,
     name:            raw.profiles?.fullName || 'Profesional',
@@ -88,6 +91,9 @@ function normalizeProCard(raw, modality = null) {
     priceVideo,
     pricePresencial,
     mpConnected:     raw.mpConnected !== false,
+    // La fila entera, para poder preguntar "¿ofrece esta modalidad?" cuando el
+    // paciente elige la modalidad DESPUÉS de haber llegado con un `?proId=`.
+    raw,
   }
 }
 
@@ -102,7 +108,11 @@ export default function ReservarConsulta({ profile }) {
 
   const paramVerticalId = searchParams.get('vertical')
   const paramProId      = searchParams.get('proId')
-  const paramModality   = searchParams.get('modality') // 'virtual' | 'presencial'
+  // 'virtual' | 'presencial'. Cualquier otro valor (incl. 'video', del buscador
+  // viejo) se normaliza o se descarta: la modalidad nunca se deduce por descarte.
+  const paramModalityRaw = searchParams.get('modality')
+  const paramModality   = paramModalityRaw === 'video' ? 'virtual'
+    : (paramModalityRaw === 'virtual' || paramModalityRaw === 'presencial') ? paramModalityRaw : null
   // `?para=<familiarId>` — viene de la tarjeta del familiar en el perfil.
   const paramPara       = searchParams.get('para')
   // `?derivacion=<id>` (+ `&especialidad=<slug>`) — viene de la pantalla de la
@@ -297,6 +307,9 @@ export default function ReservarConsulta({ profile }) {
       .then(data => setProfessionals(
         data
           .filter(p => slugs.includes(p.specialty) && p.mpConnected !== false && p.userId !== paramExcluir)
+          // Presencial sólo con quien atiende presencial, con precio presencial y
+          // con consultorio con número; virtual, con quien tiene precio de video.
+          .filter(p => ofreceModalidad(p, modality).ok)
           .map(p => normalizeProCard(p, modality)),
       ))
       .catch(() => setProfessionals([]))
@@ -368,10 +381,17 @@ export default function ReservarConsulta({ profile }) {
   // `vertical_settings.ondemand_price`, que es exclusivo de on-demand: un turno
   // agendado lo sigue cobrando el profesional a su precio.
   const precioDelTurno = () => (
-    modality === 'presencial'
-      ? (selectedPro?.pricePresencial ?? selectedPro?.price ?? null)
-      : (selectedPro?.priceVideo ?? selectedPro?.price ?? null)
+    modality === 'presencial' ? (selectedPro?.pricePresencial ?? null)
+      : modality === 'virtual' ? (selectedPro?.priceVideo ?? null)
+        : null
   )
+
+  // Un profesional que llegó con `?proId=` puede no ofrecer la modalidad elegida
+  // (el paciente toca "Presencial" en el perfil de alguien que sólo atiende por
+  // video). Se explica y no se lo deja seguir.
+  const motivoProNoOfrece = selectedPro && modality && selectedPro.raw
+    ? ofreceModalidad(selectedPro.raw, modality).motivo
+    : null
 
   /**
    * Confirmar = ir a pagar, para las DOS modalidades.
@@ -393,6 +413,14 @@ export default function ReservarConsulta({ profile }) {
    */
   const handleConfirm = () => {
     if (!selectedVertical || !selectedPro) return
+    if (!modality) {
+      toast.error('Elegí si la consulta es por videoconsulta o presencial.')
+      return
+    }
+    if (motivoProNoOfrece) {
+      toast.error(motivoProNoOfrece)
+      return
+    }
     if (!selectedPro.mpConnected) {
       toast.error('Este profesional todavía no puede cobrar por Healthier.')
       return
@@ -742,7 +770,9 @@ export default function ReservarConsulta({ profile }) {
               </div>
             ) : professionals.length === 0 ? (
               <p className="text-center text-text-tertiary text-[15px] py-12">
-                Sin profesionales disponibles.
+                {modality === 'presencial'
+                  ? 'Por ahora no hay profesionales con atención presencial disponible. Probá con videoconsulta.'
+                  : 'Sin profesionales disponibles.'}
               </p>
             ) : (
               <div className="space-y-2">
@@ -827,6 +857,17 @@ export default function ReservarConsulta({ profile }) {
             {loadingSchedule || paramProLoading ? (
               <div className="flex justify-center py-12">
                 <CircleNotch className="w-8 h-8 animate-spin" style={{ color: '#7CB38B' }} />
+              </div>
+            ) : motivoProNoOfrece ? (
+              <div className="text-center py-12 space-y-4" data-testid="reserva-modalidad-no-ofrecida">
+                <p className="text-text-secondary text-[15px]">{motivoProNoOfrece}</p>
+                <button
+                  type="button"
+                  onClick={() => setStep('modality')}
+                  className="px-6 py-3 rounded-full font-semibold text-[14px] text-white bg-brand"
+                >
+                  Elegir otra modalidad
+                </button>
               </div>
             ) : !selectedPro ? (
               // Se entró con ?proId= y ese profesional no existe o no está

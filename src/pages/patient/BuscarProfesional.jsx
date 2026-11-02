@@ -9,6 +9,7 @@ import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { toast } from '../../components/Toast'
 import ProfessionalCard from '../../components/patient/ProfessionalCard'
 import ProfessionalModal from '../../components/patient/ProfessionalModal'
+import { ofreceModalidad } from '../../lib/modalidad'
 
 // Modality labels (kept consistent with Consultations.jsx wizard)
 const MODALITY_OPTIONS = [
@@ -135,14 +136,17 @@ export default function BuscarProfesional({ profile }) {
   // ── Derived ───────────────────────────────────────────────────────────────
   const selectedVertical = VERTICALS.find(v => v.id === selectedVerticalId) || null
 
+  // Sólo quien ofrece la modalidad elegida (presencial: atiende presencial, con
+  // precio y consultorio con número; video: con precio de video).
+  const deLaModalidad = pros.filter(p => ofreceModalidad(p, modality === 'presencial' ? 'presencial' : 'virtual').ok)
   const filteredPros = searchQuery.trim()
-    ? pros.filter(p => {
+    ? deLaModalidad.filter(p => {
         const name    = (p.profiles?.fullName || '').toLowerCase()
         const spec    = (porSlug[p.specialty] || '').toLowerCase()
         const q       = searchQuery.toLowerCase()
         return name.includes(q) || spec.includes(q)
       })
-    : pros
+    : deLaModalidad
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
