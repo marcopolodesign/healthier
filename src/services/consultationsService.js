@@ -340,7 +340,7 @@ export const consultationsService = {
       .from('consultations')
       // `address, latitude, longitude` del consultorio: sin eso un turno
       // presencial no puede mostrar ni la dirección ni el camino hasta ahí.
-      .select('*, paciente:profiles!patient_id(id, full_name), professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty, address, latitude, longitude)), encounters:clinical_encounters!consultation_id(id, medications:clinical_medications(rcta_status, rcta_pdf_url, rcta_prescription_id)), payment:payments!consultation_id(id, status, refund_type, refunded_at, refund_conversion_requested_at, refund_conversion_resolved_at, mp_payment_id, refund_request_status, refund_reject_reason)')
+      .select('*, paciente:profiles!patient_id(id, full_name), professional:profiles!professional_id(full_name, avatar_url, professional_profiles!professional_profiles_user_id_fkey(specialty, address, latitude, longitude)), encounters:clinical_encounters!consultation_id(id, medications:clinical_medications(rcta_status, rcta_pdf_url, rcta_prescription_id, rcta_autorizacion)), payment:payments!consultation_id(id, status, refund_type, refunded_at, refund_conversion_requested_at, refund_conversion_resolved_at, mp_payment_id, refund_request_status, refund_reject_reason)')
       .in('patient_id', ids.length ? ids : [patientId])
     if (!conEmergencias) query = query.is('emergency_id', null)
     const { data, error } = await query.order('scheduled_at', { ascending: false })

@@ -11,6 +11,7 @@ import { useVerticales } from '../../hooks/useVerticales'
 import { AnimatedTagCascade } from '../../components/common/AnimatedTagCascade'
 import FileUpload from '../../components/FileUpload'
 import { OPCIONES_SEXO } from '../../lib/datosReceta'
+import { PROVINCIAS_MATRICULA, etiquetaProvincia, faltaProvinciaMatricula } from '../../lib/provinciasMatricula'
 import { toast } from '../../components/Toast'
 import { isLikelyTooSmallForFace } from '../../lib/imageCompression'
 import OnboardingPreview from '../../components/professional/OnboardingPreview'
@@ -90,7 +91,7 @@ export default function Onboarding({ profile }) {
     dni: profile?.dni || '',
     gender: profile?.gender || '',
     specialty: '', subSpecialty: '', bio: '',
-    licenseType: 'MN', licenseNumber: '', cuitNumber: '',
+    licenseType: 'MN', licenseNumber: '', licenseProvince: '', cuitNumber: '',
   })
   const [avatarFile, setAvatarFile]       = useState(null)
   const [avatarPreview, setAvatarPreview] = useState(null)
@@ -129,6 +130,7 @@ export default function Onboarding({ profile }) {
           bio:           p.bio           || '',
           licenseType:   p.licenseType   || 'MN',
           licenseNumber: p.licenseNumber || '',
+          licenseProvince: p.licenseProvince || '',
           cuitNumber:    p.cuitNumber    || '',
         })
       })
@@ -191,6 +193,8 @@ export default function Onboarding({ profile }) {
       if (!categoryId) falta.push('elegir tu área')
       if (!form.specialty) falta.push('elegir tu especialidad')
       if (!(form.licenseNumber ?? '').trim()) falta.push('el número de matrícula')
+      // Sin la provincia una MP no puede recetar (QBI65, migración 223).
+      if (faltaProvinciaMatricula(form.licenseType, form.licenseProvince)) falta.push('la provincia de tu matrícula')
       return falta
     }
     if (step === 1) {
@@ -391,6 +395,8 @@ export default function Onboarding({ profile }) {
         cuitDocumentUrl:                  cuitUrl           || undefined,
         license_type:       form.licenseType,
         license_number:     form.licenseNumber,
+        // Una MN no lleva provincia: se limpia si cambió de MP a MN.
+        licenseProvince:    form.licenseType === 'MP' ? (form.licenseProvince || null) : null,
         isVerified:         false,
         isActive:           false,
         submittedAt:        new Date().toISOString(),
@@ -591,6 +597,20 @@ export default function Onboarding({ profile }) {
                   placeholder="Ej: 123456"
                 />
                 <p className="text-xs text-text-tertiary mt-1">Número de matrícula</p>
+                {form.licenseType === 'MP' && (
+                  <div className="mt-3">
+                    <label className="form-label">Provincia de la matrícula <span className="text-danger">*</span></label>
+                    <select
+                      value={form.licenseProvince}
+                      onChange={e => setForm(p => ({ ...p, licenseProvince: e.target.value }))}
+                      className="form-select"
+                      data-testid="onboarding-provincia-matricula"
+                    >
+                      <option value="">Elegí la provincia que la emitió</option>
+                      {PROVINCIAS_MATRICULA.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -799,7 +819,7 @@ export default function Onboarding({ profile }) {
                 {[
                   ['Especialidad',      porSlug[form.specialty] || '—'],
                   ['Sub-especialidad',  form.subSpecialty || '—'],
-                  ['Matrícula',         form.licenseNumber ? `${form.licenseType} ${form.licenseNumber}` : '—'],
+                  ['Matrícula',         form.licenseNumber ? `${form.licenseType} ${form.licenseNumber}${form.licenseType === 'MP' && form.licenseProvince ? ` · ${etiquetaProvincia(form.licenseProvince)}` : ''}` : '—'],
                   ['DNI',               form.dni || '—'],
                   ['Sexo',              OPCIONES_SEXO.find(o => o.value === form.gender)?.label || '—'],
                   ['Foto de perfil',    avatarFile ? avatarFile.name : (profile?.avatarUrl ? 'La de tu cuenta de Google' : '—')],

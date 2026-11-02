@@ -1,0 +1,118 @@
+# Buscador de Financiadores (v5, 2026-03-31)
+ ‌
+ Versión de documentación: v2.0
+ Fecha de modificación: 03/06/2025
+ Este Endpoint requiere Autenticación , por lo que se debe enviar un token válido en los Headers para autorizar las solicitudes.
+ Descripción
+ Este Endpoint permite buscar los financiadores existentes en la base de datos del sistema.
+ El servicio responde con el maestro de financiadores disponibles en Recipe agrupando cada uno con sus datos, y ordenándolos por el ID de manera ascendente.
+ ID
+ Número
+ Nombre
+ Además, para los casos donde se aplique y sea requerido, se visualizarán los planes que el financiador tenga asociados.
+ Documentación Técnica
+ URL
+ GET {{baseUrl}}/apirecipe/GetFinanciadores
+ Parámetros
+ Este Endpoint no requiere el envío de parámetros.
+ Ejemplo de solicitud
+ curl -X GET "<base_URL>/apirecipe/GetFinanciadores" \
+-H "Accept: application/json" \
+-H "Authorization: Bearer <tu_token_de_acceso>"
+ Respuesta
+ Todas las respuestas serán en formato JSON.
+ Exitosa
+ Código de estado
+ 200 OK 
+ Cuerpo de respuesta
+ {
+ "financiadores": [
+ {
+ "idfinanciador": 1,
+ "nrofinanciador": "6696",
+ "nombreComercial": "ABC",
+ "planes": [
+ {
+ "id": 4,
+ "nombre": "PlanA"
+ },
+ {
+ "id": 5,
+ "nombre": "PlanB"
+ },
+ {
+ "id": 6,
+ "nombre": "PlanC"
+ }
+ ]
+ },
+ {
+ "idfinanciador": 2,
+ "nrofinanciador": "507011",
+ "nombreComercial": "Medicina SRL",
+ "planes": []
+ }
+ ]
+}
+ Fallida
+ Código de estado
+ 500 Internal Server Error 
+ Cuerpo de respuesta
+ {
+ "mensaje": "QBI2 HA DETECTADO ERRORES"
+}
+ Errores y Posibles Causas
+ Código 
+ Mensaje 
+ Código HTTP 
+ Causa 
+ —
+ QBI2 HA DETECTADO ERRORES
+ 500
+ Se detecta un inconveniente en la recepción de respuestas o conexiones.
+ Notas Técnicas
+ Actualmente el Endpoint lista la totalidad de los resultados sin paginación ni filtro de búsqueda.
+ Los planes sólo se mostrarán para aquellos financiadores que requieran informar ese dato. Caso contrario, se visualizará el objeto vacío y no tiene ninguna afectación.
+ ‌
+ Glosario de parámetros
+ Respuesta
+ Nombre 
+ Tipo 
+ Descripción 
+ Ejemplo 
+ idfinanciador 
+ Int
+ Identificador único del financiador en la base de datos.
+ 1 
+ nrofinanciador 
+ String
+ Número del financiador en el sistema.
+ "6696" 
+ nombreComercial 
+ String
+ Nombre comercial del financiador.
+ "ABC" 
+ planes 
+ Array
+ Lista de planes asociados al financiador. Se devuelve vacío si el financiador no tiene planes configurados.
+ [] 
+ planes[].id 
+ Int
+ Identificador único del plan.
+ 4 
+ planes[].nombre 
+ String
+ Nombre del plan.
+ "PlanA" 
+ ‌
+ Versionado de documentación
+ Versión 
+ Fecha 
+ Cambios realizados 
+ v1.0
+ 23/12/2024
+ Se genera documentación inicial
+ v2.0
+ 03/06/2025
+ Se incorpora información sobre los planes asociados a un financiador.
+ 

@@ -187,7 +187,7 @@ homologación.
 
 | Qué | Cómo | Dónde sale |
 |---|---|---|
-| **Logo de Healthier** | `POST /apirecipe/admin/Logo` (multipart, `Posicion: 1`), una vez por ambiente | Arriba al centro, **a color** |
+| **Logo de Healthier** | `POST /admin/v1/logo` (multipart, sin `/apirecipe`, `Posicion: 1`), una vez por ambiente | Arriba al centro, **a color** |
 | **Firma ológrafa del profesional** | `medico.firmabase64` | Sobre la línea de puño del bloque FIRMA Y SELLO |
 | **Las 3 líneas del sello** | `medico.sello` (`linea1/2/3`) | Debajo de la firma — **pero pisan** las que la plantilla ya imprime sola (nombre, especialidad, matrícula), así que no se manda |
 
@@ -255,7 +255,7 @@ Dos lecciones, y la segunda es la que importa:
 - **`subemisor` nunca fue el campo correcto.** El contrato lo define como "una
   organización que está usando el cliente app para prescribir, por ej. una
   sucursal de una cadena de clínicas". Healthier **es** el cliente app. El
-  mecanismo del logo institucional es `/admin/Logo`, que se registra una vez por
+  mecanismo del logo institucional es `/admin/v1/logo`, que se registra una vez por
   ambiente: `node scripts/registrar-logo-receta.mjs <homologacion|produccion>`.
 - **Un reintento que "salva" la emisión también esconde el motivo.** El bug
   sobrevivió porque el camino degradado terminaba en éxito. Por eso ahora el

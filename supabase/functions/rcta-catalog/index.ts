@@ -11,6 +11,7 @@
 //  · Solo lectura: este proxy no emite ni modifica nada. Emitir es `rcta-issue`.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { cabecerasRcta } from '../_shared/rcta/mod.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -63,7 +64,8 @@ Deno.serve(async (req) => {
       const qs = new URLSearchParams({ clienteAppId: RCTA_CLIENT_APP_ID })
       for (const [k, v] of Object.entries(params)) if (v) qs.set(k, v)
       const res = await fetch(`${RCTA_API_URL}/apirecipe/${path}?${qs}`, {
-        headers: { Authorization: `Bearer ${RCTA_API_KEY}` },
+        // `Accept: application/json` lo exige la wiki en toda llamada.
+        headers: cabecerasRcta(RCTA_API_KEY, { json: false }),
       })
       const text = await res.text()
       if (!res.ok) {

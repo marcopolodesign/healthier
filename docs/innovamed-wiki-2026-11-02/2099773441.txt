@@ -1,0 +1,1188 @@
+# Generar Otras Prescripciones (v37, 2026-04-24)
+ [data-colorid=lzhjiaal50]{color:#ff5630} html[data-color-mode=dark] [data-colorid=lzhjiaal50]{color:#cf2600}[data-colorid=ynxkmd1svj]{color:#36b37e} html[data-color-mode=dark] [data-colorid=ynxkmd1svj]{color:#4cc994} 
+ Versión de documentación: v5.1
+ Fecha de modificación: 04/03/2026
+ Este Endpoint requiere Autenticación , por lo que se debe enviar un token válido en los Headers para autorizar las solicitudes.
+ Descripción
+ El servicio Otras prescripciones permite la creación de nuevas prescripciones electrónicas. Este servicio es utilizado para registrar una prescripción médica asociando al paciente, el médico, las prácticas solicitadas y cualquier otra información relevante a la prescripción .
+ Al utilizar este servicio, el sistema genera una prescripción electrónica válida que puede ser consultada, enviada para validación y almacenada de manera segura, facilitando la emisión y trazabilidad de las prescripciones en formato digital.
+ Documentación Técnica
+ URL 
+ POST {{baseUrl}}/apirecipe/otrasPrescripciones
+ Parámetros
+ Los parámetros serán requeridos en el body del request.
+ Obligatorios 
+ Parámetro 
+ Tipo 
+ Descripción 
+ Ejemplo 
+ Paciente 
+ apellido 
+ String
+ Sólo acepta caracteres alfabéticos y especiales. Longitud máxima: 50 . Longitud mínima: 2 .
+ "González" 
+ nombre 
+ String
+ Sólo acepta caracteres alfabéticos y especiales. Longitud máxima: 50 . Longitud mínima: 2 .
+ "Ana" 
+ tipoDoc 
+ String
+ Valores aceptados: " Pasaporte ", " DNI ", " LE ", " LC ", " CI ".
+ "DNI" 
+ nroDoc 
+ String
+ Acepta valores alfanuméricos y especiales. 
+ Para DNI : Longitud máxima: 9 . Longitud mínima: 4 . 
+ Para Pasaporte: Longitud máxima: 12 . Longitud mínima: 5 . 
+ Para LE: Longitud máxima: 16 . Longitud mínima: 1 . 
+ Para LC: Longitud máxima: 16 . Longitud mínima: 1 . 
+ Para CI: Longitud máxima: 9 . Longitud mínima: 6 . 
+ "30567890" 
+ fechaNacimiento 
+ String 
+ Fecha de nacimiento del paciente en formato AAA A-MM-DD o UTC
+ "2001-07-02" 
+ sexo 
+ String
+ Valores aceptados: “ F ”, “ M ”, “ X ”, “ O “.
+ "F" 
+ Médico 
+ apellido 
+ String
+ Sólo acepta caracteres alfabéticos y especiales. Longitud máxima: 50 . Longitud mínima: 2 .
+ "Pérez" 
+ nombre 
+ String
+ Sólo acepta caracteres alfabéticos y especiales. Longitud máxima: 50 . Longitud mínima: 2 .
+ "Juan" 
+ tipoDoc 
+ String
+ Valores aceptados: " Pasaporte ", " DNI ", " LE ", " LC ", " CI ".
+ "DNI" 
+ nroDoc 
+ String
+ Acepta valores alfanuméricos y especiales. 
+ Para DNI : Longitud máxima: 9 . Longitud mínima: 4 . 
+ Para Pasaporte: Longitud máxima: 12 . Longitud mínima: 5 . 
+ Para LE: Longitud máxima: 16 . Longitud mínima: 1 . 
+ Para LC: Longitud máxima: 16 . Longitud mínima: 1 . 
+ Para CI: Longitud máxima: 9 . Longitud mínima: 6 . 
+ "25123456" 
+ sexo 
+ String
+ Valores aceptados: “ F ”, “ M ”, “ X ”, “ O “.
+ "M" 
+ Sub-Objeto Matricula 
+ tipo 
+ String
+ Valores aceptados: “ MP ” y “ MN ”.
+ "MP" ó “MN” 
+ numero 
+ String
+ Longitud máxima: 20 . Longitud mínima: 1 . Si se envían letras o caracteres especiales, el servicio los eliminará dejando sólo los valores numéricos.
+ "123456" 
+ provincia 
+ String
+ Obligatorio si el tipo es “ MP ”. Ir al apartado “ Provincias ” para visualizar valores aceptados.
+ "Buenos Aires" 
+ Prescripción (este objeto es un array que contiene datos de una o más prescripciones)
+ prescripcion 
+ String
+ Nombre de la práctica que se requiere prescribir.
+ "Certificado" 
+ Objeto recetasPostadatas (obligatorio sólo si se envía)
+ cantidad 
+ Int
+ Cantidad de recetas posdatadas solicitadas.
+ 2 
+ diasAPosdatar 
+ Int
+ Número de días a posdatar cada receta.
+ 30 
+ Datos generales 
+ clienteAppId 
+ Int
+ Identificador de la aplicación cliente que realiza la prescripción.
+ 123 
+ Objeto lugarAtencion 
+ Sub-Objeto Domicilio (si se envía al menos un dato, este objeto es obligatorio)
+ calle 
+ String
+ Calle del domicilio del paciente. Acepta un mínimo 2 caracteres y un máximo de 50. Es mandatorio junto con número .
+ "9 de Julio" 
+ numero 
+ String
+ Número asociado a la calle. Acepta un mínimo de 1 caracter y un máximo de 6. Es mandatorio junto con calle .
+ "1250" 
+ Opcionales 
+ Parámetro 
+ Tipo 
+ Descripción 
+ Ejemplo 
+ Paciente 
+ cuil 
+ String
+ Número de CUIL del paciente. Longitud mínima: 11 . Longitud máxima: 13 .
+ "20123658950" ó “20-123658950-7" 
+ localidad 
+ String
+ Longitud máxima: 200 .
+ "Buenos Aires" 
+ provincia 
+ String
+ Longitud máxima: 200 .
+ "CABA" 
+ pais 
+ String
+ Longitud máxima: 45 . Este parámetro es opcional a excepción de que se envíe tipoDoc = Pasaporte. 
+ "Argentina" 
+ email 
+ String
+ El formato esperado contiene un @. En caso de no enviarlo, mostrará un error.
+ "paciente@mail.com" 
+ telefono 
+ String
+ Longitud máxima: 50 . Si se envían letras o caracteres especiales, el servicio los eliminará dejando sólo los valores numéricos.
+ "5491134567890" 
+ Sub-Objeto Cobertura (si se prescribe con cobertura, este objeto es obligatorio)
+ idFinanciador 
+ String
+ Identificador único del financiador (prioritario sobre nroFinanciador ). Longitud máxima: 9 . 
+ "123" 
+ plan 
+ String
+ Corresponde al nombre del plan de la cobertura del paciente. Longitud máxima: 45 .
+ "SB04" 
+ planId 
+ Int
+ Id del plan de la cobertura del paciente. Este ID tiene prioridad sobre el parámetro plan (nombre).
+ 19 
+ numero 
+ String
+ Número de afiliado / credencial. Longitud máxima: 40 .
+ "987654321" 
+ dniTitular 
+ String
+ DNI del titular del plan (si el paciente no es el titular).
+ "30123456" 
+ Sub-Objeto Domicilio (si se envía al menos un dato, este objeto es obligatorio)
+ piso 
+ String
+ Número de piso si aplicase. Acepta un mínimo 1 caracter y un máximo de 2.
+ "2" 
+ dpto 
+ String
+ Indicador de departamento si aplicase. Acepta un mínimo 1 caracter y un máximo de 3.
+ "D" 
+ codigoPostal 
+ String
+ Código postal del domicilio. Acepta un mínimo 1 caracter y un máximo de 8.
+ "5000" 
+ localidad 
+ String
+ Longitud máxima: 200 .
+ "Córdoba capital" 
+ municipio 
+ String
+ Municipio al que corresponde el domicilio si aplicase. Acepta un mínimo 3 caracteres y un máximo de 50.
+ "Capital" 
+ provincia 
+ String
+ Longitud máxima: 200 .
+ "Córdoba" 
+ pais 
+ String
+ Longitud máxima: 45 .
+ "AR" 
+ observacion 
+ String
+ Texto libre para indicar información extra.
+ “Entre calle X y Z” 
+ Médico 
+ fechaNacimiento 
+ String
+ Fecha de nacimiento del médico en formato AAAA-MM-DD o UTC.
+ "1990-11-25" 
+ email 
+ String
+ El formato esperado contiene un @. En caso de no enviarlo, mostrará un error.
+ "medico@mail.com" 
+ telefono 
+ String
+ Longitud máxima: 45 . Si se envían letras o caracteres especiales, el servicio los eliminará dejando sólo los valores numéricos.
+ "8091145678912" 
+ pais 
+ String
+ Longitud máxima: 80 . 
+ "Argentina" 
+ firmalink 
+ String
+ URL de la firma del médico en formato digital.
+ "https://1.bp.blogt.com/Q/s1610/12.png" 
+ firmabase64 
+ String
+ Firma digital del médico codificada en base64.
+ "base64String==" 
+ idTributario 
+ String
+ No es necesario enviar datos si no se requiere a nivel cobertura.
+ "20123456780" ó "20-12345678-0" 
+ idREFEPS 
+ String
+ Corresponde al número asociado al profesional indicaso en REFEPS (SISA)
+ "541012345678" 
+ Sub-Objeto Matricula 
+ profesion 
+ String
+ Profesión del médico. Es mandatorio por sobre la especialidad.
+ "Kinesiología" 
+ especialidad 
+ String
+ Especialidad del médico. Longitud máxima: 120 caracteres
+ "Columna" 
+ Sub Objeto Sello 
+ linea1 
+ String
+ Primera línea del sello del médico. Longitud máxima: 40 . 
+ "Dr. Juan Pérez" 
+ linea2 
+ String
+ Segunda línea del sello del médico (ejemplo: especialidad). Longitud máxima: 40 . 
+ "Neurocirujano" 
+ linea3 
+ String
+ Tercera línea del sello del médico (ejemplo: matrícula). Longitud máxima: 25 . 
+ "MN 12345" 
+ Paciente 
+ cuil 
+ String
+ Número de CUIL del paciente. Longitud mínima: 11 . Longitud máxima: 13 .
+ "20123658950" ó “20-123658950-7" 
+ localidad 
+ String
+ Longitud máxima: 200 .
+ "Buenos Aires" 
+ provincia 
+ String
+ Longitud máxima: 200 .
+ "CABA" 
+ pais 
+ String
+ Longitud máxima: 45 . Este parámetro es opcional a excepción de que se envíe tipoDoc = Pasaporte. 
+ "Argentina" 
+ email 
+ String
+ El formato esperado contiene un @. En caso de no enviarlo, mostrará un error.
+ "paciente@mail.com" 
+ Prescripción (este objeto es un array que contiene datos de una o más prescripciones)
+ cantidad 
+ Int
+ Cantidad de prescripciones que se requieren prescribir. Si no se envía o se envía vacío o en 0, se asigna por default el valor 1.
+ 2 
+ diagnostico 
+ String
+ Descripción del diagnóstico asociado a la prescripción ingresado por texto.
+ "Fisura de pie" 
+ codigodiagnostico 
+ String
+ Código CIE-10 asociado al diagnóstico. Si se envía el código CIE-10, el diagnóstico por texto no se visualizará en la prescripción.
+ M25.5 
+ codPractica 
+ String
+ Código correspondiente a la prescripción que se prescribe.
+ "RX1234" 
+ observaciones 
+ String
+ Comentarios adicionales sobre la prescripción. Esta información se visualizará en la misma hoja que la prescripción donde se adiciona como observación.
+ "Ayuna de 12 horas" 
+ Datos de Prescripción 
+ diagnostico 
+ String
+ Diagnóstico general de la receta. Puede recibir texto libre o puede recibir un código CIE-10.
+ "Resfriado leve" 
+ imprimirDiagnostico 
+ String
+ Acepta N , S o vacío ( "" ). Si se envía vacío, se tomará S por defecto.
+ "S" 
+ observaciones 
+ String
+ Observaciones generales de la receta. Si se envía, se generará una segunda hoja de la receta donde se podrá visualizar como “Comentarios”.
+ "No mezclar con alcohol" 
+ indicaciones 
+ String
+ Indicaciones generales de la receta. Si se envía, se generará una segunda hoja de la receta donde se podrá visualizar esta información.
+ "Reposo absoluto" 
+ fechaEmision 
+ String
+ Sólo es necesario si se desea cambiar la fecha de la receta a una fecha futura. Es requerido que se envíe en los siguientes formatos del estándar UTC: "aaaa-mm-ddT02:27:02+00:00" - "aaaa-mm-aaT02:27:02Z" 
+ Más información en Notas técnicas .
+ "2025-01-30T02:27:02+00:00" ó
+ "2024-01-10T02:26:08Z" 
+ Objeto lugarAtención 
+ nombreConsultorio 
+ String
+ Corresponde al nombre del consultorio desde donde prescribe el médico. Actualmente esa información no se visualiza en el PDF.
+ Consultorio Privado "ABC" 
+ Sub-Objeto Domicilio (si se envía al menos un dato, este objeto es obligatorio)
+ piso 
+ String
+ Número de piso si aplicase. Acepta un mínimo 1 caracter y un máximo de 2.
+ "2" 
+ dpto 
+ String
+ Indicador de departamento si aplicase. Acepta un mínimo 1 caracter y un máximo de 3.
+ "D" 
+ codigoPostal 
+ String
+ Código postal del domicilio. Acepta un mínimo 1 caracter y un máximo de 8.
+ "5000" 
+ localidad 
+ String
+ Longitud máxima: 200 .
+ "Córdoba capital" 
+ municipio 
+ String
+ Municipio al que corresponde el domicilio si aplicase. Acepta un mínimo 3 caracteres y un máximo de 50.
+ "Capital" 
+ provincia 
+ String
+ Longitud máxima: 200 .
+ "Córdoba" 
+ pais 
+ String
+ Longitud máxima: 45 .
+ "AR" 
+ observacion 
+ String
+ Texto libre para indicar información extra.
+ “Entre calles X y Z” 
+ dirección 
+ String
+ Texto libre para ingresar la dirección en un sólo parámetro. Acepta un mínimo 3 caracteres y un máximo de 150.
+ Más información en Notas técnicas .
+ "9 de Julio 1250" 
+ datosContacto 
+ String
+ Texto libre para ingresar números telefónicos o similares.
+ "0351-15418181324" 
+ email 
+ String
+ Corresponde al e-mail del lugar donde se realiza la atención.
+ "emailEmisor@yomail.com" 
+ logo 
+ String
+ Logotipo del sitio donde se realiza la atención. Se visualiza en el PDF. Se puede enviar tanto un link como Base 64.
+ "https://1.bp.blogt.com/Q/s1610/12.png" 
+ Objeto recetasPostadatas (opcional sólo si se envía)
+ cantidad 
+ Int
+ Cantidad de recetas posdatadas a generar.
+ 2 
+ diasAPosdatar 
+ Int
+ Días a posdatar entre cada receta.
+ 30 
+ fechas 
+ String
+ Fechas específicas para las recetas (formato DD/MM/AAAA ). Si se especifican fechas, el sistema tomará como prioridad este dato para generar las recetas antes que la cantidad y los días a posdatar. 
+ "03/05/2025" ,
+ "04/06/2025" 
+ Objeto Sub-Emisor (opcional sólo si se envía)
+ logoLink 
+ String
+ URL del logotipo del emisor.
+ "https://logo.com/png" 
+ logoBase64 
+ String
+ Logotipo del emisor codificado en base64.
+ "base64String==" 
+ Objeto informacionExtra 
+ key 
+ String
+ Se utiliza para indicar el campo que se quiere visualizar en el PDF. Los valores aceptados actualmente son “SINIESTRO” y “PRESTADOR”.
+ "SINIESTRO 
+ value 
+ String
+ Corresponde al valor del campo indicado en el parámetro key . Este será el dato que se visualizará en el PDF.
+ 12345678971 
+ Ejemplo de solicitud
+ Básica:
+ curl -X POST "<base_URL>/apirecipe/otrasPrescripciones
+-H "Accept: application/json" \
+-H "Authorization: Bearer <tu_token_de_acceso>" 
+--data-raw
+{
+ "paciente": {
+ "apellido": "Tissera",
+ "nombre": "Augusto",
+ "tipoDoc": "DNI",
+ "nroDoc": "40123654",
+ "sexo": "M",
+ "fechaNacimiento": "2000/11/10"
+ },
+ "medico": {
+ "apellido": "Castro",
+ "nombre": "Juan",
+ "tipoDoc": "DNI",
+ "nroDoc": "67887891",
+ "sexo": "M",
+ "matricula": {
+ "tipo": "MN",
+ "numero": "43243",
+ "provincia": ""
+ },
+ "firmalink": "https://1.bp.blogspot.com/-sffTqPYtaHY/Xl5hm6h8CQI/AAAAAAAAcew/KPScjjXwwgkQT-5spxLURf01P7RPbke8ACLcBGAsYHQ/s1600/12.png"
+ },
+ "prescripcion": [
+ {
+ "prescripcion": "Certificado por reposo"
+ }
+ ],
+ "lugarAtencion": {
+ "domicilio": {
+ "calle": "Calle atencion",
+ "numero": "1345"
+ }
+ },
+ "clienteAppId": "142"
+}
+ Compleja:
+ curl -X POST "<base_URL>/apirecipe/otrasPrescripciones
+-H "Accept: application/json" \
+-H "Authorization: Bearer <tu_token_de_acceso>" 
+--data-raw
+{
+ "paciente": {
+ "apellido": "Tissera",
+ "nombre": "Augusto",
+ "tipoDoc": "DNI",
+ "nroDoc": "40123654",
+ "sexo": "M",
+ "fechaNacimiento": "2000/11/10",
+ "cuil": "20-40123654-7",
+ "email": "augtis@yomail.com",
+ "telefono": "3544 15123654",
+ "pais": "AR",
+ "domicilio": {
+ "calle": "Calle paciente",
+ "numero": "546",
+ "piso": "8",
+ "depto": "A",
+ "codigoPostal": "5000",
+ "localidad": "Córdoba Capital",
+ "municipio": "Córdoba Capital",
+ "provincia": "Córdoba",
+ "pais": "AR",
+ "observacion": "entre calles X e Y"
+ },
+ "cobertura": {
+ "idFinanciador": "898",
+ "planId": "",
+ "plan": "No posee",
+ "numero": "20401236547",
+ "dniTitular": ""
+ },
+ "ocultarPaciente": false
+ },
+ "medico": {
+ "apellido": "Castro",
+ "nombre": "Juan",
+ "tipoDoc": "DNI",
+ "nroDoc": "67887891",
+ "profesion": "Kinesiólogo",
+ "especialidad": "Columna",
+ "sexo": "M",
+ "fechaNacimiento": "1991/11/25",
+ "email": "doc.juan@yopmail.com",
+ "telefono": "351-6592520",
+ "pais": "AR",
+ "firmalink": "https://1.bp.blogspot.com/-sffTqPYtaHY/Xl5hm6h8CQI/AAAAAAAAcew/KPScjjXwwgkQT-5spxLURf01P7RPbke8ACLcBGAsYHQ/s1600/12.png",
+ "firmabase64": "",
+ "matricula": {
+ "tipo": "MP",
+ "numero": "43243",
+ "provincia": "Buenos Aires",
+ "profesion": "Kinesiologo",
+ "especialidad": "Columna"
+ },
+ "sello": {
+ "linea1": "Primer línea sello",
+ "linea2": "Segunda línea sello",
+ "linea3": "Tercer línea sello"
+ },
+ "idTributario": "20-61257028-1",
+ "idREFEPS": "54067887891"
+ },
+ "prescripcion": [
+ {
+ "prescripcion": "Certificado por reposo",
+ "cantidad": 2,
+ "codPractica": "112233",
+ "diagnostico": "Dolor en el pecho por fractura",
+ "codigoDiagnostico": "",
+ "observaciones": "Realizar sin yeso"
+ }
+ ],
+ "diagnostico": "Fractura de rótula por golpe",
+ "imprimirDiagnostico": "",
+ "indicaciones": "Se recomienda hacer la menor cantidad de movimientos bruscos posibles",
+ "observaciones": "Solicitar colocación de yeso",
+ "fechaEmision": "2025-12-03T15:25:31.942Z",
+ "confidencial": false,
+ "lugarAtencion": {
+ "nombreConsultorio": "Consultorio Médico 142",
+ "domicilio": {
+ "calle": "Calle atencion",
+ "numero": "1345",
+ "piso": "7",
+ "depto": "D",
+ "codigoPostal": "5000",
+ "localidad": "Córdoba Capital",
+ "municipio": "Córdoba Capital",
+ "provincia": "Córdoba",
+ "pais": "AR",
+ "observacion": "Entre cañada y jujuy",
+ "direccion": ""
+ },
+ "datosContacto": "031-15418181324",
+ "email": "emailEmisor@yomail.com",
+ "logo": "https://img.freepik.com/vector-premium/diseno-ilustracion-vector-plantilla-logotipo-caballo_9999-1129.jpg"
+ },
+ "recetasPostadatas": {
+ "cantidad": 0,
+ "diasAPosdatar": 0
+ },
+ "clienteAppId": "142",
+ "informacionExtra": [
+ {
+ "key": "SINIESTRO",
+ "value": "00000001234"
+ },
+ {
+ "key": "PRESTADOR",
+ "value": "ABC-123456"
+ }
+ ]
+}
+ Respuesta
+ Todas las respuestas serán en formato JSON
+ Exitosa
+ Código de estado
+ 200 OK 
+ Cuerpo de respuesta:
+ {
+ "otrasRecetas": [
+ {
+ "id": "BKGJ309354982NVNSKW247503KDXS947YE",
+ "fecha": "16/01/2025",
+ "numeroPrescripcion": "0142111126367",
+ "s3Link": "https://prescriptions.hml.qbitos.com/25211_291621BDSDFDG52H45J4R1D5D74GH.pdf",
+ "verificador": "https://qa.verumrp.com.ar/prescripcion/786806A63F761REWES2G85Y7Y5JM54D4S1W65F85HJ4JM1T"
+ }
+ ]
+ "response": [
+ {
+ "paciente": {
+ "apellido": "Tissera",
+ "nombre": "Augusto",
+ "tipoDoc": "DNI",
+ "nroDoc": "40123654",
+ "sexo": "M",
+ "fechaNacimiento": "10/11/2000",
+ "cuil": "20401236547",
+ "localidad": null,
+ "provincia": null,
+ "email": "augtis@yomail.com",
+ "telefono": "3544 15123654",
+ "pais": "AR",
+ "cobertura": {
+ "idFinanciador": "898",
+ "nroFinanciador": "20690",
+ "plan": "No posee",
+ "numero": "20401236547",
+ "planId": null
+ },
+ "domicilio": {
+ "calle": "Calle paciente",
+ "numero": "546",
+ "piso": "8",
+ "dpto": null,
+ "codigoPostal": "5000",
+ "localidad": "Córdoba Capital",
+ "municipio": "Córdoba Capital",
+ "provincia": "Córdoba",
+ "pais": "AR",
+ "observacion": "entre calles X e Y",
+ "direccion": null
+ },
+ "ocultarPaciente": false
+ },
+ "medico": {
+ "apellido": "Castro",
+ "nombre": "Juan",
+ "tipoDoc": "DNI",
+ "nroDoc": "67887891",
+ "especialidad": "Columna",
+ "sexo": "M",
+ "fechaNacimiento": "25/11/1991",
+ "email": "doc.juan@yopmail.com",
+ "telefono": "3516592520",
+ "pais": "AR",
+ "profesion": "Kinesiologo",
+ "matricula": {
+ "tipo": "MP",
+ "numero": "43243",
+ "provincia": "BUENOS AIRES",
+ "profesion": "Kinesiologo",
+ "especialidad": "Columna"
+ },
+ "idTributario": "20612570281",
+ "idREFEPS": "54067887891"
+ },
+ "prescripcion": [
+ {
+ "prescripcion": "Certificado por reposo",
+ "cantidad": 2,
+ "codPractica": "112233",
+ "diagnostico": "Dolor en el pecho por fractura",
+ "codigoDiagnostico": "",
+ "observaciones": "Realizar sin yeso"
+ }
+ ],
+ "fecha": "03/12/2025",
+ "diagnostico": "Fractura de rótula por golpe",
+ "observaciones": "Solicitar colocación de yeso",
+ "fechavencimiento": "01/02/2026",
+ "fechaConfeccion": "07/11/2025",
+ "indicaciones": "Se recomienda hacer la menor cantidad de movimientos bruscos posibles",
+ "lugarAtencion": {
+ "nombreConsultorio": "Consultorio Médico 142",
+ "domicilio": {
+ "calle": "Calle atencion",
+ "numero": "1345",
+ "piso": "7",
+ "dpto": null,
+ "codigoPostal": "5000",
+ "localidad": "Córdoba Capital",
+ "municipio": "Córdoba Capital",
+ "provincia": "Córdoba",
+ "pais": "AR",
+ "observacion": "Entre cañada y jujuy",
+ "direccion": ""
+ },
+ "datosContacto": "031-15418181324",
+ "email": "emailEmisor@yomail.com",
+ "logo": "https://img.freepik.com/vector-premium/diseno-ilustracion-vector-plantilla-logotipo-caballo_9999-1129.jpg"
+ },
+ "datosContacto": "031-15418181324",
+ "nombreConsultorio": "Consultorio Médico 142",
+ "direccionConsultorio": null,
+ "email": "emailEmisor@yomail.com"
+ }
+ ]
+}
+ Fallida
+ Código de estado
+ 4 00 Bad Request 
+ Cuerpo de respuesta
+ {
+ "error": "QBI156",
+ "mensaje": "DEBE INGRESAR EL NÚMERO DE DOCUMENTO"
+}
+ Notas Técnicas
+ Solicitud:
+ Objeto Cobertura : 
+ Los parámetros se consideran opcionales cuando el paciente no tiene cobertura al momento de prescribir. Cuando se da el caso de que se utilizará su cobertura para prescribir y hay que indicar los datos de la misma, los parámetros dentro de este objeto se considerarán obligatorios .
+ El parámetro dniTitular sólo es utilizado por algunas entidades. Si no lo precisa, no es obligatorio enviarlo.
+ Se disponibilizan dos parámetros para poder indicar información del plan del afiliado: planId y plan . El primero corresponde al identificador del plan y el segundo al nombre o código de plan que se utiliza, por ejemplo, Ambulatorio, PMI, Diabetes, etc.
+ Se realizan validaciones sobre ambos campos (si son informados) y se toma como mandatorio el planId . Si éste llegase a ser incorrecto, se valida el plan y si está ok, el flujo de prescripción continúa correctamente, sino se rechaza. 
+ NOTA : este comportamiento no se utiliza para todas las entidades integradas.
+ Objeto Medico: 
+ La profesión es prioritaria por sobre la especialidad . Dado el caso en que se informe una especialidad y la profesión se deje vacía, el sistema asignará por defecto la profesión “Médico”.
+ Sub objeto Sello: 
+ El sello se compone por 3 líneas, en las cuales se puede plasmar la información que el profesional precise. Se sugiere que entre los datos que se ingresen sean el nombre, apellido, especialidad, matrícula y contacto del profesional que prescribe.
+ Dado el caso donde no se envíe información en ninguno de estos parámetros, por defecto se asignarán los siguientes datos para ser mostrados en el PDF:
+ Nombre del profesional
+ Profesión
+ Tipo y número de matrícula
+ Si el sello llega vacío (todas las líneas vacías), se omite. Si alguna línea tiene contenido, se validan los límites por línea y, si se exceden, se rechaza la solicitud con el código de error correspondiente.
+ Firmas y logos 
+Firma del médico y logos pueden venir por URL o base64 . Si alguna imagen no puede obtenerse o es inválida, se omite y la emisión continúa (se registra en logs).
+ Objeto Prescripción :
+ El parámetro prescripcion es de texto libre y puede ingresarse el nombre o descripción de la práctica que se requiere prescribir. Ese texto se visualizará en el PDF.
+ El parámetro codPractica hace referencia a un código propio de la práctica que se quiere prescribir.
+ Para el parámetro codigodiagnostico , existe una validación donde, si el código CIE-10 que se utiliza está relacionado a ETS, HIV o similares, se realiza la ofuscación de datos del paciente en el PDF para proteger su identidad. A su vez, también se oculta la descripción del diagnóstico y sólo se visualizará el código CIE-10.
+ Diagnóstico e impresión 
+ El parámetro diagnostico que corresponde al diagnóstico general posee dos comportamientos en base a la información que se ingrese:
+ Se puede ingresar texto libre, por ej “Resfriado leve”, y ese texto será el que se muestre en el PDF.
+ Se puede ingresar un código CIE-10, por ej. “M255”, y el campo validará que se trata de un código CIE-10, por lo que en el PDF se visualizará el código y la descripción del diagnóstico que le corresponda. En el caso del ejemplo será “M25.5 - DOLOR EN ARTICULACIÓN”.
+ Si se ingresa como diagnóstico general un código CIE-10, si está relacionado a ETS, HIV o similares, se realiza la ofuscación de datos del paciente en el PDF para proteger su identidad. A su vez, también se oculta la descripción del diagnóstico y sólo se visualizará el código CIE-10.
+ El parámetro imprimirDiagnostico se utiliza para indicar si se desean visualizar los diagnósticos o no en la prescripción. 
+ Puede recibir los valores “S”, “N” o ““ (vacío).
+ Al enviar “S”, se mostrarán en el PDF todos los diagnósticos establecidos.
+ Al enviar “N”, no se mostrará en el PDF ningún diagnóstico establecido.
+ Al enviar ““, se tomará como “S” y se mostrarán en el PDF todos los diagnósticos establecidos.
+ Si se envía cualquier otro valor, el sistema devolverá error.
+ Fecha de emisión 
+ El parámetro fechaEmision se utiliza cuando se requiere que la fecha de emisión de la prescripción, sea distinta a la fecha actual. Puede enviarse vacío o nulo, y hasta no enviarse si no se requiere.
+ Es requerido que se envíe en los siguientes formatos del estándar UTC:
+ 2023-11-24T02:27:02+00:00
+ 2023-11-24T02:27:02Z
+ Si se especifica la fechaEmision y a su vez se ingresa una fecha para posdatar, la fecha de posdatar tomará como parámetro la fechaEmision . Por ejemplo, si asigno como fechaEmision el día 10/01/2025 , y en la fecha de posdatada también ingreso la fecha 10/01/2025 , se devolverá un error indicando que “ LA FECHA DE POSDATADO DEBE SER SUPERIOR A HOY ".
+ Los parámetros observaciones y indicaciones son datos que se visualizarán en una segunda hoja del PDF. Las observaciones saldrán con el título “Comentarios”.
+ Sub objetos Domicilio/lugarAtencion: 
+ Se encuentran dentro del objeto paciente (para informar datos del domicilio del paciente) y dentro del objeto lugarAtencion (para informar datos del domicilio donde se realiza la atención al paciente por parte de un profesional) .
+ El sub-objeto domicilio es opcional, pero si se informa al menos uno de sus datos, se deberá tener en consideración que:
+ Los campos calle y numero son requeridos y mandatorios .
+ El campo direccion es un parámetro que puede enviarse solo, pero si se envía la calle y numero , lo que se tomará como prioritario será lo informado en estos últimos.
+ Objeto Recetas Posdatadas: 
+ El sub-objeto fechas , se podrá utilizar cuando se requiera que las prescripciones se generen con una fecha específica. Si se envían las fechas, los parámetros cantidad y diasAPosdatar no son tenidos en cuenta.
+ Al utilizar las recetas Posdatadas, además de las prescripciones indicadas en el objeto, se generará la prescripción principal que se está emitiendo.
+ Objeto Sub-Emisor :
+ Este objeto hace referencia al emisor real de la prescripción (en el caso de que el emisor no sea el ClienteApp).
+ Si se envía el logo, en el PDF se mostrará el logo del sub-emisor. Si el logo del sub-emisor no fue enviado, en el PDF se mostrará el logo que se muestra normalmente.
+ Objeto informacionExtra :
+ Este objeto es opcional y solamente se completará para incorporar información al PDF de la prescripción referida a Número de Siniestro y/o Número de Prestador en caso de corresponder.
+ En el parámetro key se deberá hacer referencia a Siniestro o Prestador.
+ En el parámetro value , se deberá indicar el valor correspondiente a la clave indicada previamente.
+ Imágenes 
+ Las imágenes que se aceptan para ser utilizadas como logos o imágenes de firmas, deben estar en formato jpg, jpeg, bmp o png.
+ Se debe verificar que las url desde donde se obtienen las imágenes, dirijan correctamente ya que en caso contrario, el servicio indicaría un error.
+ Las imágenes siempre se re ajustarán a tamaño 300x300, independientemente del tamaño de la misma.
+ Respuesta:
+ Objeto otrasRecetas: 
+ id : HASH identificador de la Prescripción.
+ fecha : Fecha de emisión de la Prescripción.
+ numeroPrescripcion : Fecha de emisión de la Prescripción.
+ s3Link : Link de descarga del PDF de la Prescripción.
+ verificador : Link de verificación del Emisor y datos de la Prescripción.
+ Objeto response: 
+ paciente : devuelve todos los datos informados en el request sobre el paciente.
+ medico : devuelve todos los datos informados en el request sobre el medico/profesional.
+ prescripcion : devuelve todos los datos informados en el request sobre la prescripción.
+ fecha : corresponde a la fecha de emisión de la prescripción.
+ diagnosticoGeneral : corresponde al diagnóstico general de la receta.
+ observaciones : observaciones generales de la receta. Se visualizará en la segunda hoja del PDF como “Comentarios”.
+ indicaciones : indicaciones generales de la receta. Se visualizará en la segunda hoja del PDF como “Indicaciones”.
+ fechavencimiento: Fecha de vencimiento de la prescripción.
+ La fecha de vencimiento se fija en 60 días desde la fecha de la práctica emitida.
+ fechaConfeccion : fecha de confección de la prescripción.
+ subemisor : devuelve toda la información completa del sub emisor informada en el request.
+ Listado de provincias para matrícula
+ Entre Rios
+ Santiago del Estero
+ La rioja
+ Bs As
+ Buenos Aires
+ Catamarca
+ Santa Fe
+ San Luis
+ Mendoza
+ Corrientes
+ Santa Cruz
+ Neuquen
+ Formosa
+ San Juan
+ Salta
+ Ciudad Autonoma de Bs As
+ Rio Negro
+ Chaco
+ La Pampa
+ Tierra del Fuego
+ Jujuy
+ Misiones
+ Cordoba
+ Tucuman
+ Chubut
+ Sin especificar
+ Nacional
+ Diseño de prescripción
+ A continuación se detallarán los campos que se visualizan en una prescripción y se indicará a que hace referencia cada uno.
+ Primera hoja:
+ Código de barra + número de prescripción.
+ Código de barra + número de afiliado/credencial.
+ Logo correspondiente a la Institución a la que pertenece el médico (parámetro logoInstitucion ).
+ Datos del médico que prescribe.
+ Datos del paciente:
+ Nombre y Apellido
+ Tipo y Número de documento.
+ Sexo
+ Fecha de nacimiento
+ Datos de cobertura.
+ Información extra que puede ser incorporada (en el ejemplo N° de Siniestro).
+ Datos de la/las prácticas prescriptas:
+ Nombre de la práctica.
+ Cantidad
+ Diagnóstico asociada a la práctica.
+ Observación asociada a la práctica.
+ Diagnóstico general de la prescripción.
+ Leyenda obligatoria de resolución dictada por el Ministerio. Leyenda informando el modo de la incorporación de firma por parte del profesional.
+ Fecha de emisión de la prescripción.
+ Información extra que puede ser incorporada (en el ejemplo N° de Prestador).
+ Sello del médico.
+ Firma (imagen)
+ Se recomienda utilizar imágenes con fondo transparente.
+ Líneas 1, 2 y 3 que conforman el sello.
+ Código QR + Link a URL al validador (Verum).
+ Datos del Consultorio.
+ Leyenda obligatoria de resolución dictada por el Ministerio.
+ Segunda hoja:
+ Indicaciones generales sobre la prescripción.
+ Comentarios (observaciones) generales de la prescripción.
+ Preguntas Frecuentes
+ ¿Cómo hago para posdatar una prescripción? 
+ Si necesitas emitir prescripciones con fechas futuras, puedes hacerlo utilizando la funcionalidad de prescripciones posdatadas con el objeto recetasPostadatas . Este proceso permite que, además de la prescripción principal que estás generando, el sistema cree prescripciones adicionales con fechas específicas o con un intervalo definido.
+ Cuando se desea posdatar prescripciones con fechas exactas, puedes indicar las fechas en el formato correcto (DD/MM/AAAA). Por ejemplo, si defines que las prescripciones se generen los días 15/01/2025 , 15/02/2025 , y 15/03/2025 , esas serán las fechas que se utilizarán. En este caso, el sistema ignorará otros parámetros como la cantidad de prescripciones o los días a posdatar.
+ Si lo que necesita es emitir sólo una receta con una fecha posterior a la actual, se deberá utilizar el parámetro fechaEmision indicando la fecha requerida.
+ En resumen, esta funcionalidad te permite planificar prescripciones futuras según las necesidades del paciente, asegurando que estén listas y disponibles en las fechas definidas.
+ ¿Por qué me falla después de las 21hs? 
+ Esto suele ocurrir porque la fecha de emisión de la prescripción se indica en un formato incorrecto o sin considerar que debe enviarse en el formato UTC (Tiempo Universal Coordinado). UTC es un estándar internacional de tiempo que puede diferir de tu hora local.
+ Por ejemplo:
+ Si se está en Argentina, la zona horaria suele ser UTC-3 (UTC menos 3 horas). Esto significa que cuando en el reloj son las 21:00, en UTC ya es medianoche del día siguiente.
+ Si se ingresa mal la hora sin ajustar al formato UTC, el sistema podría interpretar que la fecha está fuera del rango permitido o en un día incorrecto, generando el error.
+ Cómo evitar errores: 
+Cuando se envíe la fecha de emisión, se debe utilizar el formato UTC completo. Por ejemplo:
+ Correcto: 2025-01-03T23:00:00Z (23:00 en UTC).
+ Incorrecto: 2025-01-03 23:00 (sin especificar el formato de zona horaria).
+ Por ejemplo, la fecha y hora "2024-07-10T02:26:08Z" está en formato UTC (Tiempo Universal Coordinado).
+ Para convertirla a una hora local:
+ En Argentina, la diferencia horaria suele ser UTC-3.
+ Esto significa que se deben restar 3 horas de UTC para obtener la hora local:
+ UTC: 2024-07-10 a las 02:26:08.
+ Hora en Argentina (UTC-3): 2024-07-09 a las 23:26:08 (11:26:08 PM del día anterior).
+ Se puede utilizar la siguiente web para visualizar la hora UTC o Z time: https://www.utctime.net/z-time-now 
+ Posibles errores a presentarse
+ Código 
+ Mensaje 
+ Causa 
+ QBI24
+ MEDICO INEXISTENTE
+ Ingresa el id de un médico que no existe 
+ QBI25
+ EL AFILIADO ES REQUERIDO SI SE INFORMA EL FINANCIADOR
+ Se recibe un número de afiliado vacío, cuando se ha especificado un financiador.
+ QBI26
+ VERIFIQUE LOS NOMBRES DE MEDICAMENTO INGRESADOS
+ Se recibe una receta con código de registro = 0 o vacío y algún nombre de medicamento vacío.
+ QBI27
+ VERIFIQUE LAS PRESENTACIONES INGRESADAS
+ Se recibe una receta con código de registro = 0 o vacío y alguna presentación de medicamento vacía.
+ QBI28
+ VERIFIQUE LOS NOMBRES DE DROGA INGRESADOS
+ Se recibe una receta con código de registro = 0 o vacío y algún nombre de droga vacío.
+ QBI29
+ VERIFIQUE EL CLIENTE APP ID INGRESADO
+ Se recibe un APP ID inexistente
+ QBI30
+ VERIFIQUE EL PACIENTE O ID DE PACIENTE INGRESADO
+ Se recibe un ID de paciente y paciente inexistente
+ QBI31
+ VERIFIQUE EL MEDICO O ID DE MEDICO INGRESADO
+ Se recibe un ID de médico inexistente
+ QBI34
+ REVISE LOS TIPOS DE DATO DE LOS CAMPOS INGRESADOS
+ En al menos un campo, se recibe un valor con tipo de dato diferente al permitido.
+El caso más comun en que ocurre, es cuando se envía un body incorrecto (por ejemplo body vacío, o el body no tiene los separadores correspondientes)
+ QBI39
+ EL NOMBRE INGRESADO NO ES VALIDO
+ El nombre del médico o del paciente contiene dígitos.
+ QBI40
+ LA LONGITUD DEL NOMBRE EXCEDE LA CANTIDAD PERMITIDA
+ La cadena de caracteres recibida es mayor a la permitida.
+ QBI41
+ LA LONGITUD DEL APELLIDO EXCEDE LA CANTIDAD PERMITIDA
+ La cadena de caracteres recibida es mayor a la permitida.
+ QBI42
+ EL APELLIDO INGRESADO NO ES VALIDO
+ El apellido del médico o del paciente contiene dígitos no permitidos.
+ QBI47
+ LA PROVINCIA INGRESADA ES INVALIDA
+ Se recibe una provincia inexistente
+ QBI49
+ EL EMAIL INGRESADO ES INVALIDO
+ Se recibe el campo email vacío o no contiene el "@"
+ QBI52
+ EL TIPO DE DOCUMENTO INGRESADO ES INVALIDO
+ Se recibe vacío el campo Tipo de documento o un valor inválido. Los valores esperados son "Pasaporte", "DNI", "LE", "LC", "CI"
+ QBI57
+ DEBE INGRESAR UN TIPO DE MATRICULA
+ Se recibe vacío el campo tipo de matrícula.
+ QBI58
+ EL TIPO DE MATRICULA INGRESADO ES INVALIDO
+ Se recibe un tipo de matrícula inexistente. Los valores esperados son MP y MN
+ QBI59
+ LA MATRICULA INGRESADA ES INVALIDA
+ Se recibe una cadena de caracteres que no cumple con la longitud permitida.
+ QBI60
+ DEBE INGRESAR UNA MATRICULA
+ Se recibe vacío el campo matrícula.
+ QBI61
+ EL SEXO INGRESADO ES INVÁLIDO. LAS OPCIONES SON F, M o X
+ Se recibe un valor inválido para el campo sexo. Los valores esperados son F, M y X.
+ QBI65
+ PARA EL TIPO MP DEBE INGRESAR LA PROVINCIA DE LA MATRICULA
+ En el campo tipo de matrícula se recibe el valor MP y el campo provincia de matrícula está vacío.
+ QBI66
+ NUMERO DE FINANCIADOR INEXISTENTE
+ Se recibe un número de financiador inexistente en la base de datos.
+ QBI73
+ EL MAXIMO DE RECETAS POST DATADAS QUE PUEDE GENERAR ES
+ Se intenta generar más recetas postdatadas de las permitidas.
+ QBI75
+ LA RECETA REQUIERE AL MENOS UN DIAGNOSTICO OBLIGATORIO
+ No se recibe un diagnóstico general
+ QBI78
+ DEBE EXISTIR AL MENOS UN DIAGNOSTICO EN LA RECETA
+ No se recibe el diagnóstico general y al menos un diagnóstico de medicamento. La diferencia con QBI75, es que QBI75 Solo chequea el diagnóstico general. Acá verifica si existen el diagnóstico general, y al menos un diagnóstico de medicamento.
+ QBI81
+ EL RANGO NUMERICO DESDE DEBE SER MENOR QUE EL RANGO NUMERICO HASTA
+ Se recibe un rango desde menor al rango hasta especificado.
+ QBI84
+ DEBE INGRESAR NUMERO DE FINANCIADOR
+ No se recibe ni el ID ni el nro de financiador.
+ QBI95
+ CAMPOS OBLIGATORIOS: {0}
+ No se recibieron valores para los campos que se detallan.
+ QBI98
+ IMPRIMIR DIAGNOSTICO SOLO ACEPTA VALORES S O N
+ En el campo Imprimir diagnóstico se recibe un valor diferente a S o N
+ QBI99
+ LA FECHA DE EMISION NO PUEDE SER ANTERIOR A LA FECHA DE HOY
+ Se recibe una fecha de emisión menor a la fecha de hoy.
+ QBI104
+ ERROR SERVICIO:
+ No se pudo procesar correctamente la solicitud.
+Esto ocurre cuando el servicio encontró un error inesperado, y muestra a través del mensaje de error qué excepción lanzó.
+ QBI106
+ ERROR AL GENERAR EL TOKEN
+ Ocurre cuando se intenta generar un token para llamar a una API de mandataria y ésta falla
+ QBI108
+ FINANCIADOR INEXISTENTE
+ El número de financiador recibido no existe en la base de datos.
+ QBI109
+ BENEFICIARIO INEXISTENTE
+ El idPaciente recibido no se encuentra registrado en la base de datos.
+ QBI110
+ ERROR AL GENERAR EL CODIGO QR
+ Ocurre cuando el servicio de QR no responde correctamente
+ QBI111
+ ERROR DE SISTEMA
+ Hubo un error general en el servicio que no pudo ser atrapado correctamente.
+ QBI112
+ ERROR INTERNO
+ Hubo un error en la red consultando un servicio externo.
+ QBI113
+ ERROR DE SEGURIDAD
+ El clienteappid relacionado al médico y/o paciente no coinciden con los pasados en la receta/prescripción
+ QBI115
+ CUANDO SE UTILIZA TIPO DE DOCUMENTO PASAPORTE DEBE INGRESAR EL PAIS
+ Se recibe como tipo de documento Pasaporte y no se recibe el país.
+ QBI117
+ ERROR AL VALIDAR EL AFILIADO
+ Ocurre cuando el paciente no puede ser validado debido a un error interno.
+ QBI118
+ FALTAN DATOS PARA CREAR EL MÉDICO
+ Ocurre un error en la llamada a la API Medicos desde Receta.
+ QBI122
+ DEBE INGRESAR TIPO Y NRO DOC O NRO FINANCIADOR Y NRO AFILIADO
+ No se recibe completo ninguno de los dos pares de datos esperados.
+ QBI124
+ LA CANTIDAD DE CARACTERES NO CUMPLE EL RANGO MINIMO O MAXIMO PARA EL FINANCIADOR SELECCIONADO
+ El campo "nroAfiliado" no cumple con el rango indicado por el financiador
+ QBI125
+ NO TIENE AUTORIZADO GENERAR ESTA ACCIÓN PARA EL FINANCIADOR {0}
+ Se pasa por parámetro una combinación de clienteappid/ numeroFinanciador que no es válida
+ QBI135
+ EL NÚMERO DE DOCUMENTO ES INVÁLIDO
+ El documento contiene letras o símbolos en vez de números
+ QBI145
+ LA FECHA DE EMISIÓN DEBE ESTAR EN FORMATO UTC
+ No se recibió la fecha en formato UTC
+ QBI147
+ DEBE INGRESAR NOMBRE, CUIT Y DIRECCIÓN DEL SUBEMISOR
+ Se envía un subemisor sin alguno de los parámetros obligatorios
+ QBI148
+ DEBE INGRESAR UN CUIT VÁLIDO
+ QBI151
+ LA CANTIDAD DE DIGITOS DEBE SER ENTRE 6 Y 10 DIGITOS
+ Se recibe un valor fuera del rango indicado, o nulo
+ QBI152
+ NO SE ENCONTRO UNA CONFIGURACION DE NUMERACION PARA LOS DATOS INGRESADOS
+ La combinación de ClienteAppId e IdFinanciador o NroFinanciador no encontró ninguna configuración en la base de datos.
+ QBI153
+ NO SE ENCONTRÓ INFORMACIÓN PARA EL ID TRANSACCIÓN INGRESADO
+ No se encontró información de las recetas/prescripciones con el idTransacción, o el número de receta con número de afiliado o documento del paciente.
+ QBI154
+ DEBE INGRESAR ID TRANSACCIÓN O NRO RECETA Y NRO DOCUMENTO/AFILIADO
+ No se recibe la combinación deseada de parámetros para realizar la búsqueda (idTransaccion, o nroReceta con NroDoc o NroAfiliado)
+ QBI155
+ DEBE INGRESAR EL TIPO DE DOCUMENTO
+ El parámetro de tipo de documento viaja vacío
+ QBI156
+ DEBE INGRESAR EL NÚMERO DE DOCUMENTO
+ El parámetro número de documento viaja vacío
+ QBI157
+ EL CAMPO {0} DEL SELLO NO PUEDE TENER UNA LONGITUD MAYOR A {1} CARACTERES
+ Se recibe algún campo de sello con una cantidad de caracteres mayor a la permitida
+ QBI162
+ {0} SUPERA EL MÁXIMO DE CARACTERES
+ Se recibe un campo cuya longitud excede el máximo
+ QBI163
+ {0} NO PUEDE ESTAR VACÍO
+ Se envía un parámetro vacío siendo obligatorio.
+ QBI166
+ EL VALIDADOR PRESENTA INCONVENIENTES. VUELVA A INTENTAR MÁS TARDE
+ Se presenta un error por parte de la entidad que valida la prescripción.
+ QBI167
+ EL FINANCIADOR ESPECIFICADO NO AUTORIZA LA SUSTITUCIÓN DEL MEDICAMENTO
+ El financiador no permite una sustitución de medicamento.
+ QBI168
+ NÚMERO DE DOCUMENTO NO VÁLIDO PARA EL TIPO DE DOCUMENTO INGRESADO
+ El número de documento enviado no coincide con lo requerido según el tipo.
+ QBI169
+ EL NÚMERO DE AFILIADO ES DEMASIADO CORTO
+ QBI180
+ DEBE INDICAR DNI, TIPO Y NÚMERO DE MATRÍCULA DEL MÉDICO
+ QBI182
+ DEBE INGRESAR EL SEXO
+ QBI183
+ DEBE INGRESAR LA ESPECIALIDAD
+ QBI184
+ EL NÚMERO DE AFILIADO INGRESADO ES INVÁLIDO
+ QBI185
+ RECETA NO ENCONTRADA
+ QBI186
+ EL SERVICIO TARDÓ DEMASIADO EN RESPONDER, INTENTE NUEVAMENTE
+ QBI187
+ NO SE PUDO RELACIONAR EL MÉDICO CON EL CONVENIO
+ QBI201
+ DEBE INGRESAR UN MOTIVO POR NO SUSTITUCIÓN PARA EL MEDICAMENTO
+ QBI202
+ NO CUMPLE EL RANGO MINIMO O MAXIMO DE CARACTERES PARA EL MOTIVO DE NO SUSTITUCIÓN DEL MEDICAMENTO
+ QBI203
+ ID FINANCIADOR INEXISTENTE
+ QBI204
+ DEBE INGRESAR EL ID DE FINANCIADOR
+ QBI205
+ EL REPOSITORIO NO PUDO PROCESAR LA SOLICITUD
+ QBI206
+ DEBE INGRESAR EL SEXO
+ QBI207
+ DEBE INGRESAR NUMERO O ID DE FINANCIADOR
+ QBI208
+ EL NUMERO DE FINANCIADOR DEBE SER NUMERICO
+ QBI209
+ USUARIO INVALIDO
+ QBI210
+ BAJA IMPOSIBLE - RECETA UTILIZADA
+ QBI211
+ USUARIO NO HABILITADO PARA EL FINANCIADOR
+ QBI212
+ CREDENCIAL INHABILITADA
+ QBI213
+ ALTA IMPOSIBLE - REGISTRO DUPLICADO
+ QBI214
+ CANTIDAD DE MEDICAMENTOS INVÁLIDA
+ QBI215
+ CREDENCIAL INVALIDA
+ QBI216
+ NO SE ENCONTRÓ UNA CREDENCIAL VÁLIDA O VIGENTE PARA EL AFILIADO CON EL FINANCIADOR ESPECIFICADO
+ QBI217
+ AFILIADO NO HABILITADO EN EL CONVENIO
+ QBI217
+ AFILIADO NO HABILITADO EN EL CONVENIO
+ QBI218
+ AFILIADO INCORRECTO PARA EL CONVENIO
+ QBI219
+ BENEFICIARIO NO IDENTIFICADO
+ QBI220
+ NO SE PUDO IDENTIFICAR EL PRODUCTO PRESCRIPTO
+ QBI221
+ EL TELÉFONO DEL PACIENTE ES OBLIGATORIO
+ QBI222
+ OBRA SOCIAL NO HABILITADA EN ESTE SERVICIO
+ QBI223
+ EL SEXO INGRESADO ES INVÁLIDO. LAS OPCIONES SON F o M
+ QBI224
+ LA FECHA DE NACIMIENTO ES REQUERIDA
+ QBI225
+ ERROR INTERNO PROCESANDO MÉDICO
+ QBI226
+ DEBE INGRESAR EL NÚMERO DE PRESTADOR
+ QBI227
+ AFILIADO NO POSEE COBERTURA PARA EL MEDICAMENTO
+ QBI228
+ FALTAN DATOS OBLIGATORIOS PARA REALIZAR LA BUSQUEDA
+ QBI229
+ NO SE ENCONTRARON PRODUCTOS VÁLIDOS PARA LA RECETA
+ QBI230
+ DEBE INFORMAR PLAN PARA EL CONVENIO ESPECIFICADO
+ QBI231
+ EL PLAN INGRESADO ES INVÁLIDO PARA EL CONVENIO ESPECIFICADO
+ QBI232
+ NO SE ENCONTRÓ LA PRÁCTICA
+ QBI233
+ VERIFIQUE EL NOMBRE O ID DE PRÁCTICA INGRESADO
+ QBI234
+ ESTE CLIENTE NO PUEDE PRESCRIBIR RECETAS PARA EL FINANCIADOR SELECCIONADO
+ QBI235
+ EL CAMPO {0} NO CUMPLE EL RANGO MÍNIMO O MÁXIMO DE CARACTERES
+ QBI236
+ NO ESTÁ PERMITIDO POSDATAR RECETAS CON MÁS DE 12 MESES DE ANTELACIÓN
+ QBI237
+ NO SE ENCONTRÓ EL PLAN
+ QBI238
+ DEBE INGRESAR UN CUIL VALIDO PARA EL PACIENTE
+ QBI239
+ DEBE INGRESAR UN ID DE REFEPS VALIDO PARA EL PROFESIONAL
+ QBI240
+ DEBE INGRESAR CALLE Y NÚMERO O BIEN COMPLETAR EL CAMPO DIRECCIÓN
+ QBI241
+ DATOS DE DOMICILIO INSUFICIENTES. REVISE LA COMBINACIÓN DE CAMPOS
+ QBI242
+ DEBE ESPECIFICAR UN DIAGNOSTICO VÁLIDO CON AL MENOS 3 CARACTERES
+ QBI243
+ FORMATO INVALIDO EN EL CAMPO {0}
+ Versionado de documentación
+ Versión 
+ Fecha 
+ Cambios realizados 
+ v1.0
+ 14/01/2025
+ Se genera documentación inicial.
+ v1.1
+ 06/02/2025
+ Se realiza corrección sobre el formato a utilizarse en el parámetro “fecha” para posdatar recetas.
+ v2.1
+ 26/03/2025
+ Se incorpora información sobre nuevo objeto en request “ informacionExtra ”.
+ Se agregan nuevos mensajes de error.
+ v2.2
+ 01/04/2025
+ Se incorporó información relacionada a los parámetros para confeccionar el sello del médico.
+ v2.3
+ 06/05/2025
+ Se modifica la obligatoriedad del parámetro “ fechaNacimiento ” en Paciente y Médico.
+ v2.4
+ 06/06/2025
+ Se incorporó información sobre el funcionamiento del parámetro diagnóstico general de la receta y la validación de ofuscación de datos para diagnósticos sensibles.
+ v2.5
+ 16/07/2025
+ Se aclara la diferencia entre el objeto “prescripcion”(array) y el parámetro “prescripcion” (string).
+ v3
+ 28/07/2025
+ Se actualizó el diseño e información relacionada al PDF de la receta.
+ v4
+ 22/08/2025
+ Se incorporan los campos requeridos por la nueva resolución N° 2214/2025: cuil de paciente, idRefeps de profesional.
+ Se incorpora un nuevo objeto Domicilio dentro de paciente y un objeto lugarAtención para indicar los datos del sitio donde se lleva a cabo la atención por parte del profesional.
+ Se incorpora un nuevo parámetro planId dentro del sub-objeto cobertura .
+ v5
+ 07/11/2025
+ Actualización de parámetros obligatorios, opcionales y valores aceptados.
+ Actualización de consulta básica y compleja.
+ Actualización sobre notas técnicas.
+ v5.1
+ 04/03/2026
+ Se actualiza información en parámetro logo del objeto lugarAtencion 
+ 

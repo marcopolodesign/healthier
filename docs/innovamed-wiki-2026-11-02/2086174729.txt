@@ -1,0 +1,134 @@
+# Buscador de Diagnósticos (v4, 2026-03-31)
+ ‌
+ Versión de documentación: v1.0
+ Fecha de modificación: 02/01/2025
+ Este Endpoint requiere Autenticación , por lo que se debe enviar un token válido en los Headers para autorizar las solicitudes.
+ Descripción
+ Este Endpoint se utiliza para obtener el listado de diagnósticos CIE-10. Para ello se debe realizar una búsqueda a partir de una cadena de texto, que al ejecutarse, devolverá los diagnósticos que coincidan con la búsqueda, tanto en el código como en la descripción.
+ Documentación Técnica
+ URL
+ GET {{baseUrl}}/apirecipe/GetDiagnostico?text=A01
+ Parámetros
+ Los parámetros serán requeridos como URL params.
+ Obligatorios
+ Parámetro 
+ Tipo 
+ Descripción 
+ Ejemplo 
+ clienteAppId 
+ Int
+ ID correspondiente al cliente.
+ 123
+ text 
+ String
+ Texto para filtrar resultados. Mínimo 3 caracteres, puede ser código ó descripción del diagnóstico.
+ A010 ó FIEBRE 
+ Ejemplo de solicitud
+ curl -X GET "<base_URL>/apirecipe/GetDiagnostico?text=fiebre" \
+-H "Accept: application/json" \
+-H "Authorization: Bearer <tu_token_de_acceso>"
+ Respuesta
+ Todas las respuestas serán en formato JSON
+ Exitosa
+ Código de estado
+ 200 OK 
+ Cuerpo de respuesta:
+ {
+ "diagnosticos": [
+ {
+ "iddiagnostico": 30415,
+ "coddiagnostico": "B010",
+ "descdiagnostico": "MENINGITIS DEBIDA A LA VARICELA (G02.0)"
+ },
+ {
+ "iddiagnostico": 30416,
+ "coddiagnostico": "B011",
+ "descdiagnostico": "ENCEFALITIS DEBIDA A LA VARICELA (G05.1)"
+ },
+ {
+ "iddiagnostico": 30417,
+ "coddiagnostico": "B012",
+ "descdiagnostico": "NEUMONIA DEBIDA A LA VARICELA (J17.1)"
+ },
+ {
+ "iddiagnostico": 30418,
+ "coddiagnostico": "B018",
+ "descdiagnostico": "VARICELA CON OTRAS COMPLICACIONES"
+ },
+ {
+ "iddiagnostico": 30419,
+ "coddiagnostico": "B019",
+ "descdiagnostico": "VARICELA SIN COMPLICACIONES"
+ }
+ ]
+}
+ ‌
+ Fallida
+ Código de estado
+ 400 Bad Request 
+ Cuerpo de respuesta
+ {
+ "error": "QBI136",
+ "mensaje": "DEBE INGRESAR AL MENOS 3 CARACTERES"
+}
+ Errores y Posibles Causas
+ Código 
+ Mensaje 
+ Código HTTP 
+ Causa 
+ QBI136
+ DEBE INGRESAR AL MENOS 3 CARACTERES
+ 400
+ Se ingresaron menos de 3 caracteres en el texto de búsqueda.
+ QBI181
+ DIAGNÓSTICO SIN CÓDIGO ASOCIADO
+ 200
+ El texto ingresado no coincide con ningún código de diagnóstico ni descripción. El servicio responde con código 200 y la lista de diagnósticos vacía.
+ Notas Técnicas
+ Para realizar la búsqueda específica de algún diagnóstico, en el parámetro de búsqueda, se deben ingresar al menos 3 caracteres.
+ Si no se especifica ningún texto de búsqueda, el servicio responderá con un error.
+ ‌
+ Glosario de parámetros
+ A continuación se brinda información específica de cada campo, tanto para la solicitud como para la respuesta.
+ Solicitud
+ Nombre 
+ Tipo 
+ Obligatorio 
+ Descripción 
+ Ejemplo 
+ clienteAppId 
+ Int
+ Sí
+ Identificador único asignado a la aplicación que realiza la solicitud para autenticarla.
+ 123 
+ text 
+ String
+ Sí
+ Texto para filtrar resultados. Mínimo 3 caracteres, puede ser código ó descripción del diagnóstico.
+ A010 ó FIEBRE 
+ Respuesta
+ Nombre 
+ Tipo 
+ Descripción 
+ Ejemplo 
+ iddiagnostico 
+ Int
+ Identificador único del diagnóstico en la base de datos.
+ 30016 
+ coddiagnostico 
+ String
+ Código del diagnóstico basado en una clasificación estándar, como el CIE-10.
+ A010 
+ descdiagnostico 
+ String
+ Descripción del diagnóstico que indica su denominación oficial según el estándar utilizado
+ FIEBRE TIFOIDEA 
+ ‌
+ Versionado de documentación
+ Versión 
+ Fecha 
+ Cambios realizados 
+ v1.0
+ 02/01/2025
+ Se genera documentación inicial
+ 

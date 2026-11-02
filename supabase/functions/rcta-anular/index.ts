@@ -28,6 +28,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { interpretarAnulacion, llamarRcta } from '../_shared/rcta/mod.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -50,9 +51,12 @@ type Fila = {
   rcta_transaction_id: string | null
   rcta_anulacion_estado: string | null
   medication_name: string | null
+  // Migración 223: las recetas que contienen esta medicación. Normalmente una;
+  // más si el servicio la repartió. Las filas viejas no la tienen.
+  rcta_recetas: { id: string | null; idReceta: string | null }[] | null
 }
 
-const COLUMNAS = 'id, patient_id, professional_id, encounter_id, status, rcta_status, posdatada_de, vigencia_desde, rcta_prescription_id, rcta_hash, rcta_transaction_id, rcta_anulacion_estado, medication_name'
+const COLUMNAS = 'id, patient_id, professional_id, encounter_id, status, rcta_status, posdatada_de, vigencia_desde, rcta_prescription_id, rcta_hash, rcta_transaction_id, rcta_anulacion_estado, medication_name, rcta_recetas'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
@@ -173,16 +177,29 @@ Deno.serve(async (req: Request) => {
     const RCTA_API_KEY = Deno.env.get('RCTA_API_KEY')
     const RCTA_CLIENT_APP_ID = Deno.env.get('RCTA_CLIENT_APP_ID')
 
-    // Una llamada por receta (varias filas pueden ser la misma receta).
-    const porReceta = new Map<string, Fila[]>()
+    // Una llamada por receta. Varias filas pueden ser la misma receta, y una
+    // fila puede estar en más de una (migración 223: el servicio repartió el
+    // lote). Sin `rcta_recetas` (filas viejas) vale la receta de la fila.
+    const porReceta = new Map<string, { hash: string | null; filas: Fila[] }>()
     for (const f of aAnular) {
-      const k = f.rcta_prescription_id ?? f.id
-      porReceta.set(k, [...(porReceta.get(k) ?? []), f])
+      const suyas = f.rcta_recetas?.length
+        ? f.rcta_recetas
+        : [{ id: f.rcta_hash, idReceta: f.rcta_prescription_id }]
+      for (const r of suyas) {
+        const k = r.idReceta ?? r.id ?? f.id
+        const actual = porReceta.get(k) ?? { hash: r.id ?? null, filas: [] }
+        if (!actual.filas.includes(f)) actual.filas.push(f)
+        porReceta.set(k, actual)
+      }
     }
 
     const resultados: { prescriptionId: string; vigenciaDesde: string | null; estado: string; detalle: string | null }[] = []
+    // Por fila, el peor resultado de sus recetas: con una sin confirmar, la fila
+    // queda para "Reintentar".
+    const porFila = new Map<string, { estado: 'confirmada' | 'no_hacia_falta' | 'error'; detalles: string[]; hash: string | null }>()
+    const RANGO = { no_hacia_falta: 0, confirmada: 1, error: 2 } as const
 
-    for (const [prescriptionId, filas] of porReceta) {
+    for (const [prescriptionId, { hash: hashGuardado, filas }] of porReceta) {
       const f0 = filas[0]
       const t0 = Date.now()
       let estado: 'confirmada' | 'no_hacia_falta' | 'error' = 'error'
@@ -192,7 +209,7 @@ Deno.serve(async (req: Request) => {
       let respuesta: any = null
       let codigo: string | null = null
 
-      const hash = f0.rcta_hash ?? await hashDesdeElLog(supabase, prescriptionId)
+      const hash = hashGuardado ?? await hashDesdeElLog(supabase, prescriptionId)
       // Ya se compró en la farmacia de Healthier: está dispensada, el servicio
       // de recetas no la va a anular y "Reintentar" fallaría para siempre.
       const dispensada = await yaSeCompro(supabase, filas.map(x => x.id))
@@ -207,33 +224,28 @@ Deno.serve(async (req: Request) => {
         detalle = 'No se encontró el identificador de la receta en el servicio de recetas.'
         codigo = 'RCTA_SIN_HASH'
       } else {
-        try {
-          const res = await fetch(`${RCTA_API_URL}/apirecipe/Receta/${encodeURIComponent(hash)}`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${RCTA_API_KEY}` },
-            body: JSON.stringify({ clienteAppId: Number(RCTA_CLIENT_APP_ID) }),
-          })
-          httpStatus = res.status
-          const texto = await res.text()
-          try { respuesta = JSON.parse(texto) } catch { respuesta = texto ? { raw: texto } : null }
-          const r = interpretar(res.status, respuesta)
-          estado = r.estado; detalle = r.detalle; codigo = r.codigo
-        } catch (err) {
+        const r = await llamarRcta('DELETE', RCTA_API_URL, RCTA_API_KEY,
+          `/apirecipe/Receta/${encodeURIComponent(hash)}`, { clienteAppId: Number(RCTA_CLIENT_APP_ID) })
+        if (r.kind === 'network_error') {
           detalle = 'El servicio de recetas no respondió.'
           codigo = 'RCTA_SIN_RESPUESTA'
-          console.error('rcta-anular: error de red', String(err))
+          console.error('rcta-anular: error de red', String(r.err))
+        } else {
+          httpStatus = r.status
+          respuesta = r.kind === 'ok' ? r.data : r.json
+          const i = interpretarAnulacion(r.status, respuesta)
+          estado = i.estado; detalle = i.detalle; codigo = i.codigo
         }
       }
 
-      const { error: updErr } = await supabase
-        .from('clinical_medications')
-        .update({
-          rcta_anulacion_estado: estado,
-          rcta_anulacion_detalle: detalle,
-          ...(hash && !f0.rcta_hash ? { rcta_hash: hash } : {}),
+      for (const f of filas) {
+        const prev = porFila.get(f.id)
+        porFila.set(f.id, {
+          estado: !prev || RANGO[estado] > RANGO[prev.estado] ? estado : prev.estado,
+          detalles: [...(prev?.detalles ?? []), ...(detalle ? [detalle] : [])],
+          hash: prev?.hash ?? (hash && !f.rcta_hash && prescriptionId === f.rcta_prescription_id ? hash : null),
         })
-        .in('id', filas.map(x => x.id))
-      if (updErr) console.error('rcta-anular: no se pudo guardar el resultado:', updErr.message)
+      }
 
       // El log nunca puede tumbar la anulación.
       try {
@@ -263,6 +275,18 @@ Deno.serve(async (req: Request) => {
       resultados.push({ prescriptionId, vigenciaDesde: f0.vigencia_desde, estado, detalle })
     }
 
+    for (const [id, r] of porFila) {
+      const { error: updErr } = await supabase
+        .from('clinical_medications')
+        .update({
+          rcta_anulacion_estado: r.estado,
+          rcta_anulacion_detalle: [...new Set(r.detalles)].join(' · ') || null,
+          ...(r.hash ? { rcta_hash: r.hash } : {}),
+        })
+        .eq('id', id)
+      if (updErr) console.error('rcta-anular: no se pudo guardar el resultado:', updErr.message)
+    }
+
     return json({
       reintento,
       anuladas: resultados,
@@ -275,26 +299,8 @@ Deno.serve(async (req: Request) => {
   }
 })
 
-/**
- * Qué quiere decir la respuesta del servicio de recetas.
- * 200 → anulada. QBI79 ("LA RECETA HA VENCIDO EL DIA …") → ya no vale allá:
- * no hace falta anularla. Una receta ya anulada antes también cuenta como
- * hecha. Cualquier otra cosa queda en error, con el mensaje, para reintentar.
- */
-// deno-lint-ignore no-explicit-any
-function interpretar(status: number, r: any): { estado: 'confirmada' | 'no_hacia_falta' | 'error'; detalle: string | null; codigo: string | null } {
-  const codigo = (r?.error ?? null) as string | null
-  const mensaje = String(r?.mensaje ?? r?.raw ?? '').trim() || null
-  if (status >= 200 && status < 300) return { estado: 'confirmada', detalle: mensaje, codigo: null }
-  if (codigo === 'QBI79' || /HA VENCIDO/i.test(mensaje ?? '')) return { estado: 'no_hacia_falta', detalle: mensaje, codigo }
-  // Respuesta real de homologación (2026-10-22): "La receta ya habia sido
-  // previamente anulada". Se mira la frase entera: un "no puede ser anulada"
-  // no es una anulación hecha.
-  if (/PREVIAMENTE ANULADA|YA HAB[IÍ]A SIDO ANULADA/i.test(mensaje ?? '')) return { estado: 'confirmada', detalle: mensaje, codigo }
-  // Dispensada en otra farmacia: ya no hay nada que anular allá.
-  if (/DISPENSAD/i.test(mensaje ?? '')) return { estado: 'no_hacia_falta', detalle: mensaje, codigo }
-  return { estado: 'error', detalle: mensaje ?? `El servicio de recetas respondió ${status}.`, codigo }
-}
+// `interpretarAnulacion` vive en `_shared/rcta/respuesta.ts` (lo comparten
+// las Otras Prescripciones).
 
 /** ¿Alguna de estas filas se usó en un pedido pagado de la farmacia? */
 // deno-lint-ignore no-explicit-any

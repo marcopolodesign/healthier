@@ -785,7 +785,7 @@ export default function PatientConsultations({ profile }) {
                       rel="noreferrer"
                       className="flex-1 py-3 text-[13px] font-semibold text-brand flex items-center justify-center gap-1.5 hover:bg-brand-muted transition-colors"
                     >
-                      <FileText className="w-4 h-4" /> Ver receta
+                      <FileText className="w-4 h-4" /> {r.rctaAutorizacion === 'pendiente' ? 'Receta (pendiente de autorización)' : 'Ver receta'}
                     </a>
                   ))}
                   {view === 'past' && t.status === 'completed' && !hasReview && (

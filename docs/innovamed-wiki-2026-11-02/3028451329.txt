@@ -1,0 +1,29 @@
+# Notas de la versión - QBI2 - QBIR - v1.55.1 - Oct 27 15:34 (v1, 2026-10-27)
+ Cómo utilizar esta página: 
+ Encuentra las incidencias de Jira seleccionadas en la tabla de abajo. Selecciona el icono de expandir para usarlas como fuente de información y escribir las notas de la publicación.
+ Publicación 
+ https://innovamed.atlassian.net/projects/QBR/versions/15122 
+ Fecha 
+ 26 oct 2026 
+ Versión 
+ QBIR - v1.55.1
+ Descripción 
+ HotFix para practicas Osde
+ Colaboradores 
+ Denis Caramichos [Streambe] 
+   Incidencias de esta publicación Antes de compartir la página, revisa los contenidos de cada incidencia de Jira y elimina cualquier dato sensible.
+ Incidencia 
+ Resumen 
+ Tipo de Incidencia 
+ Persona asignada 
+ QBR-2812 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - Omitir el contacto del prescriptor en el pedido a OSDE cuando el médico no tiene email
+ Task
+ Denis Caramichos [Streambe] 
+ Resumen
+ Nuevas funciones
+ Mejoras en las funciones existentes
+ Corrección de errores
