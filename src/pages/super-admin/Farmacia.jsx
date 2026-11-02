@@ -7,6 +7,7 @@ import { paymentsService } from '../../services/paymentsService'
 import { toast } from '../../components/Toast'
 import { formatARS, formatDate } from '../../lib/format'
 import { STATUS_LABEL } from '../../lib/pharmacyOrders'
+import RecetasPorAutorizar from '../../components/pharmacy/RecetasPorAutorizar'
 
 export default function SuperAdminFarmacia() {
   const [orders, setOrders] = useState([])
@@ -112,6 +113,10 @@ export default function SuperAdminFarmacia() {
           </span>
         ))}
       </div>
+
+      {/* Visibilidad (regla del super admin): las pendientes y quién autorizó
+          cada una en los últimos 90 días. Puede autorizar también. */}
+      <RecetasPorAutorizar puedeAutorizar conHistorial />
 
       <div className="card space-y-5">
         <div>

@@ -291,3 +291,21 @@ test('rcta-anular: arrastra a las medicaciones que comparten receta y busca el h
   assert.match(an, /eq\('rcta_transaction_id', fila\.rcta_transaction_id\)/)
   assert.match(an, /\.in\('outcome', \['issued', 'issued_partial'\]\)/)
 })
+
+// ── La farmacia autoriza la pendiente (Mateo, 2026-11-02) ────────────────────
+test('sólo la farmacia (o el super admin) autoriza una pendiente, y queda quién y cuándo', () => {
+  const sql = leer('supabase/migrations/223_receta_segun_la_wiki.sql')
+  const fn = sql.slice(sql.indexOf('create or replace function public.farmacia_autorizar_receta'))
+  assert.match(fn, /v_rol not in \('pharmacy_admin', 'pharmacy_operator', 'super_admin'\)/)
+  assert.match(fn, /rcta_autorizada_por = auth\.uid\(\)/)
+  assert.match(fn, /_aal_escribir\(\s*null, 'autorizacion_de_receta'/)
+  assert.match(fn, /revoke all on function public\.farmacia_autorizar_receta\(uuid\) from public, anon/)
+  // El trigger sólo deja pasar ese cambio puntual, marcado por la función.
+  assert.match(sql, /current_setting\('healthier\.autorizar_receta', true\) = '1'/)
+  assert.match(sql, /old\.rcta_autorizacion = 'pendiente' and new\.rcta_autorizacion = 'ok'/)
+  assert.match(sql, /or new\.rcta_autorizada_por\s+is distinct from old\.rcta_autorizada_por/)
+  // El panel de la farmacia y el del super admin la muestran.
+  assert.match(leer('src/pages/pharmacy/Pedidos.jsx'), /<RecetasPorAutorizar puedeAutorizar=\{canEdit\} \/>/)
+  assert.match(leer('src/pages/super-admin/Farmacia.jsx'), /<RecetasPorAutorizar puedeAutorizar conHistorial \/>/)
+  assert.match(leer('src/components/pharmacy/RecetasPorAutorizar.jsx'), /Pendiente de autorización de la obra social/)
+})
