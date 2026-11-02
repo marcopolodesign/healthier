@@ -3,19 +3,18 @@
 // website/docs/innovamed-wiki-2026-11-02/2099773441.txt (generar) y
 // 2557575169.txt (anular).
 //
-// 🔁 PARA REEMPLAZAR: los armados del médico, del paciente y del domicilio son
-// los mismos de la receta (`rcta-issue`). Otro trabajo en curso los está
-// moviendo a `supabase/functions/_shared/rcta/` (con la provincia de la
-// matrícula, la etiqueta de la especialidad y un `parseAddress` que entiende
-// las direcciones de Nominatim). Cuando llegue a main, borrar de acá
-// `armarMedico`, `armarPaciente`, `domicilioDe`, `provinciaMatricula`,
-// `resolverFirma`, `postRcta` e `interpretarAnulacion` e importarlos de ahí.
-// Se dejaron locales a propósito para no tocar `rcta-issue` en paralelo.
+// El médico, el paciente, la matrícula (con su provincia), el domicilio, la
+// firma y la llamada salen de `_shared/rcta/` — el mismo código que la receta
+// de medicamentos. Acá vive sólo lo propio del certificado: los tres modelos,
+// sus textos, la validación de lo que manda el profesional y la de la wiki.
 //
-// Todo lo de este archivo es puro salvo `resolverFirma` (lee) y `postRcta` /
-// `deleteRcta` (red). El control que falla si se rompe el armado es
-// `armado.test.ts` (`deno test supabase/functions/rcta-certificado/`).
+// Todo es puro. El control que falla si se rompe el armado es `armado.test.ts`
+// (`npm run test:certificados`).
 // ─────────────────────────────────────────────────────────────────────────────
+
+import {
+  armarMedico, armarPaciente, domicilioDe, matriculaDe, nombreYApellido,
+} from '../_shared/rcta/mod.ts'
 
 export const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -38,147 +37,28 @@ export function rolDelJwt(jwt: string): string | null {
   }
 }
 
-// ── Personas ────────────────────────────────────────────────────────────────
-
-// deno-lint-ignore no-explicit-any
-export function nombreYApellido(p: any) {
-  const nombre = (p?.first_name ?? '').trim()
-  const apellido = (p?.last_name ?? '').trim()
-  if (nombre && apellido) return { nombre, apellido }
-  const parts = String(p?.full_name ?? '').trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return { nombre: '', apellido: '' }
-  if (parts.length === 1) return { nombre: parts[0], apellido: '' }
-  return { nombre: parts.slice(0, -1).join(' '), apellido: parts[parts.length - 1] }
-}
-
-export function mapSexo(gender: string | null | undefined): 'F' | 'M' | 'X' {
-  if (gender === 'femenino') return 'F'
-  if (gender === 'masculino') return 'M'
-  return 'X'
-}
-
-/**
- * La provincia de una matrícula provincial, con los nombres que acepta el
- * servicio (lista "Provincias" de la wiki). Sale del último tramo de la
- * dirección del consultorio, que es lo único que tenemos hoy: no hay columna
- * de provincia de matrícula. `null` si no se reconoce.
- */
-const PROVINCIAS: [RegExp, string][] = [
-  [/ciudad aut[oó]noma|caba|capital federal/i, 'Ciudad Autonoma de Bs As'],
-  [/buenos aires/i, 'Buenos Aires'],
-  [/c[oó]rdoba/i, 'Cordoba'], [/santa fe/i, 'Santa Fe'], [/mendoza/i, 'Mendoza'],
-  [/tucum[aá]n/i, 'Tucuman'], [/entre r[ií]os/i, 'Entre Rios'], [/salta/i, 'Salta'],
-  [/misiones/i, 'Misiones'], [/chaco/i, 'Chaco'], [/corrientes/i, 'Corrientes'],
-  [/santiago del estero/i, 'Santiago del Estero'], [/san juan/i, 'San Juan'],
-  [/jujuy/i, 'Jujuy'], [/r[ií]o negro/i, 'Rio Negro'], [/neuqu[eé]n/i, 'Neuquen'],
-  [/formosa/i, 'Formosa'], [/chubut/i, 'Chubut'], [/san luis/i, 'San Luis'],
-  [/catamarca/i, 'Catamarca'], [/la rioja/i, 'La rioja'], [/la pampa/i, 'La Pampa'],
-  [/santa cruz/i, 'Santa Cruz'], [/tierra del fuego/i, 'Tierra del Fuego'],
-]
-export function provinciaMatricula(address: string | null | undefined): string | null {
-  const tramos = String(address ?? '').split(',').map(s => s.trim()).filter(Boolean).reverse()
-  for (const t of tramos) {
-    for (const [re, nombre] of PROVINCIAS) if (re.test(t)) return nombre
-  }
-  return null
-}
-
-/**
- * El domicilio de la atención. La wiki pide calle + número, o `direccion`
- * sola (3 a 150). Acepta las dos formas en que se guarda hoy:
- * "Av. Santa Fe 1900, Recoleta, …" y la de Nominatim "3709, Arenales, …" o
- * "IFER, 2259, Gorriti, …" (altura sola en un tramo, calle en el siguiente).
- * Si no se encuentra la altura va sólo `direccion` — nunca una calle sin número.
- */
-export function domicilioDe(address: string | null | undefined) {
-  const dir = String(address ?? '').trim()
-  if (dir.length < 3) return null
-  const tramos = dir.split(',').map(s => s.trim()).filter(Boolean)
-  let calle: string | null = null
-  let numero: string | null = null
-  for (let i = 0; i < tramos.length && !numero; i++) {
-    const conAltura = tramos[i].match(/^(.*\D)\s+(\d{1,6})$/)
-    if (conAltura && /[a-záéíóúñ]/i.test(conAltura[1])) { calle = conAltura[1].trim(); numero = conAltura[2]; break }
-    if (/^\d{1,6}$/.test(tramos[i]) && tramos[i + 1] && /[a-záéíóúñ]/i.test(tramos[i + 1])) {
-      numero = tramos[i]; calle = tramos[i + 1]
-    }
-  }
-  const direccion = dir.slice(0, 150)
-  return calle && numero && calle.length >= 2
-    ? { calle: calle.slice(0, 50), numero, direccion }
-    : { direccion }
-}
-
-// deno-lint-ignore no-explicit-any
-export function armarPaciente(patient: any) {
-  const { nombre, apellido } = nombreYApellido(patient)
-  return {
-    nombre,
-    apellido,
-    tipoDoc: 'DNI',
-    nroDoc: String(patient?.dni ?? '').replace(/\D/g, ''),
-    sexo: mapSexo(patient?.gender),
-    fechaNacimiento: patient?.birth_date ?? null,
-    ...(patient?.phone ? { telefono: patient.phone } : {}),
-  }
-}
-
-/**
- * El bloque `medico`. `especialidad` va con su nombre legible ("Medicina
- * General", no `medicina_general`): es lo que se imprime en el PDF.
- * La firma va en base64 CRUDO (con `data:` adelante el servicio contesta 200
- * y no la dibuja). El `sello` no se manda: la plantilla ya imprime nombre,
- * especialidad y matrícula, y mandarlo las pisa.
- */
-export function armarMedico(
-  // deno-lint-ignore no-explicit-any
-  professional: any,
-  // deno-lint-ignore no-explicit-any
-  legajo: any,
-  especialidadLabel: string | null,
-  firmabase64: string | null,
-) {
-  const { nombre, apellido } = nombreYApellido(professional)
-  const tipo = legajo?.license_type === 'MP' ? 'MP' : 'MN'
-  const especialidad = (especialidadLabel ?? '').slice(0, 120)
-  return {
-    nombre,
-    apellido,
-    tipoDoc: 'DNI',
-    nroDoc: String(professional?.dni ?? '').replace(/\D/g, ''),
-    sexo: mapSexo(professional?.gender),
-    ...(professional?.birth_date ? { fechaNacimiento: professional.birth_date } : {}),
-    ...(professional?.phone ? { telefono: professional.phone } : {}),
-    profesion: 'Médico',
-    especialidad,
-    matricula: {
-      tipo,
-      numero: String(legajo?.license_number ?? '').replace(/\D/g, ''),
-      provincia: tipo === 'MP' ? (provinciaMatricula(legajo?.address) ?? '') : '',
-      profesion: 'Médico',
-      especialidad,
-    },
-    ...(firmabase64 ? { firmabase64 } : {}),
-  }
-}
-
 // ── El certificado ──────────────────────────────────────────────────────────
 
+export const TIPOS = ['constancia', 'reposo', 'escolar'] as const
+export type TipoCertificado = typeof TIPOS[number]
+
 export type Certificado = {
-  tipo: 'constancia' | 'reposo'
-  /** Constancia: cuándo fue la atención (ISO). */
+  tipo: TipoCertificado
+  /** Cuándo fue la atención (ISO). La lleva la constancia y la usa el escolar. */
   atencionAt?: string | null
-  /** Reposo. `desde` en AAAA-MM-DD. */
+  /** Reposo y escolar. `desde` en AAAA-MM-DD. */
   dias?: number | null
   desde?: string | null
+  /** Texto libre, los tres modelos: segunda hoja del PDF. */
   indicaciones?: string | null
   cie10Code?: string | null
   cie10Display?: string | null
   imprimirDiagnostico?: boolean
 }
 
-const TZ_AR_MS = 3 * 3600 * 1000 // Argentina, sin horario de verano
+export const conDias = (t: TipoCertificado) => t === 'reposo' || t === 'escolar'
 
+const TZ_AR_MS = 3 * 3600 * 1000 // Argentina, sin horario de verano
 const dd = (n: number) => String(n).padStart(2, '0')
 
 /** AAAA-MM-DD → DD/MM/AAAA. */
@@ -194,6 +74,12 @@ export function sumarDias(aaaammdd: string, n: number): string {
   return `${f.getUTCFullYear()}-${dd(f.getUTCMonth() + 1)}-${dd(f.getUTCDate())}`
 }
 
+/** El día argentino (AAAA-MM-DD) de un instante. */
+export function diaAr(iso: string): string {
+  const t = new Date(new Date(iso).getTime() - TZ_AR_MS)
+  return `${t.getUTCFullYear()}-${dd(t.getUTCMonth() + 1)}-${dd(t.getUTCDate())}`
+}
+
 /** "02/11/2026 a las 14:30 h", en hora argentina. */
 export function fechaYHoraAr(iso: string): string {
   const t = new Date(new Date(iso).getTime() - TZ_AR_MS)
@@ -204,39 +90,59 @@ const NUMEROS = ['cero', 'un', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete'
   'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte',
   'veintiún', 'veintidós', 'veintitrés', 'veinticuatro', 'veinticinco', 'veintiséis', 'veintisiete', 'veintiocho', 'veintinueve', 'treinta']
 
-/**
- * El texto que va en el PDF, en la misma hoja que la firma
- * (`prescripcion[].observaciones`). Las `indicaciones` generales salen en una
- * segunda hoja, así que lo que el empleador tiene que leer va acá.
- */
-export function textoDelCertificado(c: Certificado, pacienteNombre: string, pacienteDni: string): { titulo: string; cuerpo: string } {
-  const quien = `${pacienteNombre}, DNI ${pacienteDni},`
-  if (c.tipo === 'constancia') {
-    return {
-      titulo: 'Constancia de atención médica',
-      cuerpo: `Se deja constancia de que ${quien} fue atendido/a en consulta médica el ${fechaYHoraAr(c.atencionAt!)}.`,
-    }
-  }
+function periodo(c: Certificado): string {
   const dias = Number(c.dias)
-  const hasta = sumarDias(c.desde!, dias - 1)
   const enLetras = NUMEROS[dias] ?? String(dias)
-  return {
-    titulo: 'Certificado de reposo laboral',
-    cuerpo: `Se indica a ${quien} reposo por ${dias} (${enLetras}) ${dias === 1 ? 'día' : 'días'}, ` +
-      (dias === 1 ? `el ${fechaCorta(c.desde!)}.` : `del ${fechaCorta(c.desde!)} al ${fechaCorta(hasta)} inclusive.`),
-  }
+  const n = `${dias} (${enLetras}) ${dias === 1 ? 'día' : 'días'}`
+  return dias === 1
+    ? `${n}, el ${fechaCorta(c.desde!)}`
+    : `${n}, del ${fechaCorta(c.desde!)} al ${fechaCorta(sumarDias(c.desde!, dias - 1))} inclusive`
 }
 
-/** Lo que el profesional mandó, validado. Devuelve el error para mostrar o null. */
-export function validarCertificado(c: Certificado): string | null {
-  if (c.tipo !== 'constancia' && c.tipo !== 'reposo') return 'Elegí el tipo de certificado.'
-  if (c.tipo === 'constancia' && (!c.atencionAt || isNaN(new Date(c.atencionAt).getTime()))) {
-    return 'Falta la fecha de la atención.'
+export const TITULOS: Record<TipoCertificado, string> = {
+  constancia: 'Constancia de atención',
+  reposo: 'Certificado de reposo laboral',
+  escolar: 'Certificado médico escolar',
+}
+
+/** "02/11/2026 a las 14:30", en hora argentina (sin "h": la hora se entiende sola). */
+function fechaYHora(iso: string): string {
+  return fechaYHoraAr(iso).replace(/ h$/, '')
+}
+
+/**
+ * El texto que va en el PDF, en la misma hoja que la firma
+ * (`prescripcion[].observaciones`). El nombre y el DNI del paciente ya los
+ * imprime el encabezado de la plantilla: no se repiten. Las `indicaciones`
+ * salen en una segunda hoja, así que lo que el empleador o el colegio tienen
+ * que leer va acá. Textos de Felipe (2026-11-02).
+ */
+export function textoDelCertificado(c: Certificado): { titulo: string; cuerpo: string } {
+  const titulo = TITULOS[c.tipo]
+  if (c.tipo === 'constancia') {
+    return { titulo, cuerpo: `Se deja constancia de que el/la paciente fue atendido/a en consulta médica el ${fechaYHora(c.atencionAt!)}.` }
   }
-  if (c.tipo === 'reposo') {
+  if (c.tipo === 'escolar') {
+    // El colegio pide el día de reintegro: se calcula solo.
+    const reintegro = fechaCorta(sumarDias(c.desde!, Number(c.dias)))
+    return { titulo, cuerpo: `Se justifica la inasistencia a clases por ${periodo(c)}. Puede reintegrarse el ${reintegro}.` }
+  }
+  return { titulo, cuerpo: `Se indica reposo por ${periodo(c)}.` }
+}
+
+/**
+ * Lo que el profesional mandó, validado. `consultaDia` (AAAA-MM-DD) es el
+ * mínimo de "Desde": el reposo y el escolar no corren antes de la consulta
+ * (decisión de Mateo, 2026-11-02). Devuelve el error para mostrar o null.
+ */
+export function validarCertificado(c: Certificado, consultaDia?: string | null): string | null {
+  if (!TIPOS.includes(c.tipo)) return 'Elegí el tipo de certificado.'
+  if (!c.atencionAt || isNaN(new Date(c.atencionAt).getTime())) return 'Falta la fecha de la atención.'
+  if (conDias(c.tipo)) {
     const dias = Number(c.dias)
-    if (!Number.isInteger(dias) || dias < 1 || dias > 30) return 'Los días de reposo van de 1 a 30.'
-    if (!c.desde || !/^\d{4}-\d{2}-\d{2}$/.test(c.desde)) return 'Falta desde qué día corre el reposo.'
+    if (!Number.isInteger(dias) || dias < 1 || dias > 30) return 'Los días van de 1 a 30.'
+    if (!c.desde || !/^\d{4}-\d{2}-\d{2}$/.test(c.desde)) return 'Falta desde qué día corre.'
+    if (consultaDia && c.desde < consultaDia) return 'No puede empezar antes del día de la consulta.'
   }
   if ((c.indicaciones ?? '').length > 1000) return 'Las indicaciones pueden tener hasta 1000 caracteres.'
   if (c.imprimirDiagnostico && !(c.cie10Code || c.cie10Display)) return 'Para incluir el diagnóstico, elegilo primero.'
@@ -247,7 +153,7 @@ export function validarCertificado(c: Certificado): string | null {
  * El payload completo. El diagnóstico viaja SÓLO si el profesional prendió
  * "Incluir el diagnóstico": probado contra homologación (2026-11-02), un
  * CIE-10 con `imprimirDiagnostico: 'N'` igual sale impreso en el PDF. Que no
- * viaje es la única garantía de que el empleador no lo ve.
+ * viaje es la única garantía de que el empleador o el colegio no lo ven.
  */
 export function armarPayloadCertificado(args: {
   clienteAppId: number
@@ -263,11 +169,12 @@ export function armarPayloadCertificado(args: {
 }) {
   const { clienteAppId, certificado: c, patient, professional, legajo, especialidadLabel, firmabase64 } = args
   const paciente = armarPaciente(patient)
-  const medico = armarMedico(professional, legajo, especialidadLabel, firmabase64)
-  const { titulo, cuerpo } = textoDelCertificado(c, `${paciente.nombre} ${paciente.apellido}`.trim(), paciente.nroDoc)
+  const medico = armarMedico(professional, legajo, especialidadLabel, firmabase64, { matricula: matriculaDe(legajo) })
+  const { titulo, cuerpo } = textoDelCertificado(c)
   const { apellido } = nombreYApellido(professional)
-  const consultorio = apellido ? `Consultorio Dr. ${apellido}` : null
-  const domicilio = domicilioDe(legajo?.address)
+  const consultorio = apellido ? `Consultorio ${apellido}` : null
+  const direccion = String(legajo?.address ?? '').trim()
+  const domicilio = domicilioDe(direccion)
   const diagnostico = c.imprimirDiagnostico ? (c.cie10Code || c.cie10Display || null) : null
   const indicaciones = (c.indicaciones ?? '').trim()
 
@@ -281,10 +188,44 @@ export function armarPayloadCertificado(args: {
     imprimirDiagnostico: diagnostico ? 'S' : 'N',
     ...(indicaciones ? { indicaciones } : {}),
     ...(domicilio ? {
-      direccionConsultorio: domicilio.direccion,
+      direccionConsultorio: direccion.slice(0, 150),
       nombreConsultorio: consultorio,
       lugarAtencion: { nombreConsultorio: consultorio, domicilio },
     } : {}),
+  }
+}
+
+/**
+ * La vista previa: lo que va a imprimir el PDF, en el mismo orden, armado del
+ * MISMO payload que se manda (no hay vista previa del servicio para Otras
+ * Prescripciones: `Receta/Preview` sólo acepta medicamentos — probado contra
+ * homologación el 2026-11-02, responde 500). El diagnóstico se muestra como
+ * se manda: el código; el servicio le agrega la descripción al imprimir.
+ */
+// deno-lint-ignore no-explicit-any
+export function vistaPrevia(p: ReturnType<typeof armarPayloadCertificado>, fechaHoy: string, diagnosticoLegible: string | null) {
+  const m = p.medico
+  const dom = p.lugarAtencion?.domicilio as { calle?: string; numero?: string; direccion?: string } | undefined
+  return {
+    medico: {
+      nombre: `${m.nombre} ${m.apellido}`.trim(),
+      linea: [m.profesion, m.especialidad].filter(Boolean).join(' - ').toUpperCase(),
+      matricula: `${m.matricula.tipo === 'MP' ? 'Matrícula Prov.' : 'Matrícula Nac.'}: ${m.matricula.numero}${m.matricula.tipo === 'MP' && m.matricula.provincia ? ` (${m.matricula.provincia})` : ''}`,
+      conFirma: Boolean(m.firmabase64),
+    },
+    paciente: {
+      nombre: `${p.paciente.nombre} ${p.paciente.apellido}`.trim(),
+      dni: p.paciente.nroDoc,
+      sexo: { F: 'Femenino', M: 'Masculino', X: 'X', O: 'Otro' }[p.paciente.sexo as 'F'] ?? p.paciente.sexo,
+      nacimiento: p.paciente.fechaNacimiento ? fechaCorta(String(p.paciente.fechaNacimiento)) : null,
+    },
+    titulo: p.prescripcion[0].prescripcion,
+    cuerpo: p.prescripcion[0].observaciones,
+    // Texto libre: va tal cual. CIE-10: sólo el código (el servicio le pone su descripción).
+    diagnostico: p.diagnostico ? (diagnosticoLegible ?? p.diagnostico) : null,
+    fecha: fechaCorta(fechaHoy),
+    consultorio: [p.nombreConsultorio, dom?.calle ? `${dom.calle} ${dom.numero}` : dom?.direccion].filter(Boolean),
+    indicaciones: p.indicaciones ?? null,
   }
 }
 
@@ -327,62 +268,4 @@ export function problemasDelPayload(p: any): string[] {
     if (!conCalle && !largo(dom.direccion, 3, 150)) out.push('lugarAtencion.domicilio.direccion')
   }
   return out
-}
-
-// ── Lectura y red ───────────────────────────────────────────────────────────
-
-export async function resolverFirma(
-  // deno-lint-ignore no-explicit-any
-  supabase: any,
-  professionalId: string | null | undefined,
-): Promise<string | null> {
-  try {
-    if (!professionalId) return null
-    const { data, error } = await supabase
-      .from('professional_signatures').select('firma_png').eq('user_id', professionalId).maybeSingle()
-    if (error) { console.error('rcta-certificado: error al leer la firma:', error.message); return null }
-    const crudo = String(data?.firma_png ?? '').replace(/^data:image\/\w+;base64,/, '').trim()
-    return crudo.length < 100 ? null : crudo
-  } catch (err) {
-    console.error('rcta-certificado: error al resolver la firma:', String(err))
-    return null
-  }
-}
-
-export type RctaCallResult =
-  | { kind: 'network_error'; err: unknown }
-  // deno-lint-ignore no-explicit-any
-  | { kind: 'rejected'; status: number; body: string; json: any }
-  // deno-lint-ignore no-explicit-any
-  | { kind: 'ok'; status: number; data: any }
-
-/** Una llamada al servicio. La red se atrapa acá; NUNCA se reintenta un error de red. */
-export async function llamarRcta(method: 'POST' | 'DELETE', url: string, apiKey: string, path: string, body: Record<string, unknown>): Promise<RctaCallResult> {
-  let res: Response
-  try {
-    res = await fetch(`${url}${path}`, {
-      method,
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-      body: JSON.stringify(body),
-    })
-  } catch (err) {
-    return { kind: 'network_error', err }
-  }
-  const text = await res.text()
-  // deno-lint-ignore no-explicit-any
-  let parsed: any = null
-  try { parsed = JSON.parse(text) } catch { parsed = text ? { raw: text } : null }
-  if (!res.ok) return { kind: 'rejected', status: res.status, body: text, json: parsed }
-  return { kind: 'ok', status: res.status, data: parsed }
-}
-
-/** Mismo criterio que `rcta-anular` (copiado; ver el 🔁 de arriba). */
-// deno-lint-ignore no-explicit-any
-export function interpretarAnulacion(status: number, r: any): { estado: 'confirmada' | 'no_hacia_falta' | 'error'; detalle: string | null; codigo: string | null } {
-  const codigo = (r?.error ?? null) as string | null
-  const mensaje = String(r?.mensaje ?? r?.raw ?? '').trim() || null
-  if (status >= 200 && status < 300) return { estado: 'confirmada', detalle: mensaje, codigo: null }
-  if (codigo === 'QBI79' || /HA VENCIDO/i.test(mensaje ?? '')) return { estado: 'no_hacia_falta', detalle: mensaje, codigo }
-  if (/PREVIAMENTE ANULADA|YA HAB[IÍ]A SIDO ANULADA/i.test(mensaje ?? '')) return { estado: 'confirmada', detalle: mensaje, codigo }
-  return { estado: 'error', detalle: mensaje ?? `El servicio de recetas respondió ${status}.`, codigo }
 }

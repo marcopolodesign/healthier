@@ -526,11 +526,11 @@ const profesional = {
       bajada: 'Recetás desde la consulta, eligiendo del vademécum. Al paciente le llega el PDF firmado, con validez legal.',
       marcas: {
         1: 'La cobertura del paciente: obra social o particular.',
-        2: 'Recetar medicamentos o estudios.',
+        2: 'Medicamentos, estudios o un certificado.',
       },
       pasos: [
         'En el Recetario, revisá la cobertura del paciente.',
-        'Tocá "Recetar medicamentos" y buscalo en el vademécum.',
+        'Tocá "Medicamentos" y buscalo en el vademécum.',
         'Completá la dosis y tocá "Guardar medicación".',
         'Marcá los medicamentos y tocá "Emitir receta".',
       ],

@@ -736,11 +736,12 @@ export function recetaEmitida(r: { patientName: string; professionalName: string
  * Certificado emitido (migración 222): constancia de atención o reposo. Lo
  * dispara el trigger de `clinical_certificates`, una vez por certificado.
  */
-export function certificadoEmitido(r: { patientName: string; professionalName: string; tipo: 'constancia' | 'reposo'; detalle: string; pdfUrl: string | null }): Sent {
-  const nombre = r.tipo === 'reposo' ? 'un certificado de reposo' : 'una constancia de atención'
+export function certificadoEmitido(r: { patientName: string; professionalName: string; tipo: 'constancia' | 'reposo' | 'escolar'; detalle: string; pdfUrl: string | null }): Sent {
+  const nombre = r.tipo === 'reposo' ? 'un certificado de reposo' : r.tipo === 'escolar' ? 'un certificado escolar' : 'una constancia de atención'
+  const etiqueta = r.tipo === 'reposo' ? 'Certificado de reposo' : r.tipo === 'escolar' ? 'Certificado escolar' : 'Constancia de atención'
   const body = [
     p(`Hola <strong style="color:${C.ink}">${esc(r.patientName)}</strong>, <strong style="color:${C.ink}">${esc(r.professionalName)}</strong> te emitió ${esc(nombre)}. Ya está en tu Bóveda.`),
-    itemList(r.tipo === 'reposo' ? 'Certificado de reposo' : 'Constancia de atención', [{ title: r.detalle }], 'sage'),
+    itemList(etiqueta, [{ title: r.detalle }], 'sage'),
     note('Es un documento con firma electrónica: podés mandarlo tal cual a quien te lo pida.', 'sage'),
     button(r.pdfUrl ?? `${APP_URL}/paciente/certificados`, 'Ver certificado', 'sage'),
     link(`${APP_URL}/paciente/certificados`, 'Ver todos mis certificados'),
@@ -751,7 +752,7 @@ export function certificadoEmitido(r: { patientName: string; professionalName: s
     html: renderEmail({
       preheader: r.detalle,
       eyebrow: 'Certificado', accent: 'sage',
-      title: r.tipo === 'reposo' ? 'Tu certificado de reposo está listo' : 'Tu constancia está lista', body,
+      title: r.tipo === 'constancia' ? 'Tu constancia está lista' : `Tu ${etiqueta.toLowerCase()} está listo`, body,
       footnote: 'El certificado tiene la misma validez que uno en papel firmado por tu profesional.',
     }),
   }

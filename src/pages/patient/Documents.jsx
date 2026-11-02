@@ -4,7 +4,7 @@ import {
   ShieldCheck, CaretRight, ArrowLeft, Plus,
   CloudArrowUp, Camera, CircleNotch, Pulse,
   FileText, FolderOpen, AppleLogo, Barbell, Brain, PawPrint, Sparkle, ClipboardText,
-  PencilSimple, Trash, ShoppingBag, ForkKnife,
+  PencilSimple, Trash, ShoppingBag, ForkKnife, Certificate,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
@@ -16,6 +16,7 @@ import { track } from '../../utils/analytics'
 import AnalisisVault from '../../components/patient/AnalisisVault'
 import ActivityPlanVault from '../../components/patient/ActivityPlanVault'
 import { petsService } from '../../services/petsService'
+import { certificadosService } from '../../services/certificadosService'
 
 const PET_SPECIES = ['Perro', 'Gato', 'Otro']
 
@@ -71,6 +72,7 @@ const DESCRIPCION = {
   biovisor: 'Tus valores leídos de cada análisis.',
   nutriplan: 'Tu plan de alimentación vigente.',
   recetas: 'Tus recetas electrónicas, vigentes y anteriores.',
+  certificados: 'Constancias, reposos y certificados escolares.',
   analisis: 'Subí tus estudios y guardalos en tu historia.',
   mente: 'Tu plan y los documentos de salud mental.',
   rehabilitacion: 'Tu plan de ejercicios de rehabilitación.',
@@ -83,6 +85,8 @@ const DESCRIPCION = {
 // Farmacia) entra a la pila como una carpeta más, igual que en la app.
 const CARPETA_BIOVISOR = { id: 'biovisor', name: 'Análisis de sangre', icon: Pulse, textClass: 'text-emerald-700', ruta: '/paciente/biovisor', chip: 'Activo' }
 const CARPETA_NUTRIPLAN = { id: 'nutriplan', name: 'Nutrición', icon: ForkKnife, textClass: 'text-amber-700', ruta: '/paciente/nutriplan', chip: 'Activo' }
+// Certificados (migración 222): sólo aparece si el paciente tiene alguno (Felipe, 2026-11-02).
+const CARPETA_CERTIFICADOS = { id: 'certificados', name: 'Certificados', icon: Certificate, textClass: 'text-emerald-700', ruta: '/paciente/certificados' }
 const CARPETA_FARMACIA = { id: 'farmacia', name: 'Farmacia', icon: ShoppingBag, textClass: 'text-[#A5472F]', ruta: '/paciente/farmacia', acento: true }
 
 function CategoryHeader({ cat, onBack }) {
@@ -129,6 +133,15 @@ export default function PatientDocuments({ profile }) {
   const [editingPetId, setEditingPetId] = useState(null)
   const [savingPet, setSavingPet] = useState(false)
   const [newPet, setNewPet] = useState({ nombre: '', especie: 'Perro', raza: '' })
+
+  const [tieneCertificados, setTieneCertificados] = useState(false)
+  useEffect(() => {
+    let cancelado = false
+    certificadosService.listarDelPaciente(profile?.id)
+      .then(l => { if (!cancelado) setTieneCertificados(l.length > 0) })
+      .catch(() => {})
+    return () => { cancelado = true }
+  }, [profile?.id])
 
   const loadPets = async () => {
     if (!profile?.id) return
@@ -223,7 +236,9 @@ export default function PatientDocuments({ profile }) {
   const carpetas = [
     CARPETA_BIOVISOR,
     CARPETA_NUTRIPLAN,
-    ...CATEGORIES.filter(c => !c.comingSoon && c.id !== 'historial' && c.id !== 'peludo'),
+    // Certificados va pegado a Recetas: son los dos papeles que emite el profesional.
+    ...CATEGORIES.filter(c => !c.comingSoon && c.id !== 'historial' && c.id !== 'peludo')
+      .flatMap(c => (c.id === 'recetas' && tieneCertificados ? [c, CARPETA_CERTIFICADOS] : [c])),
     ...(farmaciaVisible(profile) ? [CARPETA_FARMACIA] : []),
     ...CATEGORIES.filter(c => c.id === 'peludo'),
   ]

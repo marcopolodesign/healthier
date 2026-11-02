@@ -447,13 +447,16 @@ Deno.serve(async (req) => {
         ])
         const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', timeZone: 'America/Argentina/Buenos_Aires' })
         const dias = Number(c.dias ?? 0)
+        const nDias = `${dias} ${dias === 1 ? 'día' : 'días'}`
         const detalle = c.tipo === 'reposo'
-          ? `Reposo por ${dias} ${dias === 1 ? 'día' : 'días'} desde el ${fecha(`${c.desde}T12:00:00Z`)}`
+          ? `Reposo por ${nDias} desde el ${fecha(`${c.desde}T12:00:00Z`)}`
+          : c.tipo === 'escolar'
+          ? `Inasistencia justificada por ${nDias} desde el ${fecha(`${c.desde}T12:00:00Z`)}`
           : `Atención del ${fecha(c.atencion_at as string)}`
         const mail = T.certificadoEmitido({
           patientName: primerNombre(paciente?.full_name) ?? 'Paciente',
           professionalName: profesional?.full_name ?? 'tu profesional',
-          tipo: c.tipo as 'constancia' | 'reposo',
+          tipo: c.tipo as 'constancia' | 'reposo' | 'escolar',
           detalle,
           pdfUrl: (c.rcta_pdf_url as string) ?? null,
         })
