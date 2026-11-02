@@ -281,7 +281,7 @@ test('rcta-issue: provincia faltante, lote a revisar y posdatadas no ubicadas', 
   assert.match(iss, /rcta_recetas: principales\.map\(resumenReceta\)/)
   assert.match(iss, /rcta_recetas: emision\.recetas\.map\(resumenReceta\)/)
   // La receta de hoy con posdatadas no puede ser una posdatada sin ubicar.
-  assert.match(iss, /fechaArgentina\(r\.fecha\) === hoy/)
+  assert.match(iss, /!fechasPosdatadas\.includes\(fechaArgentina\(r\.fecha\)\)/)
   // Una escritura por grupo de recetas.
   assert.match(iss, /update\(datos\)\.in\('id', medIds\)/)
 })
@@ -297,15 +297,64 @@ test('sólo la farmacia (o el super admin) autoriza una pendiente, y queda quié
   const sql = leer('supabase/migrations/223_receta_segun_la_wiki.sql')
   const fn = sql.slice(sql.indexOf('create or replace function public.farmacia_autorizar_receta'))
   assert.match(fn, /v_rol not in \('pharmacy_admin', 'pharmacy_operator', 'super_admin'\)/)
-  assert.match(fn, /rcta_autorizada_por = auth\.uid\(\)/)
+  assert.match(fn, /rcta_autorizada_por = case when f\.queda_ok then auth\.uid\(\)/)
   assert.match(fn, /_aal_escribir\(\s*null, 'autorizacion_de_receta'/)
   assert.match(fn, /revoke all on function public\.farmacia_autorizar_receta\(uuid\) from public, anon/)
   // El trigger sólo deja pasar ese cambio puntual, marcado por la función.
   assert.match(sql, /current_setting\('healthier\.autorizar_receta', true\) = '1'/)
-  assert.match(sql, /old\.rcta_autorizacion = 'pendiente' and new\.rcta_autorizacion = 'ok'/)
+  assert.match(sql, /old\.rcta_autorizacion = 'pendiente' and new\.rcta_autorizacion in \('ok', 'pendiente'\)/)
   assert.match(sql, /or new\.rcta_autorizada_por\s+is distinct from old\.rcta_autorizada_por/)
   // El panel de la farmacia y el del super admin la muestran.
   assert.match(leer('src/pages/pharmacy/Pedidos.jsx'), /<RecetasPorAutorizar puedeAutorizar=\{canEdit\} \/>/)
   assert.match(leer('src/pages/super-admin/Farmacia.jsx'), /<RecetasPorAutorizar puedeAutorizar conHistorial \/>/)
   assert.match(leer('src/components/pharmacy/RecetasPorAutorizar.jsx'), /Pendiente de autorización de la obra social/)
+})
+
+// ── Revisión pre-prod, ronda 2 ───────────────────────────────────────────────
+test('no se adivina: varias recetas que listan otra cosa quedan "a revisar"', () => {
+  const meds = [{ id: 'a', reg_no: '1', medication_name: 'Ibuprofeno 400' }, { id: 'b', reg_no: '2', medication_name: 'Amoxicilina 500' }]
+  const e = leerEmision({ recetas: [{ id: 'H1', idReceta: '7', medicamentos: ['IBUPROFENO 400 MG COMP X 20'] }, { id: 'H2', idReceta: '8', medicamentos: ['AMOXICILINA 500 MG X 21'] }] })
+  const a = asignarRecetas(e, meds)
+  assert.equal(a.recetasDe.size, 0)
+  assert.deepEqual(a.sinUbicar.sort(), ['a', 'b'])
+  // Con una sola receta, sin errores, es de todas.
+  assert.equal(asignarRecetas(leerEmision({ recetas: [{ id: 'H', idReceta: '9', medicamentos: ['OTRA COSA'] }] }), meds).recetasDe.size, 2)
+})
+
+test('con un error sin atribuir y dos medicaciones, la receta sin lista no se le da a la que queda', () => {
+  const meds = [{ id: 'a', reg_no: '1', medication_name: 'A' }, { id: 'b', reg_no: '2', medication_name: 'B' }]
+  const e = leerEmision({ recetas: [{ id: 'H1', idReceta: '1', medicamentos: ['1'] }, { id: 'H2', idReceta: '2' }], errores: [{ error: 'X', medicamento: 'b con otro nombre' }] })
+  const a = asignarRecetas(e, meds)
+  assert.equal(a.recetasDe.get('a')[0].id, 'H1')
+  assert.deepEqual(a.sinUbicar, ['b'])
+})
+
+test('"Av. P. Goyena 1234" es una calle; "p. 3" es un piso', () => {
+  assert.deepEqual(domicilioDe('Av. P. Goyena 1234'), { calle: 'Av. P. Goyena', numero: '1234' })
+  assert.deepEqual(domicilioDe('Arenales 3709 p.4 B'), { calle: 'Arenales', numero: '3709' })
+  assert.equal(calleYNumero('Av. P. Goyena 1234') !== null, direccionTieneNumero('Av. P. Goyena 1234'))
+})
+
+test('rcta-issue toma las filas de forma atómica y no depende del reloj', () => {
+  const iss = leer('supabase/functions/rcta-issue/index.ts')
+  assert.match(iss, /\.or\('rcta_status\.is\.null,rcta_status\.eq\.error'\)/)
+  assert.match(iss, /code: 'RCTA_EMISION_EN_CURSO'/)
+  assert.doesNotMatch(iss, /fechaArgentina\(new Date\(\)/)
+})
+
+test('rcta-anular: hermanas siempre, sólo vigentes, y las "a revisar" se anulan', () => {
+  const an = leer('supabase/functions/rcta-anular/index.ts')
+  assert.match(an, /if \(!reintento && fila\.rcta_transaction_id\)/)
+  assert.match(an, /const vigente = h\.status === 'active' && \(h\.rcta_status === 'issued' \|\| aRevisar\(h\)\)/)
+  assert.match(an, /\.in\('rcta_status', \['issued', 'error'\]\)/)
+  assert.match(leer('src/components/professional/PrescriptionCreator.jsx'), /\(rx\.rcta_status === 'issued' \|\| aRevisar\(rx\)\) && rx\.status === 'active'/)
+})
+
+test('la farmacia autoriza recetas (no filas) y el paciente recibe el aviso', () => {
+  const sql = leer('supabase/migrations/223_receta_segun_la_wiki.sql')
+  const fn = sql.slice(sql.indexOf('create or replace function public.farmacia_autorizar_receta'))
+  assert.match(fn, /e->>'idReceta' = any \(v_recetas\)/)
+  assert.match(fn, /case when f\.queda_ok then 'ok' else 'pendiente' end/)
+  assert.match(fn, /enviar_push_tipo\(v_fila\.patient_id, 'receta-autorizada'/)
+  assert.match(leer('supabase/functions/_shared/push/textos.ts'), /'receta-autorizada': \{/)
 })

@@ -173,14 +173,14 @@ export function asignarRecetas(e: Emision, meds: MedParaAsignar[]): Asignacion {
   const restantes = meds.filter(m => !fallidas.has(m.id) && !recetasDe.has(m.id))
   for (const m of meds) {
     if (fallidas.has(m.id) || recetasDe.has(m.id)) continue
-    // Una sola medicación sin ubicar y recetas sin lista: es ella (una receta
-    // no sale sin medicamento), aunque haya un error sin atribuir.
-    if (sinLista.length && (!errorSinMedicamento || restantes.length === 1)) recetasDe.set(m.id, sinLista)
-    else if (!e.errores.length && !sinLista.length && conLista.length) {
-      // Recetas que listan medicamentos con otro código que el nuestro: salió
-      // todo (no hay errores), sólo no se reconoce cuál es cuál.
-      recetasDe.set(m.id, conLista)
-    } else sinUbicar.push(m.id)
+    // Receta de UN solo medicamento y recetas sin lista: es suya (una receta no
+    // sale sin medicamento), aunque haya un error sin atribuir.
+    if (sinLista.length && (!errorSinMedicamento || (meds.length === 1 && restantes.length === 1))) recetasDe.set(m.id, sinLista)
+    // Sin errores, una sola receta que lista otra cosa: salió todo en ella.
+    else if (!e.errores.length && e.recetas.length === 1) recetasDe.set(m.id, e.recetas)
+    // Si no, no se adivina: repartir mal haría vender contra una receta que no
+    // contiene ese medicamento. Queda "a revisar" con las recetas del lote.
+    else sinUbicar.push(m.id)
   }
   return { recetasDe, fallidas, sinUbicar }
 }
