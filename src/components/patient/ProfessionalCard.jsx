@@ -2,6 +2,7 @@ import { Star, SealCheck, VideoCamera, MapPin, Lightning } from '@phosphor-icons
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { track } from '../../utils/analytics'
 import { inicialesDe } from '../../lib/format'
+import { ofreceModalidad } from '../../lib/modalidad'
 
 /**
  * ProfessionalCard
@@ -23,10 +24,8 @@ export default function ProfessionalCard({ pro, onSelect, isSelected = false, mo
   const reviews = pro.totalReviews   ?? 0
   const label   = porSlug[pro.specialty] ?? pro.specialty ?? '—'
 
-  // Price: prefer the modality-specific price; fall back to the other one
-  const price = modality === 'presencial'
-    ? (pro.pricePresencial ?? pro.priceVideo ?? null)
-    : (pro.priceVideo ?? pro.pricePresencial ?? null)
+  // Precio de la modalidad elegida, sin cruzar: el de video nunca hace de presencial.
+  const price = ofreceModalidad(pro, modality === 'presencial' ? 'presencial' : 'virtual').precio
 
   const initial = inicialesDe(name)
 

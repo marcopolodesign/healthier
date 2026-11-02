@@ -7,6 +7,7 @@ import { consultationsService } from '../../services/consultationsService'
 import { toast } from '../../components/Toast'
 import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
 import { inicialesDe } from '../../lib/format'
+import { modalidadParaBase, MODALIDADES } from '../../lib/modalidad'
 
 export default function PaymentPage({ profile }) {
   const navigate  = useNavigate()
@@ -20,7 +21,7 @@ export default function PaymentPage({ profile }) {
     professionalAvatar,
     specialty,
     verticalId,
-    modality = 'virtual',
+    modality,
     price,
     scheduledAt,
     // Turno reservado desde una derivación: la consulta se inserta con
@@ -102,7 +103,7 @@ export default function PaymentPage({ profile }) {
       patientId:      pacienteId,
       professionalId,
       vertical:       verticalId,
-      modality:       modality === 'virtual' ? 'video' : 'presencial',
+      modality:       modalidadParaBase(modality),
       // Bonificado: nace ya confirmado y marcado `exempt`, sin el viaje de
       // ida y vuelta extra de crear y después actualizar.
       status:         paymentExempt ? 'confirmed' : 'pending',
@@ -152,7 +153,7 @@ export default function PaymentPage({ profile }) {
         patientId:      pacienteId,
         professionalId,
         vertical:       verticalId,
-        modality:       modality === 'virtual' ? 'video' : 'presencial',
+        modality:       modalidadParaBase(modality),
         status:         'confirmed',
         paymentStatus:  'demo',
         priceAtBooking: price ?? null,
@@ -246,7 +247,9 @@ export default function PaymentPage({ profile }) {
     }
   }
 
-  if (!professionalId) {
+  // La modalidad es explícita: sin ella (se refrescó la página y se perdió el
+  // estado) no se cobra nada, en vez de adivinar "presencial".
+  if (!professionalId || !MODALIDADES.includes(modality)) {
     return (
       <div className="absolute inset-0 flex items-center justify-center bg-bg-primary">
         <p className="text-text-tertiary text-[14px]">No hay datos de consulta. <button onClick={() => navigate(-1)} className="text-brand underline">Volver</button></p>
