@@ -337,7 +337,6 @@ test('"Av. P. Goyena 1234" es una calle; "p. 3" es un piso', () => {
 
 test('rcta-issue toma las filas de forma atómica y no depende del reloj', () => {
   const iss = leer('supabase/functions/rcta-issue/index.ts')
-  assert.match(iss, /\.or\('rcta_status\.is\.null,rcta_status\.eq\.error'\)/)
   assert.match(iss, /code: 'RCTA_EMISION_EN_CURSO'/)
   assert.doesNotMatch(iss, /fechaArgentina\(new Date\(\)/)
 })
@@ -357,4 +356,21 @@ test('la farmacia autoriza recetas (no filas) y el paciente recibe el aviso', ()
   assert.match(fn, /case when f\.queda_ok then 'ok' else 'pendiente' end/)
   assert.match(fn, /enviar_push_tipo\(v_fila\.patient_id, 'receta-autorizada'/)
   assert.match(leer('supabase/functions/_shared/push/textos.ts'), /'receta-autorizada': \{/)
+})
+
+// ── Revisión pre-prod, ronda 3 ───────────────────────────────────────────────
+test('dos recetas sin lista y tres medicaciones: no se reparte', () => {
+  const meds = [{ id: 'a', reg_no: '1', medication_name: 'A' }, { id: 'b', reg_no: '2', medication_name: 'B' }, { id: 'c', reg_no: '3', medication_name: 'C' }]
+  const a = asignarRecetas(leerEmision({ recetas: [{ id: 'H1', idReceta: '1' }, { id: 'H2', idReceta: '2' }] }), meds)
+  assert.equal(a.recetasDe.size, 0)
+  assert.deepEqual(a.sinUbicar.sort(), ['a', 'b', 'c'])
+})
+
+test('rcta-issue no deja filas trabadas en pending ni toma una "a revisar"', () => {
+  const iss = leer('supabase/functions/rcta-issue/index.ts')
+  assert.match(iss, /\.or\('rcta_status\.is\.null,and\(rcta_status\.eq\.error,rcta_recetas\.is\.null\)'\)/)
+  // Toma parcial → se devuelven las tomadas; corte antes de llamar → también.
+  assert.match(iss, /if \(tomadasIds\.length !== ids\.length\) \{[\s\S]{0,200}await devolverTomadas\(\)/)
+  assert.match(iss, /if \(devolverTomadas && !llamoAlServicio\) await devolverTomadas\(\)/)
+  assert.ok(iss.indexOf('llamoAlServicio = true') < iss.indexOf("let result = await llamarRcta('POST'"))
 })
