@@ -175,7 +175,10 @@ export function asignarRecetas(e: Emision, meds: MedParaAsignar[]): Asignacion {
     if (fallidas.has(m.id) || recetasDe.has(m.id)) continue
     // Receta de UN solo medicamento y recetas sin lista: es suya (una receta no
     // sale sin medicamento), aunque haya un error sin atribuir.
-    if (sinLista.length && (!errorSinMedicamento || (meds.length === 1 && restantes.length === 1))) recetasDe.set(m.id, sinLista)
+    // Varias recetas sin lista y varias medicaciones (ronda 3): no se sabe cuál
+    // es cuál → "a revisar". Con una sola de cualquiera de los dos, sí.
+    const unaSola = sinLista.length === 1 || meds.length === 1
+    if (sinLista.length && unaSola && (!errorSinMedicamento || (meds.length === 1 && restantes.length === 1))) recetasDe.set(m.id, sinLista)
     // Sin errores, una sola receta que lista otra cosa: salió todo en ella.
     else if (!e.errores.length && e.recetas.length === 1) recetasDe.set(m.id, e.recetas)
     // Si no, no se adivina: repartir mal haría vender contra una receta que no

@@ -76,6 +76,14 @@ const CORS = {
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
+  // Revisión, ronda 3: si la función se corta DESPUÉS de tomar las filas pero
+  // ANTES de llamar al servicio, se devuelven a como estaban; si no, quedaban
+  // en `pending` y la toma atómica no las volvía a aceptar nunca. Después de la
+  // llamada no se tocan: la receta pudo haberse creado del otro lado.
+  // deno-lint-ignore no-explicit-any
+  let devolverTomadas: null | (() => Promise<any>) = null
+  let llamoAlServicio = false
+
   try {
     const body = await req.json()
     const esPractica = body.simulacion === true
@@ -462,16 +470,28 @@ Deno.serve(async (req: Request) => {
     // `pending` lo que no está pendiente, emitido ni anulado; si alguna fila no
     // se pudo tomar, otra emisión la tiene.
     if (!esPractica) {
+      // Una fila "a revisar" (error con recetas del lote) no se toma nunca: el
+      // guard de arriba es sobre una foto y otra llamada pudo dejarla así recién.
       const { data: tomadas, error: tomaErr } = await supabase.from('clinical_medications')
         .update({ rcta_status: 'pending' })
         .in('id', ids)
-        .or('rcta_status.is.null,rcta_status.eq.error')
+        .or('rcta_status.is.null,and(rcta_status.eq.error,rcta_recetas.is.null)')
         .select('id')
       if (tomaErr) return await fallar('server_error', { error: tomaErr.message }, 500)
-      if ((tomadas ?? []).length !== ids.length) {
-        // Devolver las que sí se tomaron a como estaban no hace falta: la otra
-        // emisión en curso las va a resolver; si quedaron colgadas, se ven como
-        // "Emisión sin confirmar".
+      // Cómo estaba cada fila antes de tomarla, para poder devolverla.
+      const tomadasIds = (tomadas ?? []).map((t: { id: string }) => t.id)
+      devolverTomadas = async () => {
+        // deno-lint-ignore no-explicit-any
+        const conError = (meds as any[]).filter(m => tomadasIds.includes(m.id) && m.rcta_status === 'error').map(m => m.id)
+        const sinEstado = tomadasIds.filter((id: string) => !conError.includes(id))
+        if (conError.length) await supabase.from('clinical_medications').update({ rcta_status: 'error' }).in('id', conError).eq('rcta_status', 'pending')
+        if (sinEstado.length) await supabase.from('clinical_medications').update({ rcta_status: null }).in('id', sinEstado).eq('rcta_status', 'pending')
+      }
+      if (tomadasIds.length !== ids.length) {
+        // Las que sí se tomaron vuelven a como estaban: no hay ninguna emisión
+        // en curso para ellas.
+        await devolverTomadas()
+        devolverTomadas = null
         return await fallar('validation_error', {
           error: 'Esta receta ya se está emitiendo (o quedó una emisión sin confirmar). Esperá unos segundos y recargá antes de volver a intentar.',
           code: 'RCTA_EMISION_EN_CURSO',
@@ -619,6 +639,7 @@ Deno.serve(async (req: Request) => {
     // rastro igual que un rechazo suyo — si no, el caso mas dificil de
     // diagnosticar es el unico que no queda escrito.
     ctx.request = payload
+    llamoAlServicio = true
     let result = await llamarRcta('POST', RCTA_API_URL, RCTA_API_KEY, '/apirecipe/Receta', payload)
 
     if (result.kind === 'network_error') {
@@ -972,6 +993,7 @@ Deno.serve(async (req: Request) => {
 
   } catch (err) {
     console.error('rcta-issue error:', err)
+    if (devolverTomadas && !llamoAlServicio) await devolverTomadas().catch(e => console.error('rcta-issue: no se pudieron devolver las filas tomadas:', String(e)))
     return json({ error: 'Internal error', detail: String(err) }, 500)
   }
 })
