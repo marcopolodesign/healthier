@@ -124,12 +124,14 @@ Deno.test('falta de datos se detecta antes de llamar', () => {
   assert(problemasDelPayload({ ...armar(REPOSO), imprimirDiagnostico: 'X' }).includes('imprimirDiagnostico'))
 })
 
-Deno.test('matrícula provincial lleva la provincia del legajo', () => {
+Deno.test('matrícula provincial: la provincia del legajo si está', () => {
   const p = armar(REPOSO, { legajo: { ...legajo, license_type: 'MP', license_province: 'Santa Fe' } })
   assertEquals(p.medico.matricula.provincia, 'Santa Fe')
   assertEquals(problemasDelPayload(p), [])
+  // Sin provincia se emite igual, sin la clave (decisión de Mateo, igual que la receta).
   const sinProv = armar(REPOSO, { legajo: { ...legajo, license_type: 'MP', license_province: null } })
-  assert(problemasDelPayload(sinProv).includes('medico.matricula.provincia'))
+  assertEquals('provincia' in sinProv.medico.matricula, false)
+  assertEquals(problemasDelPayload(sinProv), [])
 })
 
 Deno.test('domicilio de la atención: calle y número, o dirección sola', () => {

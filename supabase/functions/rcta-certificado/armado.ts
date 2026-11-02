@@ -251,7 +251,7 @@ export function problemasDelPayload(p: any): string[] {
   const mat = p?.medico?.matricula ?? {}
   if (!['MP', 'MN'].includes(mat.tipo)) out.push('medico.matricula.tipo')
   if (!largo(String(mat.numero ?? ''), 1, 20) || !/\d/.test(String(mat.numero ?? ''))) out.push('medico.matricula.numero')
-  if (mat.tipo === 'MP' && !mat.provincia) out.push('medico.matricula.provincia')
+  // Una MP sin provincia se emite igual, sin la clave (decisión de Mateo, ver _shared/rcta/medico.ts).
   if (p?.medico?.firmabase64 && /^data:/.test(p.medico.firmabase64)) out.push('medico.firmabase64')
   if (!Array.isArray(p?.prescripcion) || !p.prescripcion.length) out.push('prescripcion')
   else p.prescripcion.forEach((x: { prescripcion?: string }, i: number) => {
