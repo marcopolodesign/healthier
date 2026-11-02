@@ -34,6 +34,7 @@ export const ACCIONES_ADMIN = {
   devolucion_aprobada:             'Devolución aprobada',
   devolucion_rechazada:            'Devolución rechazada',
   devolucion_forzada:              'Devolución forzada',
+  autorizacion_de_receta:          'Receta autorizada por la farmacia',
   conversion_de_credito_a_mp:      'Crédito convertido a Mercado Pago',
   cambio_de_comision:              'Cambio de comisión',
   cambio_de_contrasena:            'Cambio de contraseña propia',

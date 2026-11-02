@@ -33,6 +33,16 @@
 --
 -- 4. `rcta_issue_log.outcome` acepta 'issued_partial'.
 --
+-- 5. "Pendiente de autorización" la autoriza la farmacia de Healthier (Mateo,
+--    2026-11-02): la API publicada no tiene cómo volver a consultar el estado
+--    ("Get Receta" sólo se nombra en la wiki). `farmacia_autorizar_receta()`
+--    —farmacia admin/operador o super admin— la pasa a 'ok', guarda quién y
+--    cuándo (`rcta_autorizada_por/_at`) y deja el asiento en `admin_action_log`
+--    (acción `autorizacion_de_receta`). El paciente y el profesional no pueden:
+--    la función verifica el rol y el trigger sólo deja pasar ese cambio puntual
+--    cuando viene de ella. `farmacia_recetas_por_autorizar()` es la lista para
+--    el panel de la farmacia y el super admin.
+--
 -- Las tres funciones se recrean desde la definición VIVA de staging (idéntica
 -- a la de producción, md5 comparado el 2026-11-02), con sólo los cambios de
 -- arriba.
@@ -77,9 +87,11 @@ comment on column public.professional_profiles.license_province is
 
 -- ── 2 · Lote: recetas, autorización y motivo del error ───────────────────────
 alter table public.clinical_medications
-  add column if not exists rcta_recetas       jsonb,
-  add column if not exists rcta_autorizacion  text,
-  add column if not exists rcta_error_detalle text;
+  add column if not exists rcta_recetas        jsonb,
+  add column if not exists rcta_autorizacion   text,
+  add column if not exists rcta_error_detalle  text,
+  add column if not exists rcta_autorizada_por uuid,
+  add column if not exists rcta_autorizada_at  timestamptz;
 
 alter table public.clinical_medications
   drop constraint if exists clinical_medications_rcta_autorizacion_check;
@@ -91,6 +103,10 @@ comment on column public.clinical_medications.rcta_recetas is
   'Migración 223. Las recetas del servicio que contienen esta medicación: [{id (hash para anular), idReceta, fecha, s3Link, verificador, autorizacion}]. Normalmente una.';
 comment on column public.clinical_medications.rcta_autorizacion is
   'Migración 223. ok | pendiente ("Pendiente de autorización" del validador). Una pendiente no se vende en la farmacia de Healthier. NULL = el servicio no informó.';
+comment on column public.clinical_medications.rcta_autorizada_por is
+  'Migración 223. Quién de la farmacia (o super admin) pasó la receta de pendiente a ok. Sin FK: el dato sobrevive al perfil (el asiento completo está en admin_action_log).';
+comment on column public.clinical_medications.rcta_autorizada_at is
+  'Migración 223. Cuándo se autorizó la receta pendiente.';
 comment on column public.clinical_medications.rcta_error_detalle is
   'Migración 223. Por qué no se emitió esta medicación (lote con errores parciales).';
 
@@ -107,6 +123,18 @@ begin
     return new;
   end if;
 
+  -- 223: la farmacia autoriza una pendiente. Sólo desde
+  -- farmacia_autorizar_receta() (que verifica el rol y marca la transacción) y
+  -- sólo ese cambio: pendiente → ok, quién, cuándo y el estado dentro de
+  -- rcta_recetas. Cualquier otra columna distinta y sigue de largo al resto.
+  if tg_op = 'UPDATE'
+     and current_setting('healthier.autorizar_receta', true) = '1'
+     and old.rcta_autorizacion = 'pendiente' and new.rcta_autorizacion = 'ok'
+     and (to_jsonb(new) - array['rcta_autorizacion','rcta_autorizada_por','rcta_autorizada_at','rcta_recetas'])
+       = (to_jsonb(old) - array['rcta_autorizacion','rcta_autorizada_por','rcta_autorizada_at','rcta_recetas']) then
+    return new;
+  end if;
+
   -- Lo que escriben la emisión y la anulación: nunca el cliente, en ningún
   -- estado. Desde cuándo vale una posdatada, de cuál es, su hash, el resultado
   -- de anularla y la marca del aviso.
@@ -120,7 +148,9 @@ begin
                            -- autorización y el motivo de un error parcial.
                            or new.rcta_recetas           is distinct from old.rcta_recetas
                            or new.rcta_autorizacion      is distinct from old.rcta_autorizacion
-                           or new.rcta_error_detalle     is distinct from old.rcta_error_detalle) then
+                           or new.rcta_error_detalle     is distinct from old.rcta_error_detalle
+                           or new.rcta_autorizada_por    is distinct from old.rcta_autorizada_por
+                           or new.rcta_autorizada_at     is distinct from old.rcta_autorizada_at) then
     raise exception 'Los datos de la receta electrónica los escribe sólo el servicio de recetas.'
       using errcode = '42501';
   end if;
@@ -146,7 +176,8 @@ begin
        and new.rcta_transaction_id is null and new.rcta_hash is null
        and new.rcta_anulacion_estado is null and new.rcta_anulacion_detalle is null
        and new.aviso_habilitada_at is null
-       and new.rcta_recetas is null and new.rcta_autorizacion is null and new.rcta_error_detalle is null then
+       and new.rcta_recetas is null and new.rcta_autorizacion is null and new.rcta_error_detalle is null
+       and new.rcta_autorizada_por is null and new.rcta_autorizada_at is null then
       return new;
     end if;
   elsif old.rcta_status in ('pending', 'issued', 'anulada') and (
@@ -341,3 +372,109 @@ alter table public.rcta_issue_log drop constraint if exists rcta_issue_log_outco
 alter table public.rcta_issue_log add constraint rcta_issue_log_outcome_check
   check (outcome in ('issued', 'issued_partial', 'validation_error', 'api_error', 'network_error',
                      'persist_error', 'anulada', 'anulacion_error'));
+
+-- ── 6 · La farmacia autoriza una receta pendiente ────────────────────────────
+-- Autoriza la receta entera (todas sus filas activas pendientes con el mismo
+-- idReceta del mismo paciente). Devuelve cuántas filas cambió.
+create or replace function public.farmacia_autorizar_receta(p_medication_id uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_rol  text := public.get_my_role();
+  v_fila record;
+  v_n    integer;
+begin
+  if auth.uid() is null or v_rol is null or v_rol not in ('pharmacy_admin', 'pharmacy_operator', 'super_admin') then
+    raise exception 'Sólo la farmacia puede autorizar una receta.' using errcode = '42501';
+  end if;
+
+  select id, patient_id, rcta_prescription_id, rcta_status, status, rcta_autorizacion
+    into v_fila
+    from public.clinical_medications
+   where id = p_medication_id
+   for update;
+  if not found then
+    raise exception 'La receta no existe.' using errcode = 'P0002';
+  end if;
+  if v_fila.rcta_status is distinct from 'issued' or v_fila.status is distinct from 'active'
+     or v_fila.rcta_autorizacion is distinct from 'pendiente' or v_fila.rcta_prescription_id is null then
+    raise exception 'Esta receta no está pendiente de autorización.' using errcode = '22023';
+  end if;
+
+  perform set_config('healthier.autorizar_receta', '1', true);
+  update public.clinical_medications cm
+     set rcta_autorizacion   = 'ok',
+         rcta_autorizada_por = auth.uid(),
+         rcta_autorizada_at  = now(),
+         rcta_recetas        = case when cm.rcta_recetas is null then null else (
+           select coalesce(jsonb_agg(case when e->>'autorizacion' = 'pendiente'
+                                          then e || '{"autorizacion":"ok"}'::jsonb else e end), '[]'::jsonb)
+             from jsonb_array_elements(cm.rcta_recetas) e) end
+   where cm.patient_id = v_fila.patient_id
+     and cm.rcta_prescription_id = v_fila.rcta_prescription_id
+     and cm.rcta_status = 'issued'
+     and cm.status = 'active'
+     and cm.rcta_autorizacion = 'pendiente';
+  get diagnostics v_n = row_count;
+  perform set_config('healthier.autorizar_receta', '', true);
+
+  perform public._aal_escribir(
+    null, 'autorizacion_de_receta', 'clinical_medications', p_medication_id::text, v_fila.patient_id,
+    jsonb_build_object('rcta_prescription_id', v_fila.rcta_prescription_id, 'filas', v_n,
+                       'antes', 'pendiente', 'despues', 'ok'));
+  return v_n;
+end;
+$$;
+
+revoke all on function public.farmacia_autorizar_receta(uuid) from public, anon;
+grant execute on function public.farmacia_autorizar_receta(uuid) to authenticated;
+
+comment on function public.farmacia_autorizar_receta(uuid) is
+  'Migración 223. La farmacia (admin/operador) o el super admin pasa una receta "Pendiente de autorización" a ok. Guarda quién y cuándo y deja el asiento en admin_action_log.';
+
+-- Las pendientes (y, si se pide, las autorizadas de los últimos 90 días) para
+-- el panel de la farmacia y el del super admin. Nada para otros roles.
+create or replace function public.farmacia_recetas_por_autorizar(p_incluir_autorizadas boolean default false)
+returns table (
+  clinical_medication_id uuid,
+  rcta_prescription_id   text,
+  medication_name        text,
+  presentacion           text,
+  paciente               text,
+  paciente_dni           text,
+  profesional            text,
+  emitida_at             timestamptz,
+  pdf_url                text,
+  autorizacion           text,
+  autorizada_por         text,
+  autorizada_at          timestamptz
+)
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select cm.id, cm.rcta_prescription_id, cm.medication_name,
+         coalesce(cm.presentacion, concat_ws(' ', cm.presentation, cm.concentration)),
+         pa.full_name, pa.dni, pr.full_name,
+         coalesce(cm.rcta_issued_at, cm.created_at), cm.rcta_pdf_url,
+         cm.rcta_autorizacion, coalesce(nullif(au.full_name, ''), au.email), cm.rcta_autorizada_at
+    from public.clinical_medications cm
+    left join public.profiles pa on pa.id = cm.patient_id
+    left join public.profiles pr on pr.id = cm.professional_id
+    left join public.profiles au on au.id = cm.rcta_autorizada_por
+   where public.get_my_role() in ('pharmacy_admin', 'pharmacy_operator', 'pharmacy_readonly', 'super_admin', 'admin')
+     and cm.rcta_status = 'issued'
+     and cm.status = 'active'
+     and (cm.rcta_autorizacion = 'pendiente'
+          or (p_incluir_autorizadas and cm.rcta_autorizada_at > now() - interval '90 days'))
+   order by (cm.rcta_autorizacion = 'pendiente') desc,
+            coalesce(cm.rcta_autorizada_at, cm.rcta_issued_at, cm.created_at) desc
+   limit 200
+$$;
+
+revoke all on function public.farmacia_recetas_por_autorizar(boolean) from public, anon;
+grant execute on function public.farmacia_recetas_por_autorizar(boolean) to authenticated;
