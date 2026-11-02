@@ -50,11 +50,72 @@ export async function searchAddresses(query, signal) {
   )
   if (!res.ok) return []
   const data = await res.json()
-  return data.map(item => ({
-    displayName: item.display_name,
-    lat: parseFloat(item.lat),
-    lng: parseFloat(item.lon),
-  }))
+  return data.map(item => {
+    const a = item.address || {}
+    return {
+      displayName: item.display_name,
+      lat: parseFloat(item.lat),
+      lng: parseFloat(item.lon),
+      // Para armar la dirección prolija (calle + número + barrio) y para saber
+      // si la sugerencia trae la altura: `numero` viene vacío en las que son
+      // sólo la calle (Ani Correa da Silva, 2026-11-02).
+      calle: a.road || a.pedestrian || '',
+      numero: a.house_number || '',
+      barrio: a.suburb || a.neighbourhood || a.quarter || a.city_district || '',
+      ciudad: a.city || a.town || a.village || a.municipality || '',
+      provincia: a.state || '',
+    }
+  })
+}
+
+/**
+ * Dirección prolija a partir de una sugerencia: "Calle 1234, Barrio, Ciudad,
+ * Provincia". Sin el CP, el país ni los partidos que trae `display_name`.
+ */
+export function armarDireccion({ calle, numero, barrio, ciudad, provincia }) {
+  const primera = [calle, numero].filter(Boolean).join(' ').trim()
+  const norm = z => z.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const zonas = [barrio, ciudad, provincia]
+    .map(z => (z || '').trim())
+    .filter((z, i, arr) => z && arr.findIndex(o => norm(o) === norm(z)) === i)
+  return [primera, ...zonas].filter(Boolean).join(', ')
+}
+
+/**
+ * ¿La dirección tiene calle Y número de calle? Mira sólo lo que está antes de la
+ * primera coma (la calle). Entiende los dos órdenes: "Arenales 3709, Palermo" y
+ * el de Nominatim, "3709, Arenales, Palermo". Lo que NO es una altura:
+ * "Calle 99 - Zárate" (calle numerada), "Ruta 8", "Av. 9 de Julio".
+ */
+export function direccionTieneNumero(direccion) {
+  const calle = String(direccion ?? '').split(',')[0].replace(/\s+/g, ' ').trim()
+  if (!calle) return false
+  // Nominatim: "3709, Arenales, Palermo" — el número solo, antes de la coma.
+  if (/^\d{1,5}\s?[A-Za-z]?$/.test(calle) && String(direccion).includes(',')) {
+    const siguiente = String(direccion).split(',')[1] ?? ''
+    return /\p{L}{3}/u.test(siguiente)
+  }
+  const sinNombresConNumero = calle
+    // piso / depto / oficina y lo que sigue
+    .replace(/\s*\b(piso|p\.|dto\.?|depto\.?|departamento|of\.?|oficina|local)\b.*$/i, '')
+    // calle numerada con nombre doble: "Calle 99 - Zárate", "99 - Zárate"
+    .replace(/^(?:calle|cl\.?)?\s*\d{1,4}\s*[-–—]\s*/i, '')
+    // "Calle 12", "Ruta 8", "Camino 3", "RN 9"
+    .replace(/\b(?:calle|cl\.?|ruta|rn|rp|camino|diagonal|diag\.?|autopista|pasaje|pje\.?)\s*n?[°º.]?\s*\d{1,3}\b/gi, '')
+    // "9 de Julio", "1ro de Mayo", "25 de Mayo"
+    .replace(/\b\d{1,2}(?:ro|°|º)?\s+de\s+\p{L}+/giu, '')
+  return /\d/.test(sinNombresConNumero) && /\p{L}{2}/u.test(calle)
+}
+
+/**
+ * Mensaje para el formulario del consultorio, o null si está bien (o vacía: la
+ * dirección vacía la cubre el aviso del panel, no se bloquea el guardado).
+ */
+export function validarDireccionConsultorio(direccion) {
+  const t = String(direccion ?? '').trim()
+  if (!t) return null
+  if (direccionTieneNumero(t)) return null
+  return /\p{L}{2}/u.test(t.split(',')[0]) ? 'Agregá el número de la calle' : 'Agregá la calle y el número'
 }
 
 /**

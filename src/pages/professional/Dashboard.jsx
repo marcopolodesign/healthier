@@ -33,6 +33,7 @@ import { toast } from '../../components/Toast'
 import DerivadoChip from '../../components/professional/DerivadoChip'
 import { useNavigate } from 'react-router-dom'
 import { nombreDePila } from '../../lib/format'
+import { direccionTieneNumero } from '../../lib/geo'
 
 const CODE_COLORS = { ROJO: 'bg-red-600', AMARILLO: 'bg-amber-500', VERDE: 'bg-emerald-600' }
 
@@ -214,6 +215,8 @@ export default function ProfessionalDashboard({ profile }) {
   // presenciales.
   const avisoDireccion = loading || !profProfile ? null
     : !profProfile.address?.trim() ? 'sin_direccion'
+    // Con calle pero sin número el paciente no sabe adónde ir (2026-11-02).
+    : !direccionTieneNumero(profProfile.address) ? 'sin_numero'
     : (profProfile.latitude == null || profProfile.longitude == null) ? 'sin_coordenadas'
     : null
 
@@ -812,10 +815,14 @@ export default function ProfessionalDashboard({ profile }) {
           <div className="flex-1 min-w-0">
             <p className="text-xs text-amber-700 font-bold uppercase tracking-wide">Falta un dato</p>
             <p className="text-base font-semibold text-text-primary mt-0.5">
-              {avisoDireccion === 'sin_direccion' ? 'Cargá tu dirección de atención' : 'No pudimos ubicar tu dirección en el mapa'}
+              {avisoDireccion === 'sin_direccion' ? 'Cargá tu dirección de atención'
+                : avisoDireccion === 'sin_numero' ? 'Agregá el número de la calle de tu dirección'
+                : 'No pudimos ubicar tu dirección en el mapa'}
             </p>
             <p className="text-xs text-text-secondary mt-0.5">
-              {avisoDireccion === 'sin_direccion'
+              {avisoDireccion === 'sin_numero'
+                ? 'Sin el número, el paciente no sabe adónde ir. Completala en tu perfil.'
+                : avisoDireccion === 'sin_direccion'
                 ? (puedeRecetar(profProfile?.specialty)
                     ? 'La necesitás para recetar y para aparecer en el mapa, aunque atiendas sólo por videollamada.'
                     : 'La necesitás para aparecer en el mapa de pacientes, aunque atiendas sólo por videollamada.')

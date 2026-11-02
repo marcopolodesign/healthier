@@ -30,6 +30,7 @@
 // documentos) se muestra igual, pero como dato informativo sin acción —
 // ese documento lo tiene que subir el super admin (ver A6).
 import { cumplePrecioMinimo, PRECIO_MINIMO_TEXTO } from './tarifas'
+import { direccionTieneNumero } from './geo'
 
 /**
  * Atiende en un consultorio físico. `modality_preference` (migración 049) es
@@ -112,7 +113,7 @@ export function getProfileCompleteness(profProfile, schedules, { includeVerifica
   steps.push({
     key: 'direccion',
     label: 'Dirección de atención',
-    done: !!profProfile?.address,
+    done: direccionTieneNumero(profProfile?.address),
     href: '/profesional/perfil',
   })
 

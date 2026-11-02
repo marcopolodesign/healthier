@@ -7,7 +7,7 @@ import FileUpload from '../../components/FileUpload'
 import Modal from '../../components/Modal'
 import AddressAutocomplete from '../../components/common/AddressAutocomplete'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
-import { conCoordenadas } from '../../lib/geo'
+import { conCoordenadas, validarDireccionConsultorio } from '../../lib/geo'
 import { toast } from '../../components/Toast'
 import { isLikelyTooSmallForFace } from '../../lib/imageCompression'
 import { camposSensiblesQueCambian, enumerarCampos, requiereReverificacion } from '../../lib/reverificacion'
@@ -52,6 +52,7 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
   const [avatarPreview, setAvatarPreview] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [errorDireccion, setErrorDireccion] = useState(null)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -91,6 +92,14 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
     const errorNombre = validarNombreApellido(nombres.nombre, nombres.apellido)
     if (errorNombre) {
       toast.error(errorNombre)
+      setConfirmandoReverificacion(false)
+      return
+    }
+    // Calle y número, sí o sí: sin la altura el paciente no sabe adónde ir.
+    const errorDir = validarDireccionConsultorio(form.address)
+    setErrorDireccion(errorDir)
+    if (errorDir) {
+      toast.error(errorDir)
       setConfirmandoReverificacion(false)
       return
     }
@@ -231,10 +240,14 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
 
           <AddressAutocomplete
             label="Dirección del consultorio"
+            exigirNumero
+            error={errorDireccion}
+            placeholder="Calle y número. Ej: Av. Santa Fe 1900, Palermo"
             value={{ address: form.address, latitude: form.latitude, longitude: form.longitude }}
-            onChange={({ address, latitude, longitude }) =>
+            onChange={({ address, latitude, longitude }) => {
+              setErrorDireccion(null)
               setForm(p => ({ ...p, address, latitude, longitude }))
-            }
+            }}
           />
           {/* Verificación del consultorio contra REFES (migración 196). Nunca
               bloquea: sin match, lo revisa Healthier y se sigue atendiendo igual. */}
