@@ -46,7 +46,9 @@ export default function RecetaDetalle({ profile }) {
   const cabecera = medicamentos[0]?.medication
   const emitidaEn = cabecera?.rctaIssuedAt ?? cabecera?.createdAt ?? null
   // Una posdatada que todavía no empezó no se puede comprar.
-  const disponibles = medicamentos.filter(m => m.product && m.estado !== 'proxima')
+  // Ni una pendiente de autorización (migración 223): la base no la deja agregar.
+  const disponibles = medicamentos.filter(m => m.product && m.estado !== 'proxima' && m.estado !== 'pendiente')
+  const pendienteAutorizacion = medicamentos.some(m => m.medication.rctaAutorizacion === 'pendiente')
   const proximaDesde = medicamentos.find(m => m.estado === 'proxima')?.valeDesde ?? null
   const faltantes = medicamentos.filter(m => !m.product)
   // Migración 216: el profesional la anuló (se llega acá desde un aviso viejo).
@@ -133,6 +135,12 @@ export default function RecetaDetalle({ profile }) {
         {anulada && (
           <p className="text-[14px] text-text-secondary bg-bg-secondary border border-border-default rounded-2xl p-4 mb-6">
             Tu profesional anuló esta receta. Ya no sirve para comprar en ninguna farmacia.
+          </p>
+        )}
+
+        {pendienteAutorizacion && !anulada && (
+          <p className="text-[14px] text-text-secondary bg-bg-secondary border border-border-default rounded-2xl p-4 mb-6" data-testid="receta-pendiente-autorizacion">
+            Esta receta está pendiente de autorización de tu obra social. Vas a poder comprarla cuando la autorice.
           </p>
         )}
 

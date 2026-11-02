@@ -1,0 +1,14 @@
+# Documentación QBI2 (v10, 2024-12-23)
+ 
+ Descripción
+ ¿Qué es QBI2? 
+ QBI2 es una plataforma robusta basada en microservicios diseñada para ofrecer soluciones ágiles y eficientes en el ámbito de la gestión de datos y procesos. Creada con tecnologías de vanguardia, QBI2 se adapta fácilmente a las necesidades cambiantes de tu organización, proporcionando un entorno flexible y escalable para el desarrollo y la implementación de servicios digitales.
+ Microservicios en QBI2 
+ En QBI2, los microservicios son el núcleo de nuestra arquitectura, permitiendo modularidad, independencia y escalabilidad en cada aspecto de nuestras soluciones. Estos microservicios se especializan en diversos ámbitos funcionales para abordar las necesidades específicas de nuestros usuarios. Actualmente, nuestros servicios principales incluyen:
+ 1. Recipe 
+ El servicio Recipe está diseñado para simplificar la gestión de recetas médicas, permitiendo a los profesionales de la salud prescribir tratamientos de manera eficiente y precisa. Con funcionalidades intuitivas y herramientas de integración avanzadas, Recipe optimiza el proceso de prescripción para mejorar la atención al paciente.
+ 2. Vademécum 
+ El servicio Vademécum proporciona una extensa base de datos de medicamentos, facilitando a los profesionales de la salud acceder a información detallada sobre fármacos, dosis, indicaciones y contraindicaciones. Con Vademécum, la toma de decisiones clínicas se vuelve más informada y segura, garantizando un tratamiento óptimo para cada paciente.
+ Dentro del siguiente link, podrá acceder a la documentación correspondiente de los servicios que componen QBI2, principalmente aquellos que se utilizan para prescribir.
+ Accesos a la Documentación
+ 

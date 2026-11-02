@@ -1,0 +1,64 @@
+# QBI2 Recipe (v10, 2026-10-22)
+ Introducción
+ QBI2 Recipe es un microservicio de avanzado diseñado para optimizar la generación, gestión y validación de recetas y prescripciones electrónicas, ofreciendo una solución integral y segura para el ecosistema de salud.
+ Con una interfaz única de comunicación, QBI2 Recipe actúa como un puente que unifica y adapta las interacciones entre médicos, pacientes, financiadores y entidades validadoras, independientemente de las particularidades técnicas o formatos de cada actor.
+ Construida bajo principios de seguridad, eficiencia y escalabilidad, la API garantiza el cumplimiento de estándares normativos y de seguridad vigentes, mientras ofrece un flujo de trabajo ágil y libre de fricciones. Su propósito es asegurar que las recetas electrónicas puedan ser emitidas, validadas y gestionadas de forma accesible y confiable, mejorando la experiencia tanto para los proveedores de salud como para los pacientes.
+ Principales funcionalidades
+ Buscadores 
+ Medicamentos indicando si posee cobertura según el financiador, afiliado, etc.
+ Prácticas para ordenes
+ Financiadores
+ Diagnósticos CIE-10
+ Prescripciones 
+ Creación, validación y reporte a repositorios de prescripciones.
+ Posología de texto libre o estructurada.
+ Diagnósticos generales o por medicamento (texto libre o CIE-10).
+ Recetas posdatadas con periodos o fechas predefinidas.
+ Indicaciones específicas como "tratamiento prolongado" o "no sustituir medicamento".
+ Prescripción por medicamentos genéricos o con/sin cobertura.
+ Codificación especial para medicamentos de HIV según normativa vigente.
+ Prescripción de Estudios Médicos y Certificados 
+ Incorporación de prácticas y estudios médicos al flujo de prescripción.
+ Seguridad y Autenticidad 
+ Generación de PDF con código de barras para farmacias y QR propio para validación y control de origen.
+ Personalización 
+ Inclusión de logos en los PDF según cliente, financiador o mandataria.
+ Catálogo de API's
+ 🌡️ Buscador de Diagnósticos 
+ ⚕️ Buscador de Financiadores 
+ 💊 Buscador de Medicamentos 
+ 🔬 Buscador de Prácticas 
+ 🧾 Generar Receta 
+ 🚫 Anular Receta 
+ 💉 Generar Práctica 
+ 🖊️ Generar Otras Prescripciones 
+ ‌‌
+ Glosario de Términos
+ Alfabeta: Es el proveedor encargado de actualizar el listado farmacológico.
+ Cobertura Médica: Las coberturas médicas son servicios ofrecidos por entidades de salud que aseguran la atención sanitaria de los afiliados. Estas coberturas pueden incluir planes de atención médica, hospitalización, tratamientos específicos, y otros servicios relacionados con la salud. En Argentina, estas coberturas son proporcionadas por Obras Sociales, Prepagas, y el sistema de salud pública, que actúan para garantizar el acceso a la salud de la población. Cada cobertura puede contar con uno o más planes de salud que limitaran el acceso a los servicios ofrecidos.
+ Diagnóstico: es el proceso que le permite al médico identificar una enfermedad, afección, lesión o cualquier estado de salud en un paciente, a través de análisis o pruebas realizadas.
+ Farmacia: Es el lugar donde se dispensan y venden los productos medicinales.
+ Financiador: Los financiadores son las entidades que proporcionan los recursos económicos necesarios para el funcionamiento del sistema de salud. En Argentina, los principales financiadores incluyen el Estado, las Obras Sociales, las empresas de medicina prepaga, y las propias personas mediante pagos directos o contribuciones a sus planes de salud. Su función es asegurar que existan los fondos necesarios para que las coberturas médicas puedan cumplir con sus obligaciones hacia los afiliados. Un financiador puede tener múltiples coberturas.
+ Mandataria: Las mandatarias son organizaciones que operan dentro del sistema de salud argentino con la función de gestionar, auditar y coordinar los procesos entre los diferentes actores, como Obras Sociales, financiadores, y prestadores de salud. Su papel es crucial en la administración de las prestaciones médicas, ya que se encargan de la centralización y gestión de los trámites, autorizaciones, y liquidaciones de los servicios de salud.
+ Médico: Es un profesional de la salud que practica la medicina mediante el estudio, diagnóstico y tratamiento de la enfermedad o lesión del paciente.
+ Órdenes: Es un documento donde el médico prescribe servicios para el paciente, para que posteriormente sean realizados por el mismo. (TACS, Análisis de sangre, etc.)
+ Paciente: Es la persona que acude al profesional de la salud por alguna dolencia o consulta en general.
+ Receta: Es el documento normalizado por medio del cual los médicos prescriben la medicación a un paciente.
+ Posología: Son las indicaciones médicas de cómo debe ser suministrado el medicamento que se receta.
+ Validador : Los validadores son entidades o sistemas encargados de verificar que los servicios de salud solicitados cumplan con los requisitos establecidos por las coberturas médicas y las normativas vigentes. Su función principal es asegurar que los servicios provistos estén autorizados, sean adecuados, y que los procedimientos de facturación y pagos se realicen de manera correcta y eficiente. En muchos casos, actúan como intermediarios entre las prestadoras de servicios de salud y los financiadores.
+ ‌
+ Entornos
+ Entorno
+ URL
+ Descripción
+ Producción 
+ https://apirecipe.qbitos.com 
+ Entorno productivo
+ Homologación 
+ https://apirecipe.hml.qbitos.com 
+ Entorno para pruebas e integraciones
+ Nota: Para el acceso a los entornos, asegúrese de tener las credenciales y permisos necesarios.
+ ‌
+ Contacto
+ Ante cualquier consulta o inconveniente, puede comunicarse a través de:
+ 📧 Correo electrónico : soporte.it@innovamed.com.ar 

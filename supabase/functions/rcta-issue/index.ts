@@ -50,6 +50,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  accionPdfAviso, armarMedico, armarPaciente, asignarRecetas, domicilioDe, etiquetaEspecialidad,
+  leerEmision, llamarRcta, matriculaDe, problemaDeMatricula, resolverFirma,
+  type Autorizacion, type RecetaEmitida,
+} from '../_shared/rcta/mod.ts'
 
 // El paciente de la practica. Espejo de `PACIENTE` en `src/lib/simulacion.js`
 // (el front lo muestra, esta funcion lo imprime en el PDF). El DNI arranca con
@@ -160,7 +165,7 @@ Deno.serve(async (req: Request) => {
       const { data: quien, error: errQuien } = await supabase
         .from('profiles')
         .select(`id, full_name, first_name, last_name, dni, gender, birth_date, phone,
-                 professional_profiles!professional_profiles_user_id_fkey(specialty, license_type, license_number, address)`)
+                 professional_profiles!professional_profiles_user_id_fkey(specialty, license_type, license_number, license_province, address)`)
         .eq('id', user.id)
         .single()
       if (errQuien || !quien) return { data: null, error: errQuien ?? { message: 'Profesional no encontrado' } }
@@ -182,6 +187,7 @@ Deno.serve(async (req: Request) => {
       const faltan = [
         !quien.dni && 'tu DNI',
         !legajo?.license_number && 'tu número de matrícula',
+        legajo?.license_type === 'MP' && !legajo?.license_province && 'la provincia de tu matrícula',
         !legajo?.address && 'la dirección de tu consultorio',
         !tieneFirma && 'tu firma',
       ].filter(Boolean)
@@ -236,7 +242,7 @@ Deno.serve(async (req: Request) => {
         ),
         professional:profiles!professional_id(
           id, full_name, first_name, last_name, dni, gender, birth_date, phone,
-          professional_profiles!professional_profiles_user_id_fkey(specialty, license_type, license_number, address)
+          professional_profiles!professional_profiles_user_id_fkey(specialty, license_type, license_number, license_province, address)
         ),
         encounter:clinical_encounters!encounter_id(
           consultation:consultations!consultation_id(id, coverage_type, financiador_id, obra_social_name, affiliate_number)
@@ -433,6 +439,16 @@ Deno.serve(async (req: Request) => {
       }, 422)
     }
 
+    // ── La matrícula (QBI65) ──────────────────────────────────────────────────
+    // Una MP sin provincia la rechaza el servicio. Se corta antes, con un
+    // mensaje que dice dónde cargarla. La provincia vive en el legajo
+    // (`license_province`, migración 223); tipo y número, en la foto que se
+    // guardó con la medicación.
+    const legajo = med.professional?.professional_profiles ?? {}
+    const matricula = matriculaDe(legajo, { tipo: med.professional_license_type, numero: med.professional_license_number })
+    const faltaMatricula = problemaDeMatricula(matricula)
+    if (faltaMatricula) return await fallar('validation_error', faltaMatricula, 422)
+
     // ── Mark as pending ───────────────────────────────────────────────────────
     await setStatus('pending')
 
@@ -476,10 +492,6 @@ Deno.serve(async (req: Request) => {
 
     // ── Build QBI2 "Receta" request payload ───────────────────────────────────
     // Real contract: POST /apirecipe/Receta — see website/docs/rcta-integration.md
-    const prof = med.professional?.professional_profiles ?? {}
-    const { nombre: pacienteNombre, apellido: pacienteApellido } = nombreYApellido(med.patient)
-    const { nombre: medicoNombre, apellido: medicoApellido } = nombreYApellido(med.professional)
-    const nombreConsultorio = medicoApellido ? `Consultorio Dr. ${medicoApellido}` : null
 
     // ── El logo YA NO VIAJA EN EL PAYLOAD (2026-09-11) ────────────────────────
     // Hasta hoy se mandaba en `subemisor.logoBase64`, y NUNCA se imprimio:
@@ -494,7 +506,7 @@ Deno.serve(async (req: Request) => {
     // una sucursal de una cadena de clinicas". Healthier ES el cliente app.
     //
     // El mecanismo correcto es registrar el logo UNA vez por ambiente contra
-    // `POST /apirecipe/admin/Logo` — ver `scripts/registrar-logo-receta.mjs`.
+    // `POST /admin/v1/logo` — ver `scripts/registrar-logo-receta.mjs`.
     // Verificado emitiendo contra homologacion: el logo sale arriba al centro,
     // a color, sin `subemisor` en el payload.
 
@@ -525,6 +537,17 @@ Deno.serve(async (req: Request) => {
       }, 422)
     }
 
+    // El bloque `medico` sale del módulo compartido (`_shared/rcta`), igual que
+    // para las Otras Prescripciones: matrícula con provincia si es MP,
+    // `profesion` y la especialidad con su nombre legible ("Medicina General",
+    // no `medicina_general`, que el PDF imprimía tal cual).
+    const especialidadLabel = await etiquetaEspecialidad(supabase, legajo.specialty)
+    const medico = armarMedico(med.professional, legajo, especialidadLabel, firmabase64, { matricula })
+    // El consultorio: `calle` + `numero` reales, o `direccion` sola (QBI240 /
+    // QBI241). Ver `domicilioDe` — el parseo viejo mandaba "3709" como calle.
+    const domicilio = domicilioDe(legajo.address)
+    const nombreConsultorio = medico.apellido ? `Consultorio Dr. ${medico.apellido}`.slice(0, 100) : null
+
     const payload = {
       clienteAppId: Number(RCTA_CLIENT_APP_ID),
       // Las posdatadas: además de la de hoy, una receta por cada fecha.
@@ -533,8 +556,8 @@ Deno.serve(async (req: Request) => {
       } : {}),
       diagnostico: med.cie10_display ?? med.cie10_code ?? null,
       // Una receta, N medicamentos. Innovamed puede repartirlos en mas de una
-      // receta segun sus propias reglas (lo informa en `accionPDF`), por eso
-      // abajo se guarda el idReceta que efectivamente devolvio.
+      // receta segun sus propias reglas (lo informa en `accionPDF`): abajo cada
+      // medicación se guarda con la receta que efectivamente la contiene.
       // deno-lint-ignore no-explicit-any
       medicamentos: meds.map((m: any) => ({
         // `regNo` es el codigo del catalogo de Innovamed. Sin el, la API responde
@@ -552,68 +575,24 @@ Deno.serve(async (req: Request) => {
         posologia: [m.dosage_text, m.frequency].filter(Boolean).join(' — ') || null,
         observaciones: m.notes ?? null,
       })),
-      paciente: {
-        nombre: pacienteNombre,
-        apellido: pacienteApellido,
-        // Cobertura: se OMITE cuando el paciente es particular. Innovamed lo
-        // contempla explicitamente — la cuarta prueba de certificacion es
-        // justamente una receta sin datos de financiador. Mandar el campo vacio
-        // o con un id inventado NO es lo mismo que omitirlo.
-        ...(cobertura ? { cobertura } : {}),
-        tipoDoc: 'DNI',
-        nroDoc: med.patient?.dni ?? '',
-        sexo: mapSexo(med.patient?.gender),
-        fechaNacimiento: med.patient?.birth_date ?? null,
-        telefono: med.patient?.phone ?? null,
-      },
-      medico: {
-        nombre: medicoNombre,
-        apellido: medicoApellido,
-        tipoDoc: 'DNI',
-        nroDoc: med.professional?.dni ?? '',
-        especialidad: prof.specialty ?? '',
-        sexo: mapSexo(med.professional?.gender),
-        fechaNacimiento: med.professional?.birth_date ?? null,
-        telefono: med.professional?.phone ?? null,
-        matricula: {
-          tipo: med.professional_license_type ?? prof.license_type ?? 'MN',
-          numero: med.professional_license_number ?? prof.license_number ?? '',
-          especialidad: prof.specialty ?? '',
-        },
-        lugarAtencion: prof.address ?? null,
-        // La firma se imprime sobre la linea de puno del bloque "FIRMA Y SELLO".
-        // Va el base64 CRUDO: con un `data:image/png;base64,` adelante Innovamed
-        // contesta 200 y no imprime nada — falla en silencio, que es peor que
-        // fallar. `firmalink` (la variante por URL del mismo contrato) tampoco
-        // funciona: se probo contra el preview el 2026-09-11 y no dibuja nada.
-        // El sello (las tres lineas de abajo: nombre, especialidad y matricula)
-        // NO se manda a proposito — la plantilla ya las imprime sola con los
-        // datos que van en `medico`, y mandar `sello` las PISA, o sea que seria
-        // una segunda fuente de verdad para lo mismo.
-        ...(firmabase64 ? { firmabase64 } : {}),
-      },
+      paciente: armarPaciente(med.patient, cobertura),
+      medico,
       // deno-lint-ignore no-explicit-any
       indicaciones: meds.map((m: any) => m.notes).filter(Boolean).join(' · ') || null,
-      // QBI248 ("DEBE INFORMAR EL DOMICILIO DONDE SE REALIZÓ LA ATENCIÓN") requires the
-      // consultation address — sent on every plausible field since Innovamed's swagger
-      // doesn't document which one is actually checked.
-      direccionConsultorio: prof.address ?? null,
-      nombreConsultorio: nombreConsultorio,
-      lugarAtencion: prof.address ? {
-        nombreConsultorio,
-        domicilio: { ...parseAddress(prof.address), direccion: prof.address },
-      } : undefined,
+      // QBI248 ("DEBE INFORMAR EL DOMICILIO DONDE SE REALIZÓ LA ATENCIÓN").
+      // `nombreConsultorio` no se imprime (wiki) pero el contrato lo acepta.
+      ...(domicilio ? { lugarAtencion: { ...(nombreConsultorio ? { nombreConsultorio } : {}), domicilio } } : {}),
       // Sin `subemisor`: el logo de Healthier se registra una vez por ambiente
-      // contra /admin/Logo, no se manda en cada receta. Ver el bloque de arriba.
+      // contra /admin/v1/logo, no se manda en cada receta. Ver el bloque de arriba.
     }
 
     // ── Call QBI2 API ─────────────────────────────────────────────────────────
-    // La red se atrapa dentro de `postReceta` y no en el catch de afuera, que
+    // La red se atrapa dentro de `llamarRcta` y no en el catch de afuera, que
     // no alcanza a `registrar`: un timeout contra Innovamed tiene que dejar
     // rastro igual que un rechazo suyo — si no, el caso mas dificil de
     // diagnosticar es el unico que no queda escrito.
     ctx.request = payload
-    let result = await postReceta(RCTA_API_URL, RCTA_API_KEY, payload)
+    let result = await llamarRcta('POST', RCTA_API_URL, RCTA_API_KEY, '/apirecipe/Receta', payload)
 
     if (result.kind === 'network_error') {
       // Ambiguo: no sabemos si Innovamed llego a recibir este request.
@@ -645,7 +624,7 @@ Deno.serve(async (req: Request) => {
       // le gusta una imagen que le mandamos, contesta 400, no 500.
       //
       // La unica imagen que viaja en el payload es la firma del profesional
-      // (el logo se registra aparte, contra /admin/Logo). Una receta sin la
+      // (el logo se registra aparte, contra /admin/v1/logo). Una receta sin la
       // firma dibujada le sirve al paciente infinitamente mas que un 502: es
       // valida igual, la firma electronica la aplica Innovamed.
       //
@@ -661,7 +640,7 @@ Deno.serve(async (req: Request) => {
         const { firmabase64: _sinFirma, ...medicoSinFirma } = payload.medico
         const payloadSinFirma = { ...payload, medico: medicoSinFirma }
         ctx.reintento = { sin_firma: true }
-        const retryResult = await postReceta(RCTA_API_URL, RCTA_API_KEY, payloadSinFirma)
+        const retryResult = await llamarRcta('POST', RCTA_API_URL, RCTA_API_KEY, '/apirecipe/Receta', payloadSinFirma)
 
         if (retryResult.kind === 'ok') {
           console.error(`rcta-issue: receta emitida SIN FIRMA tras reintento — Innovamed rechazó "medico.firmabase64" (status original ${result.status}: ${result.body}). Revisar el formato antes de que se vuelva la norma.`)
@@ -723,98 +702,122 @@ Deno.serve(async (req: Request) => {
     const rctaData = result.data
     // La respuesta entera, no el resumen: `idTransaccion` vive al tope, fuera de
     // `recetas[]`, y es el campo que Innovamed pide para certificar.
-    ctx.response       = rctaData
-    ctx.id_transaccion = rctaData.idTransaccion ?? null
+    ctx.response = rctaData
+    const emision = leerEmision(rctaData)
+    ctx.id_transaccion = emision.idTransaccion
 
-    // RecetaPdfResponse: { recetas: [{ idReceta, s3Link, fecha, verificador }], errores: [...] }
-    if (rctaData.errores?.length) {
-      console.error('RCTA API returned errores:', rctaData.errores)
-      await setStatus('error')
-      return await fallar('api_error', { error: 'RCTA API error', detail: rctaData.errores }, 502,
-        { errores: rctaData.errores, error_code: rctaData.errores[0]?.error ?? null })
-    }
-
-    // Con posdatadas vienen varias: la de hoy y una por fecha. Se las ubica por
-    // la fecha que devuelve Innovamed y, si no la trae, por orden.
-    // Se ubica cada una por su fecha, sin adivinar por orden: guardar la receta
-    // de hoy como la de dentro de 60 días haría vender con una receta vencida.
-    const recetasDevueltas = Array.isArray(rctaData.recetas) ? rctaData.recetas : []
+    // Con posdatadas vienen varias: la de hoy y una por fecha. Se ubica cada una
+    // por su fecha, sin adivinar por orden: guardar la receta de hoy como la de
+    // dentro de 60 días haría vender con una receta vencida.
     const posdatadasDevueltas = fechasPosdatadas.map((f) => {
-      const conEsaFecha = recetasDevueltas.filter((r: { fecha?: string }) => fechaArgentina(r?.fecha) === f)
+      const conEsaFecha = emision.recetas.filter(r => fechaArgentina(r.fecha) === f)
       return conEsaFecha.length === 1 ? conEsaFecha[0] : null
     })
-    const receta = recetasDevueltas.find((r: unknown) => !posdatadasDevueltas.includes(r)) ?? recetasDevueltas[0]
-    if (!receta) {
-      await setStatus('error')
-      return await fallar('api_error', { error: 'RCTA API returned no receta', detail: rctaData }, 502)
+    const principales = emision.recetas.filter(r => !posdatadasDevueltas.includes(r))
+    const motivos = emision.errores.map(e => e.mensaje).filter(Boolean).join(' · ')
+
+    // Nada salió: es un rechazo, aunque haya venido con 200.
+    if (!principales.length) {
+      console.error('rcta-issue: el servicio no devolvió ninguna receta', JSON.stringify(rctaData))
+      await setStatus('error', { rcta_error_detalle: motivos || null })
+      return await fallar('api_error', {
+        error: motivos ? `El servicio de recetas no emitió la receta: ${motivos}` : 'El servicio de recetas no devolvió ninguna receta.',
+        code: 'RCTA_SIN_RECETAS',
+        detail: rctaData?.errores ?? rctaData,
+      }, 502, { errores: rctaData?.errores ?? null, error_code: emision.errores[0]?.error ?? null })
     }
 
-    const prescriptionId = receta.idReceta ?? receta.id
-    const pdfUrl = receta.s3Link ?? null
-    const issuedAt = aIso(receta.fecha)
+    // ── Errores parciales (wiki, "split de prescripciones") ───────────────────
+    // Cada receta del lote sale o falla por separado. Lo que salió se guarda y
+    // queda emitido —reintentarlo la duplicaría—; lo que falló queda en error con
+    // su motivo. Con posdatadas hay un solo medicamento y ya salió la de hoy: los
+    // errores son de las posdatadas y se cuentan abajo como faltantes.
+    // deno-lint-ignore no-explicit-any
+    const asignacion = asignarRecetas({ ...emision, recetas: principales, errores: fechasPosdatadas.length ? [] : emision.errores }, meds as any[])
+    if (emision.errores.length) {
+      console.error('rcta-issue: lote con errores parciales', JSON.stringify(emision.errores))
+      ctx.errores = rctaData?.errores ?? null
+      ctx.error_code = emision.errores[0]?.error ?? null
+    }
 
-    ctx.id_receta   = prescriptionId ?? null
-    ctx.verificador = receta.verificador ?? null
-    ctx.nro_cuir    = Array.isArray(receta.nroCUIR) ? receta.nroCUIR : null
+    const primera = principales[0]
+    const prescriptionId = primera.idReceta
+    const pdfUrl = primera.s3Link
+    const issuedAt = aIso(primera.fecha)
+    ctx.id_receta   = prescriptionId
+    ctx.verificador = primera.verificador
+    ctx.nro_cuir    = primera.nroCUIR
     ctx.s3_link     = pdfUrl
-
     // Queda registrado que devolvio Innovamed: cuando la persistencia falla, esto
     // es lo unico que permite recuperar una receta que ya existe del otro lado.
-    console.log('rcta-issue: receta recibida', JSON.stringify(receta))
+    console.log('rcta-issue: recetas recibidas', JSON.stringify(principales))
 
     // ── Persist result ────────────────────────────────────────────────────────
-    // Todas las filas de la receta comparten idReceta y PDF: es un unico
-    // documento con varios medicamentos.
-    //
-    // Esta escritura NO puede fallar en silencio. El 2026-07-31 fallo con
-    // `22008 date/time field value out of range` porque `receta.fecha` venia en
-    // formato de Innovamed (DD/MM/AAAA) y la columna es `timestamptz`: Postgres
-    // rechaza el UPDATE entero, la fila queda en `pending` con todo en NULL, y la
-    // funcion igual devolvia 200. El profesional veia "receta emitida" y un
-    // renglon clavado en "Emitiendo...".
-    const { error: persistErr } = await setStatus('issued', {
-      // La original vale desde hoy: nada de fechas de inicio heredadas.
-      vigencia_desde:       null,
-      posdatada_de:         null,
-      rcta_prescription_id: prescriptionId,
-      rcta_transaction_id:  rctaData.idTransaccion ?? null,
-      rcta_verificador:     receta.verificador ?? null,
-      rcta_pdf_url:         pdfUrl,
-      rcta_issued_at:       issuedAt,
-      // El identificador con el que el servicio de recetas la anula (migración
-      // 216): el `id` de la respuesta, no el idReceta.
-      rcta_hash:            receta.id ?? null,
-    })
-
-    if (persistErr) {
-      console.error('rcta-issue: la receta se emitio pero no se pudo guardar:', persistErr.message)
-
-      // Segundo intento sin la fecha, que es el campo con formato ajeno. Se
-      // prefiere guardar el idReceta y el PDF sin fecha antes que perder el
-      // vinculo con una receta que YA existe en Innovamed.
-      const { error: reintentoErr } = await setStatus('issued', {
-        rcta_prescription_id: prescriptionId,
-        rcta_transaction_id:  rctaData.idTransaccion ?? null,
-        rcta_verificador:     receta.verificador ?? null,
-        rcta_pdf_url:         pdfUrl,
-        rcta_hash:            receta.id ?? null,
-      })
-
-      if (reintentoErr) {
-        console.error('rcta-issue: reintento sin fecha tambien fallo:', reintentoErr.message)
-        // Sacar la fila de `pending`: un renglon en "Emitiendo..." para siempre es
-        // peor que uno en error, porque no invita a revisar.
-        await setStatus('error')
-        // El log igual queda con idReceta y idTransaccion: es lo unico que
-        // permite recuperar una receta que YA existe del lado de Innovamed.
-        return await fallar('persist_error', {
-          error: 'La receta se emitió en Innovamed pero no se pudo guardar en Healthier. Anotá el número y avisá a soporte.',
-          code: 'RCTA_EMITIDA_SIN_PERSISTIR',
-          prescriptionId,
-          pdfUrl,
-          detail: persistErr.message,
-        }, 500)
+    // Cada medicación con SU receta (normalmente la misma para todas). Esta
+    // escritura NO puede fallar en silencio: el 2026-07-31 falló con 22008 por
+    // la fecha en DD/MM/AAAA y la función igual devolvía 200. Si falla se
+    // reintenta sin la fecha, que es el campo con formato ajeno.
+    const persistirEmitida = async (medId: string, recetas: RecetaEmitida[]) => {
+      if (esPractica) return null
+      const r0 = recetas[0]
+      const datos = {
+        rcta_status:          'issued',
+        // La original vale desde hoy: nada de fechas de inicio heredadas.
+        vigencia_desde:       null,
+        posdatada_de:         null,
+        rcta_prescription_id: r0.idReceta,
+        rcta_transaction_id:  emision.idTransaccion,
+        rcta_verificador:     r0.verificador,
+        rcta_pdf_url:         r0.s3Link,
+        rcta_issued_at:       aIso(r0.fecha),
+        // El identificador con el que se anula (migración 216): el `id`, no el idReceta.
+        rcta_hash:            r0.id,
+        // Migración 223: todas las recetas que contienen esta medicación (cada
+        // una se anula por separado) y si alguna quedó pendiente de autorización.
+        rcta_recetas:         recetas.map(resumenReceta),
+        rcta_autorizacion:    autorizacionDeLasRecetas(recetas),
+        rcta_error_detalle:   null,
       }
+      const { error } = await supabase.from('clinical_medications').update(datos).eq('id', medId)
+      if (!error) return null
+      console.error('rcta-issue: la receta se emitio pero no se pudo guardar:', error.message)
+      const { rcta_issued_at: _f, vigencia_desde: _v, posdatada_de: _p, ...sinFecha } = datos
+      const { error: reintentoErr } = await supabase.from('clinical_medications').update(sinFecha).eq('id', medId)
+      if (reintentoErr) console.error('rcta-issue: reintento sin fecha tambien fallo:', reintentoErr.message)
+      return reintentoErr ? error.message : null
+    }
+
+    const sinPersistir: { medicationId: string; detalle: string }[] = []
+    for (const [medId, recetas] of asignacion.recetasDe) {
+      const fallo = await persistirEmitida(medId, recetas)
+      if (fallo) sinPersistir.push({ medicationId: medId, detalle: fallo })
+    }
+    // Lo que no salió, con su motivo. Lo que no se sabe si salió, con un motivo
+    // que dice que NO se reemita a ciegas.
+    const SIN_UBICAR = 'El servicio de recetas informó un error en el lote y no se pudo confirmar si este medicamento salió. Revisá las recetas emitidas antes de volver a emitirlo.'
+    if (!esPractica) {
+      for (const [medId, err] of asignacion.fallidas) {
+        await supabase.from('clinical_medications')
+          .update({ rcta_status: 'error', rcta_error_detalle: err.mensaje ?? err.error ?? 'No se emitió.' }).eq('id', medId)
+      }
+      if (asignacion.sinUbicar.length) {
+        await supabase.from('clinical_medications')
+          .update({ rcta_status: 'error', rcta_error_detalle: SIN_UBICAR }).in('id', asignacion.sinUbicar)
+      }
+    }
+
+    if (sinPersistir.length) {
+      // Sacar la fila de `pending`: un renglon en "Emitiendo..." para siempre es
+      // peor que uno en error, porque no invita a revisar. El log igual queda con
+      // idReceta e idTransaccion para recuperar la receta del otro lado.
+      await supabase.from('clinical_medications').update({ rcta_status: 'error' }).in('id', sinPersistir.map(s => s.medicationId))
+      return await fallar('persist_error', {
+        error: 'La receta se emitió pero no se pudo guardar en Healthier. Anotá el número y avisá a soporte.',
+        code: 'RCTA_EMITIDA_SIN_PERSISTIR',
+        prescriptionId,
+        pdfUrl,
+        detail: sinPersistir.map(s => s.detalle).join(' · '),
+      }, 500)
     }
 
     // ── Recetas posdatadas: una fila por medicamento y por fecha ───────────────
@@ -824,35 +827,36 @@ Deno.serve(async (req: Request) => {
     // la service key: el trigger de la 214 no deja que nadie más las escriba.
     // Si Innovamed devolvió menos recetas que las pedidas, se guarda lo que
     // vino y se avisa: las que faltan no existen y no se inventan.
-    const posdatadasGuardadas: { fecha: string; prescriptionId: string | null; pdfUrl: string | null }[] = []
-    // Lo que se emitió del otro lado pero no quedó guardado acá: va al log de la
-    // emisión para poder recuperarlo, y el profesional ve el aviso.
+    const posdatadasGuardadas: { fecha: string; prescriptionId: string | null; pdfUrl: string | null; autorizacion: string | null }[] = []
     const posdatadasSinGuardar: { fecha: string; idReceta: string | null; motivo: string }[] = []
     if (fechasPosdatadas.length) {
       for (let k = 0; k < fechasPosdatadas.length; k++) {
         const r = posdatadasDevueltas[k]
         if (!r) {
-          console.error(`rcta-issue: no se pudo ubicar la posdatada del ${fechasPosdatadas[k]} en la respuesta`, JSON.stringify(recetasDevueltas))
-          posdatadasSinGuardar.push({ fecha: fechasPosdatadas[k], idReceta: null, motivo: 'no_ubicada' })
+          console.error(`rcta-issue: no se pudo ubicar la posdatada del ${fechasPosdatadas[k]} en la respuesta`, JSON.stringify(emision.recetas))
+          posdatadasSinGuardar.push({ fecha: fechasPosdatadas[k], idReceta: null, motivo: motivos || 'no_ubicada' })
           continue
         }
         const [dd, mm, aaaa] = fechasPosdatadas[k].split('/')
-        const guardada = { fecha: fechasPosdatadas[k], prescriptionId: r.idReceta ?? r.id ?? null, pdfUrl: r.s3Link ?? null }
+        const guardada = { fecha: fechasPosdatadas[k], prescriptionId: r.idReceta, pdfUrl: r.s3Link, autorizacion: r.autorizacion }
         if (esPractica) { posdatadasGuardadas.push(guardada); continue }
         // deno-lint-ignore no-explicit-any
         const filas = (meds as any[]).map(({ id, created_at, patient: _p, professional: _pr, encounter: _e,
           rcta_status: _s, rcta_prescription_id: _rp, rcta_transaction_id: _rt, rcta_verificador: _rv,
-          rcta_pdf_url: _ru, rcta_issued_at: _ri, ...resto }) => ({
+          rcta_pdf_url: _ru, rcta_issued_at: _ri, rcta_recetas: _rr, rcta_autorizacion: _ra, rcta_error_detalle: _re,
+          ...resto }) => ({
           ...resto,
           posdatada_de: id,
           vigencia_desde: `${aaaa}-${mm}-${dd}`,
           rcta_status: 'issued',
-          rcta_prescription_id: r.idReceta ?? r.id ?? null,
-          rcta_transaction_id: rctaData.idTransaccion ?? null,
-          rcta_verificador: r.verificador ?? null,
-          rcta_pdf_url: r.s3Link ?? null,
+          rcta_prescription_id: r.idReceta,
+          rcta_transaction_id: emision.idTransaccion,
+          rcta_verificador: r.verificador,
+          rcta_pdf_url: r.s3Link,
           rcta_issued_at: issuedAt,
-          rcta_hash: r.id ?? null,
+          rcta_hash: r.id,
+          rcta_recetas: [resumenReceta(r)],
+          rcta_autorizacion: autorizacionDeLasRecetas([r]),
           aviso_habilitada_at: null,
         }))
         const { error: posErr } = await supabase.from('clinical_medications').insert(filas)
@@ -869,23 +873,40 @@ Deno.serve(async (req: Request) => {
     // ── Pharmacy stock match + patient notification (best-effort — a failure here
     // must never fail the RCTA response, the prescription was already issued) ──
     // En practica no: le avisaria a una farmacia que hay un pedido posible para
-    // un paciente que no existe.
+    // un paciente que no existe. Tampoco con una pendiente de autorización: la
+    // farmacia todavía no la puede vender.
     if (!esPractica) {
       // deno-lint-ignore no-explicit-any
       for (const m of meds as any[]) {
+        const suyas = asignacion.recetasDe.get(m.id)
+        if (!suyas || autorizacionDeLasRecetas(suyas) === 'pendiente') continue
         await notifyPharmacyMatch(supabase, m).catch(err => console.error('pharmacy match failed:', err))
       }
     }
 
-    await registrar('issued')
+    // deno-lint-ignore no-explicit-any
+    const nombreDe = (id: string) => (meds as any[]).find(m => m.id === id)?.medication_name ?? null
+    const fallidas = [...asignacion.fallidas].map(([medicationId, err]) => ({
+      medicationId, nombre: nombreDe(medicationId), mensaje: err.mensaje ?? err.error ?? null,
+    }))
+    const parcial = fallidas.length > 0 || asignacion.sinUbicar.length > 0
+    await registrar(parcial ? 'issued_partial' : 'issued')
 
     return json({
       prescriptionId,
-      transactionId: rctaData.idTransaccion ?? null,
-      verificador: receta.verificador ?? null,
+      transactionId: emision.idTransaccion,
+      verificador: primera.verificador,
       pdfUrl,
       issuedAt,
       medicationIds: ids,
+      // Lo nuevo (2026-11-02): el detalle del lote.
+      emitidas: [...asignacion.recetasDe.keys()],
+      recetas: principales.map(r => ({ prescriptionId: r.idReceta, pdfUrl: r.s3Link, autorizacion: r.autorizacion })),
+      fallidas,
+      sinUbicar: asignacion.sinUbicar.map(id => ({ medicationId: id, nombre: nombreDe(id) })),
+      pendientesDeAutorizacion: principales.filter(r => r.autorizacion === 'pendiente').length
+        + posdatadasGuardadas.filter(p => p.autorizacion === 'pendiente').length,
+      avisoDelServicio: accionPdfAviso(emision),
       posdatadas: posdatadasGuardadas,
       posdatadasFaltantes: posdatadasSinGuardar.length,
     })
@@ -979,126 +1000,13 @@ async function notifyPharmacyMatch(supabase: any, med: any) {
   })
 }
 
-// Firma olografa del profesional (migracion 154), para `medico.firmabase64`.
-//
-// NUNCA puede tumbar una emision: si el profesional no cargo firma, si la
-// lectura falla o si lo guardado esta truncado, devuelve `null` y quien la
-// llama omite la clave del payload — la receta sale
-// como salia antes, con la linea de puno vacia. Mateo la definio opcional a
-// proposito (2026-09-11): bloquear la emision por una firma faltante dejaria a
-// un paciente sin su receta en medio de la consulta.
-//
-// Se lee con el cliente de service role, que se saltea la RLS: la unica policy
-// de `professional_signatures` es "sos vos mismo", y aca no hay sesion del
-// profesional sino la de la funcion.
-//
-// El `replace` del prefijo `data:` es defensivo y NO redundante: el front ya
-// guarda el base64 pelado, pero si alguna vez se cuela el data-URL Innovamed
-// contesta 200 y no dibuja nada — una receta sin firma y sin error, que es la
-// falla mas cara de encontrar.
-async function resolverFirma(
-  // deno-lint-ignore no-explicit-any
-  supabase: any,
-  professionalId: string | null | undefined,
-): Promise<string | null> {
-  try {
-    if (!professionalId) return null
-    const { data, error } = await supabase
-      .from('professional_signatures')
-      .select('firma_png')
-      .eq('user_id', professionalId)
-      .maybeSingle()
-    if (error) {
-      console.error('rcta-issue: firma omitida del payload — error al leerla:', error.message)
-      return null
-    }
-    const crudo = String(data?.firma_png ?? '').replace(/^data:image\/\w+;base64,/, '').trim()
-    if (crudo.length < 100) {
-      if (crudo.length) console.error('rcta-issue: firma omitida del payload — guardada vacía o truncada')
-      return null
-    }
-    return crudo
-  } catch (err) {
-    console.error('rcta-issue: firma omitida del payload — error al resolverla:', String(err))
-    return null
-  }
+/** Lo que se guarda de cada receta en `clinical_medications.rcta_recetas` (migración 223). */
+function resumenReceta(r: RecetaEmitida) {
+  return { id: r.id, idReceta: r.idReceta, fecha: r.fecha, s3Link: r.s3Link, verificador: r.verificador, autorizacion: r.autorizacion }
 }
 
-// Resultado tipado de una llamada a POST /apirecipe/Receta. Un solo tipo
-// para el intento original y el reintento sin firma (ver el bloque de
-// reintento en el handler principal): evita que las dos llamadas diverjan en
-// como arman el request o parsean la respuesta.
-type RctaCallResult =
-  | { kind: 'network_error'; err: unknown }
-  // deno-lint-ignore no-explicit-any
-  | { kind: 'rejected'; status: number; body: string; json: any }
-  // deno-lint-ignore no-explicit-any
-  | { kind: 'ok'; status: number; data: any }
-
-async function postReceta(url: string, apiKey: string, body: Record<string, unknown>): Promise<RctaCallResult> {
-  let res: Response
-  try {
-    res = await fetch(`${url}/apirecipe/Receta`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
-    })
-  } catch (err) {
-    // Ambiguo: no sabemos si Innovamed llego a recibir el request. El
-    // llamador NUNCA reintenta a partir de esto — ver el bloque de
-    // reintento en el handler principal.
-    return { kind: 'network_error', err }
-  }
-  if (!res.ok) {
-    const text = await res.text()
-    // deno-lint-ignore no-explicit-any
-    let errJson: any = null
-    try { errJson = JSON.parse(text) } catch { /* no siempre es JSON */ }
-    return { kind: 'rejected', status: res.status, body: text, json: errJson }
-  }
-  const data = await res.json()
-  return { kind: 'ok', status: res.status, data }
-}
-
-// RCTA quiere nombre y apellido por separado. Desde la migración 183 el perfil
-// los tiene (`first_name` / `last_name`) y se usan tal cual. Los perfiles que
-// todavía no los confirmaron caen al corte de siempre sobre `full_name`.
-// deno-lint-ignore no-explicit-any
-function nombreYApellido(p: any) {
-  const nombre = (p?.first_name ?? '').trim()
-  const apellido = (p?.last_name ?? '').trim()
-  if (nombre && apellido) return { nombre, apellido }
-  return splitName(p?.full_name)
-}
-
-// Respaldo: la última palabra es el apellido, todo lo anterior el nombre.
-function splitName(fullName: string | null | undefined) {
-  const parts = (fullName ?? '').trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return { nombre: '', apellido: '' }
-  if (parts.length === 1) return { nombre: parts[0], apellido: '' }
-  return { nombre: parts.slice(0, -1).join(' '), apellido: parts[parts.length - 1] }
-}
-
-// profiles.gender uses Spanish values; RCTA wants F/M/X.
-function mapSexo(gender: string | null | undefined): 'F' | 'M' | 'X' {
-  if (gender === 'femenino') return 'F'
-  if (gender === 'masculino') return 'M'
-  return 'X'
-}
-
-// professional_profiles.address is one free-text string (e.g. "Av. Santa Fe 1900, Recoleta, Buenos Aires").
-// RCTA's DomicilioDto wants calle/numero/localidad/provincia split out — best-effort parse.
-function parseAddress(address: string) {
-  const [streetPart, localidad, provincia] = address.split(',').map(s => s.trim())
-  const match = streetPart?.match(/^(.*\S)\s+(\d+)$/)
-  return {
-    calle: match ? match[1] : streetPart ?? null,
-    numero: match ? match[2] : null,
-    localidad: localidad ?? null,
-    provincia: provincia ?? null,
-    pais: 'Argentina',
-  }
+/** Pendiente si alguna de las recetas lo está; ok si todas dijeron Ok; si no, null (no informó). */
+function autorizacionDeLasRecetas(recetas: RecetaEmitida[]): Autorizacion {
+  if (recetas.some(r => r.autorizacion === 'pendiente')) return 'pendiente'
+  return recetas.length && recetas.every(r => r.autorizacion === 'ok') ? 'ok' : null
 }

@@ -19,6 +19,7 @@ import { MENSAJE_BAJA } from '../../services/bajaService'
 import { formatSettlementPlazo, formatARS } from '../../lib/format'
 import { cumplePrecioMinimo } from '../../lib/tarifas'
 import { CAMPOS_SENSIBLES } from '../../lib/reverificacion'
+import { PROVINCIAS_MATRICULA, etiquetaProvincia } from '../../lib/provinciasMatricula'
 import { faltanParaRecetar, OPCIONES_SEXO } from '../../lib/datosReceta'
 import AddressAutocomplete from '../../components/common/AddressAutocomplete'
 import { conCoordenadas, validarDireccionConsultorio } from '../../lib/geo'
@@ -396,6 +397,7 @@ function ProfessionalDrawer({ pro, duplicados = [], generalRate, onClose, onUpda
   const [dni, setDni] = useState('')
   const [licenseType, setLicenseType] = useState('MN')
   const [licenseNumber, setLicenseNumber] = useState('')
+  const [licenseProvince, setLicenseProvince] = useState('')
   const [gender, setGender] = useState('')
   const [direccion, setDireccion] = useState({ address: '', latitude: null, longitude: null })
   const [editingCredentials, setEditingCredentials] = useState(false)
@@ -445,6 +447,7 @@ function ProfessionalDrawer({ pro, duplicados = [], generalRate, onClose, onUpda
       setDni(data.profile?.dni ?? '')
       setLicenseType(data.license_type ?? 'MN')
       setLicenseNumber(data.license_number ?? '')
+      setLicenseProvince(data.license_province ?? '')
       setGender(data.profile?.gender ?? '')
       setDireccion({ address: data.address ?? '', latitude: data.latitude ?? null, longitude: data.longitude ?? null })
     }
@@ -489,10 +492,12 @@ function ProfessionalDrawer({ pro, duplicados = [], generalRate, onClose, onUpda
     }
 
     // Save license to professional_profiles
-    if (licenseType !== detail?.license_type || licenseNumber !== (detail?.license_number ?? '')) {
+    const provincia = licenseType === 'MP' ? (licenseProvince || null) : null
+    if (licenseType !== detail?.license_type || licenseNumber !== (detail?.license_number ?? '')
+        || provincia !== (detail?.license_province ?? null)) {
       const { error } = await supabase
         .from('professional_profiles')
-        .update({ license_type: licenseType, license_number: licenseNumber.trim() || null })
+        .update({ license_type: licenseType, license_number: licenseNumber.trim() || null, license_province: provincia })
         .eq('id', pro.id)
       if (error) { toast.error('Error al guardar matrícula'); return }
     }
@@ -758,6 +763,7 @@ function ProfessionalDrawer({ pro, duplicados = [], generalRate, onClose, onUpda
                   {puedeRecetar(d?.specialty) && (() => {
                     const falta = faltanParaRecetar({
                       dni: d?.profile?.dni, gender: d?.profile?.gender, licenseNumber: d?.license_number,
+                      licenseType: d?.license_type, licenseProvince: d?.license_province,
                       address: d?.address, hasSignature: d?.has_signature,
                     })
                     return falta.length
@@ -790,6 +796,16 @@ function ProfessionalDrawer({ pro, duplicados = [], generalRate, onClose, onUpda
                             placeholder="Ej: 123456" className="form-input text-sm" />
                         </div>
                       </div>
+                      {licenseType === 'MP' && (
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1 block">Provincia de la matrícula</label>
+                          <select value={licenseProvince} onChange={e => setLicenseProvince(e.target.value)}
+                            className="form-select text-sm" data-testid="sa-provincia-matricula">
+                            <option value="">Sin cargar</option>
+                            {PROVINCIAS_MATRICULA.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                          </select>
+                        </div>
+                      )}
                       <div>
                         <label className="text-xs text-gray-500 mb-1 block">Sexo</label>
                         <select value={gender} onChange={e => setGender(e.target.value)} className="form-select text-sm">
@@ -826,6 +842,11 @@ function ProfessionalDrawer({ pro, duplicados = [], generalRate, onClose, onUpda
                             ? `${d.license_type} ${d.license_number}`
                             : <span className="text-amber-600">Sin cargar</span>}
                         </p>
+                        {d?.license_type === 'MP' && (
+                          <p className="text-[11px] mt-0.5" data-testid="sa-provincia-matricula-valor">
+                            {etiquetaProvincia(d.license_province) || <span className="text-amber-600">Provincia sin cargar</span>}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <p className="text-xs text-gray-400 mb-0.5">Sexo</p>
@@ -1164,7 +1185,7 @@ export default function SuperAdminProfesionales() {
       const [profResult, consultResult] = await Promise.all([
         supabase
           .from('professional_profiles')
-          .select('id, specialty, is_verified, is_active, verification_source, sisa_status, mp_connected, mp_account_label, has_signature, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, price_video, price_presencial, session_price, license_number, address, latitude, longitude, profiles!user_id(id, full_name, email, phone, dni, es_extranjero, gender, created_at, utm_source, avatar_url)')
+          .select('id, specialty, is_verified, is_active, verification_source, sisa_status, mp_connected, mp_account_label, has_signature, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, price_video, price_presencial, session_price, license_number, license_type, license_province, address, latitude, longitude, profiles!user_id(id, full_name, email, phone, dni, es_extranjero, gender, created_at, utm_source, avatar_url)')
           .eq('dado_de_baja', false) // bajas lógicas (188) fuera
           .order('created_at', { ascending: false }),
         supabase.from('consultations').select('professional_id'),
@@ -1427,7 +1448,8 @@ export default function SuperAdminProfesionales() {
                         {puedeRecetar(pro.specialty) && (() => {
                           const falta = faltanParaRecetar({
                             dni: pro.profiles?.dni, gender: pro.profiles?.gender,
-                            licenseNumber: pro.license_number, address: pro.address, hasSignature: true,
+                            licenseNumber: pro.license_number, licenseType: pro.license_type, licenseProvince: pro.license_province,
+                            address: pro.address, hasSignature: true,
                           })
                           return falta.length
                             ? <p className="text-[11px] text-amber-700 mt-0.5 whitespace-nowrap">Para recetar falta: {falta.join(', ')}</p>

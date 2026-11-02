@@ -91,7 +91,7 @@ export default function ConsultationSummary({ profile }) {
     .reduce((acc, m) => {
       const existing = acc.get(m.rctaPrescriptionId)
       if (existing) existing.medications.push(m.medicationName)
-      else acc.set(m.rctaPrescriptionId, { rctaPrescriptionId: m.rctaPrescriptionId, rctaPdfUrl: m.rctaPdfUrl, medications: [m.medicationName] })
+      else acc.set(m.rctaPrescriptionId, { rctaPrescriptionId: m.rctaPrescriptionId, rctaPdfUrl: m.rctaPdfUrl, medications: [m.medicationName], pendiente: m.rctaAutorizacion === 'pendiente' })
       return acc
     }, new Map())
   const recetas = Array.from(recetasPorId.values())
@@ -245,7 +245,9 @@ export default function ConsultationSummary({ profile }) {
                   <span className="text-[13px] font-semibold text-text-primary truncate">
                     {(r.medications ?? []).join(' · ') || `Receta N° ${r.rctaPrescriptionId}`}
                   </span>
-                  <span className="text-[13px] font-semibold text-brand flex-shrink-0">Ver PDF</span>
+                  <span className="text-[13px] font-semibold text-brand flex-shrink-0">
+                    {r.pendiente ? 'Pendiente de autorización · Ver PDF' : 'Ver PDF'}
+                  </span>
                 </a>
               ))}
             </div>

@@ -1,0 +1,105 @@
+# Notas de la versión - QBI2 - FRM - v2.0.0 - Sep 30 14:03 (v1, 2026-09-30)
+ Cómo utilizar esta página: 
+ Encuentra las incidencias de Jira seleccionadas en la tabla de abajo. Selecciona el icono de expandir para usarlas como fuente de información y escribir las notas de la publicación.
+ Publicación 
+ https://innovamed.atlassian.net/projects/QBR/versions/14868 
+ Fecha 
+ 10 sept 2026 
+ Versión 
+ FRM - v2.0.0
+ Descripción 
+ Colaboradores 
+ Denis Caramichos [Streambe] 
+   Incidencias de esta publicación Antes de compartir la página, revisa los contenidos de cada incidencia de Jira y elimina cualquier dato sensible.
+ Incidencia 
+ Resumen 
+ Tipo de Incidencia 
+ Persona asignada 
+ QBR-2339 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ FRM - [Integración] Configurar Timeout en MySQL Health Check Provider
+ Task
+ Denis Caramichos [Streambe] 
+ QBR-2338 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ FRM - [Arquitectura] Upgrade del Target Framework a .NET 10 y EF Core 10
+ Task
+ Denis Caramichos [Streambe] 
+ QBR-2337 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ FRM - [Arquitectura] Métodos Factory en BaseResponse para Códigos HTTP
+ Task
+ Denis Caramichos [Streambe] 
+ QBR-2336 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ FRM - [Arquitectura] Excepciones de Negocio y Estandarización de Códigos de Error
+ Task
+ Denis Caramichos [Streambe] 
+ QBR-2335 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ FRM - [Deuda Técnica] Incorporar Roslyn Analyzers y EditorConfig
+ Task
+ Denis Caramichos [Streambe] 
+ QBR-2334 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ FRM - [Deuda Técnica] Homologación de Directorios, Namespaces y Naming
+ Task
+ Denis Caramichos [Streambe] 
+ QBR-2333 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ FRM - [Seguridad] Robustez y Refresco de Tokens en Keycloak
+ Task
+ Denis Caramichos [Streambe] 
+ QBR-2332 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ FRM - [Integración] Robustez de AWS SSM y Configuración Local
+ Task
+ Denis Caramichos [Streambe] 
+ QBR-2331 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ QBIR - [Arquitectura] Paginación Obligatoria en Persistencia y CRUD
+ Task
+ Denis Caramichos [Streambe] 
+ QBR-2330 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ FRM - [Arquitectura] Content Negotiation y Ajustes de Excepciones
+ Task
+ Denis Caramichos [Streambe] 
+ QBR-2329 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ FRM - [QA] Suite de Tests Unitarios y CI/CD Gates
+ Task
+ Denis Caramichos [Streambe] 
+ QBR-2328 
+ -
+ Obteniendo datos de incidencia... 
+ ESTADO 
+ FRM - [Seguridad] Sanitización de Logs y Redacción de PII/PHI (HIPAA)
+ Task
+ Denis Caramichos [Streambe] 
+ Resumen
+ Nuevas funciones
+ Mejoras en las funciones existentes
+ Corrección de errores
