@@ -25,6 +25,10 @@ export const MODALIDADES = ['virtual', 'presencial']
  * "2839, Arenales, Barrio Norte…".
  */
 export function direccionConNumero(direccion) {
+  // Nominatim con lugar con nombre: "IFER, 2259, Marcelo T. de Alvear, Barrio Norte" —
+  // <lugar>, <altura sola>, <calle>. La altura sola entre dos segmentos con letras.
+  const segs = String(direccion ?? '').split(',').map(s => s.replace(/\s+/g, ' ').trim())
+  if (segs.length >= 3 && /\p{L}{2}/u.test(segs[0]) && /^\d{1,5}\s?[A-Za-z]?$/.test(segs[1]) && /\p{L}{3}/u.test(segs[2])) return true
   const calle = String(direccion ?? '').split(',')[0].replace(/\s+/g, ' ').trim()
   if (!calle) return false
   if (/^\d{1,5}\s?[A-Za-z]?$/.test(calle) && String(direccion).includes(',')) {

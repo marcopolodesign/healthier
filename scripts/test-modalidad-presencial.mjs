@@ -42,8 +42,16 @@ test('presencial: sin precio presencial no se ofrece (no cae al de video ni al s
   assert.equal(r.precio, null)
 })
 test('presencial: sin calle y número no se ofrece', () => {
-  for (const address of [null, '', 'Donado y Echeverria.', 'Lavalleja, Villa Crespo, Buenos Aires, Comuna 15']) {
+  for (const address of [null, '', 'Donado y Echeverria.', 'Lavalleja, Villa Crespo, Buenos Aires, Comuna 15', 'Coronel Ramón Lorenzo Falcón, Flores, Buenos Aires']) {
     assert.equal(ofreceModalidad({ ...AMBAS, address }, 'presencial').ok, false, `address=${address}`)
+  }
+})
+test('presencial: un lugar con nombre seguido de altura y calle (Nominatim) sí se ofrece', () => {
+  for (const address of ['IFER, 2259, Marcelo T. de Alvear, Barrio Norte, Buenos Aires', 'Centro Médico Santa Paula, 1399, Avenida Daniel M. Cazón, Tigre']) {
+    assert.equal(ofreceModalidad({ ...AMBAS, address }, 'presencial').ok, true, address)
+  }
+  for (const address of ['9 de Julio, Martin, Rosario, Santa Fe', 'Primera Junta, Avenida Rivadavia, Caballito', 'Buenos Aires, Argentina']) {
+    assert.equal(ofreceModalidad({ ...AMBAS, address }, 'presencial').ok, false, address)
   }
 })
 test("'ambas' con precio presencial y dirección completa ofrece presencial con SU precio", () => {
@@ -108,6 +116,12 @@ const DIRECCIONES = [
   '5063, 61 - Lacroze, Villa Ballester', 'Lavalleja, Villa Crespo, Buenos Aires, Comuna 15, Ciudad Autónoma de Buenos Aires',
   'Donado y Echeverria.', '', null, 'Avenida Santa Fe, Recoleta', '9 de Julio, Centro', 'Av. 9 de Julio 1500', 'Calle 12', 'Ruta 8 km 50',
   'Av. Santa Fe 1900, Recoleta, Buenos Aires', 'Piso 3 dto 4', '1990, Avenida Santa Fe, Barrio Norte, Recoleta',
+  // <lugar>, <altura>, <calle> (migración 221)
+  'Centro Médico Santa Paula, 1399, Avenida Daniel M. Cazón, Tigre', 'Belgrano Athletic Club, 3456, Virrey Del Pino, Belgrano',
+  'Clínica Modelo de Morón, 234, República Oriental del Uruguay, Morón', 'Centro Integral para la Salud, 971, Ministro Alcorta, Martínez',
+  'Instituto Cardiovascular, 340, Bernardino Rivadavia, Rosario', 'Consultorio Sur, 12B, Avenida Mitre, Avellaneda', 'IFER, 2259',
+  'Coronel Ramón Lorenzo Falcón, Flores, Buenos Aires', '9 de Julio, Martin, Rosario, Santa Fe', 'Calle 99 - Zárate, Villa Lynch',
+  'Primera Junta, Avenida Rivadavia, Caballito', 'Buenos Aires, Argentina', 'Lugar, 12, 34', 'Lugar, 123456, Avenida Mitre',
 ]
 
 test('la web y la base deciden igual si una dirección tiene calle y número', { skip: saltear }, async () => {

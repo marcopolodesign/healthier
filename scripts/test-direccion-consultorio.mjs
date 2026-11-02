@@ -17,6 +17,12 @@ test('una dirección de consultorio sin número de calle NO es válida', () => {
     'Calle 99 - Zárate Villa Progreso, B1502HQG Villa Lynch, Buenos Aires Province',
     'San Martín s/n, Ramallo',
     'Falcón',
+    'Lavalleja, Villa Crespo, Buenos Aires',
+    'Donado y Echeverria.',
+    '9 de Julio, Martin, Rosario, Santa Fe',
+    'Calle 99 - Zárate, Villa Lynch',
+    'Primera Junta, Avenida Rivadavia, Caballito',
+    'Buenos Aires, Argentina',
   ]) {
     assert.equal(direccionTieneNumero(d), false, d)
     assert.equal(validarDireccionConsultorio(d), 'Agregá el número de la calle', d)
@@ -32,6 +38,14 @@ test('con calle y número es válida, en el orden de Google y en el de Nominatim
     '3709, Arenales, Palermo, Comuna 14',
     'Calle 99 - Zárate 1234, Villa Lynch',
     'Ruta 8 km 50',
+    // Nominatim con un lugar con nombre: <lugar>, <altura>, <calle>
+    'IFER, 2259, Marcelo T. de Alvear, Barrio Norte, Buenos Aires',
+    'Centro Médico Santa Paula, 1399, Avenida Daniel M. Cazón, Tigre',
+    'Belgrano Athletic Club, 3456, Virrey Del Pino, Belgrano',
+    'Clínica Modelo de Morón, 234, República Oriental del Uruguay, Morón',
+    'Centro Integral para la Salud, 971, Ministro Alcorta, Martínez',
+    'Instituto Cardiovascular, 340, Bernardino Rivadavia, Rosario',
+    'Consultorio Sur, 12B, Avenida Mitre, Avellaneda',
   ]) assert.equal(validarDireccionConsultorio(d), null, d)
   assert.equal(validarDireccionConsultorio(''), null, 'vacía no bloquea: la cubre el aviso del panel')
 })

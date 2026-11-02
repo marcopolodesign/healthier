@@ -124,6 +124,10 @@ export function armarDireccion({ calle, numero, barrio, ciudad, provincia }) {
  * "Calle 99 - Zárate" (calle numerada), "Ruta 8", "Av. 9 de Julio".
  */
 export function direccionTieneNumero(direccion) {
+  // Nominatim con lugar con nombre: "IFER, 2259, Marcelo T. de Alvear, Barrio Norte" —
+  // <lugar>, <altura sola>, <calle>. La altura sola entre dos segmentos con letras.
+  const segs = String(direccion ?? '').split(',').map(s => s.replace(/\s+/g, ' ').trim())
+  if (segs.length >= 3 && /\p{L}{2}/u.test(segs[0]) && /^\d{1,5}\s?[A-Za-z]?$/.test(segs[1]) && /\p{L}{3}/u.test(segs[2])) return true
   const calle = String(direccion ?? '').split(',')[0].replace(/\s+/g, ' ').trim()
   if (!calle) return false
   // Nominatim: "3709, Arenales, Palermo" — el número solo, antes de la coma.
