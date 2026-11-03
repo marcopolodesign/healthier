@@ -44,6 +44,8 @@ export type Datos = {
   /** Certificados (migración 222) */
   certificadoId?: string
   certificadoTipo?: string | null
+  /** Órdenes de estudios (migración 227) */
+  ordenEstudiosId?: string
   /** Devoluciones */
   monto?: number | null
   aCreditos?: boolean
@@ -250,6 +252,17 @@ export const AVISOS = {
         : 'Tu constancia de atención ya está disponible',
       body: `${d.professionalName ?? 'Tu profesional'} te lo emitió. Lo encontrás en tu Bóveda, listo para compartir.`,
       url: '/paciente/certificados',
+    }),
+  },
+
+  // Migración 227: orden de estudios emitida por el servicio de recetas.
+  'orden-estudios-emitida': {
+    para: 'paciente' as Destinatario,
+    cuando: 'El profesional emite una orden de estudios.',
+    build: (d: Datos): Aviso => ({
+      title: 'Tu orden de estudios ya está disponible',
+      body: `${d.professionalName ?? 'Tu profesional'} te la emitió. La encontrás en tu Bóveda, lista para presentar en el laboratorio.`,
+      url: '/paciente/ordenes-estudios',
     }),
   },
 

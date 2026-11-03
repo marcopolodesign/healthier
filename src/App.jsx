@@ -91,6 +91,7 @@ import ReservarConsulta from './pages/patient/ReservarConsulta'
 import FamiliarDetalle from './pages/patient/FamiliarDetalle'
 import PatientRecetas from './pages/patient/Recetas'
 import PatientCertificados from './pages/patient/Certificados'
+import PatientOrdenesEstudios from './pages/patient/OrdenesEstudios'
 import PatientDerivacion from './pages/patient/Derivacion'
 import PatientRecetaDetalle from './pages/patient/RecetaDetalle'
 import PaymentPage from './pages/patient/PaymentPage'
@@ -512,6 +513,7 @@ export default function App() {
           <Route path="/paciente/consulta/resumen/:id" element={<ConsultationSummary profile={profile} />} />
           <Route path="/paciente/recetas"             element={<PatientRecetas     profile={profile} />} />
           <Route path="/paciente/certificados"        element={<PatientCertificados profile={profile} />} />
+          <Route path="/paciente/ordenes-estudios"    element={<PatientOrdenesEstudios profile={profile} />} />
           <Route path="/paciente/derivaciones/:id"    element={<PatientDerivacion  profile={profile} />} />
           <Route path="/paciente/receta/:prescriptionId" element={<PatientRecetaDetalle profile={profile} />} />
           <Route path="/paciente/historia-clinica" element={<HistoriaClinicaPaciente profile={profile} />} />

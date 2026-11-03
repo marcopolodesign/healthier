@@ -1,7 +1,7 @@
 <!doctype html><html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Los avisos de Healthier</title>
-<meta name="description" content="Las 31 notificaciones que manda Healthier, como se ven en el teléfono.">
+<meta name="description" content="Las 35 notificaciones que manda Healthier, como se ven en el teléfono.">
 <style>
   @font-face{font-family:'Everett';src:url('/fonts/Everett-Light.woff2') format('woff2');
     font-weight:300;font-style:normal;font-display:swap}
@@ -90,7 +90,7 @@
 <div class="marca">
   <img src="/email/healthier-logo.png" alt="Healthier" width="118">
   <h1>Los avisos del teléfono</h1>
-  <p>31 notificaciones · para revisar qué dicen</p>
+  <p>35 notificaciones · para revisar qué dicen</p>
 </div>
 
 <header class="top"><div class="wrap"><nav><a href="#g-al-paciente-turnos-y-consultas">Al paciente · turnos y consultas</a><a href="#g-al-paciente-recetas-y-farmacia">Al paciente · recetas y farmacia</a><a href="#g-al-paciente-emergencias">Al paciente · emergencias</a><a href="#g-al-profesional">Al profesional</a></nav></div></header>
@@ -111,7 +111,7 @@
         <div class="notif">
           <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
           <p class="titulo">Te agendaron un turno</p>
-          <p class="texto">Tu profesional agendó una consulta para el 14/10 a las 17:00.</p>
+          <p class="texto">Tu profesional agendó una consulta para el 4/11 a las 14:28.</p>
         </div>
       </div>
       <div class="detalle">
@@ -201,7 +201,7 @@
         <div class="notif">
           <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
           <p class="titulo">Recordatorio de turno</p>
-          <p class="texto">Mañana tenés una consulta con Dra. Valentina Ortiz a las 17:00.</p>
+          <p class="texto">Mañana tenés una consulta con Dra. Valentina Ortiz a las 14:28.</p>
         </div>
       </div>
       <div class="detalle">
@@ -219,7 +219,7 @@
         <div class="notif">
           <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
           <p class="titulo">Tu consulta comienza pronto</p>
-          <p class="texto">Tu consulta con Dra. Valentina Ortiz es a las 17:00. ¡Preparate!</p>
+          <p class="texto">Tu consulta con Dra. Valentina Ortiz es a las 14:28. ¡Preparate!</p>
         </div>
       </div>
       <div class="detalle">
@@ -264,6 +264,78 @@
         <label class="obs">
           <span>Observaciones</span>
           <textarea data-slug="post-consulta" data-titulo="Tu resumen ya está listo" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="receta-autorizada">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Ya podés comprar tu Amoxicilina 500 mg</p>
+          <p class="texto">Tu obra social autorizó la receta. Pedila en la farmacia de la app.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>La farmacia de Healthier autoriza una receta que estaba pendiente de autorización de la obra social. Una vez por receta.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/farmacia</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="receta-autorizada" data-titulo="Ya podés comprar tu Amoxicilina 500 mg" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="receta-habilitada">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Ya podés comprar tu Amoxicilina 500 mg</p>
+          <p class="texto">Tu próxima receta está habilitada desde hoy. Pedila en la farmacia de la app o presentala en cualquier farmacia.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>Empieza a valer una receta posdatada (tratamiento prolongado). Una vez por receta, a las 9 de la mañana del día en que se habilita.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/farmacia</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="receta-habilitada" data-titulo="Ya podés comprar tu Amoxicilina 500 mg" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="certificado-emitido">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Tu constancia de atención ya está disponible</p>
+          <p class="texto">Dra. Valentina Ortiz te lo emitió. Lo encontrás en tu Bóveda, listo para compartir.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El profesional emite un certificado (constancia de atención, reposo o escolar).</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/certificados</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="certificado-emitido" data-titulo="Tu constancia de atención ya está disponible" rows="2"
+                    placeholder="Qué cambiarías de este texto…"></textarea>
+        </label>
+      </div>
+    </article>
+    <article class="aviso" id="orden-estudios-emitida">
+      <div class="tel">
+        <div class="notif">
+          <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
+          <p class="titulo">Tu orden de estudios ya está disponible</p>
+          <p class="texto">Dra. Valentina Ortiz te la emitió. La encontrás en tu Bóveda, lista para presentar en el laboratorio.</p>
+        </div>
+      </div>
+      <div class="detalle">
+        <p class="cuando"><span>Cuándo se manda</span>El profesional emite una orden de estudios.</p>
+        <p class="lleva"><span>Al tocarla lleva a</span><code>/paciente/ordenes-estudios</code></p>
+        <label class="obs">
+          <span>Observaciones</span>
+          <textarea data-slug="orden-estudios-emitida" data-titulo="Tu orden de estudios ya está disponible" rows="2"
                     placeholder="Qué cambiarías de este texto…"></textarea>
         </label>
       </div>
@@ -591,7 +663,7 @@
         <div class="notif">
           <div class="app"><span class="icono">H</span><span class="nombre">Healthier</span><span class="hace">ahora</span></div>
           <p class="titulo">Tenés una consulta en una hora</p>
-          <p class="texto">Tu próxima consulta es a las 17:00.</p>
+          <p class="texto">Tu próxima consulta es a las 14:28.</p>
         </div>
       </div>
       <div class="detalle">

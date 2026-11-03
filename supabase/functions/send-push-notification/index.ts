@@ -119,6 +119,16 @@ async function datosDelAviso(
     }
   }
 
+  if (p.ordenEstudiosId) {
+    datos.ordenEstudiosId = p.ordenEstudiosId as string
+    const { data } = await supabase
+      .from('clinical_study_orders')
+      .select('professional:profiles!professional_id(full_name)')
+      .eq('id', p.ordenEstudiosId)
+      .maybeSingle()
+    if (data) datos.professionalName = (data.professional as { full_name?: string } | null)?.full_name ?? null
+  }
+
   return datos
 }
 

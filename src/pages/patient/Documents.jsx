@@ -4,7 +4,7 @@ import {
   ShieldCheck, CaretRight, ArrowLeft, Plus,
   CloudArrowUp, Camera, CircleNotch, Pulse,
   FileText, FolderOpen, AppleLogo, Barbell, Brain, PawPrint, Sparkle, ClipboardText,
-  PencilSimple, Trash, ShoppingBag, ForkKnife, Certificate,
+  PencilSimple, Trash, ShoppingBag, ForkKnife, Certificate, TestTube,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
 import PatientSheet from '../../components/patient/PatientSheet'
@@ -17,6 +17,7 @@ import AnalisisVault from '../../components/patient/AnalisisVault'
 import ActivityPlanVault from '../../components/patient/ActivityPlanVault'
 import { petsService } from '../../services/petsService'
 import { certificadosService } from '../../services/certificadosService'
+import { ordenesEstudiosService } from '../../services/ordenesEstudiosService'
 
 const PET_SPECIES = ['Perro', 'Gato', 'Otro']
 
@@ -73,6 +74,7 @@ const DESCRIPCION = {
   nutriplan: 'Tu plan de alimentación vigente.',
   recetas: 'Tus recetas electrónicas, vigentes y anteriores.',
   certificados: 'Constancias, reposos y certificados escolares.',
+  ordenes: 'Las órdenes de estudios que te emitieron.',
   analisis: 'Subí tus estudios y guardalos en tu historia.',
   mente: 'Tu plan y los documentos de salud mental.',
   rehabilitacion: 'Tu plan de ejercicios de rehabilitación.',
@@ -87,6 +89,8 @@ const CARPETA_BIOVISOR = { id: 'biovisor', name: 'Análisis de sangre', icon: Pu
 const CARPETA_NUTRIPLAN = { id: 'nutriplan', name: 'Nutrición', icon: ForkKnife, textClass: 'text-amber-700', ruta: '/paciente/nutriplan', chip: 'Activo' }
 // Certificados (migración 222): sólo aparece si el paciente tiene alguno (Felipe, 2026-11-02).
 const CARPETA_CERTIFICADOS = { id: 'certificados', name: 'Certificados', icon: Certificate, textClass: 'text-emerald-700', ruta: '/paciente/certificados' }
+// Órdenes de estudios (migración 227): igual que Certificados, sólo si tiene alguna.
+const CARPETA_ORDENES = { id: 'ordenes', name: 'Órdenes de estudios', icon: TestTube, textClass: 'text-emerald-700', ruta: '/paciente/ordenes-estudios' }
 const CARPETA_FARMACIA = { id: 'farmacia', name: 'Farmacia', icon: ShoppingBag, textClass: 'text-[#A5472F]', ruta: '/paciente/farmacia', acento: true }
 
 function CategoryHeader({ cat, onBack }) {
@@ -135,10 +139,14 @@ export default function PatientDocuments({ profile }) {
   const [newPet, setNewPet] = useState({ nombre: '', especie: 'Perro', raza: '' })
 
   const [tieneCertificados, setTieneCertificados] = useState(false)
+  const [tieneOrdenes, setTieneOrdenes] = useState(false)
   useEffect(() => {
     let cancelado = false
     certificadosService.listarDelPaciente(profile?.id)
       .then(l => { if (!cancelado) setTieneCertificados(l.length > 0) })
+      .catch(() => {})
+    ordenesEstudiosService.listarDelPaciente(profile?.id)
+      .then(l => { if (!cancelado) setTieneOrdenes(l.length > 0) })
       .catch(() => {})
     return () => { cancelado = true }
   }, [profile?.id])
@@ -236,9 +244,11 @@ export default function PatientDocuments({ profile }) {
   const carpetas = [
     CARPETA_BIOVISOR,
     CARPETA_NUTRIPLAN,
-    // Certificados va pegado a Recetas: son los dos papeles que emite el profesional.
+    // Certificados y órdenes de estudios van pegados a Recetas: son los papeles que emite el profesional.
     ...CATEGORIES.filter(c => !c.comingSoon && c.id !== 'historial' && c.id !== 'peludo')
-      .flatMap(c => (c.id === 'recetas' && tieneCertificados ? [c, CARPETA_CERTIFICADOS] : [c])),
+      .flatMap(c => (c.id === 'recetas'
+        ? [c, ...(tieneOrdenes ? [CARPETA_ORDENES] : []), ...(tieneCertificados ? [CARPETA_CERTIFICADOS] : [])]
+        : [c])),
     ...(farmaciaVisible(profile) ? [CARPETA_FARMACIA] : []),
     ...CATEGORIES.filter(c => c.id === 'peludo'),
   ]
