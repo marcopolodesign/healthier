@@ -54,9 +54,11 @@ type Fila = {
   // Migración 223: las recetas que contienen esta medicación. Normalmente una;
   // más si el servicio la repartió. Las filas viejas no la tienen.
   rcta_recetas: { id: string | null; idReceta: string | null }[] | null
+  // Migración 223, columna generada: error con recetas del lote guardadas.
+  rcta_a_revisar: boolean | null
 }
 
-const COLUMNAS = 'id, patient_id, professional_id, encounter_id, status, rcta_status, posdatada_de, vigencia_desde, rcta_prescription_id, rcta_hash, rcta_transaction_id, rcta_anulacion_estado, medication_name, rcta_recetas'
+const COLUMNAS = 'id, patient_id, professional_id, encounter_id, status, rcta_status, posdatada_de, vigencia_desde, rcta_prescription_id, rcta_hash, rcta_transaction_id, rcta_anulacion_estado, medication_name, rcta_recetas, rcta_a_revisar'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
@@ -98,47 +100,59 @@ Deno.serve(async (req: Request) => {
     if (fila.posdatada_de) {
       return json({ error: 'Las recetas posdatadas se anulan desde la receta original.', code: 'RCTA_ANULAR_DESDE_ORIGINAL' }, 422)
     }
-    // Migración 223: una fila "a revisar" (error con recetas del lote guardadas)
-    // también se anula — esas recetas valen afuera y no hay otra forma de bajarlas.
-    const aRevisar = (f: Fila) => f.rcta_status === 'error' && (f.rcta_recetas?.length ?? 0) > 0
-    if (!aRevisar(fila) && (!fila.rcta_prescription_id || (fila.rcta_status !== 'issued' && fila.rcta_status !== 'anulada'))) {
-      return json({ error: 'Esta medicación no tiene una receta emitida para anular.', code: 'RCTA_NO_EMITIDA' }, 422)
-    }
+    // ── Qué se anula: el cierre de las recetas compartidas (migración 223) ──
+    // Una fila puede estar en varias recetas del servicio (`rcta_recetas`) y una
+    // receta puede contener varias medicaciones. Anular una receta deja sin
+    // receta a TODAS las medicaciones que la contienen, así que se anula el
+    // cierre completo: las filas que comparten alguna receta con el grupo, y las
+    // recetas de esas filas, hasta que no aparezca nada nuevo. El modal lo
+    // muestra antes con `previsualizar` (revisión pre-prod, ronda 3).
+    // "A revisar" tiene UNA definición: la columna generada `rcta_a_revisar`.
     const reintento = fila.rcta_status === 'anulada'
-
-    // Todos los medicamentos de la receta (una receta puede llevar varios).
-    const { data: grupoData, error: grupoErr } = aRevisar(fila)
-      ? { data: [fila], error: null }
-      : await supabase
-        .from('clinical_medications').select(COLUMNAS)
-        .eq('patient_id', fila.patient_id)
-        .eq('rcta_prescription_id', fila.rcta_prescription_id)
-        .is('posdatada_de', null)
-    if (grupoErr) return json({ error: grupoErr.message }, 500)
-    const grupo = (grupoData ?? []) as Fila[]
-
-    // Migración 223: una fila puede estar en más de una receta (`rcta_recetas`).
-    // Anular esas recetas anula también a las otras medicaciones que las
-    // comparten, aunque su receta "principal" sea otra: entran al grupo, si no
-    // quedarían a la venta con una receta ya anulada del otro lado.
     const idRecetasDe = (f: Fila) => (f.rcta_recetas?.length ? f.rcta_recetas.map(r => r.idReceta) : [f.rcta_prescription_id])
       .filter(Boolean) as string[]
-    const recetasDelGrupo = new Set(grupo.flatMap(idRecetasDe))
-    // Siempre que haya transacción (revisión, ronda 2: también cuando la fila
-    // anulada tiene una sola receta que otra fila comparte). Sólo entran las que
-    // siguen vigentes o "a revisar": una ya anulada o suspendida no frena nada.
-    if (!reintento && fila.rcta_transaction_id) {
-      const { data: hermanas, error: hermErr } = await supabase
-        .from('clinical_medications').select(COLUMNAS)
-        .eq('patient_id', fila.patient_id)
-        .eq('rcta_transaction_id', fila.rcta_transaction_id)
-        .is('posdatada_de', null)
-      if (hermErr) return json({ error: hermErr.message }, 500)
-      for (const h of (hermanas ?? []) as Fila[]) {
-        const vigente = h.status === 'active' && (h.rcta_status === 'issued' || aRevisar(h))
-        if (vigente && !grupo.some(g => g.id === h.id) && idRecetasDe(h).some(id => recetasDelGrupo.has(id))) grupo.push(h)
+    const vigente = (f: Fila) => f.status === 'active' && (f.rcta_status === 'issued' || f.rcta_a_revisar === true)
+    const sinConfirmar = (f: Fila) => f.rcta_status === 'anulada' && f.rcta_anulacion_estado === 'error'
+    const anulable = reintento ? sinConfirmar : vigente
+
+    if (!idRecetasDe(fila).length || (!reintento && fila.rcta_status !== 'issued' && fila.rcta_a_revisar !== true)) {
+      return json({ error: 'Esta medicación no tiene una receta emitida para anular.', code: 'RCTA_NO_EMITIDA' }, 422)
+    }
+
+    // Candidatas: las filas del mismo lote (transacción) o, en las filas viejas
+    // sin transacción guardada, las que tienen el mismo idReceta.
+    const consulta = supabase.from('clinical_medications').select(COLUMNAS)
+      .eq('patient_id', fila.patient_id).is('posdatada_de', null)
+    const { data: candData, error: candErr } = fila.rcta_transaction_id
+      ? await consulta.eq('rcta_transaction_id', fila.rcta_transaction_id)
+      : await consulta.eq('rcta_prescription_id', fila.rcta_prescription_id ?? '')
+    if (candErr) return json({ error: candErr.message }, 500)
+    const candidatas = ((candData ?? []) as Fila[]).filter(c => c.id !== fila.id)
+
+    const grupo: Fila[] = [fila]
+    const recetasDelGrupo = new Set(idRecetasDe(fila))
+    for (let cambio = true; cambio;) {
+      cambio = false
+      for (const c of candidatas) {
+        if (grupo.includes(c) || !anulable(c) || !idRecetasDe(c).some(id => recetasDelGrupo.has(id))) continue
+        grupo.push(c)
+        for (const id of idRecetasDe(c)) recetasDelGrupo.add(id)
+        cambio = true
       }
     }
+
+    if (!reintento && !vigente(fila)) {
+      return json({ error: 'Esta receta ya no está vigente.', code: 'RCTA_NO_VIGENTE' }, 409)
+    }
+
+    // Lo que va a pasar, sin tocar nada: para el modal.
+    if (body.previsualizar === true) {
+      return json({
+        medicaciones: grupo.map(g => ({ id: g.id, nombre: g.medication_name, aRevisar: g.rcta_a_revisar === true })),
+        recetas: [...recetasDelGrupo],
+      })
+    }
+
     const idsGrupo = grupo.map(g => g.id)
 
     const hoyAr = new Date(Date.now() - TZ_OFFSET_MS).toISOString().slice(0, 10)
@@ -148,9 +162,6 @@ Deno.serve(async (req: Request) => {
     let siguenVigentes: Fila[] = []
 
     if (!reintento) {
-      if (grupo.some(g => g.status !== 'active' || (g.rcta_status !== 'issued' && !aRevisar(g)))) {
-        return json({ error: 'Esta receta ya no está vigente.', code: 'RCTA_NO_VIGENTE' }, 409)
-      }
       const { data: posData, error: posErr } = await supabase
         .from('clinical_medications').select(COLUMNAS)
         .in('posdatada_de', idsGrupo)
@@ -179,7 +190,7 @@ Deno.serve(async (req: Request) => {
           rcta_anulacion_detalle: 'Sin confirmar todavía por el servicio de recetas.',
         })
         .in('id', ids)
-        .in('rcta_status', ['issued', 'error'])   // 'error' sólo puede ser una fila "a revisar" del grupo
+        .in('rcta_status', ['issued', 'error'])   // 'error' sólo entra si es "a revisar" (el grupo ya lo filtró)
         .eq('status', 'active')
         .select(COLUMNAS)
       if (marcaErr) return json({ error: `No se pudo anular: ${marcaErr.message}` }, 500)

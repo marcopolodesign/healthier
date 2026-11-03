@@ -40,8 +40,20 @@ const noEmpezo = p => String(p.vigencia_desde ?? '') > hoyArIso()
 
 /** Anulada acá pero el servicio de recetas todavía no lo confirmó. */
 // Migración 223: quedó en error pero con recetas del lote emitidas (no se pudo
-// confirmar cuál es suya). No se re-emite; se revisa o se anula.
-const aRevisar = x => x.rcta_status === 'error' && Array.isArray(x.rcta_recetas) && x.rcta_recetas.length > 0
+// confirmar cuál es suya). No se re-emite; se revisa o se anula. La definición
+// vive en la base (columna generada `rcta_a_revisar`), no acá.
+const aRevisar = x => x.rcta_a_revisar === true
+
+// Simulación de lotes del servicio de recetas (sólo staging/local, migración
+// 223): la pide `localStorage.rcta_simular_lote`. El servidor la rechaza en
+// cualquier otro entorno; acá además ni se manda fuera de staging.
+function escenarioDeSimulacion() {
+  try {
+    const host = window.location.hostname
+    if (!/(^|\.)staging\.|^localhost$|^127\.0\.0\.1$/.test(host)) return null
+    return window.localStorage.getItem('rcta_simular_lote') || null
+  } catch { return null }
+}
 const anulacionPendiente = x => x.rcta_status === 'anulada' && x.rcta_anulacion_estado === 'error'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -313,12 +325,25 @@ function PrescriptionRow({ rx, selectable, checked, onToggle, enCurso = false, p
  */
 function AnularRecetaModal({ objetivo, onCerrar, onConfirmar, anulando }) {
   const [motivo, setMotivo] = useState('')
-  useEffect(() => { if (objetivo) setMotivo('') }, [objetivo])
+  // Lo que de verdad se anula (migración 223): una receta del lote puede
+  // contener otras medicaciones, y anularla las deja sin receta. Lo calcula el
+  // servidor —la misma cuenta que después ejecuta— y se muestra antes.
+  const [alcance, setAlcance] = useState(null)
+  useEffect(() => {
+    if (!objetivo) return
+    setMotivo('')
+    setAlcance(null)
+    clinicalService.previsualizarAnulacion(objetivo.medicationId)
+      .then(setAlcance)
+      .catch(() => setAlcance({ error: true }))
+  }, [objetivo])
   if (!objetivo) return null
-  const { medicamentos, posdatadas } = objetivo
+  const { posdatadas } = objetivo
+  const medicamentos = alcance?.medicaciones?.length ? alcance.medicaciones.map(m => m.nombre) : objetivo.medicamentos
+  const otras = (alcance?.medicaciones ?? []).filter(m => m.id !== objetivo.medicationId)
   const seAnulan = posdatadas.filter(noEmpezo)
   const siguen = posdatadas.filter(p => !noEmpezo(p))
-  const total = 1 + seAnulan.length
+  const total = Math.max(1, alcance?.recetas?.length ?? 1) + seAnulan.length
 
   return (
     <Modal open onClose={anulando ? () => {} : onCerrar} title="Anular receta" size="sm">
@@ -328,6 +353,18 @@ function AnularRecetaModal({ objetivo, onCerrar, onConfirmar, anulando }) {
           <span className="font-medium text-text-primary">{medicamentos.map(capitalizarNombreCatalogo).join(', ')}</span>.
           La farmacia ya no va a poder dispensarla.
         </p>
+        {otras.length > 0 && (
+          <div className="text-sm rounded-lg bg-danger-muted/40 border border-danger/30 p-3 space-y-1" data-testid="anular-tambien">
+            <p className="font-medium text-text-primary">También se anulan:</p>
+            <p className="text-text-secondary">
+              {otras.map(m => capitalizarNombreCatalogo(m.nombre)).join(', ')}: comparten receta con esta.
+              {alcance?.recetas?.length > 1 && ` Recetas N° ${alcance.recetas.join(', ')}.`}
+            </p>
+          </div>
+        )}
+        {alcance?.error && (
+          <p className="text-sm text-amber-800">No pudimos calcular qué más se anula. Si la receta comparte medicamentos con otras, se anulan también.</p>
+        )}
         {posdatadas.length > 0 && (
           <div className="text-sm text-text-secondary space-y-1">
             <p>Se anulan: {[`hoy (${ddmmDe(objetivo.emitidaIso)})`, ...seAnulan.map(p => `desde ${ddmmDe(p.vigencia_desde)}`)].join(' · ')}</p>
@@ -348,7 +385,7 @@ function AnularRecetaModal({ objetivo, onCerrar, onConfirmar, anulando }) {
         <div className="flex gap-2 pt-1">
           <button type="button" onClick={onCerrar} disabled={anulando}
             className="btn-secondary flex-1 py-2">Cancelar</button>
-          <button type="button" onClick={() => onConfirmar(motivo.trim() || null)} disabled={anulando}
+          <button type="button" onClick={() => onConfirmar(motivo.trim() || null)} disabled={anulando || !alcance}
             className="btn-danger flex-1 py-2 flex items-center justify-center gap-1.5">
             {anulando
               ? <><CircleNotch className="h-4 w-4 animate-spin" /> Anulando…</>
@@ -834,7 +871,7 @@ export default function PrescriptionCreator({ patientId, encounterId, ensureEnco
       const enPractica = esSimulado(encounterId)
       const cuerpo = enPractica
         ? { simulacion: true, medicamentos: prescriptions.filter(rx => medicationIds.includes(rx.id)) }
-        : { medicationIds, recetas: recetasAEmitir }
+        : { medicationIds, recetas: recetasAEmitir, ...(escenarioDeSimulacion() ? { simularLote: escenarioDeSimulacion() } : {}) }
 
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(
