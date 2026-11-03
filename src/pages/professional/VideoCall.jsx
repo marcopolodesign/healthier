@@ -1262,6 +1262,7 @@ export function ClinicalPanel({ consultation, profile, localAudioTrack, remoteAu
               paciente={patientData}
               consultationId={consultation?.id ?? null}
               consultaFecha={consultation?.startedAt ?? consultation?.scheduledAt ?? null}
+              consulta={consultation ? { status: consultation.status, started_at: consultation.startedAt ?? null, scheduled_at: consultation.scheduledAt ?? null } : null}
               onDatosActualizados={() => {
                 if (patientId) profilesService.getById(patientId).then(setPatientData).catch(() => {})
                 recargarProfProfile()

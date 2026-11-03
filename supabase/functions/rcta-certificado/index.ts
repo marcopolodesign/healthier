@@ -35,7 +35,7 @@ import {
 } from '../_shared/rcta/mod.ts'
 import {
   CORS, json, rolDelJwt, armarPayloadCertificado, problemasDelPayload, validarCertificado,
-  vistaPrevia, conDias, diaAr, TIPOS, consultaNoCertificable, nombreDelProblema, type Certificado,
+  vistaPrevia, conDias, diaAr, TIPOS, consultaNoCertificable, nombreDelProblema, decidirRecuperacion, type Certificado,
 } from './armado.ts'
 
 const ENDPOINT = '/apirecipe/OtrasPrescripciones'
@@ -249,33 +249,49 @@ Deno.serve(async (req: Request) => {
       imprimir_diagnostico: certificado.imprimirDiagnostico,
       status: 'pending',
     }).select('id').single()
+    // Uno que quedó "a revisar" (se llamó al servicio y no hubo respuesta
+    // registrada) frena otro igual hasta que soporte lo revise: puede existir.
+    const { data: trabado } = await supabase.from('clinical_certificates')
+      .select('id').eq('consultation_id', consulta.id).eq('tipo', certificado.tipo).eq('a_revisar', true).limit(1).maybeSingle()
+    if (trabado) {
+      return json({ error: 'Hay un certificado de este tipo que quizás ya salió y lo está revisando Healthier. Para no emitir dos, esperá la respuesta de soporte.', code: 'CERT_A_REVISAR' }, 409)
+    }
+
     let { data: fila, error: insErr } = await nuevaFila()
     if (insErr?.code === '23505') {
-      // La que choca: si es de hace menos de 5 min, sigue en curso. Si es más
-      // vieja, la función se cortó: si el log dice que el servicio la emitió, se
-      // recupera (no se emite otra); si no, se cierra como error y se reintenta.
       const { data: previa } = await supabase.from('clinical_certificates')
-        .select('id, created_at').eq('consultation_id', consulta.id).eq('tipo', certificado.tipo)
+        .select('id, created_at, llamado_at').eq('consultation_id', consulta.id).eq('tipo', certificado.tipo)
         .eq('status', 'pending').maybeSingle()
-      const colgada = previa && Date.parse(previa.created_at) < Date.now() - 5 * 60_000
-      if (!colgada) {
+      const { data: log } = previa ? await supabase.from('rcta_issue_log')
+        .select('created_at, id_receta, verificador, s3_link, response').eq('certificado_id', previa.id).eq('outcome', 'issued')
+        .order('created_at', { ascending: false }).limit(1).maybeSingle() : { data: null }
+      const decision = previa ? decidirRecuperacion(previa, log, Date.now()) : 'en_curso'
+      if (decision === 'en_curso') {
         return json({ error: 'Ya hay un certificado de este tipo emitiéndose para esta consulta. Esperá unos segundos y volvé a abrir la consulta.', code: 'CERT_EN_CURSO' }, 409)
       }
-      const { data: log } = await supabase.from('rcta_issue_log')
-        .select('id_receta, verificador, s3_link, response').eq('certificado_id', previa.id).eq('outcome', 'issued')
-        .order('created_at', { ascending: false }).limit(1).maybeSingle()
-      if (log?.s3_link) {
-        const otra = Array.isArray(log.response?.otrasRecetas) ? log.response.otrasRecetas[0] : null
-        await supabase.from('clinical_certificates').update({
-          status: 'issued', rcta_hash: otra?.id ?? null, rcta_numero: log.id_receta ?? null,
-          rcta_verificador: log.verificador ?? null, rcta_pdf_url: log.s3_link,
-          rcta_issued_at: new Date().toISOString(), error_detalle: null,
-        }).eq('id', previa.id).eq('status', 'pending')
-        return json({ error: 'Este certificado ya estaba emitido: ahora aparece en la lista.', code: 'CERT_RECUPERADO' }, 409)
+      if (decision === 'recuperar') {
+        // El servicio ya lo emitió: se completa la fila con lo del log, con la
+        // fecha real de emisión, y se devuelve como éxito (no se emite otro).
+        const otra = Array.isArray(log!.response?.otrasRecetas) ? log!.response.otrasRecetas[0] : null
+        const { data: recuperado, error: recErr } = await supabase.from('clinical_certificates').update({
+          status: 'issued', rcta_hash: otra?.id ?? null, rcta_numero: log!.id_receta ?? null,
+          rcta_verificador: log!.verificador ?? null, rcta_pdf_url: log!.s3_link,
+          rcta_issued_at: log!.created_at, error_detalle: null,
+        }).eq('id', previa!.id).eq('status', 'pending').select('*').maybeSingle()
+        if (recErr) return json({ error: `El certificado ya estaba emitido pero no se pudo guardar: ${recErr.message}. Avisá a soporte.`, code: 'RCTA_EMITIDA_SIN_PERSISTIR', pdfUrl: log!.s3_link }, 500)
+        const final = recuperado ?? (await supabase.from('clinical_certificates').select('*').eq('id', previa!.id).single()).data
+        return json({ certificado: final, recuperado: true })
       }
+      if (decision === 'a_revisar') {
+        await supabase.from('clinical_certificates')
+          .update({ status: 'error', a_revisar: true, error_detalle: 'Se llamó al servicio y no quedó la respuesta: puede haber salido.' })
+          .eq('id', previa!.id).eq('status', 'pending')
+        return json({ error: 'Hay un certificado de este tipo que quizás ya salió y lo está revisando Healthier. Para no emitir dos, esperá la respuesta de soporte.', code: 'CERT_A_REVISAR' }, 409)
+      }
+      // reintentar: nunca se llegó a llamar al servicio.
       await supabase.from('clinical_certificates')
-        .update({ status: 'error', error_detalle: 'Quedó sin terminar (la emisión se cortó).' })
-        .eq('id', previa.id).eq('status', 'pending')
+        .update({ status: 'error', error_detalle: 'Quedó sin terminar antes de llamar al servicio.' })
+        .eq('id', previa!.id).eq('status', 'pending')
       ;({ data: fila, error: insErr } = await nuevaFila())
       if (insErr?.code === '23505') {
         return json({ error: 'Ya hay un certificado de este tipo emitiéndose para esta consulta. Esperá unos segundos y volvé a abrir la consulta.', code: 'CERT_EN_CURSO' }, 409)
@@ -292,6 +308,9 @@ Deno.serve(async (req: Request) => {
       supabase.from('clinical_certificates').update({ status: 'error', error_detalle: detalle.slice(0, 1000) }).eq('id', fila.id)
 
     let enviado: Record<string, unknown> = payload
+    // La marca de "se llamó al servicio": desde acá, una fila que quede colgada
+    // puede tener su certificado del otro lado y no se reemite a ciegas.
+    await supabase.from('clinical_certificates').update({ llamado_at: new Date().toISOString() }).eq('id', fila.id)
     let res = await llamarRcta('POST', RCTA_API_URL!, RCTA_API_KEY!, ENDPOINT, payload)
     // deno-lint-ignore no-explicit-any
     let reintento: Record<string, any> | null = null
@@ -322,9 +341,11 @@ Deno.serve(async (req: Request) => {
     const logRequest = { ...enviado, medico: { ...(enviado.medico as object), ...((enviado.medico as { firmabase64?: string }).firmabase64 ? { firmabase64: '(omitida)' } : {}) } }
 
     if (res.kind === 'network_error') {
-      await marcarError('El servicio de recetas no respondió.')
+      // Sin respuesta no se sabe si salió: queda "a revisar" y no se reemite.
+      await supabase.from('clinical_certificates')
+        .update({ status: 'error', a_revisar: true, error_detalle: 'El servicio de recetas no respondió: puede haber salido.' }).eq('id', fila.id)
       await registrar({ ...base, request: logRequest, outcome: 'network_error', error_code: 'RCTA_SIN_RESPUESTA', duration_ms: Date.now() - t0 })
-      return json({ error: 'No se pudo contactar al servicio de recetas. Revisá en un momento si el certificado quedó emitido antes de reintentar.', code: 'RCTA_SIN_RESPUESTA' }, 504)
+      return json({ error: 'El servicio de recetas no respondió y no sabemos si el certificado salió. Lo revisa Healthier; para no emitir dos, no se puede volver a emitir este tipo hasta entonces.', code: 'RCTA_SIN_RESPUESTA' }, 504)
     }
     if (res.kind === 'rejected') {
       const msg = String(res.json?.mensaje ?? res.body ?? '').slice(0, 300)

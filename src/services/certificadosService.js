@@ -43,7 +43,8 @@ export const certificadosService = {
       .from('clinical_certificates')
       .select('*')
       .eq('consultation_id', consultationId)
-      .in('status', ['issued', 'anulado'])
+      // Las "a revisar" también (migración 226): frenan otra igual y el profesional tiene que verlas.
+      .or('status.in.(issued,anulado),a_revisar.eq.true')
       .order('created_at', { ascending: false })
     if (error) throw error
     return toCamelCase(data ?? [])
@@ -66,9 +67,10 @@ export const certificadosService = {
   /** Lo que va a decir el PDF, armado del mismo payload que se emitiría. No sale nada afuera. */
   vistaPrevia(datos) { return llamar({ accion: 'vista_previa', ...datos }) },
 
+  /** `{ certificado, recuperado }`: recuperado = ya estaba emitido de un intento que se cortó. */
   async emitir(datos) {
-    const { certificado } = await llamar({ accion: 'emitir', ...datos })
-    return toCamelCase(certificado)
+    const { certificado, recuperado } = await llamar({ accion: 'emitir', ...datos })
+    return { certificado: toCamelCase(certificado), recuperado: recuperado === true }
   },
 
   anular(certificadoId) { return llamar({ accion: 'anular', certificadoId }) },

@@ -209,6 +209,7 @@ export default function SuperAdminAuditoria() {
         <AccionesAdminTab />
       ) : tab === 'recetas' ? (
         <>
+          <CertificadosARevisar />
           <RecetasTab
             recetas={recetas}
             loading={loadingRecetas}
@@ -343,6 +344,48 @@ export default function SuperAdminAuditoria() {
  * porque es lo que se pide desde afuera: para certificar la integración hay que
  * mandarlo, y para reclamar por una receta puntual también.
  */
+// Certificados que quizás salieron del servicio de recetas sin que Healthier
+// registrara la respuesta (migración 226): frenan otra emisión igual hasta que
+// alguien confirme con el servicio que no salió y lo libere.
+function CertificadosARevisar() {
+  const [filas, setFilas] = useState([])
+  const [liberando, setLiberando] = useState(null)
+  const cargar = () => supabase.from('clinical_certificates')
+    .select('id, created_at, tipo, error_detalle, consultation_id, patient:profiles!patient_id(full_name), professional:profiles!professional_id(full_name)')
+    .eq('a_revisar', true).order('created_at', { ascending: false })
+    .then(({ data, error }) => { if (error) toast.error(`No se pudieron cargar los certificados a revisar: ${error.message}`); else setFilas(data ?? []) })
+  useEffect(() => { cargar() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
+  if (!filas.length) return null
+  async function liberar(id) {
+    setLiberando(id)
+    const { error } = await supabase.rpc('liberar_certificado_a_revisar', { p_id: id })
+    setLiberando(null)
+    if (error) { toast.error(`No se pudo liberar: ${error.message}`); return }
+    toast.success('Liberado: el profesional puede volver a emitirlo')
+    cargar()
+  }
+  return (
+    <div className="card mb-4 border-amber-300 bg-amber-50" data-testid="certificados-a-revisar">
+      <h2 className="font-semibold text-text-primary">Certificados a revisar ({filas.length})</h2>
+      <p className="text-xs text-text-secondary mt-1">Pudieron haber salido del servicio de recetas sin que quedara la respuesta. Confirmá con el servicio y, si no salió, liberalo para que se pueda volver a emitir.</p>
+      <ul className="mt-3 divide-y divide-amber-200">
+        {filas.map(f => (
+          <li key={f.id} className="py-2 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm text-text-primary">{f.tipo} · {f.patient?.full_name ?? 'Paciente'} · {f.professional?.full_name ?? 'Profesional'}</p>
+              <p className="text-xs text-text-tertiary">{new Date(f.created_at).toLocaleString('es-AR')} · {f.error_detalle}</p>
+            </div>
+            <button type="button" className="btn-secondary text-sm px-3 py-1.5 shrink-0" disabled={liberando === f.id}
+              onClick={() => liberar(f.id)} data-testid="liberar-certificado">
+              {liberando === f.id ? 'Liberando…' : 'No salió: liberar'}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function RecetasTab({ recetas, loading, onCopiar, selection, onDeleteOne }) {
   if (loading) {
     return (

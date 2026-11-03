@@ -580,6 +580,7 @@ export default function ConsultationDetail({ profile }) {
             professionalId={profile?.id ?? null}
             consultationId={consultation.id}
             consultaFecha={consultation.startedAt ?? consultation.scheduledAt ?? null}
+            consulta={consultation ? { status: consultation.status, started_at: consultation.startedAt ?? null, scheduled_at: consultation.scheduledAt ?? null } : null}
             bloqueada={bloqueada}
             onIssued={() => clinicalService.getIssuedRecetasByConsultation(consultation.id).then(setRecetas).catch(() => {})}
             // El profesional acaba de cargar el DNI o el sexo que faltaba: hay que
