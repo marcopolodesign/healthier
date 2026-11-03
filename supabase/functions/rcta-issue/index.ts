@@ -656,7 +656,7 @@ Deno.serve(async (req: Request) => {
     let result = escenario
       ? await simularEmision(escenario, payload, postear).catch(err => ({ kind: 'rejected' as const, status: 400, body: String(err), json: { error: String((err as Error).message) } }))
       : await postear(payload)
-    if (escenario) ctx.simulado = escenario
+    // (el escenario queda en `ctx.request.simularLote`: el log no tiene otra columna para eso)
 
     if (result.kind === 'network_error') {
       // Ambiguo: no sabemos si Innovamed llego a recibir este request.
