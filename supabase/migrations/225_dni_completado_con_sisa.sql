@@ -127,8 +127,11 @@ begin
   perform public._aal_escribir(null, 'dni_completado', 'professional_profiles',
     c.professional_profile_id::text, c.user_id,
     jsonb_build_object('sisa', p_resultado, 'detalle', left(p_detalle, 300),
-                       'sigue_verificado', v_a_revision = 0,
-                       -- false: el DNI cambió después del chequeo y ese cambio ya fue por su camino.
+                       -- El estado real del legajo después de resolver, no el que se supone.
+                       'sigue_verificado', coalesce((select pp.is_verified from public.professional_profiles pp
+                                                      where pp.id = c.professional_profile_id), false),
+                       -- false: este resultado no tocó el legajo (el DNI cambió después del
+                       -- chequeo, o ya no estaba verificado ni pendiente).
                        'aplicado', p_resultado = 'coincide' or v_a_revision > 0));
   return p_resultado;
 end;
