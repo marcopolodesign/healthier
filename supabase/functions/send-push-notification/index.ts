@@ -101,6 +101,9 @@ async function datosDelAviso(
       (m: Record<string, string | null>) => m.medication_name || m.nombre_droga || 'Medicamento',
     )
   }
+  // Migración 223 (`receta-autorizada`): la base ya sabe qué medicación quedó
+  // comprable; una receta puede contener otras que siguen sin poder comprarse.
+  if (typeof p.medicamento === 'string' && p.medicamento.trim()) datos.medicamentos = [p.medicamento.trim()]
 
   return datos
 }

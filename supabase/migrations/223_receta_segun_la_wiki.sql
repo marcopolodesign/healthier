@@ -402,9 +402,9 @@ declare
   v_fila    record;
   v_recetas text[];
   v_n       integer;
-  v_id      text;
   v_ok      uuid[];
-  v_avisar  text[];
+  v_avisar  uuid[];
+  v_med     uuid;
 begin
   if auth.uid() is null or v_rol is null or v_rol not in ('pharmacy_admin', 'pharmacy_operator', 'super_admin') then
     raise exception 'Sólo la farmacia puede autorizar una receta.' using errcode = '42501';
@@ -471,7 +471,8 @@ begin
   -- 'vigente'). Una fila que sigue pendiente por otra receta, o una posdatada
   -- que no empezó ('proxima'), no avisa ahora: la posdatada avisa el día que
   -- empieza (`avisar_posdatadas_habilitadas`).
-  select coalesce(array_agg(distinct r.rcta_prescription_id), '{}')
+  -- Un aviso por medicación que quedó comprable, con su nombre.
+  select coalesce(array_agg(r.clinical_medication_id), '{}')
     into v_avisar
     from public.farmacia_recetas_de(v_fila.patient_id) r
    where r.clinical_medication_id = any (v_ok)
@@ -483,9 +484,11 @@ begin
                        'filas_ok', cardinality(v_ok), 'filas_siguen_pendientes', v_n - cardinality(v_ok),
                        'antes', 'pendiente'));
 
-  foreach v_id in array v_avisar loop
+  foreach v_med in array v_avisar loop
     perform public.enviar_push_tipo(v_fila.patient_id, 'receta-autorizada',
-                                    jsonb_build_object('prescriptionId', v_id));
+      (select jsonb_build_object('prescriptionId', cm.rcta_prescription_id,
+                                 'medicamento', coalesce(cm.medication_name, cm.nombre_droga))
+         from public.clinical_medications cm where cm.id = v_med));
   end loop;
   return v_n;
 end;

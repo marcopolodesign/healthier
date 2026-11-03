@@ -430,7 +430,9 @@ test('4 · "Ya podés comprar" sólo cuando quedó comprable', () => {
   const sql = leer('supabase/migrations/223_receta_segun_la_wiki.sql')
   const fn = sql.slice(sql.indexOf('create or replace function public.farmacia_autorizar_receta'))
   assert.match(fn, /from public\.farmacia_recetas_de\(v_fila\.patient_id\) r\s+where r\.clinical_medication_id = any \(v_ok\)\s+and r\.estado = 'vigente'/)
-  assert.match(fn, /foreach v_id in array v_avisar loop/)
+  assert.match(fn, /foreach v_med in array v_avisar loop/)
+  assert.match(fn, /'medicamento', coalesce\(cm\.medication_name, cm\.nombre_droga\)/)
+  assert.match(leer('supabase/functions/send-push-notification/index.ts'), /if \(typeof p\.medicamento === 'string'/)
 })
 
 test('5 · "a revisar" tiene una sola definición (columna generada)', () => {
