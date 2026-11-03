@@ -339,11 +339,6 @@ export default function SuperAdminAuditoria() {
   )
 }
 
-/**
- * El log de emisiones. `id de transacción` va primero y con botón de copiar
- * porque es lo que se pide desde afuera: para certificar la integración hay que
- * mandarlo, y para reclamar por una receta puntual también.
- */
 // Certificados que quizás salieron del servicio de recetas sin que Healthier
 // registrara la respuesta (migración 226): frenan otra emisión igual hasta que
 // alguien confirme con el servicio que no salió y lo libere.
@@ -386,6 +381,11 @@ function CertificadosARevisar() {
   )
 }
 
+/**
+ * El log de emisiones. `id de transacción` va primero y con botón de copiar
+ * porque es lo que se pide desde afuera: para certificar la integración hay que
+ * mandarlo, y para reclamar por una receta puntual también.
+ */
 function RecetasTab({ recetas, loading, onCopiar, selection, onDeleteOne }) {
   if (loading) {
     return (

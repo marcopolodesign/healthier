@@ -195,7 +195,14 @@ Deno.test('index.ts marca llamado_at ANTES de llamar al servicio y un timeout qu
   const marca = src.indexOf("update({ llamado_at: new Date().toISOString() })")
   const llamada = src.indexOf("let res = await llamarRcta('POST'")
   assert(marca > 0 && llamada > marca, 'llamado_at tiene que escribirse antes de la primera llamada al servicio')
-  const timeout = src.slice(src.indexOf("if (res.kind === 'network_error') {", llamada))
-  assertMatch(timeout.slice(0, 400), /a_revisar: true/)
+  // Sin respuesta, 5xx o 2xx sin PDF: "a revisar", nunca un error común que deje reemitir.
+  const ambiguo = src.slice(src.indexOf("if (res.kind === 'network_error' || (res.kind === 'rejected' && res.status >= 500)) {", llamada))
+  assert(ambiguo.length > 0, 'falta el corte de lo ambiguo (sin respuesta o 5xx)')
+  assertMatch(ambiguo.slice(0, 300), /marcarARevisar\(fila\.id/)
+  const sinPdf = src.slice(src.indexOf("if (!emitido?.s3Link) {"))
+  assertMatch(sinPdf.slice(0, 300), /marcarARevisar\(fila\.id/)
+  // Un éxito tardío limpia la marca, y sin llamado_at no se llama al servicio.
+  assertMatch(src, /a_revisar: false,\n    \}\)\.eq\('id', fila\.id\)/)
+  assert(src.indexOf('if (marcaErr) {') > marca && src.indexOf('if (marcaErr) {') < llamada)
   assertMatch(src, /return json\(\{ certificado: final, recuperado: true \}\)/)
 })

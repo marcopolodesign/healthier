@@ -59,6 +59,9 @@ begin
   update public.clinical_certificates
      set a_revisar = false, revisado_por = auth.uid(), revisado_at = now()
    where id = p_id and a_revisar;
+  if not found then
+    raise exception 'Ese certificado ya no está a revisar.' using errcode = 'P0002';
+  end if;
   perform public._aal_escribir(null, 'certificado_liberado', 'clinical_certificates', p_id::text, null,
     jsonb_build_object('motivo', 'no salió del servicio de recetas'));
 end;

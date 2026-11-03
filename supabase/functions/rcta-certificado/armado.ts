@@ -293,7 +293,6 @@ export function consultaNoCertificable(
   if (c.started_at || ESTADOS_ATENDIDA.includes(c.status)) return null
   if (c.status === 'confirmed' && c.scheduled_at && Date.parse(c.scheduled_at) <= ahoraMs) return null
   return { error: 'La consulta todavía no empezó: el certificado se emite desde la hora del turno.', code: 'CERT_CONSULTA_FUTURA' }
-  return null
 }
 
 /** Cada clave que puede devolver problemasDelPayload, dicha para el profesional. */

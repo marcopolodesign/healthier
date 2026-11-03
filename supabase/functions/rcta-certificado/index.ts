@@ -39,6 +39,8 @@ import {
 } from './armado.ts'
 
 const ENDPOINT = '/apirecipe/OtrasPrescripciones'
+// Migración 226: lo que puede haber salido del otro lado no se reemite a ciegas.
+const A_REVISAR = { error: 'Hay un certificado de este tipo que quizás ya salió y lo está revisando Healthier. Para no emitir dos, esperá la respuesta de soporte.', code: 'CERT_A_REVISAR' }
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
@@ -57,6 +59,8 @@ Deno.serve(async (req: Request) => {
     const RCTA_CLIENT_APP_ID = Deno.env.get('RCTA_CLIENT_APP_ID')
 
     // deno-lint-ignore no-explicit-any
+    const marcarARevisar = (id: string, detalle: string) => supabase.from('clinical_certificates')
+      .update({ status: 'error', a_revisar: true, error_detalle: detalle.slice(0, 1000) }).eq('id', id).in('status', ['pending', 'error'])
     const registrar = async (fila: Record<string, any>) => {
       try {
         const { error } = await supabase.from('rcta_issue_log').insert({
@@ -251,10 +255,11 @@ Deno.serve(async (req: Request) => {
     }).select('id').single()
     // Uno que quedó "a revisar" (se llamó al servicio y no hubo respuesta
     // registrada) frena otro igual hasta que soporte lo revise: puede existir.
-    const { data: trabado } = await supabase.from('clinical_certificates')
+    const { data: trabado, error: trabErr } = await supabase.from('clinical_certificates')
       .select('id').eq('consultation_id', consulta.id).eq('tipo', certificado.tipo).eq('a_revisar', true).limit(1).maybeSingle()
+    if (trabErr) return json({ error: `No se pudo verificar si hay un certificado a revisar: ${trabErr.message}` }, 500)
     if (trabado) {
-      return json({ error: 'Hay un certificado de este tipo que quizás ya salió y lo está revisando Healthier. Para no emitir dos, esperá la respuesta de soporte.', code: 'CERT_A_REVISAR' }, 409)
+      return json(A_REVISAR, 409)
     }
 
     let { data: fila, error: insErr } = await nuevaFila()
@@ -283,10 +288,8 @@ Deno.serve(async (req: Request) => {
         return json({ certificado: final, recuperado: true })
       }
       if (decision === 'a_revisar') {
-        await supabase.from('clinical_certificates')
-          .update({ status: 'error', a_revisar: true, error_detalle: 'Se llamó al servicio y no quedó la respuesta: puede haber salido.' })
-          .eq('id', previa!.id).eq('status', 'pending')
-        return json({ error: 'Hay un certificado de este tipo que quizás ya salió y lo está revisando Healthier. Para no emitir dos, esperá la respuesta de soporte.', code: 'CERT_A_REVISAR' }, 409)
+        await marcarARevisar(previa!.id, 'Se llamó al servicio y no quedó la respuesta: puede haber salido.')
+        return json(A_REVISAR, 409)
       }
       // reintentar: nunca se llegó a llamar al servicio.
       await supabase.from('clinical_certificates')
@@ -310,7 +313,12 @@ Deno.serve(async (req: Request) => {
     let enviado: Record<string, unknown> = payload
     // La marca de "se llamó al servicio": desde acá, una fila que quede colgada
     // puede tener su certificado del otro lado y no se reemite a ciegas.
-    await supabase.from('clinical_certificates').update({ llamado_at: new Date().toISOString() }).eq('id', fila.id)
+    const { error: marcaErr } = await supabase.from('clinical_certificates').update({ llamado_at: new Date().toISOString() }).eq('id', fila.id)
+    if (marcaErr) {
+      // Sin la marca no se puede recuperar bien un corte: no se llama al servicio.
+      await marcarError(`No se pudo preparar la emisión: ${marcaErr.message}`)
+      return json({ error: `No se pudo preparar la emisión: ${marcaErr.message}` }, 500)
+    }
     let res = await llamarRcta('POST', RCTA_API_URL!, RCTA_API_KEY!, ENDPOINT, payload)
     // deno-lint-ignore no-explicit-any
     let reintento: Record<string, any> | null = null
@@ -335,16 +343,21 @@ Deno.serve(async (req: Request) => {
       const otra = await llamarRcta('POST', RCTA_API_URL!, RCTA_API_KEY!, ENDPOINT, sinFirma)
       reintento = { sin_firma: true, rechazo_status: res.status, rechazo_detalle: res.body }
       if (otra.kind === 'ok') { console.error('rcta-certificado: emitido SIN FIRMA tras reintento', res.body); res = otra; enviado = sinFirma }
-      else if (otra.kind === 'rejected') reintento.ok = false
+      else if (otra.kind === 'rejected') { reintento.ok = false; res = otra.status >= 500 ? otra : res }
+      // El reintento sin respuesta puede haber creado el certificado: manda la ambigüedad.
+      else { res = otra; enviado = sinFirma }
     }
 
     const logRequest = { ...enviado, medico: { ...(enviado.medico as object), ...((enviado.medico as { firmabase64?: string }).firmabase64 ? { firmabase64: '(omitida)' } : {}) } }
 
-    if (res.kind === 'network_error') {
-      // Sin respuesta no se sabe si salió: queda "a revisar" y no se reemite.
-      await supabase.from('clinical_certificates')
-        .update({ status: 'error', a_revisar: true, error_detalle: 'El servicio de recetas no respondió: puede haber salido.' }).eq('id', fila.id)
-      await registrar({ ...base, request: logRequest, outcome: 'network_error', error_code: 'RCTA_SIN_RESPUESTA', duration_ms: Date.now() - t0 })
+    // Sin respuesta, o un 5xx (un proxy puede cortar después de que el servicio
+    // procesó el pedido): no se sabe si salió. Queda "a revisar" y no se reemite.
+    if (res.kind === 'network_error' || (res.kind === 'rejected' && res.status >= 500)) {
+      await marcarARevisar(fila.id, res.kind === 'network_error'
+        ? 'El servicio de recetas no respondió: puede haber salido.'
+        : `El servicio de recetas contestó ${res.status}: puede haber salido.`)
+      await registrar({ ...base, request: logRequest, reintento, outcome: 'network_error', error_code: 'RCTA_SIN_RESPUESTA',
+        http_status: res.kind === 'rejected' ? res.status : null, duration_ms: Date.now() - t0 })
       return json({ error: 'El servicio de recetas no respondió y no sabemos si el certificado salió. Lo revisa Healthier; para no emitir dos, no se puede volver a emitir este tipo hasta entonces.', code: 'RCTA_SIN_RESPUESTA' }, 504)
     }
     if (res.kind === 'rejected') {
@@ -357,10 +370,11 @@ Deno.serve(async (req: Request) => {
 
     const emitido = Array.isArray(res.data?.otrasRecetas) ? res.data.otrasRecetas[0] : null
     if (!emitido?.s3Link) {
-      await marcarError('El servicio no devolvió el PDF.')
+      // Aceptó el pedido: el certificado puede existir del otro lado.
+      await marcarARevisar(fila.id, 'El servicio aceptó el pedido pero no devolvió el PDF: puede haber salido.')
       await registrar({ ...base, request: logRequest, reintento, http_status: res.status, response: res.data,
         outcome: 'api_error', error_code: 'CERT_SIN_PDF', duration_ms: Date.now() - t0 })
-      return json({ error: 'El servicio de recetas no devolvió el certificado.', code: 'CERT_SIN_PDF' }, 502)
+      return json({ error: 'El servicio de recetas aceptó el pedido pero no devolvió el certificado. Lo revisa Healthier antes de que se pueda emitir otro igual.', code: 'CERT_SIN_PDF' }, 502)
     }
 
     // El log primero: si la escritura de la fila falla, es lo único que
@@ -378,6 +392,8 @@ Deno.serve(async (req: Request) => {
       // `fecha` viene sin hora (DD/MM/AAAA): la hora real es ahora.
       rcta_issued_at: new Date().toISOString(),
       error_detalle: null,
+      // Si otra emisión la marcó "a revisar" mientras esta esperaba, ya no corresponde.
+      a_revisar: false,
     }).eq('id', fila.id).select('*').single()
     if (updErr) {
       console.error('rcta-certificado: emitido pero no guardado', updErr.message, JSON.stringify(emitido))
