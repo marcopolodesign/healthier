@@ -225,8 +225,14 @@ export default function CertificadoCreator({
     setEmitiendo(true)
     try {
       const { recuperado } = await certificadosService.emitir(datos)
-      toast.success(recuperado ? 'Este certificado ya estaba emitido de un intento anterior: ya está en la lista' : 'Certificado emitido')
       setPrevia(null)
+      if (recuperado) {
+        // Lo que se recuperó es el del intento anterior, no necesariamente lo
+        // que hay ahora en el formulario: se deja el formulario como está.
+        toast.success('Ya estaba emitido un certificado de este tipo de un intento anterior: revisalo en la lista. Si necesitás otro distinto, emitilo de nuevo.')
+        return
+      }
+      toast.success('Certificado emitido')
       setIndicaciones('')
       setDiagnostico('')
       setDias(1)
