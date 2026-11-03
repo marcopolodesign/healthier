@@ -35,7 +35,7 @@ import {
 } from '../_shared/rcta/mod.ts'
 import {
   CORS, json, rolDelJwt, armarPayloadCertificado, problemasDelPayload, validarCertificado,
-  vistaPrevia, conDias, diaAr, TIPOS, consultaNoCertificable, type Certificado,
+  vistaPrevia, conDias, diaAr, TIPOS, consultaNoCertificable, nombreDelProblema, type Certificado,
 } from './armado.ts'
 
 const ENDPOINT = '/apirecipe/OtrasPrescripciones'
@@ -222,28 +222,10 @@ Deno.serve(async (req: Request) => {
       })
     }
     if (problemas.length) {
-      const NOMBRE: Record<string, string> = {
-        'paciente.nroDoc': 'el DNI del paciente', 'paciente.sexo': 'el sexo del paciente',
-        'paciente.fechaNacimiento': 'la fecha de nacimiento del paciente',
-        'paciente.nombre': 'el nombre del paciente', 'paciente.apellido': 'el apellido del paciente',
-        'medico.nroDoc': 'tu DNI', 'medico.sexo': 'tu sexo', 'medico.nombre': 'tu nombre', 'medico.apellido': 'tu apellido',
-        'medico.matricula.numero': 'tu número de matrícula',
-        'medico.matricula.provincia': 'la provincia de tu matrícula (la dirección del consultorio)',
-        'lugarAtencion.domicilio': 'la dirección de tu consultorio',
-        'lugarAtencion.domicilio.direccion': 'la dirección de tu consultorio',
-        'lugarAtencion.domicilio.calle/numero': 'la calle y el número de tu consultorio (la calle hasta 50 letras)',
-        'paciente.tipoDoc': 'el tipo de documento del paciente', 'medico.tipoDoc': 'tu tipo de documento',
-        'medico.matricula.tipo': 'el tipo de tu matrícula (MN o MP)',
-        'medico.firmabase64': 'tu firma (volvé a cargarla)',
-        'diagnostico': 'el diagnóstico (o apagá "Imprimir diagnóstico")',
-        'prescripcion': 'el texto del certificado', 'prescripcion[0].prescripcion': 'el texto del certificado',
-      }
-      const faltan = [...new Set(problemas.map(p => NOMBRE[p] ?? p))]
-      // Sin fila de certificado todavía: el `tipo` en el request lo distingue
-      // de una receta en Auditoría (ver más abajo, `certificado_tipo`).
+      const faltan = [...new Set(problemas.map(nombreDelProblema))]
       await registrar({
         consultation_id: consulta.id, patient_id: consulta.patient_id, professional_id: consulta.professional_id,
-        endpoint: ENDPOINT, request: { ...payload, medico: { ...payload.medico, firmabase64: '(omitida)' }, certificado_tipo: certificado.tipo },
+        endpoint: ENDPOINT, request: { ...payload, medico: { ...payload.medico, firmabase64: '(omitida)' } },
         outcome: 'validation_error', error_code: 'CERT_FALTAN_DATOS', errores: problemas,
       })
       return json({ error: `Para emitir el certificado falta ${faltan.join(', ')}.`, code: 'CERT_FALTAN_DATOS', faltan: problemas }, 422)
@@ -251,13 +233,8 @@ Deno.serve(async (req: Request) => {
 
     // ── La fila, antes de llamar ──────────────────────────────────────────
     // Uno a la vez por consulta y tipo (índice único de la 226): dos clics, o la
-    // app y la web juntas, no emiten dos certificados. Una 'pending' de más de
-    // 5 minutos quedó colgada (la función se cortó): se cierra como error y se sigue.
-    await supabase.from('clinical_certificates')
-      .update({ status: 'error', error_detalle: 'Quedó sin terminar (la emisión se cortó).' })
-      .eq('consultation_id', consulta.id).eq('tipo', certificado.tipo).eq('status', 'pending')
-      .lt('created_at', new Date(Date.now() - 5 * 60_000).toISOString())
-    const { data: fila, error: insErr } = await supabase.from('clinical_certificates').insert({
+    // app y la web juntas, no emiten dos certificados.
+    const nuevaFila = () => supabase.from('clinical_certificates').insert({
       patient_id: consulta.patient_id,
       professional_id: consulta.professional_id,
       consultation_id: consulta.id,
@@ -272,10 +249,39 @@ Deno.serve(async (req: Request) => {
       imprimir_diagnostico: certificado.imprimirDiagnostico,
       status: 'pending',
     }).select('id').single()
+    let { data: fila, error: insErr } = await nuevaFila()
     if (insErr?.code === '23505') {
-      return json({ error: 'Ya se está emitiendo un certificado de este tipo para esta consulta. Esperá unos segundos y revisá la lista.', code: 'CERT_EN_CURSO' }, 409)
+      // La que choca: si es de hace menos de 5 min, sigue en curso. Si es más
+      // vieja, la función se cortó: si el log dice que el servicio la emitió, se
+      // recupera (no se emite otra); si no, se cierra como error y se reintenta.
+      const { data: previa } = await supabase.from('clinical_certificates')
+        .select('id, created_at').eq('consultation_id', consulta.id).eq('tipo', certificado.tipo)
+        .eq('status', 'pending').maybeSingle()
+      const colgada = previa && Date.parse(previa.created_at) < Date.now() - 5 * 60_000
+      if (!colgada) {
+        return json({ error: 'Ya hay un certificado de este tipo emitiéndose para esta consulta. Esperá unos segundos y volvé a abrir la consulta.', code: 'CERT_EN_CURSO' }, 409)
+      }
+      const { data: log } = await supabase.from('rcta_issue_log')
+        .select('id_receta, verificador, s3_link, response').eq('certificado_id', previa.id).eq('outcome', 'issued')
+        .order('created_at', { ascending: false }).limit(1).maybeSingle()
+      if (log?.s3_link) {
+        const otra = Array.isArray(log.response?.otrasRecetas) ? log.response.otrasRecetas[0] : null
+        await supabase.from('clinical_certificates').update({
+          status: 'issued', rcta_hash: otra?.id ?? null, rcta_numero: log.id_receta ?? null,
+          rcta_verificador: log.verificador ?? null, rcta_pdf_url: log.s3_link,
+          rcta_issued_at: new Date().toISOString(), error_detalle: null,
+        }).eq('id', previa.id).eq('status', 'pending')
+        return json({ error: 'Este certificado ya estaba emitido: ahora aparece en la lista.', code: 'CERT_RECUPERADO' }, 409)
+      }
+      await supabase.from('clinical_certificates')
+        .update({ status: 'error', error_detalle: 'Quedó sin terminar (la emisión se cortó).' })
+        .eq('id', previa.id).eq('status', 'pending')
+      ;({ data: fila, error: insErr } = await nuevaFila())
+      if (insErr?.code === '23505') {
+        return json({ error: 'Ya hay un certificado de este tipo emitiéndose para esta consulta. Esperá unos segundos y volvé a abrir la consulta.', code: 'CERT_EN_CURSO' }, 409)
+      }
     }
-    if (insErr) return json({ error: `No se pudo registrar el certificado: ${insErr.message}` }, 500)
+    if (insErr || !fila) return json({ error: `No se pudo registrar el certificado: ${insErr?.message ?? 'sin fila'}` }, 500)
 
     const t0 = Date.now()
     const base = {

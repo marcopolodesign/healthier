@@ -91,6 +91,7 @@ as $$
 declare
   c public.dni_completado_chequeos%rowtype;
   v_nombre text;
+  v_a_revision integer := 0;
 begin
   -- Quién la puede llamar lo deciden los grants de abajo: sólo service_role
   -- (la Edge Function) y el dueño (el cron).
@@ -119,13 +120,16 @@ begin
        -- camino (revisión inmediata): el resultado viejo no lo vuelve a tocar.
        and exists (select 1 from public.profiles pr
                     where pr.id = c.user_id and btrim(coalesce(pr.dni, '')) = c.dni);
+    get diagnostics v_a_revision = row_count;
   end if;
 
   select coalesce(nullif(full_name, ''), email) into v_nombre from public.profiles where id = c.user_id;
   perform public._aal_escribir(null, 'dni_completado', 'professional_profiles',
     c.professional_profile_id::text, c.user_id,
     jsonb_build_object('sisa', p_resultado, 'detalle', left(p_detalle, 300),
-                       'sigue_verificado', p_resultado = 'coincide'));
+                       'sigue_verificado', v_a_revision = 0,
+                       -- false: el DNI cambió después del chequeo y ese cambio ya fue por su camino.
+                       'aplicado', p_resultado = 'coincide' or v_a_revision > 0));
   return p_resultado;
 end;
 $$;

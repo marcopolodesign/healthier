@@ -102,7 +102,7 @@ export default function SuperAdminAuditoria() {
       try {
         const { data, error } = await supabase
           .from('rcta_issue_log')
-          .select('id, created_at, outcome, error_code, purpose, api_base_url, certificado_id, id_transaccion, id_receta, s3_link, http_status, request, patient:profiles!patient_id(full_name), professional:profiles!professional_id(full_name)')
+          .select('id, created_at, outcome, error_code, purpose, api_base_url, endpoint, certificado_id, id_transaccion, id_receta, s3_link, http_status, request, patient:profiles!patient_id(full_name), professional:profiles!professional_id(full_name)')
           .order('created_at', { ascending: false })
           .limit(PAGE_SIZE)
         if (error) throw error
@@ -398,9 +398,9 @@ function RecetasTab({ recetas, loading, onCopiar, selection, onDeleteOne }) {
                   {r.purpose === 'certificacion' && (
                     <span className="block text-[11px] text-text-tertiary">prueba de certificación</span>
                   )}
-                  {/* certificado_tipo: un rechazo por datos faltantes no llega a tener fila de certificado. */}
-                  {(r.certificado_id || r.request?.certificado_tipo) && (
-                    <span className="block text-[11px] text-text-tertiary">certificado ({r.request?.prescripcion?.[0]?.prescripcion ?? 'anulación'})</span>
+                  {/* Un rechazo por datos faltantes no llega a tener fila de certificado: lo marca el endpoint. */}
+                  {(r.certificado_id || r.endpoint === '/apirecipe/OtrasPrescripciones') && (
+                    <span className="block text-[11px] text-text-tertiary">certificado ({r.request?.prescripcion?.[0]?.prescripcion || (r.outcome === 'validation_error' ? 'faltan datos' : 'anulación')})</span>
                   )}
                 </td>
                 <td className="px-4 py-3">
