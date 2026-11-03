@@ -29,6 +29,7 @@ import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialo
 import WhatsAppButton from '../../components/super-admin/WhatsAppButton'
 import ComisionProfesional, { ComisionBadge } from '../../components/super-admin/ComisionProfesional'
 import { comisionService } from '../../services/comisionService'
+import { avisosDniService, ETIQUETA_SISA } from '../../services/avisosDniService'
 
 // Documentos que puede gestionar el super admin desde el drawer (A6) — mismo
 // nombre de archivo que usa Onboarding.jsx al subir, para que un reemplazo
@@ -1153,6 +1154,37 @@ function ProfessionalDrawer({ pro, duplicados = [], generalRate, onClose, onUpda
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
+/**
+ * Avisos de "completó su DNI" (migración 225). Va arriba de la lista: son
+ * profesionales verificados que siguieron verificados (SISA coincide) o que
+ * volvieron a revisión, y en los dos casos alguien tiene que enterarse.
+ */
+function AvisosDni({ avisos, onAbrir, onVisto }) {
+  if (!avisos.length) return null
+  const color = {
+    coincide: 'text-green-700 bg-green-50 border-green-200',
+    no_coincide: 'text-amber-800 bg-amber-50 border-amber-200',
+    sin_respuesta: 'text-amber-800 bg-amber-50 border-amber-200',
+    pendiente: 'text-gray-700 bg-gray-50 border-gray-200',
+  }
+  return (
+    <div className="space-y-2" data-testid="avisos-dni">
+      {avisos.map(a => (
+        <div key={a.id} className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-4 py-3 text-sm ${color[a.resultado] ?? color.pendiente}`}>
+          <span className="flex-1 min-w-[12rem]">
+            <span className="font-semibold">{a.profile?.full_name || a.profile?.email || 'Un profesional'}</span>
+            {' completó su DNI · '}{ETIQUETA_SISA[a.resultado] ?? a.resultado}
+            {a.resultado === 'coincide' ? ' — sigue verificado' : a.resultado !== 'pendiente' ? ' — volvió a revisión' : ''}
+            {a.detalle && <span className="block text-xs opacity-80">{a.detalle} · {fmtDateTime(a.created_at)}</span>}
+          </span>
+          <button type="button" onClick={() => onAbrir(a)} className="font-semibold underline">Ver legajo</button>
+          <button type="button" onClick={() => onVisto(a)} className="text-xs opacity-80 hover:opacity-100">Listo</button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function SuperAdminProfesionales() {
   const { porSlug, puedeRecetar } = useEspecialidades()
   const [professionals, setProfessionals] = useState([])
@@ -1206,6 +1238,23 @@ export default function SuperAdminProfesionales() {
   }
 
   useEffect(() => { fetchData() }, [])
+
+  const [avisosDni, setAvisosDni] = useState([])
+  const cargarAvisosDni = () => avisosDniService.listarSinVer().then(setAvisosDni).catch(() => setAvisosDni([]))
+  useEffect(() => { cargarAvisosDni() }, [])
+  const abrirLegajoDeAviso = (a) => {
+    const pro = professionals.find(p => p.id === a.professional_profile_id)
+    if (pro) setSelected(pro)
+    else toast.info('Ese profesional no está en la lista (¿dado de baja?)')
+  }
+  const marcarAvisoVisto = async (a) => {
+    try {
+      await avisosDniService.marcarVisto(a.id)
+      setAvisosDni(prev => prev.filter(x => x.id !== a.id))
+    } catch (err) {
+      toast.error(`No se pudo marcar: ${err.message}`)
+    }
+  }
 
   // Recalcula sólo cuando cambia la lista (fetchData la vuelve a traer entera
   // después de cualquier acción del drawer, `onUpdated` más abajo) — no en
@@ -1270,6 +1319,8 @@ export default function SuperAdminProfesionales() {
           {loading ? 'Cargando…' : `${professionals.length} profesionales registrados`}
         </p>
       </div>
+
+      <AvisosDni avisos={avisosDni} onAbrir={abrirLegajoDeAviso} onVisto={marcarAvisoVisto} />
 
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex gap-2 flex-wrap">

@@ -55,6 +55,10 @@ export function camposSensiblesQueCambian(antes = {}, ahora = {}) {
     // sin esto, guardar la bio de alguien sin sub-especialidad avisaba que
     // estaba cambiando la sub-especialidad.
     .filter(campo => ahora[campo] !== undefined && (antes[campo] || null) !== (ahora[campo] || null))
+    // Migración 225: un DNI que faltaba y se completa no va a revisión — se
+    // chequea con SISA y sólo vuelve a revisión si no coincide. No se avisa
+    // de antemano porque en el caso normal no pasa nada.
+    .filter(campo => !(campo === 'dni' && !String(antes.dni ?? '').trim() && String(ahora.dni ?? '').trim()))
     .map(campo => EN_CAMEL[campo])
 }
 
