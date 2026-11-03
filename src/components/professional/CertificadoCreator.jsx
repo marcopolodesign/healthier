@@ -217,11 +217,17 @@ export default function CertificadoCreator({
     }
   }
 
+  // La hoja de firma va SOLA: se cierra la vista previa antes de abrirla. Dos
+  // hojas apiladas tapaban la de firma (quedaba debajo y "Emitir" parecía no
+  // hacer nada), y además un Escape cerraba las dos. El formulario sigue igual,
+  // así que al firmar se emite lo mismo que se vio en la vista previa.
+  function pedirFirma() { setPrevia(null); setFirmaPendiente(true) }
+
   // `firmaRecienCargada`: viene de FirmaSheet. En ese render `tieneFirma` todavía
   // es false (el estado se actualiza después), y sin esto la hoja se reabría en
   // vez de emitir.
   async function emitir({ firmaRecienCargada = false } = {}) {
-    if (!tieneFirma && !firmaRecienCargada) { setFirmaPendiente(true); return }
+    if (!tieneFirma && !firmaRecienCargada) { pedirFirma(); return }
     setEmitiendo(true)
     try {
       const { recuperado } = await certificadosService.emitir(datos)
@@ -238,7 +244,7 @@ export default function CertificadoCreator({
       setDias(1)
       setDesde(desdeInicial)
     } catch (err) {
-      if (err.code === 'RCTA_FIRMA_FALTANTE') setFirmaPendiente(true)
+      if (err.code === 'RCTA_FIRMA_FALTANTE') pedirFirma()
       else toast.error(`No se pudo emitir el certificado: ${err.message}`)
     } finally {
       setEmitiendo(false)
@@ -294,8 +300,6 @@ export default function CertificadoCreator({
         onEmitir={() => emitir()}
       />
 
-      {/* Después de la vista previa a propósito: se abre ENCIMA de ella (si va antes,
-          queda tapada y parece que "Emitir" no hace nada). */}
       <FirmaSheet
         open={firmaPendiente}
         userId={professionalId}
