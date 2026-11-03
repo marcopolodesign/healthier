@@ -26,7 +26,7 @@ import {
 } from '../_shared/rcta/mod.ts'
 import { CORS, json, rolDelJwt, decidirRecuperacion } from '../rcta-certificado/armado.ts'
 import {
-  estudiosDeLaEntrada, elegirDelCatalogo, resolverCobertura, armarPayloadOrden, problemasDeLaOrden,
+  estudiosDeLaEntrada, elegirDelCatalogo, consultasPara, resolverCobertura, armarPayloadOrden, problemasDeLaOrden,
   nombreDelProblemaOrden, type EstudioDeOrden,
 } from './armado.ts'
 
@@ -163,13 +163,15 @@ Deno.serve(async (req: Request) => {
     estudios = await Promise.all(estudios.map(async e => {
       if (e.id) return e
       // Órdenes guardadas antes de la emisión: se busca el nombre exacto.
-      try {
-        const url = `${RCTA_API_URL}/apirecipe/GetPracticas?search=${encodeURIComponent(e.nombre)}&numeroPagina=1&clienteAppId=${RCTA_CLIENT_APP_ID}`
-        const r = await fetch(url, { headers: cabecerasRcta(RCTA_API_KEY, { json: false }) })
-        const d = r.ok ? await r.json() : null
-        const hit = elegirDelCatalogo(e.nombre, Array.isArray(d?.practicas) ? d.practicas : [])
-        if (hit) return { ...e, id: hit.id, categoria: hit.categoria }
-      } catch { /* cae abajo */ }
+      for (const q of consultasPara(e.nombre)) {
+        try {
+          const url = `${RCTA_API_URL}/apirecipe/GetPracticas?search=${encodeURIComponent(q)}&numeroPagina=1&clienteAppId=${RCTA_CLIENT_APP_ID}`
+          const r = await fetch(url, { headers: cabecerasRcta(RCTA_API_KEY, { json: false }) })
+          const d = r.ok ? await r.json() : null
+          const hit = elegirDelCatalogo(e.nombre, Array.isArray(d?.practicas) ? d.practicas : [])
+          if (hit) return { ...e, id: hit.id, categoria: hit.categoria }
+        } catch { /* prueba la próxima */ }
+      }
       sinCatalogo.push(e.nombre)
       return e
     }))

@@ -41,6 +41,22 @@ export function normalizarNombre(s: string): string {
 }
 
 /**
+ * Qué buscar en GetPracticas para encontrar un nombre guardado. El buscador del
+ * servicio no siempre encuentra el nombre completo (probado contra producción,
+ * 2026-11-03: "Vitamina D" y "Tiroxina T4 Total" dan 0 resultados aunque
+ * existen; "vitamina" y "tiroxina" sí los traen). Se prueba el nombre entero,
+ * después de a pares de palabras y después cada palabra larga, sin repetir.
+ */
+export function consultasPara(nombre: string): string[] {
+  const limpio = String(nombre ?? '').replace(/[().,'"]/g, ' ').replace(/\s+/g, ' ').trim()
+  const palabras = limpio.split(' ').filter(w => w.length >= 3)
+  const out = [limpio]
+  for (let i = 0; i + 1 < palabras.length; i++) out.push(`${palabras[i]} ${palabras[i + 1]}`)
+  out.push(...[...palabras].sort((a, b) => b.length - a.length))
+  return [...new Set(out.map(q => q.toLowerCase()))].filter(Boolean)
+}
+
+/**
  * Las órdenes guardadas antes de la emisión no tienen el id del catálogo (sólo
  * el nombre, capitalizado). Se busca cada una y se acepta SÓLO una coincidencia
  * exacta del nombre: un parecido podría emitir otro estudio.
