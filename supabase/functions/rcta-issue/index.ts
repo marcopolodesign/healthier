@@ -53,6 +53,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import {
   accionPdfAviso, armarMedico, armarPaciente, asignarRecetas, domicilioDe, etiquetaEspecialidad,
   leerEmision, llamarRcta, matriculaDe, problemaDeMatricula, resolverFirma,
+  escenarioPedido, simularEmision, type Escenario,
   type Autorizacion, type RecetaEmitida,
 } from '../_shared/rcta/mod.ts'
 
@@ -97,6 +98,17 @@ Deno.serve(async (req: Request) => {
     // 3 — la primera vale desde hoy y cada posdatada 30 días después de la
     // anterior. Ver el bloque "Recetas posdatadas" más abajo.
     const recetasTotales = Math.min(3, Math.max(1, Number.parseInt(String(body.recetas ?? 1), 10) || 1))
+    // Simulación de lotes (sólo staging, ver `_shared/rcta/simulacion.ts`): se
+    // decide acá, antes de tocar nada. Si se pide y no está permitida, se corta.
+    let escenario: Escenario | null = null
+    try {
+      escenario = esPractica ? null : escenarioPedido(body, Deno.env)
+    } catch (err) {
+      return json({
+        error: 'La simulación de lotes no está disponible en este entorno.',
+        code: String((err as Error).message || 'RCTA_SIMULACION_NO_DISPONIBLE'),
+      }, 403)
+    }
     if (esPractica && !Array.isArray(body.medicamentos)) {
       return json({ error: 'medicamentos requerido en modo practica' }, 400)
     }
@@ -308,8 +320,8 @@ Deno.serve(async (req: Request) => {
     if (yaEmitida) return await fallar('validation_error', { error: 'Already issued', code: 'RCTA_YA_EMITIDA' }, 409)
     // Un lote anterior dejó recetas emitidas en esta fila sin poder confirmar
     // cuál es cuál (migración 223): re-emitir podría duplicar una receta legal.
-    if (!esPractica && meds.some((m: { rcta_status: string; rcta_recetas: unknown[] | null }) =>
-      m.rcta_status === 'error' && Array.isArray(m.rcta_recetas) && m.rcta_recetas.length)) {
+    // "A revisar" tiene UNA definición: la columna generada `rcta_a_revisar`.
+    if (!esPractica && meds.some((m: { rcta_a_revisar?: boolean | null }) => m.rcta_a_revisar === true)) {
       return await fallar('validation_error', {
         error: LOTE_A_REVISAR,
         code: 'RCTA_LOTE_A_REVISAR',
@@ -475,7 +487,7 @@ Deno.serve(async (req: Request) => {
       const { data: tomadas, error: tomaErr } = await supabase.from('clinical_medications')
         .update({ rcta_status: 'pending' })
         .in('id', ids)
-        .or('rcta_status.is.null,and(rcta_status.eq.error,rcta_recetas.is.null)')
+        .or('rcta_status.is.null,and(rcta_status.eq.error,rcta_a_revisar.is.false)')
         .select('id')
       if (tomaErr) return await fallar('server_error', { error: tomaErr.message }, 500)
       // Cómo estaba cada fila antes de tomarla, para poder devolverla.
@@ -638,9 +650,13 @@ Deno.serve(async (req: Request) => {
     // no alcanza a `registrar`: un timeout contra Innovamed tiene que dejar
     // rastro igual que un rechazo suyo — si no, el caso mas dificil de
     // diagnosticar es el unico que no queda escrito.
-    ctx.request = payload
+    ctx.request = escenario ? { ...payload, simularLote: escenario } : payload
     llamoAlServicio = true
-    let result = await llamarRcta('POST', RCTA_API_URL, RCTA_API_KEY, '/apirecipe/Receta', payload)
+    const postear = (p: Record<string, unknown>) => llamarRcta('POST', RCTA_API_URL, RCTA_API_KEY, '/apirecipe/Receta', p)
+    let result = escenario
+      ? await simularEmision(escenario, payload, postear).catch(err => ({ kind: 'rejected' as const, status: 400, body: String(err), json: { error: String((err as Error).message) } }))
+      : await postear(payload)
+    if (escenario) ctx.simulado = escenario
 
     if (result.kind === 'network_error') {
       // Ambiguo: no sabemos si Innovamed llego a recibir este request.
@@ -924,6 +940,8 @@ Deno.serve(async (req: Request) => {
         const filas = (meds as any[]).map(({ id, created_at, patient: _p, professional: _pr, encounter: _e,
           rcta_status: _s, rcta_prescription_id: _rp, rcta_transaction_id: _rt, rcta_verificador: _rv,
           rcta_pdf_url: _ru, rcta_issued_at: _ri, rcta_recetas: _rr, rcta_autorizacion: _ra, rcta_error_detalle: _re,
+          // Generada (223): no se puede insertar, la calcula la base.
+          rcta_a_revisar: _rar, rcta_autorizada_por: _rap, rcta_autorizada_at: _raa,
           ...resto }) => ({
           ...resto,
           posdatada_de: id,

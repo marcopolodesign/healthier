@@ -343,8 +343,8 @@ test('rcta-issue toma las filas de forma atómica y no depende del reloj', () =>
 
 test('rcta-anular: hermanas siempre, sólo vigentes, y las "a revisar" se anulan', () => {
   const an = leer('supabase/functions/rcta-anular/index.ts')
-  assert.match(an, /if \(!reintento && fila\.rcta_transaction_id\)/)
-  assert.match(an, /const vigente = h\.status === 'active' && \(h\.rcta_status === 'issued' \|\| aRevisar\(h\)\)/)
+  assert.match(an, /fila\.rcta_transaction_id\s+\? await consulta\.eq\('rcta_transaction_id', fila\.rcta_transaction_id\)/)
+  assert.match(an, /const vigente = \(f: Fila\) => f\.status === 'active' && \(f\.rcta_status === 'issued' \|\| f\.rcta_a_revisar === true\)/)
   assert.match(an, /\.in\('rcta_status', \['issued', 'error'\]\)/)
   assert.match(leer('src/components/professional/PrescriptionCreator.jsx'), /\(rx\.rcta_status === 'issued' \|\| aRevisar\(rx\)\) && rx\.status === 'active'/)
 })
@@ -368,9 +368,79 @@ test('dos recetas sin lista y tres medicaciones: no se reparte', () => {
 
 test('rcta-issue no deja filas trabadas en pending ni toma una "a revisar"', () => {
   const iss = leer('supabase/functions/rcta-issue/index.ts')
-  assert.match(iss, /\.or\('rcta_status\.is\.null,and\(rcta_status\.eq\.error,rcta_recetas\.is\.null\)'\)/)
+  assert.match(iss, /\.or\('rcta_status\.is\.null,and\(rcta_status\.eq\.error,rcta_a_revisar\.is\.false\)'\)/)
   // Toma parcial → se devuelven las tomadas; corte antes de llamar → también.
   assert.match(iss, /if \(tomadasIds\.length !== ids\.length\) \{[\s\S]{0,200}await devolverTomadas\(\)/)
   assert.match(iss, /if \(devolverTomadas && !llamoAlServicio\) await devolverTomadas\(\)/)
-  assert.ok(iss.indexOf('llamoAlServicio = true') < iss.indexOf("let result = await llamarRcta('POST'"))
+  assert.ok(iss.indexOf('llamoAlServicio = true') < iss.indexOf('let result = escenario'))
+})
+
+// ── Simulación de lotes (sólo staging) y los 5 de la ronda 3 ─────────────────
+import { simulacionPermitida, escenarioPedido, simularEmision } from '../supabase/functions/_shared/rcta/mod.ts'
+const envDe = o => ({ get: k => o[k] })
+
+test('la simulación es imposible con las claves de producción', () => {
+  const prod = { RCTA_API_URL: 'https://apirecipe.qbitos.com', RCTA_SIMULAR_LOTE: 'permitido' }
+  assert.equal(simulacionPermitida(envDe(prod)), false, 'ni con el secret cargado')
+  assert.throws(() => escenarioPedido({ simularLote: 'pendiente' }, envDe(prod)), /RCTA_SIMULACION_NO_DISPONIBLE/)
+  assert.throws(() => escenarioPedido({ simularLote: 'pendiente' }, envDe({ RCTA_API_URL: 'https://apirecipe.hml.qbitos.com' })), /RCTA_SIMULACION_NO_DISPONIBLE/)
+  assert.equal(escenarioPedido({}, envDe(prod)), null, 'sin pedirla, nada cambia')
+  const stg = { RCTA_API_URL: 'https://apirecipe.hml.qbitos.com', RCTA_SIMULAR_LOTE: 'permitido' }
+  assert.equal(escenarioPedido({ simularLote: 'lote_partido' }, envDe(stg)), 'lote_partido')
+  assert.throws(() => escenarioPedido({ simularLote: 'otra' }, envDe(stg)), /RCTA_SIMULACION_DESCONOCIDA/)
+  // rcta-issue la decide antes de tocar nada y corta con 403.
+  const iss = leer('supabase/functions/rcta-issue/index.ts')
+  assert.ok(iss.indexOf('escenarioPedido(body, Deno.env)') < iss.indexOf("update({ rcta_status: 'pending' })"))
+  assert.match(iss, /'La simulación de lotes no está disponible en este entorno\.'[\s\S]{0,120}403\)/)
+  // El front ni la manda fuera de staging/local.
+  assert.match(leer('src/components/professional/PrescriptionCreator.jsx'), /staging\\\.\|\^localhost\$/)
+})
+
+test('los escenarios arman la forma del lote con emisiones reales', async () => {
+  const llamadas = []
+  let n = 0
+  const llamar = async p => { llamadas.push(p.medicamentos.map(m => m.regNo)); n++; return { kind: 'ok', status: 200, data: { idTransaccion: `T${n}`, recetas: [{ id: `H${n}`, idReceta: `${n}` }] } } }
+  const payload = { medicamentos: [{ regNo: 'A' }, { regNo: 'B' }] }
+  const comp = await simularEmision('lote_compartido', payload, llamar)
+  assert.deepEqual(llamadas, [['A', 'B'], ['B']])
+  const asig = asignarRecetas(leerEmision(comp.data), [{ id: 'a', reg_no: 'A' }, { id: 'b', reg_no: 'B' }])
+  assert.deepEqual(asig.recetasDe.get('a').map(r => r.idReceta), ['1'])
+  assert.deepEqual(asig.recetasDe.get('b').map(r => r.idReceta), ['1', '2'])
+  const pend = await simularEmision('compartido_pendiente', payload, llamar)
+  assert.ok(leerEmision(pend.data).recetas.every(r => r.autorizacion === 'pendiente'))
+  const parcial = leerEmision((await simularEmision('parcial', payload, llamar)).data)
+  assert.equal(asignarRecetas(parcial, [{ id: 'a', reg_no: 'A' }, { id: 'b', reg_no: 'B' }]).fallidas.has('b'), true)
+  const rev = leerEmision((await simularEmision('a_revisar', payload, llamar)).data)
+  assert.deepEqual(asignarRecetas(rev, [{ id: 'a', reg_no: 'A' }, { id: 'b', reg_no: 'B' }]).sinUbicar.sort(), ['a', 'b'])
+})
+
+test('1-3 · anular: cierre completo de recetas compartidas, reintento de "a revisar" y aviso en el modal', () => {
+  const an = leer('supabase/functions/rcta-anular/index.ts')
+  assert.match(an, /for \(let cambio = true; cambio;\)/, 'cierre transitivo')
+  assert.match(an, /const anulable = reintento \? sinConfirmar : vigente/)
+  assert.match(an, /if \(body\.previsualizar === true\)/)
+  // El reintento ya no exige idReceta principal: una "a revisar" no lo tiene.
+  assert.doesNotMatch(an, /!fila\.rcta_prescription_id \|\| \(fila\.rcta_status/)
+  const pc = leer('src/components/professional/PrescriptionCreator.jsx')
+  assert.match(pc, /clinicalService\.previsualizarAnulacion\(objetivo\.medicationId\)/)
+  assert.match(pc, /data-testid="anular-tambien"/)
+})
+
+test('4 · "Ya podés comprar" sólo cuando quedó comprable', () => {
+  const sql = leer('supabase/migrations/223_receta_segun_la_wiki.sql')
+  const fn = sql.slice(sql.indexOf('create or replace function public.farmacia_autorizar_receta'))
+  assert.match(fn, /from public\.farmacia_recetas_de\(v_fila\.patient_id\) r\s+where r\.clinical_medication_id = any \(v_ok\)\s+and r\.estado = 'vigente'/)
+  assert.match(fn, /foreach v_id in array v_avisar loop/)
+})
+
+test('5 · "a revisar" tiene una sola definición (columna generada)', () => {
+  const sql = leer('supabase/migrations/223_receta_segun_la_wiki.sql')
+  assert.match(sql, /add column if not exists rcta_a_revisar boolean\s+generated always as/)
+  for (const f of ['supabase/functions/rcta-issue/index.ts', 'supabase/functions/rcta-anular/index.ts', 'src/components/professional/PrescriptionCreator.jsx']) {
+    const t = leer(f)
+    assert.match(t, /rcta_a_revisar/, f)
+    assert.doesNotMatch(t, /rcta_status === 'error' && (Array\.isArray\()?\(?\w+\.rcta_recetas/, `${f} no redefine "a revisar"`)
+  }
+  // La columna generada no se copia en los inserts de posdatadas.
+  assert.match(leer('supabase/functions/rcta-issue/index.ts'), /rcta_a_revisar: _rar/)
 })

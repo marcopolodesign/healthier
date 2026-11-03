@@ -356,6 +356,12 @@ export const clinicalService = {
    * sobre una receta ya anulada reintenta lo que el servicio de recetas no
    * confirmó. Devuelve `{ anuladas, sinConfirmar, siguenVigentes }`.
    */
+  /** Qué medicaciones y recetas se anularían, sin anular nada (migración 223). */
+  async previsualizarAnulacion(medicationId) {
+    if (esSimulado(medicationId)) return { medicaciones: [], recetas: [] }
+    return callEdgeFunction('rcta-anular', { medicationId, previsualizar: true })
+  },
+
   async anularReceta(medicationId, { motivo = null, patientId = null, encounterId = null } = {}) {
     // La práctica no tiene recetas reales que anular.
     if (esSimulado(encounterId) || esSimulado(medicationId)) throw new Error('En la práctica no se anulan recetas.')

@@ -103,6 +103,17 @@ comment on column public.clinical_medications.rcta_recetas is
   'Migración 223. Las recetas del servicio que contienen esta medicación: [{id (hash para anular), idReceta, fecha, s3Link, verificador, autorizacion}]. Normalmente una.';
 comment on column public.clinical_medications.rcta_autorizacion is
   'Migración 223. ok | pendiente ("Pendiente de autorización" del validador). Una pendiente no se vende en la farmacia de Healthier. NULL = el servicio no informó.';
+-- UNA sola definición de "a revisar" (revisión pre-prod, ronda 3): quedó en
+-- error pero con recetas del lote emitidas, sin poder confirmar cuál es suya.
+-- No se re-emite; se revisa o se anula. La leen rcta-issue, rcta-anular y el
+-- recetario.
+alter table public.clinical_medications
+  add column if not exists rcta_a_revisar boolean
+    generated always as (coalesce(rcta_status = 'error'
+                                  and coalesce(jsonb_array_length(rcta_recetas), 0) > 0, false)) stored;
+comment on column public.clinical_medications.rcta_a_revisar is
+  'Migración 223 (generada). Error con recetas del lote guardadas: no se re-emite, se revisa o se anula.';
+
 comment on column public.clinical_medications.rcta_autorizada_por is
   'Migración 223. Quién de la farmacia (o super admin) pasó la receta de pendiente a ok. Sin FK: el dato sobrevive al perfil (el asiento completo está en admin_action_log).';
 comment on column public.clinical_medications.rcta_autorizada_at is
@@ -131,8 +142,8 @@ begin
   if tg_op = 'UPDATE'
      and current_setting('healthier.autorizar_receta', true) = '1'
      and old.rcta_autorizacion = 'pendiente' and new.rcta_autorizacion in ('ok', 'pendiente')
-     and (to_jsonb(new) - array['rcta_autorizacion','rcta_autorizada_por','rcta_autorizada_at','rcta_recetas'])
-       = (to_jsonb(old) - array['rcta_autorizacion','rcta_autorizada_por','rcta_autorizada_at','rcta_recetas']) then
+     and (to_jsonb(new) - array['rcta_autorizacion','rcta_autorizada_por','rcta_autorizada_at','rcta_recetas','rcta_a_revisar'])
+       = (to_jsonb(old) - array['rcta_autorizacion','rcta_autorizada_por','rcta_autorizada_at','rcta_recetas','rcta_a_revisar']) then
     return new;
   end if;
 
@@ -379,7 +390,7 @@ alter table public.rcta_issue_log add constraint rcta_issue_log_outcome_check
 -- fila elegida (o su receta principal si no tiene detalle). Esas recetas pasan
 -- a ok en TODAS las filas activas del paciente que las contienen, y cada fila
 -- queda ok sólo si no le queda otra receta pendiente. Al paciente le llega un
--- push por receta. Devuelve cuántas filas cambiaron.
+-- push sólo por lo que quedó comprable. Devuelve cuántas filas cambiaron.
 create or replace function public.farmacia_autorizar_receta(p_medication_id uuid)
 returns integer
 language plpgsql
@@ -392,6 +403,8 @@ declare
   v_recetas text[];
   v_n       integer;
   v_id      text;
+  v_ok      uuid[];
+  v_avisar  text[];
 begin
   if auth.uid() is null or v_rol is null or v_rol not in ('pharmacy_admin', 'pharmacy_operator', 'super_admin') then
     raise exception 'Sólo la farmacia puede autorizar una receta.' using errcode = '42501';
@@ -438,23 +451,39 @@ begin
            (n.rr is null or not exists (select 1 from jsonb_array_elements(n.rr) e
                                          where e->>'autorizacion' = 'pendiente')) as queda_ok
       from nuevas n
+  ), upd as (
+    update public.clinical_medications cm
+       set rcta_recetas        = f.rr,
+           rcta_autorizacion   = case when f.queda_ok then 'ok' else 'pendiente' end,
+           rcta_autorizada_por = case when f.queda_ok then auth.uid() else cm.rcta_autorizada_por end,
+           rcta_autorizada_at  = case when f.queda_ok then now() else cm.rcta_autorizada_at end
+      from final f
+     where f.id = cm.id
+    returning cm.id, f.queda_ok
   )
-  update public.clinical_medications cm
-     set rcta_recetas        = f.rr,
-         rcta_autorizacion   = case when f.queda_ok then 'ok' else 'pendiente' end,
-         rcta_autorizada_por = case when f.queda_ok then auth.uid() else cm.rcta_autorizada_por end,
-         rcta_autorizada_at  = case when f.queda_ok then now() else cm.rcta_autorizada_at end
-    from final f
-   where f.id = cm.id;
-  get diagnostics v_n = row_count;
+  select count(*), coalesce(array_agg(id) filter (where queda_ok), '{}')
+    into v_n, v_ok
+    from upd;
   perform set_config('healthier.autorizar_receta', '', true);
+
+  -- "Ya podés comprar" sólo para lo que quedó comprable DE VERDAD (revisión,
+  -- ronda 3): la misma regla que la farmacia (`farmacia_recetas_de` en
+  -- 'vigente'). Una fila que sigue pendiente por otra receta, o una posdatada
+  -- que no empezó ('proxima'), no avisa ahora: la posdatada avisa el día que
+  -- empieza (`avisar_posdatadas_habilitadas`).
+  select coalesce(array_agg(distinct r.rcta_prescription_id), '{}')
+    into v_avisar
+    from public.farmacia_recetas_de(v_fila.patient_id) r
+   where r.clinical_medication_id = any (v_ok)
+     and r.estado = 'vigente';
 
   perform public._aal_escribir(
     null, 'autorizacion_de_receta', 'clinical_medications', p_medication_id::text, v_fila.patient_id,
-    jsonb_build_object('recetas', to_jsonb(v_recetas), 'filas', v_n, 'antes', 'pendiente', 'despues', 'ok'));
+    jsonb_build_object('recetas', to_jsonb(v_recetas), 'filas', v_n,
+                       'filas_ok', cardinality(v_ok), 'filas_siguen_pendientes', v_n - cardinality(v_ok),
+                       'antes', 'pendiente'));
 
-  -- El paciente se entera (push; el mismo canal que el resto de los avisos).
-  foreach v_id in array v_recetas loop
+  foreach v_id in array v_avisar loop
     perform public.enviar_push_tipo(v_fila.patient_id, 'receta-autorizada',
                                     jsonb_build_object('prescriptionId', v_id));
   end loop;
