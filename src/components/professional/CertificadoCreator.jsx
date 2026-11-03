@@ -214,8 +214,11 @@ export default function CertificadoCreator({
     }
   }
 
-  async function emitir() {
-    if (!tieneFirma) { setFirmaPendiente(true); return }
+  // `firmaRecienCargada`: viene de FirmaSheet. En ese render `tieneFirma` todavía
+  // es false (el estado se actualiza después), y sin esto la hoja se reabría en
+  // vez de emitir.
+  async function emitir({ firmaRecienCargada = false } = {}) {
+    if (!tieneFirma && !firmaRecienCargada) { setFirmaPendiente(true); return }
     setEmitiendo(true)
     try {
       await certificadosService.emitir(datos)
@@ -263,7 +266,7 @@ export default function CertificadoCreator({
         open={firmaPendiente}
         userId={professionalId}
         onClose={() => setFirmaPendiente(false)}
-        onFirmada={() => { setFirmaPendiente(false); marcarFirma(true); emitir() }}
+        onFirmada={() => { setFirmaPendiente(false); marcarFirma(true); emitir({ firmaRecienCargada: true }) }}
       />
 
       <Modal open={!!aAnular} onClose={anulando ? () => {} : () => setAAnular(null)} title="¿Anular este certificado?" size="sm">
@@ -285,7 +288,7 @@ export default function CertificadoCreator({
         datos={previa}
         emitiendo={emitiendo}
         onEditar={() => setPrevia(null)}
-        onEmitir={emitir}
+        onEmitir={() => emitir()}
       />
 
       <DatosRecetaFaltantes

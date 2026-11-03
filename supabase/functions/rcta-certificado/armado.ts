@@ -269,3 +269,23 @@ export function problemasDelPayload(p: any): string[] {
   }
   return out
 }
+
+/**
+ * Un certificado dice que hubo atención: no se emite para una consulta
+ * cancelada, a la que el paciente no fue, que venció sin atenderse, o un turno
+ * que todavía no empezó (margen de 15 min). Devuelve el error para el 422, o null.
+ */
+export function consultaNoCertificable(
+  c: { status: string; started_at: string | null; scheduled_at: string | null },
+  ahoraMs: number,
+): { error: string; code: string } | null {
+  if (c.status === 'cancelled') return { error: 'La consulta está cancelada.', code: 'CERT_CONSULTA_CANCELADA' }
+  if (c.status === 'no_show' || c.status === 'expired') {
+    return { error: 'La consulta no se llegó a hacer: no se puede emitir un certificado.', code: 'CERT_CONSULTA_NO_REALIZADA' }
+  }
+  if (!c.started_at && !['in_progress', 'completed'].includes(c.status)
+      && c.scheduled_at && new Date(c.scheduled_at).getTime() > ahoraMs + 15 * 60_000) {
+    return { error: 'La consulta todavía no empezó: el certificado se emite durante o después de la atención.', code: 'CERT_CONSULTA_FUTURA' }
+  }
+  return null
+}

@@ -35,7 +35,7 @@ import {
 } from '../_shared/rcta/mod.ts'
 import {
   CORS, json, rolDelJwt, armarPayloadCertificado, problemasDelPayload, validarCertificado,
-  vistaPrevia, conDias, diaAr, TIPOS, type Certificado,
+  vistaPrevia, conDias, diaAr, TIPOS, consultaNoCertificable, type Certificado,
 } from './armado.ts'
 
 const ENDPOINT = '/apirecipe/OtrasPrescripciones'
@@ -150,9 +150,9 @@ Deno.serve(async (req: Request) => {
     if (!esServicio && consulta.professional_id !== user!.id) {
       return json({ error: 'Sólo el profesional de la consulta puede emitir el certificado.', code: 'RCTA_NO_ES_EL_PRESCRIPTOR' }, 403)
     }
-    if (consulta.status === 'cancelled') {
-      return json({ error: 'La consulta está cancelada.', code: 'CERT_CONSULTA_CANCELADA' }, 422)
-    }
+    // Un certificado dice que hubo atención (revisión pre-prod): ver consultaNoCertificable.
+    const noCertificable = consultaNoCertificable(consulta, Date.now())
+    if (noCertificable) return json(noCertificable, 422)
 
     const certificado: Certificado = {
       tipo: body.tipo,
@@ -231,17 +231,32 @@ Deno.serve(async (req: Request) => {
         'medico.matricula.provincia': 'la provincia de tu matrícula (la dirección del consultorio)',
         'lugarAtencion.domicilio': 'la dirección de tu consultorio',
         'lugarAtencion.domicilio.direccion': 'la dirección de tu consultorio',
+        'lugarAtencion.domicilio.calle/numero': 'la calle y el número de tu consultorio (la calle hasta 50 letras)',
+        'paciente.tipoDoc': 'el tipo de documento del paciente', 'medico.tipoDoc': 'tu tipo de documento',
+        'medico.matricula.tipo': 'el tipo de tu matrícula (MN o MP)',
+        'medico.firmabase64': 'tu firma (volvé a cargarla)',
+        'diagnostico': 'el diagnóstico (o apagá "Imprimir diagnóstico")',
+        'prescripcion': 'el texto del certificado', 'prescripcion[0].prescripcion': 'el texto del certificado',
       }
       const faltan = [...new Set(problemas.map(p => NOMBRE[p] ?? p))]
+      // Sin fila de certificado todavía: el `tipo` en el request lo distingue
+      // de una receta en Auditoría (ver más abajo, `certificado_tipo`).
       await registrar({
         consultation_id: consulta.id, patient_id: consulta.patient_id, professional_id: consulta.professional_id,
-        endpoint: ENDPOINT, request: { ...payload, medico: { ...payload.medico, firmabase64: '(omitida)' } },
+        endpoint: ENDPOINT, request: { ...payload, medico: { ...payload.medico, firmabase64: '(omitida)' }, certificado_tipo: certificado.tipo },
         outcome: 'validation_error', error_code: 'CERT_FALTAN_DATOS', errores: problemas,
       })
       return json({ error: `Para emitir el certificado falta ${faltan.join(', ')}.`, code: 'CERT_FALTAN_DATOS', faltan: problemas }, 422)
     }
 
     // ── La fila, antes de llamar ──────────────────────────────────────────
+    // Uno a la vez por consulta y tipo (índice único de la 226): dos clics, o la
+    // app y la web juntas, no emiten dos certificados. Una 'pending' de más de
+    // 5 minutos quedó colgada (la función se cortó): se cierra como error y se sigue.
+    await supabase.from('clinical_certificates')
+      .update({ status: 'error', error_detalle: 'Quedó sin terminar (la emisión se cortó).' })
+      .eq('consultation_id', consulta.id).eq('tipo', certificado.tipo).eq('status', 'pending')
+      .lt('created_at', new Date(Date.now() - 5 * 60_000).toISOString())
     const { data: fila, error: insErr } = await supabase.from('clinical_certificates').insert({
       patient_id: consulta.patient_id,
       professional_id: consulta.professional_id,
@@ -257,6 +272,9 @@ Deno.serve(async (req: Request) => {
       imprimir_diagnostico: certificado.imprimirDiagnostico,
       status: 'pending',
     }).select('id').single()
+    if (insErr?.code === '23505') {
+      return json({ error: 'Ya se está emitiendo un certificado de este tipo para esta consulta. Esperá unos segundos y revisá la lista.', code: 'CERT_EN_CURSO' }, 409)
+    }
     if (insErr) return json({ error: `No se pudo registrar el certificado: ${insErr.message}` }, 500)
 
     const t0 = Date.now()
@@ -272,7 +290,19 @@ Deno.serve(async (req: Request) => {
     // deno-lint-ignore no-explicit-any
     let reintento: Record<string, any> | null = null
 
-    if (res.kind === 'rejected' && res.status >= 400 && res.status < 500) {
+    // Falta la provincia de una MP (QBI62/QBI65): no es la firma, no se
+    // reintenta, y el profesional ve qué cargar (igual que rcta-issue).
+    if (res.kind === 'rejected' && ['QBI62', 'QBI65'].includes(res.json?.error)) {
+      await marcarError('Falta la provincia de tu matrícula provincial.')
+      await registrar({ ...base, request: { ...payload, medico: { ...payload.medico, firmabase64: '(omitida)' } }, http_status: res.status,
+        response: res.json, outcome: 'api_error', error_code: res.json?.error ?? null, duration_ms: Date.now() - t0 })
+      return json({
+        error: 'El servicio de recetas pide la provincia de tu matrícula provincial. Cargala en tu perfil (Matrícula → Provincia) y volvé a emitir.',
+        code: 'RCTA_MATRICULA_SIN_PROVINCIA',
+      }, 422)
+    }
+    // 429 no es un rechazo del contenido: no se reintenta sin firma.
+    if (res.kind === 'rejected' && res.status >= 400 && res.status < 500 && res.status !== 429) {
       // Mismo criterio que la receta: un 4xx prueba que no se creó nada; se
       // prueba UNA vez sin la firma, por si la imagen es lo que no le gustó.
       const { firmabase64: _f, ...medicoSinFirma } = payload.medico
