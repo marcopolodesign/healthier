@@ -40,6 +40,7 @@ export const ACCIONES_ADMIN = {
   cambio_de_contrasena:            'Cambio de contraseña propia',
   // Migración 225: el profesional completó un DNI vacío y se chequeó con SISA.
   dni_completado:                  'Completó su DNI (chequeo con SISA)',
+  certificado_liberado:            'Liberó un certificado a revisar (no salió)',
 }
 
 /** Nombre legible de una acción; las de configuración (`alta_zones`…) se arman solas. */

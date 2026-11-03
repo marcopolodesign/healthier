@@ -6,6 +6,7 @@ import FirmaSheet from './FirmaSheet'
 import DatosRecetaFaltantes from './DatosRecetaFaltantes'
 import InfoTooltip from '../common/InfoTooltip'
 import { useFirmaDelProfesional } from '../../hooks/useFirmaDelProfesional'
+import { consultaNoCertificable } from '../../lib/certificadoAtencion'
 import { certificadosService, nombreDelCertificado, TIPOS_CERTIFICADO } from '../../services/certificadosService'
 import { toast } from '../Toast'
 
@@ -164,9 +165,11 @@ function VistaPrevia({ open, cargando, datos, emitiendo, onEditar, onEmitir }) {
 }
 
 export default function CertificadoCreator({
-  consultationId, encounterId, consultaFecha, professionalId,
+  consultationId, encounterId, consultaFecha, consulta = null, professionalId,
   profile, profProfile, paciente, patientId, onDatosActualizados, enPractica = false,
 }) {
+  // Aviso antes de armar nada; el corte real lo hace rcta-certificado.
+  const noCertificable = consulta && !enPractica ? consultaNoCertificable(consulta, Date.now()) : null
   const hoy = diaAr(new Date())
   const minimo = consultaFecha ? diaAr(consultaFecha) : hoy
   const desdeInicial = hoy < minimo ? minimo : hoy
@@ -221,8 +224,8 @@ export default function CertificadoCreator({
     if (!tieneFirma && !firmaRecienCargada) { setFirmaPendiente(true); return }
     setEmitiendo(true)
     try {
-      await certificadosService.emitir(datos)
-      toast.success('Certificado emitido')
+      const { recuperado } = await certificadosService.emitir(datos)
+      toast.success(recuperado ? 'Este certificado ya estaba emitido de un intento anterior: ya está en la lista' : 'Certificado emitido')
       setPrevia(null)
       setIndicaciones('')
       setDiagnostico('')
@@ -304,6 +307,17 @@ export default function CertificadoCreator({
         <div className="space-y-2">
           {emitidos.map(c => {
             const anulado = c.status === 'anulado'
+            if (c.aRevisar) return (
+              <div key={c.id} data-testid="certificado-a-revisar" className="flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-3">
+                <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shrink-0">
+                  <Certificate className="h-5 w-5 text-amber-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-text-primary truncate">{nombreDelCertificado(c)}</p>
+                  <p className="text-xs text-amber-700">Puede haber salido: lo revisa Healthier antes de emitir otro.</p>
+                </div>
+              </div>
+            )
             return (
               <div key={c.id} className={`flex items-center gap-3 rounded-2xl border border-border-default bg-bg-surface p-3 ${anulado ? 'opacity-60' : ''}`}>
                 <div className="w-9 h-9 rounded-xl bg-brand-muted flex items-center justify-center shrink-0">
@@ -379,7 +393,10 @@ export default function CertificadoCreator({
         )}
       </div>
 
-      <button type="button" onClick={abrirVistaPrevia} disabled={cargandoFirma}
+      {noCertificable && (
+        <p className="text-sm text-amber-700" data-testid="certificado-no-disponible" role="alert">{noCertificable.error}</p>
+      )}
+      <button type="button" onClick={abrirVistaPrevia} disabled={cargandoFirma || !!noCertificable}
         className="btn-primary w-full py-3">
         Vista previa
       </button>

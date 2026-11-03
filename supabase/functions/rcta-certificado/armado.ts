@@ -274,6 +274,7 @@ export function problemasDelPayload(p: any): string[] {
  * Un certificado dice que hubo atención: no se emite para una consulta
  * cancelada, a la que el paciente no fue, que venció sin atenderse, o que
  * todavía no empezó. Devuelve el error para el 422, o null.
+ * Espejo en el front: src/lib/certificadoAtencion.js (test:certificados los compara).
  */
 const ESTADOS_ATENDIDA = ['in_progress', 'closing', 'pending_pro_close', 'completed']
 
@@ -286,11 +287,12 @@ export function consultaNoCertificable(
     return { error: 'La consulta no se llegó a hacer: no se puede emitir un certificado.', code: 'CERT_CONSULTA_NO_REALIZADA' }
   }
   // Hubo atención si arrancó (started_at) o si el estado lo dice: en la
-  // llamada, cerrándose o cerrada (migración 098). 'pending'/'confirmed' sin
-  // started_at todavía no empezó, sea el turno futuro, pasado o una inmediata.
-  if (!c.started_at && !ESTADOS_ATENDIDA.includes(c.status)) {
-    return { error: 'La consulta todavía no empezó: el certificado se emite durante o después de la atención.', code: 'CERT_CONSULTA_FUTURA' }
-  }
+  // llamada, cerrándose o cerrada (migración 098). Una 'confirmed' cuenta desde
+  // la hora del turno (decisión de Mateo, 2026-11-02: la atendida por teléfono
+  // cuando falló Daily). 'pending' sin arrancar, nunca.
+  if (c.started_at || ESTADOS_ATENDIDA.includes(c.status)) return null
+  if (c.status === 'confirmed' && c.scheduled_at && Date.parse(c.scheduled_at) <= ahoraMs) return null
+  return { error: 'La consulta todavía no empezó: el certificado se emite desde la hora del turno.', code: 'CERT_CONSULTA_FUTURA' }
   return null
 }
 
@@ -318,4 +320,27 @@ export const NOMBRE_DEL_PROBLEMA: Record<string, string> = {
 export function nombreDelProblema(clave: string): string {
   if (/^prescripcion\[\d+\]\.prescripcion$/.test(clave)) return 'el texto del certificado'
   return NOMBRE_DEL_PROBLEMA[clave] ?? clave
+}
+
+/**
+ * Qué hacer cuando el insert choca con la 'pending' de la misma consulta y tipo
+ * (índice de la 226). El servicio de recetas no tiene cómo consultar si una
+ * prescripción ya existe, así que la regla es no reemitir nunca a ciegas:
+ *   · en_curso    la otra emisión sigue (menos de 5 min): 409.
+ *   · recuperar   el log dice que el servicio la emitió: se completa la fila con
+ *                 lo del log (y su fecha real) y se devuelve como éxito.
+ *   · a_revisar   se llegó a llamar al servicio (`llamado_at`) y no hay
+ *                 respuesta registrada: puede existir del otro lado. No se emite
+ *                 otra hasta que soporte lo revise.
+ *   · reintentar  nunca se llamó al servicio: se cierra como error y se reintenta.
+ */
+export type Recuperacion = 'en_curso' | 'recuperar' | 'a_revisar' | 'reintentar'
+export function decidirRecuperacion(
+  previa: { created_at: string; llamado_at: string | null },
+  logEmitido: { s3_link: string | null } | null,
+  ahoraMs: number,
+): Recuperacion {
+  if (logEmitido?.s3_link) return 'recuperar'
+  if (Date.parse(previa.created_at) > ahoraMs - 5 * 60_000) return 'en_curso'
+  return previa.llamado_at ? 'a_revisar' : 'reintentar'
 }

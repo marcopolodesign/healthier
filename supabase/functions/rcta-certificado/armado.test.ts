@@ -7,7 +7,7 @@
 import { assert, assertEquals, assertMatch } from 'jsr:@std/assert@1'
 import {
   armarPayloadCertificado, problemasDelPayload, validarCertificado, textoDelCertificado, vistaPrevia,
-  consultaNoCertificable, nombreDelProblema, type Certificado,
+  consultaNoCertificable, nombreDelProblema, decidirRecuperacion, type Certificado,
 } from './armado.ts'
 
 const FIRMA = 'iVBORw0KGgo' + 'A'.repeat(200)
@@ -152,7 +152,9 @@ Deno.test('consultaNoCertificable: sólo con atención (cancelada, no_show, venc
   assertEquals(consultaNoCertificable(c('expired', null, null), ahora)?.code, 'CERT_CONSULTA_NO_REALIZADA')
   assertEquals(consultaNoCertificable(c('confirmed', null, '2026-11-03T15:00:00Z'), ahora)?.code, 'CERT_CONSULTA_FUTURA')
   assertEquals(consultaNoCertificable(c('confirmed', null, '2026-11-02T15:10:00Z'), ahora)?.code, 'CERT_CONSULTA_FUTURA')
-  assertEquals(consultaNoCertificable(c('confirmed', null, '2026-11-01T15:00:00Z'), ahora)?.code, 'CERT_CONSULTA_FUTURA')
+  // Una 'confirmed' cuenta desde la hora del turno (Mateo, 2026-11-02).
+  assertEquals(consultaNoCertificable(c('confirmed', null, '2026-11-01T15:00:00Z'), ahora), null)
+  assertEquals(consultaNoCertificable(c('confirmed', null, '2026-11-02T15:00:00Z'), ahora), null)
   assertEquals(consultaNoCertificable(c('pending', null, null), ahora)?.code, 'CERT_CONSULTA_FUTURA')
   assertEquals(consultaNoCertificable(c('closing', null, '2026-11-03T15:00:00Z'), ahora), null)
   assertEquals(consultaNoCertificable(c('pending_pro_close', null, null), ahora), null)
@@ -170,4 +172,30 @@ Deno.test('nombreDelProblema: ninguna clave de problemasDelPayload llega cruda a
   ])
   assert(claves.size > 10)
   for (const k of claves) assert(nombreDelProblema(k) !== k, `sin nombre legible: ${k}`)
+})
+
+Deno.test('decidirRecuperacion: un certificado trabado nunca se reemite a ciegas', () => {
+  const ahora = Date.parse('2026-11-02T15:00:00Z')
+  const vieja = '2026-11-02T14:50:00Z', nueva = '2026-11-02T14:58:00Z'
+  // El log dice que salió → se recupera (aunque sea reciente: el dato es el mismo).
+  assertEquals(decidirRecuperacion({ created_at: vieja, llamado_at: vieja }, { s3_link: 'https://x/pdf' }, ahora), 'recuperar')
+  assertEquals(decidirRecuperacion({ created_at: nueva, llamado_at: nueva }, { s3_link: 'https://x/pdf' }, ahora), 'recuperar')
+  // Otra emisión en curso (menos de 5 min) → 409, nada se toca.
+  assertEquals(decidirRecuperacion({ created_at: nueva, llamado_at: nueva }, null, ahora), 'en_curso')
+  assertEquals(decidirRecuperacion({ created_at: nueva, llamado_at: null }, null, ahora), 'en_curso')
+  // Se llamó al servicio y no quedó respuesta → a revisar, NUNCA reintentar.
+  assertEquals(decidirRecuperacion({ created_at: vieja, llamado_at: vieja }, null, ahora), 'a_revisar')
+  assertEquals(decidirRecuperacion({ created_at: vieja, llamado_at: vieja }, { s3_link: null }, ahora), 'a_revisar')
+  // Nunca se llamó → se puede reintentar.
+  assertEquals(decidirRecuperacion({ created_at: vieja, llamado_at: null }, null, ahora), 'reintentar')
+})
+
+Deno.test('index.ts marca llamado_at ANTES de llamar al servicio y un timeout queda a revisar', async () => {
+  const src = await Deno.readTextFile(new URL('./index.ts', import.meta.url))
+  const marca = src.indexOf("update({ llamado_at: new Date().toISOString() })")
+  const llamada = src.indexOf("let res = await llamarRcta('POST'")
+  assert(marca > 0 && llamada > marca, 'llamado_at tiene que escribirse antes de la primera llamada al servicio')
+  const timeout = src.slice(src.indexOf("if (res.kind === 'network_error') {", llamada))
+  assertMatch(timeout.slice(0, 400), /a_revisar: true/)
+  assertMatch(src, /return json\(\{ certificado: final, recuperado: true \}\)/)
 })

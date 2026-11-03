@@ -30,7 +30,7 @@ const OPCIONES = [
 export default function Recetario({
   patientId, encounterId, ensureEncounter, professionalId, profProfile, bloqueada,
   cobertura, profile, paciente, consultationId, onIssued, onDatosActualizados,
-  onEntryAdded, consultaFecha,
+  onEntryAdded, consultaFecha, consulta,
 }) {
   const [modo, setModo] = useState('medicamentos')
   // Certificados: sólo las especialidades que recetan, mismo criterio que la
@@ -82,6 +82,7 @@ export default function Recetario({
           consultationId={consultationId}
           encounterId={encounterId}
           consultaFecha={consultaFecha}
+          consulta={consulta}
           professionalId={professionalId}
           profile={profile}
           profProfile={profProfile}
