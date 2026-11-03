@@ -4,6 +4,8 @@ import { ministerioService } from '../../services/ministerioService'
 import { formatDate } from '../../lib/format'
 import { toast } from '../../components/Toast'
 import MetricCard from '../../components/super-admin/MetricCard'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
 
 /**
  * Consultorios — /super-admin/consultorios (migración 196)
@@ -38,13 +40,15 @@ export default function SuperAdminConsultorios() {
   const [filtro, setFiltro] = useState('revisar')
   const [ocupado, setOcupado] = useState(null)
 
+  const [incluirPrueba] = useIncluirPrueba()
+
   const cargar = async () => {
     setLoading(true)
-    try { setRows(await ministerioService.listarConsultorios()) }
+    try { setRows(await ministerioService.listarConsultorios({ incluirPrueba })) }
     catch (e) { toast.error(`No se pudieron cargar los consultorios: ${e.message}`) }
     setLoading(false)
   }
-  useEffect(() => { cargar() }, [])
+  useEffect(() => { cargar() }, [incluirPrueba]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const cuenta = (...e) => rows.filter(r => e.includes(r.refesEstado)).length
   const visibles = useMemo(() => {
@@ -69,6 +73,7 @@ export default function SuperAdminConsultorios() {
           <p className="text-sm text-text-secondary mt-1">
             Dirección del consultorio contra el Registro Federal de Establecimientos de Salud. Lo que no matchea solo se decide acá.
           </p>
+          <IncluirPruebaToggle className="mt-3" />
         </div>
         <button onClick={cargar} className="btn-secondary flex items-center gap-1.5">
           <ArrowClockwise className="h-4 w-4" /> Actualizar

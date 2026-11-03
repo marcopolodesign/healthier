@@ -1,4 +1,5 @@
 import { supabase, toCamelCase } from '../lib/supabase'
+import { sinPrueba } from '../lib/cuentasDePrueba'
 import { callEdgeFunction } from '../lib/edgeFunction'
 
 /**
@@ -96,12 +97,12 @@ export const ondemandService = {
   },
 
   /** Para el super admin: todos los pedidos, con quién pidió y quién aceptó. */
-  async getTodos({ limit = 100 } = {}) {
-    const { data, error } = await supabase
+  async getTodos({ limit = 100, incluirPrueba = true } = {}) {
+    const { data, error } = await sinPrueba(supabase
       .from('ondemand_requests')
       .select('*, paciente:profiles!patient_id(full_name, email), profesional:profiles!accepted_by(full_name), consulta:consultations!consultation_id(status, payment_status)')
       .order('created_at', { ascending: false })
-      .limit(limit)
+      .limit(limit), incluirPrueba)
     if (error) throw error
     return (data ?? []).map(toCamelCase)
   },

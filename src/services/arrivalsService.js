@@ -1,4 +1,5 @@
 import { supabase, toCamelCase } from '../lib/supabase'
+import { sinPrueba } from '../lib/cuentasDePrueba'
 
 /**
  * "El paciente está en camino" — `consultation_arrivals` (migración 145).
@@ -88,11 +89,11 @@ export const arrivalsService = {
    * La RLS es la que decide quién puede: a un profesional esta misma consulta
    * le devuelve sólo las suyas, y a un paciente sólo la propia.
    */
-  async getEnCurso() {
-    const { data, error } = await supabase
+  async getEnCurso({ incluirPrueba = true } = {}) {
+    const { data, error } = await sinPrueba(supabase
       .from('consultation_arrivals')
       .select('*')
-      .order('updated_at', { ascending: false })
+      .order('updated_at', { ascending: false }), incluirPrueba)
     if (error) throw error
     return toCamelCase(data ?? [])
   },

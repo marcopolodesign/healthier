@@ -3,6 +3,9 @@ import { IdentificationCard, CircleNotch, ArrowClockwise } from '@phosphor-icons
 import { supabase } from '../../lib/supabase'
 import { formatDate } from '../../lib/format'
 import MetricCard from '../../components/super-admin/MetricCard'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
+import { sinPrueba } from '../../lib/cuentasDePrueba'
 
 /**
  * Coberturas — /super-admin/coberturas
@@ -31,17 +34,19 @@ export default function SuperAdminCoberturas() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
 
+  const [incluirPrueba] = useIncluirPrueba()
+
   const cargar = async () => {
     setLoading(true)
-    const { data } = await supabase
+    const { data } = await sinPrueba(supabase
       .from('cobertura_consultas')
       .select('id, created_at, resultado, rnos, cobertura_nombre, financiador_nombre, error, paciente:profiles!paciente_id(full_name)')
       .order('created_at', { ascending: false })
-      .limit(500)
+      .limit(500), incluirPrueba)
     setRows(data ?? [])
     setLoading(false)
   }
-  useEffect(() => { cargar() }, [])
+  useEffect(() => { cargar() }, [incluirPrueba]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const cuenta = r => rows.filter(x => x.resultado === r).length
   const sinMatch = useMemo(() => {
@@ -64,6 +69,7 @@ export default function SuperAdminCoberturas() {
           <p className="text-sm text-text-secondary mt-1">
             Obra social precargada desde el listado de obras sociales al cargar el DNI. Últimas 500 consultas.
           </p>
+          <IncluirPruebaToggle className="mt-3" />
         </div>
         <button onClick={cargar} className="btn-secondary flex items-center gap-1.5">
           <ArrowClockwise className="h-4 w-4" /> Actualizar

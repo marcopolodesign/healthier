@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { sinPrueba } from '../lib/cuentasDePrueba'
 
 /**
  * Avisos de "completó su DNI" para el super admin (migración 225): un
@@ -7,13 +8,13 @@ import { supabase } from '../lib/supabase'
  * sólo se lee y se marca como visto (RPC, la RLS no deja escribir).
  */
 export const avisosDniService = {
-  async listarSinVer() {
-    const { data, error } = await supabase
+  async listarSinVer({ incluirPrueba = true } = {}) {
+    const { data, error } = await sinPrueba(supabase
       .from('dni_completado_chequeos')
       .select('id, created_at, resultado, detalle, professional_profile_id, profile:profiles!user_id(full_name, email)')
       .is('visto_at', null)
       .order('created_at', { ascending: false })
-      .limit(50)
+      .limit(50), incluirPrueba)
     if (error) throw error
     return data ?? []
   },

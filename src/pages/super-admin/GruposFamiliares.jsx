@@ -4,6 +4,9 @@ import { familyService } from '../../services/familyService'
 import { toast } from '../../components/Toast'
 import { formatDate } from '../../lib/format'
 import MetricCard from '../../components/super-admin/MetricCard'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
+import { filtrarPrueba } from '../../lib/cuentasDePrueba'
 
 /**
  * Grupos familiares (migración 181): quién administra a quién.
@@ -16,13 +19,15 @@ import MetricCard from '../../components/super-admin/MetricCard'
 export default function SuperAdminGruposFamiliares() {
   const [filas, setFilas] = useState([])
   const [loading, setLoading] = useState(true)
+  const [incluirPrueba] = useIncluirPrueba()
 
   useEffect(() => {
+    setLoading(true)
     familyService.adminListar()
-      .then(setFilas)
+      .then(rows => setFilas(filtrarPrueba(rows, incluirPrueba)))
       .catch(err => toast.error(err.message || 'Error al cargar los grupos familiares'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [incluirPrueba])
 
   const titulares = new Set(filas.map(f => f.titularId)).size
   const conConsultas = filas.filter(f => Number(f.consultas) > 0).length
@@ -35,6 +40,7 @@ export default function SuperAdminGruposFamiliares() {
         <p className="text-text-secondary mt-1">
           Familiares a cargo de un paciente: tienen historia clínica propia y entran sólo con el código que les genera su titular
         </p>
+        <IncluirPruebaToggle className="mt-3" />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

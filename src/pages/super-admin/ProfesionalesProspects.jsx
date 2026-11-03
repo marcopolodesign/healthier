@@ -11,6 +11,9 @@ import BulkActionBar from '../../components/super-admin/BulkActionBar';
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog';
 import RecorridoProfesional from '../../components/super-admin/RecorridoProfesional';
 import { useEspecialidades } from '../../hooks/useEspecialidades';
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle';
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba';
+import { sinPrueba } from '../../lib/cuentasDePrueba';
 
 // Mismos labels que STEPS en pages/professional/Onboarding.jsx — si ese
 // wizard cambia de pasos, actualizar acá también.
@@ -216,21 +219,22 @@ export default function SuperAdminProfesionalesProspects() {
   const [utmFilter, setUtmFilter] = useState('');
   // null = sin filtro, número = índice de STEP_LABELS, 'sin_dato' = onboarding_step null.
   const [stepFilter, setStepFilter] = useState(null);
+  const [incluirPrueba] = useIncluirPrueba();
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [incluirPrueba]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchData() {
     try {
       setLoading(true);
       const [profilesRes, professionalProfilesRes] = await Promise.all([
-        supabase
+        sinPrueba(supabase
           .from('profiles')
           .select('id, email, full_name, phone, created_at, onboarding_step, onboarding_draft, utm_source, utm_medium, utm_campaign, referrer_url')
           .eq('role', 'professional')
           .is('deleted_at', null) // bajas lógicas (188) fuera
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false }), incluirPrueba),
         supabase.from('professional_profiles').select('user_id'),
       ]);
 
@@ -339,6 +343,7 @@ export default function SuperAdminProfesionalesProspects() {
           <p className="text-sm text-gray-500 mt-1">
             {loading ? '…' : `${prospects.length} profesionales que no terminaron el alta`}
           </p>
+          <IncluirPruebaToggle className="mt-3" />
         </div>
         <Stethoscope size={32} className="text-brand mt-1" weight="duotone" />
       </div>

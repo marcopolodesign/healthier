@@ -9,6 +9,9 @@ import {
   construirRecorrido, resumenRecorrido, formatearDuracion, etiquetaEvento,
   EVENT_META, ESTADO_META, STEP_LABELS,
 } from '../../lib/recorridoProfesional'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
+import { sinPrueba } from '../../lib/cuentasDePrueba'
 
 /**
  * Recorrido de los profesionales — pedido de Mateo (2026-08-13):
@@ -152,19 +155,20 @@ export default function SuperAdminProfesionalesRecorrido() {
   const [filtro, setFiltro] = useState('todos')
   const [rango, setRango] = useState('30')
   const [seleccionada, setSeleccionada] = useState(null)
+  const [incluirPrueba] = useIncluirPrueba()
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { fetchData() }, [incluirPrueba]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchData() {
     try {
       setLoading(true)
       const [profilesRes, legajosRes] = await Promise.all([
-        supabase
+        sinPrueba(supabase
           .from('profiles')
           .select('id, email, full_name, phone, created_at, onboarding_step, utm_source, utm_campaign')
           .eq('role', 'professional')
           .is('deleted_at', null) // bajas lógicas (188) fuera
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false }), incluirPrueba),
         supabase
           .from('professional_profiles')
           .select('user_id, submitted_at, verified_at, rejected_at, rejection_type, is_verified'),
@@ -269,6 +273,7 @@ export default function SuperAdminProfesionalesRecorrido() {
           <p className="text-sm text-gray-500 mt-1">
             {loading ? '…' : `${filas.length} altas sobre una misma línea de tiempo — dónde se frenaron y cuándo retomaron`}
           </p>
+          <IncluirPruebaToggle className="mt-3" />
         </div>
         <Path size={32} className="text-brand mt-1" weight="duotone" />
       </div>

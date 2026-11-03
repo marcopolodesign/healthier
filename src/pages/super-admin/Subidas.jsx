@@ -6,6 +6,9 @@ import { supabase } from '../../lib/supabase'
 import { toast } from '../../components/Toast'
 import { formatDate } from '../../lib/format'
 import MetricCard from '../../components/super-admin/MetricCard'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
+import { sinPrueba } from '../../lib/cuentasDePrueba'
 
 /**
  * Subidas — /super-admin/subidas
@@ -63,14 +66,16 @@ export default function SuperAdminSubidas() {
   const [estadoFilter, setEstadoFilter] = useState('todos')
   const [motivoFilter, setMotivoFilter] = useState('todos')
 
+  const [incluirPrueba] = useIncluirPrueba()
+
   const load = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
+      const { data, error } = await sinPrueba(supabase
         .from('upload_log')
         .select('id, documento, bucket, estado, motivo, detalle, bytes, mime, created_at, usuario:profiles!usuario_id(full_name, email)')
         .order('created_at', { ascending: false })
-        .limit(PAGE_SIZE)
+        .limit(PAGE_SIZE), incluirPrueba)
       if (error) throw error
       setRows(data ?? [])
     } catch (err) {
@@ -80,7 +85,7 @@ export default function SuperAdminSubidas() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [incluirPrueba]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Los últimos 7 días y no 24 h como en Mails: acá el volumen es bajo (unas
   // pocas altas por día), y en una ventana de un día el porcentaje salta por
@@ -127,6 +132,7 @@ export default function SuperAdminSubidas() {
           <p className="text-text-secondary mt-1">
             Cada documento que un profesional intentó subir, con el motivo cuando le rebotó.
           </p>
+          <IncluirPruebaToggle className="mt-3" />
         </div>
         <button onClick={load} className="btn-secondary flex items-center gap-2 shrink-0" disabled={loading}>
           <ArrowClockwise className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />

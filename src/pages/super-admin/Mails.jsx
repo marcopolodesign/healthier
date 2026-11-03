@@ -6,6 +6,9 @@ import { supabase } from '../../lib/supabase'
 import { toast } from '../../components/Toast'
 import { formatDate } from '../../lib/format'
 import MetricCard from '../../components/super-admin/MetricCard'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
+import { sinPrueba } from '../../lib/cuentasDePrueba'
 
 /**
  * Mails — /super-admin/mails
@@ -48,14 +51,16 @@ export default function SuperAdminMails() {
   const [tipoFilter, setTipoFilter] = useState('todos')
   const [estadoFilter, setEstadoFilter] = useState('todos')
 
+  const [incluirPrueba] = useIncluirPrueba()
+
   const load = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
+      const { data, error } = await sinPrueba(supabase
         .from('email_log')
         .select('id, tipo, destinatario, asunto, estado, resend_id, error, created_at, consultation_id, order_id')
         .order('created_at', { ascending: false })
-        .limit(PAGE_SIZE)
+        .limit(PAGE_SIZE), incluirPrueba)
       if (error) throw error
       setRows(data ?? [])
     } catch (err) {
@@ -65,7 +70,7 @@ export default function SuperAdminMails() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [incluirPrueba]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Las últimas 24 h son lo que importa: un circuito de mails no se rompe de a
   // poco, se corta. Un salto a cero acá es la señal.
@@ -96,6 +101,7 @@ export default function SuperAdminMails() {
           <p className="text-text-secondary mt-1">
             Cada mail que la plataforma intentó mandar, con el motivo exacto cuando no salió.
           </p>
+          <IncluirPruebaToggle className="mt-3" />
         </div>
         <button onClick={load} className="btn-secondary flex items-center gap-2 shrink-0" disabled={loading}>
           <ArrowClockwise className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />

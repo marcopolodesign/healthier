@@ -30,6 +30,9 @@ import WhatsAppButton from '../../components/super-admin/WhatsAppButton'
 import ComisionProfesional, { ComisionBadge } from '../../components/super-admin/ComisionProfesional'
 import { comisionService } from '../../services/comisionService'
 import { avisosDniService, ETIQUETA_SISA } from '../../services/avisosDniService'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
+import { sinPrueba } from '../../lib/cuentasDePrueba'
 
 // Documentos que puede gestionar el super admin desde el drawer (A6) — mismo
 // nombre de archivo que usa Onboarding.jsx al subir, para que un reemplazo
@@ -1210,17 +1213,18 @@ export default function SuperAdminProfesionales() {
   // Comisión propia de cada profesional (por profiles.id) y la general.
   const [comisiones, setComisiones] = useState({})
   const [generalRate, setGeneralRate] = useState(null)
+  const [incluirPrueba] = useIncluirPrueba()
 
   async function fetchData() {
     setLoading(true)
     try {
       const [profResult, consultResult] = await Promise.all([
-        supabase
+        sinPrueba(supabase
           .from('professional_profiles')
           .select('id, specialty, is_verified, is_active, verification_source, sisa_status, mp_connected, mp_account_label, has_signature, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, price_video, price_presencial, session_price, license_number, license_type, license_province, address, latitude, longitude, profiles!user_id(id, full_name, email, phone, dni, es_extranjero, gender, created_at, utm_source, avatar_url)')
           .eq('dado_de_baja', false) // bajas lógicas (188) fuera
-          .order('created_at', { ascending: false }),
-        supabase.from('consultations').select('professional_id'),
+          .order('created_at', { ascending: false }), incluirPrueba),
+        sinPrueba(supabase.from('consultations').select('professional_id'), incluirPrueba),
       ])
 
       if (profResult.error) throw profResult.error
@@ -1241,11 +1245,11 @@ export default function SuperAdminProfesionales() {
     }
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { fetchData() }, [incluirPrueba]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [avisosDni, setAvisosDni] = useState([])
-  const cargarAvisosDni = () => avisosDniService.listarSinVer().then(setAvisosDni).catch(() => setAvisosDni([]))
-  useEffect(() => { cargarAvisosDni() }, [])
+  const cargarAvisosDni = () => avisosDniService.listarSinVer({ incluirPrueba }).then(setAvisosDni).catch(() => setAvisosDni([]))
+  useEffect(() => { cargarAvisosDni() }, [incluirPrueba]) // eslint-disable-line react-hooks/exhaustive-deps
   const abrirLegajoDeAviso = (a) => {
     const pro = professionals.find(p => p.id === a.professional_profile_id)
     if (pro) setSelected(pro)
@@ -1322,6 +1326,7 @@ export default function SuperAdminProfesionales() {
         <p className="text-sm text-gray-500 mt-1">
           {loading ? 'Cargando…' : `${professionals.length} profesionales registrados`}
         </p>
+        <IncluirPruebaToggle className="mt-3" />
       </div>
 
       <AvisosDni avisos={avisosDni} onAbrir={abrirLegajoDeAviso} onVisto={marcarAvisoVisto} />

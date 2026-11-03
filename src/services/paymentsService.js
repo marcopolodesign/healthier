@@ -11,6 +11,7 @@
  */
 
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
+import { sinPrueba } from '../lib/cuentasDePrueba'
 
 export const paymentsService = {
   /**
@@ -59,6 +60,8 @@ export const paymentsService = {
     if (filters.status) query = query.eq('status', filters.status)
     if (filters.professionalId) query = query.eq('professional_id', filters.professionalId)
     if (filters.method) query = query.eq('method', filters.method)
+    // Super admin: sin cuentas de prueba salvo que se pidan (migración 229).
+    if (filters.incluirPrueba === false) query = sinPrueba(query)
 
     const { data, error } = await query
     if (error) throw error
@@ -70,8 +73,8 @@ export const paymentsService = {
    * awaiting manual super_admin review — refunds are NEVER automatic
    * (product rule, 2026-07-24). See mp-refund action=cancel-refund / approve-refund / reject-refund.
    */
-  async getPendingRefundRequests() {
-    const { data, error } = await supabase
+  async getPendingRefundRequests({ incluirPrueba = true } = {}) {
+    const { data, error } = await sinPrueba(supabase
       .from('payments')
       .select(`
         *,
@@ -80,14 +83,14 @@ export const paymentsService = {
         professional:profiles!professional_id(full_name, email)
       `)
       .eq('refund_request_status', 'pending')
-      .order('refund_requested_at', { ascending: true })
+      .order('refund_requested_at', { ascending: true }), incluirPrueba)
     if (error) throw error
     return toCamelCase(data)
   },
 
   /** Payments with a pending "credits → MP refund" conversion request. */
-  async getPendingConversionRequests() {
-    const { data, error } = await supabase
+  async getPendingConversionRequests({ incluirPrueba = true } = {}) {
+    const { data, error } = await sinPrueba(supabase
       .from('payments')
       .select(`
         *,
@@ -96,7 +99,7 @@ export const paymentsService = {
       `)
       .not('refund_conversion_requested_at', 'is', null)
       .is('refund_conversion_resolved_at', null)
-      .order('refund_conversion_requested_at', { ascending: true })
+      .order('refund_conversion_requested_at', { ascending: true }), incluirPrueba)
     if (error) throw error
     return toCamelCase(data)
   },
@@ -156,8 +159,8 @@ export const paymentsService = {
    * All payments with an outstanding manual_settlement_amount (debt owed to
    * the professional for the Healthy Credits-covered portion) not yet settled.
    */
-  async getPendingSettlements() {
-    const { data, error } = await supabase
+  async getPendingSettlements({ incluirPrueba = true } = {}) {
+    const { data, error } = await sinPrueba(supabase
       .from('payments')
       .select(`
         id,
@@ -169,7 +172,7 @@ export const paymentsService = {
       `)
       .gt('manual_settlement_amount', 0)
       .is('settled_at', null)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: true }), incluirPrueba)
     if (error) throw error
     return toCamelCase(data)
   },
@@ -207,12 +210,13 @@ export const paymentsService = {
    * @param {string} [range.from] - ISO date, inclusive
    * @param {string} [range.to]   - ISO date, inclusive
    */
-  async getPaymentsSummary({ from, to } = {}) {
+  async getPaymentsSummary({ from, to, incluirPrueba = true } = {}) {
     let query = supabase
       .from('payments')
       .select('gross_amount, platform_fee, mp_fee_estimated, mp_fee_actual, net_to_professional, credits_used, charged_amount, status, created_at')
     if (from) query = query.gte('created_at', from)
     if (to) query = query.lte('created_at', to)
+    query = sinPrueba(query, incluirPrueba)
 
     const { data, error } = await query
     if (error) throw error

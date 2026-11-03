@@ -1,4 +1,5 @@
 import { supabase, toCamelCase, toSnakeCase, asegurarSesion } from '../lib/supabase'
+import { sinPrueba } from '../lib/cuentasDePrueba'
 import { familyService } from './familyService'
 import { DERIVACION_EMBED } from './derivacionesService'
 
@@ -615,6 +616,8 @@ export const consultationsService = {
       .order('scheduled_at', { ascending: false, nullsFirst: false })
 
     if (filters.status) query = query.eq('status', filters.status)
+    // Super admin: sin cuentas de prueba salvo que se pidan (migración 229).
+    if (filters.incluirPrueba === false) query = sinPrueba(query)
 
     const { data, error } = await query
     if (error) throw error

@@ -11,6 +11,9 @@ import PacienteOnboardingDrawer from '../../components/super-admin/PacienteOnboa
 import { toCamelCase } from '../../lib/supabase';
 import { completitudPaciente, esLead, entraEnEmbudo, CAMPOS_ONBOARDING, CONSULTA_VIGENTE } from '../../lib/pacienteOnboarding';
 import MetricCard from '../../components/super-admin/MetricCard';
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle';
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba';
+import { sinPrueba } from '../../lib/cuentasDePrueba';
 
 
 const fechaCorta = (ts) => new Date(ts).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' });
@@ -42,24 +45,25 @@ export default function SuperAdminUsuarios() {
   const [perfilFilter, setPerfilFilter] = useState('todos');
   const [verCampanas, setVerCampanas] = useState(false);
   const [abierto, setAbierto] = useState(null);
+  const [incluirPrueba] = useIncluirPrueba();
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [incluirPrueba]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchData() {
     setLoading(true);
     try {
       const [profilesRes, consultationsRes] = await Promise.all([
-        supabase
+        sinPrueba(supabase
           .from('profiles')
           .select(`id, email, full_name, created_at, utm_source, utm_medium, utm_campaign, es_prueba, ${CAMPOS_ONBOARDING}`)
           .eq('role', 'patient')
           .is('deleted_at', null) // bajas lógicas (188) fuera
-          .order('created_at', { ascending: false }),
-        supabase
+          .order('created_at', { ascending: false }), incluirPrueba),
+        sinPrueba(supabase
           .from('consultations')
-          .select('patient_id, status'),
+          .select('patient_id, status'), incluirPrueba),
       ]);
 
       if (profilesRes.error) throw profilesRes.error;
@@ -199,6 +203,7 @@ export default function SuperAdminUsuarios() {
           <p className="text-sm text-text-secondary mt-1">
             {loading ? 'Cargando…' : `${filteredPatients.length} usuario${filteredPatients.length !== 1 ? 's' : ''} en total`}
           </p>
+          <IncluirPruebaToggle className="mt-3" />
         </div>
         <button onClick={exportCSV} className="btn-secondary flex items-center gap-2 shrink-0">
           <DownloadSimple size={16} />

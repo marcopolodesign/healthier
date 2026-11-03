@@ -12,6 +12,8 @@ import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialo
 import CoordinadorAmbulancias from '../../components/super-admin/CoordinadorAmbulancias'
 import { BotonOrden } from '../../components/emergencias/OrdenDeTrasladoCard'
 import { DESENLACE } from '../../lib/cobroEmergencia'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
 
 const STATUS_BADGE = {
   pending:           'bg-gray-100 text-gray-500',
@@ -42,23 +44,24 @@ export default function SuperAdminEmergencias() {
    * dato se vuelve falsa por el paso del tiempo, no por un evento.
    */
   const [tracking, setTracking] = useState({})
+  const [incluirPrueba] = useIncluirPrueba()
 
   useEffect(() => {
     setLoading(true)
-    emergencyService.listAllForAdmin()
+    emergencyService.listAllForAdmin({ incluirPrueba })
       .then(setEmergencies)
       .catch(() => toast.error('Error al cargar emergencias'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [incluirPrueba])
 
   useEffect(() => {
-    const cargar = () => emergencyTrackingService.getEnCurso()
+    const cargar = () => emergencyTrackingService.getEnCurso({ incluirPrueba })
       .then(filas => setTracking(Object.fromEntries(filas.map(f => [f.emergencyId, f]))))
       .catch(() => {/* el listado principal no depende de esto */})
     cargar()
     const iv = setInterval(cargar, 30_000)
     return () => clearInterval(iv)
-  }, [])
+  }, [incluirPrueba])
 
   const selection = useBulkSelection(emergencies.map(e => e.id))
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -87,6 +90,7 @@ export default function SuperAdminEmergencias() {
       <div>
         <h1 className="page-title-lg">Emergencias</h1>
         <p className="text-text-secondary mt-1">Todas las emergencias S.O.S de la plataforma, de más reciente a más antigua — con la entidad que despachó, el móvil y quién lo asignó</p>
+        <IncluirPruebaToggle className="mt-3" />
       </div>
 
       <CoordinadorAmbulancias />
