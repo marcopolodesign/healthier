@@ -38,6 +38,8 @@ export const ACCIONES_ADMIN = {
   conversion_de_credito_a_mp:      'Crédito convertido a Mercado Pago',
   cambio_de_comision:              'Cambio de comisión',
   cambio_de_contrasena:            'Cambio de contraseña propia',
+  // Migración 225: el profesional completó un DNI vacío y se chequeó con SISA.
+  dni_completado:                  'Completó su DNI (chequeo con SISA)',
 }
 
 /** Nombre legible de una acción; las de configuración (`alta_zones`…) se arman solas. */

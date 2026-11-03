@@ -273,7 +273,7 @@ test('src/lib/sentry.js usa las opciones privadas y no habilita replay ni feedba
 // falla en ese repo. Para cambiar el filtro: editá el .ts de la app, generá el .js con
 // `stripTypeScriptTypes(ts, { mode: 'strip' })` (node:module), copialo acá y poné el hash nuevo
 // en los DOS tests.
-const HASH_FILTRO = '08d2cc745364bafd11b550fba998b44f214cc444249987d2f26e219c2c9e7fd4'
+const HASH_FILTRO = 'a76e6f850989f378b4becf8f64869b8a30d47dd3a4aebc0bc8d046282fad536c'
 test('el filtro de la web coincide con la referencia compartida con la app (hash)', async () => {
   const { createHash } = await import('node:crypto')
   const actual = createHash('sha256').update(readFileSync(join(raiz, 'src/lib/sentryFilter.js'))).digest('hex')

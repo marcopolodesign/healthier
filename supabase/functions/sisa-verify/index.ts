@@ -25,27 +25,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// La consulta y el criterio de coincidencia viven en `_shared/refeps.ts`, el
+// mismo código que usa el chequeo de "completó su DNI" (`dni-completado`).
+import { RefepsError, buscarPractitioner, codigoRefeps, evaluarRefeps } from '../_shared/refeps.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const BUS = 'https://bus.msal.gob.ar'
-const SYS_REFEPS = 'https://sisa.msal.gov.ar/REFEPS'
-const EXT = 'http://fhir.msal.gob.ar/StructureDefinition/'
 const FUENTE = 'REFEPS — bus FHIR del Ministerio de Salud (automática)'
-
-// Token cacheado mientras la instancia siga viva. `expiresIn` viene sin unidad
-// documentada (180000), así que se usa como mucho 30 min y, ante un 401, se
-// pide otro y se reintenta una vez.
-let cache: { token: string; exp: number } | null = null
-
-class RefepsError extends Error {
-  constructor(public code: string, message: string, public httpStatus?: number, public detail?: unknown) {
-    super(message)
-  }
-}
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
@@ -101,10 +90,10 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Consulta a REFEPS ─────────────────────────────────────────────────────
-    const codigo = `5410${dni.padStart(8, '0')}`
+    const codigo = codigoRefeps(dni)
     let practitioner: any
     try {
-      practitioner = await buscarPractitioner(codigo, ISSUER, SECRET)
+      practitioner = await buscarPractitioner(codigo)
     } catch (e) {
       if (!(e instanceof RefepsError)) throw e
       console.error('REFEPS', e.code, e.httpStatus, JSON.stringify(e.detail))
@@ -112,14 +101,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const now = new Date().toISOString()
-    const declarada = normalizarMatricula(prof.license_number)
-    const matriculas = practitioner ? leerMatriculas(practitioner) : []
-    const coincide = declarada ? matriculas.find(m => normalizarMatricula(m.matricula) === declarada) : undefined
-
-    let sisaStatus: 'habilitada' | 'suspendida' | 'not_found' | 'no_coincide'
-    if (!practitioner) sisaStatus = 'not_found'
-    else if (!coincide) sisaStatus = 'no_coincide'
-    else sisaStatus = coincide.habilitada && practitioner.active !== false ? 'habilitada' : 'suspendida'
+    const { estado: sisaStatus, matriculas, coincide } = evaluarRefeps(practitioner, prof.license_number)
 
     const sisaMatricula = coincide
       ? `${coincide.matricula}${coincide.jurisdiccion ? ` (${coincide.jurisdiccion})` : ''}`
@@ -181,107 +163,8 @@ Deno.serve(async (req: Request) => {
   }
 })
 
-// ── Bus FHIR ──────────────────────────────────────────────────────────────────
-
-async function buscarPractitioner(codigo: string, issuer: string, secret: string) {
-  const url = `${BUS}/fhir/Practitioner?identifier=${encodeURIComponent(`${SYS_REFEPS}|${codigo}`)}`
-  let res = await fetch(url, { headers: await headers(issuer, secret) })
-  if (res.status === 401 || res.status === 403) {
-    cache = null
-    res = await fetch(url, { headers: await headers(issuer, secret) })
-  }
-  const text = await res.text()
-  let body: any = null
-  try { body = JSON.parse(text) } catch { /* el bus a veces responde texto plano */ }
-
-  // "Recurso del tipo Practitioner con el código X no se encuentra." → no está en REFEPS.
-  const diag = body?.issue?.map((i: any) => i.diagnostics).filter(Boolean).join(' · ') || text.slice(0, 300)
-  if (res.status === 404 && /no se encuentra/i.test(diag)) return null
-  if (!res.ok) throw new RefepsError('REFEPS_SEARCH_FAILED', `REFEPS respondió ${res.status}: ${diag}`, res.status, body ?? text.slice(0, 500))
-  if (body?.resourceType !== 'Bundle') throw new RefepsError('REFEPS_SEARCH_FAILED', 'Respuesta inesperada de REFEPS', res.status, text.slice(0, 500))
-  return body.entry?.[0]?.resource ?? null
-}
-
-async function headers(issuer: string, secret: string) {
-  return {
-    Accept: 'application/fhir+json',
-    Authorization: `Bearer ${await accessToken(issuer, secret)}`,
-  }
-}
-
-async function accessToken(issuer: string, secret: string) {
-  if (cache && cache.exp > Date.now() + 30_000) return cache.token
-
-  const now = Math.floor(Date.now() / 1000)
-  const assertion = await firmarJwt({
-    iss: issuer, iat: now, exp: now + 300, jti: crypto.randomUUID(),
-    aud: 'aud', sub: 'sub', name: 'name', ident: 'ident', role: 'role',
-  }, secret)
-
-  const res = await fetch(`${BUS}/bus-auth/v2/auth`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      grantType: 'client_credentials',
-      scope: 'Practitioner/*.read',
-      clientAssertionType: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-      clientAssertion: assertion,
-    }),
-  })
-  const text = await res.text()
-  let body: any = null
-  try { body = JSON.parse(text) } catch { /* noop */ }
-  if (!res.ok || !body?.accessToken) {
-    throw new RefepsError('REFEPS_AUTH_FAILED', `El bus rechazó la credencial (${res.status}): ${body?.message ?? body?.name ?? body?.error ?? text.slice(0, 200)}`, res.status, body ?? text.slice(0, 500))
-  }
-  const segundos = Math.min(Number(body.expiresIn) || 300, 1800)
-  cache = { token: body.accessToken, exp: Date.now() + segundos * 1000 }
-  return cache.token
-}
-
-async function firmarJwt(payload: Record<string, unknown>, secret: string) {
-  const enc = (o: unknown) => b64url(new TextEncoder().encode(JSON.stringify(o)))
-  const data = `${enc({ typ: 'JWT', alg: 'HS256' })}.${enc(payload)}`
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
-  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data))
-  return `${data}.${b64url(new Uint8Array(sig))}`
-}
-
-function b64url(bytes: Uint8Array) {
-  let s = ''
-  for (const b of bytes) s += String.fromCharCode(b)
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-// ── Lectura del Practitioner ──────────────────────────────────────────────────
-
-type Matricula = {
-  profesion: string | null; matricula: string | null; jurisdiccion: string | null
-  habilitada: boolean; desde: string | null; emisor: string | null
-}
-
-function leerMatriculas(p: any): Matricula[] {
-  return (p.qualification ?? []).map((q: any) => {
-    const ext = (name: string) => q.extension?.find((e: any) => e.url === EXT + name)
-    return {
-      profesion:    q.code?.coding?.[0]?.display ?? q.code?.text ?? null,
-      matricula:    q.identifier?.[0]?.value ?? null,
-      jurisdiccion: ext('JurisdMatricula')?.valueCoding?.display ?? null,
-      habilitada:   ext('MatriculaHabilitada')?.valueBoolean === true,
-      desde:        q.period?.start ?? null,
-      emisor:       q.issuer?.display ?? null,
-    }
-  })
-}
-
 function identificador(p: any, sufijo: string) {
   return p.identifier?.find((i: any) => i.system?.endsWith(sufijo))?.value ?? null
-}
-
-// "MN - 82854", "082854", "MP 14.613" → "82854" / "14613"
-function normalizarMatricula(v: unknown) {
-  const d = String(v ?? '').replace(/\D/g, '').replace(/^0+/, '')
-  return d || null
 }
 
 function json(body: unknown, status = 200) {
