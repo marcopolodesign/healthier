@@ -7,7 +7,7 @@
 import { assert, assertEquals, assertMatch } from 'jsr:@std/assert@1'
 import {
   armarPayloadCertificado, problemasDelPayload, validarCertificado, textoDelCertificado, vistaPrevia,
-  type Certificado,
+  consultaNoCertificable, type Certificado,
 } from './armado.ts'
 
 const FIRMA = 'iVBORw0KGgo' + 'A'.repeat(200)
@@ -142,4 +142,17 @@ Deno.test('domicilio de la atención: calle y número, o dirección sola', () =>
   const sinAltura = armar(REPOSO, { legajo: { ...legajo, address: 'Hospital Italiano, Almagro' } })
   assertEquals(sinAltura.lugarAtencion?.domicilio, { direccion: 'Hospital Italiano, Almagro' })
   assertEquals(problemasDelPayload(sinAltura), [])
+})
+
+Deno.test('consultaNoCertificable: sólo con atención (cancelada, no_show, vencida, futura no)', () => {
+  const ahora = Date.parse('2026-11-02T15:00:00Z')
+  const c = (status: string, started_at: string | null, scheduled_at: string | null) => ({ status, started_at, scheduled_at })
+  assertEquals(consultaNoCertificable(c('cancelled', null, null), ahora)?.code, 'CERT_CONSULTA_CANCELADA')
+  assertEquals(consultaNoCertificable(c('no_show', null, '2026-11-02T14:00:00Z'), ahora)?.code, 'CERT_CONSULTA_NO_REALIZADA')
+  assertEquals(consultaNoCertificable(c('expired', null, null), ahora)?.code, 'CERT_CONSULTA_NO_REALIZADA')
+  assertEquals(consultaNoCertificable(c('confirmed', null, '2026-11-03T15:00:00Z'), ahora)?.code, 'CERT_CONSULTA_FUTURA')
+  assertEquals(consultaNoCertificable(c('confirmed', null, '2026-11-02T15:10:00Z'), ahora), null)
+  assertEquals(consultaNoCertificable(c('in_progress', null, '2026-11-03T15:00:00Z'), ahora), null)
+  assertEquals(consultaNoCertificable(c('completed', null, null), ahora), null)
+  assertEquals(consultaNoCertificable(c('confirmed', '2026-11-02T14:55:00Z', '2026-11-03T15:00:00Z'), ahora), null)
 })

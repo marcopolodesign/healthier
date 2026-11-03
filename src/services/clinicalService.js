@@ -350,18 +350,18 @@ export const clinicalService = {
     return data
   },
 
-  /**
-   * Anula una receta emitida y, si tiene posdatadas, las que todavía no
-   * empezaron (migración 216, Edge Function `rcta-anular`). Llamarla otra vez
-   * sobre una receta ya anulada reintenta lo que el servicio de recetas no
-   * confirmó. Devuelve `{ anuladas, sinConfirmar, siguenVigentes }`.
-   */
   /** Qué medicaciones y recetas se anularían, sin anular nada (migración 223). */
   async previsualizarAnulacion(medicationId) {
     if (esSimulado(medicationId)) return { medicaciones: [], recetas: [] }
     return callEdgeFunction('rcta-anular', { medicationId, previsualizar: true })
   },
 
+  /**
+   * Anula una receta emitida y, si tiene posdatadas, las que todavía no
+   * empezaron (migración 216, Edge Function `rcta-anular`). Llamarla otra vez
+   * sobre una receta ya anulada reintenta lo que el servicio de recetas no
+   * confirmó. Devuelve `{ anuladas, sinConfirmar, siguenVigentes }`.
+   */
   async anularReceta(medicationId, { motivo = null, patientId = null, encounterId = null } = {}) {
     // La práctica no tiene recetas reales que anular.
     if (esSimulado(encounterId) || esSimulado(medicationId)) throw new Error('En la práctica no se anulan recetas.')

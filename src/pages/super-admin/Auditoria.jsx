@@ -398,7 +398,8 @@ function RecetasTab({ recetas, loading, onCopiar, selection, onDeleteOne }) {
                   {r.purpose === 'certificacion' && (
                     <span className="block text-[11px] text-text-tertiary">prueba de certificación</span>
                   )}
-                  {r.certificado_id && (
+                  {/* certificado_tipo: un rechazo por datos faltantes no llega a tener fila de certificado. */}
+                  {(r.certificado_id || r.request?.certificado_tipo) && (
                     <span className="block text-[11px] text-text-tertiary">certificado ({r.request?.prescripcion?.[0]?.prescripcion ?? 'anulación'})</span>
                   )}
                 </td>

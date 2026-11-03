@@ -38,7 +38,6 @@ function hoyArIso() {
 /** Una posdatada que todavía no empezó (se anula junto con la original). */
 const noEmpezo = p => String(p.vigencia_desde ?? '') > hoyArIso()
 
-/** Anulada acá pero el servicio de recetas todavía no lo confirmó. */
 // Migración 223: quedó en error pero con recetas del lote emitidas (no se pudo
 // confirmar cuál es suya). No se re-emite; se revisa o se anula. La definición
 // vive en la base (columna generada `rcta_a_revisar`), no acá.
@@ -55,6 +54,7 @@ function escenarioDeSimulacion() {
     return window.localStorage.getItem('rcta_simular_lote') || null
   } catch { return null }
 }
+/** Anulada acá pero el servicio de recetas todavía no lo confirmó. */
 const anulacionPendiente = x => x.rcta_status === 'anulada' && x.rcta_anulacion_estado === 'error'
 
 // ── Constants ─────────────────────────────────────────────────────────────────

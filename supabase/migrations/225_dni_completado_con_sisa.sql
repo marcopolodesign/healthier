@@ -114,7 +114,11 @@ begin
            reverification_changes      = coalesce(pp.reverification_changes, '[]'::jsonb)
              || jsonb_build_array(jsonb_build_object('campo', 'dni', 'antes', null, 'ahora', c.dni, 'sisa', p_resultado))
      where pp.id = c.professional_profile_id
-       and (pp.is_verified or pp.reverification_pending);
+       and (pp.is_verified or pp.reverification_pending)
+       -- Si el DNI cambió después del chequeo, ese cambio ya fue por su propio
+       -- camino (revisión inmediata): el resultado viejo no lo vuelve a tocar.
+       and exists (select 1 from public.profiles pr
+                    where pr.id = c.user_id and btrim(coalesce(pr.dni, '')) = c.dni);
   end if;
 
   select coalesce(nullif(full_name, ''), email) into v_nombre from public.profiles where id = c.user_id;
