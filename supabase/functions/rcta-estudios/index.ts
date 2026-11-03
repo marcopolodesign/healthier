@@ -210,11 +210,15 @@ Deno.serve(async (req: Request) => {
       }, 422)
     }
 
+    // Órdenes guardadas antes del límite del formulario pueden ser más largas:
+    // se cortan al largo que acepta la fila (y el servicio).
+    const indicaciones = String(entrada.data?.indicaciones ?? '').trim().slice(0, 1000)
+    const diagnostico = String(entrada.data?.diagnostico ?? '').trim().slice(0, 200)
     const payload = armarPayloadOrden({
       clienteAppId: Number(RCTA_CLIENT_APP_ID),
       estudios,
-      indicaciones: entrada.data?.indicaciones ?? null,
-      diagnostico: entrada.data?.diagnostico ?? null,
+      indicaciones,
+      diagnostico,
       patient, professional, legajo,
       especialidadLabel: await etiquetaEspecialidad(supabase, legajo?.specialty),
       firmabase64,
@@ -250,8 +254,8 @@ Deno.serve(async (req: Request) => {
       consultation_id: consultationId,
       entry_id: entrada.id,
       estudios: estudios.map(e => ({ id: e.id, nombre: e.nombre, categoria: e.categoria ?? null })),
-      indicaciones: (entrada.data?.indicaciones ?? '').trim() || null,
-      diagnostico: (entrada.data?.diagnostico ?? '').trim() || null,
+      indicaciones: indicaciones || null,
+      diagnostico: diagnostico || null,
       status: 'pending',
     }).select('id').single()
 

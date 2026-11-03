@@ -65,4 +65,18 @@ export const ordenesEstudiosService = {
   },
 
   anular(ordenId) { return llamar({ accion: 'anular', ordenId }) },
+
+  /** Super admin: las que pudieron haber salido sin respuesta registrada. */
+  async listarARevisar() {
+    const { data, error } = await supabase.from('clinical_study_orders')
+      .select('id, created_at, estudios, error_detalle, patient:profiles!patient_id(full_name), professional:profiles!professional_id(full_name)')
+      .eq('a_revisar', true).order('created_at', { ascending: false })
+    if (error) throw error
+    return data ?? []
+  },
+
+  async liberarARevisar(id) {
+    const { error } = await supabase.rpc('liberar_orden_estudios_a_revisar', { p_id: id })
+    if (error) throw error
+  },
 }
