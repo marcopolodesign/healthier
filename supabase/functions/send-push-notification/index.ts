@@ -91,8 +91,9 @@ async function datosDelAviso(
     }
   }
 
-  if (p.prescriptionId) {
-    datos.prescriptionId = p.prescriptionId as string
+  const medicamentoDado = typeof p.medicamento === 'string' && p.medicamento.trim() ? p.medicamento.trim() : null
+  if (p.prescriptionId) datos.prescriptionId = p.prescriptionId as string
+  if (p.prescriptionId && !medicamentoDado) {
     const { data } = await supabase
       .from('clinical_medications')
       .select('medication_name, nombre_droga')
@@ -103,7 +104,7 @@ async function datosDelAviso(
   }
   // Migración 223 (`receta-autorizada`): la base ya sabe qué medicación quedó
   // comprable; una receta puede contener otras que siguen sin poder comprarse.
-  if (typeof p.medicamento === 'string' && p.medicamento.trim()) datos.medicamentos = [p.medicamento.trim()]
+  if (medicamentoDado) datos.medicamentos = [medicamentoDado]
 
   if (p.certificadoId) {
     datos.certificadoId = p.certificadoId as string

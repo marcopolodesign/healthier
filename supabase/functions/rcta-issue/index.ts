@@ -104,10 +104,14 @@ Deno.serve(async (req: Request) => {
     try {
       escenario = esPractica ? null : escenarioPedido(body, Deno.env)
     } catch (err) {
+      const code = String((err as Error).message || 'RCTA_SIMULACION_NO_DISPONIBLE')
+      console.error('rcta-issue: simulación rechazada:', code, String(body?.simularLote))
       return json({
-        error: 'La simulación de lotes no está disponible en este entorno.',
-        code: String((err as Error).message || 'RCTA_SIMULACION_NO_DISPONIBLE'),
-      }, 403)
+        error: code === 'RCTA_SIMULACION_DESCONOCIDA'
+          ? `No existe el escenario de simulación "${String(body?.simularLote)}".`
+          : 'La simulación de lotes no está disponible en este entorno.',
+        code,
+      }, code === 'RCTA_SIMULACION_DESCONOCIDA' ? 400 : 403)
     }
     if (esPractica && !Array.isArray(body.medicamentos)) {
       return json({ error: 'medicamentos requerido en modo practica' }, 400)
@@ -477,6 +481,13 @@ Deno.serve(async (req: Request) => {
     if (faltaMatricula) return await fallar('validation_error', faltaMatricula, 422)
 
     // ── Mark as pending ───────────────────────────────────────────────────────
+    if (escenario && escenario !== 'pendiente' && meds.length < 2) {
+      return await fallar('validation_error', {
+        error: 'Ese escenario de simulación necesita al menos dos medicamentos en la receta.',
+        code: 'RCTA_SIMULACION_DOS_MEDICAMENTOS',
+      }, 422)
+    }
+
     // Toma atómica (revisión, ronda 2): dos llamadas en paralelo —doble clic, dos
     // pestañas, la app y la web— no pueden llegar las dos a emitir. Sólo pasa a
     // `pending` lo que no está pendiente, emitido ni anulado; si alguna fila no
@@ -655,6 +666,8 @@ Deno.serve(async (req: Request) => {
     const postear = (p: Record<string, unknown>) => llamarRcta('POST', RCTA_API_URL, RCTA_API_KEY, '/apirecipe/Receta', p)
     let result = escenario
       ? await simularEmision(escenario, payload, postear).catch(err => ({ kind: 'rejected' as const, status: 400, body: String(err), json: { error: String((err as Error).message) } }))
+      // ↑ sólo errores de armado (antes de emitir nada): simularEmision devuelve
+      //   un lote "a revisar" si algo falla DESPUÉS de una emisión real.
       : await postear(payload)
     // (el escenario queda en `ctx.request.simularLote`: el log no tiene otra columna para eso)
 
@@ -709,7 +722,9 @@ Deno.serve(async (req: Request) => {
           detail: result.body,
         }, 422, { response: result.json, error_code: result.json?.error ?? null })
       }
-      if (firmabase64 && esRechazoDe4xx) {
+      // Con simulación nunca: el reintento sin firma emitiría una receta real
+      // fuera del escenario (revisión, ronda 4).
+      if (firmabase64 && esRechazoDe4xx && !escenario) {
         console.error(`rcta-issue: rechazo con la firma puesta (status ${result.status}), reintentando UNA vez sin firma`)
         const { firmabase64: _sinFirma, ...medicoSinFirma } = payload.medico
         const payloadSinFirma = { ...payload, medico: medicoSinFirma }

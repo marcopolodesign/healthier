@@ -113,21 +113,27 @@ Deno.serve(async (req: Request) => {
       .filter(Boolean) as string[]
     const vigente = (f: Fila) => f.status === 'active' && (f.rcta_status === 'issued' || f.rcta_a_revisar === true)
     const sinConfirmar = (f: Fila) => f.rcta_status === 'anulada' && f.rcta_anulacion_estado === 'error'
-    const anulable = reintento ? sinConfirmar : vigente
+    // En un reintento entran también las hermanas que siguen vigentes: si no, el
+    // DELETE confirma la receta allá y ellas quedan a la venta acá (ronda 4).
+    const anulable = (f: Fila) => vigente(f) || (reintento && sinConfirmar(f))
 
     if (!idRecetasDe(fila).length || (!reintento && fila.rcta_status !== 'issued' && fila.rcta_a_revisar !== true)) {
       return json({ error: 'Esta medicación no tiene una receta emitida para anular.', code: 'RCTA_NO_EMITIDA' }, 422)
     }
 
-    // Candidatas: las filas del mismo lote (transacción) o, en las filas viejas
-    // sin transacción guardada, las que tienen el mismo idReceta.
-    const consulta = supabase.from('clinical_medications').select(COLUMNAS)
+    // Candidatas: TODAS las filas del paciente con receta (no depende de que
+    // haya transacción guardada: una "a revisar" puede no tener idReceta
+    // principal, ronda 4). Se cruzan por las recetas que comparten.
+    const { data: candData, error: candErr } = await supabase.from('clinical_medications').select(COLUMNAS)
       .eq('patient_id', fila.patient_id).is('posdatada_de', null)
-    const { data: candData, error: candErr } = fila.rcta_transaction_id
-      ? await consulta.eq('rcta_transaction_id', fila.rcta_transaction_id)
-      : await consulta.eq('rcta_prescription_id', fila.rcta_prescription_id ?? '')
+      .in('rcta_status', ['issued', 'error', 'anulada'])
     if (candErr) return json({ error: candErr.message }, 500)
-    const candidatas = ((candData ?? []) as Fila[]).filter(c => c.id !== fila.id)
+    // Lo que ya se compró en la farmacia de Healthier no se arrastra: está
+    // dispensado y no se anula; meterlo frenaría el DELETE de la receta del
+    // resto (ronda 4). Si la receta se dispensó afuera, el servicio lo dice.
+    const otras = ((candData ?? []) as Fila[]).filter(c => c.id !== fila.id)
+    const compradas = new Set(await idsComprados(supabase, otras.map(c => c.id)))
+    const candidatas = otras.filter(c => !compradas.has(c.id))
 
     const grupo: Fila[] = [fila]
     const recetasDelGrupo = new Set(idRecetasDe(fila))
@@ -201,7 +207,17 @@ Deno.serve(async (req: Request) => {
       aAnular = (marcadas ?? []) as Fila[]
     } else {
       // Reintento: las filas de esta receta y de sus posdatadas que quedaron
-      // anuladas acá pero sin confirmar allá.
+      // anuladas acá pero sin confirmar allá, y las hermanas que seguían
+      // vigentes (se marcan ahora, igual que en la primera anulación).
+      const vigentesDelGrupo = grupo.filter(vigente).map(g => g.id)
+      if (vigentesDelGrupo.length) {
+        const { error: marcaErr } = await supabase.from('clinical_medications').update({
+          status: 'cancelled', rcta_status: 'anulada', stopped_at: ahora,
+          stopped_by: quienId ?? fila.professional_id, stop_reason: motivo ?? 'Receta anulada por el profesional',
+          rcta_anulacion_estado: 'error', rcta_anulacion_detalle: 'Sin confirmar todavía por el servicio de recetas.',
+        }).in('id', vigentesDelGrupo).in('rcta_status', ['issued', 'error']).eq('status', 'active')
+        if (marcaErr) return json({ error: `No se pudo anular: ${marcaErr.message}` }, 500)
+      }
       const { data: pendientes, error: pendErr } = await supabase
         .from('clinical_medications').select(COLUMNAS)
         .or(`id.in.(${idsGrupo.join(',')}),posdatada_de.in.(${idsGrupo.join(',')})`)
@@ -340,6 +356,20 @@ Deno.serve(async (req: Request) => {
 
 // `interpretarAnulacion` vive en `_shared/rcta/respuesta.ts` (lo comparten
 // las Otras Prescripciones).
+
+/** Cuáles de estas filas se usaron en un pedido pagado de la farmacia de Healthier. */
+// deno-lint-ignore no-explicit-any
+async function idsComprados(supabase: any, ids: string[]): Promise<string[]> {
+  if (!ids.length) return []
+  const { data, error } = await supabase
+    .from('medication_order_items')
+    .select('clinical_medication_id, order:medication_orders!inner(payment_status, status)')
+    .in('clinical_medication_id', ids)
+    .in('order.payment_status', ['pagado', 'exento'])
+    .neq('order.status', 'cancelado')
+  if (error) { console.error('rcta-anular: no se pudo mirar qué se compró:', error.message); return [] }
+  return (data ?? []).map((d: { clinical_medication_id: string }) => d.clinical_medication_id)
+}
 
 /** ¿Alguna de estas filas se usó en un pedido pagado de la farmacia? */
 // deno-lint-ignore no-explicit-any

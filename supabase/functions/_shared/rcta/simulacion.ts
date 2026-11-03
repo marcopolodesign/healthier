@@ -99,12 +99,22 @@ export async function simularEmision(escenario: Escenario, payload: Payload, lla
   if (meds.length < 2) throw new Error('RCTA_SIMULACION_DOS_MEDICAMENTOS')
   const ultimo = meds[meds.length - 1]
 
+  // Si una sub-emisión falla DESPUÉS de que otra salió, lo emitido existe en
+  // homologación: se devuelve como lote con un error sin medicamento, así las
+  // filas quedan "a revisar" con esas recetas guardadas y no se re-emiten.
+  // deno-lint-ignore no-explicit-any
+  const aRevisarCon = (recetas: unknown[], tx: string | null, r: RctaCallResult): any => {
+    const out = respuesta(recetas, 'Ok', {}, tx)
+    out.data.errores = [{ error: 'SIMULACION', mensaje: `Una de las emisiones del lote simulado falló (${r.kind === 'rejected' ? r.status : r.kind}).` }]
+    return out
+  }
+
   if (escenario === 'lote_partido') {
-    const recetas = []
+    const recetas: unknown[] = []
     let tx: string | null = null
     for (const m of meds) {
       const e = await emitir([m])
-      if (!e.ok) return e.r
+      if (!e.ok) return recetas.length ? aRevisarCon(recetas, tx, e.r) : e.r
       tx ??= e.data?.idTransaccion ?? null
       recetas.push(...recetasDe(e.data, [m]))
     }
@@ -115,7 +125,7 @@ export async function simularEmision(escenario: Escenario, payload: Payload, lla
     const a = await emitir(meds)
     if (!a.ok) return a.r
     const b = await emitir([ultimo])
-    if (!b.ok) return b.r
+    if (!b.ok) return aRevisarCon(recetasDe(a.data, null), a.data?.idTransaccion ?? null, b.r)
     const estado = escenario === 'compartido_pendiente' ? 'Pendiente de autorización' : 'Ok'
     return respuesta([...recetasDe(a.data, meds), ...recetasDe(b.data, [ultimo])], estado, {}, a.data?.idTransaccion ?? null)
   }
