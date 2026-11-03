@@ -27,6 +27,7 @@
     "test:registro-admin": "node scripts/verificar-registro-admin.mjs",
     "test:resumen-auditoria": "node --test scripts/test-admin-audit-resumen.mjs",
     "test:referidos": "node --test scripts/test-referidos-dominio.mjs",
+    "test:dni-completado": "node --test scripts/test-dni-completado.mjs && deno test supabase/functions/dni-completado/",
     "test:modalidad": "node --import tsx --test scripts/test-modalidad-presencial.mjs"
   },
   "dependencies": {
