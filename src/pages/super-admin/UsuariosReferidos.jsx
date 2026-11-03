@@ -7,6 +7,9 @@ import { formatDate } from '../../lib/format'
 import MetricCard from '../../components/super-admin/MetricCard'
 import PacienteOnboardingDrawer from '../../components/super-admin/PacienteOnboardingDrawer'
 import { esLead, entraEnEmbudo, CAMPOS_ONBOARDING, CONSULTA_VIGENTE } from '../../lib/pacienteOnboarding'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
+import { sinPrueba } from '../../lib/cuentasDePrueba'
 
 /**
  * Pacientes referidos (Mateo, 2026-10-26): los que llegaron por el link de un
@@ -18,19 +21,21 @@ export default function SuperAdminUsuariosReferidos() {
   const [filas, setFilas] = useState([])
   const [loading, setLoading] = useState(true)
   const [abierto, setAbierto] = useState(null)
+  const [incluirPrueba] = useIncluirPrueba()
 
   useEffect(() => {
     async function cargar() {
+      setLoading(true)
       try {
         const [pacientesRes, consultasRes] = await Promise.all([
-          supabase
+          sinPrueba(supabase
             .from('profiles')
             .select(`id, email, full_name, created_at, es_prueba, referred_by_professional_id, ${CAMPOS_ONBOARDING}`)
             .eq('role', 'patient')
             .not('referred_by_professional_id', 'is', null)
             .is('deleted_at', null)
-            .order('created_at', { ascending: false }),
-          supabase.from('consultations').select('patient_id, status'),
+            .order('created_at', { ascending: false }), incluirPrueba),
+          sinPrueba(supabase.from('consultations').select('patient_id, status'), incluirPrueba),
         ])
         if (pacientesRes.error) throw pacientesRes.error
         if (consultasRes.error) throw consultasRes.error
@@ -63,7 +68,7 @@ export default function SuperAdminUsuariosReferidos() {
       }
     }
     cargar()
-  }, [])
+  }, [incluirPrueba])
 
   // Las métricas, como en Pacientes, sin cuentas de prueba; el % de leads sobre
   // los que pasaron por el wizard (los de antes no pueden ser lead).
@@ -78,6 +83,7 @@ export default function SuperAdminUsuariosReferidos() {
       <div>
         <h1 className="page-title-lg">Pacientes referidos</h1>
         <p className="text-text-secondary mt-1">{loading ? '…' : `${filas.length} llegaron por el link de un profesional`}</p>
+        <IncluirPruebaToggle className="mt-3" />
       </div>
 
       <div className="grid grid-cols-3 gap-4">

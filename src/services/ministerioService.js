@@ -1,4 +1,5 @@
 import { supabase, toCamelCase } from '../lib/supabase'
+import { sinPrueba } from '../lib/cuentasDePrueba'
 
 /**
  * Registros del Ministerio de Salud (migración 196):
@@ -24,13 +25,13 @@ async function invocar(funcion, body) {
 }
 
 export const ministerioService = {
-  async listarConsultorios() {
-    const { data, error } = await supabase
+  async listarConsultorios({ incluirPrueba = true } = {}) {
+    const { data, error } = await sinPrueba(supabase
       .from('professional_profiles')
       .select('id, specialty, address, refes_id, refes_estado, refes_nombre, refes_raw, refes_error, refes_actualizado_at, refes_revisado_at, profile:profiles!user_id(full_name, email)')
       .not('refes_estado', 'is', null)
       .order('refes_actualizado_at', { ascending: false, nullsFirst: false })
-      .limit(500)
+      .limit(500), incluirPrueba)
     if (error) throw error
     return toCamelCase(data ?? [])
   },
@@ -40,14 +41,14 @@ export const ministerioService = {
   decidirConsultorio: (professionalId, decision, nota) =>
     invocar('refes-consultorio', { professionalId, decision, nota }),
 
-  async listarFederador() {
-    const { data, error } = await supabase
+  async listarFederador({ incluirPrueba = true } = {}) {
+    const { data, error } = await sinPrueba(supabase
       .from('profiles')
       .select('id, full_name, email, es_prueba, federador_id, federador_estado, federador_error, federador_intentos, federador_actualizado_at, federador_proximo_intento')
       .eq('role', 'patient')
       .not('federador_estado', 'is', null)
       .order('federador_actualizado_at', { ascending: false, nullsFirst: false })
-      .limit(1000)
+      .limit(1000), incluirPrueba)
     if (error) throw error
     return toCamelCase(data ?? [])
   },

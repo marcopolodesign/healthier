@@ -6,6 +6,8 @@ import DerivacionEstado, { consentimientoLabel } from '../../components/Derivaci
 import { toast } from '../../components/Toast'
 import { formatDate } from '../../lib/format'
 import MetricCard from '../../components/super-admin/MetricCard'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
 
 /**
  * Derivaciones entre profesionales (migración 195): quién derivó a quién, si el
@@ -16,13 +18,15 @@ export default function SuperAdminDerivaciones() {
   const destinoDe = useDestinoDerivacion()
   const [filas, setFilas] = useState([])
   const [loading, setLoading] = useState(true)
+  const [incluirPrueba] = useIncluirPrueba()
 
   useEffect(() => {
-    derivacionesService.adminListar()
+    setLoading(true)
+    derivacionesService.adminListar({ incluirPrueba })
       .then(setFilas)
       .catch(err => toast.error(err.message || 'Error al cargar las derivaciones'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [incluirPrueba])
 
   // Una pendiente pasada de fecha cuenta como vencida aunque el cron no la haya marcado todavía.
   const estadoReal = d => (['pendiente', 'rechazada'].includes(d.estado) && !derivacionVigente(d) ? 'vencida' : d.estado)
@@ -40,6 +44,7 @@ export default function SuperAdminDerivaciones() {
         <p className="text-text-secondary mt-1">
           Pacientes que un profesional derivó a otro profesional o a otra especialidad
         </p>
+        <IncluirPruebaToggle className="mt-3" />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">

@@ -8,6 +8,9 @@ import { WAITING_PRESENCE_TTL_MS } from '../../services/consultationsService'
 import ConsultationTimeline from '../../components/super-admin/ConsultationTimeline'
 import { toast } from '../../components/Toast'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { sinPrueba as sp } from '../../lib/cuentasDePrueba'
 
 const STATUS_COLORS = { completed: '#7CB38B', confirmed: '#9B8EC4', pending: '#E8927C', cancelled: '#d1d5db', in_progress: '#60a5fa', expired: '#A8A29E', no_show: '#f59e0b' }
 const STATUS_LABELS = { completed: 'Completadas', confirmed: 'Confirmadas', pending: 'Pendientes', cancelled: 'Canceladas', in_progress: 'En curso', expired: 'Vencidas', no_show: 'Ausentes' }
@@ -43,9 +46,13 @@ export default function SuperAdminDashboard() {
   const [acquisitionData, setAcquisitionData] = useState([])
   const [loading, setLoading] = useState(true)
   const [chartDays, setChartDays] = useState(30)
+  // Sin cuentas de prueba salvo que se prenda el control (migración 229).
+  const [incluirPrueba] = useIncluirPrueba()
 
   useEffect(() => {
     const load = async () => {
+      setLoading(true)
+      const sinPrueba = (q) => sp(q, incluirPrueba)
       try {
         const now = new Date()
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
@@ -71,39 +78,39 @@ export default function SuperAdminDashboard() {
           { data: patientCandidates },
           { data: prospectConsultations },
         ] = await Promise.all([
-          supabase.from('profiles').select('*', { count: 'exact', head: true }).is('deleted_at', null),
-          supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('dado_de_baja', false).eq('is_verified', true),
-          supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('dado_de_baja', false).eq('is_verified', false),
-          supabase.from('walk_in_queue').select('*', { count: 'exact', head: true }).eq('status', 'waiting'),
-          supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('dado_de_baja', false).eq('is_available_walkin', true),
+          sinPrueba(supabase.from('profiles').select('*', { count: 'exact', head: true }).is('deleted_at', null)),
+          sinPrueba(supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('dado_de_baja', false).eq('is_verified', true)),
+          sinPrueba(supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('dado_de_baja', false).eq('is_verified', false)),
+          sinPrueba(supabase.from('walk_in_queue').select('*', { count: 'exact', head: true }).eq('status', 'waiting')),
+          sinPrueba(supabase.from('professional_profiles').select('*', { count: 'exact', head: true }).eq('dado_de_baja', false).eq('is_available_walkin', true)),
           // Pacientes sentados en la sala de espera AHORA — misma ventana de
           // frescura (90s) que usa el panel del profesional, ver
           // WAITING_PRESENCE_TTL_MS en consultationsService.
-          supabase.from('consultations').select('*', { count: 'exact', head: true })
+          sinPrueba(supabase.from('consultations').select('*', { count: 'exact', head: true })
             .not('patient_waiting_since', 'is', null)
             .in('status', ['pending', 'confirmed'])
-            .gt('patient_last_seen_at', new Date(Date.now() - WAITING_PRESENCE_TTL_MS).toISOString()),
-          supabase.from('consultations').select('*', { count: 'exact', head: true }).gte('created_at', monthStart),
-          supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'patient').is('deleted_at', null).gte('created_at', monthStart),
-          supabase.from('consultations').select('id, status, scheduled_at, price_at_booking').order('scheduled_at', { ascending: false }).limit(500),
-          supabase.from('professional_profiles').select('*, profiles!user_id(full_name)').eq('dado_de_baja', false).eq('is_verified', true).order('average_rating', { ascending: false }).limit(5),
-          supabase.from('reviews').select('rating'),
-          supabase.from('consultations').select('id, status, scheduled_at, modality, profiles!patient_id(full_name), professional:profiles!professional_id(full_name)').order('created_at', { ascending: false }).limit(8),
-          supabase.from('profiles').select('utm_source, role').is('deleted_at', null),
-          paymentsService.getPaymentsSummary().catch(() => ({ grossTotal: 0, platformFeeTotal: 0, mpFeeTotal: 0, netProfessionalTotal: 0 })),
+            .gt('patient_last_seen_at', new Date(Date.now() - WAITING_PRESENCE_TTL_MS).toISOString())),
+          sinPrueba(supabase.from('consultations').select('*', { count: 'exact', head: true }).gte('created_at', monthStart)),
+          sinPrueba(supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'patient').is('deleted_at', null).gte('created_at', monthStart)),
+          sinPrueba(supabase.from('consultations').select('id, status, scheduled_at, price_at_booking').order('scheduled_at', { ascending: false }).limit(500)),
+          sinPrueba(supabase.from('professional_profiles').select('*, profiles!user_id(full_name)').eq('dado_de_baja', false).eq('is_verified', true).order('average_rating', { ascending: false }).limit(5)),
+          sinPrueba(supabase.from('reviews').select('rating')),
+          sinPrueba(supabase.from('consultations').select('id, status, scheduled_at, modality, profiles!patient_id(full_name), professional:profiles!professional_id(full_name)').order('created_at', { ascending: false }).limit(8)),
+          sinPrueba(supabase.from('profiles').select('utm_source, role').is('deleted_at', null)),
+          paymentsService.getPaymentsSummary({ incluirPrueba }).catch(() => ({ grossTotal: 0, platformFeeTotal: 0, mpFeeTotal: 0, netProfessionalTotal: 0 })),
           // Pendientes de verificación — mismo criterio que el filtro "Pendientes"
           // de /super-admin/profesionales: no verificado y no rechazado.
-          supabase.from('professional_profiles').select('id, created_at, specialty, profiles!user_id(full_name, email)')
+          sinPrueba(supabase.from('professional_profiles').select('id, created_at, specialty, profiles!user_id(full_name, email)')
             .eq('dado_de_baja', false).eq('is_verified', false).is('rejected_at', null)
-            .order('created_at', { ascending: false }).limit(5),
-          supabase.from('professional_profiles').select('user_id').eq('dado_de_baja', false),
-          supabase.from('profiles').select('id, full_name, email, created_at').eq('role', 'professional').is('deleted_at', null)
-            .order('created_at', { ascending: false }).limit(50),
+            .order('created_at', { ascending: false }).limit(5)),
+          sinPrueba(supabase.from('professional_profiles').select('user_id').eq('dado_de_baja', false)),
+          sinPrueba(supabase.from('profiles').select('id, full_name, email, created_at').eq('role', 'professional').is('deleted_at', null)
+            .order('created_at', { ascending: false }).limit(50)),
           // Mismo criterio que /super-admin/usuarios/prospects: onboarding
           // incompleto (sin DNI) o sin videoconsulta vigente todavía.
-          supabase.from('profiles').select('id, full_name, email, created_at, dni').eq('role', 'patient').is('deleted_at', null)
-            .order('created_at', { ascending: false }).limit(50),
-          supabase.from('consultations').select('patient_id, modality, status'),
+          sinPrueba(supabase.from('profiles').select('id, full_name, email, created_at, dni').eq('role', 'patient').is('deleted_at', null)
+            .order('created_at', { ascending: false }).limit(50)),
+          sinPrueba(supabase.from('consultations').select('patient_id, modality, status')),
         ])
 
         const completed = (consultations ?? []).filter(c => c.status === 'completed')
@@ -215,7 +222,7 @@ export default function SuperAdminDashboard() {
       }
     }
     load()
-  }, [])
+  }, [incluirPrueba])
 
   useEffect(() => {
     if (allConsultations.length > 0) buildChart(allConsultations, chartDays)
@@ -266,6 +273,7 @@ export default function SuperAdminDashboard() {
       <div>
         <h1 className="page-title-lg">Dashboard</h1>
         <p className="text-text-secondary mt-1">Foco MVP: captar profesionales, pacientes y consultas</p>
+        <IncluirPruebaToggle className="mt-3" />
       </div>
 
       {/* Captura — foco MVP: quién está pendiente de verificación y quién

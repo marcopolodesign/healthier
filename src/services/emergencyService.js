@@ -1,4 +1,5 @@
 import { supabase, toCamelCase } from '../lib/supabase'
+import { sinPrueba } from '../lib/cuentasDePrueba'
 import { verticalsService } from './verticalsService'
 
 // ─────────────────────────────────────────────────────────────
@@ -535,8 +536,8 @@ export const emergencyService = {
   // ── Super admin ─────────────────────────────────────────────────────
 
   /** All emergencies, newest first, with patient/professional info — /super-admin/emergencias. */
-  async listAllForAdmin() {
-    const { data, error } = await supabase
+  async listAllForAdmin({ incluirPrueba = true } = {}) {
+    const { data, error } = await sinPrueba(supabase
       .from('emergencies')
       .select(`
         *,
@@ -548,7 +549,7 @@ export const emergencyService = {
         entidad:emergency_providers!provider_id(id, name, color),
         ordenes:emergency_transfer_orders(id, tipo)
       `)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: false }), incluirPrueba)
     if (error) throw error
     return (data ?? []).map(toCamelCase)
   },

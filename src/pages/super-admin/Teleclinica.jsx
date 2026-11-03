@@ -6,6 +6,8 @@ import MetricCard from '../../components/super-admin/MetricCard'
 import { ondemandService } from '../../services/ondemandService'
 import { useVerticales } from '../../hooks/useVerticales'
 import { resumenPreconsulta } from '../../lib/resumenPreconsulta'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
 
 /**
  * Teleclínica — /super-admin/teleclinica
@@ -48,18 +50,19 @@ export default function SuperAdminTeleclinica() {
   const { verticalesById } = useVerticales()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
+  const [incluirPrueba] = useIncluirPrueba()
 
   const load = async () => {
     setLoading(true)
     try {
-      setRows(await ondemandService.getTodos({ limit: 200 }))
+      setRows(await ondemandService.getTodos({ limit: 200, incluirPrueba }))
     } catch (err) {
       toast.error(err.message || 'No se pudieron cargar los pedidos')
     } finally {
       setLoading(false)
     }
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [incluirPrueba]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const resumen = useMemo(() => {
     const corte = Date.now() - 7 * 24 * 3600 * 1000
@@ -78,6 +81,7 @@ export default function SuperAdminTeleclinica() {
         <div>
           <h1 className="text-2xl text-text-primary">Teleclínica</h1>
           <p className="text-text-secondary mt-1">Pedidos de consulta inmediata: a quién le sonó, quién lo tomó y qué pasó con el pago.</p>
+          <IncluirPruebaToggle className="mt-3" />
         </div>
         <button onClick={load} className="btn-secondary flex items-center gap-2 shrink-0" disabled={loading}>
           <ArrowClockwise className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Actualizar

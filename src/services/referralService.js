@@ -35,8 +35,9 @@ export const referralService = {
   },
 
   /** Una fila por profesional. Sólo admin / super_admin. */
-  async summary() {
-    const { data, error } = await supabase.rpc('resumen_de_referidos')
+  async summary({ incluirPrueba = false } = {}) {
+    // Sin profesionales ni pacientes de prueba en los conteos (migración 229).
+    const { data, error } = await supabase.rpc('resumen_de_referidos', { p_incluir_prueba: incluirPrueba })
     if (error) throw new Error(error.message)
     return toCamelCase(data ?? [])
   },

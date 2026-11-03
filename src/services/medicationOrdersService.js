@@ -20,6 +20,7 @@
  * la base y la usan los scripts de verificación.
  */
 import { supabase, toCamelCase } from '../lib/supabase'
+import { sinPrueba } from '../lib/cuentasDePrueba'
 
 const PHARMACY_ID = '10000000-0000-0000-0000-000000000001' // single MVP tenant
 
@@ -206,6 +207,8 @@ export const medicationOrdersService = {
     if (filters.paymentStatus) query = query.eq('payment_status', filters.paymentStatus)
     if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom)
     if (filters.dateTo) query = query.lte('created_at', filters.dateTo)
+    // Super admin: sin cuentas de prueba salvo que se pidan (migración 229).
+    if (filters.incluirPrueba === false) query = sinPrueba(query)
 
     const { data, error } = await query
     if (error) throw error

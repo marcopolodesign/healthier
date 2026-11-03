@@ -13,6 +13,8 @@ import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialo
 // click, en vez de firmar todas las filas de la tabla al cargar la página.
 import SignedDocLink from '../../components/SignedDocLink'
 import { formatTasa } from '../../services/comisionService'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
 
 const ORIGEN_COMISION = { general: 'general', profesional: 'tasa propia', referido: 'referido' }
 
@@ -94,9 +96,12 @@ export default function SuperAdminPayments() {
     }
   }
 
+  const [incluirPrueba] = useIncluirPrueba()
+
   const load = () => {
     setLoading(true)
     const apiFilters = {
+      incluirPrueba,
       ...(filters.dateFrom ? { dateFrom: new Date(filters.dateFrom).toISOString() } : {}),
       ...(filters.dateTo ? { dateTo: new Date(filters.dateTo + 'T23:59:59').toISOString() } : {}),
       ...(filters.status ? { status: filters.status } : {}),
@@ -104,9 +109,9 @@ export default function SuperAdminPayments() {
     }
     Promise.all([
       paymentsService.getAllPayments(apiFilters),
-      paymentsService.getPendingRefundRequests(),
-      paymentsService.getPendingConversionRequests(),
-      paymentsService.getPendingSettlements(),
+      paymentsService.getPendingRefundRequests({ incluirPrueba }),
+      paymentsService.getPendingConversionRequests({ incluirPrueba }),
+      paymentsService.getPendingSettlements({ incluirPrueba }),
     ])
       .then(([pays, refunds, conversions, settlements]) => {
         setPayments(pays)
@@ -118,7 +123,7 @@ export default function SuperAdminPayments() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [incluirPrueba]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const applyFilters = (e) => {
     e.preventDefault()
@@ -238,6 +243,7 @@ export default function SuperAdminPayments() {
       <div>
         <h1 className="page-title-lg">Pagos</h1>
         <p className="text-text-secondary mt-1">Todos los pagos de consultas procesados en la plataforma</p>
+        <IncluirPruebaToggle className="mt-3" />
       </div>
 
       {/* Totals */}

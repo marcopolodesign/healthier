@@ -1,4 +1,5 @@
 import { supabase, toCamelCase } from '../lib/supabase'
+import { sinPrueba } from '../lib/cuentasDePrueba'
 
 /**
  * "El médico está en camino" — `emergency_tracking` (migración 149).
@@ -74,11 +75,11 @@ export const emergencyTrackingService = {
    * que decide qué devuelve: a un paciente esta misma consulta le trae sólo el
    * suyo, y a un profesional sólo el que él publica.
    */
-  async getEnCurso() {
-    const { data, error } = await supabase
+  async getEnCurso({ incluirPrueba = true } = {}) {
+    const { data, error } = await sinPrueba(supabase
       .from('emergency_tracking')
       .select('*')
-      .order('updated_at', { ascending: false })
+      .order('updated_at', { ascending: false }), incluirPrueba)
     if (error) throw error
     return toCamelCase(data ?? [])
   },

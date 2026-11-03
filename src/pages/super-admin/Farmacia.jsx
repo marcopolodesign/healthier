@@ -8,6 +8,8 @@ import { toast } from '../../components/Toast'
 import { formatARS, formatDate } from '../../lib/format'
 import { STATUS_LABEL } from '../../lib/pharmacyOrders'
 import RecetasPorAutorizar from '../../components/pharmacy/RecetasPorAutorizar'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
 
 export default function SuperAdminFarmacia() {
   const [orders, setOrders] = useState([])
@@ -20,10 +22,12 @@ export default function SuperAdminFarmacia() {
   const [drogas, setDrogas] = useState([])
   const [nuevaDroga, setNuevaDroga] = useState({ droga: '', tipo: 'receta_archivada', motivo: '' })
 
+  const [incluirPrueba] = useIncluirPrueba()
+
   useEffect(() => {
     setLoading(true)
     Promise.all([
-      medicationOrdersService.listForPharmacy({}),
+      medicationOrdersService.listForPharmacy({ incluirPrueba }),
       pharmacyAdminService.getConnectionStatus(),
       paymentsService.getPlatformSettings(),
       pharmacyService.getDrogasBajoReceta(),
@@ -35,7 +39,7 @@ export default function SuperAdminFarmacia() {
       })
       .catch(() => toast.error('Error al cargar la vista de farmacia'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [incluirPrueba])
 
   const guardarVigencia = async () => {
     setGuardandoVigencia(true)
@@ -83,6 +87,7 @@ export default function SuperAdminFarmacia() {
       <div>
         <h1 className="text-2xl font-bold text-text-primary">Farmacia</h1>
         <p className="text-text-secondary mt-1">Visibilidad de pedidos de medicamentos y conexión de pago</p>
+        <IncluirPruebaToggle className="mt-3" />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

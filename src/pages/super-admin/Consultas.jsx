@@ -10,6 +10,8 @@ import { useVerticales } from '../../hooks/useVerticales'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
 
 // Vocabulario exacto de `consultations.status` — constraint vigente desde la
 // migración 098 (`consultations_status_check`, que amplió el de la 089 con
@@ -86,15 +88,17 @@ export default function SuperAdminConsultas() {
   const [form, setForm] = useState(null)         // campos editables del panel
   const [saving, setSaving] = useState(false)
 
+  const [incluirPrueba] = useIncluirPrueba()
+
   const load = () => {
     setLoading(true)
-    consultationsService.getAll()
+    consultationsService.getAll({ incluirPrueba })
       .then(setConsultations)
       .catch(err => toast.error(err.message))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [incluirPrueba]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /*
    * Quién está yendo al consultorio ahora mismo. Es operación de la
@@ -103,13 +107,13 @@ export default function SuperAdminConsultas() {
    * saber que el circuito está funcionando.
    */
   useEffect(() => {
-    const traer = () => arrivalsService.getEnCurso()
+    const traer = () => arrivalsService.getEnCurso({ incluirPrueba })
       .then(l => setLlegadas(Object.fromEntries(l.map(a => [a.consultationId, a]))))
       .catch(() => {})
     traer()
     const id = setInterval(traer, 30_000)
     return () => clearInterval(id)
-  }, [])
+  }, [incluirPrueba])
 
   const filtered = useMemo(() => {
     const q = filters.search.trim().toLowerCase()
@@ -195,6 +199,7 @@ export default function SuperAdminConsultas() {
       <div>
         <h1 className="page-title-lg">Consultas</h1>
         <p className="text-text-secondary mt-1">Todas las consultas agendadas en la plataforma</p>
+        <IncluirPruebaToggle className="mt-3" />
       </div>
 
       {/* Filters */}

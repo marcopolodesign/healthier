@@ -4,6 +4,8 @@ import { ministerioService } from '../../services/ministerioService'
 import { formatDate } from '../../lib/format'
 import { toast } from '../../components/Toast'
 import MetricCard from '../../components/super-admin/MetricCard'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
 
 /**
  * Federador — /super-admin/federador (migración 196)
@@ -31,13 +33,15 @@ export default function SuperAdminFederador() {
   const [soloProblemas, setSoloProblemas] = useState(false)
   const [ocupado, setOcupado] = useState(null)
 
+  const [incluirPrueba] = useIncluirPrueba()
+
   const cargar = async () => {
     setLoading(true)
-    try { setRows(await ministerioService.listarFederador()) }
+    try { setRows(await ministerioService.listarFederador({ incluirPrueba })) }
     catch (e) { toast.error(`No se pudo cargar: ${e.message}`) }
     setLoading(false)
   }
-  useEffect(() => { cargar() }, [])
+  useEffect(() => { cargar() }, [incluirPrueba]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const cuenta = (...e) => rows.filter(r => e.includes(r.federadorEstado)).length
   const visibles = useMemo(
@@ -66,6 +70,7 @@ export default function SuperAdminFederador() {
           <p className="text-sm text-text-secondary mt-1">
             Registro nacional de pacientes del Ministerio de Salud. Sólo datos de identidad.
           </p>
+          <IncluirPruebaToggle className="mt-3" />
         </div>
         <button onClick={cargar} className="btn-secondary flex items-center gap-1.5">
           <ArrowClockwise className="h-4 w-4" /> Actualizar

@@ -1,4 +1,5 @@
 import { supabase, toCamelCase } from '../lib/supabase'
+import { sinPrueba } from '../lib/cuentasDePrueba'
 import { VERTICALS_BY_ID, verticalForSpecialty } from '../lib/verticals'
 
 /**
@@ -178,7 +179,7 @@ export const derivacionesService = {
   },
 
   /** Todas, con el turno vinculado — super admin. */
-  adminListar() {
-    return leer(supabase.from('derivaciones').select(SELECT_ADMIN).order('created_at', { ascending: false }))
+  adminListar({ incluirPrueba = true } = {}) {
+    return leer(sinPrueba(supabase.from('derivaciones').select(SELECT_ADMIN).order('created_at', { ascending: false }), incluirPrueba))
   },
 }

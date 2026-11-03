@@ -4,6 +4,9 @@ import { referralService } from '../../services/referralService'
 import { toast } from '../../components/Toast'
 import { formatDate } from '../../lib/format'
 import MetricCard from '../../components/super-admin/MetricCard'
+import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
+import { filtrarPrueba } from '../../lib/cuentasDePrueba'
 
 export default function SuperAdminReferidos() {
   const [filas, setFilas] = useState([])
@@ -12,14 +15,15 @@ export default function SuperAdminReferidos() {
   const [detalle, setDetalle] = useState(null)   // { pro, pacientes } | null
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
   const [soloConActividad, setSoloConActividad] = useState(false)
+  const [incluirPrueba] = useIncluirPrueba()
 
   useEffect(() => {
     setLoading(true)
-    referralService.summary()
+    referralService.summary({ incluirPrueba })
       .then(setFilas)
       .catch(err => toast.error(err.message || 'Error al cargar los referidos'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [incluirPrueba])
 
   const copiar = async (codigo) => {
     try {
@@ -36,7 +40,7 @@ export default function SuperAdminReferidos() {
     setDetalle({ pro, pacientes: null })
     try {
       const pacientes = await referralService.patientsOf(pro.professionalId)
-      setDetalle({ pro, pacientes })
+      setDetalle({ pro, pacientes: filtrarPrueba(pacientes, incluirPrueba) })
     } catch (err) {
       toast.error(err.message || 'No se pudieron cargar los referidos')
       setDetalle(null)
@@ -61,6 +65,7 @@ export default function SuperAdminReferidos() {
         <p className="text-text-secondary mt-1">
           El link que cada profesional le manda a sus pacientes, y qué pasó con él
         </p>
+        <IncluirPruebaToggle className="mt-3" />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
