@@ -271,12 +271,6 @@ export default function CertificadoCreator({
 
   return (
     <div className="space-y-4">
-      <FirmaSheet
-        open={firmaPendiente}
-        userId={professionalId}
-        onClose={() => setFirmaPendiente(false)}
-        onFirmada={() => { setFirmaPendiente(false); marcarFirma(true); emitir({ firmaRecienCargada: true }) }}
-      />
 
       <Modal open={!!aAnular} onClose={anulando ? () => {} : () => setAAnular(null)} title="¿Anular este certificado?" size="sm">
         <div className="space-y-4">
@@ -298,6 +292,15 @@ export default function CertificadoCreator({
         emitiendo={emitiendo}
         onEditar={() => setPrevia(null)}
         onEmitir={() => emitir()}
+      />
+
+      {/* Después de la vista previa a propósito: se abre ENCIMA de ella (si va antes,
+          queda tapada y parece que "Emitir" no hace nada). */}
+      <FirmaSheet
+        open={firmaPendiente}
+        userId={professionalId}
+        onClose={() => setFirmaPendiente(false)}
+        onFirmada={() => { setFirmaPendiente(false); marcarFirma(true); emitir({ firmaRecienCargada: true }) }}
       />
 
       <DatosRecetaFaltantes
