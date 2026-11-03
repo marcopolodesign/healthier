@@ -7,7 +7,7 @@
 import { assert, assertEquals, assertMatch } from 'jsr:@std/assert@1'
 import {
   armarPayloadCertificado, problemasDelPayload, validarCertificado, textoDelCertificado, vistaPrevia,
-  consultaNoCertificable, type Certificado,
+  consultaNoCertificable, nombreDelProblema, type Certificado,
 } from './armado.ts'
 
 const FIRMA = 'iVBORw0KGgo' + 'A'.repeat(200)
@@ -151,8 +151,23 @@ Deno.test('consultaNoCertificable: sólo con atención (cancelada, no_show, venc
   assertEquals(consultaNoCertificable(c('no_show', null, '2026-11-02T14:00:00Z'), ahora)?.code, 'CERT_CONSULTA_NO_REALIZADA')
   assertEquals(consultaNoCertificable(c('expired', null, null), ahora)?.code, 'CERT_CONSULTA_NO_REALIZADA')
   assertEquals(consultaNoCertificable(c('confirmed', null, '2026-11-03T15:00:00Z'), ahora)?.code, 'CERT_CONSULTA_FUTURA')
-  assertEquals(consultaNoCertificable(c('confirmed', null, '2026-11-02T15:10:00Z'), ahora), null)
+  assertEquals(consultaNoCertificable(c('confirmed', null, '2026-11-02T15:10:00Z'), ahora)?.code, 'CERT_CONSULTA_FUTURA')
+  assertEquals(consultaNoCertificable(c('confirmed', null, '2026-11-01T15:00:00Z'), ahora)?.code, 'CERT_CONSULTA_FUTURA')
+  assertEquals(consultaNoCertificable(c('pending', null, null), ahora)?.code, 'CERT_CONSULTA_FUTURA')
+  assertEquals(consultaNoCertificable(c('closing', null, '2026-11-03T15:00:00Z'), ahora), null)
+  assertEquals(consultaNoCertificable(c('pending_pro_close', null, null), ahora), null)
   assertEquals(consultaNoCertificable(c('in_progress', null, '2026-11-03T15:00:00Z'), ahora), null)
   assertEquals(consultaNoCertificable(c('completed', null, null), ahora), null)
   assertEquals(consultaNoCertificable(c('confirmed', '2026-11-02T14:55:00Z', '2026-11-03T15:00:00Z'), ahora), null)
+})
+
+Deno.test('nombreDelProblema: ninguna clave de problemasDelPayload llega cruda al profesional', () => {
+  // Un payload vacío dispara casi todas las reglas; las de domicilio se prueban aparte.
+  const claves = new Set([
+    ...problemasDelPayload({ imprimirDiagnostico: 'S', medico: { firmabase64: 'data:x' }, prescripcion: [{ prescripcion: ' ' }], clienteAppId: 'x' }),
+    ...problemasDelPayload({ prescripcion: [], lugarAtencion: { domicilio: { calle: 'x', numero: '' } }, imprimirDiagnostico: 'Z' }),
+    ...problemasDelPayload({ lugarAtencion: { domicilio: { direccion: '' } } }),
+  ])
+  assert(claves.size > 10)
+  for (const k of claves) assert(nombreDelProblema(k) !== k, `sin nombre legible: ${k}`)
 })

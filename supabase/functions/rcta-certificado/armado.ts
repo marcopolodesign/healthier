@@ -272,9 +272,11 @@ export function problemasDelPayload(p: any): string[] {
 
 /**
  * Un certificado dice que hubo atención: no se emite para una consulta
- * cancelada, a la que el paciente no fue, que venció sin atenderse, o un turno
- * que todavía no empezó (margen de 15 min). Devuelve el error para el 422, o null.
+ * cancelada, a la que el paciente no fue, que venció sin atenderse, o que
+ * todavía no empezó. Devuelve el error para el 422, o null.
  */
+const ESTADOS_ATENDIDA = ['in_progress', 'closing', 'pending_pro_close', 'completed']
+
 export function consultaNoCertificable(
   c: { status: string; started_at: string | null; scheduled_at: string | null },
   ahoraMs: number,
@@ -283,9 +285,37 @@ export function consultaNoCertificable(
   if (c.status === 'no_show' || c.status === 'expired') {
     return { error: 'La consulta no se llegó a hacer: no se puede emitir un certificado.', code: 'CERT_CONSULTA_NO_REALIZADA' }
   }
-  if (!c.started_at && !['in_progress', 'completed'].includes(c.status)
-      && c.scheduled_at && new Date(c.scheduled_at).getTime() > ahoraMs + 15 * 60_000) {
+  // Hubo atención si arrancó (started_at) o si el estado lo dice: en la
+  // llamada, cerrándose o cerrada (migración 098). 'pending'/'confirmed' sin
+  // started_at todavía no empezó, sea el turno futuro, pasado o una inmediata.
+  if (!c.started_at && !ESTADOS_ATENDIDA.includes(c.status)) {
     return { error: 'La consulta todavía no empezó: el certificado se emite durante o después de la atención.', code: 'CERT_CONSULTA_FUTURA' }
   }
   return null
+}
+
+/** Cada clave que puede devolver problemasDelPayload, dicha para el profesional. */
+export const NOMBRE_DEL_PROBLEMA: Record<string, string> = {
+  'paciente.nroDoc': 'el DNI del paciente', 'paciente.sexo': 'el sexo del paciente',
+  'paciente.fechaNacimiento': 'la fecha de nacimiento del paciente',
+  'paciente.nombre': 'el nombre del paciente', 'paciente.apellido': 'el apellido del paciente',
+  'paciente.tipoDoc': 'el tipo de documento del paciente',
+  'medico.nroDoc': 'tu DNI', 'medico.sexo': 'tu sexo', 'medico.nombre': 'tu nombre', 'medico.apellido': 'tu apellido',
+  'medico.tipoDoc': 'tu tipo de documento',
+  'medico.matricula.numero': 'tu número de matrícula',
+  'medico.matricula.tipo': 'el tipo de tu matrícula (MN o MP)',
+  'medico.matricula.provincia': 'la provincia de tu matrícula (la dirección del consultorio)',
+  'medico.firmabase64': 'tu firma (volvé a cargarla)',
+  'lugarAtencion.domicilio': 'la dirección de tu consultorio',
+  'lugarAtencion.domicilio.direccion': 'la dirección de tu consultorio',
+  'lugarAtencion.domicilio.calle/numero': 'la calle y el número de tu consultorio (la calle hasta 50 letras)',
+  'diagnostico': 'el diagnóstico (o apagá "Imprimir diagnóstico")',
+  'imprimirDiagnostico': 'la opción de imprimir el diagnóstico',
+  'prescripcion': 'el texto del certificado',
+  'clienteAppId': 'la configuración del servicio de recetas (avisá a soporte)',
+}
+
+export function nombreDelProblema(clave: string): string {
+  if (/^prescripcion\[\d+\]\.prescripcion$/.test(clave)) return 'el texto del certificado'
+  return NOMBRE_DEL_PROBLEMA[clave] ?? clave
 }

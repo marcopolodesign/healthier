@@ -4,8 +4,9 @@
 -- `rcta-certificado` inserta la fila en 'pending' antes de llamar al servicio.
 -- Dos clics, o la app y la web a la vez, podían dejar dos 'pending' y emitir
 -- dos certificados válidos. Con este índice el segundo insert falla (23505) y
--- la función contesta 409 CERT_EN_CURSO. Una 'pending' colgada (más de 5 min)
--- la cierra la propia función antes de insertar.
+-- la función contesta 409 CERT_EN_CURSO. Si la que choca está colgada (más de
+-- 5 min), la función la recupera desde rcta_issue_log si el servicio la emitió,
+-- o la cierra como error y reintenta.
 -- ============================================================
 
 -- Por si quedó alguna colgada de las pruebas: sin esto el índice no se crea.
