@@ -7,7 +7,7 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1'
 import {
   armarPayloadOrden, problemasDeLaOrden, estudiosDeLaEntrada, elegirDelCatalogo, resolverCobertura,
-  nombreDelProblemaOrden,
+  nombreDelProblemaOrden, consultasPara,
 } from './armado.ts'
 
 const FIRMA = 'iVBORw0KGgo' + 'A'.repeat(200)
@@ -82,4 +82,14 @@ Deno.test('cobertura: misma regla que la receta', () => {
   assertEquals(resolverCobertura({ coverage_type: 'financiador', financiador_id: null }, null).error?.code, 'RCTA_FINANCIADOR_SIN_CODIGO')
   assertEquals(resolverCobertura({ coverage_type: 'financiador', financiador_id: 9, affiliate_number: '' }, null).error?.code, 'RCTA_AFILIADO_FALTANTE')
   assertEquals(resolverCobertura(null, { coverage_type: 'financiador', financiador_id: 28, insurance_num: '' }).cobertura, null)
+})
+
+Deno.test('órdenes viejas: búsquedas más cortas cuando el nombre completo no aparece', () => {
+  const q = consultasPara('Vitamina D')
+  assertEquals(q[0], 'vitamina d')
+  assert(q.includes('vitamina'))
+  const h = consultasPara('Medición del Antígeno de Superficie de la Hepatitis B (Procedimiento)')
+  assert(h.includes('antígeno superficie') || h.includes('del antígeno'))
+  assert(h.includes('procedimiento'))
+  assertEquals(new Set(h).size, h.length)
 })
