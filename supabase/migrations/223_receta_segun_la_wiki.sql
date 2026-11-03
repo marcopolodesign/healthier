@@ -110,7 +110,9 @@ comment on column public.clinical_medications.rcta_autorizacion is
 alter table public.clinical_medications
   add column if not exists rcta_a_revisar boolean
     generated always as (coalesce(rcta_status = 'error'
-                                  and coalesce(jsonb_array_length(rcta_recetas), 0) > 0, false)) stored;
+                                  and jsonb_typeof(rcta_recetas) = 'array'
+                                  and jsonb_array_length(case when jsonb_typeof(rcta_recetas) = 'array'
+                                                              then rcta_recetas else '[]'::jsonb end) > 0, false)) stored;
 comment on column public.clinical_medications.rcta_a_revisar is
   'Migración 223 (generada). Error con recetas del lote guardadas: no se re-emite, se revisa o se anula.';
 
@@ -404,7 +406,7 @@ declare
   v_n       integer;
   v_ok      uuid[];
   v_avisar  uuid[];
-  v_med     uuid;
+  v_aviso   record;
 begin
   if auth.uid() is null or v_rol is null or v_rol not in ('pharmacy_admin', 'pharmacy_operator', 'super_admin') then
     raise exception 'Sólo la farmacia puede autorizar una receta.' using errcode = '42501';
@@ -471,7 +473,7 @@ begin
   -- 'vigente'). Una fila que sigue pendiente por otra receta, o una posdatada
   -- que no empezó ('proxima'), no avisa ahora: la posdatada avisa el día que
   -- empieza (`avisar_posdatadas_habilitadas`).
-  -- Un aviso por medicación que quedó comprable, con su nombre.
+  -- Un aviso por receta, con los nombres de lo que quedó comprable de ella.
   select coalesce(array_agg(r.clinical_medication_id), '{}')
     into v_avisar
     from public.farmacia_recetas_de(v_fila.patient_id) r
@@ -484,11 +486,15 @@ begin
                        'filas_ok', cardinality(v_ok), 'filas_siguen_pendientes', v_n - cardinality(v_ok),
                        'antes', 'pendiente'));
 
-  foreach v_med in array v_avisar loop
+  for v_aviso in
+    select cm.rcta_prescription_id as receta,
+           string_agg(distinct coalesce(cm.medication_name, cm.nombre_droga), ', ') as medicamento
+      from public.clinical_medications cm
+     where cm.id = any (v_avisar)
+     group by cm.rcta_prescription_id
+  loop
     perform public.enviar_push_tipo(v_fila.patient_id, 'receta-autorizada',
-      (select jsonb_build_object('prescriptionId', cm.rcta_prescription_id,
-                                 'medicamento', coalesce(cm.medication_name, cm.nombre_droga))
-         from public.clinical_medications cm where cm.id = v_med));
+      jsonb_build_object('prescriptionId', v_aviso.receta, 'medicamento', v_aviso.medicamento));
   end loop;
   return v_n;
 end;

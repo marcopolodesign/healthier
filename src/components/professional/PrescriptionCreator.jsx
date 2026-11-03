@@ -50,7 +50,8 @@ const aRevisar = x => x.rcta_a_revisar === true
 function escenarioDeSimulacion() {
   try {
     const host = window.location.hostname
-    if (!/(^|\.)staging\.|^localhost$|^127\.0\.0\.1$/.test(host)) return null
+    // staging.healthier.com.ar, gethealthier-staging.vercel.app y local.
+    if (!/staging|^localhost$|^127\.0\.0\.1$/.test(host)) return null
     return window.localStorage.getItem('rcta_simular_lote') || null
   } catch { return null }
 }
@@ -333,9 +334,12 @@ function AnularRecetaModal({ objetivo, onCerrar, onConfirmar, anulando }) {
     if (!objetivo) return
     setMotivo('')
     setAlcance(null)
+    // Una respuesta vieja (otro renglón abierto antes) no pisa la de este.
+    let vigente = true
     clinicalService.previsualizarAnulacion(objetivo.medicationId)
-      .then(setAlcance)
-      .catch(() => setAlcance({ error: true }))
+      .then(a => { if (vigente) setAlcance(a) })
+      .catch(() => { if (vigente) setAlcance({ error: true }) })
+    return () => { vigente = false }
   }, [objetivo])
   if (!objetivo) return null
   const { posdatadas } = objetivo
