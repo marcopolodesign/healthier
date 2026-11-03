@@ -108,15 +108,20 @@ function Hoja({ v, children }) {
 function VistaPrevia({ open, cargando, datos, emitiendo, onEditar, onEmitir }) {
   const v = datos?.vistaPrevia
   return (
-    <PatientSheet open={open} onClose={emitiendo ? () => {} : onEditar} maxWidth="max-w-[880px]" backdropClose={!emitiendo}>
-      <div className="flex items-center justify-between px-6 pt-4 sm:pt-6 pb-3">
+    // Más baja que las demás hojas (7rem libres arriba): dentro de la app la barra
+    // con la X y el nombre del paciente tapaba el título "Vista previa" (2026-11-02).
+    <PatientSheet open={open} onClose={emitiendo ? () => {} : onEditar} maxWidth="max-w-[880px]" backdropClose={!emitiendo}
+      maxHeight="max-h-[calc(100dvh-7rem-env(safe-area-inset-top))]">
+      <div className="shrink-0 flex items-center justify-between px-6 pt-4 sm:pt-6 pb-3">
         <h3 className="font-serif text-2xl font-light text-text-primary">Vista previa</h3>
         <button type="button" onClick={onEditar} disabled={emitiendo} aria-label="Cerrar"
           className="w-10 h-10 rounded-full bg-bg-surface border border-border-default flex items-center justify-center">
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="px-6 overflow-y-auto">
+      {/* min-h-0: sin esto el cuerpo no se achica, la hoja crece más que la pantalla
+          y el encabezado queda afuera, arriba. */}
+      <div className="px-6 flex-1 min-h-0 overflow-y-auto">
         {cargando || !v ? (
           <div className="flex justify-center py-16"><CircleNotch className="h-6 w-6 animate-spin text-brand" /></div>
         ) : (
@@ -147,7 +152,7 @@ function VistaPrevia({ open, cargando, datos, emitiendo, onEditar, onEmitir }) {
           </p>
         )}
       </div>
-      <div className="flex gap-3 px-6 py-4 border-t border-border-subtle mt-3">
+      <div className="shrink-0 flex gap-3 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-border-subtle mt-3">
         <button type="button" onClick={onEditar} disabled={emitiendo} className="btn-secondary flex-1 py-3">Editar</button>
         <button type="button" onClick={onEmitir} disabled={emitiendo || cargando || !v || datos?.faltan?.length > 0}
           className="btn-primary flex-[2] py-3 flex items-center justify-center gap-2">

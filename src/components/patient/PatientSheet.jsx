@@ -19,7 +19,10 @@ import { useEffect, useState } from 'react'
  *   maxWidth     – Tailwind max-w-* class applied on desktop (default "max-w-lg")
  *   backdropClose – whether a backdrop click closes the sheet (default true)
  */
-export default function PatientSheet({ open, onClose, children, maxWidth = 'max-w-lg', backdropClose = true }) {
+// `maxHeight`: por defecto 90dvh. Una hoja alta embebida en la app (el panel
+// clínico es el website dentro de un WebView, con la barra de la app arriba)
+// pasa uno más bajo para que su encabezado no quede tapado.
+export default function PatientSheet({ open, onClose, children, maxWidth = 'max-w-lg', backdropClose = true, maxHeight = 'max-h-[90dvh]' }) {
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 640)
   /**
    * La animación de entrada se saca del elemento apenas termina.
@@ -64,8 +67,8 @@ export default function PatientSheet({ open, onClose, children, maxWidth = 'max-
     >
       <div
         className={`bg-bg-secondary flex flex-col ${isDesktop
-          ? `w-full ${maxWidth} rounded-[28px] shadow-2xl max-h-[90dvh]`
-          : `w-full rounded-t-[40px] shadow-[0_-20px_50px_rgba(0,0,0,0.2)] max-h-[90dvh] ${animando ? 'animate-slide-up-spring' : ''}`}`}
+          ? `w-full ${maxWidth} rounded-[28px] shadow-2xl ${maxHeight}`
+          : `w-full rounded-t-[40px] shadow-[0_-20px_50px_rgba(0,0,0,0.2)] ${maxHeight} ${animando ? 'animate-slide-up-spring' : ''}`}`}
         onAnimationEnd={() => setAnimando(false)}
         onClick={e => e.stopPropagation()}
       >
