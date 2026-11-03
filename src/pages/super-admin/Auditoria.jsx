@@ -102,7 +102,7 @@ export default function SuperAdminAuditoria() {
       try {
         const { data, error } = await supabase
           .from('rcta_issue_log')
-          .select('id, created_at, outcome, error_code, purpose, api_base_url, endpoint, certificado_id, id_transaccion, id_receta, s3_link, http_status, request, patient:profiles!patient_id(full_name), professional:profiles!professional_id(full_name)')
+          .select('id, created_at, outcome, error_code, purpose, api_base_url, endpoint, certificado_id, estudios_orden_id, id_transaccion, id_receta, s3_link, http_status, request, patient:profiles!patient_id(full_name), professional:profiles!professional_id(full_name)')
           .order('created_at', { ascending: false })
           .limit(PAGE_SIZE)
         if (error) throw error
@@ -210,6 +210,7 @@ export default function SuperAdminAuditoria() {
       ) : tab === 'recetas' ? (
         <>
           <CertificadosARevisar />
+          <OrdenesEstudiosARevisar />
           <RecetasTab
             recetas={recetas}
             loading={loadingRecetas}
@@ -381,6 +382,46 @@ function CertificadosARevisar() {
   )
 }
 
+// Lo mismo para las órdenes de estudios (migración 227).
+function OrdenesEstudiosARevisar() {
+  const [filas, setFilas] = useState([])
+  const [liberando, setLiberando] = useState(null)
+  const cargar = () => supabase.from('clinical_study_orders')
+    .select('id, created_at, estudios, error_detalle, patient:profiles!patient_id(full_name), professional:profiles!professional_id(full_name)')
+    .eq('a_revisar', true).order('created_at', { ascending: false })
+    .then(({ data, error }) => { if (error) toast.error(`No se pudieron cargar las órdenes a revisar: ${error.message}`); else setFilas(data ?? []) })
+  useEffect(() => { cargar() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
+  if (!filas.length) return null
+  async function liberar(id) {
+    setLiberando(id)
+    const { error } = await supabase.rpc('liberar_orden_estudios_a_revisar', { p_id: id })
+    setLiberando(null)
+    if (error) { toast.error(`No se pudo liberar: ${error.message}`); return }
+    toast.success('Liberada: el profesional puede volver a emitirla')
+    cargar()
+  }
+  return (
+    <div className="card mb-4 border-amber-300 bg-amber-50" data-testid="ordenes-a-revisar">
+      <h2 className="font-semibold text-text-primary">Órdenes de estudios a revisar ({filas.length})</h2>
+      <p className="text-xs text-text-secondary mt-1">Pudieron haber salido del servicio de recetas sin que quedara la respuesta. Confirmá con el servicio y, si no salió, liberala para que se pueda volver a emitir.</p>
+      <ul className="mt-3 divide-y divide-amber-200">
+        {filas.map(f => (
+          <li key={f.id} className="py-2 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm text-text-primary">{(f.estudios ?? []).length} estudios · {f.patient?.full_name ?? 'Paciente'} · {f.professional?.full_name ?? 'Profesional'}</p>
+              <p className="text-xs text-text-tertiary">{new Date(f.created_at).toLocaleString('es-AR')} · {f.error_detalle}</p>
+            </div>
+            <button type="button" className="btn-secondary text-sm px-3 py-1.5 shrink-0" disabled={liberando === f.id}
+              onClick={() => liberar(f.id)}>
+              {liberando === f.id ? 'Liberando…' : 'No salió: liberar'}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 /**
  * El log de emisiones. `id de transacción` va primero y con botón de copiar
  * porque es lo que se pide desde afuera: para certificar la integración hay que
@@ -444,6 +485,9 @@ function RecetasTab({ recetas, loading, onCopiar, selection, onDeleteOne }) {
                   {/* Un rechazo por datos faltantes no llega a tener fila de certificado: lo marca el endpoint. */}
                   {(r.certificado_id || r.endpoint === '/apirecipe/OtrasPrescripciones') && (
                     <span className="block text-[11px] text-text-tertiary">certificado ({r.request?.prescripcion?.[0]?.prescripcion || (r.outcome === 'validation_error' ? 'faltan datos' : 'anulación')})</span>
+                  )}
+                  {(r.estudios_orden_id || r.endpoint === '/apirecipe/prescribirPractica') && (
+                    <span className="block text-[11px] text-text-tertiary">orden de estudios ({Array.isArray(r.request?.prescripcion) ? `${r.request.prescripcion.length} estudios` : 'anulación'})</span>
                   )}
                 </td>
                 <td className="px-4 py-3">

@@ -100,6 +100,10 @@ export default function Recetario({
           profProfile={profProfile}
           bloqueada={bloqueada}
           onEntryAdded={onEntryAdded}
+          profile={profile}
+          paciente={paciente}
+          consultationId={consultationId}
+          onDatosActualizados={onDatosActualizados}
         />
       )}
     </div>

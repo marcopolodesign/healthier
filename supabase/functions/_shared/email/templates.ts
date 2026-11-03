@@ -759,6 +759,32 @@ export function certificadoEmitido(r: { patientName: string; professionalName: s
 }
 
 /**
+ * Orden de estudios emitida (migración 227). La dispara el trigger de
+ * `clinical_study_orders`, una vez por orden.
+ */
+export function ordenEstudiosEmitida(r: { patientName: string; professionalName: string; estudios: string[]; pdfUrl: string | null }): Sent {
+  const n = r.estudios.length
+  const body = [
+    p(`Hola <strong style="color:${C.ink}">${esc(r.patientName)}</strong>, <strong style="color:${C.ink}">${esc(r.professionalName)}</strong> te emitió una orden de estudios. Ya está en tu Bóveda.`),
+    itemList(n === 1 ? 'Estudio' : `Estudios (${n})`, r.estudios.slice(0, 12).map(title => ({ title }))
+      .concat(n > 12 ? [{ title: `y ${n - 12} más` }] : []), 'sage'),
+    note('Tiene firma electrónica: presentala en el laboratorio o centro donde te hagas los estudios.', 'sage'),
+    button(r.pdfUrl ?? `${APP_URL}/paciente/ordenes-estudios`, 'Ver orden', 'sage'),
+    link(`${APP_URL}/paciente/ordenes-estudios`, 'Ver todas mis órdenes'),
+  ].join('')
+
+  return {
+    subject: `Tu orden de estudios de ${r.professionalName} ya está disponible`,
+    html: renderEmail({
+      preheader: r.estudios.slice(0, 3).join(' · '),
+      eyebrow: 'Orden de estudios', accent: 'sage',
+      title: 'Tu orden de estudios está lista', body,
+      footnote: 'La orden electrónica tiene la misma validez que una en papel firmada por tu profesional.',
+    }),
+  }
+}
+
+/**
  * Tratamiento prolongado (migración 216): el día que empieza a valer una receta
  * posdatada. La dispara el cron `avisar-posdatadas-habilitadas`, una vez por
  * receta.

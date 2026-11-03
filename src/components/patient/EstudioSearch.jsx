@@ -18,7 +18,7 @@ import { capitalizarNombreCatalogo } from '../../lib/format'
  * Por eso: si el catálogo no responde o no encuentra nada, esto **degrada a
  * escribir a mano** en vez de bloquear.
  */
-export default function EstudioSearch({ value, onChange, disabled = false }) {
+export default function EstudioSearch({ value, onChange, disabled = false, soloCatalogo = false }) {
   const [resultados, setResultados] = useState([])
   const [buscando, setBuscando] = useState(false)
   const [abierto, setAbierto] = useState(false)
@@ -89,14 +89,15 @@ export default function EstudioSearch({ value, onChange, disabled = false }) {
         <ul className="absolute z-30 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-bg-surface border border-border-default rounded-xl shadow-lg">
           {/* La forma real de la respuesta (verificada contra el sandbox, no
               supuesta): `practica` es el nombre, `nomenclador.snomed` el código.
-              Se guarda el SNOMED y no el `id` de Innovamed porque es el estándar
-              que ya usa el modelo clínico del proyecto y sirve fuera de RCTA. */}
+              Se guarda el SNOMED (el estándar del modelo clínico) y además el
+              `id` del catálogo: sin ese id la orden de estudios no se puede
+              emitir (el servicio rechaza los nombres con QBI232, 2026-11-03). */}
           {resultados.map(p => (
             <li key={p.id ?? p.practica}>
               <button
                 type="button"
                 onClick={() => {
-                  onChange({ nombre: p.practica, codigo: p.nomenclador?.snomed ?? null })
+                  onChange({ nombre: p.practica, codigo: p.nomenclador?.snomed ?? null, catalogoId: p.id ?? null, categoria: p.categoria ?? null })
                   setAbierto(false)
                 }}
                 className="w-full text-left px-3 py-2 hover:bg-brand-muted/40 transition-colors border-b border-border-default last:border-b-0"
@@ -115,7 +116,9 @@ export default function EstudioSearch({ value, onChange, disabled = false }) {
 
       {texto.trim().length >= 3 && !buscando && resultados.length === 0 && (
         <p className="text-[11px] text-text-tertiary mt-1">
-          No está en el catálogo — se guarda tal cual lo escribiste.
+          {soloCatalogo
+            ? 'No está en el listado. Para emitir la orden, elegí un estudio del listado.'
+            : 'No está en el catálogo — se guarda tal cual lo escribiste.'}
         </p>
       )}
     </div>

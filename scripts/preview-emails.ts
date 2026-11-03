@@ -129,6 +129,10 @@ const CASOS: Caso[] = [
     patientName: 'Sofía', professionalName: 'Dra. Laura Gómez', tipo: 'reposo',
     detalle: 'Reposo por 3 días desde el 2 de noviembre', pdfUrl: 'https://example.com/certificado.pdf',
   })),
+  caso('orden-estudios', 'Orden de estudios emitida', 'Post consulta', T.ordenEstudiosEmitida({
+    patientName: 'Sofía', professionalName: 'Dra. Laura Gómez',
+    estudios: ['Hemograma completo con plaquetas', 'Ferritina', 'TSH', 'Vitamina D'], pdfUrl: 'https://example.com/orden.pdf',
+  })),
   caso('receta-habilitada', 'Receta posdatada habilitada (tratamiento prolongado)', 'Post consulta', T.recetaHabilitada({
     patientName: 'Sofía', professionalName: 'Dra. Valentina Ortiz',
     medicamento: 'Losartán 50 mg comp. x 30',

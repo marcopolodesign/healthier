@@ -251,6 +251,7 @@ type Body = {
   /** receta */
   prescriptionId?: string
   certificadoId?: string
+  ordenEstudiosId?: string
   /** derivacion */
   derivacionId?: string
   /** cambio-correo */
@@ -461,6 +462,30 @@ Deno.serve(async (req) => {
           pdfUrl: (c.rcta_pdf_url as string) ?? null,
         })
         return await salida({ usuarioId: c.patient_id as string }, [{ to: paciente?.email, ...mail }])
+      }
+
+      // ── Órdenes de estudios (migración 227) ──────────────────────────────
+      case 'orden_estudios': {
+        if (!body.ordenEstudiosId) return json({ error: 'Falta ordenEstudiosId' }, 400)
+        const { data: o } = await sb
+          .from('clinical_study_orders')
+          .select('estudios, rcta_pdf_url, status, patient_id, professional_id')
+          .eq('id', body.ordenEstudiosId)
+          .maybeSingle()
+        if (!o) return json({ error: 'Orden no encontrada' }, 404)
+        if (!body.preview && o.status !== 'issued') return json({ skipped: true, reason: 'la orden no está vigente' })
+
+        const [paciente, profesional] = await Promise.all([
+          leerPerfil(sb, o.patient_id as string),
+          leerPerfil(sb, o.professional_id as string),
+        ])
+        const mail = T.ordenEstudiosEmitida({
+          patientName: primerNombre(paciente?.full_name) ?? 'Paciente',
+          professionalName: profesional?.full_name ?? 'tu profesional',
+          estudios: (Array.isArray(o.estudios) ? o.estudios : []).map((e: { nombre?: string }) => e?.nombre ?? '').filter(Boolean),
+          pdfUrl: (o.rcta_pdf_url as string) ?? null,
+        })
+        return await salida({ usuarioId: o.patient_id as string }, [{ to: paciente?.email, ...mail }])
       }
 
       // ── Cuentas ────────────────────────────────────────────────────────────
