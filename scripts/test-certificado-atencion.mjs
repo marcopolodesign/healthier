@@ -27,3 +27,11 @@ test("una 'confirmed' se puede certificar desde la hora del turno, no antes", ()
   assert.equal(web({ status: 'confirmed', started_at: null, scheduled_at: '2026-11-02T15:00:00Z' }, ahora), null)
   assert.equal(web({ status: 'confirmed', started_at: null, scheduled_at: '2026-11-02T15:01:00Z' }, ahora)?.code, 'CERT_CONSULTA_FUTURA')
 })
+
+test('la hoja de firma no se apila sobre la vista previa (se cierra antes de pedir la firma)', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync(new URL('../src/components/professional/CertificadoCreator.jsx', import.meta.url), 'utf8')
+  assert.match(src, /function pedirFirma\(\) \{ setPrevia\(null\); setFirmaPendiente\(true\) \}/)
+  // Nadie abre la hoja de firma por otro camino.
+  assert.equal((src.match(/setFirmaPendiente\(true\)/g) ?? []).length, 1)
+})
