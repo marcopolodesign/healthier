@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, X, CircleNotch, TestTube, PaperPlaneTilt, Check } from '@phosphor-icons/react'
+import { Plus, X, CircleNotch, TestTube, PaperPlaneTilt, Check, CheckCircle } from '@phosphor-icons/react'
 import { clinicalService } from '../../services/clinicalService'
 import { ordenesEstudiosService } from '../../services/ordenesEstudiosService'
 import { capitalizarNombreCatalogo } from '../../lib/format'
 import { esSimulado } from '../../lib/simulacion'
+import { ordenesEstudiosCompletas } from '../../lib/featureFlags'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
-import { useFirmaDelProfesional } from '../../hooks/useFirmaDelProfesional'
 import EstudioSearch from '../patient/EstudioSearch'
 import FirmaSheet from './FirmaSheet'
 import DatosRecetaFaltantes from './DatosRecetaFaltantes'
@@ -24,9 +24,10 @@ const TZ = 'America/Argentina/Buenos_Aires'
  * y le llega a la paciente (mail + aviso + Bóveda). Lo pidió una profesional:
  * "con los estudios después de guardar no me aparece nada, no puedo enviarlo".
  *
- *  · La orden se guarda primero en la HC (`clinical_entries`, 'order') y
- *    después se emite con la Edge Function `rcta-estudios`. Si la emisión
- *    falla, la orden queda en la HC con su botón "Emitir" para reintentar.
+ *  · "Guardar orden" la guarda en la HC (`clinical_entries`, 'order') y la
+ *    emite sola con la Edge Function `rcta-estudios`; la tarjeta dice "Enviada
+ *    a tu paciente". Si no salió (o es de antes), "Enviar a mi paciente".
+ *    Ver PDF y Anular, sólo en staging y cuentas de prueba (featureFlags).
  *  · Cada estudio tiene que salir del listado: el servicio rechaza lo escrito
  *    a mano (QBI232). Las órdenes viejas, guardadas sin el id del listado, se
  *    emiten si su nombre coincide exacto; si no, se pide una orden nueva.
@@ -54,7 +55,10 @@ export default function EstudiosCreator({
   const { puedeRecetar } = useEspecialidades()
   const enPractica = esSimulado(encounterId) || esSimulado(consultationId)
   const puedeEmitir = !enPractica && puedeRecetar(profProfile?.specialty)
-  const { tieneFirma, marcar: marcarFirma } = useFirmaDelProfesional(professionalId)
+  // Producción (decisión de Mateo, 2026-11-03): la orden se emite sola al
+  // guardarla y el profesional sólo ve "Enviada a tu paciente"; Ver PDF y
+  // Anular quedan para staging y las cuentas de prueba.
+  const completa = ordenesEstudiosCompletas(profile)
 
   // La lista viva: `emitir` corre después de agregar una orden y su closure
   // tendría la lista vieja (sin la recién guardada).
@@ -120,15 +124,18 @@ export default function EstudiosCreator({
     setDiagnostico('')
   }
 
-  async function emitir(entryId, { firmaRecienCargada = false } = {}) {
-    if (!tieneFirma && !firmaRecienCargada) { setFirmaPara(entryId); return }
+  // Sin chequear la firma antes: el servidor contesta RCTA_FIRMA_FALTANTE y
+  // recién ahí se abre la hoja (evita pedir firma mientras todavía carga).
+  async function emitir(entryId) {
     setEmitiendo(entryId)
     try {
       const { yaEstaba } = await ordenesEstudiosService.emitir(entryId)
-      toast.success(yaEstaba ? 'Esta orden ya estaba emitida' : 'Orden emitida: le llegó a tu paciente')
+      toast.success(yaEstaba ? 'Esta orden ya se le había enviado a tu paciente' : 'Orden guardada y enviada a tu paciente por mail')
     } catch (err) {
-      if (err.code === 'RCTA_FIRMA_FALTANTE') setFirmaPara(entryId)
-      else toast.error(`No se pudo emitir la orden: ${err.message}`)
+      if (err.code === 'RCTA_FIRMA_FALTANTE') {
+        toast.info('Para enviarle la orden a tu paciente, cargá tu firma. Se hace una sola vez.')
+        setFirmaPara(entryId)
+      } else toast.error(`La orden quedó guardada pero no se le pudo enviar a tu paciente: ${err.message}`)
     } finally {
       setEmitiendo(null)
       recargarEmisiones()
@@ -214,7 +221,7 @@ export default function EstudiosCreator({
         open={!!firmaPara}
         userId={professionalId}
         onClose={() => setFirmaPara(null)}
-        onFirmada={() => { const id = firmaPara; setFirmaPara(null); marcarFirma(true); emitir(id, { firmaRecienCargada: true }) }}
+        onFirmada={() => { const id = firmaPara; setFirmaPara(null); emitir(id) }}
       />
 
       {puedeEmitir && (
@@ -248,32 +255,47 @@ export default function EstudiosCreator({
                   <TestTube className="h-4 w-4 text-brand shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-text-primary leading-relaxed">{o.content}</p>
-                    <p className="text-[11px] text-text-tertiary mt-1">
-                      {emitida ? `Emitida el ${fecha(em.rctaIssuedAt ?? em.createdAt)}`
-                        : anulada ? 'Anulada'
-                        : o.createdAt ? fecha(o.createdAt) : null}
-                    </p>
+                    {emitida ? (
+                      <p className="flex items-center gap-1 text-xs text-brand mt-1" data-testid="orden-enviada">
+                        <CheckCircle className="h-3.5 w-3.5" weight="fill" />
+                        Enviada a tu paciente por mail el {fecha(em.rctaIssuedAt ?? em.createdAt)}
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-text-tertiary mt-1">
+                        {anulada ? 'Anulada' : o.createdAt ? fecha(o.createdAt) : null}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {puedeEmitir && (
                   em?.aRevisar ? (
-                    <p className="text-xs text-amber-700 mt-2">Puede haber salido: lo revisa Healthier antes de emitirla de nuevo.</p>
+                    <p className="text-xs text-amber-700 mt-2">Puede haber salido: lo revisa Healthier antes de enviarla de nuevo.</p>
                   ) : emitida ? (
-                    <div className="flex items-center justify-end gap-4 mt-2">
-                      {em.rctaPdfUrl && (
-                        <a href={em.rctaPdfUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-brand">Ver PDF</a>
-                      )}
-                      {em.professionalId === professionalId && (
-                        <button type="button" onClick={() => setAAnular(em)} className="text-sm text-text-tertiary hover:text-danger">Anular</button>
-                      )}
-                    </div>
-                  ) : !anulada && o.professionalId === professionalId && (
+                    completa && (
+                      <div className="flex items-center justify-end gap-4 mt-2">
+                        {em.rctaPdfUrl && (
+                          <a href={em.rctaPdfUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-brand">Ver PDF</a>
+                        )}
+                        {em.professionalId === professionalId && (
+                          <button type="button" onClick={() => setAAnular(em)} className="text-sm text-text-tertiary hover:text-danger">Anular</button>
+                        )}
+                      </div>
+                    )
+                  ) : anulada ? (
+                    // Anulada en Healthier pero el servicio no lo confirmó: se puede reintentar.
+                    completa && em.anulacionEstado === 'error' && em.professionalId === professionalId && (
+                      <button type="button" onClick={() => setAAnular(em)} className="text-sm text-text-tertiary hover:text-danger mt-2">
+                        Reintentar anulación
+                      </button>
+                    )
+                  ) : o.professionalId === professionalId && (
+                    // Sólo si no salió (falló o es una orden de antes): reintentar el envío.
                     <button type="button" onClick={() => emitir(o.id)} disabled={emitiendo === o.id}
                       data-testid="emitir-orden"
-                      className="btn-primary w-full mt-3 py-2 flex items-center justify-center gap-1.5">
+                      className="btn-secondary w-full mt-3 py-2 flex items-center justify-center gap-1.5">
                       {emitiendo === o.id
-                        ? <><CircleNotch className="h-4 w-4 animate-spin" /> Emitiendo…</>
-                        : <><PaperPlaneTilt className="h-4 w-4" /> Emitir y enviar al paciente</>}
+                        ? <><CircleNotch className="h-4 w-4 animate-spin" /> Enviando…</>
+                        : <><PaperPlaneTilt className="h-4 w-4" /> Enviar a mi paciente</>}
                     </button>
                   )
                 )}
@@ -357,12 +379,12 @@ export default function EstudiosCreator({
             >
               {saving || emitiendo
                 ? <CircleNotch className="h-4 w-4 animate-spin" />
-                : puedeEmitir ? <PaperPlaneTilt className="h-4 w-4" /> : <Check className="h-4 w-4" />}
-              {saving ? 'Guardando…' : emitiendo ? 'Emitiendo…' : puedeEmitir ? 'Emitir orden' : 'Guardar orden'}
+                : <Check className="h-4 w-4" />}
+              {saving ? 'Guardando…' : emitiendo ? 'Enviando…' : 'Guardar orden'}
             </button>
           </div>
           {puedeEmitir && (
-            <p className="text-[11px] text-text-tertiary">Sale con tu firma y le llega a tu paciente por mail y en la app.</p>
+            <p className="text-[11px] text-text-tertiary">Al guardarla se le envía a tu paciente por mail, con tu firma.</p>
           )}
         </div>
       ) : (

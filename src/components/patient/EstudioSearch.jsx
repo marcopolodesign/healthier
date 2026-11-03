@@ -25,7 +25,7 @@ export default function EstudioSearch({ value, onChange, disabled = false, soloC
   const cajaRef = useRef(null)
 
   const texto = value?.nombre ?? ''
-  const elegido = Boolean(value?.codigo)
+  const elegido = Boolean(value?.codigo || value?.catalogoId)
 
   useEffect(() => {
     if (elegido) return
@@ -60,7 +60,7 @@ export default function EstudioSearch({ value, onChange, disabled = false, soloC
         </div>
         <button
           type="button"
-          onClick={() => onChange({ nombre: '', codigo: null })}
+          onClick={() => onChange({ nombre: '', codigo: null, catalogoId: null, categoria: null })}
           aria-label="Cambiar el tipo de estudio"
           className="text-text-tertiary hover:text-danger shrink-0"
         >

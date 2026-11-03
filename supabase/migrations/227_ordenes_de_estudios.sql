@@ -75,8 +75,9 @@ create index if not exists clinical_study_orders_a_revisar_idx
 alter table public.clinical_study_orders enable row level security;
 
 drop policy if exists clinical_study_orders_paciente_lee on public.clinical_study_orders;
+-- El paciente ve sólo las emitidas: las pendientes/fallidas llevan detalle interno.
 create policy clinical_study_orders_paciente_lee on public.clinical_study_orders
-  for select using (patient_id = auth.uid());
+  for select using (patient_id = auth.uid() and status = 'issued');
 
 drop policy if exists clinical_study_orders_profesional_lee on public.clinical_study_orders;
 create policy clinical_study_orders_profesional_lee on public.clinical_study_orders

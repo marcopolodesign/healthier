@@ -17,7 +17,7 @@ export default function OrdenesEstudios({ profile }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!profile?.id) return
+    if (!profile?.id) { setLoading(false); return }
     let cancelled = false
     ordenesEstudiosService.listarDelPaciente(profile.id)
       .then(r => { if (!cancelled) setLista(r) })

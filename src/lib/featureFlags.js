@@ -69,3 +69,16 @@ const BONIFICAR_ALLOWLIST = ['mateoaldao@gmail.com']
 export function puedeBonificarTeleclinica(profile) {
   return BONIFICAR_ALLOWLIST.includes(String(profile?.email ?? '').trim().toLowerCase())
 }
+
+/**
+ * Orden de estudios (migración 227): en producción la orden se emite sola al
+ * guardarla y le llega al paciente, pero el panel completo (Ver PDF, Anular)
+ * queda escondido — decisión de Mateo, 2026-11-03: "avisar que ya se le envió
+ * al paciente en vez de mostrar el botón". En staging y para las cuentas de
+ * prueba se ve entero.
+ */
+export function ordenesEstudiosCompletas(profile) {
+  if (!esProduccion) return true
+  return Boolean(profile?.esPrueba || profile?.veAmbosMundos || profile?.es_prueba || profile?.ve_ambos_mundos)
+    || LANZAMIENTO_ALLOWLIST.includes(String(profile?.email ?? '').trim().toLowerCase())
+}

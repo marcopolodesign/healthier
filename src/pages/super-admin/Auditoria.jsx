@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { ordenesEstudiosService } from '../../services/ordenesEstudiosService'
 import { Eye, PencilSimple, MagnifyingGlass, CircleNotch, Copy, FilePdf, CheckCircle, XCircle, Trash, ShieldCheck } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
 import { adminAuditService, ACCIONES_ADMIN, etiquetaAccion, resumenDetalle } from '../../services/adminAuditService'
@@ -386,17 +387,20 @@ function CertificadosARevisar() {
 function OrdenesEstudiosARevisar() {
   const [filas, setFilas] = useState([])
   const [liberando, setLiberando] = useState(null)
-  const cargar = () => supabase.from('clinical_study_orders')
-    .select('id, created_at, estudios, error_detalle, patient:profiles!patient_id(full_name), professional:profiles!professional_id(full_name)')
-    .eq('a_revisar', true).order('created_at', { ascending: false })
-    .then(({ data, error }) => { if (error) toast.error(`No se pudieron cargar las órdenes a revisar: ${error.message}`); else setFilas(data ?? []) })
+  const cargar = () => ordenesEstudiosService.listarARevisar()
+    .then(setFilas)
+    .catch(err => toast.error(`No se pudieron cargar las órdenes a revisar: ${err.message}`))
   useEffect(() => { cargar() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
   if (!filas.length) return null
   async function liberar(id) {
     setLiberando(id)
-    const { error } = await supabase.rpc('liberar_orden_estudios_a_revisar', { p_id: id })
-    setLiberando(null)
-    if (error) { toast.error(`No se pudo liberar: ${error.message}`); return }
+    try {
+      await ordenesEstudiosService.liberarARevisar(id)
+    } catch (err) {
+      toast.error(`No se pudo liberar: ${err.message}`); return
+    } finally {
+      setLiberando(null)
+    }
     toast.success('Liberada: el profesional puede volver a emitirla')
     cargar()
   }
