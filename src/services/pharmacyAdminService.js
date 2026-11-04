@@ -73,56 +73,64 @@ export const pharmacyAdminService = {
   },
 
   /**
-   * Upserts by SKU (rows without a SKU are always inserted as new — nothing
-   * to match on). Returns a summary for the import preview/confirmation UI.
+   * Importa el Excel: los SKU que ya existen se ACTUALIZAN por id y el resto
+   * se inserta. No se usa `upsert`: con la sesión de la farmacia (RLS) el
+   * INSERT ... ON CONFLICT chocaba con la clave primaria (23505) y la
+   * importación entera fallaba. Las filas sin SKU siempre son nuevas.
+   * Los errores salen con el mensaje real.
    */
   async bulkUpsertFromImport(rows) {
-    const withSku = rows.filter(r => r.sku)
-    const withoutSku = rows.filter(r => !r.sku)
     const summary = { inserted: 0, updated: 0, errors: [] }
 
     const rowToPayload = r => toSnakeCase({
       pharmacyId: PHARMACY_ID,
-      sku: r.sku ?? undefined,
+      sku: r.sku || null,
       name: r.nombre,
       presentation: r.presentacion ?? null,
       price: r.precio,
       stockQuantity: r.stock,
       prescriptionType: r.prescriptionType,
-      category: r.category ?? 'clinica',
     })
 
-    const writes = []
-
-    if (withSku.length) {
-      const { data: existing, error: existingErr } = await supabase
+    const skus = rows.map(r => r.sku).filter(Boolean)
+    const existingBySku = new Map()
+    for (let i = 0; i < skus.length; i += 200) {
+      const { data, error } = await supabase
         .from('pharmacy_products')
         .select('id, sku')
         .eq('pharmacy_id', PHARMACY_ID)
-        .in('sku', withSku.map(r => r.sku))
-      if (existingErr) throw existingErr
-      const existingBySku = new Map((existing ?? []).map(r => [r.sku, r.id]))
-
-      const payload = withSku.map(r => ({ id: existingBySku.get(r.sku), ...rowToPayload(r) }))
-      summary.updated = payload.filter(p => p.id).length
-      summary.inserted += payload.filter(p => !p.id).length
-
-      writes.push(
-        supabase.from('pharmacy_products').upsert(payload, { onConflict: 'sku' })
-          .then(({ error }) => { if (error) throw error })
-      )
+        .in('sku', skus.slice(i, i + 200))
+      if (error) throw new Error(`No se pudo leer el catálogo actual: ${error.message}`)
+      for (const p of data ?? []) existingBySku.set(p.sku, p.id)
     }
 
-    if (withoutSku.length) {
-      const payload = withoutSku.map(rowToPayload)
-      summary.inserted += payload.length
-      writes.push(
-        supabase.from('pharmacy_products').insert(payload)
-          .then(({ error }) => { if (error) throw error })
-      )
+    const toUpdate = rows.filter(r => r.sku && existingBySku.has(r.sku))
+    const toInsert = rows.filter(r => !r.sku || !existingBySku.has(r.sku))
+
+    for (let i = 0; i < toUpdate.length; i += 20) {
+      const results = await Promise.all(toUpdate.slice(i, i + 20).map(async r => {
+        const { data, error } = await supabase
+          .from('pharmacy_products')
+          .update(rowToPayload(r))
+          .eq('id', existingBySku.get(r.sku))
+          .select('id')
+        if (error) return `Fila ${r._row} (${r.sku}): ${error.message}`
+        if (!data?.length) return `Fila ${r._row} (${r.sku}): no se pudo actualizar (sin permiso)`
+        return null
+      }))
+      for (const err of results) err ? summary.errors.push(err) : summary.updated++
     }
 
-    await Promise.all(writes)
+    if (toInsert.length) {
+      const payload = toInsert.map(r => ({ ...rowToPayload(r), category: r.category ?? 'clinica' }))
+      const { data, error } = await supabase.from('pharmacy_products').insert(payload).select('id')
+      if (error) summary.errors.push(`Productos nuevos: ${error.message}`)
+      else summary.inserted = data?.length ?? payload.length
+    }
+
+    if (summary.errors.length && !summary.updated && !summary.inserted) {
+      throw new Error(summary.errors.slice(0, 3).join(' · '))
+    }
     return summary
   },
 
