@@ -170,11 +170,16 @@ export default function PharmacyCatalog({ profile }) {
     setImporting(true)
     try {
       const summary = await pharmacyAdminService.bulkUpsertFromImport(preview.validRows)
-      toast.success(`Importación completa: ${summary.inserted} nuevos, ${summary.updated} actualizados`)
+      const base = `${summary.inserted} nuevos, ${summary.updated} actualizados`
+      if (summary.errors?.length) {
+        toast.error(`Importación parcial: ${base}. ${summary.errors.length} con error — ${summary.errors[0]}`)
+      } else {
+        toast.success(`Importación completa: ${base}`)
+      }
       setPreview(null)
       load()
-    } catch {
-      toast.error('Error al importar el catálogo')
+    } catch (err) {
+      toast.error(`Error al importar el catálogo: ${err?.message ?? err}`)
     } finally {
       setImporting(false)
     }
