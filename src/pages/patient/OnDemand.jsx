@@ -5,6 +5,7 @@ import {
   ArrowClockwise, UserCircle, User, CaretDown, ClipboardText,
 } from '@phosphor-icons/react'
 import { toast } from '../../components/Toast'
+import { guardarEnConsulta } from '../../lib/flowUrl'
 import { professionalService } from '../../services/professionalService'
 import { mpService } from '../../services/mpService'
 import { consultationsService } from '../../services/consultationsService'
@@ -99,6 +100,7 @@ export default function OnDemand({ profile }) {
   //                         ↘ 'no_match'  ↘ 'sin_respuesta' | 'pago_rechazado'
   const [phase, setPhase] = useState('cargando')
   const [pedido, setPedido] = useState(null)
+  const consultaConFlow = useRef(null)
   const [pro, setPro] = useState(null)
 
   const [publicKey, setPublicKey] = useState(null)
@@ -150,6 +152,12 @@ export default function OnDemand({ profile }) {
     if (p.status === 'expired') { setPhase('sin_respuesta'); return }
     if (p.status === 'cancelled') { navigate('/paciente/dashboard'); return }
     if (p.status === 'accepted') {
+      // Recorrido de navegación hasta esta reserva (migración 232). Una vez por
+      // consulta: la RPC no pisa, pero la marca de "última reserva" sí se corre.
+      if (p.consultationId && consultaConFlow.current !== p.consultationId) {
+        consultaConFlow.current = p.consultationId
+        guardarEnConsulta(p.consultationId)
+      }
       if (p.acceptedBy) {
         const quien = await professionalService.getByUserId(p.acceptedBy).catch(() => null)
         if (quien) setPro(quien)
