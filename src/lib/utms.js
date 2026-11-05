@@ -1,3 +1,5 @@
+import { urlLimpia } from './flowUrl.js'
+
 const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_id', 'utm_content']
 const STORAGE_KEY = 'healthier_utms'
 const TS_KEY = 'healthier_utms_ts'
@@ -15,7 +17,9 @@ export function captureUtms() {
   UTM_KEYS.forEach(k => { if (params.get(k)) found[k] = params.get(k) })
   if (Object.keys(found).length > 0) {
     clearUtms()
-    found.referrer_url = window.location.href
+    // Sin la query entera: un link de remarketing trae `email=`, y eso quedaba
+    // guardado en `profiles.referrer_url`. Sólo origin + ruta + utm_* permitidos.
+    found.referrer_url = urlLimpia({ origin: window.location.origin, pathname: window.location.pathname, search: window.location.search })
     localStorage.setItem(STORAGE_KEY, JSON.stringify(found))
     localStorage.setItem(TS_KEY, String(Date.now()))
   }
