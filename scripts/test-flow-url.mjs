@@ -116,6 +116,23 @@ test('staging: la columna se completa una sola vez y sólo la propia', { skip: !
     const { error: eDirecto } = await cli.from('profiles').update({ flow_url: grande }).eq('id', id)
     assert.ok(eDirecto, 'la columna rechaza un array de más de 60 entradas aunque se escriba directo')
 
+    // Consulta propia: se escribe una vez; la de otro paciente, nunca.
+    const { data: propia, error: eIns } = await admin.from('consultations').insert({
+      patient_id: id, professional_id: '5eed0001-0000-4000-8000-000000000001',
+      status: 'confirmed', modality: 'video', scheduled_at: new Date(Date.now() + 86400000).toISOString(),
+    }).select('id').single()
+    assert.ifError(eIns)
+    try {
+      const r1 = await cli.rpc('registrar_flow_url_consulta', { p_consultation_id: propia.id, p_flow: flujo })
+      assert.equal(r1.data, true)
+      const r2 = await cli.rpc('registrar_flow_url_consulta', { p_consultation_id: propia.id, p_flow: grande.slice(0, 3) })
+      assert.equal(r2.data, false, 'no pisa el recorrido de una consulta')
+      const { data: cf } = await admin.from('consultations').select('flow_url').eq('id', propia.id).single()
+      assert.deepEqual(cf.flow_url, flujo)
+    } finally {
+      await admin.from('consultations').delete().eq('id', propia.id)
+    }
+
     // Consulta ajena: no se escribe.
     const { data: ajena } = await admin.from('consultations').select('id').neq('patient_id', id).limit(1).maybeSingle()
     if (ajena) {
