@@ -1,5 +1,6 @@
 import { supabase, toCamelCase, toSnakeCase, asegurarSesion } from '../lib/supabase'
 import { sinPrueba } from '../lib/cuentasDePrueba'
+import { guardarEnConsulta } from '../lib/flowUrl'
 import { familyService } from './familyService'
 import { DERIVACION_EMBED } from './derivacionesService'
 
@@ -281,6 +282,11 @@ export const consultationsService = {
       .select()
       .single()
     if (error) throw error
+
+    // Recorrido de navegación hasta esta reserva (migración 232). Sólo cuando
+    // reserva el paciente: el del profesional que agenda no es el del paciente.
+    // Sin await: no puede frenar ni romper la reserva.
+    if (bookedBy === 'patient') guardarEnConsulta(row.id)
 
     // Customer.io: va SIEMPRE, también en on-demand. A diferencia del mail y
     // del push de abajo — que en on-demand se callan porque el copy es de turno

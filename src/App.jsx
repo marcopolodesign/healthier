@@ -7,6 +7,7 @@ import AuthLayout from './layouts/AuthLayout'
 import PatientMobileLayout from './layouts/PatientMobileLayout'
 import { authService } from './services/authService'
 import { supabase } from './lib/supabase'
+import { registrarPantalla } from './lib/flowUrl'
 import { Sentry } from './lib/sentry'
 import { professionalService } from './services/professionalService'
 import { track, setAnalyticsUser, clearAnalyticsUser } from './utils/analytics'
@@ -244,6 +245,18 @@ function CioPageTracker() {
   return null
 }
 
+// ── Recorrido de navegación (`flow_url`): una entrada por pantalla ─────
+// Se guarda en el navegador y se vuelca a la base al registrarse y al reservar
+// (src/lib/flowUrl.js). En una SPA hay que anotar cada cambio de ruta, no sólo
+// la carga de la página.
+function FlowUrlTracker() {
+  const location = useLocation()
+  useEffect(() => {
+    registrarPantalla({ origin: window.location.origin, pathname: location.pathname, search: location.search })
+  }, [location.pathname, location.search])
+  return null
+}
+
 // ── Protected layout wrapper ─────────────────────────────
 function ProtectedLayout({ profile, allowed }) {
   return (
@@ -419,6 +432,7 @@ export default function App() {
       {/* Quien ya tenía cuenta sin el apellido por separado lo confirma acá, una vez (migración 183). */}
       <ConfirmarApellido profile={profile} onProfileUpdate={setProfile} />
       <CioPageTracker />
+      <FlowUrlTracker />
       <MfaGuard profile={profile}>
       <Routes>
         {/* Public */}
