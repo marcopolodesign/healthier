@@ -67,6 +67,19 @@ test('recarga o misma URL no duplica; la query prohibida no crea pantallas nueva
   reiniciarRecorrido()
 })
 
+test('referrer_url (captureUtms) no guarda mails ni query que no sea utm_*', async () => {
+  const guardado = {}
+  globalThis.localStorage = { getItem: k => guardado[k] ?? null, setItem: (k, v) => { guardado[k] = v }, removeItem: k => { delete guardado[k] } }
+  globalThis.window = { location: { origin: ORIGEN, pathname: '/', search: '?utm_source=meta&email=a@b.com&token_hash=zzz&firstName=Ana', href: `${ORIGEN}/?utm_source=meta&email=a@b.com` } }
+  const { captureUtms, getStoredUtms } = await import('../src/lib/utms.js')
+  captureUtms()
+  const u = getStoredUtms()
+  assert.equal(u.utm_source, 'meta')
+  assert.equal(u.referrer_url, `${ORIGEN}/?utm_source=meta`)
+  assert.ok(!JSON.stringify(u).includes('@'))
+  delete globalThis.window; delete globalThis.localStorage
+})
+
 // ── Parte B: staging ────────────────────────────────────────────────────────
 function leerEnv() {
   const e = { ...process.env }
