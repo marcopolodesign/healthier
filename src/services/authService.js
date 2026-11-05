@@ -4,6 +4,7 @@ import { asentarConReintento } from '../lib/reintento'
 import { armarNombreCompleto } from '../lib/nombreApellido'
 import { bajaService } from './bajaService'
 import { callEdgeFunction } from '../lib/edgeFunction'
+import { guardarEnPerfil, reiniciarRecorrido } from '../lib/flowUrl'
 
 // Shared insert payload for a new `profiles` row — used both by email/password
 // registration and by first-time Google sign-in completion.
@@ -101,6 +102,10 @@ export const authService = {
       .upsert(buildProfileRow(authData.user, email, role, nombres, utms, phone, referredByProfessionalId), { onConflict: 'id' })
     if (profileError) throw new Error(profileError.message)
 
+    // Recorrido de navegación hasta el alta (migración 232). Sólo pacientes,
+    // una vez, y sin frenar el alta si falla.
+    if (role === 'patient') await guardarEnPerfil()
+
     return { user: authData.user, session: authData.session }
   },
 
@@ -145,12 +150,15 @@ export const authService = {
       .single()
     if (error) throw new Error(error.message)
 
+    if (role === 'patient') await guardarEnPerfil()
+
     const profile = toCamelCase(data)
     localStorage.setItem('userProfile', JSON.stringify(profile))
     return profile
   },
 
   async logout() {
+    reiniciarRecorrido()
     olvidarSesion()
     await supabase.auth.signOut()
     localStorage.removeItem('userProfile')
@@ -165,6 +173,7 @@ export const authService = {
   async eliminarMiCuenta() {
     await callEdgeFunction('delete-account', {})
     await supabase.auth.signOut({ scope: 'local' })
+    reiniciarRecorrido()
     olvidarSesion()
     localStorage.removeItem('userProfile')
   },

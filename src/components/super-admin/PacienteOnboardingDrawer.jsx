@@ -2,6 +2,7 @@ import { X, Check, Circle } from '@phosphor-icons/react'
 import { toCamelCase } from '../../lib/supabase'
 import { completitudPaciente, PASOS_PACIENTE } from '../../lib/pacienteOnboarding'
 import WhatsAppButton from './WhatsAppButton'
+import RecorridoNavegacion from './RecorridoNavegacion'
 
 /**
  * Detalle del onboarding de un paciente para el super admin (2026-10-18):
@@ -119,6 +120,9 @@ export default function PacienteOnboardingDrawer({ paciente, onClose }) {
               )
             })}
           </ol>
+
+          {/* Por dónde pasó hasta registrarse (migración 232) */}
+          <RecorridoNavegacion tabla="profiles" id={p.id} titulo="Recorrido hasta el alta" />
         </div>
       </div>
     </div>
