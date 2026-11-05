@@ -11,6 +11,7 @@ import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
 import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
+import RecorridoNavegacion from '../../components/super-admin/RecorridoNavegacion'
 import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
 
 // Vocabulario exacto de `consultations.status` — constraint vigente desde la
@@ -437,6 +438,9 @@ export default function SuperAdminConsultas() {
                 )}
               </section>
             )}
+
+            {/* Recorrido de navegación hasta la reserva (migración 232) */}
+            <RecorridoNavegacion tabla="consultations" id={selected.id} titulo="Recorrido hasta la reserva" />
 
             {/* Edición */}
             <section className="border-t border-border-default pt-4">

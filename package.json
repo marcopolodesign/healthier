@@ -26,6 +26,7 @@
     "test:contrasena": "node --test scripts/test-contrasena-superadmin.mjs",
     "test:registro-admin": "node scripts/verificar-registro-admin.mjs",
     "test:resumen-auditoria": "node --test scripts/test-admin-audit-resumen.mjs",
+    "test:flow-url": "node --test scripts/test-flow-url.mjs",
     "test:referidos": "node --test scripts/test-referidos-dominio.mjs",
     "test:certificados": "deno test --allow-read=supabase/functions/rcta-certificado supabase/functions/rcta-certificado/ && node --import tsx --test scripts/test-certificado-atencion.mjs",
     "test:dni-completado": "node --test scripts/test-dni-completado.mjs && deno test supabase/functions/dni-completado/",
