@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useOutletContext } from 'react-router-dom'
 import { Lightning, Plus, X, Calendar, Clock, VideoCamera, MapPin } from '@phosphor-icons/react';
 import { professionalService } from '../../services/professionalService'
 import { availabilityService } from '../../services/availabilityService'
@@ -27,6 +27,8 @@ function fmtTime(t) {
 }
 
 export default function Agenda({ profile }) {
+  // El layout corre el latido: hay que avisarle cuando el switch cambia acá.
+  const { setOnDemandEnabled: setPresenciaEnLayout } = useOutletContext() ?? {}
   const [form, setForm] = useState({ isOnDemand: false })
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -70,7 +72,7 @@ export default function Agenda({ profile }) {
   const save = async () => {
     setSaving(true)
     try {
-      await professionalService.upsert(profile.id, form)
+      await professionalService.upsert(profile.id, form, { presencia: true })
       // 🔴 `is_on_demand` es la INTENCIÓN; lo que el pool del paciente mira es
       // `on_demand_last_seen_at`. Guardar el form sin escribir la vigencia
       // dejaba al profesional con "disponible" prendido e invisible para todos
@@ -79,6 +81,7 @@ export default function Agenda({ profile }) {
       // Acá el `upsert` es del form entero, así que no se puede usar
       // `setOnDemand` (re-escribiría el flag). Va la otra mitad sola.
       await professionalService.sincronizarPresencia(form.isOnDemand)
+      setPresenciaEnLayout?.(Boolean(form.isOnDemand))
       toast.success('Agenda actualizada')
     } catch {
       toast.error('Error al guardar')

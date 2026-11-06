@@ -28,8 +28,10 @@ export default function AppLayout({ profile, profSpecialty }) {
   useEffect(() => {
     if (profile?.role !== 'professional' || !profile?.id) { setOnDemandEnabled(null); return }
     let cancelled = false
-    professionalService.getByUserId(profile.id)
-      .then(p => { if (!cancelled) setOnDemandEnabled(Boolean(p?.isOnDemand)) })
+    // `tirarError`: sin él, un corte de red devolvía `null` igual que "no tiene
+    // ficha" y se leía como "switch apagado". Ver `useOnDemandPresence`.
+    professionalService.getByUserId(profile.id, { tirarError: true })
+      .then(p => { if (!cancelled) setOnDemandEnabled(p ? Boolean(p.isOnDemand) : null) })
       // No se sabe: mejor no tocar la presencia que apagarla por un error de red.
       .catch(() => { if (!cancelled) setOnDemandEnabled(null) })
     return () => { cancelled = true }
