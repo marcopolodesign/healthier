@@ -2,6 +2,7 @@ import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 import { aBlobSubible, extensionDe, TIPOS_DOCUMENTO } from '../lib/archivoSubible'
 import { subirConProgreso } from '../lib/subidaConProgreso'
 import { PRECIO_MINIMO } from '../lib/tarifas'
+import { armarFichaParaGuardar } from '../lib/fichaProfesional'
 
 /*
  * Profesionales de prueba: ya NO se filtran acá. Desde la migración 186 lo
@@ -91,11 +92,18 @@ export const professionalService = {
     return data ? toCamelCase(data) : null
   },
 
-  async upsert(userId, profileData) {
-    // `profiles` is a read-only join added by getByUserId()'s `select('*, profiles!user_id(*)')` —
-    // callers often spread the whole record back in (e.g. Configuracion.jsx's saveTarifas/saveCuenta),
-    // and sending it here 400s the whole upsert since it isn't a real column.
-    const { profiles, ...rest } = profileData
+  /**
+   * `presencia: true` deja pasar `isOnDemand` — sólo para quien declara a
+   * propósito el switch de consulta inmediata (`setOnDemand`, Agenda). Sin eso,
+   * y siempre para `on_demand_since` / `on_demand_last_seen_at`, el guardado de
+   * la ficha NO manda la presencia: varias pantallas devuelven la ficha entera
+   * leída al abrirse y pisarían el switch y el latido con valores rancios.
+   * Ver `lib/fichaProfesional.js`.
+   */
+  async upsert(userId, profileData, { presencia = false } = {}) {
+    // Además de la presencia, saca `profiles` (join de sólo lectura de
+    // getByUserId: mandarlo da 400) y lo que escribe el servidor.
+    const rest = armarFichaParaGuardar(profileData, { presencia })
     const payload = { ...toSnakeCase(rest), user_id: userId }
     const { data, error } = await supabase
       .from('professional_profiles')
@@ -286,7 +294,7 @@ export const professionalService = {
    * aparece una puerta nueva, que llame a esto y no a `upsert` + `pingOnline`.
    */
   async setOnDemand(userId, activo) {
-    await this.upsert(userId, { isOnDemand: activo })
+    await this.upsert(userId, { isOnDemand: activo }, { presencia: true })
     await this.sincronizarPresencia(activo)
   },
 

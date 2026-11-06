@@ -50,7 +50,12 @@ export default function OnDemandSwitch({ profileId, value, onChange }) {
 
   const cargarEstado = () => {
     if (!profileIdRef.current) return
-    professionalService.getByUserId(profileIdRef.current)
+    // 🔴 `tirarError`: esta lectura corre cada minuto. Con el error tragado
+    // (`null`), un corte de red de un segundo se reportaba hacia arriba como
+    // `onChange(false)` y el layout apagaba el latido de alguien con el switch
+    // prendido: "Estás disponible" en el panel e invisible para el paciente.
+    // Si no se pudo leer, no se sabe: no se reporta nada y se reintenta.
+    professionalService.getByUserId(profileIdRef.current, { tirarError: true })
       .then(p => {
         // El valor inicial se reporta hacia arriba, no se guarda acá: el padre
         // es el dueño. También al cargar y no sólo al togglear, porque el
@@ -59,7 +64,7 @@ export default function OnDemandSwitch({ profileId, value, onChange }) {
         setLastSeenAt(p?.onDemandLastSeenAt ? new Date(p.onDemandLastSeenAt) : null)
         setCargado(true)
       })
-      .catch(() => { onChange?.(false); setCargado(true) })
+      .catch(() => { /* sin dato no hay cambio de estado; el próximo minuto reintenta */ })
   }
 
   useEffect(() => {
