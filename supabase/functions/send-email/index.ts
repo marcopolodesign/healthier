@@ -200,10 +200,11 @@ async function esperarInvitador(sb: SupabaseClient, userId: string): Promise<str
     const { data } = await sb.auth.admin.getUserById(userId)
     if (!data?.user?.user_metadata?.referral_code) return null
   } catch { return null }
-  for (let i = 0; i < 8; i++) {
+  // pg_net le corta a la función a los 5 s: la espera total tiene que quedar por debajo (~3 s).
+  for (let i = 0; i < 4; i++) {
     const nombre = await invitadoPorAtribucion(sb, userId)
     if (nombre) return nombre
-    await new Promise((r) => setTimeout(r, 1000))
+    if (i < 3) await new Promise((r) => setTimeout(r, 900))
   }
   return null
 }

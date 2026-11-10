@@ -109,7 +109,7 @@ export const authService = {
     if (profileError) throw new Error(profileError.message)
 
     // Código de referido (link /r/ o escrito a mano): se canjea ya con la fila lista.
-    const canje = referido?.codigo ? await referralService.canjear(referido.codigo, referido.via) : null
+    const canje = referido?.codigo ? await referralService.canjearSeguro(referido.codigo, referido.via) : null
 
     // Recorrido de navegación hasta el alta (migración 232). Sólo pacientes,
     // una vez, y sin frenar el alta si falla.
@@ -161,7 +161,7 @@ export const authService = {
       .single()
     if (error) throw new Error(error.message)
 
-    if (referido?.codigo) await referralService.canjear(referido.codigo, referido.via)
+    if (referido?.codigo) await referralService.canjearSeguro(referido.codigo, referido.via)
 
     if (role === 'patient') await guardarEnPerfil()
 

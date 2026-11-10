@@ -50,3 +50,29 @@ export function referralUtms(referral) {
     utm_campaign: referral.codigo,
   }
 }
+
+// ── Canje que no llegó a hacerse ────────────────────────────────────────────
+// Si `canjear_codigo` falla por red o por un 5xx (`motivo: 'error'`) el código
+// NO se tira: queda acá y se reintenta en el próximo arranque con sesión de
+// paciente. El servidor decide cuándo ya no vale (ya consultó, ya tiene
+// referente…): recién ahí se borra.
+const PENDIENTE_KEY = 'healthier_canje_pendiente'
+
+export function guardarCanjePendiente({ codigo, via = 'codigo' }) {
+  if (!codigo) return
+  try { localStorage.setItem(PENDIENTE_KEY, JSON.stringify({ codigo, via })) } catch { /* sin storage */ }
+}
+
+export function leerCanjePendiente() {
+  try { return JSON.parse(localStorage.getItem(PENDIENTE_KEY) ?? 'null') } catch { return null }
+}
+
+export function borrarCanjePendiente() {
+  try { localStorage.removeItem(PENDIENTE_KEY) } catch { /* sin storage */ }
+}
+
+/** Llama a `canjear()` y, si da error de red/servidor, reintenta UNA vez. */
+export async function canjearConReintento(canjear) {
+  const r = await canjear()
+  return r?.motivo === 'error' ? await canjear() : r
+}

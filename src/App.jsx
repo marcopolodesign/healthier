@@ -53,6 +53,7 @@ import PatientConsultations from './pages/patient/Consultations'
 import PatientDocuments from './pages/patient/Documents'
 import PatientProfile from './pages/patient/Profile'
 import PatientInvitar from './pages/patient/Invitar'
+import { referralService } from './services/referralService'
 import PatientAgregarTarjeta from './pages/patient/AgregarTarjeta'
 import OnDemand from './pages/patient/OnDemand'
 import Emergency from './pages/patient/Emergency'
@@ -404,6 +405,13 @@ export default function App() {
     if (profile) cioIdentify(profile)
     else cioReset()
   }, [profile?.id, profile?.role, profile?.email, profile?.phone, profile?.fullName])
+
+  // Un canje de código de referido que falló por red/servidor al registrarse
+  // queda guardado: se reintenta al arrancar con sesión de paciente. El servidor
+  // rechaza solo lo que ya no corresponde (ya consultó, ya tiene referente).
+  useEffect(() => {
+    if (profile?.role === 'patient') referralService.reintentarCanjePendiente().catch(() => {})
+  }, [profile?.id, profile?.role])
 
   // Auto-capture de clicks sitewide. Se instala una sola vez.
   useEffect(() => installClickAutocapture(), [])

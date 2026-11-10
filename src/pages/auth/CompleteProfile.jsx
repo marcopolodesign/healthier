@@ -25,6 +25,10 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
   const [phone, setPhone] = useState('')
   const [dni, setDni] = useState('')
   const [loading, setLoading] = useState(false)
+  // Quien entra con Google y no vino por un link puede escribir un código a mano.
+  const [referralGuardado] = useState(() => getStoredReferral())
+  const [codigoAbierto, setCodigoAbierto] = useState(false)
+  const [codigo, setCodigo] = useState('')
 
   const roles = [
     { id: 'patient', label: 'Paciente', desc: 'Quiero consultar con profesionales', icon: Heart },
@@ -46,14 +50,16 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
     try {
       // El referido sólo aplica a pacientes: el link `/r/<codigo>` es para que un
       // profesional traiga a los suyos, no para atribuirse otro profesional.
-      const referral = role === 'patient' ? getStoredReferral() : null
-      const utms = { ...referralUtms(referral), ...getStoredUtms() }
+      const referral = role === 'patient' ? referralGuardado : null
+      const escrito = role === 'patient' ? codigo.trim().toLowerCase() : ''
+      const referido = escrito ? { codigo: escrito, via: 'codigo' } : referral ? { codigo: referral.codigo, via: 'link' } : null
+      const utms = { ...(escrito ? {} : referralUtms(referral)), ...getStoredUtms() }
       // authService.completeGoogleProfile guarda contra authUser nulo (sesión
       // perdida mientras completaba el perfil: token vencido, logout en otra
       // pestaña, etc.) y tira un error con mensaje claro — antes esto
       // explotaba con "Cannot read properties of null (reading 'id')" acá
       // mismo. El catch de abajo ya lo muestra vía toast.
-      const profile = await authService.completeGoogleProfile(authUser, role, nombres, utms, phone.trim() || null, referral ? { codigo: referral.codigo, via: 'link' } : null, role === 'professional' ? dni : null)
+      const profile = await authService.completeGoogleProfile(authUser, role, nombres, utms, phone.trim() || null, referido, role === 'professional' ? dni : null)
       clearUtms()
       clearReferral()
       onProfileComplete(profile)
@@ -108,6 +114,27 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
           <label className="form-label">Teléfono (WhatsApp)</label>
           <PhoneInput required value={phone} onChange={setPhone} />
         </div>
+
+        {role === 'patient' && !referralGuardado && (
+          codigoAbierto ? (
+            <div>
+              <label className="form-label" htmlFor="codigo-referido-google">Código</label>
+              <input
+                id="codigo-referido-google"
+                autoFocus
+                autoComplete="off"
+                value={codigo}
+                onChange={e => setCodigo(e.target.value.toUpperCase())}
+                placeholder="Código"
+                className="form-input uppercase tracking-widest"
+              />
+            </div>
+          ) : (
+            <button type="button" onClick={() => setCodigoAbierto(true)} className="text-sm text-brand hover:underline">
+              ¿Tenés un código?
+            </button>
+          )
+        )}
 
         <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 mt-2 disabled:opacity-40 disabled:cursor-not-allowed">
           {loading ? 'Guardando...' : 'Continuar'}

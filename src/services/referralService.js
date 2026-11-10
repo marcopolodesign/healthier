@@ -1,4 +1,5 @@
 import { supabase, toCamelCase } from '../lib/supabase'
+import { canjearConReintento, guardarCanjePendiente, leerCanjePendiente, borrarCanjePendiente } from '../lib/referral'
 
 export const SITIO_PUBLICO = 'https://www.healthier.com.ar'
 
@@ -49,6 +50,25 @@ export const referralService = {
     } catch {
       return { ok: false, motivo: 'error' }
     }
+  },
+
+  /**
+   * `canjear` con un reintento y, si sigue fallando por red/servidor, el código
+   * queda guardado para reintentarlo después (`reintentarCanjePendiente`).
+   */
+  async canjearSeguro(codigo, via = 'codigo') {
+    const r = await canjearConReintento(() => this.canjear(codigo, via))
+    if (r?.motivo === 'error') guardarCanjePendiente({ codigo, via })
+    return r
+  },
+
+  /** Al arrancar con sesión de paciente: reintenta un canje que no se pudo hacer. */
+  async reintentarCanjePendiente() {
+    const p = leerCanjePendiente()
+    if (!p?.codigo) return null
+    const r = await this.canjear(p.codigo, p.via)
+    if (r?.motivo !== 'error') borrarCanjePendiente()
+    return r
   },
 
   /** Mi código y cuántos se sumaron (paciente o profesional). */
