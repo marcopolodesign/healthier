@@ -1,4 +1,5 @@
 import { supabase, toCamelCase } from '../lib/supabase'
+import { canjearConReintento, guardarCanjePendiente, leerCanjePendiente, borrarCanjePendiente } from '../lib/referral'
 
 export const SITIO_PUBLICO = 'https://www.healthier.com.ar'
 
@@ -25,6 +26,63 @@ export const referralService = {
     })
     if (error) throw new Error(error.message)
     return data?.length ? toCamelCase(data[0]) : null
+  },
+
+  /** `/r/<codigo>` de un PACIENTE: sólo el nombre de pila. `null` si no existe. */
+  async resolvePaciente(codigo) {
+    const { data, error } = await supabase.rpc('resolver_codigo_de_paciente', { p_codigo: codigo })
+    if (error) throw new Error(error.message)
+    return data?.length ? toCamelCase(data[0]) : null
+  },
+
+  /**
+   * Canjea un código (de paciente o de profesional) para la sesión actual. Única
+   * forma de quedar atribuido a alguien desde el cliente (migración 235): la
+   * columna `referred_by_professional_id` ya no se escribe directo.
+   * Devuelve `{ ok, motivo?, tipo?, referenteNombre? }`; nunca tira, porque un
+   * código malo no tiene que frenar un alta.
+   */
+  async canjear(codigo, via = 'codigo') {
+    try {
+      const { data, error } = await supabase.rpc('canjear_codigo', { p_codigo: codigo, p_via: via })
+      if (error) return { ok: false, motivo: 'error' }
+      return toCamelCase(data)
+    } catch {
+      return { ok: false, motivo: 'error' }
+    }
+  },
+
+  /**
+   * `canjear` con un reintento y, si sigue fallando por red/servidor, el código
+   * queda guardado para reintentarlo después (`reintentarCanjePendiente`).
+   */
+  async canjearSeguro(codigo, via = 'codigo') {
+    const r = await canjearConReintento(() => this.canjear(codigo, via))
+    if (r?.motivo === 'error') guardarCanjePendiente({ codigo, via })
+    return r
+  },
+
+  /** Al arrancar con sesión de paciente: reintenta un canje que no se pudo hacer. */
+  async reintentarCanjePendiente() {
+    const p = leerCanjePendiente()
+    if (!p?.codigo) return null
+    const r = await this.canjear(p.codigo, p.via)
+    if (r?.motivo !== 'error') borrarCanjePendiente()
+    return r
+  },
+
+  /** Mi código y cuántos se sumaron (paciente o profesional). */
+  async miPrograma() {
+    const { data, error } = await supabase.rpc('mi_programa_de_referidos')
+    if (error) throw new Error(error.message)
+    return toCamelCase(data?.[0]) ?? { codigo: null, seSumaron: 0, conConsulta: 0 }
+  },
+
+  /** Todas las atribuciones con tipo. Sólo admin / super_admin. */
+  async atribuciones({ incluirPrueba = false } = {}) {
+    const { data, error } = await supabase.rpc('atribuciones_de_referidos', { p_incluir_prueba: incluirPrueba })
+    if (error) throw new Error(error.message)
+    return toCamelCase(data ?? [])
   },
 
   /** Contadores del profesional que está logueado, para su propia tarjeta. */

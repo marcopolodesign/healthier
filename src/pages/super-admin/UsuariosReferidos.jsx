@@ -10,6 +10,15 @@ import { esLead, entraEnEmbudo, CAMPOS_ONBOARDING, CONSULTA_VIGENTE } from '../.
 import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
 import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
 import { sinPrueba } from '../../lib/cuentasDePrueba'
+import { referralService } from '../../services/referralService'
+
+const TIPO_LABEL = {
+  profesional_paciente: 'Profesional → paciente',
+  paciente_paciente: 'Paciente → paciente',
+  paciente_profesional: 'Paciente → profesional',
+  profesional_profesional: 'Profesional → profesional',
+}
+const ORIGEN_LABEL = { link_profesional: 'Link del profesional', link_paciente: 'Link del paciente', codigo: 'Código', admin: 'Admin' }
 
 /**
  * Pacientes referidos (Mateo, 2026-10-26): los que llegaron por el link de un
@@ -22,6 +31,12 @@ export default function SuperAdminUsuariosReferidos() {
   const [loading, setLoading] = useState(true)
   const [abierto, setAbierto] = useState(null)
   const [incluirPrueba] = useIncluirPrueba()
+  const [atribuciones, setAtribuciones] = useState([])
+
+  // Todas las atribuciones (los cuatro tipos), no sólo las del link del profesional.
+  useEffect(() => {
+    referralService.atribuciones({ incluirPrueba }).then(setAtribuciones).catch(err => toast.error(err.message))
+  }, [incluirPrueba])
 
   useEffect(() => {
     async function cargar() {
@@ -140,6 +155,42 @@ export default function SuperAdminUsuariosReferidos() {
                         : <span className="text-text-tertiary">—</span>}
                     </td>
                     <td className="table-cell text-right font-semibold">{f._consultas}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="card" data-testid="atribuciones-por-tipo">
+        <h2 className="font-semibold text-text-primary">Todas las atribuciones, por tipo</h2>
+        <p className="text-xs text-text-tertiary mb-3">Incluye los referidos por código y por link de otro paciente.</p>
+        {atribuciones.length === 0 ? (
+          <p className="text-sm text-text-secondary py-4">Todavía no hay atribuciones</p>
+        ) : (
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr>
+                  <th className="table-header">Referido</th>
+                  <th className="table-header">Lo refirió</th>
+                  <th className="table-header">Tipo</th>
+                  <th className="table-header">Origen</th>
+                  <th className="table-header">Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {atribuciones.map(a => (
+                  <tr key={a.referidoId} className="table-row">
+                    <td className="table-cell">
+                      <p className="text-text-primary truncate max-w-[220px]">{a.referidoNombre || '—'}</p>
+                      <p className="text-xs text-text-tertiary truncate max-w-[220px]">{a.referidoEmail}</p>
+                    </td>
+                    <td className="table-cell truncate max-w-[200px]">{a.referenteNombre || '—'}</td>
+                    <td className="table-cell whitespace-nowrap">{TIPO_LABEL[a.tipo] ?? a.tipo}</td>
+                    <td className="table-cell whitespace-nowrap text-text-tertiary">{ORIGEN_LABEL[a.origen] ?? a.origen}</td>
+                    <td className="table-cell whitespace-nowrap text-text-tertiary">{formatDate(a.atribuidoAt)}</td>
                   </tr>
                 ))}
               </tbody>

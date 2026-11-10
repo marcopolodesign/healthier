@@ -18,6 +18,11 @@ export default function Register({ onLogin }) {
   const [form, setForm] = useState({ nombre: '', apellido: '', email: '', password: '', phone: '' })
   const [loading, setLoading] = useState(false)
   const [aviso, setAviso] = useState(null)
+  // "¿Tenés un código?": cerrado por defecto; si vino por /r/<codigo> ya trae el suyo.
+  const [referral] = useState(() => getStoredReferral())
+  const [codigoAbierto, setCodigoAbierto] = useState(false)
+  const [codigo, setCodigo] = useState('')
+  const [cambiandoCodigo, setCambiandoCodigo] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -48,9 +53,16 @@ export default function Register({ onLogin }) {
       // Las UTMs explícitas de la URL pisan a las del referido: si el link se
       // mandó dentro de una campaña, la campaña es la fuente. La atribución al
       // profesional viaja aparte y no depende de eso.
-      const referral = getStoredReferral()
-      const utms = { ...referralUtms(referral), ...getStoredUtms() }
-      await authService.register(form.email, form.password, 'patient', { nombre: form.nombre, apellido: form.apellido }, utms, form.phone.trim() || null, referral?.professionalId ?? null, { ignorarBaja })
+      const escrito = codigo.trim().toLowerCase()
+      const usaElDelLink = referral && !(cambiandoCodigo && escrito)
+      const referido = usaElDelLink
+        ? { codigo: referral.codigo, via: 'link' }
+        : escrito ? { codigo: escrito, via: 'codigo' } : null
+      const utms = { ...(usaElDelLink ? referralUtms(referral) : {}), ...getStoredUtms() }
+      const { canje } = await authService.register(form.email, form.password, 'patient', { nombre: form.nombre, apellido: form.apellido }, utms, form.phone.trim() || null, referido, { ignorarBaja })
+      if (canje && !canje.ok && canje.motivo === 'codigo_invalido') {
+        toast.info('No encontramos ese código. Tu cuenta se creó igual.')
+      }
       clearUtms()
       clearReferral()
       track('sign_up_step_complete', { step: 1, step_name: 'cuenta', method: 'email', flow: 'paciente' })
@@ -172,6 +184,31 @@ export default function Register({ onLogin }) {
             />
           </div>
         </div>
+
+        {referral && !cambiandoCodigo ? (
+          <p className="text-sm text-text-secondary">
+            Te invitó <span className="font-medium text-text-primary">{referral.nombre ?? 'un amigo'}</span>{' '}
+            <button type="button" onClick={() => { setCambiandoCodigo(true); setCodigoAbierto(true) }} className="text-brand hover:underline">Cambiar</button>
+          </p>
+        ) : codigoAbierto ? (
+          <div>
+            <label className="form-label" htmlFor="codigo-referido">Código</label>
+            <input
+              id="codigo-referido"
+              autoFocus
+              autoCapitalize="characters"
+              autoComplete="off"
+              value={codigo}
+              onChange={e => setCodigo(e.target.value.toUpperCase())}
+              placeholder="Código"
+              className="form-input uppercase tracking-widest"
+            />
+          </div>
+        ) : (
+          <button type="button" onClick={() => setCodigoAbierto(true)} className="text-sm text-brand hover:underline">
+            ¿Tenés un código?
+          </button>
+        )}
 
         {aviso && (
           <AvisoMailExistente code={aviso} email={form.email.trim()} onCrearNueva={() => submit(null, { ignorarBaja: true })} />
