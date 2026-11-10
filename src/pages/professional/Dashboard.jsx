@@ -16,7 +16,7 @@ import TourProfesional from '../../components/professional/TourProfesional'
 import { cumplePrecioMinimo } from '../../lib/tarifas'
 import { CAMPOS_SENSIBLES, enumerarCampos } from '../../lib/reverificacion'
 import { ID_CONSULTA as ID_SIMULACION } from '../../lib/simulacion'
-import ReferralLinkCard from '../../components/professional/ReferralLinkCard'
+import InvitaCard from '../../components/common/InvitaCard'
 import AvisoComision from '../../components/professional/AvisoComision'
 import { comisionService, formatTasa } from '../../services/comisionService'
 import PatientWaitingBadge from '../../components/professional/PatientWaitingBadge'
@@ -762,7 +762,7 @@ export default function ProfessionalDashboard({ profile }) {
           descarte. */}
 
       <div data-tour="pro-referido">
-        {!loading && <ReferralLinkCard codigo={profProfile?.referralCode} nombre={profile?.fullName} />}
+        {!loading && <InvitaCard rol="professional" nombre={profile?.fullName} />}
       </div>
 
       {/* Stat cards */}

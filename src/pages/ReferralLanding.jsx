@@ -26,6 +26,7 @@ export default function ReferralLanding({ profile }) {
   const { codigo } = useParams()
   const navigate = useNavigate()
   const [pro, setPro] = useState(null)
+  const [paciente, setPaciente] = useState(null) // { firstName } si el código es de un paciente
   const [estado, setEstado] = useState('cargando') // cargando | ok | invalido
 
   useEffect(() => {
@@ -36,15 +37,25 @@ export default function ReferralLanding({ profile }) {
     const yaContada = sessionStorage.getItem(`healthier_ref_visit_${codigo}`) === '1'
 
     referralService.resolve(codigo, { registrarVisita: !yaContada })
-      .then(data => {
+      .then(async data => {
         if (cancelado) return
         if (!data) {
+          // No es de un profesional: puede ser el código de un paciente.
+          const pac = await referralService.resolvePaciente(codigo).catch(() => null)
+          if (cancelado) return
+          if (pac) {
+            storeReferral({ codigo, tipo: 'paciente', nombre: pac.firstName })
+            setPaciente(pac)
+            setEstado('ok')
+            track('referral_link_open', { codigo, tipo: 'paciente' })
+            return
+          }
           setEstado('invalido')
           track('referral_link_invalid', { codigo })
           return
         }
         sessionStorage.setItem(`healthier_ref_visit_${codigo}`, '1')
-        storeReferral({ codigo, professionalId: data.professionalId, professionalName: data.fullName })
+        storeReferral({ codigo, tipo: 'profesional', professionalId: data.professionalId, professionalName: data.fullName })
         setPro(data)
         setEstado('ok')
         track('referral_link_open', { codigo, professional_id: data.professionalId })
@@ -60,7 +71,11 @@ export default function ReferralLanding({ profile }) {
     if (estado === 'ok' && profile?.role === 'patient' && pro?.professionalProfileId) {
       navigate(`/paciente/profesional/${pro.professionalProfileId}`, { replace: true })
     }
-  }, [estado, profile, pro, navigate])
+    // Un paciente con sesión que abre el link de otro paciente: no hay nada que ofrecerle.
+    if (estado === 'ok' && profile?.role === 'patient' && paciente) {
+      navigate('/paciente/dashboard', { replace: true })
+    }
+  }, [estado, profile, pro, paciente, navigate])
 
   if (estado === 'cargando') {
     return (
@@ -79,6 +94,50 @@ export default function ReferralLanding({ profile }) {
           Puede que esté incompleto o que ya no esté en uso. Pedile a tu profesional que te lo mande de nuevo.
         </p>
         <Link to="/" className="btn-primary">Ir a Healthier</Link>
+      </div>
+    )
+  }
+
+  if (paciente) {
+    return (
+      <div className="min-h-screen bg-bg-primary flex flex-col">
+        <header className="px-6 py-5">
+          <CompanyLogo size="sm" />
+        </header>
+        <main className="flex-1 flex flex-col items-center justify-center px-6 pb-16">
+          <div className="w-full max-w-md">
+            <div className="card text-center">
+              <div className="w-24 h-24 rounded-full bg-brand-muted flex items-center justify-center mx-auto mb-5">
+                <HeartStraight className="h-9 w-9 text-brand" />
+              </div>
+              <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-2">
+                Te invitó a Healthier
+              </p>
+              <h1 className="text-3xl font-light tracking-tight text-text-primary mb-6">{paciente.firstName}</h1>
+              <Link
+                to="/registro"
+                onClick={() => track('referral_link_cta', { codigo, tipo: 'paciente' })}
+                className="btn-primary w-full inline-flex items-center justify-center gap-2"
+              >
+                Crear mi cuenta <ArrowRight className="h-4 w-4" />
+              </Link>
+              <p className="text-xs text-text-tertiary mt-4">
+                ¿Ya tenés cuenta?{' '}
+                <Link to="/login" className="text-brand hover:underline">Iniciá sesión</Link>
+              </p>
+            </div>
+            <ul className="mt-6 space-y-2 text-sm text-text-secondary">
+              <li className="flex items-start gap-2">
+                <SealCheck weight="fill" className="h-4 w-4 text-brand mt-0.5 shrink-0" />
+                Sacás turno con profesionales verificados, por videollamada o en consultorio.
+              </li>
+              <li className="flex items-start gap-2">
+                <SealCheck weight="fill" className="h-4 w-4 text-brand mt-0.5 shrink-0" />
+                Tus recetas y estudios te quedan guardados en la app.
+              </li>
+            </ul>
+          </div>
+        </main>
       </div>
     )
   }

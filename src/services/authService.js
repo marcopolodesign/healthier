@@ -6,6 +6,7 @@ import { bajaService } from './bajaService'
 import { normalizarDni } from '../lib/dni'
 import { callEdgeFunction } from '../lib/edgeFunction'
 import { guardarEnPerfil, reiniciarRecorrido } from '../lib/flowUrl'
+import { referralService } from './referralService'
 
 // Shared insert payload for a new `profiles` row — used both by email/password
 // registration and by first-time Google sign-in completion.
@@ -20,16 +21,14 @@ import { guardarEnPerfil, reiniciarRecorrido } from '../lib/flowUrl'
 // (never called again after the profile exists), it can never clobber an
 // avatar the user later uploads themselves in Perfil/Configuración.
 //
-// Referido (2026-08-14): `referredByProfessionalId` viene del link `/r/<codigo>`
-// que el profesional le manda a sus pacientes. Se escribe acá, en el INSERT de
-// la fila, porque la columna es write-once del lado de la base (migración 115) —
-// después de esto ya no se puede corregir desde el cliente. Sólo se incluye
-// cuando hay valor, por la misma razón que el avatar.
+// Referido: desde la migración 235 el cliente NO escribe `referred_by_professional_id`
+// (la base lo ignora). La atribución se pide después del alta con
+// `referralService.canjear(codigo)`, que valida y la fija en el servidor.
 //
 // Nombre (migración 183): `nombre` y `apellido` van por separado — la receta
 // necesita el apellido explícito. `full_name` se manda igual (la base lo
 // vuelve a armar con los dos, pero así ninguna lectura lo ve vacío).
-function buildProfileRow(user, email, role, { nombre, apellido }, utms = {}, phone = null, referredByProfessionalId = null, dni = null) {
+function buildProfileRow(user, email, role, { nombre, apellido }, utms = {}, phone = null, dni = null) {
   const avatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null
   return {
     id: user.id,
@@ -44,7 +43,6 @@ function buildProfileRow(user, email, role, { nombre, apellido }, utms = {}, pho
     // `profiles.es_extranjero` (migración 201) se sepa desde el alta y no recién
     // al enviar el legajo. El onboarding lo trae precargado.
     ...(dni && normalizarDni(dni) ? { dni: normalizarDni(dni) } : {}),
-    ...(referredByProfessionalId ? { referred_by_professional_id: referredByProfessionalId } : {}),
     utm_source:   utms.utm_source   ?? null,
     utm_medium:   utms.utm_medium   ?? null,
     utm_campaign: utms.utm_campaign ?? null,
@@ -64,7 +62,7 @@ const clienteVerificador = () => (_verificador ??= crearClienteDescartable())
 
 export const authService = {
   /** `nombres` = `{ nombre, apellido }`, los dos obligatorios (migración 183). */
-  async register(email, password, role, nombres, utms = {}, phone = null, referredByProfessionalId = null, { ignorarBaja = false, dni = null } = {}) {
+  async register(email, password, role, nombres, utms = {}, phone = null, referido = null, { ignorarBaja = false, dni = null } = {}) {
     // Mail de una cuenta dada de baja (migración 188): antes de crear otra, se
     // le ofrece recuperar la suya, con su historia clínica.
     if (!ignorarBaja && await bajaService.estaDadoDeBaja(email)) {
@@ -104,14 +102,17 @@ export const authService = {
     // el avatar, que es justamente lo que sólo conoce el cliente.
     const { error: profileError } = await supabase
       .from('profiles')
-      .upsert(buildProfileRow(authData.user, email, role, nombres, utms, phone, referredByProfessionalId, dni), { onConflict: 'id' })
+      .upsert(buildProfileRow(authData.user, email, role, nombres, utms, phone, dni), { onConflict: 'id' })
     if (profileError) throw new Error(profileError.message)
+
+    // Código de referido (link /r/ o escrito a mano): se canjea ya con la fila lista.
+    const canje = referido?.codigo ? await referralService.canjear(referido.codigo, referido.via) : null
 
     // Recorrido de navegación hasta el alta (migración 232). Sólo pacientes,
     // una vez, y sin frenar el alta si falla.
     if (role === 'patient') await guardarEnPerfil()
 
-    return { user: authData.user, session: authData.session }
+    return { user: authData.user, session: authData.session, canje }
   },
 
   async login(email, password) {
@@ -141,7 +142,7 @@ export const authService = {
     if (error) throw new Error(error.message)
   },
 
-  async completeGoogleProfile(user, role, nombres, utms = {}, phone = null, referredByProfessionalId = null, dni = null) {
+  async completeGoogleProfile(user, role, nombres, utms = {}, phone = null, referido = null, dni = null) {
     if (!user?.id) {
       // Defensa además del guard en CompleteProfile.jsx — nunca dereferenciar
       // .id de un user nulo (esto es lo que producía el crash reportado:
@@ -150,10 +151,12 @@ export const authService = {
     }
     const { data, error } = await supabase
       .from('profiles')
-      .insert(buildProfileRow(user, user.email, role, nombres, utms, phone, referredByProfessionalId, dni))
+      .insert(buildProfileRow(user, user.email, role, nombres, utms, phone, dni))
       .select()
       .single()
     if (error) throw new Error(error.message)
+
+    if (referido?.codigo) await referralService.canjear(referido.codigo, referido.via)
 
     if (role === 'patient') await guardarEnPerfil()
 
