@@ -73,6 +73,9 @@ export const authService = {
           first_name: nombres.nombre.trim(),
           last_name: nombres.apellido.trim(),
           role,
+          // El mail de bienvenida sale en el INSERT del perfil, antes del canje:
+          // con el código acá, send-email espera a la atribución para decir quién invitó.
+          ...(referido?.codigo ? { referral_code: referido.codigo } : {}),
         },
       },
     })
@@ -144,6 +147,8 @@ export const authService = {
       // "Cannot read properties of null (reading 'id')").
       throw new Error('No hay una sesión activa para completar el perfil. Iniciá sesión de nuevo.')
     }
+    // Misma razón que en `register`: la bienvenida sale con el INSERT del perfil.
+    if (referido?.codigo) await supabase.auth.updateUser({ data: { referral_code: referido.codigo } }).catch(() => {})
     const { data, error } = await supabase
       .from('profiles')
       .insert(buildProfileRow(user, user.email, role, nombres, utms, phone))

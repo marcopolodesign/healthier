@@ -177,6 +177,37 @@ async function leerPedido(sb: SupabaseClient, id: string) {
   return { pedido, email: patient?.email, status: data.status as string }
 }
 
+/** Quién trajo a esta persona según `referral_attributions` (null si nadie, o todavía no). */
+async function invitadoPorAtribucion(sb: SupabaseClient, userId: string): Promise<string | null> {
+  const { data: a } = await sb
+    .from('referral_attributions').select('referrer_id, referrer_rol')
+    .eq('referred_id', userId).maybeSingle()
+  if (!a?.referrer_id) return null
+  const { data: r } = await sb.from('profiles').select('full_name, first_name').eq('id', a.referrer_id).maybeSingle()
+  // A un profesional se lo nombra entero; a un paciente sólo por su nombre de pila.
+  return (a.referrer_rol === 'professional' ? r?.full_name : (r?.first_name || primerNombre(r?.full_name))) ?? null
+}
+
+/**
+ * La bienvenida sale en el INSERT del perfil —antes de que el cliente pueda
+ * canjear el código—, así que si el alta traía un código (viaja en la metadata
+ * del usuario) se espera un momento a que el canje deje la atribución. Sin
+ * código en el alta no se espera nada. Si el canje falla (código inválido,
+ * ya consultó), sale la bienvenida genérica.
+ */
+async function esperarInvitador(sb: SupabaseClient, userId: string): Promise<string | null> {
+  try {
+    const { data } = await sb.auth.admin.getUserById(userId)
+    if (!data?.user?.user_metadata?.referral_code) return null
+  } catch { return null }
+  for (let i = 0; i < 8; i++) {
+    const nombre = await invitadoPorAtribucion(sb, userId)
+    if (nombre) return nombre
+    await new Promise((r) => setTimeout(r, 1000))
+  }
+  return null
+}
+
 async function leerPerfil(sb: SupabaseClient, userId: string) {
   // `referred_by_professional_id` → quién lo invitó. Las invitaciones son el
   // link del profesional (`/r/<codigo>`), no un mail: el único lugar donde ese
@@ -195,6 +226,9 @@ async function leerPerfil(sb: SupabaseClient, userId: string) {
       .eq('id', data.referred_by_professional_id).maybeSingle()
     invitadoPor = pro?.full_name ?? null
   }
+  // Migración 235: el canje del código se fija DESPUÉS del alta, en otro request.
+  // La atribución (profesional o paciente) vive en `referral_attributions`.
+  invitadoPor ??= await invitadoPorAtribucion(sb, userId)
 
   return { ...data, invitadoPor } as {
     full_name: string | null
@@ -491,11 +525,13 @@ Deno.serve(async (req) => {
       // ── Cuentas ────────────────────────────────────────────────────────────
       // Los tres que sólo necesitan el perfil de una persona comparten la
       // misma forma; lo único que cambia es qué plantilla se arma.
-      case 'bienvenida':
+      case 'bienvenida': {
+        const esperado = body.userId && !body.preview ? await esperarInvitador(sb, body.userId) : null
         return await porUsuario(u => T.bienvenidaPaciente({
           name: primerNombre(u.full_name) ?? 'qué tal',
-          invitadoPor: u.invitadoPor,
+          invitadoPor: u.invitadoPor ?? esperado,
         }))
+      }
 
       // Los dos códigos del cambio de correo (migración 161). El código NO
       // viaja en el payload del trigger: se lee acá, con service role, de una

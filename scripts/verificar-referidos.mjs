@@ -234,7 +234,7 @@ try {
   const anon = await fetch(`${env.url}/rest/v1/rpc/resolver_codigo_de_paciente`, {
     method: 'POST', headers: { apikey: env.anon, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_codigo: B.code }),
   }).then((r) => r.json())
-  ok(anon?.[0]?.first_name === 'B' && Object.keys(anon[0]).sort().join() === 'first_name,referrer_id', 'el código de paciente se resuelve en público (sólo nombre de pila)', JSON.stringify(anon))
+  ok(anon?.[0]?.first_name === 'B' && Object.keys(anon[0]).join() === 'first_name', 'el código de paciente se resuelve en público (sólo nombre de pila, sin id)', JSON.stringify(anon))
   const anonPro = await fetch(`${env.url}/rest/v1/rpc/resolver_codigo_de_paciente`, {
     method: 'POST', headers: { apikey: env.anon, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_codigo: ppPro.referral_code }),
   }).then((r) => r.json())
@@ -245,6 +245,16 @@ try {
     method: 'POST', headers: { apikey: env.anon, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_codigo: B.code }),
   })
   ok(sinSesion.status >= 400, 'canjear_codigo no se puede llamar sin sesión', `HTTP ${sinSesion.status}`)
+  // Anónimo SIN token: ninguna de las tres funciones puede dar datos.
+  const anonRpc = (fn, body) => fetch(`${env.url}/rest/v1/rpc/${fn}`, {
+    method: 'POST', headers: { apikey: env.anon, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  }).then(async (r) => ({ status: r.status, data: await r.json().catch(() => null) }))
+  const aAtr = await anonRpc('atribuciones_de_referidos', { p_incluir_prueba: true })
+  ok(aAtr.status >= 400 || (Array.isArray(aAtr.data) && aAtr.data.length === 0), 'anon sin token no ve atribuciones_de_referidos', `HTTP ${aAtr.status}`)
+  const aProg = await anonRpc('mi_programa_de_referidos', {})
+  ok(aProg.status >= 400 || (Array.isArray(aProg.data) && aProg.data.length === 0) || aProg.data?.[0]?.codigo == null, 'anon sin token no ve mi_programa_de_referidos', `HTTP ${aProg.status}`)
+  const aCanje = await anonRpc('canjear_codigo', { p_codigo: B.code })
+  ok(aCanje.status >= 400, 'anon sin token no puede canjear_codigo', `HTTP ${aCanje.status}`)
   const noAdmin = await rest('rpc/atribuciones_de_referidos', { method: 'POST', token: B.tok, body: { p_incluir_prueba: true } })
   ok(!noAdmin.ok, 'un paciente no ve las atribuciones del super admin', `HTTP ${noAdmin.status}`)
   const sa = await perfil('superadmin@healthier.app').catch(() => null)
