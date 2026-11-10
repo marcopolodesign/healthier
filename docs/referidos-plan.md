@@ -381,6 +381,6 @@ Con la recomendación de cómo lo haríamos si no hay otra preferencia.
   2. `p_via` (`link` / `codigo`) lo manda el **cliente** y sólo decide el `origen` guardado:
      no es una prueba de cómo llegó el referido. Si una recompensa depende del origen, hay
      que derivarlo en el servidor.
-- **Bienvenida con "te invitó":** `send-email` espera hasta ~8 s la atribución cuando el alta
+- **Bienvenida con "te invitó":** `send-email` espera hasta ~3 s la atribución (pg_net corta a los 5 s) cuando el alta
   trae `referral_code` en la metadata del usuario (el canje corre en otro request, después del
   INSERT del perfil); sin código no espera. El nombre sale de `referral_attributions`.
