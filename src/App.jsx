@@ -52,6 +52,7 @@ import ProfessionalProfile from './pages/patient/ProfessionalProfile'
 import PatientConsultations from './pages/patient/Consultations'
 import PatientDocuments from './pages/patient/Documents'
 import PatientProfile from './pages/patient/Profile'
+import PatientInvitar from './pages/patient/Invitar'
 import PatientAgregarTarjeta from './pages/patient/AgregarTarjeta'
 import OnDemand from './pages/patient/OnDemand'
 import Emergency from './pages/patient/Emergency'
@@ -483,6 +484,7 @@ export default function App() {
           <Route path="/paciente/consultas"        element={<PatientConsultations profile={profile} />} />
           <Route path="/paciente/documentos"       element={<PatientDocuments    profile={profile} />} />
           <Route path="/paciente/perfil"           element={<PatientProfile      profile={profile} onProfileUpdate={setProfile} />} />
+          <Route path="/paciente/invitar"          element={<PatientInvitar />} />
           <Route path="/paciente/familiar/:id"     element={<FamiliarDetalle     profile={profile} />} />
           <Route path="/paciente/ondemand/:vertical" element={<OnDemand          profile={profile} />} />
           <Route path="/paciente/sos"              element={<Emergency           profile={profile} />} />

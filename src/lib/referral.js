@@ -10,10 +10,15 @@ function isExpired() {
   return ts ? (Date.now() - parseInt(ts)) > TTL_MS : false
 }
 
-/** Se llama al resolver el link, con el profesional ya confirmado por la base. */
-export function storeReferral({ codigo, professionalId, professionalName }) {
-  if (!codigo || !professionalId) return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ codigo, professionalId, professionalName }))
+/**
+ * Se llama al resolver el link, con el dueño del código ya confirmado por la base.
+ * `tipo` = 'profesional' | 'paciente'. `professionalId` queda sólo para el link del profesional.
+ */
+export function storeReferral({ codigo, tipo = 'profesional', professionalId = null, professionalName = null, nombre = null }) {
+  if (!codigo) return
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    codigo, tipo, professionalId, professionalName, nombre: nombre ?? professionalName,
+  }))
   localStorage.setItem(TS_KEY, String(Date.now()))
 }
 
@@ -38,9 +43,10 @@ export function clearReferral() {
  */
 export function referralUtms(referral) {
   if (!referral) return {}
+  const paciente = referral.tipo === 'paciente'
   return {
-    utm_source: 'referido_profesional',
-    utm_medium: 'link_del_profesional',
+    utm_source: paciente ? 'referido_paciente' : 'referido_profesional',
+    utm_medium: paciente ? 'link_del_paciente' : 'link_del_profesional',
     utm_campaign: referral.codigo,
   }
 }

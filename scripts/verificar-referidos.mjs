@@ -18,7 +18,16 @@
 //   5. cio: cio.referidos y cio.people_referidos muestran al referido (con la
 //      marca de prueba apagada un momento) y cio_reader las puede leer.
 //
-// Crea un paciente de prueba y lo borra al final.
+// Fase 2 (migración 235) — canje:
+//   6. canjear_codigo: atribuye (profesional → paciente por link, paciente →
+//      paciente por código), write-once, no a uno mismo, no código inválido,
+//      no en círculo. El 0% del profesional sigue; el de paciente → paciente
+//      NO toca la comisión.
+//   7. El cliente ya no puede escribir referred_by_professional_id (hueco de la 115).
+//   8. /r/<codigo> de paciente se resuelve (sólo nombre de pila); mi_programa_de_referidos
+//      cuenta; el super admin ve las atribuciones con tipo.
+//
+// Crea pacientes de prueba y los borra al final.
 // ─────────────────────────────────────────────────────────────────────────────
 import fs from 'node:fs'
 import os from 'node:os'
@@ -74,6 +83,7 @@ async function perfil(email) {
 
 const ALFABETO = /^[abcdefghjkmnpqrstuvwxyz23456789]{8}$/
 let nuevoId = null
+const creados = []
 
 try {
   console.log('\n1. Códigos para todos')
@@ -146,10 +156,114 @@ try {
   ok(proCio.length === 0 || Number(proCio[0].referidos_total) >= 1, 'el referente suma el referido (si no es cuenta de prueba)')
   const salud = await sql(`set local role cio_reader; select count(*)::int n from information_schema.columns where table_schema='cio' and table_name in ('referidos','people_referidos') and column_name ~ '(diagn|medic|alerg|icd|specialty)'`)
   ok(salud[0].n === 0, 'las vistas nuevas no tienen columnas de datos de salud')
+
+  // ── Fase 2 ──────────────────────────────────────────────────────────────
+  async function nuevoPaciente(tag) {
+    const mail = `referidos.${tag}.${Date.now()}@staging.healthier.app`
+    const a = await fetch(`${env.url}/auth/v1/admin/users`, {
+      method: 'POST', headers: svc,
+      body: JSON.stringify({ email: mail, email_confirm: true, password: crypto.randomUUID(), user_metadata: { role: 'patient', first_name: tag, last_name: 'Referidos', full_name: `${tag} Referidos` } }),
+    }).then((r) => r.json())
+    if (!a.id) throw new Error(`No se pudo crear ${tag}: ${JSON.stringify(a).slice(0, 200)}`)
+    creados.push(a.id)
+    const ses = await sesionDe(mail, env)
+    const [{ code }] = (await rest(`referral_codes?select=code&user_id=eq.${a.id}`)).data
+    return { id: a.id, mail, tok: ses.access_token, code }
+  }
+  const canjear = (u, codigo, via = 'codigo') =>
+    rest('rpc/canjear_codigo', { method: 'POST', token: u.tok, body: { p_codigo: codigo, p_via: via } }).then((r) => r.data)
+  const comision = (proId, pacId) =>
+    rest('rpc/comision_efectiva', { method: 'POST', body: { p_professional_id: proId, p_patient_id: pacId } }).then((r) => r.data?.[0])
+
+  console.log('\n6. Canje')
+  const B = await nuevoPaciente('B')
+  const r1 = await canjear(B, ppPro.referral_code.toUpperCase(), 'link')
+  ok(r1?.ok === true && r1.tipo === 'profesional_paciente', 'B canjea el código del profesional (link)', JSON.stringify(r1))
+  const [aB] = (await rest(`referral_attributions?select=*&referred_id=eq.${B.id}`)).data
+  ok(aB?.referrer_id === pro.id && aB.origen === 'link_profesional', 'atribución origen link_profesional', aB?.origen)
+  const [pB] = (await rest(`profiles?select=referred_by_professional_id&id=eq.${B.id}`)).data
+  ok(pB?.referred_by_professional_id === pro.id, 'el canje del profesional escribe referred_by_professional_id')
+  const cB = await comision(pro.id, B.id)
+  ok(cB?.origen === 'referido' && Number(cB?.rate) === 0, 'comisión 0% intacta para el referido por profesional', JSON.stringify(cB))
+
+  const [{ code: codOtro }] = (await rest(`referral_codes?select=code&user_id=neq.${pro.id}&limit=1`)).data
+  const r2 = await canjear(B, codOtro, 'codigo')
+  ok(r2?.ok === false && r2.motivo === 'ya_tiene_referente', 'write-once: el segundo canje no pisa al primero', r2?.motivo)
+
+  const D = await nuevoPaciente('D')
+  const r3 = await canjear(D, B.code, 'codigo')
+  ok(r3?.ok === true && r3.tipo === 'paciente_paciente', 'D canjea el código de un paciente', JSON.stringify(r3))
+  const [aD] = (await rest(`referral_attributions?select=*&referred_id=eq.${D.id}`)).data
+  ok(aD?.referrer_id === B.id && aD.origen === 'codigo', 'atribución paciente_paciente origen codigo', aD?.origen)
+  const [pD] = (await rest(`profiles?select=referred_by_professional_id&id=eq.${D.id}`)).data
+  ok(pD?.referred_by_professional_id === null, 'paciente → paciente NO escribe referred_by_professional_id')
+  const cD = await comision(pro.id, D.id)
+  ok(cD?.origen !== 'referido' && Number(cD?.rate) > 0, 'paciente → paciente no cambia la comisión', JSON.stringify(cD))
+
+  const E = await nuevoPaciente('E')
+  const rp = await canjear(E, E.code)
+  ok(rp?.motivo === 'propio', 'no se puede canjear el propio código', rp?.motivo)
+  const ri = await canjear(E, 'zzzzzzzz')
+  ok(ri?.motivo === 'codigo_invalido', 'código inexistente', ri?.motivo)
+  const F = await nuevoPaciente('F')
+  await canjear(F, E.code)
+  const rc = await canjear(E, F.code)
+  ok(rc?.motivo === 'circular', 'no se puede cerrar un círculo', rc?.motivo)
+
+  const G = await nuevoPaciente('G')
+  const cons = await rest('consultations', { method: 'POST', body: { patient_id: G.id, professional_id: pro.id, status: 'pending', scheduled_at: new Date(Date.now() + 86400000).toISOString() } })
+  if (cons.ok) {
+    const rg = await canjear(G, B.code)
+    ok(rg?.motivo === 'ya_consulto', 'no se canjea después de la primera consulta', rg?.motivo)
+    await rest(`consultations?patient_id=eq.${G.id}`, { method: 'DELETE' })
+  } else {
+    console.log(`  ⚠️  no se pudo sembrar una consulta (${cons.status}); "ya_consulto" sin probar`)
+  }
+
+  console.log('\n7. El cliente no escribe la atribución')
+  const H = await nuevoPaciente('H')
+  await rest(`profiles?id=eq.${H.id}`, { method: 'PATCH', token: H.tok, body: { referred_by_professional_id: pro.id } })
+  const [pH] = (await rest(`profiles?select=referred_by_professional_id&id=eq.${H.id}`)).data
+  const comH = await comision(pro.id, H.id)
+  ok(pH?.referred_by_professional_id === null, 'PATCH directo de referred_by_professional_id se ignora', String(pH?.referred_by_professional_id))
+  ok(comH?.origen !== 'referido', 'y la comisión del profesional no baja a 0%', JSON.stringify(comH))
+  const rh = await canjear(H, ppPro.referral_code, 'link')
+  ok(rh?.ok === true, 'por la función sí se puede (H sigue sin referente)')
+
+  console.log('\n8. /r/ de paciente, "Invitá" y super admin')
+  const anon = await fetch(`${env.url}/rest/v1/rpc/resolver_codigo_de_paciente`, {
+    method: 'POST', headers: { apikey: env.anon, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_codigo: B.code }),
+  }).then((r) => r.json())
+  ok(anon?.[0]?.first_name === 'B' && Object.keys(anon[0]).sort().join() === 'first_name,referrer_id', 'el código de paciente se resuelve en público (sólo nombre de pila)', JSON.stringify(anon))
+  const anonPro = await fetch(`${env.url}/rest/v1/rpc/resolver_codigo_de_paciente`, {
+    method: 'POST', headers: { apikey: env.anon, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_codigo: ppPro.referral_code }),
+  }).then((r) => r.json())
+  ok(Array.isArray(anonPro) && anonPro.length === 0, 'el código de un profesional no sale por el resolver de pacientes')
+  const prog = await rest('rpc/mi_programa_de_referidos', { method: 'POST', token: B.tok, body: {} })
+  ok(prog.data?.[0]?.codigo === B.code && Number(prog.data[0].se_sumaron) === 1, 'mi_programa_de_referidos: B ve su código y "1 se sumó"', JSON.stringify(prog.data))
+  const sinSesion = await fetch(`${env.url}/rest/v1/rpc/canjear_codigo`, {
+    method: 'POST', headers: { apikey: env.anon, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_codigo: B.code }),
+  })
+  ok(sinSesion.status >= 400, 'canjear_codigo no se puede llamar sin sesión', `HTTP ${sinSesion.status}`)
+  const noAdmin = await rest('rpc/atribuciones_de_referidos', { method: 'POST', token: B.tok, body: { p_incluir_prueba: true } })
+  ok(!noAdmin.ok, 'un paciente no ve las atribuciones del super admin', `HTTP ${noAdmin.status}`)
+  const sa = await perfil('superadmin@healthier.app').catch(() => null)
+  if (sa) {
+    const ses = await sesionDe('superadmin@healthier.app', env)
+    const todas = await rest('rpc/atribuciones_de_referidos', { method: 'POST', token: ses.access_token, body: { p_incluir_prueba: true } })
+    const tipos = new Set((todas.data ?? []).map((x) => x.tipo))
+    ok(todas.ok && tipos.has('paciente_paciente') && tipos.has('profesional_paciente'), 'el super admin ve atribuciones de los dos tipos', [...tipos].join(','))
+  } else {
+    console.log('  ⚠️  sin cuenta superadmin en staging; vista de super admin sin probar')
+  }
 } catch (e) {
   console.error('\n💥', e.message)
   fallas++
 } finally {
+  for (const id of creados) {
+    await fetch(`${env.url}/auth/v1/admin/users/${id}`, { method: 'DELETE', headers: svc }).catch(() => {})
+    await sql(`delete from referral_attributions where referred_id = '${id}' or referrer_id = '${id}'; delete from profiles where id = '${id}'`).catch(() => {})
+  }
   if (nuevoId) {
     const r = await fetch(`${env.url}/auth/v1/admin/users/${nuevoId}`, { method: 'DELETE', headers: svc })
     // Si el borrado del auth no cascadea al perfil, se limpia a mano.

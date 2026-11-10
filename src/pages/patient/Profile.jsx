@@ -6,6 +6,7 @@ import {
   FileText, Trash, Bell, CaretRight, UserCircle, Compass, WhatsappLogo, BookOpenText,
 } from '@phosphor-icons/react'
 import { profilesService } from '../../services/profilesService'
+import { referralService } from '../../services/referralService'
 import { authService } from '../../services/authService'
 import { mpService } from '../../services/mpService'
 import { familyService } from '../../services/familyService'
@@ -112,6 +113,12 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
   // (Nacho, 2026-09-14). Paridad con app/family-add.tsx.
   const [editingFamiliarId, setEditingFamiliarId] = useState(null)
   const [newFamiliar, setNewFamiliar] = useState({ nombre: '', apellido: '', vinculo: '', dni: '', email: '', telefono: '', obraSocial: '', numeroSocio: '', nacimiento: '', sexo: '' })
+
+  // "Invitá a alguien": cuántos se sumaron (subtítulo vivo de la fila).
+  const [seSumaron, setSeSumaron] = useState(null)
+  useEffect(() => {
+    referralService.miPrograma().then(d => setSeSumaron(d.seSumaron)).catch(() => {})
+  }, [])
 
   // Comprobantes — mismas consultas cobradas que muestra /paciente/comprobantes.
   // Acá va solo un resumen; la lista completa vive en esa página.
@@ -843,6 +850,21 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-text-primary text-[15px]">Guía de uso</p>
             <p className="text-xs text-text-secondary mt-0.5">Todo lo que podés hacer, pantalla por pantalla</p>
+          </div>
+          <CaretRight className="w-5 h-5 text-text-tertiary flex-shrink-0" />
+        </button>
+      )}
+
+      {!editing && (
+        <button
+          onClick={() => { track('invitar_open', { flow: 'paciente' }); navigate('/paciente/invitar') }}
+          className="w-full bg-bg-secondary rounded-2xl p-5 flex items-center gap-4 text-left hover:bg-brand-muted transition-colors"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-text-primary text-[15px]">Invitá a alguien</p>
+            <p className="text-xs text-text-secondary mt-0.5" data-testid="invitar-subtitulo">
+              {seSumaron == null ? 'Tu código y tu link' : seSumaron === 0 ? 'Tu código y tu link' : seSumaron === 1 ? '1 se sumó' : `${seSumaron} se sumaron`}
+            </p>
           </div>
           <CaretRight className="w-5 h-5 text-text-tertiary flex-shrink-0" />
         </button>

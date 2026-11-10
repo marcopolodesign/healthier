@@ -45,7 +45,7 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
       // pestaña, etc.) y tira un error con mensaje claro — antes esto
       // explotaba con "Cannot read properties of null (reading 'id')" acá
       // mismo. El catch de abajo ya lo muestra vía toast.
-      const profile = await authService.completeGoogleProfile(authUser, role, nombres, utms, phone.trim() || null, referral?.professionalId ?? null)
+      const profile = await authService.completeGoogleProfile(authUser, role, nombres, utms, phone.trim() || null, referral ? { codigo: referral.codigo, via: 'link' } : null)
       clearUtms()
       clearReferral()
       onProfileComplete(profile)
