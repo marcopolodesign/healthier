@@ -374,3 +374,13 @@ Con la recomendación de cómo lo haríamos si no hay otra preferencia.
   el control apaga la marca un instante para probarlas.
 - La 231 se aplicó en staging antes que la 230: el hueco en `schema_migrations` se cierra
   cuando la otra rama aplique la suya.
+- **Límites de `canjear_codigo` (fase 2) a resolver ANTES de la fase de recompensas:**
+  1. El control de círculos mira **un solo nivel** (no se puede canjear el código de quien
+     te trajo a vos), no cadenas más largas (A→B→C→A). Con plata hay que decidir si se
+     recorre la cadena entera.
+  2. `p_via` (`link` / `codigo`) lo manda el **cliente** y sólo decide el `origen` guardado:
+     no es una prueba de cómo llegó el referido. Si una recompensa depende del origen, hay
+     que derivarlo en el servidor.
+- **Bienvenida con "te invitó":** `send-email` espera hasta ~8 s la atribución cuando el alta
+  trae `referral_code` en la metadata del usuario (el canje corre en otro request, después del
+  INSERT del perfil); sin código no espera. El nombre sale de `referral_attributions`.

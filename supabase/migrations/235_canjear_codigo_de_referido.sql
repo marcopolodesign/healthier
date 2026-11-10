@@ -74,6 +74,7 @@ DECLARE
   v_ref_nom text;
   v_tipo    text;
   v_origen  text;
+  v_n       integer;
 BEGIN
   IF v_me IS NULL THEN
     RETURN jsonb_build_object('ok', false, 'motivo', 'sin_sesion');
@@ -139,6 +140,12 @@ BEGIN
     (referred_id, referrer_id, referrer_rol, referred_rol, tipo, codigo, origen)
   VALUES (v_me, v_ref, v_ref_rol, v_yo.role, v_tipo, v_codigo, v_origen)
   ON CONFLICT (referred_id) DO NOTHING;
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  IF v_n = 0 THEN
+    -- Otro canje se coló entre el chequeo y el insert: el primero gana, no se toca nada.
+    PERFORM set_config('healthier.canje', '', true);
+    RETURN jsonb_build_object('ok', false, 'motivo', 'ya_tiene_referente');
+  END IF;
 
   -- La comisión 0% (comision_efectiva, 184/185) lee esta columna: sólo se
   -- escribe para un PACIENTE traído por un PROFESIONAL, igual que antes.
@@ -159,14 +166,15 @@ REVOKE ALL ON FUNCTION public.canjear_codigo(text, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.canjear_codigo(text, text) TO authenticated;
 
 -- 4. /r/<codigo> de un paciente (público, sólo nombre de pila)
+DROP FUNCTION IF EXISTS public.resolver_codigo_de_paciente(text);
 CREATE OR REPLACE FUNCTION public.resolver_codigo_de_paciente(p_codigo text)
-RETURNS TABLE (referrer_id uuid, first_name text)
+RETURNS TABLE (first_name text)
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
-  SELECT p.id, coalesce(nullif(trim(p.first_name), ''), split_part(trim(p.full_name), ' ', 1))
+  SELECT coalesce(nullif(trim(p.first_name), ''), split_part(trim(p.full_name), ' ', 1))
   FROM public.referral_codes rc
   JOIN public.profiles p ON p.id = rc.user_id
   WHERE rc.code = lower(trim(p_codigo))
@@ -195,6 +203,7 @@ AS $$
                      WHERE c.patient_id = a.referred_id AND c.status = 'completed'));
 $$;
 
+REVOKE ALL ON FUNCTION public.mi_programa_de_referidos() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.mi_programa_de_referidos() TO authenticated;
 
 -- 6. Super admin: todas las atribuciones con tipo
@@ -220,7 +229,8 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 BEGIN
-  IF public.get_my_role() NOT IN ('admin', 'super_admin') THEN
+  -- get_my_role() es NULL sin sesión y `NULL NOT IN (...)` no dispara el RAISE: coalesce.
+  IF coalesce(public.get_my_role(), '') NOT IN ('admin', 'super_admin') THEN
     RAISE EXCEPTION 'Sólo la administración puede ver las atribuciones de referidos';
   END IF;
 
@@ -241,4 +251,5 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.atribuciones_de_referidos(boolean) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.atribuciones_de_referidos(boolean) TO authenticated;
