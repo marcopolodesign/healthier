@@ -32,8 +32,23 @@ export const ROLE_TO_USER_TYPE = {
   super_admin: 'super_admin',
 }
 
+// 🔴 Sólo producción manda a Customer.io (pedido de Hyppo, 2026-11-11). Staging,
+// los previews de Vercel y local metían cuentas de prueba en el mismo workspace,
+// con riesgo de que una campaña les llegue. El snippet de index.html no carga
+// fuera de estos hosts, y además `cio()` corta acá: aunque algo cree
+// `window.cioanalytics` por otro lado, desde otro host no sale nada.
+// `gethealthier.vercel.app` sirve producción (misma base) y sigue recibiendo
+// gente real, por eso cuenta. Misma lista que el regex de index.html:
+// `npm run test:cio` falla si se despegan.
+export const CIO_PROD_HOSTS = ['www.healthier.com.ar', 'healthier.com.ar', 'gethealthier.vercel.app']
+
+export function isCioEnabled(hostname = typeof window !== 'undefined' ? window.location?.hostname : '') {
+  return CIO_PROD_HOSTS.includes(hostname)
+}
+
 /** El snippet crea `window.cioanalytics` y encola llamadas hasta que carga. */
 function cio() {
+  if (!isCioEnabled()) return null
   const a = typeof window !== 'undefined' ? window[GLOBAL] : null
   return a && typeof a.track === 'function' ? a : null
 }
