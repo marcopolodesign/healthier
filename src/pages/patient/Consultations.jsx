@@ -58,7 +58,6 @@ function groupSlotsByDate(slots) {
     }, {})
 }
 
-// Map BuscarProfesional URL modality values to Consultations internal modality state
 // El estado interno de esta pantalla ('Videollamada' | 'Presencial') en el
 // vocabulario de `lib/modalidad.js` ('virtual' | 'presencial'). Nunca por descarte.
 const modalidadDeEstado = m => (m === 'Videollamada' ? 'virtual' : m === 'Presencial' ? 'presencial' : null)
