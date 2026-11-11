@@ -28,8 +28,8 @@ const MODALITY_OPTIONS = [
  *   ?modality=video|presencial
  *
  * After clicking "Reservar ahora" in the modal, the user is sent to
- * /paciente/consultas?vertical=<id>&pro=<userId>&modality=<value>
- * so Consultations.jsx can auto-open the booking wizard with the pro pre-selected.
+ * /paciente/reservar?vertical=<id>&proId=<userId>&modality=<virtual|presencial>
+ * (el asistente de reserva real, con la agenda semanal del profesional).
  */
 export default function BuscarProfesional({ profile }) {
   // Habilitación de cada vertical: sale de `vertical_settings`, no del código.
@@ -129,7 +129,7 @@ export default function BuscarProfesional({ profile }) {
   const handleBook = (pro) => {
     setModalOpen(false)
     navigate(
-      `/paciente/consultas?vertical=${selectedVerticalId}&pro=${pro.userId}&modality=${modality}`,
+      `/paciente/reservar?vertical=${selectedVerticalId}&proId=${pro.userId}&modality=${modality === 'video' ? 'virtual' : modality}`,
     )
   }
 

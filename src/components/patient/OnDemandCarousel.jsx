@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { lerpColor } from '../../lib/color'
 import { track } from '../../utils/analytics'
+import { SUBTITULO_EN_LINEA, SUBTITULO_SIN_NADIE, CTA_EN_LINEA, CTA_SIN_NADIE } from '../../lib/copyAtencionInmediata'
 
 /**
  * Color de fondo de cada vertical: desde la migración 199 lo fija el super
@@ -97,11 +98,23 @@ export default function OnDemandCarousel({ verticals, header }) {
 
   useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }, [])
 
+  // Con nadie en línea, el "Sin turno · Te atiende el primero disponible"
+  // contradecía a los botones de "Sacá un turno" de todas las tarjetas
+  // (Hyppo, 2026-11-11). Mismo texto que la app (`OnDemandTitle`).
+  const hayAlguien = verticals.some(v => v.disponible !== false)
+  const subtitulo = hayAlguien ? SUBTITULO_EN_LINEA : SUBTITULO_SIN_NADIE
+
   const empezar = (v) => {
     if (v.disponible === false) {
-      // Sin nadie en línea: a sacar turno de esa misma especialidad.
+      // Sin nadie en línea: a sacar turno de esa misma especialidad, por
+      // videoconsulta (es la tarjeta de atención virtual). Va al asistente de
+      // reserva real (`/paciente/reservar`), que lee la agenda semanal del
+      // profesional. Antes iba a `/paciente/consultas?vertical=`, que abría el
+      // modal viejo de turnos: ése lee `availability_slots`, una tabla que
+      // está vacía, y mostraba "Sin franjas disponibles" con la agenda cargada
+      // (Hyppo, 2026-11-11). Control: `npm run test:camino-al-turno`.
       track('ondemand_offline_book', { vertical: v.id, flow: 'paciente' })
-      navigate(`/paciente/consultas?vertical=${v.id}`)
+      navigate(`/paciente/reservar?vertical=${v.id}&modality=virtual`)
       return
     }
     track('ondemand_start', { vertical: v.id, flow: 'paciente' })
@@ -122,15 +135,15 @@ export default function OnDemandCarousel({ verticals, header }) {
           <div>
             <span className="text-[11px] font-semibold tracking-widest uppercase text-white/75">Atención inmediata</span>
             <h2 className="text-[26px] tracking-tight font-normal leading-tight mt-1.5 text-white">Tu atención virtual inmediata</h2>
-            <p className="text-[14px] text-white/90 mt-2">Sin turno · Te atiende el primero disponible, en minutos</p>
+            <p className="text-[14px] text-white/90 mt-2">{subtitulo}</p>
           </div>
           <div className="w-full max-w-[290px] mx-auto bg-white/10 border border-white/20 rounded-[28px] p-7 flex flex-col items-center text-center gap-4">
             <p className="text-white font-medium text-[16px] leading-snug">Ahora no hay profesionales en línea</p>
             <button
-              onClick={() => { track('ondemand_none_available_book', { flow: 'paciente' }); navigate('/paciente/consultas') }}
+              onClick={() => { track('ondemand_none_available_book', { flow: 'paciente' }); navigate('/paciente/reservar') }}
               className="px-5 py-2.5 rounded-full bg-white text-text-primary text-[13px] font-semibold"
             >
-              Sacá un turno
+              {CTA_SIN_NADIE}
             </button>
           </div>
         </div>
@@ -147,7 +160,7 @@ export default function OnDemandCarousel({ verticals, header }) {
           <div>
             <span className="text-[11px] font-semibold tracking-widest uppercase text-white/75">Atención inmediata</span>
             <h2 className="text-[26px] tracking-tight font-normal leading-tight mt-1.5 text-white">Tu atención virtual inmediata</h2>
-            <p className="text-[14px] text-white/90 mt-2">Sin turno · Te atiende el primero disponible, en minutos</p>
+            <p className="text-[14px] text-white/90 mt-2">{subtitulo}</p>
           </div>
         </div>
 
@@ -184,12 +197,12 @@ export default function OnDemandCarousel({ verticals, header }) {
               <span className="absolute inset-x-0 bottom-0 p-[18px] flex flex-col items-start gap-2.5">
                 <span className="text-[22px] font-medium text-white">{v.nombre}</span>
                 {v.disponible === false && <span className="-mt-1.5 text-[14px] text-white/85">Sin profesionales en línea ahora</span>}
-                {/* Relleno blanco sólo para "Empezar" (atiende ahora); la
+                {/* Relleno blanco sólo para "Consultar ahora" (atiende ahora); la
                     apagada va con contorno — Felipe, 2026-10-16. */}
                 {v.disponible === false ? (
-                  <span className="px-[18px] py-2 rounded-full border-[1.5px] border-white text-white text-[14px] font-medium">Sacá un turno</span>
+                  <span className="px-[18px] py-2 rounded-full border-[1.5px] border-white text-white text-[14px] font-medium">{CTA_SIN_NADIE}</span>
                 ) : (
-                  <span className="px-[18px] py-2 rounded-full bg-white text-text-primary text-[14px] font-medium">Empezar</span>
+                  <span className="px-[18px] py-2 rounded-full bg-white text-text-primary text-[14px] font-medium">{CTA_EN_LINEA}</span>
                 )}
               </span>
             </button>

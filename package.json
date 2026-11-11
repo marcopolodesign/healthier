@@ -34,7 +34,8 @@
     "test:modalidad": "node --import tsx --test scripts/test-modalidad-presencial.mjs",
     "test:rcta-armado": "node --import tsx --test scripts/test-rcta-armado.mjs",
     "test:rcta-armado:e2e": "node scripts/e2e-rcta-lotes.mjs",
-    "test:estudios": "deno test --allow-read=supabase/functions/rcta-estudios supabase/functions/rcta-estudios/"
+    "test:estudios": "deno test --allow-read=supabase/functions/rcta-estudios supabase/functions/rcta-estudios/",
+    "test:camino-al-turno": "node --test scripts/test-camino-al-turno.mjs"
   },
   "dependencies": {
     "@daily-co/daily-js": "^0.87.0",
