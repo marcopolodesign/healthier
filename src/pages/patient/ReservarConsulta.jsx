@@ -25,7 +25,7 @@ const SPECIES = ['Perro', 'Gato', 'Conejo', 'Ave', 'Otro']
 import {
   DEFAULT_SLOT_DURATION_MINUTES, ACTIVE_CONSULTATION_STATUSES, buildTimeSlots,
   relojBuenosAires, fechaISOBuenosAires, horaHHMMBuenosAires, horaMinimaParaHoy,
-  buildDateOptions,
+  buildDateOptions, resumenDeAgenda, horasHasta,
 } from '../../lib/agendaTurnos'
 
 function fmtTime(t) {
@@ -222,6 +222,12 @@ export default function ReservarConsulta({ profile }) {
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedFranja, setSelectedFranja] = useState(null)
   const [slotDurationMinutes, setSlotDurationMinutes] = useState(DEFAULT_SLOT_DURATION_MINUTES)
+  // De qué profesional es la agenda cargada: sin esto, en el mismo render en que
+  // cambia `selectedPro` la agenda vacía del anterior parece "sin franjas".
+  const [scheduleFor, setScheduleFor] = useState(null)
+  // Analítica del embudo (Hyppo, 2026-11-11): una vez por profesional+modalidad.
+  const slotsViewFired = useRef(null)
+  const preselectFired = useRef(false)
 
   const bookingStartFired = useRef(false)
 
@@ -296,7 +302,13 @@ export default function ReservarConsulta({ profile }) {
     const deLaVertical = porVertical[selectedVertical.id] || []
     // Derivación a una especialidad puntual: sólo se ofrecen los de esa.
     const slugs = paramEspecialidad && deLaVertical.includes(paramEspecialidad) ? [paramEspecialidad] : deLaVertical
-    if (!slugs.length) { setProfessionals([]); return }
+    if (!slugs.length) {
+      setProfessionals([])
+      // Con el catálogo de especialidades todavía sin cargar, `slugs` viene
+      // vacío un instante: eso no es "no hay profesionales".
+      if (Object.keys(porVertical).length) trackProsView([])
+      return
+    }
     setLoadingPros(true)
     professionalService.search({})
       // Se filtra por Mercado Pago conectado: sin eso el turno no se puede
@@ -304,14 +316,16 @@ export default function ReservarConsulta({ profile }) {
       // paciente a un callejón sin salida — `handleConfirm` lo frena recién al
       // final, después de que eligió profesional, día y hora. Es el mismo
       // criterio que ya aplicaba el auto-match de videoconsulta.
-      .then(data => setProfessionals(
-        data
+      .then(data => {
+        const lista = data
           .filter(p => slugs.includes(p.specialty) && p.mpConnected !== false && p.userId !== paramExcluir)
           // Presencial sólo con quien atiende presencial, con precio presencial y
           // con consultorio con número; virtual, con quien tiene precio de video.
           .filter(p => ofreceModalidad(p, modality).ok)
-          .map(p => normalizeProCard(p, modality)),
-      ))
+          .map(p => normalizeProCard(p, modality))
+        setProfessionals(lista)
+        trackProsView(lista)
+      })
       .catch(() => setProfessionals([]))
       .finally(() => setLoadingPros(false))
   }, [step, selectedVertical, porVertical])
@@ -328,10 +342,106 @@ export default function ReservarConsulta({ profile }) {
       availabilityService.getSchedule(selectedPro.id),
       consultationsService.getByProfessional(selectedPro.id).catch(() => []),
     ])
-      .then(([sched, cons]) => { setSchedule(sched); setExistingConsultations(cons) })
-      .catch(() => setSchedule([]))
+      .then(([sched, cons]) => { setSchedule(sched); setExistingConsultations(cons); setScheduleFor(selectedPro.id) })
+      .catch(() => { setSchedule([]); setScheduleFor(null) })
       .finally(() => setLoadingSchedule(false))
   }, [selectedPro?.id])
+
+  // ── Analítica del embudo de reserva (Hyppo, 2026-11-11) ──────────────────
+  // Sin especialidad ni vertical (el filtro de salud de Customer.io las tira y
+  // el de GTM también): sólo ids, precios, modalidad y conteos.
+  const trackProsView = (lista) => {
+    const precios = lista.map(p => p.price).filter(n => typeof n === 'number')
+    track('booking_pros_view', {
+      pros_count: lista.length,
+      modality,
+      price_min: precios.length ? Math.min(...precios) : null,
+      price_max: precios.length ? Math.max(...precios) : null,
+      empty: lista.length === 0,
+      flow: 'paciente',
+    })
+    if (lista.length === 0) {
+      track('booking_no_availability', {
+        empty_state: modality === 'presencial' ? 'no_pros_presencial' : 'no_pros',
+        modality,
+        flow: 'paciente',
+      })
+    }
+  }
+
+  const elegirPro = (pro) => {
+    setSelectedPro(pro)
+    track('booking_pro_select', { professional_id: pro.id, price: pro.price, modality, source: 'list', flow: 'paciente' })
+  }
+
+  // El profesional que vino elegido (`?proId=`): se cuenta cuando ya se sabe la
+  // modalidad, que es la que define el precio.
+  useEffect(() => {
+    if (!paramProId || !selectedPro || !modality || preselectFired.current) return
+    preselectFired.current = true
+    const precio = modality === 'presencial' ? selectedPro.pricePresencial : selectedPro.priceVideo
+    track('booking_pro_select', { professional_id: selectedPro.id, price: precio ?? null, modality, source: 'preselected', flow: 'paciente' })
+  }, [paramProId, selectedPro, modality])
+
+  // Lo que ve el paciente en el paso de fecha, una vez por profesional+modalidad.
+  useEffect(() => {
+    if (step !== 'datetime' || !selectedPro || !modality || loadingSchedule || scheduleFor !== selectedPro.id) return
+    const clave = `${selectedPro.id}|${modality}`
+    if (slotsViewFired.current === clave) return
+    slotsViewFired.current = clave
+    const precio = modality === 'presencial' ? selectedPro.pricePresencial : selectedPro.priceVideo
+    const r = resumenDeAgenda({ schedule, consultations: existingConsultations, slotMinutes: slotDurationMinutes })
+    track('booking_slots_view', {
+      professional_id: selectedPro.id,
+      modality,
+      price: precio ?? null,
+      days_available: r.daysAvailable,
+      slots_total: r.slotsTotal,
+      first_slot_date: r.firstSlotDate,
+      hours_until_first_slot: r.hoursUntilFirstSlot,
+      flow: 'paciente',
+    })
+    if (schedule.length === 0 || r.slotsTotal === 0) {
+      track('booking_no_availability', {
+        empty_state: schedule.length === 0 ? 'no_schedule' : 'no_dates_14d',
+        modality,
+        professional_id: selectedPro.id,
+        flow: 'paciente',
+      })
+    }
+  }, [step, selectedPro, modality, loadingSchedule, scheduleFor, schedule, existingConsultations, slotDurationMinutes])
+
+  const elegirFecha = (fecha) => {
+    setSelectedDate(fecha)
+    setSelectedFranja(null)
+    // Mismo cálculo que la grilla de abajo, para el día recién elegido.
+    const dow = new Date(fecha + 'T12:00:00Z').getUTCDay()
+    const tomados = new Set(
+      existingConsultations
+        .filter(c => ACTIVE_CONSULTATION_STATUSES.includes(c.status) && c.scheduledAt)
+        .map(c => relojBuenosAires(new Date(c.scheduledAt).getTime()))
+        .filter(d => fechaISOBuenosAires(d) === fecha)
+        .map(d => horaHHMMBuenosAires(d)),
+    )
+    const libres = buildTimeSlots(schedule.filter(e => e.dayOfWeek === dow), tomados, slotDurationMinutes, horaMinimaParaHoy(fecha))
+    if (!libres.length && selectedPro) {
+      track('booking_no_availability', { empty_state: 'no_slots_day', modality, professional_id: selectedPro.id, flow: 'paciente' })
+    }
+  }
+
+  const elegirHorario = (slot) => {
+    setSelectedFranja(slot)
+    if (!selectedPro) return
+    const precio = modality === 'presencial' ? selectedPro.pricePresencial : selectedPro.priceVideo
+    track('booking_slot_select', {
+      professional_id: selectedPro.id,
+      price: precio ?? null,
+      modality,
+      slot_date: selectedDate,
+      hours_until_slot: horasHasta(selectedDate, slot.startTime),
+      flow: 'paciente',
+    })
+  }
 
   const goBack = () => {
     const i = steps.indexOf(step)
@@ -779,7 +889,7 @@ export default function ReservarConsulta({ profile }) {
                 {professionals.map(pro => (
                   <button
                     key={pro.id}
-                    onClick={() => pro.mpConnected && setSelectedPro(pro)}
+                    onClick={() => pro.mpConnected && elegirPro(pro)}
                     disabled={!pro.mpConnected}
                     className={`w-full flex items-center gap-3 rounded-2xl border px-4 py-4 transition-all text-left ${
                       !pro.mpConnected
@@ -897,7 +1007,7 @@ export default function ReservarConsulta({ profile }) {
                     return (
                       <button
                         key={d.value}
-                        onClick={() => { setSelectedDate(d.value); setSelectedFranja(null) }}
+                        onClick={() => elegirFecha(d.value)}
                         className={`w-[72px] py-2.5 rounded-2xl border flex flex-col items-center gap-0.5 transition-all ${
                           elegida
                             ? 'border-brand bg-brand-muted'
@@ -933,7 +1043,7 @@ export default function ReservarConsulta({ profile }) {
                           return (
                             <button
                               key={slot.id}
-                              onClick={() => setSelectedFranja(slot)}
+                              onClick={() => elegirHorario(slot)}
                               className={`px-4 py-2 rounded-full border text-[13px] font-medium transition-all ${
                                 isActive
                                   ? 'text-white border-transparent'
