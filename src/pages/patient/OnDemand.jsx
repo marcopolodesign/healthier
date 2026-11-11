@@ -28,6 +28,7 @@ import { useGrupoFamiliar } from '../../hooks/useGrupoFamiliar'
 import { puedeBonificarTeleclinica } from '../../lib/featureFlags'
 import { bonificarPorDefecto, teleclinicaBonificada, camposBonificar } from '../../lib/bonificar'
 import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
+import { tipoDeErrorDePago, marcarPurchase } from '../../lib/analiticaOndemand'
 
 /*
  * Teleclínica — consulta inmediata por DESPACHO (Mateo, 2026-10-07; migración 191).
@@ -138,6 +139,37 @@ export default function OnDemand({ profile }) {
     id: `consulta_${vertical.id}`, name: `Consulta inmediata — Tele-${vertical.nombre}`, category: 'ondemand', price,
   })
 
+  // ── Analítica (Hyppo, 2026-11-11) ────────────────────────────────────────────
+  // `purchase` una sola vez por consulta, la autorice el servidor al aceptarse
+  // o el reintento con otra tarjeta: los dos caminos pasan por acá.
+  const purchaseEnviados = useRef(new Set())
+  const errorRechazoContado = useRef(new Set())
+  const noMatchContado = useRef(new Set())
+  const precioDe = (p) => p?.priceAtRequest ?? price
+  const enviarPurchase = (consultationId, valor, metodo) => {
+    if (!marcarPurchase(consultationId, purchaseEnviados.current)) return
+    track('purchase', { transaction_id: consultationId, value: valor, currency: 'ARS', payment_method: metodo || 'saved_card', items: consultaItem(), checkout_type: 'ondemand', flow: 'paciente' })
+  }
+  const errorDePago = (mensaje, paymentMethodId) => {
+    track('payment_error', { checkout_type: 'ondemand', error_type: tipoDeErrorDePago({ mensaje, paymentMethodId }), value: price, currency: 'ARS', flow: 'paciente' })
+  }
+  // Sin profesionales al pedir (`sin_profesionales`) o nadie aceptó a tiempo
+  // (`nadie_acepto`). Una vez por pedido / por pantalla.
+  const contarNoMatch = (cause, clave) => {
+    if (noMatchContado.current.has(clave)) return
+    noMatchContado.current.add(clave)
+    track('ondemand_no_match', { value: price, currency: 'ARS', cause, flow: 'paciente' })
+  }
+  // `aplicarPedido` es un useCallback que no se rehace en cada render: lee estas
+  // funciones por una ref para no quedarse con las del primer render (sin la
+  // vertical cargada todavía).
+  const analitica = useRef({})
+  analitica.current = { contarNoMatch, enviarPurchase, precioDe, track }
+  const sacarTurno = (cause) => {
+    track('ondemand_no_match_book', { cause, flow: 'paciente' })
+    navigate(`/paciente/reservar?vertical=${vertical.id}&modality=virtual`)
+  }
+
   // ── Qué pantalla corresponde a un pedido ─────────────────────────────────────
   // Un solo lugar que traduce el estado del pedido a la fase, para que el
   // Realtime, el poll de respaldo y la rehidratación digan siempre lo mismo.
@@ -147,9 +179,10 @@ export default function OnDemand({ profile }) {
     if (p.status === 'pending') {
       const vence = new Date(p.expiresAt).getTime()
       if (vence > Date.now()) { setPhase('buscando'); return }
+      analitica.current.contarNoMatch('nadie_acepto', p.id)
       setPhase('sin_respuesta'); return
     }
-    if (p.status === 'expired') { setPhase('sin_respuesta'); return }
+    if (p.status === 'expired') { analitica.current.contarNoMatch('nadie_acepto', p.id); setPhase('sin_respuesta'); return }
     if (p.status === 'cancelled') { navigate('/paciente/dashboard'); return }
     if (p.status === 'accepted') {
       // Recorrido de navegación hasta esta reserva (migración 232). Una vez por
@@ -162,8 +195,21 @@ export default function OnDemand({ profile }) {
         const quien = await professionalService.getByUserId(p.acceptedBy).catch(() => null)
         if (quien) setPro(quien)
       }
-      if (p.estadoPago === 'rechazado') { setPhase('pago_rechazado'); return }
-      if (p.estadoPago === 'autorizado' || p.estadoPago === 'sin_pago') { setPhase('asignado'); return }
+      if (p.estadoPago === 'rechazado') {
+        // La pre-autorización contra el MP de quien aceptó no pasó. Una vez por pedido.
+        if (!errorRechazoContado.current.has(p.id)) {
+          errorRechazoContado.current.add(p.id)
+          analitica.current.track('payment_error', { checkout_type: 'ondemand', error_type: 'card_error', value: analitica.current.precioDe(p), currency: 'ARS', flow: 'paciente' })
+        }
+        setPhase('pago_rechazado'); return
+      }
+      if (p.estadoPago === 'autorizado') {
+        // El servidor ya reservó en la tarjeta: es la compra. Bonificada
+        // (`sin_pago`) no se cuenta como compra.
+        analitica.current.enviarPurchase(p.consultationId, analitica.current.precioDe(p), p.paymentMethodId)
+        setPhase('asignado'); return
+      }
+      if (p.estadoPago === 'sin_pago') { setPhase('asignado'); return }
       // `pendiente` con el pedido ya aceptado: el servidor está creando la
       // reserva en este instante. Se sigue mostrando "buscando" un segundo más.
       setPhase('buscando')
@@ -200,7 +246,7 @@ export default function OnDemand({ profile }) {
     const tick = () => {
       const restante = Math.max(0, Math.round((vence - Date.now()) / 1000))
       setSecondsLeft(restante)
-      if (restante === 0 && pedido.status === 'pending') setPhase('sin_respuesta')
+      if (restante === 0 && pedido.status === 'pending') { contarNoMatch('nadie_acepto', pedido.id); setPhase('sin_respuesta') }
     }
     tick()
     const iv = setInterval(tick, 1000)
@@ -210,7 +256,7 @@ export default function OnDemand({ profile }) {
   // ── "Pagar" — deja el token y arranca la búsqueda ───────────────────────────
   const pedir = async (pago, pre = preconsulta) => {
     const res = await ondemandService.pedir({ vertical: verticalId, paraId: paraId && paraId !== profile.id ? paraId : null, pago, ...camposBonificar({ puedeBonificar, bonificar }), preconsulta: pre })
-    if (res?.sinProfesionales) { setPhase('no_match'); return }
+    if (res?.sinProfesionales) { contarNoMatch('sin_profesionales', `sin-${Date.now()}`); setPhase('no_match'); return }
     track('ondemand_requested', { value: price, currency: 'ARS', flow: 'paciente' })
     const p = await ondemandService.getPedido(res.requestId)
     await aplicarPedido(p ?? { id: res.requestId, status: 'pending', expiresAt: res.expiresAt })
@@ -223,11 +269,14 @@ export default function OnDemand({ profile }) {
     setPaying(true)
     setErrorPago(null)
     track('begin_checkout', { value: price, currency: 'ARS', items: consultaItem(), flow: 'paciente' })
+    let cargoIntentado = null
     try {
       const charge = await obtenerCharge()
+      cargoIntentado = charge
       if (charge) track('add_payment_info', { payment_type: getPaymentMethod(charge), value: price, currency: 'ARS', flow: 'paciente' })
       await pedir(charge ? { ...charge, deviceId: window.MP_DEVICE_SESSION_ID || null } : null, pre)
     } catch (err) {
+      errorDePago(err?.message, cargoIntentado?.paymentMethodId)
       setErrorPago(err?.message ? explicarErrorDePago(err.message) : { motivo: 'No pudimos iniciar la búsqueda.', accion: 'Revisá los datos y volvé a intentar.', reintentable: true })
     } finally {
       setPaying(false)
@@ -318,14 +367,16 @@ export default function OnDemand({ profile }) {
       })
       if (error && !data) throw new Error(error)
       if (data?.status === 'authorized' || data?.status === 'approved') {
-        track('purchase', { transaction_id: pedido.consultationId, value: price, currency: 'ARS', payment_method: getPaymentMethod(charge), items: consultaItem(), flow: 'paciente' })
+        enviarPurchase(pedido.consultationId, precioDe(pedido), getPaymentMethod(charge))
         setPhase('asignado')
       } else {
+        errorDePago(data?.statusDetail || error, charge?.paymentMethodId)
         setErrorPago(data?.statusDetail || !error
           ? explicarPagoMP({ status: data?.status, statusDetail: data?.statusDetail })
           : explicarErrorDePago(error))
       }
     } catch (err) {
+      errorDePago(err?.message)
       setErrorPago(err?.message ? explicarErrorDePago(err.message) : { motivo: 'No pudimos procesar el pago.', accion: 'Revisá los datos y volvé a intentar.', reintentable: true })
     } finally {
       setPaying(false)
@@ -359,7 +410,8 @@ export default function OnDemand({ profile }) {
       </div>
       <h2 className="text-[22px] font-light text-gray-900 mb-2 text-center">Sin disponibilidad</h2>
       <p className="text-gray-500 text-[15px] text-center mb-8">No hay profesionales de {vertical.nombre} disponibles ahora. No te cobramos nada.</p>
-      <button onClick={() => navigate('/paciente/dashboard')} className="btn-primary px-8 py-3">Volver al inicio</button>
+      <button onClick={() => sacarTurno('sin_profesionales')} className="btn-primary px-8 py-3 mb-3" data-testid="ondemand-sacar-turno">Sacá un turno de {vertical.nombre}</button>
+      <button onClick={() => navigate('/paciente/dashboard')} className="text-gray-500 font-semibold text-[15px] py-2">Volver al inicio</button>
     </>)
   }
 
@@ -382,6 +434,15 @@ export default function OnDemand({ profile }) {
           {ocupado && <CircleNotch className="w-4 h-4 animate-spin" />} Seguir buscando
         </button>
       )}
+      <button
+        onClick={() => sacarTurno('nadie_acepto')}
+        data-testid="ondemand-sacar-turno"
+        className={puedeSeguir
+          ? 'px-8 py-3 mb-1 rounded-full border border-brand text-brand font-semibold text-[15px]'
+          : 'btn-primary px-8 py-3 mb-3'}
+      >
+        Sacá un turno de {vertical.nombre}
+      </button>
       <button onClick={() => navigate('/paciente/dashboard')} className="text-gray-500 font-semibold text-[15px] py-2">Volver al inicio</button>
     </>)
   }

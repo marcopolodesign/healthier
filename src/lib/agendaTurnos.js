@@ -149,3 +149,52 @@ export function primerTurnoLibre({ schedule = [], consultations = [], slotMinute
   }
   return null
 }
+
+/**
+ * Horas (con un decimal) desde ahora hasta un horario de pared de Buenos Aires
+ * (`fechaISO` + `HH:MM[:SS]`). Para la analítica del embudo de reserva.
+ */
+export function horasHasta(fechaISO, hhmm, ahoraMs = Date.now()) {
+  if (!fechaISO || !hhmm) return null
+  const [y, mo, d] = fechaISO.split('-').map(Number)
+  const [h, mi] = hhmm.split(':').map(Number)
+  const instante = Date.UTC(y, mo - 1, d, h, mi) + OFFSET_BUENOS_AIRES_MS
+  return Math.round(((instante - ahoraMs) / 3600000) * 10) / 10
+}
+
+/**
+ * Resumen de lo que el paso de fecha le ofrece al paciente en los próximos
+ * `dias`, con la misma cuenta que la grilla (agenda semanal menos consultas
+ * activas, menos lo que ya pasó hoy). Sólo números: va a la analítica
+ * (`booking_slots_view`), nunca datos del paciente.
+ */
+export function resumenDeAgenda({ schedule = [], consultations = [], slotMinutes = DEFAULT_SLOT_DURATION_MINUTES, dias = 14, ahoraMs = Date.now() } = {}) {
+  const tomados = consultations
+    .filter(c => ACTIVE_CONSULTATION_STATUSES.includes(c.status) && c.scheduledAt)
+    .map(c => {
+      const d = relojBuenosAires(new Date(c.scheduledAt).getTime())
+      return `${fechaISOBuenosAires(d)} ${horaHHMMBuenosAires(d)}`
+    })
+  let daysAvailable = 0
+  let slotsTotal = 0
+  let primero = null
+  for (const dia of buildDateOptions(dias)) {
+    const franjas = schedule.filter(e => e.dayOfWeek === dia.dayOfWeek)
+    if (!franjas.length) continue
+    const ocupados = new Set(tomados.filter(t => t.startsWith(dia.value)).map(t => t.slice(11)))
+    const slots = buildTimeSlots(franjas, ocupados, slotMinutes, horaMinimaParaHoy(dia.value))
+    if (!slots.length) continue
+    daysAvailable += 1
+    slotsTotal += slots.length
+    if (!primero) {
+      const s = slots.map(x => x.startTime).sort()[0]
+      primero = { fecha: dia.value, startTime: s }
+    }
+  }
+  return {
+    daysAvailable,
+    slotsTotal,
+    firstSlotDate: primero?.fecha ?? null,
+    hoursUntilFirstSlot: primero ? horasHasta(primero.fecha, primero.startTime, ahoraMs) : null,
+  }
+}
