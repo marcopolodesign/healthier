@@ -59,7 +59,6 @@ function groupSlotsByDate(slots) {
 }
 
 // Map BuscarProfesional URL modality values to Consultations internal modality state
-const MODALITY_PARAM_MAP = { video: 'Videollamada', presencial: 'Presencial' }
 // El estado interno de esta pantalla ('Videollamada' | 'Presencial') en el
 // vocabulario de `lib/modalidad.js` ('virtual' | 'presencial'). Nunca por descarte.
 const modalidadDeEstado = m => (m === 'Videollamada' ? 'virtual' : m === 'Presencial' ? 'presencial' : null)
@@ -199,51 +198,26 @@ export default function PatientConsultations({ profile }) {
     }
   }, [location.state])
 
-  // Handle URL params from BuscarProfesional (?vertical=&pro=&modality=)
-  const urlParamConsumed = useRef(false)
+  // Links viejos con ?vertical=&pro=&modality= (el carrusel del Inicio y
+  // BuscarProfesional los armaban): se mandan al asistente de reserva real.
+  // Acá abrían el modal viejo, que lee la agenda de `availability_slots` —una
+  // tabla vacía— y mostraba "Sin franjas disponibles" aunque el profesional
+  // tuviera su agenda semanal cargada (Hyppo, 2026-11-11). El asistente de
+  // `/paciente/reservar` lee `professional_schedules`.
+  // Control: `npm run test:camino-al-turno`.
   useEffect(() => {
-    if (urlParamConsumed.current) return
     const proId      = searchParams.get('pro')
     const vertId     = searchParams.get('vertical')
     const modalParam = searchParams.get('modality')
     if (!proId && !vertId) return
-    urlParamConsumed.current = true
-    const vert = vertId ? VERTICALS.find(v => v.id === vertId) : null
-    if (!vert) return
-    const modalityState = MODALITY_PARAM_MAP[modalParam] || 'Videollamada'
-    setModality(modalityState)
-    if (proId) {
-      professionalService.search({})
-        .then(data => {
-          const match = data.find(p => p.userId === proId)
-          if (!match) return
-          // Llegó con ?modality=presencial a alguien que no atiende presencial
-          // (o sin consultorio/precio): no se abre el turno, se explica.
-          const oferta = ofreceModalidad(match, modalidadDeEstado(modalityState))
-          if (!oferta.ok) {
-            toast.error(oferta.motivo)
-            return
-          }
-          const proObj = {
-            id:              match.userId,
-            name:            match.profiles?.fullName || 'Profesional',
-            img:             match.profiles?.avatarUrl || null,
-            rating:          String(match.averageRating ?? '—'),
-            reviews:         match.totalReviews ?? 0,
-            pricePresencial: ofreceModalidad(match, 'presencial').precio,
-            priceVideo:      ofreceModalidad(match, 'virtual').precio,
-          }
-          setProfessional(proObj)
-          openModal(vert)
-          setModality(modalityState)
-          loadSlots(proId)
-          setStep('datetime')
-        })
-        .catch(() => {})
-    } else {
-      openModal(vert)
-      setModality(modalityState)
-    }
+    const destino = new URLSearchParams()
+    if (vertId) destino.set('vertical', vertId)
+    if (proId) destino.set('proId', proId)
+    const modalidad = modalParam === 'video' || modalParam === 'virtual' ? 'virtual'
+      : modalParam === 'presencial' ? 'presencial' : null
+    if (modalidad) destino.set('modality', modalidad)
+    navigate(`/paciente/reservar?${destino.toString()}`, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Load MP public key and resolve payment amount when entering payment step
