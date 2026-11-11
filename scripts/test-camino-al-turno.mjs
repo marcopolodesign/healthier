@@ -56,6 +56,84 @@ test('ninguna pantalla del paciente fuera de Consultations lee availability_slot
   assert.deepEqual(culpables, [])
 })
 
+test('"Buscar por nombre" vacío lleva al asistente real, no a /paciente/consultas', () => {
+  const s = sinComentarios(leer('src/pages/patient/BuscarDisponibles.jsx'))
+  assert.match(s, /track\('buscar_disponibles_empty_book'/)
+  assert.match(s, /navigate\(chip \? `\/paciente\/reservar\?vertical=\$\{chip\}` : '\/paciente\/reservar'\)/)
+  assert.doesNotMatch(s, /navigate\('\/paciente\/consultas'\)/)
+})
+
+test('el modal viejo de Consultations no se abre por ningún lado (autoBook redirige)', () => {
+  const s = sinComentarios(leer('src/pages/patient/Consultations.jsx'))
+  const llamadas = (s.match(/\bopenModal\(/g) || []).length
+  assert.equal(llamadas, 0, 'alguien todavía abre el modal viejo, que lee availability_slots')
+  assert.match(s, /state\?\.autoBook[\s\S]{0,600}navigate\(`\/paciente\/reservar\?\$\{destino\.toString\(\)\}`/)
+})
+
+test('consulta inmediata sin disponibilidad: botón para sacar turno en las dos pantallas', () => {
+  const s = sinComentarios(leer('src/pages/patient/OnDemand.jsx'))
+  assert.match(s, /track\('ondemand_no_match_book'/)
+  assert.match(s, /navigate\(`\/paciente\/reservar\?vertical=\$\{vertical\.id\}&modality=virtual`\)/)
+  assert.match(s, /sacarTurno\('sin_profesionales'\)/)
+  assert.match(s, /sacarTurno\('nadie_acepto'\)/)
+})
+
+test('purchase de consulta inmediata: sale al autorizarse, una vez, nunca bonificada', () => {
+  const s = sinComentarios(leer('src/pages/patient/OnDemand.jsx'))
+  assert.equal((s.match(/track\('purchase'/g) || []).length, 1, 'purchase tiene que salir de un solo lugar (enviarPurchase)')
+  assert.match(s, /estadoPago === 'autorizado'\) \{[\s\S]{0,300}enviarPurchase\(/)
+  assert.match(s, /if \(p\.estadoPago === 'sin_pago'\) \{ setPhase\('asignado'\); return \}/)
+  assert.match(s, /enviarPurchase\(pedido\.consultationId/)
+})
+
+test('marcarPurchase: una sola vez por consulta, también entre recargas', async () => {
+  const datos = {}
+  globalThis.window = { localStorage: { getItem: k => datos[k] ?? null, setItem: (k, v) => { datos[k] = String(v) } } }
+  const { marcarPurchase } = await import(join(raiz, 'src/lib/analiticaOndemand.js'))
+  assert.equal(marcarPurchase('c1', new Set()), true)
+  assert.equal(marcarPurchase('c1', new Set()), false, 'otra pantalla (recarga) no lo repite')
+  const mem = new Set()
+  globalThis.window = { localStorage: { getItem: () => { throw new Error('bloqueado') }, setItem: () => { throw new Error('bloqueado') } } }
+  assert.equal(marcarPurchase('c2', mem), true)
+  assert.equal(marcarPurchase('c2', mem), false, 'sin storage, la memoria evita el duplicado')
+  assert.equal(marcarPurchase(null, mem), false)
+})
+
+test('payment_error: tipo de error sin texto libre', async () => {
+  const { tipoDeErrorDePago } = await import(join(raiz, 'src/lib/analiticaOndemand.js'))
+  assert.equal(tipoDeErrorDePago({ mensaje: 'La consulta inmediata se paga con tarjeta de crédito.' }), 'debit_not_allowed')
+  assert.equal(tipoDeErrorDePago({ mensaje: 'x', paymentMethodId: 'debvisa' }), 'debit_not_allowed')
+  assert.equal(tipoDeErrorDePago({ mensaje: 'Failed to fetch' }), 'server_error')
+  assert.equal(tipoDeErrorDePago({ mensaje: 'cc_rejected_other_reason', paymentMethodId: 'visa' }), 'card_error')
+})
+
+test('resumenDeAgenda: misma cuenta que la grilla, sin agenda da ceros', async () => {
+  const { resumenDeAgenda, horasHasta } = await import(join(raiz, 'src/lib/agendaTurnos.js'))
+  assert.deepEqual(resumenDeAgenda({ schedule: [] }), { daysAvailable: 0, slotsTotal: 0, firstSlotDate: null, hoursUntilFirstSlot: null })
+  const todos = [0, 1, 2, 3, 4, 5, 6].map(d => ({ id: `f${d}`, dayOfWeek: d, startTime: '09:00:00', endTime: '10:00:00' }))
+  const r = resumenDeAgenda({ schedule: todos, slotMinutes: 15 })
+  assert.ok(r.daysAvailable >= 13 && r.daysAvailable <= 14)
+  assert.equal(r.slotsTotal, r.daysAvailable * 4)
+  assert.ok(r.hoursUntilFirstSlot > 0)
+  // 2026-01-01 12:00 en Buenos Aires = 15:00 UTC.
+  assert.equal(horasHasta('2026-01-01', '12:00', Date.UTC(2026, 0, 1, 13, 0)), 2)
+})
+
+test('los eventos nuevos del embudo no llevan especialidad, vertical ni texto libre', () => {
+  const prohibidas = /vertical|specialty|especialidad|reason|motivo|note|nota|message|mensaje/i
+  const eventos = /track\('(booking_pros_view|booking_pro_select|booking_slots_view|booking_slot_select|booking_no_availability|ondemand_no_match|ondemand_no_match_book|payment_error|purchase)', \{([^}]*)\}/g
+  let vistos = 0
+  for (const f of ['src/pages/patient/ReservarConsulta.jsx', 'src/pages/patient/OnDemand.jsx']) {
+    for (const m of sinComentarios(leer(f)).matchAll(eventos)) {
+      vistos++
+      const claves = [...m[2].matchAll(/([a-z_]+)\s*:/g)].map(x => x[1])
+      const malas = claves.filter(k => prohibidas.test(k))
+      assert.deepEqual(malas, [], `${m[1]} en ${f} lleva ${malas.join(', ')}`)
+    }
+  }
+  assert.ok(vistos >= 8, `encontré sólo ${vistos} llamadas`)
+})
+
 test('el asistente real lee la agenda semanal (professional_schedules)', () => {
   assert.match(leer('src/pages/patient/ReservarConsulta.jsx'), /availabilityService\.getSchedule\(/)
 })

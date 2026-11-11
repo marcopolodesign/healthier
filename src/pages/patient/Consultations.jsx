@@ -157,44 +157,22 @@ export default function PatientConsultations({ profile }) {
       .catch(() => {})
   }, [profile?.id])
 
-  // Auto-open booking modal when navigated here from ReservarConsulta with autoBook state
+  // Un `state.autoBook` (lo mandaba ReservarConsulta antes) ya no abre el modal
+  // viejo: ése lee la agenda de `availability_slots`, una tabla vacía, y nunca
+  // puede mostrar horarios. Se manda al asistente real de `/paciente/reservar`,
+  // que lee `professional_schedules` menos las consultas activas (Hyppo,
+  // 2026-11-11). Control: `npm run test:camino-al-turno`.
   useEffect(() => {
     if (autoBookConsumed.current) return
     const state = location.state
     if (!state?.autoBook) return
     autoBookConsumed.current = true
-    // Clear navigation state so a refresh doesn't re-trigger
-    window.history.replaceState({}, '', location.pathname)
-    const vertId = state.verticalId
-    const vert = VERTICALS.find(v => v.id === vertId)
-    if (!vert) return
-    // Pre-set modality to 'Videollamada' (virtual path always uses video)
-    setModality('Videollamada')
-    // If a professional was pre-selected, skip straight to datetime/payment
-    if (state.professionalId) {
-      setProfessional({
-        id:      state.professionalId,
-        name:    'Profesional',
-        img:     null,
-        rating:  '—',
-        reviews: 0,
-        pricePresencial: null,
-        priceVideo: null,
-      })
-      if (state.scheduledAt) {
-        // We have a full booking — go straight to payment
-        const slot = { id: 'autobook', startTime: state.scheduledAt }
-        setSelectedSlot(slot)
-        openModal(vert)
-        setStep('payment')
-      } else {
-        openModal(vert)
-        loadSlots(state.professionalId)
-        setStep('datetime')
-      }
-    } else {
-      openModal(vert)
-    }
+    const destino = new URLSearchParams()
+    if (state.verticalId) destino.set('vertical', state.verticalId)
+    if (state.professionalId) destino.set('proId', state.professionalId)
+    destino.set('modality', 'virtual')
+    navigate(`/paciente/reservar?${destino.toString()}`, { replace: true, state: null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state])
 
   // Links viejos con ?vertical=&pro=&modality= (el carrusel del Inicio y

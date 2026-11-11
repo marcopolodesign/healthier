@@ -165,7 +165,12 @@ export default function BuscarDisponibles() {
                 : 'No encontramos a nadie disponible ahora que coincida con tu búsqueda.'}
             </p>
             <button
-              onClick={() => { track('buscar_disponibles_empty_book', { flow: 'paciente' }); navigate('/paciente/consultas') }}
+              onClick={() => {
+                track('buscar_disponibles_empty_book', { flow: 'paciente' })
+                // Al asistente real (agenda semanal), no al modal viejo de
+                // /paciente/consultas. Si hay chip elegido, lleva la vertical.
+                navigate(chip ? `/paciente/reservar?vertical=${chip}` : '/paciente/reservar')
+              }}
               className="btn-primary px-6 py-3 text-[14px]"
             >
               Sacá un turno
