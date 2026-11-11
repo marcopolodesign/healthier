@@ -68,9 +68,14 @@
     })(window,document,'script','dataLayer','GTM-TKJ3Q37Z');</script>
     <!-- End Google Tag Manager -->
     <!-- Customer.io CDP — identify/track para email + WhatsApp.
-         Ver src/utils/customerio.js: qué se manda y qué NO (datos de salud). -->
+         Ver src/utils/customerio.js: qué se manda y qué NO (datos de salud).
+         🔴 SÓLO producción carga el snippet (pedido de Hyppo, 2026-11-11): staging,
+         previews y local mezclaban cuentas de prueba en el workspace. Fuera de prod
+         `window.cioanalytics` no existe y `cio()` de customerio.js devuelve null.
+         La lista de hosts es la misma que `CIO_PROD_HOSTS` en customerio.js —
+         `npm run test:cio` falla si se despegan. -->
     <script>
-      !function(){var i="cioanalytics", analytics=(window[i]=window[i]||[]);if(!analytics.initialize)if(analytics.invoked)window.console&&console.error&&console.error("Snippet included twice.");else{analytics.invoked=!0;analytics.methods=["trackSubmit","trackClick","trackLink","trackForm","pageview","identify","reset","group","track","ready","alias","debug","page","once","off","on","addSourceMiddleware","addIntegrationMiddleware","setAnonymousId","addDestinationMiddleware"];analytics.factory=function(e){return function(){var t=Array.prototype.slice.call(arguments);t.unshift(e);analytics.push(t);return analytics}};for(var e=0;e<analytics.methods.length;e++){var key=analytics.methods[e];analytics[key]=analytics.factory(key)}analytics.load=function(key,e){var t=document.createElement("script");t.type="text/javascript";t.async=!0;t.setAttribute('data-global-customerio-analytics-key', i);t.src="https://cdp.customer.io/v1/analytics-js/snippet/" + key + "/analytics.min.js";var n=document.getElementsByTagName("script")[0];n.parentNode.insertBefore(t,n);analytics._writeKey=key;analytics._loadOptions=e};analytics.SNIPPET_VERSION="4.15.3";
+      !function(){if(!/^(www\.healthier\.com\.ar|healthier\.com\.ar|gethealthier\.vercel\.app)$/.test(location.hostname))return;var i="cioanalytics", analytics=(window[i]=window[i]||[]);if(!analytics.initialize)if(analytics.invoked)window.console&&console.error&&console.error("Snippet included twice.");else{analytics.invoked=!0;analytics.methods=["trackSubmit","trackClick","trackLink","trackForm","pageview","identify","reset","group","track","ready","alias","debug","page","once","off","on","addSourceMiddleware","addIntegrationMiddleware","setAnonymousId","addDestinationMiddleware"];analytics.factory=function(e){return function(){var t=Array.prototype.slice.call(arguments);t.unshift(e);analytics.push(t);return analytics}};for(var e=0;e<analytics.methods.length;e++){var key=analytics.methods[e];analytics[key]=analytics.factory(key)}analytics.load=function(key,e){var t=document.createElement("script");t.type="text/javascript";t.async=!0;t.setAttribute('data-global-customerio-analytics-key', i);t.src="https://cdp.customer.io/v1/analytics-js/snippet/" + key + "/analytics.min.js";var n=document.getElementsByTagName("script")[0];n.parentNode.insertBefore(t,n);analytics._writeKey=key;analytics._loadOptions=e};analytics.SNIPPET_VERSION="4.15.3";
         analytics.load("61e69a84c18602871925");
         // El `analytics.page()` del snippet original NO va acá a propósito:
         // se encola antes que el middleware de enmascarado de App.jsx, así que
