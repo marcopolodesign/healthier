@@ -58,15 +58,16 @@ for (const t of TOMAS.filter((t) => !solo.length || solo.includes(t.id))) {
   // Lo que la toma necesita en la base justo antes (ej. que una profesional
   // figure disponible ahora: la presencia vence a la hora).
   if (t.antes) await t.antes(rest)
-  await ctx.addInitScript(({ llave, s, yaVisto }) => {
+  await ctx.addInitScript(({ llave, s, yaVisto, guardado }) => {
     try {
       if (sessionStorage.getItem('guia-puesta')) return
       localStorage.clear()
       if (s) localStorage.setItem(llave, JSON.stringify(s))
       for (const k of yaVisto) localStorage.setItem(k, '1')
+      for (const [k, v] of Object.entries(guardado)) localStorage.setItem(k, v)
       sessionStorage.setItem('guia-puesta', '1')
     } catch { /* nada */ }
-  }, { llave: llaveSesion(env), s, yaVisto: YA_VISTO })
+  }, { llave: llaveSesion(env), s, yaVisto: YA_VISTO, guardado: t.guardado ?? {} })
   const p = await ctx.newPage()
   const errores = []
   p.on('pageerror', (e) => errores.push(e.message))
@@ -80,6 +81,10 @@ for (const t of TOMAS.filter((t) => !solo.length || solo.includes(t.id))) {
       await confirmar.click(); await p.waitForTimeout(2000)
       await p.goto(APP + (t.url ?? '/'), { waitUntil: 'networkidle', timeout: 45000 }); await p.waitForTimeout(1500)
     }
+    // El navegador de las capturas no tiene permiso de notificaciones: el aviso
+    // de "notificaciones bloqueadas" no es parte de la pantalla que se explica.
+    const bloqueadas = p.getByText(/Tenés las notificaciones bloqueadas/).first().locator('xpath=ancestor::div[.//button][1]').locator('button').first()
+    if (await bloqueadas.isVisible().catch(() => false)) { await bloqueadas.click(); await p.waitForTimeout(400) }
     if (t.pasos) await t.pasos(p)
     await p.waitForLoadState('networkidle').catch(() => {})
     await p.waitForTimeout(t.espera ?? 900)
