@@ -58,7 +58,7 @@ export const GLOSARIO = {
   'Código de cierre': 'Cuatro números que tiene el paciente y confirman que la consulta ocurrió. El profesional los carga al cerrarla.',
   'Receta electrónica': 'La receta con validez legal que emite el profesional desde la plataforma. Le llega al paciente en PDF.',
   'Historia clínica': 'El registro de cada consulta: notas, diagnósticos, alergias y medicación. La escriben los profesionales y el paciente la puede leer.',
-  Bóveda: 'El lugar del paciente donde está todo lo médico: historia clínica, recetas, estudios, planes y mascotas.',
+  Bóveda: 'El lugar del paciente donde está todo lo médico: historia clínica, recetas, certificados, órdenes de estudios, planes y mascotas.',
   BioVisor: 'La parte de la bóveda donde el paciente sube sus análisis de sangre y ve cómo evolucionan sus valores.',
   NutriPlan: 'El plan de alimentación que arma el nutricionista y el paciente va tildando día a día.',
   'Grupo familiar': 'Los familiares a cargo de un paciente (hijos, padres). Cada uno tiene su propia historia clínica y entra con un código.',
@@ -71,7 +71,12 @@ export const GLOSARIO = {
   'En sala': 'La marca que ve el profesional cuando el paciente ya está esperando.',
   'Ingresar paciente': 'El botón con el que el profesional hace pasar al paciente a la videollamada.',
   Verificación: 'La revisión que hace Healthier de la matrícula y los documentos antes de que un profesional reciba pacientes.',
-  Firma: 'La firma del profesional, cargada una sola vez. Sin ella no se emiten recetas.',
+  Firma: 'La firma del profesional, cargada una sola vez. Sin ella no se emiten recetas, órdenes de estudios ni certificados.',
+  Certificado: 'Una constancia de atención, un certificado de reposo o uno escolar, firmado por el profesional. Le llega al paciente en PDF.',
+  'Orden de estudios': 'El pedido de análisis o imágenes que hace el profesional. Sale firmada y le llega al paciente por mail.',
+  'Pendiente de autorización': 'Una receta que la obra social todavía tiene que autorizar. Hasta que la farmacia la autoriza, no se puede comprar.',
+  'Código de invitación': 'El código personal para invitar a alguien a Healthier. Va también en tu link.',
+  'Cuenta de prueba': 'Una cuenta del equipo para probar la plataforma. No cuenta en las métricas ni en los listados del super admin, salvo que se incluya a propósito.',
   Vademécum: 'El listado oficial de medicamentos. La receta se arma eligiendo de ahí.',
   'Obra social': 'La cobertura del paciente (obra social o prepaga). Se elige del listado, no se escribe a mano.',
   Referido: 'El link personal del profesional para invitar a sus pacientes a Healthier.',
@@ -88,7 +93,7 @@ export const GLOSARIO = {
   Reserva: 'El monto que se toma de la tarjeta sin cobrarlo todavía. Se cobra al terminar o se libera solo.',
   Vertical: 'Cada área de atención: Clínica, Pediatría, Nutrición, Salud Mental, Veterinaria.',
   Prospecto: 'Alguien que creó la cuenta y todavía no terminó de registrarse.',
-  Auditoría: 'El registro de quién consultó o escribió cada historia clínica y de cada receta emitida.',
+  Auditoría: 'El registro de quién consultó o escribió cada historia clínica, de cada receta, certificado y orden emitida, y de cada acción de los administradores.',
   Zona: 'Un barrio donde Healthier atiende presencial. Fuera de las zonas hay lista de espera.',
 }
 
@@ -116,11 +121,14 @@ const paciente = {
     { titulo: 'Seguir tus turnos', texto: 'Entrar a la sala, cancelar y pedir devolución.', ir: 'turnos' },
     { titulo: 'Hacer la videollamada', texto: 'Desde la app, con tu código de cierre.', ir: 'videollamada' },
     { titulo: 'Ver tus recetas', texto: 'En PDF, y comprarlas en un toque.', ir: 'recetas' },
+    { titulo: 'Tener tus certificados', texto: 'Constancias, reposos y escolares, para compartir.', ir: 'certificados' },
+    { titulo: 'Tener tus órdenes de estudios', texto: 'Firmadas, para el laboratorio.', ir: 'ordenes' },
     { titulo: 'Leer tu historia clínica', texto: 'Cada consulta, con notas, diagnósticos y medicación.', ir: 'historia' },
     { titulo: 'Guardar tus estudios', texto: 'Análisis, planes y todo lo médico en tu bóveda.', ir: 'boveda' },
     { titulo: 'Comprar en la farmacia', texto: 'Con envío y seguimiento del pedido.', ir: 'farmacia' },
     { titulo: 'Cuidar a tu familia', texto: 'Turnos e historia de cada familiar, y un código para que entren.', ir: 'familia' },
     { titulo: 'Pedir una ambulancia', texto: 'El botón S.O.S., para cuando es urgente.', ir: 'sos' },
+    { titulo: 'Invitar a alguien', texto: 'Con tu código o tu link.', ir: 'invitar' },
   ],
   secciones: [
     {
@@ -144,7 +152,7 @@ const paciente = {
         4: 'Pagar e iniciar: se reserva el monto y vas a la sala de espera.',
       },
       pasos: [
-        'En el inicio, tocá "Empezar" en la especialidad que necesitás.',
+        'En el inicio, tocá "Consultar ahora" en la especialidad que necesitás.',
         'Revisá el profesional asignado y el precio.',
         'Elegí la tarjeta y tocá "Pagar e iniciar".',
         'Tocá "Continuar" para ir a la sala de espera.',
@@ -152,6 +160,7 @@ const paciente = {
       tips: [
         { tipo: 'tip', texto: 'El monto se reserva en tu tarjeta y se cobra recién cuando termina la consulta. Si nadie te atiende, no se cobra nada.' },
         { tipo: 'tip', texto: 'Si el profesional tarda, podés esperar unos minutos más o probar con otro profesional, sin pagar de nuevo.' },
+        { tipo: 'tip', texto: 'Si en ese momento no hay nadie en línea, "Sacá un turno" te lleva directo a elegir profesional, día y hora.' },
       ],
     },
     {
@@ -248,6 +257,27 @@ const paciente = {
         2: 'Cada medicamento con su dosis.',
         3: 'Agregar al carrito lo que tiene la farmacia, o comprar todo junto.',
       },
+      tips: [{ tipo: 'tip', texto: 'Si una receta dice "Pendiente de autorización", tu obra social todavía la tiene que autorizar. Cuando la farmacia la autoriza te avisamos y ya la podés comprar.' }],
+    },
+    {
+      id: 'certificados', titulo: 'Tus certificados', captura: 'pac-certificados', grupo: 'Tu salud',
+      bajada: 'Las constancias de atención, los certificados de reposo y los escolares que te emitieron, con su PDF firmado.',
+      marcas: {
+        1: 'Cada certificado: el modelo, los días, la fecha y quién lo emitió.',
+        2: 'Ver: abre el PDF.',
+        3: 'Compartir: mandalo a tu trabajo, al colegio o a quien lo pida.',
+      },
+      tips: [{ tipo: 'tip', texto: 'Cuando te emiten uno te llega un aviso y un mail, y queda en tu Bóveda, en "Certificados".' }],
+    },
+    {
+      id: 'ordenes', titulo: 'Tus órdenes de estudios', captura: 'pac-ordenes', grupo: 'Tu salud',
+      bajada: 'Los análisis y las imágenes que te pidió tu profesional, en una orden firmada para presentar en el laboratorio.',
+      marcas: {
+        1: 'Cada orden con los estudios pedidos y quién la emitió.',
+        2: 'Ver: abre la orden en PDF.',
+        3: 'Compartir.',
+      },
+      tips: [{ tipo: 'tip', texto: 'También te llega por mail apenas tu profesional la emite: la podés imprimir o mostrar desde el teléfono.' }],
     },
     {
       id: 'historia', titulo: 'Tu historia clínica', captura: 'pac-app-historia', grupo: 'Tu salud',
@@ -261,11 +291,20 @@ const paciente = {
     },
     {
       id: 'boveda', titulo: 'Tu bóveda', captura: 'pac-app-boveda', grupo: 'Tu salud',
-      bajada: 'Todo lo médico en un solo lugar: historia clínica, recetas, estudios, planes de tus profesionales y tus mascotas.',
+      bajada: 'Todo lo médico en un solo lugar: historia clínica, recetas, certificados, órdenes de estudios, planes de tus profesionales y tus mascotas.',
       marcas: {
         1: 'Tu historia clínica.',
         2: 'Las carpetas: recetas, análisis, nutrición, salud mental y más.',
       },
+    },
+    {
+      id: 'boveda-documentos', titulo: 'Certificados y órdenes en tu bóveda', captura: 'pac-boveda', grupo: 'Tu salud',
+      bajada: 'Cuando un profesional te emite un certificado o una orden de estudios, aparece su carpeta en la Bóveda.',
+      marcas: {
+        1: 'Certificados: constancias, reposos y escolares.',
+        2: 'Órdenes de estudios: las que te pidieron, listas para el laboratorio.',
+      },
+      tips: [{ tipo: 'tip', texto: 'Las carpetas aparecen solas con el primer certificado o la primera orden.' }],
     },
     {
       id: 'biovisor', titulo: 'BioVisor: tus análisis', captura: 'pac-biovisor', grupo: 'Tu salud',
@@ -370,6 +409,35 @@ const paciente = {
       },
       tips: [{ tipo: 'tip', texto: 'Desde Perfil también abrís esta guía, en "Guía de uso".' }],
     },
+    {
+      id: 'invitar', titulo: 'Invitá a alguien', captura: 'pac-invitar', grupo: 'Tu cuenta',
+      bajada: 'Tenés un código y un link personales para invitar a quien quieras a Healthier.',
+      marcas: {
+        1: 'Tu código. Tocalo para copiar tu link.',
+        2: 'Compartir tu link. Abajo también lo copiás o lo mandás por WhatsApp.',
+        3: 'Cuántos se sumaron con tu invitación.',
+      },
+      pasos: [
+        'En Perfil, tocá "Invitá a alguien".',
+        'Tocá "Compartir" y elegí a quién mandárselo.',
+        'Cuando crea su cuenta con tu link, suma en tu contador.',
+      ],
+      tips: [{ tipo: 'tip', texto: 'Si alguien se registra sin el link, puede escribir tu código en "¿Tenés un código?" al crear su cuenta.' }],
+    },
+    {
+      id: 'eliminar', titulo: 'Eliminar tu cuenta', captura: 'pac-eliminar', grupo: 'Tu cuenta',
+      bajada: 'Si ya no querés usar Healthier, eliminás tu cuenta desde tu perfil, en la web o en la app.',
+      marcas: { 1: 'Eliminar mi cuenta, al final de tu perfil.' },
+      pasos: [
+        'En Perfil, bajá hasta el final y tocá "Eliminar mi cuenta".',
+        'Leé qué pasa con tus datos y tocá "Continuar".',
+        'Confirmá con "Eliminar mi cuenta".',
+      ],
+      tips: [
+        { tipo: 'ojo', texto: 'No se puede deshacer: tus datos personales se borran y no vas a poder volver a entrar con esa cuenta.' },
+        { tipo: 'tip', texto: 'Por ley, tu historia clínica se conserva de forma anónima por 10 años, sin vincularse a vos.' },
+      ],
+    },
   ],
   faq: [
     { p: '¿Cuándo me cobran?', r: 'Un turno se paga al reservarlo. En la consulta inmediata se reserva el monto y se cobra al terminar. En una ambulancia se reserva al pedirla y se cobra al cerrar el traslado.' },
@@ -377,13 +445,16 @@ const paciente = {
     { p: '¿Puedo cancelar un turno?', r: 'Sí, desde Turnos. Con 48 horas hábiles de anticipación pedís la devolución en el mismo paso y la recibís en Healthy Credits.' },
     { p: '¿Puedo cambiar el día de un turno?', r: 'Se cancela y se reserva de nuevo. Si cancelás con anticipación, la devolución te queda como saldo para el turno nuevo.' },
     { p: '¿Dónde está mi receta?', r: 'En el resumen de la consulta, en Mis recetas y en tu bóveda. También te llega por mail.' },
+    { p: '¿Dónde encuentro un certificado o una orden de estudios?', r: 'En tu Bóveda, en "Certificados" o en "Órdenes de estudios". Cuando te los emiten también te llega un aviso y un mail.' },
+    { p: '¿Por qué mi receta dice "Pendiente de autorización"?', r: 'Tu obra social la tiene que autorizar antes de que la compres. Cuando la farmacia la autoriza te avisamos y ya la podés comprar.' },
+    { p: '¿Cómo elimino mi cuenta?', r: 'En Perfil, al final, con "Eliminar mi cuenta". Te pide confirmar dos veces y no se puede deshacer.' },
     { p: '¿Cómo compro lo que me recetaron?', r: 'Desde la receta, con "Comprar todos", o desde Farmacia. Pagás con tu tarjeta y te lo envían.' },
     { p: '¿Puedo atender a mi hijo con mi cuenta?', r: 'Sí. Lo cargás en tu grupo familiar y al reservar elegís "para alguien de tu grupo familiar". Su consulta queda en su propia historia clínica.' },
     { p: '¿Mi historia clínica la ve cualquiera?', r: 'No. La ven los profesionales que te atienden, y cada acceso queda registrado.' },
     { p: '¿La videollamada se graba?', r: 'No. Es una sala privada entre vos y el profesional.' },
     { p: '¿Para qué sirve el código de cierre?', r: 'Confirma que la consulta ocurrió. Se lo compartís al profesional al final, con un toque.' },
   ],
-  glosario: ['Consulta inmediata', 'Turno', 'Sala de espera', 'Pre-consulta', 'Código de cierre', 'Receta electrónica', 'Historia clínica', 'Bóveda', 'BioVisor', 'NutriPlan', 'Grupo familiar', 'Código familiar', 'Healthy Credits', 'Horas hábiles', 'Código de entrega', 'S.O.S.'],
+  glosario: ['Consulta inmediata', 'Turno', 'Sala de espera', 'Pre-consulta', 'Código de cierre', 'Receta electrónica', 'Pendiente de autorización', 'Certificado', 'Orden de estudios', 'Historia clínica', 'Bóveda', 'BioVisor', 'NutriPlan', 'Grupo familiar', 'Código familiar', 'Healthy Credits', 'Horas hábiles', 'Código de entrega', 'S.O.S.', 'Código de invitación'],
   ayuda: '¿Dudas? Tocá "Contactá a soporte" en el inicio y te contestamos por WhatsApp.',
 }
 
@@ -395,7 +466,7 @@ const profesional = {
   nombre: 'Profesional',
   para: 'Profesionales de la salud',
   mision: 'Tu consultorio online, de la agenda a la receta.',
-  bajada: 'Recibís pacientes por turno o al instante, los atendés por videollamada con la historia clínica al lado, recetás con validez legal y cobrás directo en tu Mercado Pago.',
+  bajada: 'Recibís pacientes por turno o al instante, los atendés por videollamada con la historia clínica al lado, recetás, pedís estudios y hacés certificados con validez legal, y cobrás directo en tu Mercado Pago.',
   ficha: [['Entrás con', 'Tu mail o Google'], ['Desde', 'La computadora (y la app)'], ['Tu pantalla clave', 'La sala'], ['Para aprenderla', 'Unos 15 minutos']],
   dia: [
     { titulo: 'Te ponés disponible', texto: 'Prendés la consulta inmediata y mirás tus turnos de hoy.' },
@@ -413,6 +484,8 @@ const profesional = {
     { titulo: 'Poner tus precios', texto: 'Por modalidad, y dónde atendés.', ir: 'tarifas' },
     { titulo: 'Atender por video', texto: 'Con la historia clínica al lado.', ir: 'sala' },
     { titulo: 'Recetar', texto: 'Receta electrónica con validez legal.', ir: 'receta' },
+    { titulo: 'Pedir estudios', texto: 'La orden le llega firmada a tu paciente.', ir: 'estudios' },
+    { titulo: 'Hacer certificados', texto: 'Constancia, reposo o escolar.', ir: 'certificados' },
     { titulo: 'Cerrar la consulta', texto: 'Resumen y código del paciente.', ir: 'cerrar' },
     { titulo: 'Seguir a tus pacientes', texto: 'Su ficha, su historia y el próximo control.', ir: 'pacientes' },
     { titulo: 'Cobrar', texto: 'Conectás tu Mercado Pago y ves tus ganancias.', ir: 'mercadopago' },
@@ -434,7 +507,10 @@ const profesional = {
         'Subí tu título, tu matrícula y tu DNI.',
         'Aceptá los términos y tocá "Enviar para revisión".',
       ],
-      tips: [{ tipo: 'tip', texto: 'El equipo revisa tu documentación en 24 a 48 horas hábiles y te avisa por mail.' }],
+      tips: [
+        { tipo: 'tip', texto: 'El equipo revisa tu documentación en 24 a 48 horas hábiles y te avisa por mail.' },
+        { tipo: 'tip', texto: 'Si tu matrícula es provincial, elegí también la provincia: la receta la lleva impresa.' },
+      ],
     },
     {
       id: 'revision', titulo: 'Mientras te verificamos', captura: 'pro-revision', grupo: 'Empezar',
@@ -512,7 +588,7 @@ const profesional = {
         'Tocá "Ingresar paciente" para hacerlo pasar.',
         'Leé la pre-consulta y la historia clínica.',
         'Cargá tus notas mientras lo atendés.',
-        'Si hace falta, recetá desde el Recetario.',
+        'Si hace falta, recetá, pedí estudios o hacé un certificado desde el Recetario.',
         'Tocá "Finalizar" para terminar.',
       ],
       tips: [
@@ -522,11 +598,11 @@ const profesional = {
       ],
     },
     {
-      id: 'receta', titulo: 'La receta electrónica', captura: 'pro-receta', grupo: 'La consulta',
-      bajada: 'Recetás desde la consulta, eligiendo del vademécum. Al paciente le llega el PDF firmado, con validez legal.',
+      id: 'receta', titulo: 'El Recetario y la receta electrónica', captura: 'pro-receta', grupo: 'La consulta',
+      bajada: 'En el Recetario elegís qué hacer: recetar medicamentos, pedir estudios o hacer un certificado. Todo sale firmado y le llega al paciente, con validez legal.',
       marcas: {
         1: 'La cobertura del paciente: obra social o particular.',
-        2: 'Medicamentos, estudios o un certificado.',
+        2: 'Las tres opciones: Medicamentos, Estudios y Certificado.',
       },
       pasos: [
         'En el Recetario, revisá la cobertura del paciente.',
@@ -537,12 +613,62 @@ const profesional = {
       tips: [
         { tipo: 'ojo', texto: 'Sin tu firma cargada no se emite. Si te falta, al tocar "Emitir receta" se abre la hoja para firmar y la receta sale sola al guardarla.' },
         { tipo: 'tip', texto: 'Guardar la medicación no se la entrega al paciente: recién al tocar "Emitir receta" le llega.' },
-        { tipo: 'tip', texto: 'La receta necesita tu DNI, tu matrícula y la dirección de tu consultorio.' },
+        { tipo: 'tip', texto: 'La receta necesita tu DNI, tu matrícula y la dirección de tu consultorio. Si falta algo, te lo pide ahí mismo y lo completás sin salir.' },
+        { tipo: 'tip', texto: 'Si la obra social tiene que autorizarla, la receta figura "Pendiente de autorización". La autoriza la farmacia y al paciente le avisamos cuando ya la puede comprar.' },
       ],
     },
     {
+      id: 'estudios', titulo: 'La orden de estudios', captura: 'pro-estudios', grupo: 'La consulta',
+      bajada: 'Pedís análisis o imágenes del listado. Al guardar la orden, sale firmada y le llega sola a tu paciente por mail.',
+      marcas: {
+        1: 'La orden ya enviada, con la fecha en que le llegó a tu paciente.',
+        2: 'Buscá cada estudio en el listado y sumalo con el +.',
+        3: 'Guardar orden: la emite con tu firma y se la manda al paciente.',
+      },
+      pasos: [
+        'En el Recetario, tocá "Estudios" y "Nueva orden de estudios".',
+        'Buscá cada estudio y sumalo con el +.',
+        'Si querés, escribí el diagnóstico y las indicaciones.',
+        'Tocá "Guardar orden".',
+      ],
+      tips: [
+        { tipo: 'tip', texto: 'Varios estudios van en una sola orden. El diagnóstico es opcional y, si lo escribís, va impreso.' },
+        { tipo: 'tip', texto: 'Si una orden todavía no le llegó a tu paciente, la tarjeta muestra "Enviar a mi paciente": tocalo y sale.' },
+        { tipo: 'tip', texto: 'Tu paciente también la encuentra en su Bóveda, en "Órdenes de estudios".' },
+      ],
+    },
+    {
+      id: 'certificados', titulo: 'Certificados', captura: 'pro-certificado', grupo: 'La consulta',
+      bajada: 'Constancia de atención, certificado de reposo o certificado escolar, desde la consulta. Lo revisás en la vista previa antes de emitirlo.',
+      marcas: {
+        1: 'Los certificados que ya emitiste en esta consulta, con su PDF.',
+        2: 'El modelo: constancia, reposo o escolar.',
+        3: 'Vista previa: lo ves tal como va a salir.',
+      },
+      pasos: [
+        'En el Recetario, tocá "Certificado".',
+        'Elegí el modelo. En reposo y escolar, cargá los días y desde cuándo.',
+        'Sumá indicaciones o un diagnóstico si hace falta.',
+        'Tocá "Vista previa", revisalo y tocá "Emitir certificado".',
+      ],
+      tips: [
+        { tipo: 'tip', texto: 'El diagnóstico es opcional y sólo se imprime si prendés la opción.' },
+        { tipo: 'tip', texto: 'El reposo y el escolar arrancan, como pronto, el día de la consulta.' },
+        { tipo: 'tip', texto: 'Al paciente le llega un aviso y un mail, y lo encuentra en su Bóveda, en "Certificados".' },
+      ],
+    },
+    {
+      id: 'vista-previa', titulo: 'La vista previa del certificado', captura: 'pro-certificado-previa', grupo: 'La consulta',
+      bajada: 'Antes de emitir ves el certificado entero, como lo va a recibir tu paciente.',
+      marcas: {
+        1: 'El certificado, con tus datos, los del paciente y tu firma.',
+        2: 'Emitir certificado. Si querés cambiar algo, tocá "Editar".',
+      },
+      tips: [{ tipo: 'ojo', texto: 'Sin tu firma cargada no se emite. Si te falta, se abre la hoja para firmar y el certificado sale solo al guardarla.' }],
+    },
+    {
       id: 'firma', titulo: 'Tu firma', captura: 'pro-firma', grupo: 'La consulta',
-      bajada: 'La cargás una vez y queda para todas tus recetas.',
+      bajada: 'La cargás una vez y queda para tus recetas, tus órdenes de estudios y tus certificados.',
       marcas: { 1: 'Firmá con el dedo o el mouse, o subí una foto de tu firma.' },
     },
     {
@@ -629,7 +755,8 @@ const profesional = {
     {
       id: 'referido', titulo: 'Tu link para pacientes', captura: 'pro-inicio', grupo: 'Crecer',
       bajada: 'Mandás tu link a tus pacientes. Entran a tu perfil, crean su cuenta y quedan asociados a vos.',
-      marcas: { 2: 'Copiar o mandar por WhatsApp. Abajo ves cuántos entraron, se registraron y sacaron turno.' },
+      marcas: { 2: 'Tu código y tu link: compartilo, copialo o mandalo por WhatsApp. Abajo ves cuántos se sumaron.' },
+      tips: [{ tipo: 'tip', texto: 'Si un paciente se registra sin el link, puede escribir tu código en "¿Tenés un código?" al crear su cuenta.' }],
     },
     {
       id: 'perfil', titulo: 'Tu perfil', captura: 'pro-perfil', grupo: 'Crecer',
@@ -665,13 +792,16 @@ const profesional = {
     { p: '¿Cuánto se queda Healthier?', r: 'El 20% de cada consulta. Vos te quedás con el 80%.' },
     { p: '¿El paciente no se conecta?', r: 'A los 5 minutos te aparece la opción de seguir esperando o marcarlo ausente.' },
     { p: '¿No me deja emitir la receta?', r: 'Revisá que tengas cargada la firma, la dirección del consultorio, tu DNI y tu matrícula. Si falta la firma, la cargás en el momento y la receta sale sola.' },
+    { p: '¿El paciente recibe la orden de estudios?', r: 'Sí. Al guardarla le llega por mail, firmada, y le queda en su Bóveda. En la tarjeta de la orden ves cuándo se la enviamos.' },
+    { p: '¿Qué certificados puedo hacer?', r: 'Constancia de atención, certificado de reposo y certificado escolar, desde el Recetario de la consulta.' },
+    { p: '¿Qué es una receta "Pendiente de autorización"?', r: 'Una receta que la obra social del paciente tiene que autorizar. La autoriza la farmacia y al paciente le avisamos cuando ya la puede comprar.' },
     { p: '¿No me aparece Mercado Pago?', r: 'Está en Configuración, pestaña "Cuenta". En el teléfono, Configuración está dentro de "Más".' },
     { p: '¿Tengo que dejar la plataforma abierta para la consulta inmediata?', r: 'No. La disponibilidad dura una hora y te llega un aviso cuando un paciente te espera.' },
     { p: '¿Puedo editar una nota ya guardada?', r: 'Las notas no se editan: si algo cambia, se agrega un addendum. Así queda el registro completo.' },
     { p: '¿Qué pasa si cambio mi especialidad o mi matrícula?', r: 'El perfil vuelve a revisión. Mientras tanto seguís atendiendo los turnos que ya tenías.' },
     { p: '¿Cómo practico antes de mi primera consulta?', r: 'Desde el inicio o el Centro de ayuda, con "Practicá una videoconsulta". Es la sala de verdad con una paciente de prueba.' },
   ],
-  glosario: ['Verificación', 'Disponible ahora', 'En sala', 'Ingresar paciente', 'Pre-consulta', 'Historia clínica', 'Receta electrónica', 'Vademécum', 'Obra social', 'Firma', 'Código de cierre', 'Mercado Pago', 'Comisión', 'Referido', 'NutriPlan'],
+  glosario: ['Verificación', 'Disponible ahora', 'En sala', 'Ingresar paciente', 'Pre-consulta', 'Historia clínica', 'Receta electrónica', 'Pendiente de autorización', 'Orden de estudios', 'Certificado', 'Vademécum', 'Obra social', 'Firma', 'Código de cierre', 'Mercado Pago', 'Comisión', 'Referido', 'Código de invitación', 'NutriPlan'],
   ayuda: '¿Dudas? Entrá al Centro de ayuda o escribinos por WhatsApp.',
 }
 
@@ -696,6 +826,7 @@ const farmacia = {
   puede: [
     { titulo: 'Ver los pedidos', texto: 'Todos, con su estado y su pago.', ir: 'pedidos' },
     { titulo: 'Avanzar un pedido', texto: 'De pendiente a entregado.', ir: 'pedido' },
+    { titulo: 'Autorizar recetas', texto: 'Las que espera la obra social.', ir: 'autorizar' },
     { titulo: 'Entregar con código', texto: 'Sin DNI ni firmas.', ir: 'entregar' },
     { titulo: 'Cancelar con motivo', texto: 'El paciente lo ve en su seguimiento.', ir: 'cancelar' },
     { titulo: 'Cargar el catálogo', texto: 'Importar y exportar con Excel.', ir: 'catalogo' },
@@ -713,6 +844,20 @@ const farmacia = {
         4: 'El siguiente paso de cada pedido, en un botón.',
       },
       tips: [{ tipo: 'tip', texto: 'Cada pedido nuevo también te llega por mail.' }],
+    },
+    {
+      id: 'autorizar', titulo: 'Recetas por autorizar', captura: 'far-autorizar', grupo: 'Pedidos',
+      bajada: 'Algunas recetas necesitan la autorización de la obra social. Aparecen arriba de tus pedidos y el paciente no las puede comprar hasta que las autorizás.',
+      marcas: {
+        1: 'Las recetas pendientes de autorización de la obra social.',
+        2: 'Cada una con el medicamento, el paciente, quién la emitió y su PDF.',
+        3: 'Autorizar: al paciente le llega un aviso y ya la puede comprar.',
+      },
+      pasos: [
+        'Revisá la receta y su autorización.',
+        'Tocá "Autorizar" y confirmá.',
+        'Desaparece de la lista y el paciente ya la puede sumar al carrito.',
+      ],
     },
     {
       id: 'pedido', titulo: 'Adentro de un pedido', captura: 'far-pedido', grupo: 'Pedidos',
@@ -793,8 +938,9 @@ const farmacia = {
     { p: '¿Quién puede editar el catálogo?', r: 'El administrador de la farmacia. Los operadores mueven los pedidos, y la cuenta de consulta sólo los ve.' },
     { p: '¿Cuándo me pagan?', r: 'El cobro entra directo en tu Mercado Pago cuando el paciente paga, con la comisión de Healthier ya descontada.' },
     { p: '¿El paciente se entera de cada cambio?', r: 'Le avisamos cuando su pedido sale, cuando se entrega y si se cancela.' },
+    { p: '¿Qué es una receta pendiente de autorización?', r: 'Una receta que la obra social tiene que autorizar. Figura arriba de tus pedidos; cuando la autorizás, el paciente ya la puede comprar.' },
   ],
-  glosario: ['Pedido', 'Código de entrega', 'Catálogo', 'Bonificado', 'Receta electrónica', 'Mercado Pago', 'Comisión'],
+  glosario: ['Pedido', 'Código de entrega', 'Catálogo', 'Bonificado', 'Receta electrónica', 'Pendiente de autorización', 'Mercado Pago', 'Comisión'],
   ayuda: '¿Dudas con un pedido? Escribinos y lo vemos juntos.',
 }
 
@@ -932,14 +1078,16 @@ const superAdmin = {
   viajes: [VIAJE_CONSULTA, VIAJE_EMERGENCIA],
   puede: [
     { titulo: 'Ver el tablero', texto: 'Captación, consultas y métricas.', ir: 'dashboard' },
+    { titulo: 'Sumar las cuentas de prueba', texto: 'Sólo cuando las querés ver.', ir: 'cuentas-prueba' },
     { titulo: 'Verificar profesionales', texto: 'Documentos, SISA y decisión.', ir: 'profesionales' },
     { titulo: 'Resolver pagos', texto: 'Devoluciones y pagos pendientes.', ir: 'pagos' },
     { titulo: 'Ver consultas', texto: 'Con su detalle y su código de cierre.', ir: 'consultas' },
     { titulo: 'Seguir emergencias', texto: 'Y elegir al coordinador.', ir: 'emergencias' },
     { titulo: 'Ver pacientes', texto: 'Usuarios, prospectos y familias.', ir: 'pacientes' },
-    { titulo: 'Auditar', texto: 'Accesos a historias clínicas y recetas.', ir: 'auditoria' },
+    { titulo: 'Auditar', texto: 'Historias clínicas, recetas y acciones de administradores.', ir: 'auditoria' },
     { titulo: 'Controlar los mails', texto: 'Qué salió y qué rebotó.', ir: 'mails' },
     { titulo: 'Configurar', texto: 'Comisión, turnos, zonas y verticales.', ir: 'settings' },
+    { titulo: 'Cambiar tu contraseña', texto: 'Ponerla o cambiarla.', ir: 'contrasena' },
   ],
   secciones: [
     {
@@ -951,6 +1099,12 @@ const superAdmin = {
         3: 'El menú: pagos, consultas, pacientes, profesionales y configuración.',
       },
       tips: [{ tipo: 'tip', texto: 'Más abajo: consultas por día, métricas generales, los mejores profesionales y el funnel de adquisición por fuente.' }],
+    },
+    {
+      id: 'cuentas-prueba', titulo: 'Las cuentas de prueba', captura: 'sa-dashboard', grupo: 'Seguimiento',
+      bajada: 'Por defecto, las cuentas de prueba no cuentan: las métricas, los totales y los listados muestran sólo la actividad real.',
+      marcas: { 4: 'Incluir cuentas de prueba: prendelo para sumarlas y revisar el detalle.' },
+      tips: [{ tipo: 'tip', texto: 'El interruptor está en todas las pantallas y se recuerda: si lo prendés en una, las demás abren igual.' }],
     },
     {
       id: 'profesionales', titulo: 'Verificar profesionales', captura: 'sa-profesionales', grupo: 'Profesionales',
@@ -967,6 +1121,7 @@ const superAdmin = {
       ],
       tips: [
         { tipo: 'tip', texto: 'Si pedís revisión, el motivo que escribas lo ve el profesional para corregir.' },
+        { tipo: 'tip', texto: 'Cuando un profesional completa su DNI, se chequea solo con SISA y el resultado queda en su legajo.' },
         { tipo: 'ojo', texto: 'Un profesional sin precio cargado no aparece en las búsquedas aunque lo apruebes.' },
       ],
     },
@@ -977,6 +1132,7 @@ const superAdmin = {
         1: 'Lo que necesita para recetar, con lo que le falta marcado. Más abajo, sus documentos.',
         2: 'Las decisiones de verificación.',
       },
+      tips: [{ tipo: 'tip', texto: 'Si la matrícula es provincial, la provincia tiene que estar cargada para que pueda recetar. Se edita desde el legajo.' }],
     },
     {
       id: 'recorrido', titulo: 'Recorrido y prospectos', captura: 'sa-recorrido', grupo: 'Profesionales',
@@ -1026,23 +1182,37 @@ const superAdmin = {
         2: 'Exportar.',
         3: 'Cada paciente con su fuente y cuántas consultas tuvo.',
       },
-      tips: [{ tipo: 'tip', texto: 'En Grupos familiares ves los familiares de cada titular, sus consultas y cuándo entraron con su código.' }],
+      tips: [
+        { tipo: 'tip', texto: 'En Grupos familiares ves los familiares de cada titular, sus consultas y cuándo entraron con su código.' },
+        { tipo: 'tip', texto: 'En Referidos ves todas las invitaciones, de profesionales y de pacientes, por tipo.' },
+      ],
     },
     {
       id: 'farmacia', titulo: 'Farmacia', captura: 'sa-farmacia', grupo: 'Operación',
-      bajada: 'Cómo viene la farmacia: pedidos, pagados, volumen y el estado de su Mercado Pago.',
+      bajada: 'Cómo viene la farmacia: pedidos, pagados, volumen, el estado de su Mercado Pago y las recetas que esperan autorización.',
       marcas: {
         1: 'Las cifras de la farmacia.',
-        2: 'Los últimos pedidos.',
+        2: 'Las recetas pendientes de autorización y quién autorizó cada una. Desde acá también se pueden autorizar.',
       },
+      tips: [{ tipo: 'tip', texto: 'Más abajo: la vigencia de las recetas para comprar y los últimos pedidos.' }],
     },
     {
       id: 'auditoria', titulo: 'Auditoría', captura: 'sa-auditoria', grupo: 'Control',
-      bajada: 'Quién consultó o escribió cada historia clínica, y cada receta emitida. Sólo los datos del acceso, nunca el contenido clínico.',
+      bajada: 'Quién consultó o escribió cada historia clínica, cada receta, certificado y orden emitida, y qué hizo cada administrador. Sólo los datos del acceso, nunca el contenido clínico.',
       marcas: {
-        1: 'Historia clínica o recetas electrónicas.',
+        1: 'Historia clínica, acciones de administradores o recetas electrónicas.',
         2: 'Buscar por profesional o paciente.',
       },
+      tips: [{ tipo: 'tip', texto: 'En Recetas electrónicas, arriba, aparecen los certificados y las órdenes de estudios a revisar: confirmá con el servicio de recetas y, si no salieron, liberalos para que se puedan volver a emitir.' }],
+    },
+    {
+      id: 'acciones-admin', titulo: 'Acciones de administradores', captura: 'sa-acciones', grupo: 'Control',
+      bajada: 'Cada cambio que hace un administrador queda registrado: quién, cuándo y sobre qué. El registro no se puede editar ni borrar.',
+      marcas: {
+        1: 'La pestaña de acciones de administradores.',
+        2: 'Cada acción con quién la hizo, cuándo y qué cambió.',
+      },
+      tips: [{ tipo: 'tip', texto: 'Entran verificaciones, cambios de legajo, consultas, devoluciones, configuración, roles y cambios de contraseña.' }],
     },
     {
       id: 'mails', titulo: 'Mails', captura: 'sa-mails', grupo: 'Control',
@@ -1093,6 +1263,16 @@ const superAdmin = {
       },
     },
     {
+      id: 'contrasena', titulo: 'Mi contraseña', captura: 'sa-contrasena', grupo: 'Configuración',
+      bajada: 'Ponés o cambiás tu contraseña. Si ya tenés una, te pide la actual.',
+      marcas: {
+        1: 'Tu contraseña nueva, dos veces.',
+        2: 'Guardar contraseña.',
+        3: 'Dónde está: en Configuración (en el teléfono, en "Más").',
+      },
+      tips: [{ tipo: 'tip', texto: 'Cada cambio queda en Auditoría, en Acciones de administradores, sin la contraseña.' }],
+    },
+    {
       id: 'admins', titulo: 'Administradores', captura: 'sa-admins', grupo: 'Configuración',
       bajada: 'Quién más administra la plataforma.',
       marcas: {
@@ -1108,8 +1288,9 @@ const superAdmin = {
     { p: '¿Cambiar la comisión afecta lo ya cobrado?', r: 'No: se aplica desde el próximo pago.' },
     { p: '¿Qué pasa si no hay coordinador de ambulancias?', r: 'Los pedidos nuevos no le avisan a nadie. Elegí uno en Emergencias.' },
     { p: '¿Cambiar el estado de una consulta mueve plata?', r: 'No: cambia el dato de la consulta. Las devoluciones se hacen desde Pagos.' },
+    { p: '¿Por qué no veo una consulta que hice para probar?', r: 'Las cuentas de prueba no cuentan por defecto. Prendé "Incluir cuentas de prueba" y aparece.' },
   ],
-  glosario: ['Verificación', 'Comisión', 'Healthy Credits', 'Horas hábiles', 'Prospecto', 'Auditoría', 'Vertical', 'Zona', 'Coordinador', 'Triage'],
+  glosario: ['Verificación', 'Comisión', 'Healthy Credits', 'Horas hábiles', 'Prospecto', 'Cuenta de prueba', 'Auditoría', 'Vertical', 'Zona', 'Coordinador', 'Triage'],
   ayuda: 'Esta guía es interna: sólo se abre con una sesión de super admin.',
 }
 
