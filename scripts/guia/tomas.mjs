@@ -18,6 +18,25 @@ const SA = 'superadmin@healthier.app'
 const CONSULTA_EN_CURSO = '5eed2001-0000-4000-8000-000000000001'
 const CONSULTA_PRESENCIAL = '5eed2003-0000-4000-8000-000000000003'
 const CONSULTA_COMPLETADA = '5eed2004-0000-4000-8000-000000000004'
+// La consulta en curso de clinica@ con un certificado y una orden de estudios
+// ya emitidos (la deja scripts/guia/sembrar.mjs).
+const CONSULTA_CON_RECETARIO = 'a1d00002-0000-4000-8000-000000000012'
+// En el super admin de staging casi todo es de cuentas de prueba: el control
+// "Incluir cuentas de prueba" va prendido para que las pantallas no salgan vacías.
+const CON_PRUEBA = { 'superadmin.incluirPrueba': '1' }
+
+/** Abre una opción del Recetario en el detalle de la consulta y la sube. */
+const recetario = async (p, opcion) => {
+  await clic(p, p.getByRole('button', { name: opcion, exact: true }), 1500)
+  await subir(p, p.locator('p', { hasText: /^Recetario$/ }), 24)
+}
+/** En producción la orden emitida no muestra "Ver PDF" ni "Anular" (sólo en
+ *  staging y cuentas de prueba): la captura muestra lo que ve el profesional. */
+const comoEnProduccion = (p) => p.evaluate(() => {
+  for (const el of document.querySelectorAll('[data-testid="orden-estudios"] a, [data-testid="orden-estudios"] button')) {
+    if (/^(Ver PDF|Anular)$/.test(el.textContent.trim())) el.parentElement?.remove()
+  }
+})
 
 // Un selector diferido (recibe la página), que se puede encadenar como un
 // locator de Playwright: css('x').locator('..').or(txt('y')).first()
@@ -129,13 +148,25 @@ export const TOMAS = [
       [1, css('#pin-familiar')], [2, txt('Entrar', 'button')]] },
   { id: 'pac-sos', quien: PAC, movil: true, url: '/paciente/sos', espera: 2500, marcas: [
       [1, css('a[href="tel:107"]').or(txt('107', 'p,div'))], [2, txt('no te lo cobramos', 'p,div')], [3, txt('Reservar', 'button')]] },
+  { id: 'pac-certificados', quien: PAC, movil: true, url: '/paciente/certificados', espera: 2500, marcas: [
+      [1, txt('Reposo · 2 días', 'p').first().locator('xpath=ancestor::div[contains(@class,"rounded")][1]')], [2, css('a,button').filter({ hasText: /^\s*Ver\s*$/ }).first()], [3, css('button[aria-label="Compartir"]').first()]] },
+  { id: 'pac-ordenes', quien: PAC, movil: true, url: '/paciente/ordenes-estudios', espera: 2500, marcas: [
+      [1, css('button[aria-label="Compartir"]').first().locator('xpath=ancestor::div[contains(@class,"rounded")][1]')], [2, css('a,button').filter({ hasText: /^\s*Ver\s*$/ }).first()], [3, css('button[aria-label="Compartir"]').first()]] },
+  { id: 'pac-boveda', quien: PAC, movil: true, url: '/paciente/documentos', espera: 2500, pasos: async (p) => {
+      await subir(p, p.locator('button, a', { hasText: 'Certificados' }), 220) },
+    marcas: [[1, txt('Certificados', 'button,a').first()], [2, txt('Órdenes de estudios', 'button,a').first()]] },
+  { id: 'pac-invitar', quien: PAC, movil: true, url: '/paciente/invitar', espera: 2500, marcas: [
+      [1, css('[data-testid="invita-codigo"]')], [2, txt('Compartir', 'button')], [3, css('[data-testid="invita-contador"]')]] },
+  { id: 'pac-eliminar', quien: PAC, movil: true, url: '/paciente/perfil', espera: 2000, pasos: async (p) => {
+      await subir(p, p.locator('button', { hasText: 'Eliminar mi cuenta' }), 420) },
+    marcas: [[1, txt('Eliminar mi cuenta', 'button')]] },
 
   // ── Profesional (web, escritorio) ────────────────────────────────────────
   { id: 'pro-onboarding', quien: PENDIENTE, url: '/profesional/onboarding?resubmit=1', espera: 2500, marcas: [
       [1, txt('Especialidad', 'nav,ol,div.flex').filter({ hasText: 'Revisión' })], [2, txt('¿Cuál es tu profesión?', 'label,div,fieldset')], [3, txt('Nota nueva', 'p,span,div').last().locator('..')]] },
   { id: 'pro-revision', quien: PENDIENTE, url: '/profesional/dashboard', espera: 2500, marcas: [
       [1, txt('Te faltan subir documentos', 'div,section').or(txt('Perfil en revisión', 'div,section')).last()], [2, txt('Conectá tu Mercado Pago', 'div,section')], [3, tour('pro-practica')], [4, tour('pro-checklist')]] },
-  { id: 'pro-inicio', quien: PRO, url: '/profesional/dashboard', espera: 2500, marcas: [
+  { id: 'pro-inicio', quien: PRO, url: '/profesional/dashboard', espera: 2500, alto: 1500, marcas: [
       [1, tour('pro-ondemand')], [2, tour('pro-referido')], [3, tour('pro-stats')], [4, tour('pro-ganancias')], [5, txt('Consultas de hoy', 'h2').locator('xpath=ancestor::*[contains(@class,"card")][1]')], [6, css('aside nav')]] },
   { id: 'pro-agenda', quien: PRO, url: '/profesional/agenda', espera: 2000, marcas: [
       [1, txt('Hoy', 'div,section').filter({ has: css('a,button') })], [2, txt('Horario semanal', 'div,section')], [3, css('button[title="Agregar franja"]')]] },
@@ -151,7 +182,21 @@ export const TOMAS = [
     marcas: [[1, txt('Ingresar paciente', 'button').locator('xpath=ancestor::div[3]')], [2, tour('tab-nota').locator('..')], [3, tour('preconsulta')], [4, tour('botones-nota')]] },
   { id: 'pro-receta', quien: PRO, url: '/profesional/videollamada/simulacion', espera: 4000, pasos: async (p) => {
       await clic(p, p.locator('[data-tour="tab-receta"]'), 1500) },
-    marcas: [[1, txt('cobertura', 'div,section').filter({ has: css('button') })], [2, txt('Recetar medicamentos', 'button').locator('..')]] },
+    marcas: [[1, txt('cobertura', 'div,section').filter({ has: css('button') })], [2, css('button[aria-pressed]').filter({ hasText: 'Medicamentos' }).locator('..')]] },
+  { id: 'pro-estudios', quien: PRO, url: `/profesional/consulta/${CONSULTA_CON_RECETARIO}`, espera: 2500, pasos: async (p) => {
+      await recetario(p, 'Estudios')
+      await clic(p, p.locator('button', { hasText: 'Nueva orden de estudios' }), 900)
+      await comoEnProduccion(p) },
+    marcas: [[1, css('[data-testid="orden-enviada"]').locator('xpath=ancestor::div[@data-testid="orden-estudios"]')], [2, css('button[aria-label="Agregar estudio"]').locator('xpath=ancestor::div[contains(@class,"flex")][1]')], [3, css('[data-testid="guardar-orden"]')]] },
+  { id: 'pro-certificado', quien: PRO, url: `/profesional/consulta/${CONSULTA_CON_RECETARIO}`, espera: 2500, pasos: async (p) => {
+      await recetario(p, 'Certificado')
+      await clic(p, p.locator('[role="radiogroup"] >> text=Reposo'), 700) },
+    marcas: [[1, txt('Reposo', 'p').first().locator('xpath=ancestor::div[contains(@class,"rounded-2xl")][1]')], [2, css('[role="radiogroup"][aria-label="Modelo de certificado"]')], [3, txt('Vista previa', 'button').last()]] },
+  { id: 'pro-certificado-previa', quien: PRO, url: `/profesional/consulta/${CONSULTA_CON_RECETARIO}`, espera: 1500, pasos: async (p) => {
+      await recetario(p, 'Certificado')
+      await clic(p, p.locator('[role="radiogroup"] >> text=Reposo'), 700)
+      await clic(p, p.locator('button', { hasText: 'Vista previa' }).last(), 9000) },
+    marcas: [[1, txt('Vista previa', 'h3').locator('xpath=ancestor::*[@role="dialog" or contains(@class,"fixed")][1]')], [2, txt('Emitir certificado', 'button')]] },
   { id: 'pro-cerrar', quien: PRO, url: '/profesional/videollamada/simulacion', espera: 4000, pasos: async (p) => {
       await clic(p, p.locator('[data-tour="tab-cerrar"]'), 1500) },
     marcas: [[1, txt('Solicitar código al paciente', 'button')], [2, css('input[inputmode="numeric"], input[maxlength="4"]')]] },
@@ -176,7 +221,9 @@ export const TOMAS = [
 
   // ── Farmacia (web) ───────────────────────────────────────────────────────
   { id: 'far-pedidos', quien: FARMACIA, url: '/farmacia/pedidos', espera: 2000, marcas: [
-      [1, css('h1:has-text("Pedidos")')], [2, css('select.form-select').first().locator('..')], [3, css('tbody tr').first()], [4, css('tbody tr button').first()]] },
+      [1, css('h1:has-text("Pedidos")')], [2, css('select.form-select').first().locator('..')], [3, css('table').last().locator('tbody tr').first()], [4, css('table').last().locator('tbody tr button').first()]] },
+  { id: 'far-autorizar', quien: FARMACIA, url: '/farmacia/pedidos', espera: 2500, marcas: [
+      [1, css('[data-testid="recetas-por-autorizar"] h2').locator('..')], [2, css('[data-testid="recetas-por-autorizar"] tbody tr').first()], [3, css('[data-testid="recetas-por-autorizar"] button').filter({ hasText: 'Autorizar' }).first()]] },
   { id: 'far-pedido', quien: FARMACIA, url: '/farmacia/pedidos', pasos: async (p) => {
       await clic(p, p.locator('tbody tr', { hasText: 'Entregar con código' }), 1800) },
     marcas: [[1, css('h1.font-mono').locator('..')], [2, txt('Paciente', 'p').locator('xpath=ancestor::*[contains(@class,"card")][1]')], [3, txt('Medicamentos', 'p,h2').locator('xpath=ancestor::*[contains(@class,"card")][1]')], [4, txt('Neto farmacia', '*').locator('xpath=ancestor::*[contains(@class,"card")][1]')], [5, css('input[placeholder="----"]').locator('..')]] },
@@ -210,40 +257,45 @@ export const TOMAS = [
       [1, txt('UTM-', 'h1,h2,p').first().locator('..')], [2, txt('Navegar al paciente', 'a,button')], [3, txt('Llegué al paciente', 'button')]] },
 
   // ── Super admin (web) ────────────────────────────────────────────────────
-  { id: 'sa-dashboard', quien: SA, url: '/super-admin/dashboard', espera: 3000, marcas: [
-      [1, txt('Pendientes de verificación', 'h2').locator('xpath=ancestor::*[contains(@class,"card")][1]')], [2, txt('Prospectos — Profesionales', 'h2').locator('xpath=ancestor::div[contains(@class,"grid")][1]')], [3, css('aside nav')]] },
-  { id: 'sa-profesionales', quien: SA, url: '/super-admin/profesionales', espera: 3000, marcas: [
+  { id: 'sa-dashboard', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/dashboard', espera: 3000, marcas: [
+      [1, txt('Pendientes de verificación', 'h2').locator('xpath=ancestor::*[contains(@class,"card")][1]')], [2, txt('Prospectos — Profesionales', 'h2').locator('xpath=ancestor::div[contains(@class,"grid")][1]')], [3, css('aside nav')], [4, txt('Incluir cuentas de prueba', 'label')]] },
+  { id: 'sa-profesionales', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/profesionales', espera: 3000, marcas: [
       [1, txt('Pendientes', 'button').locator('..')], [2, css('input[placeholder="Buscar profesional…"]')], [3, css('table thead')]] },
-  { id: 'sa-profesional', quien: SA, url: '/super-admin/profesionales?filter=pendientes', pasos: async (p) => {
+  { id: 'sa-profesional', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/profesionales?filter=pendientes', pasos: async (p) => {
       await clic(p, p.locator('tbody tr').first(), 1800) },
     marcas: [[1, txt('Credenciales y datos para recetar', '*').locator('..')], [2, txt('Verificar manualmente', 'button').locator('..')]] },
-  { id: 'sa-recorrido', quien: SA, url: '/super-admin/profesionales/recorrido', espera: 3000, marcas: [
+  { id: 'sa-recorrido', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/profesionales/recorrido', espera: 3000, marcas: [
       [1, txt('30 días', 'button').locator('..')], [2, txt('Enviaron para verificar', '*').locator('xpath=ancestor::div[contains(@class,"grid")][1]')], [3, css('svg').last()]] },
-  { id: 'sa-pagos', quien: SA, url: '/super-admin/pagos', espera: 3000, marcas: [
+  { id: 'sa-pagos', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/pagos', espera: 3000, alto: 1500, marcas: [
       [1, txt('Facturado (bruto)', '*').locator('xpath=ancestor::div[contains(@class,"grid")][1]')], [2, txt('Devoluciones', 'h2')], [3, txt('Filtrar', 'button').locator('..')]] },
-  { id: 'sa-consultas', quien: SA, url: '/super-admin/consultas', espera: 3000, marcas: [
+  { id: 'sa-consultas', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/consultas', espera: 3000, marcas: [
       [1, css('input[placeholder="Paciente o profesional, nombre o email"]')], [2, css('select').first().locator('..')], [3, css('tbody tr').first()]] },
-  { id: 'sa-emergencias', quien: SA, url: '/super-admin/emergencias', espera: 3000, marcas: [
+  { id: 'sa-emergencias', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/emergencias', espera: 3000, marcas: [
       [1, txt('Coordinador de ambulancias', 'h2').locator('xpath=ancestor::*[contains(@class,"card")][1]')], [2, css('input[placeholder="Buscar por nombre o mail"]')], [3, css('tbody tr').first()]] },
-  { id: 'sa-pacientes', quien: SA, url: '/super-admin/usuarios', espera: 3000, marcas: [
+  { id: 'sa-pacientes', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/usuarios', espera: 3000, marcas: [
       [1, txt('Con consultas', 'button').locator('..')], [2, txt('Exportar CSV', 'button')], [3, css('tbody tr').first()]] },
-  { id: 'sa-farmacia', quien: SA, url: '/super-admin/farmacia', espera: 3000, marcas: [
-      [1, txt('GMV', 'p').locator('xpath=ancestor::div[contains(@class,"grid")][1]')], [2, css('table')]] },
-  { id: 'sa-auditoria', quien: SA, url: '/super-admin/auditoria', espera: 3000, marcas: [
-      [1, txt('Recetas electrónicas', 'button').locator('..')], [2, css('input[placeholder="Buscar por profesional o paciente…"]')]] },
-  { id: 'sa-mails', quien: SA, url: '/super-admin/mails', espera: 3000, marcas: [
+  { id: 'sa-farmacia', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/farmacia', espera: 3000, marcas: [
+      [1, txt('GMV', 'p').locator('xpath=ancestor::div[contains(@class,"grid")][1]')], [2, css('[data-testid="recetas-por-autorizar"]')]] },
+  { id: 'sa-auditoria', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/auditoria', espera: 3000, marcas: [
+      [1, txt('Acciones de administradores', 'button').locator('..')], [2, css('input[placeholder="Buscar por profesional o paciente…"]')]] },
+  { id: 'sa-acciones', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/auditoria', pasos: async (p) => {
+      await clic(p, p.getByRole('button', { name: 'Acciones de administradores' }), 2500) },
+    marcas: [[1, txt('Acciones de administradores', 'button')], [2, css('table tbody tr, ul li').first()]] },
+  { id: 'sa-contrasena', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/perfil', espera: 2500, marcas: [
+      [1, css('input[type="password"]').first().locator('xpath=ancestor::form[1]')], [2, css('form button[type="submit"]')], [3, txt('Mi contraseña', 'a').or(txt('Mi contraseña', 'button')).first()]] },
+  { id: 'sa-mails', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/mails', espera: 3000, marcas: [
       [1, txt('Últimas 24 h', '*').locator('xpath=ancestor::div[contains(@class,"grid")][1]')], [2, css('select').first().locator('..')], [3, css('tbody tr, ul li').first()]] },
-  { id: 'sa-settings', quien: SA, url: '/super-admin/settings', espera: 2500, marcas: [
+  { id: 'sa-settings', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/settings', espera: 2500, marcas: [
       [1, txt('Comisión Healthier (%)', 'label').locator('..')], [2, txt('Ventana de reembolso', 'label').locator('..')], [3, txt('Turnos', 'h2').locator('xpath=ancestor::*[contains(@class,"card")][1]')]] },
-  { id: 'sa-verticales', quien: SA, url: '/super-admin/verticales', espera: 2500, alto: 1350, marcas: [
+  { id: 'sa-verticales', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/verticales', espera: 2500, alto: 1350, marcas: [
       [1, txt('Especialidades', 'button').locator('..')], [2, css('tbody tr, .card').filter({ has: css('input') }).first()], [3, txt('Emergencias S.O.S', '*').locator('xpath=ancestor::div[2]')]] },
-  { id: 'sa-especialidades', quien: SA, url: '/super-admin/verticales', espera: 1500, pasos: async (p) => {
+  { id: 'sa-especialidades', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/verticales', espera: 1500, pasos: async (p) => {
       await clic(p, p.getByRole('button', { name: 'Especialidades', exact: true }), 2000)
       await clic(p, p.locator('[title="Agregar sub-especialidad"]'), 900) },
     marcas: [
       [1, css('[title="Agregar sub-especialidad"]')], [2, css('form').filter({ hasText: 'Nueva sub-especialidad de' })], [3, css('div.pl-8.border-l-2')], [4, css('div.pl-8.border-l-2 [title="Editar"]')]] },
-  { id: 'sa-zonas', quien: SA, url: '/super-admin/zonas', espera: 2500, marcas: [
+  { id: 'sa-zonas', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/zonas', espera: 2500, marcas: [
       [1, txt('Lista de espera', 'button').locator('..')], [2, css('input[placeholder="Nueva zona (ej. Villa Crespo)"]').locator('..')]] },
-  { id: 'sa-admins', quien: SA, url: '/super-admin/admins', espera: 2500, marcas: [
+  { id: 'sa-admins', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/admins', espera: 2500, marcas: [
       [1, txt('Agregar admin', 'button')], [2, css('table')]] },
 ]

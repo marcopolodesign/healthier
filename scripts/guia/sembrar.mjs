@@ -82,6 +82,7 @@ async function sql(query) {
 const SEC = {
   usr: 1, cons: 2, enc: 3, ent: 4, med: 5, cond: 6, pay: 7, ord: 8, item: 9, prod: 10,
   emg: 11, not: 12, rep: 13, plan: 14, pet: 15, dir: 16, cred: 17, mail: 18, fam: 19,
+  cert: 20, oest: 21,
 }
 const uid = (sec, n) => `a1d0${String(SEC[sec]).padStart(4, '0')}-0000-4000-8000-${String(n).padStart(12, '0')}`
 const PREFIJO = "'a1d0%'"
@@ -186,6 +187,12 @@ async function limpiar() {
   const FAMILIAR_VINCULO = uid('fam', 1)
   const { data: vinc } = await db.from('family_members').select('familiar_id').eq('id', FAMILIAR_VINCULO).maybeSingle()
 
+  // Certificados y órdenes de estudios apuntan a la consulta y a la entrada de
+  // la historia (on delete restrict): se borran antes.
+  await sql(`
+    delete from public.clinical_certificates where id::text like ${PREFIJO};
+    delete from public.clinical_study_orders where id::text like ${PREFIJO};
+  `)
   await triggersRetencion('disable')
   try {
     await sql(`
@@ -235,7 +242,7 @@ async function limpiar() {
       await sql(`delete from public.profiles where id = '${p.id}';`)
       await db.auth.admin.deleteUser(p.id)
     }
-    await db.storage.from('prescriptions').remove(['a1d0/receta-A.pdf', 'a1d0/receta-B.pdf'])
+    await db.storage.from('prescriptions').remove(['a1d0/receta-A.pdf', 'a1d0/receta-B.pdf', 'a1d0/receta-C.pdf', 'a1d0/certificado.pdf', 'a1d0/orden.pdf'])
     await db.storage.from('professional-docs').remove(
       ['titulo', 'matricula', 'dni', 'seguro_mala_praxis', 'cuit'].map(n => `${PENDIENTE}/${n}.pdf`))
     // Lo que se les puso a las cuentas demo existentes vuelve a nulo (era nulo).
@@ -296,9 +303,13 @@ const K = {
   hoyVideo: uid('cons', 1), hoyPres: uid('cons', 2), pendiente: uid('cons', 3),
   done1: uid('cons', 4), done2: uid('cons', 5), done3: uid('cons', 6), done4: uid('cons', 7),
   doneRecetaB: uid('cons', 8), cancelPend: uid('cons', 9), cancelCredito: uid('cons', 10), rechazada: uid('cons', 11),
+  // En curso (empezó hace un rato): la profesional emite certificados y
+  // órdenes de estudios desde su detalle.
+  enCurso: uid('cons', 12),
 }
-const ENC = { a: uid('enc', 1), b: uid('enc', 2) }
-const RECETA = { A: 'A1D0-RCTA-0001', B: 'A1D0-RCTA-0002' }
+const ENC = { a: uid('enc', 1), b: uid('enc', 2), c: uid('enc', 3) }
+// C: una receta que la obra social todavía no autorizó (la autoriza la farmacia).
+const RECETA = { A: 'A1D0-RCTA-0001', B: 'A1D0-RCTA-0002', C: 'A1D0-RCTA-0003' }
 
 function sembrarConsultas() {
   const comun = { vertical: 'salud', coverage_type: 'particular', is_on_demand: false }
@@ -329,6 +340,9 @@ function sembrarConsultas() {
     { id: K.doneRecetaB, patient_id: PAC_C, professional_id: CLINICA.id, status: 'completed', modality: 'video', scheduled_at: en(-20, 11, 15), completed_at: en(-20, 11, 48),
       price_at_booking: 18000, payment_status: 'paid', paid_at: en(-22, 19, 0),
       closing_notes: 'Hipertensión controlada con tratamiento actual. Se suma estatina por perfil lipídico.', ...comun },
+    { id: K.enCurso, patient_id: PAC_C, professional_id: CLINICA.id, status: 'in_progress', modality: 'video', scheduled_at: haceMin(25), started_at: haceMin(20),
+      price_at_booking: 18000, payment_status: 'paid', paid_at: en(-1, 19, 10),
+      preconsulta_data: { version: 2, motivo: 'Cansancio y control anual', sintomas: ['Cansancio'], desde: 'hace 2 semanas' }, ...comun },
     // Cancelada con pedido de devolución pendiente de revisión.
     { id: K.cancelPend, patient_id: PAC_C, professional_id: CLINICA.id, status: 'cancelled', modality: 'video', scheduled_at: en(-1, 9, 50),
       price_at_booking: 18000, payment_status: 'paid', paid_at: en(-3, 14, 0), cancelled_at: en(-2, 16, 20), cancelled_by: PAC_C,
@@ -465,6 +479,47 @@ Diagnóstico:
   cuenta('encuentros clínicos', 2)
   cuenta('entradas de historia', 3)
   cuenta('recetas emitidas (4 medicamentos)', 2)
+
+  // Pendiente de autorización de la obra social: el paciente no la puede
+  // comprar hasta que la farmacia la autoriza (migración 223).
+  ins('clinical_medications', [
+    med(5, ENC.a, RECETA.C, en(-2, 11, 12), { medication_name: 'Omeprazol 20 mg', nombre_droga: 'Omeprazol', presentation: 'Cápsulas x 30', concentration: '20 mg',
+      dosage_text: '1 cápsula en ayunas', frequency: 'cada 24 h', duration_days: 30, quantity: '1 caja', is_chronic: false,
+      rcta_autorizacion: 'pendiente', rcta_recetas: [{ idReceta: RECETA.C, autorizacion: 'pendiente' }] }),
+  ])
+  cuenta('recetas pendientes de autorización', 1)
+}
+
+// Certificados y orden de estudios (migraciones 222/224/227): ya emitidos, como
+// los deja el servicio de recetas. Se ven en el Recetario de la profesional y
+// en la Bóveda del paciente (las carpetas aparecen cuando hay alguno).
+function sembrarCertificadosYOrdenes(urlPdf) {
+  const lic = { professional_license_type: 'MN', professional_license_number: CLINICA.matricula }
+  ins('clinical_encounters', [
+    { id: ENC.c, consultation_id: K.enCurso, patient_id: PAC_C, professional_id: CLINICA.id, modality: 'telemedicina', specialty: 'medicina_general',
+      status: 'in_progress', started_at: haceMin(20), ...lic },
+  ])
+  ins('clinical_entries', [
+    { id: uid('ent', 4), encounter_id: ENC.c, patient_id: PAC_C, professional_id: CLINICA.id, entry_type: 'order', sequence_number: 1,
+      content: 'Hemograma completo, Glucemia, Perfil lipídico, TSH\nIndicaciones: En ayunas de 8 horas.', ...lic },
+  ])
+  ins('clinical_study_orders', [
+    { id: uid('oest', 1), patient_id: PAC_C, professional_id: CLINICA.id, encounter_id: ENC.c, consultation_id: K.enCurso, entry_id: uid('ent', 4),
+      estudios: [{ id: 1, nombre: 'Hemograma completo', categoria: 'Bioquímica' }, { id: 2, nombre: 'Glucemia', categoria: 'Bioquímica' },
+        { id: 3, nombre: 'Perfil lipídico', categoria: 'Bioquímica' }, { id: 4, nombre: 'TSH', categoria: 'Bioquímica' }],
+      indicaciones: 'En ayunas de 8 horas.', status: 'issued', rcta_numero: 'A1D0-ORD-0001', rcta_pdf_url: urlPdf.orden,
+      rcta_issued_at: haceMin(12), llamado_at: haceMin(12), mail_enviado_at: haceMin(12), created_at: haceMin(12) },
+  ])
+  ins('clinical_certificates', [
+    { id: uid('cert', 1), patient_id: PAC_C, professional_id: CLINICA.id, consultation_id: K.enCurso, encounter_id: ENC.c, tipo: 'reposo',
+      dias: 2, desde: hoyAR, indicaciones: 'Reposo domiciliario e hidratación.', status: 'issued', rcta_numero: 'A1D0-CERT-0001',
+      rcta_pdf_url: urlPdf.certificado, rcta_issued_at: haceMin(8), created_at: haceMin(8) },
+    { id: uid('cert', 2), patient_id: PAC_C, professional_id: CLINICA.id, consultation_id: K.done2, encounter_id: ENC.a, tipo: 'constancia',
+      atencion_at: en(-2, 10, 40), status: 'issued', rcta_numero: 'A1D0-CERT-0002',
+      rcta_pdf_url: urlPdf.certificado, rcta_issued_at: en(-2, 11, 13), created_at: en(-2, 11, 13) },
+  ])
+  cuenta('certificados (reposo y constancia)', 2)
+  cuenta('órdenes de estudios', 1)
 }
 
 // Plan nutricional: mismo formato que arma el NutriPlan del profesional.
@@ -569,8 +624,10 @@ function sembrarNotificaciones() {
     n(4, 'post-consulta', 'Tu consulta terminó', 'Ya podés ver el resumen y tus recetas.', `/paciente/consulta/resumen/${K.done2}`, en(-2, 11, 16), true),
     n(5, 'consulta-cancelada', 'Cancelaste tu consulta', 'Pediste la devolución del importe. La estamos revisando.', '/paciente/consultas', en(-2, 16, 21), true),
     n(6, 'devolucion-hecha', 'Te devolvimos el importe', 'Acreditamos $18.000 en tus Healthy Credits.', '/paciente/comprobantes', en(-12, 11, 1), true),
+    n(7, 'certificado-emitido', 'Tu certificado de reposo ya está disponible', 'Dra. Valentina Ortega te lo emitió. Lo encontrás en tu Bóveda, listo para compartir.', '/paciente/certificados', haceMin(8), true),
+    n(8, 'orden-estudios-emitida', 'Tu orden de estudios ya está disponible', 'Dra. Valentina Ortega te la emitió. La encontrás en tu Bóveda, lista para presentar en el laboratorio.', '/paciente/ordenes-estudios', haceMin(12), true),
   ])
-  cuenta('notificaciones (2 sin leer)', 6)
+  cuenta('notificaciones (2 sin leer)', 8)
 }
 
 // El familiar sigue el modelo de la migración 181: el INSERT en family_members
@@ -760,6 +817,10 @@ async function sembrarCuentasDemo() {
   // Nombre y apellido por separado, sólo si están vacíos.
   upd('profiles', { first_name: 'Matías', last_name: 'Rodríguez' }, `id = '${PAC_C}' and first_name is null`)
   upd('profiles', { first_name: 'Valentina', last_name: 'Ortega' }, `id = '${CLINICA.id}' and first_name is null`)
+  // DNI y sexo de la profesional (la receta, los certificados y las órdenes los
+  // piden), sólo si están vacíos. DNI inventado, fuera de cualquier rango real
+  // de matrícula; con los triggers apagados no dispara el chequeo con SISA.
+  upd('profiles', { dni: '27999111', gender: 'femenino' }, `id = '${CLINICA.id}' and coalesce(dni, '') = ''`)
 
   // Log de mails de /super-admin/mails.
   const msg403 = '403 {"statusCode":403,"name":"validation_error","message":"You can only send testing emails to your own email address. To send emails to other recipients, please verify a domain at resend.com/domains."}'
@@ -825,6 +886,16 @@ try {
     if (error) throw new Error(`url firmada: ${error.message}`)
     urlPdf[receta] = data.signedUrl
   }
+  for (const [clave, titulo] of [['certificado', 'CERTIFICADO MEDICO'], ['orden', 'ORDEN DE ESTUDIOS']]) {
+    const path = `a1d0/${clave}.pdf`
+    await subir('prescriptions', path, pdfSimple([
+      `${titulo} - EJEMPLO PARA LA GUIA DE USO`, 'Paciente: Matias Rodriguez (dato ficticio)',
+      'Profesional: Dra. Valentina Ortega', 'Documento sin validez legal.',
+    ]))
+    const { data, error } = await db.storage.from('prescriptions').createSignedUrl(path, 60 * 60 * 24 * 365)
+    if (error) throw new Error(`url firmada: ${error.message}`)
+    urlPdf[clave] = data.signedUrl
+  }
 
   const { data: planes } = await db.from('nutrition_plans').select('id')
     .eq('patient_id', PAC_C).eq('professional_id', NUTRICION).eq('status', 'active')
@@ -833,6 +904,7 @@ try {
   sembrarConsultas()
   sembrarPagosDeConsultas()
   sembrarHistoriaYRecetas(urlPdf)
+  sembrarCertificadosYOrdenes(urlPdf)
   sembrarPlanNutricional(yaHayPlan)
   sembrarEstudios()
   sembrarPerfilDelPaciente()
