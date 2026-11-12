@@ -113,7 +113,9 @@ test('resumenDeAgenda: misma cuenta que la grilla, sin agenda da ceros', async (
   const todos = [0, 1, 2, 3, 4, 5, 6].map(d => ({ id: `f${d}`, dayOfWeek: d, startTime: '09:00:00', endTime: '10:00:00' }))
   const r = resumenDeAgenda({ schedule: todos, slotMinutes: 15 })
   assert.ok(r.daysAvailable >= 13 && r.daysAvailable <= 14)
-  assert.equal(r.slotsTotal, r.daysAvailable * 4)
+  // Hoy puede tener la franja empezada (se corre a las 9:30 → quedan 2 de 4):
+  // los demás días dan 4 cada uno.
+  assert.ok(r.slotsTotal <= r.daysAvailable * 4 && r.slotsTotal >= (r.daysAvailable - 1) * 4 + 1, `slotsTotal ${r.slotsTotal} con ${r.daysAvailable} días`)
   assert.ok(r.hoursUntilFirstSlot > 0)
   // 2026-01-01 12:00 en Buenos Aires = 15:00 UTC.
   assert.equal(horasHasta('2026-01-01', '12:00', Date.UTC(2026, 0, 1, 13, 0)), 2)
