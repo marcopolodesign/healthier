@@ -6,7 +6,7 @@
 //
 // Body:
 //   { accion: 'emitir' | 'vista_previa', consultationId, encounterId?,
-//     tipo: 'constancia'|'reposo'|'escolar',
+//     tipo: 'constancia'|'reposo'|'escolar'|'libre', (libre: titulo + cuerpo)
 //     dias?, desde? (AAAA-MM-DD), indicaciones?, cie10Code?, cie10Display?,
 //     imprimirDiagnostico? }
 //   { accion: 'anular', certificadoId }
@@ -169,6 +169,8 @@ Deno.serve(async (req: Request) => {
       cie10Code: typeof body.cie10Code === 'string' ? body.cie10Code.trim() || null : null,
       cie10Display: typeof body.cie10Display === 'string' ? body.cie10Display.trim() || null : null,
       imprimirDiagnostico: body.imprimirDiagnostico === true,
+      titulo: body.tipo === 'libre' && typeof body.titulo === 'string' ? body.titulo.trim() : null,
+      cuerpo: body.tipo === 'libre' && typeof body.cuerpo === 'string' ? body.cuerpo.trim() : null,
     }
     if (!TIPOS.includes(body.tipo)) return json({ error: 'Elegí el tipo de certificado.', code: 'CERT_DATOS_INVALIDOS' }, 422)
     const invalido = validarCertificado(certificado, diaAr(certificado.atencionAt!))
@@ -251,6 +253,8 @@ Deno.serve(async (req: Request) => {
       cie10_code: certificado.cie10Code,
       cie10_display: certificado.cie10Display,
       imprimir_diagnostico: certificado.imprimirDiagnostico,
+      titulo: certificado.titulo ?? null,
+      cuerpo: certificado.cuerpo ?? null,
       status: 'pending',
     }).select('id').single()
     // Uno que quedó "a revisar" (se llamó al servicio y no hubo respuesta

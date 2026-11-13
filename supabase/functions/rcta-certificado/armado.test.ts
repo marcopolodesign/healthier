@@ -206,3 +206,15 @@ Deno.test('index.ts marca llamado_at ANTES de llamar al servicio y un timeout qu
   assert(src.indexOf('if (marcaErr) {') > marca && src.indexOf('if (marcaErr) {') < llamada)
   assertMatch(src, /return json\(\{ certificado: final, recuperado: true \}\)/)
 })
+
+Deno.test('libre: el título y el texto los escribe el profesional', () => {
+  const LIBRE: Certificado = { tipo: 'libre', atencionAt: ATENCION, titulo: 'Certificado de aptitud física', cuerpo: 'Se certifica que el/la paciente puede realizar actividad física moderada.' }
+  assertEquals(validarCertificado(LIBRE), null)
+  const p = armar(LIBRE)
+  assertEquals(problemasDelPayload(p), [])
+  assertEquals(p.prescripcion[0].prescripcion, 'Certificado de aptitud física')
+  assertEquals(p.prescripcion[0].observaciones, 'Se certifica que el/la paciente puede realizar actividad física moderada.')
+  assertEquals(validarCertificado({ ...LIBRE, titulo: '' }), 'Escribí el título del certificado.')
+  assertEquals(validarCertificado({ ...LIBRE, cuerpo: 'corto' }), 'Escribí el texto del certificado.')
+  assertMatch(validarCertificado({ ...LIBRE, cuerpo: 'x'.repeat(1001) }) ?? '', /1000/)
+})

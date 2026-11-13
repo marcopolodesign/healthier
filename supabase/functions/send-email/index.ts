@@ -471,7 +471,7 @@ Deno.serve(async (req) => {
         if (!body.certificadoId) return json({ error: 'Falta certificadoId' }, 400)
         const { data: c } = await sb
           .from('clinical_certificates')
-          .select('tipo, dias, desde, atencion_at, rcta_pdf_url, status, patient_id, professional_id')
+          .select('tipo, dias, desde, atencion_at, titulo, rcta_pdf_url, status, patient_id, professional_id')
           .eq('id', body.certificadoId)
           .maybeSingle()
         if (!c) return json({ error: 'Certificado no encontrado' }, 404)
@@ -484,7 +484,9 @@ Deno.serve(async (req) => {
         const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', timeZone: 'America/Argentina/Buenos_Aires' })
         const dias = Number(c.dias ?? 0)
         const nDias = `${dias} ${dias === 1 ? 'día' : 'días'}`
-        const detalle = c.tipo === 'reposo'
+        const detalle = c.tipo === 'libre'
+          ? String(c.titulo ?? 'Certificado médico')
+          : c.tipo === 'reposo'
           ? `Reposo por ${nDias} desde el ${fecha(`${c.desde}T12:00:00Z`)}`
           : c.tipo === 'escolar'
           ? `Inasistencia justificada por ${nDias} desde el ${fecha(`${c.desde}T12:00:00Z`)}`
@@ -492,7 +494,7 @@ Deno.serve(async (req) => {
         const mail = T.certificadoEmitido({
           patientName: primerNombre(paciente?.full_name) ?? 'Paciente',
           professionalName: profesional?.full_name ?? 'tu profesional',
-          tipo: c.tipo as 'constancia' | 'reposo' | 'escolar',
+          tipo: c.tipo as 'constancia' | 'reposo' | 'escolar' | 'libre',
           detalle,
           pdfUrl: (c.rcta_pdf_url as string) ?? null,
         })

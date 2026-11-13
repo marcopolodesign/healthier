@@ -73,7 +73,7 @@ const DESCRIPCION = {
   biovisor: 'Tus valores leídos de cada análisis.',
   nutriplan: 'Tu plan de alimentación vigente.',
   recetas: 'Tus recetas electrónicas, vigentes y anteriores.',
-  certificados: 'Constancias, reposos y certificados escolares.',
+  certificados: 'Constancias, reposos y otros certificados.',
   ordenes: 'Las órdenes de estudios que te emitieron.',
   analisis: 'Subí tus estudios y guardalos en tu historia.',
   mente: 'Tu plan y los documentos de salud mental.',

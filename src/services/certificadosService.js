@@ -11,11 +11,13 @@ export const TIPOS_CERTIFICADO = {
   constancia: { label: 'Constancia', titulo: 'Constancia de atención' },
   reposo:     { label: 'Reposo',     titulo: 'Certificado de reposo' },
   escolar:    { label: 'Escolar',    titulo: 'Certificado escolar' },
+  libre:      { label: 'Otro',       titulo: 'Certificado médico' },
 }
 
 /** "Reposo · 3 días", "Escolar · 1 día", "Constancia de atención". */
 export function nombreDelCertificado(c) {
   if (c.tipo === 'constancia') return 'Constancia de atención'
+  if (c.tipo === 'libre') return c.titulo || 'Certificado médico'
   const n = Number(c.dias ?? 0)
   return `${TIPOS_CERTIFICADO[c.tipo]?.label ?? 'Certificado'} · ${n} ${n === 1 ? 'día' : 'días'}`
 }
@@ -55,7 +57,7 @@ export const certificadosService = {
     if (!patientId) return []
     const { data, error } = await supabase
       .from('clinical_certificates')
-      .select('id, tipo, dias, desde, rcta_pdf_url, rcta_issued_at, created_at, professional:profiles!professional_id(full_name)')
+      .select('id, tipo, dias, desde, titulo, rcta_pdf_url, rcta_issued_at, created_at, professional:profiles!professional_id(full_name)')
       .eq('patient_id', patientId)
       .eq('status', 'issued')
       .not('rcta_pdf_url', 'is', null)
