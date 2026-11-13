@@ -39,7 +39,7 @@ export function rolDelJwt(jwt: string): string | null {
 
 // ── El certificado ──────────────────────────────────────────────────────────
 
-export const TIPOS = ['constancia', 'reposo', 'escolar'] as const
+export const TIPOS = ['constancia', 'reposo', 'escolar', 'libre'] as const
 export type TipoCertificado = typeof TIPOS[number]
 
 export type Certificado = {
@@ -54,7 +54,13 @@ export type Certificado = {
   cie10Code?: string | null
   cie10Display?: string | null
   imprimirDiagnostico?: boolean
+  /** Libre (pedido de Mateo, 2026-11-13): título y texto los escribe el profesional. */
+  titulo?: string | null
+  cuerpo?: string | null
 }
+
+export const LARGO_TITULO_LIBRE = 80
+export const LARGO_CUERPO_LIBRE = 1000
 
 export const conDias = (t: TipoCertificado) => t === 'reposo' || t === 'escolar'
 
@@ -103,6 +109,7 @@ export const TITULOS: Record<TipoCertificado, string> = {
   constancia: 'Constancia de atención',
   reposo: 'Certificado de reposo laboral',
   escolar: 'Certificado médico escolar',
+  libre: 'Certificado médico',
 }
 
 /** "02/11/2026 a las 14:30", en hora argentina (sin "h": la hora se entiende sola). */
@@ -118,6 +125,10 @@ function fechaYHora(iso: string): string {
  * que leer va acá. Textos de Felipe (2026-11-02).
  */
 export function textoDelCertificado(c: Certificado): { titulo: string; cuerpo: string } {
+  if (c.tipo === 'libre') {
+    // Probado contra homologación (2026-11-13): 1500 caracteres entran en una hoja.
+    return { titulo: (c.titulo ?? '').trim() || TITULOS.libre, cuerpo: (c.cuerpo ?? '').trim() }
+  }
   const titulo = TITULOS[c.tipo]
   if (c.tipo === 'constancia') {
     return { titulo, cuerpo: `Se deja constancia de que el/la paciente fue atendido/a en consulta médica el ${fechaYHora(c.atencionAt!)}.` }
@@ -143,6 +154,13 @@ export function validarCertificado(c: Certificado, consultaDia?: string | null):
     if (!Number.isInteger(dias) || dias < 1 || dias > 30) return 'Los días van de 1 a 30.'
     if (!c.desde || !/^\d{4}-\d{2}-\d{2}$/.test(c.desde)) return 'Falta desde qué día corre.'
     if (consultaDia && c.desde < consultaDia) return 'No puede empezar antes del día de la consulta.'
+  }
+  if (c.tipo === 'libre') {
+    const titulo = (c.titulo ?? '').trim(); const cuerpo = (c.cuerpo ?? '').trim()
+    if (titulo.length < 3) return 'Escribí el título del certificado.'
+    if (titulo.length > LARGO_TITULO_LIBRE) return `El título puede tener hasta ${LARGO_TITULO_LIBRE} caracteres.`
+    if (cuerpo.length < 10) return 'Escribí el texto del certificado.'
+    if (cuerpo.length > LARGO_CUERPO_LIBRE) return `El texto puede tener hasta ${LARGO_CUERPO_LIBRE} caracteres.`
   }
   if ((c.indicaciones ?? '').length > 1000) return 'Las indicaciones pueden tener hasta 1000 caracteres.'
   if (c.imprimirDiagnostico && !(c.cie10Code || c.cie10Display)) return 'Para incluir el diagnóstico, elegilo primero.'

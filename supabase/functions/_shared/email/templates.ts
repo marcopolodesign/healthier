@@ -736,9 +736,9 @@ export function recetaEmitida(r: { patientName: string; professionalName: string
  * Certificado emitido (migración 222): constancia de atención o reposo. Lo
  * dispara el trigger de `clinical_certificates`, una vez por certificado.
  */
-export function certificadoEmitido(r: { patientName: string; professionalName: string; tipo: 'constancia' | 'reposo' | 'escolar'; detalle: string; pdfUrl: string | null }): Sent {
-  const nombre = r.tipo === 'reposo' ? 'un certificado de reposo' : r.tipo === 'escolar' ? 'un certificado escolar' : 'una constancia de atención'
-  const etiqueta = r.tipo === 'reposo' ? 'Certificado de reposo' : r.tipo === 'escolar' ? 'Certificado escolar' : 'Constancia de atención'
+export function certificadoEmitido(r: { patientName: string; professionalName: string; tipo: 'constancia' | 'reposo' | 'escolar' | 'libre'; detalle: string; pdfUrl: string | null }): Sent {
+  const nombre = r.tipo === 'reposo' ? 'un certificado de reposo' : r.tipo === 'escolar' ? 'un certificado escolar' : r.tipo === 'libre' ? 'un certificado' : 'una constancia de atención'
+  const etiqueta = r.tipo === 'reposo' ? 'Certificado de reposo' : r.tipo === 'escolar' ? 'Certificado escolar' : r.tipo === 'libre' ? 'Certificado médico' : 'Constancia de atención'
   const body = [
     p(`Hola <strong style="color:${C.ink}">${esc(r.patientName)}</strong>, <strong style="color:${C.ink}">${esc(r.professionalName)}</strong> te emitió ${esc(nombre)}. Ya está en tu Bóveda.`),
     itemList(etiqueta, [{ title: r.detalle }], 'sage'),
@@ -752,7 +752,7 @@ export function certificadoEmitido(r: { patientName: string; professionalName: s
     html: renderEmail({
       preheader: r.detalle,
       eyebrow: 'Certificado', accent: 'sage',
-      title: r.tipo === 'constancia' ? 'Tu constancia está lista' : `Tu ${etiqueta.toLowerCase()} está listo`, body,
+      title: r.tipo === 'libre' ? 'Tu certificado está listo' : r.tipo === 'constancia' ? 'Tu constancia está lista' : `Tu ${etiqueta.toLowerCase()} está listo`, body,
       footnote: 'El certificado tiene la misma validez que uno en papel firmado por tu profesional.',
     }),
   }

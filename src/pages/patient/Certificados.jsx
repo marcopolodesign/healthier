@@ -49,7 +49,7 @@ export default function Certificados({ profile }) {
         </button>
 
         <h1 className="font-serif text-3xl font-light text-text-primary mb-1">Certificados</h1>
-        <p className="text-[14px] text-text-secondary mb-6">Constancias, reposos y certificados escolares que te emitieron.</p>
+        <p className="text-[14px] text-text-secondary mb-6">Los certificados que te emitieron tus profesionales.</p>
 
         {loading ? (
           <div className="flex justify-center py-16">

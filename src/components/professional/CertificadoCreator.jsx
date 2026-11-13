@@ -25,7 +25,7 @@ import { toast } from '../Toast'
  *    apagado ni siquiera viaja al servicio.
  */
 
-const MODELOS = ['constancia', 'reposo', 'escolar']
+const MODELOS = ['constancia', 'reposo', 'escolar', 'libre']
 const TZ = 'America/Argentina/Buenos_Aires'
 
 /** AAAA-MM-DD del día argentino. */
@@ -177,6 +177,9 @@ export default function CertificadoCreator({
   const [emitidos, setEmitidos] = useState([])
   const [cargando, setCargando] = useState(true)
   const [tipo, setTipo] = useState('reposo')
+  // "Otro" (Mateo, 2026-11-13): el profesional escribe título y texto.
+  const [titulo, setTitulo] = useState('')
+  const [cuerpo, setCuerpo] = useState('')
   const [dias, setDias] = useState(1)
   const [desde, setDesde] = useState(desdeInicial)
   const [indicaciones, setIndicaciones] = useState('')
@@ -198,11 +201,12 @@ export default function CertificadoCreator({
 
   const datos = useMemo(() => ({
     consultationId, encounterId, tipo,
-    ...(tipo !== 'constancia' ? { dias, desde } : {}),
+    ...(tipo === 'reposo' || tipo === 'escolar' ? { dias, desde } : {}),
+    ...(tipo === 'libre' ? { titulo: titulo.trim(), cuerpo: cuerpo.trim() } : {}),
     indicaciones: indicaciones.trim() || null,
     ...leerDiagnostico(diagnostico),
     imprimirDiagnostico,
-  }), [consultationId, encounterId, tipo, dias, desde, indicaciones, diagnostico, imprimirDiagnostico])
+  }), [consultationId, encounterId, tipo, dias, desde, titulo, cuerpo, indicaciones, diagnostico, imprimirDiagnostico])
 
   async function abrirVistaPrevia() {
     setPrevia({})
@@ -240,6 +244,8 @@ export default function CertificadoCreator({
       }
       toast.success('Certificado emitido')
       setIndicaciones('')
+      setTitulo('')
+      setCuerpo('')
       setDiagnostico('')
       setDias(1)
       setDesde(desdeInicial)
@@ -358,7 +364,7 @@ export default function CertificadoCreator({
         </div>
       )}
 
-      <div role="radiogroup" aria-label="Modelo de certificado" className="grid grid-cols-3 gap-1 p-1 rounded-full bg-bg-surface-hover">
+      <div role="radiogroup" aria-label="Modelo de certificado" className="grid grid-cols-4 gap-1 p-1 rounded-full bg-bg-surface-hover">
         {MODELOS.map(m => (
           <button key={m} type="button" role="radio" aria-checked={tipo === m} onClick={() => setTipo(m)}
             className={`py-2 rounded-full text-sm transition-colors ${tipo === m ? 'bg-white text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}>
@@ -369,6 +375,21 @@ export default function CertificadoCreator({
 
       {tipo === 'constancia' ? (
         <p className="text-sm text-text-primary first-letter:uppercase">{atencionLegible(consultaFecha) ?? 'Atención de hoy'}</p>
+      ) : tipo === 'libre' ? (
+        <div className="space-y-4">
+          <div>
+            <label className="form-label" htmlFor="cert-titulo">Título</label>
+            <input id="cert-titulo" type="text" className="form-input" maxLength={80}
+              placeholder="Ej.: Certificado de aptitud física" value={titulo} onChange={e => setTitulo(e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label" htmlFor="cert-cuerpo">Texto del certificado</label>
+            <textarea id="cert-cuerpo" rows={5} maxLength={1000} className="form-textarea resize-none"
+              placeholder="Ej.: Se certifica que el/la paciente se encuentra en condiciones de realizar actividad física."
+              value={cuerpo} onChange={e => setCuerpo(e.target.value)} />
+            <p className="text-[11px] text-text-tertiary mt-1 text-right">{cuerpo.length}/1000</p>
+          </div>
+        </div>
       ) : (
         <div className="space-y-4">
           <Stepper valor={dias} onChange={setDias} etiqueta={tipo === 'escolar' ? 'Días de inasistencia' : 'Días'} />
@@ -409,7 +430,7 @@ export default function CertificadoCreator({
       {noCertificable && (
         <p className="text-sm text-amber-700" data-testid="certificado-no-disponible" role="alert">{noCertificable.error}</p>
       )}
-      <button type="button" onClick={abrirVistaPrevia} disabled={cargandoFirma || !!noCertificable}
+      <button type="button" onClick={abrirVistaPrevia} disabled={cargandoFirma || !!noCertificable || (tipo === 'libre' && (titulo.trim().length < 3 || cuerpo.trim().length < 10))}
         className="btn-primary w-full py-3">
         Vista previa
       </button>
