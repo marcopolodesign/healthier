@@ -55,6 +55,10 @@ Deno.serve(async (req: Request) => {
       if (authErr && !/not.?found/i.test(authErr.message)) {
         return { id, ok: false, error: `El perfil quedó dado de baja, pero no se pudo liberar el mail: ${authErr.message}` }
       }
+      // Google/Apple quedan atados al usuario con el mail real: sin esto, quien
+      // vuelve con "Continuar con Google" cae en la cuenta baneada (migración 239).
+      const { error: idErr } = await admin.rpc('soltar_identidades_externas', { p_user: id })
+      if (idErr) return { id, ok: false, error: `El perfil quedó dado de baja, pero no se pudo soltar el login de Google/Apple: ${idErr.message}` }
       return { id, ok: true }
     }
 

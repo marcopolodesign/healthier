@@ -64,6 +64,11 @@ Deno.serve(async (req: Request) => {
     })
     if (banErr) throw banErr
 
+    // Google/Apple quedan atados al usuario con el mail real: sin esto, quien
+    // vuelve con "Continuar con Google" cae en la cuenta baneada (migración 239).
+    const { error: idErr } = await admin.rpc('soltar_identidades_externas', { p_user: caller.id })
+    if (idErr) throw idErr
+
     return new Response(JSON.stringify({ ok: true }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
