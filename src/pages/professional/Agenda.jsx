@@ -123,7 +123,7 @@ export default function Agenda({ profile }) {
       if (err?.code === '23505') {
         toast.error('Ya existe una franja con ese horario de inicio para ese día')
       } else {
-        toast.error('Error al agregar franja')
+        toast.error(`No se pudo agregar la franja: ${err?.message ?? err}`)
       }
     } finally {
       setAddingFranja(false)
@@ -285,24 +285,27 @@ export default function Agenda({ profile }) {
                 <p className="text-sm font-medium text-text-primary mb-3">
                   Agregar franja — {DAYS.find(d => d.value === addingForDay)?.label}
                 </p>
-                <div className="flex items-center gap-2">
+                {/* En celular (360 px) los dos inputs de hora ya llenan el ancho: el
+                    botón baja a su propia línea. En una sola fila quedaba cortado
+                    afuera de la pantalla y no se podía tocar (Mónica Melo, 2026-11-16). */}
+                <div className="flex flex-wrap items-center gap-2">
                   <input
                     type="time"
                     value={newFranja.start}
                     onChange={e => setNewFranja(p => ({ ...p, start: e.target.value }))}
-                    className="form-input text-sm flex-1"
+                    className="form-input text-sm flex-1 min-w-0"
                   />
                   <span className="text-text-tertiary text-sm shrink-0">—</span>
                   <input
                     type="time"
                     value={newFranja.end}
                     onChange={e => setNewFranja(p => ({ ...p, end: e.target.value }))}
-                    className="form-input text-sm flex-1"
+                    className="form-input text-sm flex-1 min-w-0"
                   />
                   <button
                     onClick={() => addFranja(addingForDay)}
                     disabled={addingFranja}
-                    className="btn-primary text-sm px-4 py-2 shrink-0"
+                    className="btn-primary text-sm px-4 py-2 w-full sm:w-auto shrink-0"
                   >
                     {addingFranja ? '...' : 'Agregar'}
                   </button>

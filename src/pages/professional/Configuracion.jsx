@@ -222,8 +222,8 @@ export default function Configuracion({ profile }) {
       setSchedules(prev => [...prev, added])
       setAddingDay(null)
       toast.success('Horario agregado')
-    } catch {
-      toast.error('Error al agregar horario')
+    } catch (err) {
+      toast.error(`No se pudo agregar el horario: ${err?.message ?? err}`)
     } finally {
       setSavingSchedule(false)
     }
@@ -394,23 +394,23 @@ export default function Configuracion({ profile }) {
                 )}
 
                 {addingDay === dayKey && (
-                  <div className="px-4 py-3 border-t border-border-default bg-white flex items-end gap-3">
-                    <div>
+                  <div className="px-4 py-3 border-t border-border-default bg-white flex flex-wrap items-end gap-3">
+                    <div className="flex-1 min-w-[7.5rem]">
                       <label className="text-xs text-text-secondary mb-1 block">Desde</label>
                       <input
                         type="time"
                         value={newSlot.startTime}
                         onChange={e => setNewSlot(p => ({ ...p, startTime: e.target.value }))}
-                        className="form-input text-sm"
+                        className="form-input text-sm w-full"
                       />
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-[7.5rem]">
                       <label className="text-xs text-text-secondary mb-1 block">Hasta</label>
                       <input
                         type="time"
                         value={newSlot.endTime}
                         onChange={e => setNewSlot(p => ({ ...p, endTime: e.target.value }))}
-                        className="form-input text-sm"
+                        className="form-input text-sm w-full"
                       />
                     </div>
                     <button
