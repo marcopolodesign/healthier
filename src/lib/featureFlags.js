@@ -13,21 +13,14 @@ const PROD_SUPABASE_REF = 'aixjejdoofervrkggbkd'
 export const esProduccion = String(import.meta.env.VITE_SUPABASE_URL ?? '').includes(PROD_SUPABASE_REF)
 
 /**
- * Farmacia todavía no sale: sigue afuera del menú del paciente en producción
- * (decisión del 2026-08-29, confirmada por Mateo el 2026-09-02). En staging se
- * ve entera, y en producción la ven sólo estas cuentas para poder probarla.
+ * Farmacia abierta a todos los pacientes (Mateo, 2026-11-17): ven el catálogo
+ * entero; lo que lleva receta o receta archivada muestra "Pedir receta" y la
+ * base no deja pedirlo sin receta, y lo de venta libre se pide. Sale a
+ * producción recién cuando la farmacia tenga Mercado Pago conectado.
+ * Se deja la firma para no tocar a quienes la llaman.
  */
-const FARMACIA_ALLOWLIST = [
-  'paciente@healthier.app',
-  'mateoaldao@gmail.com',
-  // Uri (sus dos cuentas) — sólo farmacia, no emergencias
-  'uri.armanazqui@gmail.com',
-  'uarmanazqui@gmail.com',
-]
-
-export function farmaciaVisible(profile) {
-  if (!esProduccion) return true
-  return FARMACIA_ALLOWLIST.includes(String(profile?.email ?? '').trim().toLowerCase())
+export function farmaciaVisible(_profile) {
+  return true
 }
 
 /*
