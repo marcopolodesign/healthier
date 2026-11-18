@@ -588,15 +588,12 @@ h2.st .ad{color:var(--danger)}
 <section class="slide slide-rose" data-slide="23">
   <div class="content wide">
     <span class="eyebrow danger">Lo que falta antes de abrirlo</span>
-    <h2 class="st">Hoy lo ven<br>dos <span class="ad">cuentas.</span></h2>
-    <p class="lead">En producción el recorrido está vivo sólo para las cuentas del equipo. En staging lo ve todo el mundo. Esto es lo que queda para abrirlo:</p>
+    <h2 class="st">Hoy lo ven<br>las cuentas de <span class="ad">prueba.</span></h2>
+    <p class="lead">En producción el recorrido completo ya funciona: la reserva, la consola de despacho, el cobro al cerrar o al cancelar con el móvil en camino, y la orden de traslado. Para abrirlo a todos los pacientes queda:</p>
     <div class="fg three">
-      <div class="fc"><span class="n d">Cobro</span><h3>Cerrar desde la app no cobra</h3><p>La reserva se captura desde la consola web de despacho, que todavía no está en producción. Cerrar desde la app no la convierte en cobro.</p></div>
-      <div class="fc"><span class="n d">Cancelación</span><h3>"Cancelar y pagar" sólo en staging</h3><p>El cobro al cancelar con el móvil asignado está en staging. En producción, cancelar libera la reserva siempre.</p></div>
-      <div class="fc"><span class="n d">Web</span><h3>El S.O.S. de la web es el viejo</h3><p>La web de producción corre el recorrido anterior (sin reserva ni cola) y no respeta la lista de cuentas habilitadas.</p></div>
-      <div class="fc"><span class="n g">Aviso</span><h3>Al paciente no le avisa la asignación</h3><p>Se entera por la pantalla; el primer aviso le llega con "en camino".</p></div>
-      <div class="fc"><span class="n g">Pantalla</span><h3>El chip del mapa bajo la barra</h3><p>Entrando al mapa desde la tarjeta del inicio, el código de despacho queda tapado por la hora (captura del paso 5).</p></div>
-      <div class="fc"><span class="n l">Datos</span><h3>Datos de prueba en producción</h3><p>La entidad, el Móvil 1 y las cuentas de prueba siguen cargados hasta la limpieza.</p></div>
+      <div class="fc"><span class="n d">Móviles</span><h3>Cargar los móviles y tripulaciones reales</h3><p>Una emergencia de un paciente real sólo se despacha a móviles reales. Hoy el único móvil cargado es el de prueba.</p></div>
+      <div class="fc"><span class="n g">Aviso</span><h3>Avisarle al paciente la asignación</h3><p>Hoy la ve en la pantalla y el primer aviso le llega con "en camino".</p></div>
+      <div class="fc"><span class="n l">Lanzamiento</span><h3>Prender el S.O.S. para todos</h3><p>Con los móviles cargados, el botón rojo se habilita para todos los pacientes, en la web y en la app.</p></div>
     </div>
   </div>
 </section>
