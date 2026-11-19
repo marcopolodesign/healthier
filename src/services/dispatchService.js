@@ -1,4 +1,5 @@
 import { supabase, toCamelCase } from '../lib/supabase'
+import { callEdgeFunction } from '../lib/edgeFunction'
 
 /**
  * Despacho de emergencias — la entidad, sus ambulancias y su tripulación.
@@ -26,6 +27,8 @@ export const ROLES_TRIPULACION = [
   { id: 'medico',    label: 'Médico/a' },
   { id: 'enfermero', label: 'Enfermero/a' },
   { id: 'chofer',    label: 'Chofer' },
+  // Migración 241: cuenta operador (Medizin) — hace lo del médico sin ser profesional.
+  { id: 'operador',  label: 'Operador/a' },
 ]
 
 /**
@@ -113,6 +116,59 @@ export const dispatchService = {
       .eq('active', true)
     if (error) throw error
     return (data ?? []).map(toCamelCase)
+  },
+
+  // ── Cobro: Mercado Pago de la entidad (migración 241) ─────────────────
+  // La emergencia se cobra directo a la cuenta de MP del prestador, que la
+  // conecta UNA vez desde acá con el mismo OAuth que los profesionales.
+
+  /** URL de autorización de MP pedida con la sesión; la entidad la resuelve el servidor. */
+  async getMpConnectUrl() {
+    try {
+      const result = await callEdgeFunction('emergency-mp-connect', { action: 'authorize' })
+      if (!result?.url) throw new Error('No recibimos el enlace de Mercado Pago')
+      return { data: result.url, error: null }
+    } catch (err) {
+      return { data: null, error: err.message }
+    }
+  },
+
+  async disconnectMp() {
+    try {
+      await callEdgeFunction('emergency-mp-connect', { action: 'disconnect' })
+      return { data: true, error: null }
+    } catch (err) {
+      return { data: null, error: err.message }
+    }
+  },
+
+  /** { conectado, nickname, email, connectedAt } — sin tokens. */
+  async estadoMp() {
+    const { data, error } = await supabase.rpc('estado_mp_de_entidad')
+    if (error) throw error
+    return toCamelCase(data ?? { conectado: false })
+  },
+
+  // ── Operadores del día (migración 241) ────────────────────────────────
+
+  /** El registro de los últimos días de la entidad: nombre, DNI, selfie y resultado de SISA. */
+  async operadoresDelDia(dias = 3) {
+    const desde = new Date(Date.now() - dias * 864e5).toISOString().slice(0, 10)
+    const { data, error } = await supabase
+      .from('operadores_del_dia')
+      .select('id, dia, nombre, dni, foto_path, sisa_estado, sisa_es_medico, sisa_profesion, sisa_matricula, sisa_nombre, profile:profiles!profile_id(email)')
+      .gte('dia', desde)
+      .order('dia', { ascending: false })
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data ?? []).map(toCamelCase)
+  },
+
+  /** URL firmada (10 min) de la selfie del operador — bucket privado. */
+  async fotoDeOperador(path) {
+    const { data, error } = await supabase.storage.from('operadores-dia').createSignedUrl(path, 600)
+    if (error) throw error
+    return data.signedUrl
   },
 
   // ── Las ambulancias ───────────────────────────────────────────────────

@@ -51,6 +51,9 @@ verify_jwt = false
 [functions.pharmacy-mp-connect]
 verify_jwt = false
 
+[functions.emergency-mp-connect]
+verify_jwt = false
+
 [functions.mp-webhook]
 verify_jwt = false
 

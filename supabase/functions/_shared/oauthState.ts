@@ -24,7 +24,7 @@
  */
 export const OAUTH_STATE_TTL_SECONDS = 60 * 60;
 
-export type OAuthPurpose = "mp-connect" | "pharmacy-mp-connect";
+export type OAuthPurpose = "mp-connect" | "pharmacy-mp-connect" | "emergency-mp-connect";
 
 async function hmacHex(message: string, secret: string): Promise<string> {
   const key = await crypto.subtle.importKey(

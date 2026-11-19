@@ -60,6 +60,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { puedeActuarComo } from "../_shared/familia.ts";
 import { ensureFreshMpToken, PAYMENT_REFRESH_MARGIN_MS, type MpAccountRow } from "../_shared/mpRefresh.ts";
+import { ensureFreshEmergencyMpToken } from "../_shared/emergencyMpRefresh.ts";
 
 const MP_API_BASE = "https://api.mercadopago.com/v1";
 
@@ -106,6 +107,8 @@ interface PaymentRow {
   professional_id: string;
   patient_id: string;
   status: string;
+  /** Emergencias: prestador cuya cuenta de MP cobró la reserva (migración 241). NULL = la plataforma. */
+  emergency_provider_id?: string | null;
 }
 
 interface ConsultationRow {
@@ -291,9 +294,29 @@ async function resolverPreautorizacionDeEmergencia(
     return { status: 422, data: null, error: "Payment has no mp_payment_id" };
   }
 
-  const platformToken = Deno.env.get("MP_IS_PROD") === "true"
+  // El token es el de la cuenta con la que se CREÓ la reserva
+  // (`payments.emergency_provider_id`, migración 241): la del prestador si se
+  // cobró a su cuenta, la de la plataforma si es NULL (reservas anteriores a la
+  // 241 o cobradas sin cuenta conectada). No depende de lo que esté conectado
+  // hoy: una reserva sólo la mueve el token que la creó.
+  let platformToken = Deno.env.get("MP_IS_PROD") === "true"
     ? Deno.env.get("MP_ACCESS_TOKEN_PROD")!
     : Deno.env.get("MP_ACCESS_TOKEN_SANDBOX")!;
+  if (payment.emergency_provider_id) {
+    const { data: cuenta } = await supabase
+      .from("emergency_provider_mp_accounts")
+      .select("provider_id, access_token, refresh_token, expires_at, active")
+      .eq("provider_id", payment.emergency_provider_id)
+      .maybeSingle();
+    if (!cuenta) {
+      return { status: 422, data: null, error: "La cuenta de Mercado Pago del prestador no está conectada" };
+    }
+    const r = await ensureFreshEmergencyMpToken(supabase, cuenta, PAYMENT_REFRESH_MARGIN_MS);
+    if (r.invalidGrant) {
+      return { status: 422, data: null, error: "La conexión de Mercado Pago del prestador venció — tiene que reconectarla" };
+    }
+    platformToken = r.accessToken;
+  }
 
   const idempotencyKey = await sha256Hex(`emergency-${accion}:${payment.id}:${payment.mp_payment_id}`);
 

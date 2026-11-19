@@ -43,7 +43,7 @@ const ENTORNOS = {
 // OAuth, firma del webhook.
 // `reactivar-cuenta` (188) no es de pagos, pero también es pública a propósito:
 // la llama alguien sin sesión desde el registro y valida con su propio token.
-const PUBLICAS = ['mp-connect', 'mp-webhook', 'pharmacy-mp-connect', 'mp-refresh-tokens', 'reactivar-cuenta']
+const PUBLICAS = ['mp-connect', 'mp-webhook', 'pharmacy-mp-connect', 'emergency-mp-connect', 'mp-refresh-tokens', 'reactivar-cuenta']
 
 // Cuentas de prueba documentadas en docs/testing.md (no rotarlas). Abrir una
 // sesión con ellas no escribe datos de negocio.
@@ -113,7 +113,7 @@ async function revisar(nombre, { ref, url, web, clave }) {
   // armado con quien está logueado (nunca con el id que venga en el pedido).
   console.log('\n▸ Vínculo de Mercado Pago')
   const ID_AJENO = '00000000-0000-0000-0000-000000000001'
-  for (const [fn, query] of [['mp-connect', `professionalId=${ID_AJENO}`], ['pharmacy-mp-connect', `pharmacyId=${ID_AJENO}`]]) {
+  for (const [fn, query] of [['mp-connect', `professionalId=${ID_AJENO}`], ['pharmacy-mp-connect', `pharmacyId=${ID_AJENO}`], ['emergency-mp-connect', `providerId=${ID_AJENO}`]]) {
     for (const [como, headers] of [['fetch', {}], ['navegación', { Accept: 'text/html', 'Sec-Fetch-Mode': 'navigate' }]]) {
       const r = await fetch(`${url}/functions/v1/${fn}?action=authorize&${query}`, { redirect: 'manual', headers })
       const loc = r.headers.get('location') ?? ''

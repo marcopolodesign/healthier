@@ -30,6 +30,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { puedeActuarComo } from '../_shared/familia.ts'
 import { ensureFreshMpToken, PAYMENT_REFRESH_MARGIN_MS } from '../_shared/mpRefresh.ts'
 import { ensureFreshPharmacyMpToken } from '../_shared/pharmacyMpRefresh.ts'
+import { ensureFreshEmergencyMpToken } from '../_shared/emergencyMpRefresh.ts'
 import { emergenciaBonificadaEnServidor } from '../_shared/bonificar.ts'
 
 const MP_API_BASE = 'https://api.mercadopago.com/v1'
@@ -339,6 +340,47 @@ Deno.serve(async (req) => {
         ? Deno.env.get('MP_ACCESS_TOKEN_PROD')!
         : Deno.env.get('MP_ACCESS_TOKEN_SANDBOX')!
 
+      /*
+       * A quién se le cobra (migración 241, decisión de Mateo 2026-11-19): la
+       * reserva se hace con la cuenta de Mercado Pago del PRESTADOR de la
+       * emergencia (la de `emergencies.provider_id`; si todavía no hay móvil
+       * asignado, el prestador activo — hoy hay uno solo). Sin cuenta
+       * conectada (o con la conexión vencida) se sigue cobrando con la
+       * plataforma: no se le niega una ambulancia a nadie por un tema de
+       * configuración de cobro. `payments.emergency_provider_id` deja
+       * escrito con qué token se creó, y mp-capture usa ese mismo para
+       * capturar o liberar.
+       */
+      let cobroToken = platformToken
+      let prestadorCobra: string | null = null
+      let prestadorMpUserId: string | null = null
+      {
+        let providerId: string | null = emergencia.provider_id ?? null
+        if (!providerId) {
+          const { data: p } = await serviceSupabase
+            .from('emergency_providers').select('id').eq('active', true).order('created_at').limit(1).maybeSingle()
+          providerId = p?.id ?? null
+        }
+        if (providerId) {
+          const { data: cuenta } = await serviceSupabase
+            .from('emergency_provider_mp_accounts')
+            .select('provider_id, mp_user_id, access_token, refresh_token, expires_at, active')
+            .eq('provider_id', providerId)
+            .eq('active', true)
+            .maybeSingle()
+          if (cuenta) {
+            const r = await ensureFreshEmergencyMpToken(serviceSupabase, cuenta, PAYMENT_REFRESH_MARGIN_MS)
+            if (r.invalidGrant) {
+              console.error(`mp-payment (emergency): la conexión de MP del prestador ${providerId} venció; se cobra con la plataforma`)
+            } else {
+              cobroToken = r.accessToken
+              prestadorCobra = providerId
+              prestadorMpUserId = String(cuenta.mp_user_id)
+            }
+          }
+        }
+      }
+
       const mpPayload: Record<string, unknown> = {
         transaction_amount: amount,
         token: cardToken,
@@ -388,6 +430,8 @@ Deno.serve(async (req) => {
         net_to_professional: 0,
         manual_settlement_amount: 0,
         currency: 'ARS',
+        emergency_provider_id: prestadorCobra,
+        ...(prestadorMpUserId ? { collector_id: prestadorMpUserId } : {}),
       }
 
       const idempotencyKey = await sha256Hex(`${emergencyId}:${cardToken}`)
@@ -395,7 +439,7 @@ Deno.serve(async (req) => {
       const mpRes = await fetch(`${MP_API_BASE}/payments`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${platformToken}`,
+          Authorization: `Bearer ${cobroToken}`,
           'Content-Type': 'application/json',
           'X-Idempotency-Key': idempotencyKey,
           ...(deviceId ? { 'X-meli-session-id': deviceId } : {}),

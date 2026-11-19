@@ -1,7 +1,44 @@
 import { useState, useEffect } from 'react'
-import { Gear, Lock } from '@phosphor-icons/react'
+import { useSearchParams } from 'react-router-dom'
+import { Gear, Lock, LinkSimple, UserCircle } from '@phosphor-icons/react'
+import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import { dispatchService } from '../../services/dispatchService'
 import { toast } from '../../components/Toast'
+import { useConectarMp } from '../../hooks/useConectarMp'
+import { mensajeErrorMp } from '../../lib/mpErrores'
+
+// Resultado del chequeo con SISA del operador del día (migración 241). Nunca frena nada.
+function textoSisa(o) {
+  switch (o.sisaEstado) {
+    case 'habilitado': return { tono: 'ok', texto: `Figura en SISA${o.sisaProfesion ? ` · ${o.sisaProfesion}` : ''}${o.sisaMatricula ? ` · mat. ${o.sisaMatricula}` : ''}` }
+    case 'suspendido': return { tono: 'aviso', texto: 'Figura en SISA, pero sin matrícula habilitada' }
+    case 'no_encontrado': return { tono: 'aviso', texto: 'No figura en SISA' }
+    case 'sin_respuesta': return { tono: 'aviso', texto: 'SISA no respondió' }
+    default: return { tono: 'neutro', texto: 'Chequeando con SISA…' }
+  }
+}
+
+function FilaOperador({ o }) {
+  const [foto, setFoto] = useState(null)
+  useEffect(() => {
+    let vivo = true
+    dispatchService.fotoDeOperador(o.fotoPath).then(u => { if (vivo) setFoto(u) }).catch(() => {})
+    return () => { vivo = false }
+  }, [o.fotoPath])
+  const sisa = textoSisa(o)
+  return (
+    <div className="flex items-center gap-3 text-sm">
+      {foto
+        ? <img src={foto} alt={`Selfie de ${o.nombre}`} className="h-12 w-12 rounded-full object-cover shrink-0" />
+        : <UserCircle className="h-12 w-12 text-text-muted shrink-0" />}
+      <div className="min-w-0 flex-1">
+        <p className="text-text-primary font-medium truncate">{o.nombre}</p>
+        <p className="text-text-secondary text-xs">DNI {o.dni} · {o.dia} · {o.profile?.email}</p>
+        <p className={`text-xs ${sisa.tono === 'ok' ? 'text-emerald-700' : sisa.tono === 'aviso' ? 'text-amber-700' : 'text-text-tertiary'}`}>{sisa.texto}</p>
+      </div>
+    </div>
+  )
+}
 
 export default function DespachoConfiguracion({ profile }) {
   const [entidad, setEntidad] = useState(null)
@@ -11,6 +48,36 @@ export default function DespachoConfiguracion({ profile }) {
   const [form, setForm] = useState({ name: '', legalName: '', phone: '', address: '', dispatchPhone: '', color: '#DC2626' })
 
   const isAdmin = profile?.role === 'emergency_admin' || profile?.role === 'super_admin'
+  const [mp, setMp] = useState(null)
+  const [operadores, setOperadores] = useState([])
+  const [desconectando, setDesconectando] = useState(false)
+  const { conectar: conectarMp, conectando: conectandoMp } = useConectarMp(dispatchService.getMpConnectUrl)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  useEffect(() => {
+    const connected = searchParams.get('mp_connected')
+    const mpError = searchParams.get('mp_error')
+    if (!connected && !mpError) return
+    if (connected === '1') toast.success('Mercado Pago conectado')
+    if (mpError) toast.error(mensajeErrorMp(mpError))
+    setSearchParams({}, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    dispatchService.estadoMp().then(setMp).catch(() => setMp({ conectado: false }))
+    dispatchService.operadoresDelDia().then(setOperadores).catch(() => {})
+  }, [])
+
+  const desconectarMp = async () => {
+    if (!confirm('¿Desconectar Mercado Pago? Las emergencias nuevas se van a cobrar con la cuenta de Healthier hasta reconectar.')) return
+    setDesconectando(true)
+    const { error } = await dispatchService.disconnectMp()
+    setDesconectando(false)
+    if (error) return toast.error(`No pudimos desconectar Mercado Pago: ${error}`)
+    toast.success('Mercado Pago desconectado')
+    setMp({ conectado: false })
+  }
 
   useEffect(() => {
     dispatchService.miEntidad().then(async e => {
@@ -60,6 +127,42 @@ export default function DespachoConfiguracion({ profile }) {
       {!isAdmin && (
         <div className="card flex items-center gap-2 text-text-secondary text-sm">
           <Lock className="h-4 w-4 shrink-0" /> Solo el Administrador puede editar estos datos.
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="card space-y-4">
+          <div>
+            <h2 className="font-semibold text-text-primary">Mercado Pago</h2>
+            <p className="text-sm text-text-secondary mt-0.5">Las emergencias se cobran vía Mercado Pago y se acreditan directo en la cuenta de la entidad.</p>
+          </div>
+          {mp?.conectado ? (
+            <div className="flex items-center gap-4 p-4 rounded-xl border border-emerald-200 bg-emerald-50">
+              <div className="w-11 h-11 rounded-xl bg-white border border-emerald-200 flex items-center justify-center shrink-0">
+                <MercadoPagoMark className="w-7 h-7" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-text-primary">Mercado Pago conectado</p>
+                <p className="text-xs text-text-secondary mt-0.5 truncate">{mp.nickname || mp.email || 'Las emergencias se cobran a esta cuenta.'}</p>
+              </div>
+              <button type="button" onClick={desconectarMp} disabled={desconectando} className="text-xs font-semibold text-red-600 hover:underline shrink-0 disabled:opacity-50">
+                {desconectando ? 'Desconectando...' : 'Desconectar'}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-4 p-4 rounded-xl border border-red-200 bg-red-50">
+              <div className="w-11 h-11 rounded-xl bg-white border border-red-200 flex items-center justify-center shrink-0">
+                <MercadoPagoMark className="w-7 h-7" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-text-primary">No conectado</p>
+                <p className="text-xs text-text-secondary mt-0.5">Hasta conectar la cuenta de la entidad, las emergencias se cobran con la cuenta de Healthier.</p>
+              </div>
+              <button type="button" onClick={conectarMp} disabled={conectandoMp} className="flex items-center gap-1.5 text-xs font-semibold text-white bg-brand px-3 py-2 rounded-full hover:bg-brand-hover transition-colors shrink-0 disabled:opacity-60">
+                <LinkSimple className="h-3.5 w-3.5" /> {conectandoMp ? 'Abriendo…' : 'Conectar'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -133,6 +236,18 @@ export default function DespachoConfiguracion({ profile }) {
           <button className="btn-primary" disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
         )}
       </form>
+
+      <div className="card space-y-3">
+        <h2 className="font-semibold text-text-primary">Operadores de los últimos días</h2>
+        <p className="text-xs text-text-secondary">Quién estuvo detrás de cada cuenta operador. El paciente ve sólo el nombre y la foto.</p>
+        {operadores.length === 0 ? (
+          <p className="text-sm text-text-secondary">Todavía no hay registros</p>
+        ) : (
+          <div className="space-y-3">
+            {operadores.map(o => <FilaOperador key={o.id} o={o} />)}
+          </div>
+        )}
+      </div>
 
       <div className="card space-y-3">
         <h2 className="font-semibold text-text-primary">Equipo</h2>

@@ -39,6 +39,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ensureFreshMpToken, PAYMENT_REFRESH_MARGIN_MS } from "../_shared/mpRefresh.ts";
 import { ensureFreshPharmacyMpToken } from "../_shared/pharmacyMpRefresh.ts";
+import { ensureFreshEmergencyMpToken } from "../_shared/emergencyMpRefresh.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -252,7 +253,7 @@ serve(async (req: Request) => {
     //    under that seller's account (SECCIÓN A.8-d — unverified in sandbox yet).
     const { data: existingPaymentRow } = await supabase
       .from("payments")
-      .select("id, consultation_id, professional_id, order_id, pharmacy_id, status")
+      .select("id, consultation_id, professional_id, order_id, pharmacy_id, emergency_provider_id, status")
       .eq("mp_payment_id", paymentId)
       .maybeSingle();
 
@@ -279,6 +280,18 @@ serve(async (req: Request) => {
 
       if (pharmacyMpAccount) {
         const refreshResult = await ensureFreshPharmacyMpToken(supabase, pharmacyMpAccount, PAYMENT_REFRESH_MARGIN_MS);
+        sellerAccessToken = refreshResult.accessToken;
+      }
+    } else if (existingPaymentRow?.emergency_provider_id) {
+      // Emergencias cobradas a la cuenta del prestador (migración 241).
+      const { data: cuenta } = await supabase
+        .from("emergency_provider_mp_accounts")
+        .select("provider_id, access_token, refresh_token, expires_at, active")
+        .eq("provider_id", existingPaymentRow.emergency_provider_id)
+        .maybeSingle();
+
+      if (cuenta) {
+        const refreshResult = await ensureFreshEmergencyMpToken(supabase, cuenta, PAYMENT_REFRESH_MARGIN_MS);
         sellerAccessToken = refreshResult.accessToken;
       }
     }

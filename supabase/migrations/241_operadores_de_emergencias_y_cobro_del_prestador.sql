@@ -390,13 +390,13 @@ declare
   v_prov uuid := coalesce(p_provider_id, public.mi_entidad_de_emergencias());
   v_row  public.emergency_provider_mp_accounts%rowtype;
 begin
-  IF v_prov IS NULL THEN
-    RETURN jsonb_build_object('conectado', false);
-  END IF;
   IF NOT (public.get_my_role() = 'super_admin'
           OR (public.get_my_role() IN ('emergency_admin', 'emergency_operator')
-              AND v_prov = public.mi_entidad_de_emergencias())) THEN
+              AND v_prov IS NOT DISTINCT FROM public.mi_entidad_de_emergencias())) THEN
     RAISE EXCEPTION 'No autorizado' USING ERRCODE = '42501';
+  END IF;
+  IF v_prov IS NULL THEN
+    RETURN jsonb_build_object('conectado', false);
   END IF;
   SELECT * INTO v_row FROM public.emergency_provider_mp_accounts WHERE provider_id = v_prov;
   IF NOT FOUND THEN
