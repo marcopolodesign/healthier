@@ -149,6 +149,19 @@ export default function DespachoCola({ profile }) {
     return () => clearInterval(iv)
   }, [entidad, cargar])
 
+  // Realtime: un "llegué", un cierre o un pedido nuevo se ven al instante; el
+  // refresco de 15 s queda de respaldo. Con coalescencia para no recargar por
+  // cada fila de una ráfaga.
+  useEffect(() => {
+    if (!entidad) return
+    let espera = null
+    const quitar = emergencyService.suscribirDespacho(() => {
+      if (espera) return
+      espera = setTimeout(() => { espera = null; cargar(entidad.id) }, 400)
+    })
+    return () => { if (espera) clearTimeout(espera); quitar() }
+  }, [entidad, cargar])
+
   // Tic del cronómetro de espera, cada segundo.
   useEffect(() => {
     const iv = setInterval(() => setTick(t => t + 1), 1000)

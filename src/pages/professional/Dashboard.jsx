@@ -733,7 +733,7 @@ export default function ProfessionalDashboard({ profile }) {
             <p className="font-semibold text-sm leading-tight">Emergencia activa</p>
             <p className="text-xs opacity-80 truncate">
               {activeEmergency.dispatchCode} · {activeEmergency.triageCode} · {
-                activeEmergency.status === 'dispatched' ? 'Esperando confirmación'
+                activeEmergency.status === 'dispatched' ? 'En camino'
                 : activeEmergency.status === 'in_transit' ? 'En camino'
                 : activeEmergency.status === 'arrived' ? 'Llegaste'
                 : 'Ver estado'

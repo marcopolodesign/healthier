@@ -78,7 +78,7 @@ export default function SuperAdminEmergencias() {
     } catch (err) {
       // La orden de traslado no se borra (migración 213, RESTRICT): se dice así.
       toast.error(/emergency_transfer_orders/.test(err.message || '')
-        ? 'Alguna de las emergencias tiene orden de traslado: queda como registro y no se puede borrar.'
+        ? 'Alguna de las emergencias tiene recepción del traslado: queda como registro y no se puede borrar.'
         : (err.message || 'No se pudo eliminar'))
     } finally {
       setDeleting(false)
@@ -125,7 +125,7 @@ export default function SuperAdminEmergencias() {
                   <th className="table-header">Móvil</th>
                   <th className="table-header">Despachó</th>
                   <th className="table-header">Cobro</th>
-                  <th className="table-header">Orden</th>
+                  <th className="table-header">Recepción</th>
                   <th className="table-header">Ubicación</th>
                   <th className="table-header">En vivo</th>
                   <th className="table-header text-right">Precio</th>

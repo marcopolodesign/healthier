@@ -54,7 +54,7 @@ export default function PanelTraslado({ emergencyId, onClose, onTerminar, termin
   const [error, setError] = useState('')
   const [ahora, setAhora] = useState(Date.now())
   // Al terminar, el despacho dice cómo terminó (Mateo, 2026-10-22): con
-  // "Trasladado" no se cierra sin la foto de la orden (la base lo exige).
+  // "Trasladado" no se cierra sin la foto de la recepción (la base lo exige).
   const [cierre, setCierre] = useState({ desenlace: null, institucion: '', orden: null })
   useEffect(() => { setCierre({ desenlace: null, institucion: '', orden: null }) }, [emergencyId])
   const lectura = useRef(0)
@@ -80,7 +80,9 @@ export default function PanelTraslado({ emergencyId, onClose, onTerminar, termin
       if (espera) return
       espera = setTimeout(() => { espera = null; leer() }, 3000)
     })
-    return () => { clearInterval(iv); if (espera) clearTimeout(espera); quitar() }
+    // Un cambio de estado (llegó, cerró) se ve enseguida, sin esperar el refresco.
+    const quitarEstado = emergencyService.suscribirDespacho(() => leer())
+    return () => { clearInterval(iv); if (espera) clearTimeout(espera); quitar(); quitarEstado() }
   }, [leer])
 
   useEffect(() => {

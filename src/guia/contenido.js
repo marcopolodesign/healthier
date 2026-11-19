@@ -968,7 +968,7 @@ const emergencias = {
     { titulo: 'Ver la flota en vivo', texto: 'Cada móvil en el mapa.', ir: 'mapa' },
     { titulo: 'Armar los móviles', texto: 'Estado y tripulación de cada uno.', ir: 'ambulancias' },
     { titulo: 'Configurar la entidad', texto: 'Datos y teléfono de guardia.', ir: 'configuracion' },
-    { titulo: 'Hacer el traslado', texto: 'Aceptar, navegar y llegar.', ir: 'tripulacion' },
+    { titulo: 'Hacer el traslado', texto: 'Navegar y llegar.', ir: 'tripulacion' },
   ],
   secciones: [
     {
@@ -1035,7 +1035,7 @@ const emergencias = {
         3: 'Avisar que llegaste.',
       },
       pasos: [
-        'Tocá "Aceptar emergencia".',
+        'Al asignarte el móvil, la emergencia ya figura "En camino": no hay nada que aceptar.',
         'Tocá "Navegar al paciente" para abrir Google Maps.',
         'Al llegar, tocá "Llegué al paciente".',
         'Cuando termina la atención, tocá "Cerrar emergencia".',

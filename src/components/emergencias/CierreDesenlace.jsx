@@ -8,7 +8,7 @@ import { horaDeOrden } from './OrdenDeTrasladoCard'
  * diseño revisado por Felipe). Aparece sólo al cerrar. Sin nada elegido de
  * entrada: es una declaración con peso legal, no puede salir por default.
  *
- * Con "Trasladado" pide la institución y la foto de la orden firmada y sellada
+ * Con "Trasladado" pide la institución y la foto de la recepción firmada y sellada
  * por el médico y por la institución. La foto se sube en el momento (la base
  * le pone la hora); "Cambiar foto" sube otra y vale la última. Sin foto, la
  * base no deja cerrar.
@@ -20,7 +20,7 @@ export function faltaParaCerrar(valor) {
   if (!valor?.desenlace) return 'Elegí cómo terminó'
   if (valor.desenlace === 'traslado') {
     if (!valor.institucion?.trim()) return 'Falta la institución'
-    if (!valor.orden) return 'Falta la foto de la orden'
+    if (!valor.orden) return 'Falta la foto de la recepción'
   }
   return ''
 }
@@ -129,10 +129,10 @@ export default function CierreDesenlace({ emergencyId, valor, onChange, paraDesp
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <span className="w-16 h-16 shrink-0 rounded-xl overflow-hidden bg-bg-surface border border-border-default">
-                  {vista && <img src={vista} alt="Orden de traslado" className="w-full h-full object-cover" />}
+                  {vista && <img src={vista} alt="Recepción del traslado" className="w-full h-full object-cover" />}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-text-primary tabular-nums">Orden subida · {horaDeOrden(valor.orden.subidaAt)}</p>
+                  <p className="font-semibold text-text-primary tabular-nums">Recepción subida · {horaDeOrden(valor.orden.subidaAt)}</p>
                   <button type="button" className="text-sm font-semibold text-text-primary underline" onClick={() => set({ orden: null })}>
                     Cambiar foto
                   </button>
@@ -152,7 +152,7 @@ export default function CierreDesenlace({ emergencyId, valor, onChange, paraDesp
               >
                 {subiendo
                   ? <><CircleNotch className="h-5 w-5 animate-spin" /> Subiendo…</>
-                  : <><Camera className="h-5 w-5" /> {esTactil ? 'Sacar foto de la orden' : 'Subir foto de la orden'}</>}
+                  : <><Camera className="h-5 w-5" /> {esTactil ? 'Sacar foto de la recepción' : 'Subir foto de la recepción'}</>}
               </button>
               {esTactil && (
                 <button type="button" disabled={!institucionLista || subiendo} onClick={() => galeria.current?.click()} className="w-full text-sm font-semibold text-text-primary underline disabled:opacity-40">

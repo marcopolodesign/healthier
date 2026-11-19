@@ -9,6 +9,7 @@ import { emergencyService } from '../../services/emergencyService'
 import { useClinicalEncounter } from '../../hooks/useClinicalEncounter'
 import { esWebViewDeLaApp } from '../../lib/enApp'
 import OrdenDeTrasladoCard from '../../components/emergencias/OrdenDeTrasladoCard'
+import { sintomasDeEmergencia } from '../../services/emergencyService'
 
 /**
  * La atención de una emergencia, en el lugar (migración 177).
@@ -124,6 +125,7 @@ export default function AtencionEmergencia({ profile }) {
   const codigo = emergencia?.dispatchCode
   const pacienteNombre = consultation.patient?.fullName ?? 'Paciente'
   const cerrada = consultation.status === 'completed'
+  const sintomas = sintomasDeEmergencia(emergencia)
 
   if (cerrada) {
     return (
@@ -183,6 +185,18 @@ export default function AtencionEmergencia({ profile }) {
           </span>
         )}
       </header>
+
+      {/* Lo que cargó el paciente al pedir la emergencia (reunión del 18/11). */}
+      <details className="shrink-0 bg-red-50 border-b border-red-100 px-4 py-2" data-testid="sintomas-atencion" open>
+        <summary className="text-sm font-semibold text-red-800 cursor-pointer">
+          {sintomas.length ? `Síntomas que cargó el paciente (${sintomas.length})` : 'Sin síntomas registrados'}
+        </summary>
+        {sintomas.length > 0 && (
+          <ul className="mt-1 mb-1 text-sm text-text-primary list-disc pl-5">
+            {sintomas.map(x => <li key={x}>{x}</li>)}
+          </ul>
+        )}
+      </details>
 
       <div className="flex-1 min-h-0 vc-panel-tipografia">
         <ClinicalPanel

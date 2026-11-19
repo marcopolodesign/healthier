@@ -228,11 +228,16 @@ export const dispatchService = {
   },
 
   /** Los móviles que tripula el usuario logueado — lo usa la app. */
-  async misAmbulancias() {
-    const { data, error } = await supabase
+  async misAmbulancias(profileId) {
+    // Con `profileId` sólo los móviles de ESA persona: la RLS deja leer más
+    // filas de tripulación que las propias, y el realtime de la tripulación se
+    // colgaba de un móvil ajeno.
+    let q = supabase
       .from('ambulance_crew')
       .select('id, crew_role, ambulance:ambulances(*)')
       .eq('active', true)
+    if (profileId) q = q.eq('profile_id', profileId)
+    const { data, error } = await q
     if (error) throw error
     return (data ?? []).map(toCamelCase).filter(c => c.ambulance)
   },

@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  Ambulance, MapPin, NavigationArrow, Phone,
+  MapPin, NavigationArrow, Phone,
   CheckCircle, ArrowLeft, Warning, Pulse, UserCircle, Broadcast, WifiSlash, BookOpenText, Stethoscope,
 } from '@phosphor-icons/react'
 import { emergencyService, EMERGENCY_TERMINAL_STATUSES } from '../../services/emergencyService'
@@ -17,6 +17,7 @@ import { useCompartirUbicacionEmergencia } from '../../hooks/useCompartirUbicaci
 import { formatMeters, formatMinutes } from '../../lib/directions'
 import { toast } from '../../components/Toast'
 import { mpService } from '../../services/mpService'
+import SintomasReportados from '../../components/emergencias/SintomasReportados'
 import CierreDesenlace, { faltaParaCerrar, NegativaFirmada } from '../../components/emergencias/CierreDesenlace'
 
 // ── Design tokens per triage code ─────────────────────────────
@@ -107,31 +108,52 @@ export default function ProfessionalEmergencias({ profile }) {
       ? emergencyService.getById(emergenciaId)
       : emergencyService.getActiveParaTripulacion(profile.id)
 
+    let cortarUna = () => {}
     load
-      .then(e => setEmergency(e))
+      .then(e => {
+        setEmergency(e)
+        // Además del filtro por móvil/profesional, se escucha la emergencia que
+        // ya está en pantalla: con la tripulación vista como "todas las filas
+        // que la RLS deja leer" el filtro por móvil podía quedar en otro móvil
+        // y el "llegué" o el cierre hechos desde otro teléfono no se veían.
+        if (e?.id && !emergenciaId) cortarUna = emergencyService.suscribirUna(e.id, alCambiar)
+      })
       .catch(() => toast.error('Error al cargar la emergencia'))
       .finally(() => setLoading(false))
 
-    // Realtime only when not pinned to a specific ID
-    if (!emergenciaId) {
-      const alCambiar = (updated) => {
-        setEmergency(EMERGENCY_TERMINAL_STATUSES.includes(updated.status) ? null : updated)
-        if (updated.status === 'dispatched' && navigator.vibrate) {
-          navigator.vibrate([200, 100, 200])
+    // Realtime siempre. Con `?id=` (el link del aviso) sólo se escucha esa
+    // emergencia: antes quedaba sin realtime y un cierre o una cancelación no
+    // se veían hasta recargar.
+    const alCambiar = (updated) => {
+      setEmergency(prev => {
+        if (EMERGENCY_TERMINAL_STATUSES.includes(updated.status) && !emergenciaId) return null
+        // La fila cruda de Realtime no trae al paciente: si es otra emergencia
+        // se vuelve a leer completa.
+        if (prev?.id !== updated.id) {
+          emergencyService.getById(updated.id).then(setEmergency).catch(() => {})
+          return updated
         }
+        return { ...prev, ...updated }
+      })
+      if (updated.status === 'in_transit' && navigator.vibrate) {
+        navigator.vibrate([200, 100, 200])
       }
+    }
+    if (emergenciaId) {
+      unsubRef.current = emergencyService.suscribirUna(emergenciaId, alCambiar)
+    } else {
       // Dos suscripciones por el mismo motivo que dos consultas: el filtro de
       // `subscribe()` es por `professional_id` y no alcanza para la
       // tripulación. Las dos se limpian juntas.
       const cortarPropia = emergencyService.subscribe(profile.id, alCambiar)
       let cortarTripulacion = () => {}
-      dispatchService.misAmbulancias()
+      dispatchService.misAmbulancias(profile.id)
         .then(cs => {
           const ids = cs.map(c => c.ambulance?.id).filter(Boolean)
           if (ids.length) cortarTripulacion = emergencyService.suscribirTripulacion(ids, alCambiar)
         })
         .catch(() => {/* la carga inicial ya trajo lo que hay */})
-      unsubRef.current = () => { cortarPropia(); cortarTripulacion() }
+      unsubRef.current = () => { cortarPropia(); cortarTripulacion(); cortarUna() }
     }
     return () => unsubRef.current?.()
   }, [profile?.id, emergenciaId, demoPhase])
@@ -153,6 +175,15 @@ export default function ProfessionalEmergencias({ profile }) {
     patientId: emergency?.patientId,
     destino: destinoPaciente,
   })
+
+  // Filas `dispatched` de antes de la migración 240: el móvil ya está asignado,
+  // no hay nada que aceptar. Se pasan solas a "en camino".
+  useEffect(() => {
+    if (demoPhase !== null || emergency?.status !== 'dispatched' || !emergency?.id) return
+    emergencyService.updateStatus(emergency.id, 'in_transit')
+      .then(f => setEmergency(prev => ({ ...(prev ?? {}), ...f })))
+      .catch(() => {})
+  }, [emergency?.id, emergency?.status, demoPhase])
 
   // La consulta de la atención, al llegar (y al volver de cargarla).
   useEffect(() => {
@@ -180,7 +211,6 @@ export default function ProfessionalEmergencias({ profile }) {
     }
   }
 
-  const accept       = () => mutate('in_transit')
 
   const markArrived = () => mutate('arrived', () => {
     // Cierra el traslado con un último dato explícito: llegó. Sin esto el
@@ -287,43 +317,10 @@ export default function ProfessionalEmergencias({ profile }) {
     )
   }
 
-  // ── INCOMING (dispatched) ──────────────────────────────────
-  if (emergency.status === 'dispatched') {
-    return (
-      <div className="min-h-screen bg-gray-950 flex flex-col">
-        <div className={`flex flex-col items-center gap-3 px-5 pt-14 pb-8 ${cs.bg} animate-pulse`}>
-          <cs.Icon className={`w-16 h-16 ${cs.text}`} />
-          <span className={`text-xs font-black tracking-widest uppercase ${cs.text}`}>Nueva Emergencia Asignada</span>
-          <h1 className={`font-black text-5xl ${cs.text}`}>{cs.label}</h1>
-        </div>
-
-        <div className="flex-1 flex flex-col gap-4 px-5 py-6">
-          <div className="bg-white rounded-3xl p-5 flex flex-col gap-3">
-            <Row label="Código"    value={<span className="font-black text-text-primary text-lg tracking-wider">{emergency.dispatchCode}</span>} />
-            <Divider />
-            {patientName && <Row label="Paciente"  value={patientName} />}
-            <Row label="Recibida"  value={elapsed(emergency.createdAt)} />
-            {/* La dirección que escribió el paciente (migración 211). */}
-            {emergency.direccion && <Row label="Dirección" value={emergency.direccion} />}
-            {emergency.direccionPiso && <Row label="Piso / depto" value={emergency.direccionPiso} />}
-            {emergency.direccionReferencias && <Row label="Referencias" value={emergency.direccionReferencias} />}
-            {emergency.patientLatitude && (
-              <Row label="Ubicación" value={`${Number(emergency.patientLatitude).toFixed(4)}, ${Number(emergency.patientLongitude).toFixed(4)}`} small />
-            )}
-          </div>
-
-          <div className="mt-auto">
-            <Btn loading={updating} onClick={accept} color={cs.btnAccept} icon={<Ambulance className="w-6 h-6" />}>
-              Aceptar emergencia
-            </Btn>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   // ── EN ROUTE (in_transit) ──────────────────────────────────
-  if (emergency.status === 'in_transit') {
+  // `dispatched` (filas anteriores a la migración 240) se trata como en camino:
+  // el efecto de arriba las pasa solo a `in_transit`.
+  if (emergency.status === 'in_transit' || emergency.status === 'dispatched') {
     return (
       <div className="min-h-screen bg-bg-primary flex flex-col">
         <div className="bg-gray-950 px-5 pt-12 pb-5 flex flex-col gap-2">
@@ -385,6 +382,8 @@ export default function ProfessionalEmergencias({ profile }) {
               <Phone className="w-5 h-5" /> Llamar al paciente <span className="text-xs font-normal">(número no disponible)</span>
             </div>
           )}
+
+          <SintomasReportados emergencia={emergency} />
 
           {/* Patient info */}
           <div className="bg-white rounded-3xl p-5 flex flex-col gap-3 border border-border-default">

@@ -125,7 +125,7 @@ export default function OrdenDeTrasladoCard({ emergencyId, documentos: dados, ti
  */
 export function BotonOrden({ emergencyId, soloNegativa = false }) {
   const [error, setError] = useState('')
-  const etiqueta = soloNegativa ? 'Ver la negativa de atención' : 'Ver la orden de traslado'
+  const etiqueta = soloNegativa ? 'Ver la negativa de atención' : 'Ver la recepción del traslado'
   async function abrir(ev) {
     ev.stopPropagation()
     const pestana = abrirPestana()

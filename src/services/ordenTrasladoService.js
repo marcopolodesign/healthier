@@ -16,7 +16,7 @@ const EXTENSION = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp
 export const TIPOS_FOTO_ORDEN = Object.keys(EXTENSION)
 export const MAX_FOTO_ORDEN_BYTES = 10 * 1024 * 1024
 
-export const TIPO_DOCUMENTO = { orden_traslado: 'Orden de traslado', negativa: 'Negativa de atención' }
+export const TIPO_DOCUMENTO = { orden_traslado: 'Recepción del traslado', negativa: 'Negativa de atención' }
 
 const SELECT = 'id, emergency_id, tipo, institucion, foto_path, subida_at, subida_por, subidor:profiles!subida_por(full_name)'
 

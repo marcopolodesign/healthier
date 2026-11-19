@@ -187,7 +187,7 @@ export default function DespachoHistorial() {
                     <td className="px-4 py-3 align-top">
                       <span className="flex items-center gap-1.5">
                         <ChapaCobro e={e} />
-                        {e.ordenes?.length > 0 && <FileImage className="h-4 w-4 text-text-secondary" aria-label="Tiene orden de traslado" />}
+                        {e.ordenes?.length > 0 && <FileImage className="h-4 w-4 text-text-secondary" aria-label="Tiene recepción del traslado" />}
                       </span>
                     </td>
                   </tr>
@@ -211,7 +211,7 @@ export default function DespachoHistorial() {
                 <div className="flex items-center gap-2">
                   <ChapaCobro e={e} />
                   <span className="text-sm text-text-secondary tabular-nums">{formatDuracion(duracionMin(e))}</span>
-                  {e.ordenes?.length > 0 && <FileImage className="h-4 w-4 text-text-secondary" aria-label="Tiene orden de traslado" />}
+                  {e.ordenes?.length > 0 && <FileImage className="h-4 w-4 text-text-secondary" aria-label="Tiene recepción del traslado" />}
                 </div>
               </button>
             ))}

@@ -273,36 +273,59 @@ export default function Emergency({ profile }) {
   }, [])
 
   // Realtime updates while tracking — the only source of truth for status.
-  useEffect(() => {
-    if (!emergency?.id || (phase !== 'tracking' && phase !== 'esperando')) return
-    const cleanup = emergencyService.subscribeForPatient(emergency.id, updated => {
-      setEmergency(prev => (prev ? { ...prev, ...updated } : updated))
-      // Es el evento que el paciente está esperando en la pantalla de espera:
-      // el operador le asignó un móvil.
-      if (updated.status === 'dispatched') {
-        setPhase('tracking')
-        /*
-         * El payload de realtime es la FILA CRUDA: trae `ambulance_id` y
-         * `provider_id`, no el móvil ni la entidad. Sin este refetch la
-         * pantalla decía "Ambulancia asignada / En camino hacia vos" sin la
-         * patente, sin el nombre de la entidad y sin el teléfono de guardia
-         * —o sea, sin el botón de llamar a despacho, que es lo único que el
-         * paciente puede hacer mientras espera.
-         */
+  // `aplicar` es lo que se hace con cada cambio de estado, venga por Realtime o
+  // por el sondeo de respaldo de abajo (un canal caído no puede dejar al
+  // paciente mirando un "En camino" que ya cambió).
+  const aplicarEstado = useCallback((updated) => {
+    setEmergency(prev => (prev ? { ...prev, ...updated } : updated))
+    // Es el evento que el paciente está esperando en la pantalla de espera: el
+    // operador le asignó un móvil. Desde la migración 240 la asignación sale
+    // directo `in_transit` (antes `dispatched`): se aceptan los dos.
+    if (updated.status === 'dispatched' || updated.status === 'in_transit' || updated.status === 'arrived') {
+      setPhase(prev => (prev === 'esperando' ? 'tracking' : prev))
+      /*
+       * El payload de realtime es la FILA CRUDA: trae `ambulance_id` y
+       * `provider_id`, no el móvil ni la entidad. Sin este refetch la
+       * pantalla decía "Ambulancia asignada / En camino hacia vos" sin la
+       * patente, sin el nombre de la entidad y sin el teléfono de guardia
+       * —o sea, sin el botón de llamar a despacho, que es lo único que el
+       * paciente puede hacer mientras espera.
+       */
+      if (updated.status !== 'arrived') {
         emergencyService.getActiveForPatient(profile.id)
           .then(completa => { if (completa?.id === updated.id) setEmergency(completa) })
           .catch(() => {/* el estado ya cambió; esto sólo suma los nombres */})
       }
-      if (updated.status === 'completed') {
-        setPhase('closing')
-        setTimeout(() => navigate('/paciente/dashboard'), 2500)
-      } else if (updated.status === 'cancelled' && !cancelandoRef.current) {
-        toast.info('La emergencia fue cancelada')
-        navigate('/paciente/dashboard')
-      }
-    })
+    }
+    if (updated.status === 'completed') {
+      setPhase('closing')
+      setTimeout(() => navigate('/paciente/dashboard'), 2500)
+    } else if (updated.status === 'cancelled' && !cancelandoRef.current) {
+      toast.info('La emergencia fue cancelada')
+      navigate('/paciente/dashboard')
+    }
+  }, [profile?.id, navigate])
+
+  useEffect(() => {
+    if (!emergency?.id || (phase !== 'tracking' && phase !== 'esperando')) return
+    const cleanup = emergencyService.subscribeForPatient(emergency.id, aplicarEstado)
     return cleanup
-  }, [phase, emergency?.id, profile?.id, navigate])
+  }, [phase, emergency?.id, aplicarEstado])
+
+  // Respaldo: Realtime puede perder un evento (red que va y viene, pestaña en
+  // segundo plano). Cada 8 s se compara el estado de la base con el de la
+  // pantalla y, si difiere, se aplica el mismo cambio.
+  const estadoRef = useRef(null)
+  useEffect(() => { estadoRef.current = emergency?.status ?? null }, [emergency?.status])
+  useEffect(() => {
+    if (!emergency?.id || (phase !== 'tracking' && phase !== 'esperando')) return
+    const iv = setInterval(() => {
+      emergencyService.estadoDe(emergency.id)
+        .then(fila => { if (fila && fila.status !== estadoRef.current) aplicarEstado(fila) })
+        .catch(() => {})
+    }, 8000)
+    return () => clearInterval(iv)
+  }, [phase, emergency?.id, aplicarEstado])
 
   // Posición del profesional — carga inicial + realtime sobre `emergency_tracking`.
   useEffect(() => {
@@ -321,10 +344,29 @@ export default function Emergency({ profile }) {
     return () => clearInterval(iv)
   }, [phase])
 
-  // Ruta real entre el profesional y el paciente. Sin ruta no se dibuja línea.
+  // Última posición conocida del móvil (la de guardia): con ella la línea se
+  // dibuja en el acto, sin esperar a que el teléfono de la tripulación publique
+  // su primera posición (migración 240). Se reemplaza por la posición viva.
+  const [movilPos, setMovilPos] = useState(null)
   useEffect(() => {
-    if (!tracking || !esReciente(tracking)) return
-    const desde = { lat: Number(tracking.latitude), lng: Number(tracking.longitude) }
+    if (phase !== 'tracking' || !emergency?.id) return
+    let vivo = true
+    emergencyService.ubicacionDelMovil(emergency.id)
+      .then(p => { if (vivo) setMovilPos(p) })
+      .catch(() => {})
+    return () => { vivo = false }
+  }, [phase, emergency?.id])
+
+  // Ruta real entre el profesional (o, mientras no publica, el móvil) y el
+  // paciente. Mientras llega se dibuja una recta; sin ningún origen, nada.
+  const origenRuta = useMemo(() => {
+    if (tracking && esReciente(tracking)) return { lat: Number(tracking.latitude), lng: Number(tracking.longitude), vivo: true }
+    return movilPos ? { ...movilPos, vivo: false } : null
+  }, [tracking, movilPos])
+
+  useEffect(() => {
+    if (!origenRuta) return
+    const desde = { lat: origenRuta.lat, lng: origenRuta.lng }
     const hasta = (emergency?.patientLatitude != null && emergency?.patientLongitude != null)
       ? { lat: Number(emergency.patientLatitude), lng: Number(emergency.patientLongitude) }
       : null
@@ -332,16 +374,20 @@ export default function Emergency({ profile }) {
     const clave = `${desde.lat.toFixed(4)},${desde.lng.toFixed(4)}`
     if (clave === ultimaRutaRef.current) return
     ultimaRutaRef.current = clave
+    const t0 = performance.now()
     const ctrl = new AbortController()
-    getRoute(desde, hasta, tracking.travelMode ?? 'driving', ctrl.signal)
-      .then(r => { if (r) setTrackingRoute(r); else ultimaRutaRef.current = '' })
+    getRoute(desde, hasta, tracking?.travelMode ?? 'driving', ctrl.signal)
+      .then(r => {
+        if (r) { setTrackingRoute(r); performance.mark?.('sos:ruta-real'); performance.measure?.('sos:ruta-real-ms', { start: t0 }) }
+        else ultimaRutaRef.current = ''
+      })
       .catch(e => {
         // Se libera el freno para que la próxima posición vuelva a intentar:
         // un solo pedido fallido dejaba la pantalla sin ruta para siempre.
         if (e?.name !== 'AbortError') ultimaRutaRef.current = ''
       })
     return () => ctrl.abort()
-  }, [tracking, emergency?.patientLatitude, emergency?.patientLongitude])
+  }, [origenRuta, tracking?.travelMode, emergency?.patientLatitude, emergency?.patientLongitude])
 
   // Elapsed time since dispatch — honest, ticks every second, never a fake ETA countdown.
   useEffect(() => {
@@ -669,6 +715,14 @@ export default function Emergency({ profile }) {
     const proCoords = proEnVivo
       ? { lat: Number(tracking.latitude), lng: Number(tracking.longitude) }
       : null
+    // La ruta real si ya llegó; si no, una recta del origen al paciente para
+    // que la línea aparezca enseguida.
+    const llego = emergency.status === 'arrived'
+    const lineaRuta = llego ? null : trackingRoute?.coordinates?.length > 1
+      ? trackingRoute.coordinates
+      : (origenRuta && patientCoords
+        ? [[origenRuta.lng, origenRuta.lat], [Number(patientCoords.lng), Number(patientCoords.lat)]]
+        : null)
     const etaMin = tracking?.etaMinutes ?? trackingRoute?.durationMin ?? null
     const distanciaM = tracking?.distanceMeters ?? trackingRoute?.distanceMeters ?? null
 
@@ -680,8 +734,8 @@ export default function Emergency({ profile }) {
           verticales={[]}
           onMarkerClick={() => {}}
           userLocation={patientCoords}
-          emergencyPro={proCoords}
-          emergencyRoute={proEnVivo ? trackingRoute?.coordinates ?? null : null}
+          emergencyPro={proCoords ?? (origenRuta ? { lat: origenRuta.lat, lng: origenRuta.lng } : null)}
+          emergencyRoute={lineaRuta}
           emergencyColor={triage?.color ?? '#dc2626'}
         />
 
@@ -728,7 +782,12 @@ export default function Emergency({ profile }) {
             )}
 
             {/* Dónde está — o por qué no lo sabemos. Las dos cosas se dicen. */}
-            {proEnVivo ? (
+            {emergency.status === 'arrived' ? (
+              <div className="flex items-center gap-3 rounded-[20px] bg-emerald-50 border border-emerald-100 px-4 py-3 mb-4" data-testid="sos-llego">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                <span className="text-[13px] font-semibold text-emerald-800 flex-1">{nombreMovil} llegó a tu ubicación</span>
+              </div>
+            ) : proEnVivo ? (
               <div className="flex items-center gap-3 rounded-[20px] bg-emerald-50 border border-emerald-100 px-4 py-3 mb-4">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                 <span className="text-[13px] font-medium text-emerald-700 flex-1">Ubicación en vivo</span>

@@ -39,6 +39,21 @@ export const EMERGENCY_ACTIVE_STATUSES = ['dispatched', 'in_transit', 'arrived']
 export const EMERGENCY_TERMINAL_STATUSES = ['cancelled', 'completed']
 
 /**
+ * Los síntomas que cargó el paciente al pedir la emergencia: `notes` guarda un
+ * arreglo JSON de etiquetas (`confirmarTriage`). Devuelve [] si no hay nada
+ * legible — nunca inventa una lista genérica.
+ */
+export function sintomasDeEmergencia(emergencia) {
+  if (!emergencia?.notes) return []
+  try {
+    const v = JSON.parse(emergencia.notes)
+    return Array.isArray(v) ? v.filter(x => typeof x === 'string' && x.trim()) : []
+  } catch {
+    return []
+  }
+}
+
+/**
  * Lo que el PACIENTE tiene que poder retomar. Es un conjunto más ancho que el
  * del profesional a propósito: una solicitud sin pagar (`pending`) o pagada y
  * esperando móvil (`awaiting_dispatch`) todavía no tiene a nadie asignado, así
@@ -152,6 +167,59 @@ export const emergencyService = {
         .subscribe(),
     )
     return () => { canales.forEach(c => supabase.removeChannel(c)) }
+  },
+
+  /**
+   * Realtime sobre UNA emergencia (la tripulación abierta con `?id=` por el
+   * link del aviso, que no entra en los filtros por profesional/ambulancia).
+   */
+  suscribirUna(emergencyId, onChange) {
+    if (!emergencyId) return () => {}
+    const canal = supabase
+      .channel(`crew-una-${emergencyId}-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'emergencies', filter: `id=eq.${emergencyId}` },
+        payload => onChange(toCamelCase(payload.new)))
+      .subscribe()
+    return () => { supabase.removeChannel(canal) }
+  },
+
+  /**
+   * Realtime para la consola del despacho: cualquier cambio en `emergencies`
+   * (la RLS ya limita a lo que ese usuario ve). Antes la consola sólo refrescaba
+   * cada 15 s, así que un "llegué" o un cierre tardaba en verse.
+   */
+  suscribirDespacho(onChange) {
+    const canal = supabase
+      .channel(`despacho-emergencias-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'emergencies' }, () => onChange())
+      .subscribe()
+    return () => { supabase.removeChannel(canal) }
+  },
+
+  /** Sólo el estado de una emergencia (sondeo de respaldo de Realtime). */
+  async estadoDe(emergencyId) {
+    const { data, error } = await supabase
+      .from('emergencies')
+      .select('id, status')
+      .eq('id', emergencyId)
+      .maybeSingle()
+    if (error) throw error
+    return data ? toCamelCase(data) : null
+  },
+
+  /**
+   * Última posición conocida del móvil asignado (migración 240), sólo para el
+   * paciente de esa emergencia. `null` si no hay móvil o no reportó nunca, o si
+   * lo último que reportó es de hace más de 30 min (un punto viejo no es una
+   * ruta).
+   */
+  async ubicacionDelMovil(emergencyId) {
+    const { data, error } = await supabase.rpc('ubicacion_movil_de_mi_emergencia', { p_emergency_id: emergencyId })
+    if (error) throw new Error(error.message)
+    if (!data?.latitude) return null
+    if (Date.now() - new Date(data.updated_at).getTime() > 30 * 60 * 1000) return null
+    return { lat: Number(data.latitude), lng: Number(data.longitude) }
   },
 
   /** Update emergency status — returns the updated row (camelCased). */
@@ -480,7 +548,9 @@ export const emergencyService = {
         provider_id: providerId,
         operator_id: operatorId,
         professional_id: medico?.profile_id ?? null,
-        status: 'dispatched',
+        // Directo "En camino" (migración 240): el móvil sale al ser asignado,
+        // no hay un paso de "aceptar" en la tripulación.
+        status: 'in_transit',
         dispatched_at: new Date().toISOString(),
         dispatch_code: `UTM-${Math.floor(1000 + Math.random() * 9000)}`,
       })
