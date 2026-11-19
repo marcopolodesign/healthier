@@ -124,9 +124,15 @@ async function asignarComoDespacho(id) {
   return data
 }
 await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL)
-const e1 = await emergenciaEsperando()
-const a1 = await asignarComoDespacho(e1.id)
-ok(a1?.status === 'in_transit' && a1.professional_id === null, '1ª emergencia asignada sin registro del día: nadie la atiende todavía (professional_id vacío)')
+// Ya en curso en el móvil y sin nadie a cargo (insert directo: el trigger de asignación
+// sólo actúa al asignar, y otras cuentas pueden haber ingresado hoy en modo operador).
+const { data: e1, error: e1err } = await admin.from('emergencies').insert({
+  patient_id: paciente.uid, triage_code: 'ROJO', status: 'in_transit', patient_latitude: -34.599, patient_longitude: -58.39, price_at_request: 50,
+  ambulance_id: MOVIL, provider_id: ENTIDAD, paid_at: new Date().toISOString(), dispatched_at: new Date().toISOString(), dispatch_code: 'UTM-0001',
+}).select('id,professional_id,status').single()
+if (e1err) throw e1err
+const e1id = e1.id
+ok(e1?.status === 'in_transit' && e1.professional_id === null, '1ª emergencia en curso sin registro del día: nadie la atiende todavía (professional_id vacío)')
 
 const ruta1 = `${op1.uid}/hoy.png`
 const subida = await op1.storage.from('operadores-dia').upload(ruta1, PNG, { contentType: 'image/png', upsert: true })
@@ -146,11 +152,11 @@ ok(!!regMal.error, `nombre/DNI inválidos se rechazan (${regMal.error?.message ?
 const DNI = '12345678'
 const reg = await op1.rpc('registrar_operador_del_dia', { p_nombre: 'María Operadora Prueba', p_dni: DNI, p_foto_path: ruta1 })
 ok(!reg.error && reg.data?.emergencias_tomadas >= 1, `operador1 se registra y toma la emergencia en curso (${reg.error?.message ?? JSON.stringify(reg.data)})`)
-const { data: e1b } = await admin.from('emergencies').select('professional_id').eq('id', e1.id).single()
+const { data: e1b } = await admin.from('emergencies').select('professional_id').eq('id', e1id).single()
 ok(e1b.professional_id === op1.uid, 'la emergencia en curso quedó con professional_id = operador1')
 
 const e2 = await emergenciaEsperando()
-await admin.from('emergencies').update({ status: 'cancelled' }).eq('id', e1.id) // libera el móvil para la 2ª
+await admin.from('emergencies').update({ status: 'cancelled' }).eq('id', e1id) // libera el móvil para la 2ª
 await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL)
 const a2 = await asignarComoDespacho(e2.id)
 ok(a2?.professional_id === op1.uid, '2ª emergencia del día: el despacho asigna sin médico y queda a cargo del operador registrado')

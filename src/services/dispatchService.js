@@ -164,6 +164,46 @@ export const dispatchService = {
     return (data ?? []).map(toCamelCase)
   },
 
+  // ── Profesionales de la entidad (modo operador, migración 242) ─────────
+
+  /** La lista de profesionales reales de la entidad; con su DNI y verificación para ver quién puede entrar. */
+  async listarProfesionalesDeEntidad(providerId) {
+    const { data, error } = await supabase
+      .from('emergency_provider_profesionales')
+      .select('id, professional_id, profile:profiles!professional_id(full_name, email, dni)')
+      .eq('provider_id', providerId)
+      .eq('active', true)
+    if (error) throw error
+    const filas = (data ?? []).map(toCamelCase)
+    if (!filas.length) return filas
+    const { data: pps } = await supabase.from('professional_profiles').select('user_id, is_verified').in('user_id', filas.map(f => f.professionalId))
+    const verif = new Map((pps ?? []).map(p => [p.user_id, p.is_verified]))
+    return filas.map(f => ({ ...f, verificado: verif.get(f.professionalId) === true }))
+  },
+
+  async agregarProfesionalDeEntidad(providerId, professionalId) {
+    const { error } = await supabase.from('emergency_provider_profesionales')
+      .upsert({ provider_id: providerId, professional_id: professionalId, active: true }, { onConflict: 'provider_id,professional_id' })
+    if (error) throw error
+  },
+
+  async quitarProfesionalDeEntidad(id) {
+    const { error } = await supabase.from('emergency_provider_profesionales').update({ active: false }).eq('id', id)
+    if (error) throw error
+  },
+
+  /** Quién entró como qué profesional, por qué cuenta (log inmutable). */
+  async ingresosEnModoOperador(dias = 3) {
+    const desde = new Date(Date.now() - dias * 864e5).toISOString().slice(0, 10)
+    const { data, error } = await supabase
+      .from('operador_sesiones_log')
+      .select('id, dia, created_at, dni_ingresado, operador:profiles!operator_id(email), profesional:profiles!professional_id(full_name)')
+      .gte('dia', desde)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data ?? []).map(toCamelCase)
+  },
+
   /** URL firmada (10 min) de la selfie del operador — bucket privado. */
   async fotoDeOperador(path) {
     const { data, error } = await supabase.storage.from('operadores-dia').createSignedUrl(path, 600)

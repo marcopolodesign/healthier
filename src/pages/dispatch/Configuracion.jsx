@@ -50,6 +50,10 @@ export default function DespachoConfiguracion({ profile }) {
   const isAdmin = profile?.role === 'emergency_admin' || profile?.role === 'super_admin'
   const [mp, setMp] = useState(null)
   const [operadores, setOperadores] = useState([])
+  const [profesionales, setProfesionales] = useState([])
+  const [ingresos, setIngresos] = useState([])
+  const [busca, setBusca] = useState('')
+  const [candidatos, setCandidatos] = useState([])
   const [desconectando, setDesconectando] = useState(false)
   const { conectar: conectarMp, conectando: conectandoMp } = useConectarMp(dispatchService.getMpConnectUrl)
   const [searchParams, setSearchParams] = useSearchParams()
@@ -68,6 +72,30 @@ export default function DespachoConfiguracion({ profile }) {
     dispatchService.estadoMp().then(setMp).catch(() => setMp({ conectado: false }))
     dispatchService.operadoresDelDia().then(setOperadores).catch(() => {})
   }, [])
+
+  const buscarProfesional = async (texto) => {
+    setBusca(texto)
+    if (texto.trim().length < 2) return setCandidatos([])
+    try {
+      const r = await dispatchService.buscarPersonas(texto)
+      const yaEstan = new Set(profesionales.map(p => p.professionalId))
+      setCandidatos(r.filter(p => p.role === 'professional' && !yaEstan.has(p.id)))
+    } catch { setCandidatos([]) }
+  }
+  const agregarProfesional = async (p) => {
+    try {
+      await dispatchService.agregarProfesionalDeEntidad(entidad.id, p.id)
+      setProfesionales(await dispatchService.listarProfesionalesDeEntidad(entidad.id))
+      setBusca(''); setCandidatos([])
+      toast.success(`${p.fullName} agregado/a a la lista`)
+    } catch (err) { toast.error(err?.message || 'No pudimos agregarlo') }
+  }
+  const quitarProfesional = async (p) => {
+    try {
+      await dispatchService.quitarProfesionalDeEntidad(p.id)
+      setProfesionales(ps => ps.filter(x => x.id !== p.id))
+    } catch (err) { toast.error(err?.message || 'No pudimos quitarlo') }
+  }
 
   const desconectarMp = async () => {
     if (!confirm('¿Desconectar Mercado Pago? Las emergencias nuevas se van a cobrar con la cuenta de Healthier hasta reconectar.')) return
@@ -91,6 +119,8 @@ export default function DespachoConfiguracion({ profile }) {
           dispatchPhone: e.dispatchPhone ?? '',
           color: e.color ?? '#DC2626',
         })
+        dispatchService.listarProfesionalesDeEntidad(e.id).then(setProfesionales).catch(() => {})
+        dispatchService.ingresosEnModoOperador().then(setIngresos).catch(() => {})
         try {
           setStaff(await dispatchService.listarStaff(e.id))
         } catch {
@@ -236,6 +266,46 @@ export default function DespachoConfiguracion({ profile }) {
           <button className="btn-primary" disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
         )}
       </form>
+
+      <div className="card space-y-3">
+        <h2 className="font-semibold text-text-primary">Profesionales de la entidad</h2>
+        <p className="text-xs text-text-secondary">Si quien entra con una cuenta operador pone el DNI de alguien de esta lista, esa cuenta actúa ese día como ese profesional: la emergencia, la historia clínica y la receta quedan a su nombre.</p>
+        {profesionales.length === 0 ? (
+          <p className="text-sm text-text-secondary">Todavía no cargaron profesionales</p>
+        ) : (
+          <div className="space-y-2">
+            {profesionales.map(p => (
+              <div key={p.id} className="flex items-center justify-between gap-3 text-sm">
+                <div className="min-w-0">
+                  <p className="text-text-primary font-medium truncate">{p.profile?.fullName || p.profile?.email}</p>
+                  <p className="text-xs text-text-secondary">
+                    {p.profile?.dni ? `DNI ${p.profile.dni}` : 'Sin DNI cargado: no va a poder ingresar'}{!p.verificado ? ' · sin verificar' : ''}
+                  </p>
+                </div>
+                {isAdmin && <button type="button" onClick={() => quitarProfesional(p)} className="text-xs font-semibold text-red-600 hover:underline shrink-0">Quitar</button>}
+              </div>
+            ))}
+          </div>
+        )}
+        {isAdmin && (
+          <div className="space-y-2">
+            <input className="form-input" placeholder="Buscar un profesional por nombre" value={busca} onChange={e => buscarProfesional(e.target.value)} />
+            {candidatos.map(c => (
+              <button key={c.id} type="button" onClick={() => agregarProfesional(c)} className="w-full text-left text-sm px-3 py-2 rounded-lg border border-border-default hover:bg-bg-surface">
+                {c.fullName} <span className="text-xs text-text-secondary">· {c.email}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {ingresos.length > 0 && (
+          <div className="pt-2 border-t border-border-default space-y-1">
+            <p className="text-xs font-semibold text-text-secondary">Ingresos en modo operador (últimos días)</p>
+            {ingresos.map(i => (
+              <p key={i.id} className="text-xs text-text-secondary">{i.dia} · {i.operador?.email} entró como {i.profesional?.fullName} (DNI {i.dniIngresado})</p>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="card space-y-3">
         <h2 className="font-semibold text-text-primary">Operadores de los últimos días</h2>

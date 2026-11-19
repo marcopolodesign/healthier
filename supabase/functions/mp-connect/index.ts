@@ -40,6 +40,7 @@ import {
   json,
   serviceClient,
   userFromRequest,
+  esSesionModoOperador,
 } from "../_shared/mpConnectAuth.ts";
 
 const IS_PROD = Deno.env.get("MP_IS_PROD") === "true";
@@ -91,6 +92,7 @@ serve(async (req: Request) => {
 
       const user = await userFromRequest(req);
       if (!user) return rechazar(401, "Unauthorized: iniciá sesión y volvé a tocar Conectar");
+      if (await esSesionModoOperador(req)) return rechazar(403, "Forbidden: en modo operador no se conecta Mercado Pago");
 
       const { data: pro, error: proErr } = await serviceClient()
         .from("professional_profiles")
@@ -109,6 +111,7 @@ serve(async (req: Request) => {
       if (req.method !== "POST") return json({ error: "disconnect is POST-only" }, 405);
       const user = await userFromRequest(req);
       if (!user) return json({ error: "Unauthorized" }, 401);
+      if (await esSesionModoOperador(req)) return json({ error: "Forbidden: en modo operador no se desconecta Mercado Pago" }, 403);
 
       const serviceSupabase = serviceClient();
       const { error: mpErr } = await serviceSupabase

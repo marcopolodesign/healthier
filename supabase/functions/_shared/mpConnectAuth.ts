@@ -53,3 +53,21 @@ export function buildMpAuthUrl(clientId: string, redirectUri: string, state: str
   authUrl.searchParams.set("state", state); // vuelve en el callback, que verifica firma y vencimiento
   return authUrl.toString();
 }
+
+/**
+ * ¿Esta sesión es "modo operador" (migración 242)? Una cuenta operadorN que
+ * entró como un profesional NO puede conectar ni desconectar el Mercado Pago de
+ * ese profesional: el cobro de las emergencias va al prestador y la cuenta la
+ * comparte gente distinta cada día.
+ */
+export async function esSesionModoOperador(req: Request): Promise<boolean> {
+  const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  try {
+    const claims = JSON.parse(atob(jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    if (typeof claims.session_id !== "string") return false;
+    const { data } = await serviceClient().from("operador_sesiones_log").select("id").eq("session_id", claims.session_id).maybeSingle();
+    return !!data;
+  } catch {
+    return false;
+  }
+}
