@@ -10,6 +10,7 @@ import { useBulkSelection } from '../../hooks/useBulkSelection'
 import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
 import CoordinadorAmbulancias from '../../components/super-admin/CoordinadorAmbulancias'
+import OperadoresDeEntidad from '../../components/super-admin/OperadoresDeEntidad'
 import { BotonOrden } from '../../components/emergencias/OrdenDeTrasladoCard'
 import { DESENLACE } from '../../lib/cobroEmergencia'
 import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
@@ -256,6 +257,8 @@ export default function SuperAdminEmergencias() {
           </div>
         )}
       </div>
+
+      <OperadoresDeEntidad />
 
       <BulkActionBar count={selection.count} onDelete={() => setConfirmOpen(true)} onClear={selection.clear} />
       <ConfirmDeleteDialog

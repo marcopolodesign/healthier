@@ -90,6 +90,15 @@ export default function DespachoConfiguracion({ profile }) {
       toast.success(`${p.fullName} agregado/a a la lista`)
     } catch (err) { toast.error(err?.message || 'No pudimos agregarlo') }
   }
+  const cargarDni = async (p) => {
+    const dni = window.prompt(`DNI de ${p.profile?.fullName || 'este profesional'} (7 u 8 números)`)
+    if (!dni) return
+    try {
+      await dispatchService.cargarDniDeProfesional(p.professionalId, dni)
+      setProfesionales(await dispatchService.listarProfesionalesDeEntidad(entidad.id))
+      toast.success('DNI cargado')
+    } catch (err) { toast.error(err?.message || 'No pudimos cargar el DNI') }
+  }
   const quitarProfesional = async (p) => {
     try {
       await dispatchService.quitarProfesionalDeEntidad(p.id)
@@ -282,6 +291,7 @@ export default function DespachoConfiguracion({ profile }) {
                     {p.profile?.dni ? `DNI ${p.profile.dni}` : 'Sin DNI cargado: no va a poder ingresar'}{!p.verificado ? ' · sin verificar' : ''}
                   </p>
                 </div>
+                {isAdmin && !p.profile?.dni && <button type="button" onClick={() => cargarDni(p)} className="text-xs font-semibold text-brand hover:underline shrink-0">Cargar DNI</button>}
                 {isAdmin && <button type="button" onClick={() => quitarProfesional(p)} className="text-xs font-semibold text-red-600 hover:underline shrink-0">Quitar</button>}
               </div>
             ))}

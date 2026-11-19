@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Siren, Phone, Ambulance, Clock, MapPin, Warning, CaretRight } from '@phosphor-icons/react'
 import { dispatchService, antiguedadUbicacion, haceCuanto } from '../../services/dispatchService'
 import PanelTraslado from '../../components/dispatch/PanelTraslado'
+import IngresosPendientes from '../../components/dispatch/IngresosPendientes'
 import { direccionCorta } from '../../lib/direccionEmergencia'
 import { emergencyService } from '../../services/emergencyService'
 import { mpService } from '../../services/mpService'
@@ -308,6 +309,8 @@ export default function DespachoCola({ profile }) {
         </h1>
         <p className="text-text-secondary mt-1">{entidad?.name}</p>
       </div>
+
+      <IngresosPendientes />
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Esperando móvil */}

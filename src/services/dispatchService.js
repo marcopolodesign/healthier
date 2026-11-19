@@ -143,8 +143,8 @@ export const dispatchService = {
   },
 
   /** { conectado, nickname, email, connectedAt } — sin tokens. */
-  async estadoMp() {
-    const { data, error } = await supabase.rpc('estado_mp_de_entidad')
+  async estadoMp(providerId = null) {
+    const { data, error } = await supabase.rpc('estado_mp_de_entidad', { p_provider_id: providerId })
     if (error) throw error
     return toCamelCase(data ?? { conectado: false })
   },
@@ -197,11 +197,35 @@ export const dispatchService = {
     const desde = new Date(Date.now() - dias * 864e5).toISOString().slice(0, 10)
     const { data, error } = await supabase
       .from('operador_sesiones_log')
-      .select('id, dia, created_at, dni_ingresado, operador:profiles!operator_id(email), profesional:profiles!professional_id(full_name)')
+      .select('id, dia, created_at, dni_ingresado, operador:profiles!operator_id(email), profesional:profiles!professional_id(full_name), aprobador:profiles!aprobado_por(full_name)')
       .gte('dia', desde)
       .order('created_at', { ascending: false })
     if (error) throw error
     return (data ?? []).map(toCamelCase)
+  },
+
+  /** Pedidos de ingreso en modo operador esperando al despacho (migración 243). */
+  async ingresosPendientes() {
+    const desde = new Date(Date.now() - 10 * 60_000).toISOString()
+    const { data, error } = await supabase
+      .from('operador_ingresos')
+      .select('id, dni_ingresado, created_at, operador:profiles!operator_id(email), profesional:profiles!professional_id(full_name)')
+      .eq('estado', 'pendiente')
+      .gte('created_at', desde)
+      .order('created_at')
+    if (error) throw error
+    return (data ?? []).map(toCamelCase)
+  },
+
+  async resolverIngreso(id, aprobar, motivo = null) {
+    const { error } = await supabase.rpc('resolver_ingreso_operador', { p_id: id, p_aprobar: aprobar, p_motivo: motivo })
+    if (error) throw error
+  },
+
+  /** El admin carga el DNI que le falta a un profesional de la lista (nunca pisa uno existente). */
+  async cargarDniDeProfesional(professionalId, dni) {
+    const { error } = await supabase.rpc('cargar_dni_de_profesional_de_entidad', { p_professional_id: professionalId, p_dni: dni })
+    if (error) throw error
   },
 
   /** URL firmada (10 min) de la selfie del operador — bucket privado. */
