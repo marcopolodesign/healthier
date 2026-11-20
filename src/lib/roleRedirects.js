@@ -12,6 +12,7 @@ export const ROLE_REDIRECTS = {
   emergency_operator: '/despacho',
   // La tripulación sin matrícula (chofer, enfermero). Su pantalla real es la
   // app, pero desde la web tiene que caer en el traslado que le toca y no en
-  // la landing de marketing.
-  emergency_crew: '/profesional/emergencias',
+  // la landing de marketing. `/operador` es la pantalla del operador (cuentas
+  // operadorN); al chofer y al enfermero los manda de vuelta a /profesional/emergencias.
+  emergency_crew: '/operador',
 }

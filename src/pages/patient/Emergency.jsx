@@ -10,6 +10,7 @@ import { SOS_BONIFICAR_POR_DEFECTO, sosBonificada, camposBonificar } from '../..
 import { emergencyTrackingService, esReciente, FRESCURA_MINUTOS } from '../../services/emergencyTrackingService'
 import { getRoute, formatMeters, formatMinutes } from '../../lib/directions'
 import { mpService } from '../../services/mpService'
+import { operadorService } from '../../services/operadorService'
 import InteractiveMap from '../../components/patient/InteractiveMap'
 import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
@@ -230,6 +231,16 @@ export default function Emergency({ profile }) {
   // cambia `emergency` y no puede cortar la precarga a la mitad.
   const emergencyRef = useRef(emergency)
   useEffect(() => { emergencyRef.current = emergency }, [emergency])
+
+  // El operador del día de Medizin: el paciente ve SU nombre y SU foto (no el de la
+  // cuenta fija operadorN). Con un profesional real al frente no hay registro y vuelve null.
+  const [operadorDelDia, setOperadorDelDia] = useState(null)
+  useEffect(() => {
+    if (!emergency?.id || !emergency?.professionalId) { setOperadorDelDia(null); return }
+    let vivo = true
+    operadorService.delDiaDeMiEmergencia(emergency.id).then(o => { if (vivo) setOperadorDelDia(o) }).catch(() => {})
+    return () => { vivo = false }
+  }, [emergency?.id, emergency?.professionalId])
   useEffect(() => {
     if (phase !== 'pago' || precargada.current || !profile?.id) return
     precargada.current = true
@@ -711,6 +722,8 @@ export default function Emergency({ profile }) {
     const telefono = entidad?.dispatchPhone || emergency.professional?.phone || null
     const telefonoEsDespacho = Boolean(entidad?.dispatchPhone)
 
+    // Con operador del día (Medizin) el paciente ve a esa persona; si no, al profesional asignado.
+    const quienVa = operadorDelDia ?? { nombre: emergency.professional?.fullName, fotoUrl: emergency.professional?.avatarUrl }
     const proEnVivo = esReciente(tracking)
     const proCoords = proEnVivo
       ? { lat: Number(tracking.latitude), lng: Number(tracking.longitude) }
@@ -827,16 +840,16 @@ export default function Emergency({ profile }) {
                   </p>
                 </div>
               </div>
-              {emergency.professional?.fullName && (
+              {quienVa.nombre && (
                 <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-100">
                   <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center border border-gray-200 overflow-hidden shrink-0">
-                    {emergency.professional.avatarUrl
-                      ? <img src={emergency.professional.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    {quienVa.fotoUrl
+                      ? <img src={quienVa.fotoUrl} alt="" className="w-full h-full object-cover" data-testid="sos-operador-foto" />
                       : <User className="w-4 h-4 text-gray-400" />
                     }
                   </div>
-                  <p className="text-[13px] text-gray-600 font-medium truncate">
-                    Va {emergency.professional.fullName}
+                  <p className="text-[13px] text-gray-600 font-medium truncate" data-testid="sos-operador-nombre">
+                    Va {quienVa.nombre}
                   </p>
                 </div>
               )}

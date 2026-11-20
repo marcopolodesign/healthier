@@ -68,6 +68,8 @@ import AtencionEmergencia from './pages/professional/AtencionEmergencia'
 import NutriPlan from './pages/professional/NutriPlan'
 import ActivityPlan from './pages/professional/ActivityPlan'
 import ProfessionalEmergencias from './pages/professional/Emergencias'
+import OperadorEmergencias from './pages/operador/Operador'
+import { enModoOperadorMarcado } from './services/operadorService'
 import HistoriaClinica from './pages/professional/HistoriaClinica'
 import ProfessionalHistorial from './pages/professional/Historial'
 import ProfessionalPatientProfile from './pages/professional/PatientProfile'
@@ -170,6 +172,15 @@ function RedirectToProfesional() {
 function RequireOnboarding({ profile, children }) {
   if (onboardingBloqueante(profile)) return <Navigate to="/paciente/onboarding" replace />
   return children
+}
+
+/**
+ * Con la sesión de un profesional prestada (modo operador) no se ven ganancias,
+ * verificación ni Mercado Pago: esas pantallas mandan de vuelta a /operador.
+ * Es sólo la UI; la base ya trata esa sesión como modo operador.
+ */
+function FueraDeModoOperador({ children }) {
+  return enModoOperadorMarcado() ? <Navigate to="/operador" replace /> : children
 }
 
 function RequireRole({ profile, allowed, children }) {
@@ -575,6 +586,14 @@ export default function App() {
             <ProfessionalEmergencias profile={profile} />
           </RequireRole>
         } />
+        {/* Operador de emergencias de Medizin (cuentas operadorN): DNI → despacho
+            aprueba → turno. Con la sesión del profesional prestada el rol es
+            `professional`; la pantalla manda de vuelta a quien no esté en modo operador. */}
+        <Route path="/operador" element={
+          <RequireRole profile={profile} allowed={['emergency_crew', 'professional']}>
+            <OperadorEmergencias profile={profile} />
+          </RequireRole>
+        } />
         <Route path="/profesional/videollamada/:id" element={
           <RequireRole profile={profile} allowed={['professional']}>
             <ProfessionalVideoCall profile={profile} />
@@ -599,10 +618,10 @@ export default function App() {
             <AppLayout profile={profile} profSpecialty={profSpecialty} />
           </RequireRole>
         }>
-          <Route path="/profesional/dashboard" element={<ProfessionalDashboard profile={profile} />} />
+          <Route path="/profesional/dashboard" element={<FueraDeModoOperador><ProfessionalDashboard profile={profile} /></FueraDeModoOperador>} />
           <Route path="/profesional/agenda" element={<ProfessionalAgenda profile={profile} />} />
           <Route path="/profesional/consulta/:id" element={<ConsultationDetail profile={profile} />} />
-          <Route path="/profesional/perfil" element={<ProfessionalProfileEdit profile={profile} onProfileUpdate={setProfile} />} />
+          <Route path="/profesional/perfil" element={<FueraDeModoOperador><ProfessionalProfileEdit profile={profile} onProfileUpdate={setProfile} /></FueraDeModoOperador>} />
           <Route path="/profesional/nutriplan" element={<NutriPlan profile={profile} />} />
           <Route path="/profesional/plan-actividad" element={<ActivityPlan profile={profile} />} />
           <Route path="/profesional/historia-clinica/:patientId" element={<HistoriaClinica profile={profile} />} />
@@ -611,8 +630,8 @@ export default function App() {
           <Route path="/profesional/pacientes" element={<ProfessionalPacientes profile={profile} />} />
           <Route path="/profesional/derivaciones" element={<ProfessionalDerivaciones profile={profile} />} />
           <Route path="/profesional/derivaciones/:id" element={<ProfessionalDerivacionDetalle profile={profile} />} />
-          <Route path="/profesional/ganancias" element={<ProfessionalGanancias profile={profile} />} />
-          <Route path="/profesional/configuracion" element={<ProfessionalConfiguracion profile={profile} />} />
+          <Route path="/profesional/ganancias" element={<FueraDeModoOperador><ProfessionalGanancias profile={profile} /></FueraDeModoOperador>} />
+          <Route path="/profesional/configuracion" element={<FueraDeModoOperador><ProfessionalConfiguracion profile={profile} /></FueraDeModoOperador>} />
           <Route path="/profesional/ayuda" element={<ProfessionalAyuda profile={profile} />} />
         </Route>
 

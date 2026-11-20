@@ -38,7 +38,8 @@
     "test:estudios": "deno test --allow-read=supabase/functions/rcta-estudios supabase/functions/rcta-estudios/",
     "test:camino-al-turno": "node --test scripts/test-camino-al-turno.mjs",
     "test:analitica": "node --test scripts/test-analitica-vercel.mjs",
-    "test:horarios": "node --test scripts/test-horarios-celular.mjs"
+    "test:horarios": "node --test scripts/test-horarios-celular.mjs",
+    "test:operador-web": "node --test scripts/test-operador-web.mjs"
   },
   "dependencies": {
     "@daily-co/daily-js": "^0.87.0",

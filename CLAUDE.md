@@ -115,6 +115,7 @@ Some professional pages are designed exclusively for phone use and must never be
 | Route | File | Why phone-only |
 |-------|------|----------------|
 | `/profesional/emergencias` | `pages/professional/Emergencias.jsx` | Operated on the street, requires large touch targets and full-screen urgency UI |
+| `/operador` | `pages/operador/Operador.jsx` + `Turno.jsx` | Cuentas `operadorN` de Medizin (rol `emergency_crew`; o el profesional prestado en modo operador). DNI → aprobación del despacho → guardia / en camino / llegué / cierre / terminar turno. Estilo Picnic (ivory, sin sombras ni bordes). Control: `npm run test:operador-web` y `scripts/verificar-operador-web-front.mjs` |
 | `/profesional/onboarding` | `pages/professional/Onboarding.jsx` | Full-bleed split-screen wizard with a live preview panel (2026-07-16) — no sidebar/nav chrome, needs the full viewport width for the two-column layout |
 
 **Rules for mobile-first professional screens:**
