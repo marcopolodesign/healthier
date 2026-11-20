@@ -98,6 +98,8 @@ Deno.serve(async (req: Request) => {
           await admin.auth.admin.signOut(canje.session.access_token).catch(() => {})
           throw logErr
         }
+        // Un solo responsable por móvil (migración 244): al retirar la sesión se cierra el turno anterior del móvil, de cualquier cuenta.
+        await admin.rpc('cerrar_turnos_previos_del_movil', { p_cuenta: caller.id, p_conservar: sessionId })
         const { data: tomadas } = await admin.rpc('tomar_emergencias_en_modo_operador', { p_cuenta: caller.id, p_profesional: pro.id })
         return json({
           modo: 'profesional',

@@ -30,6 +30,7 @@ const g = Object.fromEntries(readFileSync(`${process.env.HOME}/Local/.env`, 'utf
 const URL_ = g.HEALTHIER_STAGING_SUPABASE_URL
 const MOVIL = '40000000-0000-0000-0000-000000000001'
 const ENTIDAD = '20000000-0000-0000-0000-000000000001'
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
 const PRO_EMAIL = 'profesional@healthier.app'
 let fallas = 0
 const ok = (c, m) => { console.log(`${c ? '✅' : '❌'} ${m}`); if (!c) fallas++ }
@@ -279,11 +280,119 @@ const dniFuera = await despacho.rpc('cargar_dni_de_profesional_de_entidad', { p_
 ok(!!dniFuera.error, 'no carga DNI de alguien que ya tiene')
 await admin.from('emergency_provider_profesionales').delete().eq('provider_id', ENTIDAD).eq('professional_id', sinDni.id)
 await admin.from('profiles').update({ dni: sinDni.dni }).eq('id', sinDni.id)
+await new Promise(r => setTimeout(r, 8000)) // el chequeo con SISA (225) corre en segundo plano y, con un DNI de prueba, lo manda a revisión
+await sqlq(`select set_config('request.jwt.claims', json_build_object('sub',(select id from profiles where email='superadmin@healthier.app'),'role','authenticated')::text, true); update professional_profiles set is_verified=true, reverification_pending=false, reverification_changes='[]'::jsonb where user_id='${sinDni.id}'`)
+
+// ═══ I · un solo turno activo por móvil (migración 244) ═════════════════════
+console.log('\n▸ I · un solo responsable por móvil')
+const op5 = await como('operador5@staging.healthier.app')
+const op1b = await como('operador1@staging.healthier.app')
+const { data: otroPro } = await admin.from('profiles').select('id,dni').eq('email', 'clinica@staging.healthier.app').single()
+const DNI_OTRO = String(otroPro.dni)
+await admin.from('emergency_provider_profesionales').upsert({ provider_id: ENTIDAD, professional_id: otroPro.id, active: true }, { onConflict: 'provider_id,professional_id' })
+async function ingresarComo(cuenta, dni) {
+  const p = await fn('operador-modo', cuenta.jwt, { dni })
+  if (!p.body.ingreso_id) throw new Error(`sin pedido: ${JSON.stringify(p.body)}`)
+  const ap = await despachoOp.rpc('resolver_ingreso_operador', { p_id: p.body.ingreso_id, p_aprobar: true })
+  if (ap.error) throw new Error(ap.error.message)
+  const r = await fn('operador-modo', cuenta.jwt, { ingresoId: p.body.ingreso_id })
+  const sc = createClient(URL_, g.HEALTHIER_STAGING_SUPABASE_ANON_KEY, { auth: { persistSession: false } })
+  await sc.auth.setSession({ access_token: r.body.session.access_token, refresh_token: r.body.session.refresh_token })
+  return { ...r, cliente: sc, sessionId: (await admin.from('operador_sesiones_log').select('session_id').eq('ingreso_id', p.body.ingreso_id).single()).data.session_id }
+}
+const profDe = async id => (await admin.from('emergencies').select('professional_id,cuenta_operador_id').eq('id', id).single()).data
+const limpiarMovil = async () => {
+  for (const c of [op, op5, op1b]) await admin.rpc('cerrar_turnos_previos_del_movil', { p_cuenta: c.uid, p_conservar: null })
+  await admin.from('operadores_del_dia').update({ terminado_at: new Date().toISOString() }).is('terminado_at', null)
+  await admin.from('emergencies').update({ status: 'cancelled' }).eq('patient_id', paciente.uid).in('status', ['pending', 'awaiting_dispatch', 'dispatched', 'in_transit', 'arrived'])
+  await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL)
+}
+const nuevaAsignada = async () => { const e = await emergenciaEsperando(); await asignarSinMedico(e.id); return e.id }
+
+// 3 · sin ningún turno activo, la emergencia queda sin médico
+await limpiarMovil()
+const eSin = await nuevaAsignada()
+ok((await profDe(eSin)).professional_id === null, 'sin ningún turno activo, la emergencia queda asignada al móvil SIN médico')
+// …y la toma quien es aprobado después (la en curso)
+const t1 = await ingresarComo(op, DNI)
+ok((await profDe(eSin)).professional_id === PRO, 'el primero en ser aprobado después toma la que quedó sin médico')
+
+// 2 · otro operador entra en el mismo móvil: el turno anterior se cierra
+await admin.from('emergencies').update({ status: 'cancelled' }).eq('id', eSin)
+await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL)
+const eA = await nuevaAsignada()   // a cargo de PRO (turno de operador4), sin atención empezada
+ok((await profDe(eA)).professional_id === PRO, 'con el turno de operador4 activo, la emergencia es de su profesional')
+await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL)
+const eB = await nuevaAsignada()   // ésta SÍ tiene la atención empezada
+const ini = await t1.cliente.rpc('iniciar_atencion_emergencia', { p_emergency_id: eB })
+ok(!ini.error, `el profesional de operador4 empieza a cargar la atención de B (${ini.error?.message ?? 'ok'})`)
+const t2 = await ingresarComo(op5, DNI_OTRO)
+ok(t2.body.modo === 'profesional' && t2.body.profesional.id === otroPro.id, 'operador5 es aprobado como otro profesional de la lista')
+const { data: finT1 } = await admin.from('operador_sesiones_fin').select('session_id').eq('session_id', t1.sessionId)
+ok(finT1?.length === 1, 'al retirar operador5 su sesión, el turno anterior del móvil (de OTRA cuenta) queda cerrado')
+const { data: modoT1 } = await t1.cliente.rpc('estoy_en_modo_operador')
+ok(modoT1?.activo === false, 'la sesión cerrada ya no es modo operador')
+const refT1 = await t1.cliente.auth.refreshSession()
+ok(!!refT1.error || !refT1.data.session, 'y no se puede renovar')
+const pA = await profDe(eA), pB = await profDe(eB)
+ok(pA.professional_id === otroPro.id && pA.cuenta_operador_id === op5.uid, 'la emergencia SIN atención empezada pasa al responsable nuevo')
+ok(pB.professional_id === PRO, 'la que ya tiene la atención empezada sigue con quien la empezó')
+await admin.from('emergencies').update({ status: 'cancelled' }).in('id', [eA, eB])
+await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL)
+const eC = await nuevaAsignada()
+const pC = await profDe(eC)
+ok(pC.professional_id === otroPro.id, 'una emergencia nueva va al responsable actual (operador5), NO al ingreso viejo de operador4')
+await admin.from('emergencies').update({ status: 'cancelled' }).eq('id', eC)
+
+// 1 · sólo cuentan los turnos activos: cerrar sesión desde el teléfono, terminar turno, vencer
+await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL)
+await t2.cliente.auth.signOut()   // cierra la sesión sin pasar por "terminar turno"
+const eD = await nuevaAsignada()
+ok((await profDe(eD)).professional_id === null, 'una sesión cerrada (sin "terminar turno") deja de contar: queda sin médico')
+await admin.from('emergencies').update({ status: 'cancelled' }).eq('id', eD)
+await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL)
+const t3 = await ingresarComo(op, DNI)
+const finE = await t3.cliente.rpc('terminar_turno_operador')
+ok(!finE.error, 'terminar turno')
+const eE = await nuevaAsignada()
+ok((await profDe(eE)).professional_id === null, 'un turno terminado no cuenta: queda sin médico')
+await admin.from('emergencies').update({ status: 'cancelled' }).eq('id', eE)
+await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL)
+const pedNoRetirado = await fn('operador-modo', op5.jwt, { dni: DNI_OTRO })
+await despachoOp.rpc('resolver_ingreso_operador', { p_id: pedNoRetirado.body.ingreso_id, p_aprobar: true })
+const eF = await nuevaAsignada()
+ok((await profDe(eF)).professional_id === null, 'un ingreso aprobado pero NO retirado no cuenta (no deja al móvil con un responsable que no tiene el teléfono)')
+await admin.from('emergencies').update({ status: 'cancelled' }).eq('id', eF)
+await admin.from('operador_ingresos').update({ estado: 'cancelado' }).eq('id', pedNoRetirado.body.ingreso_id)
+
+// 2 · el registro del día (241) también cierra el turno anterior, y viceversa
+await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL)
+const t4 = await ingresarComo(op, DNI)
+const rutaI = `${op1b.uid}/turno.png`
+await op1b.storage.from('operadores-dia').upload(rutaI, PNG, { contentType: 'image/png', upsert: true })
+const regI = await op1b.rpc('registrar_operador_del_dia', { p_nombre: 'Operadora Registro Prueba', p_dni: '30999888', p_foto_path: rutaI })
+ok(!regI.error, `operador1 se registra (241) (${regI.error?.message ?? 'ok'})`)
+const { data: finT4 } = await admin.from('operador_sesiones_fin').select('session_id').eq('session_id', t4.sessionId)
+ok(finT4?.length === 1, 'registrarse (241) cierra el turno anterior del móvil, aunque sea de otra cuenta')
+const eG = await nuevaAsignada()
+ok((await profDe(eG)).professional_id === op1b.uid, 'con el registro vigente, la emergencia es de quien se registró')
+await admin.from('emergencies').update({ status: 'cancelled' }).eq('id', eG)
+await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL)
+const t5 = await ingresarComo(op, DNI)
+const { data: regT } = await admin.from('operadores_del_dia').select('terminado_at').eq('profile_id', op1b.uid).eq('dia', (await admin.rpc('hoy_en_argentina')).data).single()
+ok(!!regT.terminado_at, 'ser aprobado en el móvil cierra el registro del día (241) del anterior')
+const eH = await nuevaAsignada()
+ok((await profDe(eH)).professional_id === PRO, 'y la emergencia nueva va al turno vigente')
+await admin.from('emergencies').update({ status: 'cancelled' }).eq('id', eH)
+await limpiarMovil()
+await admin.storage.from('operadores-dia').remove([rutaI])
+await admin.from('operadores_del_dia').delete().eq('profile_id', op1b.uid)
+await admin.from('emergency_provider_profesionales').delete().eq('provider_id', ENTIDAD).eq('professional_id', otroPro.id)
 
 // Limpieza (el log no se borra: es inmutable)
 await admin.from('emergencies').update({ status: 'cancelled' }).eq('patient_id', paciente.uid).in('status', ['pending', 'awaiting_dispatch', 'dispatched', 'in_transit', 'arrived'])
 await admin.from('ambulances').update({ status: 'disponible' }).eq('id', MOVIL)
-await admin.from('emergency_provider_profesionales').delete().eq('provider_id', ENTIDAD).eq('professional_id', PRO)
+await admin.from('emergency_provider_profesionales').upsert({ provider_id: ENTIDAD, professional_id: PRO, active: true }, { onConflict: 'provider_id,professional_id' }) // queda activo para las pruebas
 await pro.auth.signOut().catch(() => {})
 console.log(fallas ? `\n❌ ${fallas} chequeo(s) en rojo` : '\n✅ todo en verde')
 process.exit(fallas ? 1 : 0)

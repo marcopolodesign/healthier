@@ -103,9 +103,10 @@ async function abrir(email, viewport = { width: 1280, height: 900 }) {
   await page.waitForTimeout(2000)
   ok(await page.getByText('DNI 28456789').first().isVisible(), 'admin: agrega un profesional a la lista y se ve con su DNI')
   await page.screenshot({ path: '/tmp/despacho-config/04-lista-profesionales.png', fullPage: true })
-  await page.getByRole('button', { name: 'Quitar' }).first().click()
-  await page.waitForTimeout(1500)
-  ok(await page.getByText('Todavía no cargaron profesionales').isVisible(), 'admin: "Quitar" saca al profesional de la lista')
+  const fila = page.locator('div.flex.items-center.justify-between', { hasText: pro.full_name }).filter({ has: page.getByRole('button', { name: 'Quitar' }) }).first()
+  await fila.getByRole('button', { name: 'Quitar' }).click()
+  await page.waitForTimeout(2000)
+  ok(await fila.count() === 0, 'admin: "Quitar" saca al profesional de la lista')
   ok(errs.length === 0, `admin: sin errores de JS (${errs.join(' | ')})`)
   await ctx.close()
 }
@@ -121,6 +122,7 @@ async function abrir(email, viewport = { width: 1280, height: 900 }) {
 await browser.close()
 
 await admin.from('emergency_provider_mp_accounts').delete().eq('provider_id', ENTIDAD)
+await admin.from('emergency_provider_profesionales').upsert({ provider_id: ENTIDAD, professional_id: (await admin.from('profiles').select('id').eq('email', 'profesional@healthier.app').single()).data.id, active: true }, { onConflict: 'provider_id,professional_id' }) // queda activo para las pruebas
 await admin.from('operadores_del_dia').delete().eq('profile_id', op.uid)
 await admin.storage.from('operadores-dia').remove([ruta])
 console.log(fallas ? `\n❌ ${fallas} en rojo` : '\n✅ todo en verde')

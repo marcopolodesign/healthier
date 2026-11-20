@@ -82,6 +82,9 @@ const chofer = await como('chofer@staging.healthier.app')
 const op1 = await como('operador1@staging.healthier.app')
 const op2 = await como('operador2@staging.healthier.app')
 
+// El "tercero" no puede tener emergencias vivas ni atendidas por estas cuentas (si no, es paciente de ellas y ve la foto con razón).
+await admin.from('emergencies').update({ status: 'cancelled' }).eq('patient_id', tercero.uid).in('status', ['pending', 'awaiting_dispatch', 'dispatched', 'in_transit', 'arrived'])
+await admin.from('emergencies').update({ professional_id: null }).eq('patient_id', tercero.uid).in('professional_id', [op1.uid, op2.uid])
 // Estado limpio: sin registro de hoy, sin cuenta de MP del prestador, sin emergencias de prueba vivas.
 await admin.from('operadores_del_dia').delete().in('profile_id', [op1.uid, op2.uid])
 await admin.from('emergency_provider_mp_accounts').delete().eq('provider_id', ENTIDAD)

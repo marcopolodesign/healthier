@@ -107,7 +107,9 @@ const ped2 = await fn(op.access_token, { dni: pro.dni })
   await ctx.close()
 }
 await browser.close()
-await admin.from('emergency_provider_profesionales').delete().eq('provider_id', ENTIDAD).in('professional_id', [pro.id, sinDni.id])
+await admin.from('emergency_provider_profesionales').delete().eq('provider_id', ENTIDAD).eq('professional_id', sinDni.id) // profesional@ queda activo en la lista para las pruebas
 await admin.from('profiles').update({ dni: sinDni.dni }).eq('id', sinDni.id)
+await new Promise(r => setTimeout(r, 8000))
+await fetch(`https://api.supabase.com/v1/projects/${g.HEALTHIER_STAGING_SUPABASE_REF}/database/query`, { method: 'POST', headers: { Authorization: `Bearer ${g.SUPABASE_ACCESS_TOKEN}`, 'Content-Type': 'application/json', 'User-Agent': 'curl/8' }, body: JSON.stringify({ query: `select set_config('request.jwt.claims', json_build_object('sub',(select id from profiles where email='superadmin@healthier.app'),'role','authenticated')::text, true); update professional_profiles set is_verified=true, reverification_pending=false, reverification_changes='[]'::jsonb where user_id='${sinDni.id}'` }) })
 console.log(fallas ? `\n❌ ${fallas} en rojo` : '\n✅ todo en verde')
 process.exit(fallas ? 1 : 0)
