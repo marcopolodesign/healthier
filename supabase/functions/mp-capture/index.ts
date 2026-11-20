@@ -39,6 +39,9 @@
  * action: "cancel-emergency"      body: { emergencyId }  — el paciente cancela;
  *   sin móvil se libera ({cobrado:false}), con móvil asignado se cobra igual
  *   ({cobrado:true, monto}). arrived/completed/cancelled → 409.
+ * action: "cobrar-emergencia-terminada" body: { emergencyId } — interna (service key):
+ *   captura (o libera) la reserva de una emergencia ya cerrada. La llama el
+ *   trigger de cierre (migración 245) y la barre el sweep si falló.
  * action: "sweep" (no body)
  *   Internal-only — header `x-cron-secret` === MP_CRON_SECRET or
  *   MP_WEBHOOK_SECRET, or `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>`
@@ -88,6 +91,23 @@ const corsHeaders = {
 const MP_WEBHOOK_SECRET = Deno.env.get("MP_WEBHOOK_SECRET")!;
 const MP_CRON_SECRET = Deno.env.get("MP_CRON_SECRET");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+/**
+ * ¿La llamada viene del servidor (service role)? Igualdad con el secret o, si la
+ * key que usa quien llama (vault de la base, scripts) tiene otro formato, el rol
+ * `service_role` del JWT — que el gateway ya verificó (verify_jwt = true).
+ */
+function esLlamadaDeServicio(authHeader: string | null): boolean {
+  if (!authHeader) return false;
+  if (authHeader === `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`) return true;
+  try {
+    const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const claims = JSON.parse(atob(jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return claims?.role === "service_role";
+  } catch {
+    return false;
+  }
+}
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -554,6 +574,79 @@ async function cancelarEmergencia(
   return { status: 409, data: null, error: "La emergencia cambió de estado. Intentá de nuevo." };
 }
 
+/**
+ * Cobro de una emergencia que YA terminó, hecho por el servidor (migración 245).
+ *
+ * El cobro no puede depender de quien cierra: el despacho cobra y después cierra,
+ * pero el operador, el médico (web) o la app cierran la emergencia sin pasar por
+ * `capture-emergency`, y la reserva quedaba colgada hasta vencer (la tarjeta del
+ * paciente la suelta a los 7 días y la plata no entra). Lo dispara el trigger de
+ * cierre de la base (`cobrar_emergencia_al_cerrar`) y lo reintenta el barrido.
+ *   · completed                       → captura.
+ *   · cancelled con cobro (cancellation_charged) → captura.
+ *   · cancelled sin cobro             → libera la reserva.
+ * Con el token con el que se creó la reserva (prestador o plataforma).
+ */
+async function cobrarEmergenciaTerminada(
+  supabase: SupabaseClient,
+  emergencyId: string
+): Promise<{ status: number; data: unknown; error: string | null }> {
+  const { data: e, error: eErr } = await supabase
+    .from("emergencies")
+    .select("id, status, cancellation_charged")
+    .eq("id", emergencyId)
+    .maybeSingle();
+  if (eErr) return { status: 500, data: null, error: eErr.message };
+  if (!e) return { status: 404, data: null, error: "Emergency not found" };
+
+  const { data: payment, error: pErr } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("emergency_id", emergencyId)
+    .eq("status", "authorized")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (pErr) return { status: 500, data: null, error: pErr.message };
+  if (!payment) return { status: 200, data: { sinReserva: true }, error: null };
+
+  let accion: "capture" | "cancel";
+  if (e.status === "completed") accion = "capture";
+  else if (e.status === "cancelled") accion = e.cancellation_charged === true ? "capture" : "cancel";
+  else return { status: 409, data: null, error: `La emergencia no terminó (status=${e.status})` };
+
+  return await resolverPreautorizacionDeEmergencia(supabase, payment as PaymentRow, emergencyId, accion);
+}
+
+/** Barrido de reservas de EMERGENCIAS que ya terminaron y nadie resolvió (backstop del cierre). */
+async function sweepEmergencias(supabase: SupabaseClient) {
+  const out = { scanned: 0, captured: 0, released: 0, failed: 0, skipped: 0 };
+  const { data: rows, error } = await supabase
+    .from("payments")
+    .select("id, emergency_id, emergencies:emergencies!emergency_id(status)")
+    .eq("status", "authorized")
+    .not("emergency_id", "is", null);
+  if (error) {
+    console.error("mp-capture: sweep de emergencias no pudo leer las reservas:", error.message);
+    return out;
+  }
+  for (const row of (rows ?? []) as Array<{ id: string; emergency_id: string; emergencies: { status: string } | { status: string }[] | null }>) {
+    out.scanned++;
+    const em = Array.isArray(row.emergencies) ? row.emergencies[0] : row.emergencies;
+    if (!em || !["completed", "cancelled"].includes(em.status)) { out.skipped++; continue; }
+    try {
+      const r = await cobrarEmergenciaTerminada(supabase, row.emergency_id);
+      if (r.error) { out.failed++; console.error(`mp-capture: sweep emergencia ${row.emergency_id} falló:`, r.error); }
+      else if ((r.data as { cancelled?: boolean })?.cancelled) out.released++;
+      else out.captured++;
+    } catch (err) {
+      out.failed++;
+      console.error(`mp-capture: sweep emergencia ${row.emergency_id} lanzó:`, err);
+    }
+  }
+  return out;
+}
+
 interface SweepConsultationJoin {
   id: string;
   status: string;
@@ -681,8 +774,9 @@ async function runSweep(supabase: SupabaseClient) {
     results.skipped++;
   }
 
-  console.log("mp-capture: sweep complete", JSON.stringify(results));
-  return jsonResponse({ data: results, error: null });
+  const emergencias = await sweepEmergencias(supabase);
+  console.log("mp-capture: sweep complete", JSON.stringify({ ...results, emergencias }));
+  return jsonResponse({ data: { ...results, emergencias }, error: null });
 }
 
 Deno.serve(async (req) => {
@@ -711,13 +805,31 @@ Deno.serve(async (req) => {
       const authHeader = req.headers.get("Authorization");
       const isWebhookSecretValid = Boolean(MP_WEBHOOK_SECRET) && cronSecret === MP_WEBHOOK_SECRET;
       const isCronSecretValid = Boolean(MP_CRON_SECRET) && cronSecret === MP_CRON_SECRET;
-      const isServiceRoleAuth = authHeader === `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`;
+      const isServiceRoleAuth = esLlamadaDeServicio(authHeader);
 
       if (!isWebhookSecretValid && !isCronSecretValid && !isServiceRoleAuth) {
         return jsonResponse({ data: null, error: "Unauthorized" }, 401);
       }
 
       return await runSweep(serviceSupabase);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // action: cobrar-emergencia-terminada — interna (service key / secreto de cron)
+    // La dispara el trigger de cierre de la base (migración 245): ver
+    // `cobrarEmergenciaTerminada`. Idempotente.
+    // ────────────────────────────────────────────────────────────────────────
+    if (action === "cobrar-emergencia-terminada") {
+      const cronSecret = req.headers.get("x-cron-secret");
+      const authHeader = req.headers.get("Authorization");
+      const autorizado = esLlamadaDeServicio(authHeader)
+        || (Boolean(MP_CRON_SECRET) && cronSecret === MP_CRON_SECRET)
+        || (Boolean(MP_WEBHOOK_SECRET) && cronSecret === MP_WEBHOOK_SECRET);
+      if (!autorizado) return jsonResponse({ data: null, error: "Unauthorized" }, 401);
+      const { emergencyId } = body as { emergencyId?: string };
+      if (!emergencyId) return jsonResponse({ data: null, error: "Missing emergencyId" }, 400);
+      const r = await cobrarEmergenciaTerminada(serviceSupabase, emergencyId);
+      return jsonResponse({ data: r.data, error: r.error }, r.status);
     }
 
     // ────────────────────────────────────────────────────────────────────────

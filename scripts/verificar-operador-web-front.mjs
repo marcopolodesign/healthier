@@ -159,8 +159,8 @@ if (!process.env.SALTEAR_A) {
   await shot(page, 'A8-cierre')
   await page.getByTestId('cerrar-emergencia').click()
   ok(await hay(page, 'En guardia'), 'cerrada: vuelve a la guardia')
-  const { data: cerrada } = await admin.from('emergencies').select('status, desenlace, cierre_sin_atencion, professional_id, cuenta_operador_id').eq('id', eid).single()
-  ok(cerrada.status === 'completed' && cerrada.desenlace === 'traslado' && cerrada.cierre_sin_atencion?.includes('Crisis hipertensiva'), `la base: completed, traslado, diagnóstico guardado (${JSON.stringify(cerrada)})`)
+  const { data: cerrada } = await admin.from('emergencies').select('status, desenlace, cierre_sin_atencion, diagnostico_cierre, professional_id, cuenta_operador_id').eq('id', eid).single()
+  ok(cerrada.status === 'completed' && cerrada.desenlace === 'traslado' && cerrada.diagnostico_cierre?.includes('Crisis hipertensiva') && !cerrada.cierre_sin_atencion, `la base: completed, traslado, diagnóstico en su columna (no como cierre sin atención) (${JSON.stringify(cerrada)})`)
   ok(await hay(pac.page, 'Atención finalizada', 15000), 'el paciente ve "Atención finalizada" en vivo')
   await pac.ctx.close()
 

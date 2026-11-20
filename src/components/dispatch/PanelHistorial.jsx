@@ -55,6 +55,8 @@ export default function PanelHistorial({ emergencyId, onClose }) {
     if (t.desenlace === 'traslado') comoTermino = `Trasladado${orden?.institucion ? ` a ${orden.institucion}` : ''}`
     else if (t.desenlace === 'en_el_lugar') comoTermino = 'Atendido en el lugar'
     if (t.cierreSinAtencion) comoTermino = [comoTermino, `Cerrada sin atención · ${t.cierreSinAtencion}`].filter(Boolean).join('. ')
+    if (t.diagnosticoCierre) comoTermino = [comoTermino, `Diagnóstico · ${t.diagnosticoCierre}`].filter(Boolean).join('. ')
+    if (t.notaCierre) comoTermino = [comoTermino, `Nota · ${t.notaCierre}`].filter(Boolean).join('. ')
   }
 
   const linea = t ? [

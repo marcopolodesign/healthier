@@ -104,7 +104,7 @@ try {
   {
     const { error } = await medico.c.from('emergencies')
       .update({ status: 'completed', cierre_sin_atencion: 'Traslado a guardia' }).eq('id', em.id)
-    debe(error && /orden de traslado/i.test(error.message),
+    debe(error && /(orden|recepci[oó]n) del? traslado/i.test(error.message),
       `rechazado: "${error?.message}"`, 'SE CERRÓ UN TRASLADO SIN ORDEN')
   }
 
@@ -258,7 +258,7 @@ try {
       await medico.c.storage.from(BUCKET).upload(rN, JPEG, { contentType: 'image/jpeg' }); subidas.push(rN)
       await medico.c.from('emergency_transfer_orders').insert({ emergency_id: e2.id, tipo: 'negativa', foto_path: rN })
       const { error: errSoloNeg } = await operador.c.from('emergencies').update({ status: 'completed', desenlace: 'traslado' }).eq('id', e2.id)
-      debe(errSoloNeg && /orden de traslado/i.test(errSoloNeg.message), 'con sólo la negativa, un traslado no se cierra', 'se cerró un traslado con sólo la negativa')
+      debe(errSoloNeg && /(orden|recepci[oó]n) del? traslado/i.test(errSoloNeg.message), 'con sólo la negativa, un traslado no se cierra', 'se cerró un traslado con sólo la negativa')
       const rO = `${e2.id}/orden-despacho.jpg`
       const { error: errSubOp } = await operador.c.storage.from(BUCKET).upload(rO, JPEG, { contentType: 'image/jpeg' })
       if (!errSubOp) subidas.push(rO)

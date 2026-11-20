@@ -1,18 +1,16 @@
 import { supabase } from '../lib/supabase'
 import { terminarTurnoYDescartarSesion } from '../lib/sesionOperador'
 import { aBlobSubible, TIPOS_AVATAR } from '../lib/archivoSubible'
+import { enModoOperadorMarcado, marcarModoOperador } from '../lib/modoOperadorMarca'
+
+export { enModoOperadorMarcado }
 
 /**
  * El modo operador de las cuentas operadorN de Medizin (migraciones 241-243).
  * Todo el contrato vive en la base y en la Edge Function `operador-modo`.
  */
-const KEY_MODO = 'operador-modo'
 /** Pedido de ingreso en espera (sessionStorage): sobrevive a recargar la pantalla. */
 export const KEY_INGRESO = 'operador-ingreso'
-export const enModoOperadorMarcado = () => { try { return window.localStorage.getItem(KEY_MODO) === '1' } catch { return false } }
-function marcarModoOperador(activo) {
-  try { activo ? window.localStorage.setItem(KEY_MODO, '1') : window.localStorage.removeItem(KEY_MODO) } catch { /* sin storage */ }
-}
 const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
 
 async function llamarModo(body) {

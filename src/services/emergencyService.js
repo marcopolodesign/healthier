@@ -270,10 +270,15 @@ export const emergencyService = {
    * cerrada o el motivo, y con 'traslado' la orden subida (migración 213): el
    * mensaje de error ya dice qué falta.
    */
-  async cerrar(emergencyId, { desenlace, motivoSinAtencion } = {}) {
+  async cerrar(emergencyId, { desenlace, motivoSinAtencion, diagnostico, nota } = {}) {
     const cambios = { status: 'completed' }
     if (desenlace) cambios.desenlace = desenlace
+    // `cierre_sin_atencion` es SÓLO para los cierres sin atención. El diagnóstico y la
+    // nota del operador (migración 245) tienen su lugar: si no, una emergencia atendida
+    // figuraba como "cerrada sin atención" en la HC del paciente y en el historial.
     if (motivoSinAtencion?.trim()) cambios.cierre_sin_atencion = motivoSinAtencion.trim()
+    if (diagnostico?.trim()) cambios.diagnostico_cierre = diagnostico.trim()
+    if (nota?.trim()) cambios.nota_cierre = nota.trim()
     // `.single()`: si la RLS deja la escritura en cero filas (p.ej. la
     // reasignaron a otro móvil), es un error y no un cierre silencioso.
     const { error } = await supabase.from('emergencies').update(cambios).eq('id', emergencyId).select('id').single()

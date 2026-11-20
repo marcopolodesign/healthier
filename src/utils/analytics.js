@@ -6,6 +6,7 @@
 // hashed user_id, categories/types, booleans, and generic payment methods.
 
 import { cioTrack } from './customerio'
+import { enModoOperadorMarcado } from '../lib/modoOperadorMarca'
 
 export const ROLE_TO_USER_TYPE = {
   patient: 'paciente',
@@ -36,7 +37,7 @@ async function sha256Hex(input) {
 
 /** Call once profile is known (login, session restore). */
 export async function setAnalyticsUser(profile) {
-  if (!profile?.id) {
+  if (!profile?.id || enModoOperadorMarcado()) {
     clearAnalyticsUser()
     return
   }
@@ -89,6 +90,8 @@ function sanitize(params) {
  * with any GTM built-in.
  */
 export function track(eventName, params = {}, cioOnlyParams = {}) {
+  // Modo operador: quien usa la cuenta no es el profesional; no se mide a su nombre.
+  if (enModoOperadorMarcado()) return
   // Fan-out a Customer.io con los params SIN sanitizar por PII — Customer.io
   // es mensajería y necesita la identidad real, al revés que GTM. Igual pasa
   // por su propia guarda de datos de salud (`sanitizeEventProps`), que es más

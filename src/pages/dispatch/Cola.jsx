@@ -211,7 +211,7 @@ export default function DespachoCola({ profile }) {
         emergencyService.getById(req.id),
         emergencyService.estadoAtencion(req.id),
       ])
-      if (estadoAtencion !== 'completed' && !fresca?.cierreSinAtencion?.trim()) {
+      if (estadoAtencion !== 'completed' && !fresca?.cierreSinAtencion?.trim() && !fresca?.diagnosticoCierre?.trim()) {
         toast.error(estadoAtencion
           ? 'La atención sigue abierta: la cierra el médico desde la emergencia. No se cobró nada.'
           : 'Todavía no hay atención cargada: el médico la carga o cierra sin atención desde la emergencia. No se cobró nada.')

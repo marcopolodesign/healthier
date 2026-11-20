@@ -293,12 +293,10 @@ function Cierre({ emergency, atencionCerrada, onVolver, onCerrada }) {
   const cerrar = async () => {
     setGuardando(true); setError('')
     try {
-      // La base exige la atención cerrada o un texto de cierre: el diagnóstico (y la
-      // nota para el despacho) viajan en `cierre_sin_atencion`, que es lo que ya lee el despacho.
-      const partes = []
-      if (diagnostico.trim()) partes.push(`Diagnóstico: ${diagnostico.trim()}`)
-      if (nota.trim()) partes.push(`Nota para el despacho: ${nota.trim()}`)
-      await emergencyService.cerrar(emergency.id, { desenlace: cierre.desenlace, motivoSinAtencion: partes.join('\n') || undefined })
+      // La base exige la atención cerrada o el diagnóstico (migración 245): el diagnóstico y la
+      // nota para el despacho tienen su propia columna; `cierre_sin_atencion` queda para
+      // los cierres sin atención, y el cobro de la emergencia lo hace el servidor al cerrar.
+      await emergencyService.cerrar(emergency.id, { desenlace: cierre.desenlace, diagnostico, nota })
       await emergencyTrackingService.dejarDeCompartir(emergency.id).catch(() => {})
       onCerrada()
     } catch (e) {

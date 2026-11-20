@@ -11,6 +11,7 @@ import { registrarPantalla } from './lib/flowUrl'
 import { Sentry } from './lib/sentry'
 import { professionalService } from './services/professionalService'
 import { track, setAnalyticsUser, clearAnalyticsUser } from './utils/analytics'
+import { EVENTO_MODO_OPERADOR } from './lib/modoOperadorMarca'
 import {
   cioIdentify,
   cioIdentifyProfessional,
@@ -295,9 +296,20 @@ export default function App() {
 
   // Sentry: a la persona se la identifica sólo por su id (UUID). El resto —quién es,
   // qué mail tiene— lo resolvemos nosotros adentro; a Sentry no sale (ver sentryFilter).
+  // En modo operador (una cuenta operadorN actuando como un profesional) no se
+  // identifica a nadie en Sentry: los errores quedan marcados con el tag y sin usuario.
+  const [modoOperador, setModoOperador] = useState(() => enModoOperadorMarcado())
   useEffect(() => {
-    Sentry.setUser(profile?.id ? { id: profile.id } : null)
-  }, [profile?.id])
+    const alCambiar = () => setModoOperador(enModoOperadorMarcado())
+    window.addEventListener(EVENTO_MODO_OPERADOR, alCambiar)
+    window.addEventListener('storage', alCambiar)
+    return () => { window.removeEventListener(EVENTO_MODO_OPERADOR, alCambiar); window.removeEventListener('storage', alCambiar) }
+  }, [])
+  useEffect(() => {
+    Sentry.setTag('modo_operador', modoOperador ? 'si' : 'no')
+    Sentry.setUser(!modoOperador && profile?.id ? { id: profile.id } : null)
+    if (modoOperador) { clearAnalyticsUser(); cioReset() }
+  }, [profile?.id, modoOperador])
 
   const loadProfSpecialty = async (userId) => {
     try {

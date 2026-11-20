@@ -25,6 +25,8 @@
 
 const GLOBAL = 'cioanalytics'
 
+import { enModoOperadorMarcado } from '../lib/modoOperadorMarca'
+
 export const ROLE_TO_USER_TYPE = {
   patient: 'paciente',
   professional: 'profesional',
@@ -49,6 +51,8 @@ export function isCioEnabled(hostname = typeof window !== 'undefined' ? window.l
 /** El snippet crea `window.cioanalytics` y encola llamadas hasta que carga. */
 function cio() {
   if (!isCioEnabled()) return null
+  // Modo operador: nada se identifica ni se mide a nombre del profesional.
+  if (enModoOperadorMarcado()) return null
   const a = typeof window !== 'undefined' ? window[GLOBAL] : null
   return a && typeof a.track === 'function' ? a : null
 }
