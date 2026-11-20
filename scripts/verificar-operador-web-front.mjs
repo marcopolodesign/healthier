@@ -58,6 +58,13 @@ async function abrir(email, ruta, esperar, { viewport = { width: 390, height: 84
   return { page, ctx, errs, s }
 }
 const shot = (page, n) => page.screenshot({ path: `/tmp/operador-web/${n}.png` })
+// Después de recargar a /login la página puede navegar una vez más: se reintenta la lectura.
+const clavesDeSesion = async (page) => {
+  for (let i = 0; i < 8; i++) {
+    try { return await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('sb-'))) } catch { await page.waitForTimeout(1500) }
+  }
+  return ['(no se pudo leer)']
+}
 const hay = async (page, texto, ms = 60000) => page.getByText(texto).first().waitFor({ timeout: ms }).then(() => true).catch(() => false)
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
@@ -162,7 +169,7 @@ if (!process.env.SALTEAR_A) {
   await page.waitForURL('**/login', { timeout: 120000 }).catch(() => {})
   await page.waitForLoadState('domcontentloaded')
   ok(page.url().includes('/login'), 'Terminar turno → vuelve al login')
-  const claves = await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('sb-')))
+  const claves = await clavesDeSesion(page)
   ok(claves.length === 0, `la sesión se descartó del navegador (claves sb-*: ${claves.length})`)
   await ctx.close()
 }
@@ -170,7 +177,7 @@ if (!process.env.SALTEAR_A) {
 // ═══ B · modo profesional con aprobación del despacho ═══════════════════════
 console.log('\n▸ B · DNI de un profesional de la lista → aprobación → atiende como el profesional')
 await limpiar()
-{
+if (!process.env.SALTEAR_B) {
   const { page, ctx, errs } = await abrir('operador1@staging.healthier.app', '/operador', 'text=¿Quién sale hoy?')
   await page.fill('#dni', dniPro)
   await page.getByTestId('dni-continuar').click()
@@ -222,7 +229,7 @@ await limpiar()
   await page.waitForLoadState('domcontentloaded')
   ok(page.url().includes('/login'), 'Terminar turno → login')
   await page.waitForLoadState('load')
-  const claves = await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('sb-')))
+  const claves = await clavesDeSesion(page)
   ok(claves.length === 0, 'la sesión del profesional ya no está en el navegador')
   await page.goto(BASE + '/profesional/dashboard', { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(2500)
@@ -241,7 +248,7 @@ await limpiar()
   const des = await abrir('despacho@staging.healthier.app', '/despacho', 'text=Cola de despacho', { viewport: { width: 1280, height: 900 } })
   await des.page.waitForSelector('[data-testid="ingresos-pendientes"]', { timeout: 20000 }).catch(() => {})
   des.page.once('dialog', d => d.accept('No lo conozco'))
-  await des.page.getByRole('button', { name: 'Rechazar' }).click()
+  await des.page.getByRole('button', { name: 'Rechazar' }).first().click()
   ok(await hay(page, 'No lo conozco', 30000), 'el operador ve el motivo real del rechazo')
   await shot(page, 'C1-rechazado')
   await des.ctx.close(); await ctx.close()
