@@ -35,14 +35,17 @@ export const operadorService = {
   consultarIngreso: (ingresoId) => llamarModo({ ingresoId }),
 
   /**
-   * ¿Esta sesión es una de modo operador (la de un profesional prestada)? La base
+   * ¿Esta sesión es una de modo operador (la de un profesional prestada)? `null` si no se pudo saber. La base
    * contesta `{ activo, cuenta_operador_id, cuenta_operador_email }`. El resultado
    * queda marcado en `operador-modo` (sólo para la UI: `FueraDeModoOperador` de
    * App.jsx saca de ganancias, configuración y perfil). La seguridad sigue en la base.
    */
   async estoyEnModoOperador() {
     const { data, error } = await supabase.rpc('estoy_en_modo_operador')
-    const activo = !error && data?.activo === true
+    // Un error de red no es un "no": devuelve null y no toca la marca (si no, un tropiezo
+    // sacaba a la persona del modo operador y la dejaba en el inicio del profesional).
+    if (error) return null
+    const activo = data?.activo === true
     marcarModoOperador(activo)
     return activo
   },

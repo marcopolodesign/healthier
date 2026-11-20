@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Camera, HourglassMedium, WarningCircle } from '@phosphor-icons/react'
 import { supabase } from '../../lib/supabase'
-import { operadorService, KEY_INGRESO } from '../../services/operadorService'
+import { operadorService, enModoOperadorMarcado, KEY_INGRESO } from '../../services/operadorService'
 import { dniValido, normalizarDni } from '../../lib/dni'
 import Turno from './Turno'
 import { Pantalla, Eyebrow, Titulo, Centrado, Boton, Campo, Cargando, Aviso } from './ui'
@@ -39,8 +39,14 @@ export default function Operador({ profile }) {
     let vivo = true
     ;(async () => {
       if (comoProfesional) {
-        if (await operadorService.estoyEnModoOperador()) { if (vivo) setFase('turno') }
-        else if (vivo) navigate('/profesional/dashboard', { replace: true })
+        let modo = null
+        for (let i = 0; i < 3 && modo === null; i++) {
+          modo = await operadorService.estoyEnModoOperador()
+          if (modo === null) await new Promise(r => setTimeout(r, 1500))
+        }
+        if (!vivo) return
+        if (modo ?? enModoOperadorMarcado()) setFase('turno')
+        else navigate('/profesional/dashboard', { replace: true })
         return
       }
       const [esOp, hoy] = await Promise.all([operadorService.esOperador(profile.id), operadorService.registroDeHoy(profile.id)])

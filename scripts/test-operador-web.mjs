@@ -88,4 +88,5 @@ test('en modo operador, ganancias / configuración / perfil / inicio del profesi
     assert.match(app.slice(i, i + 260), new RegExp(`<FueraDeModoOperador><${comp} `), `${ruta} detrás de FueraDeModoOperador`)
   }
   assert.match(leer('services/operadorService.js'), /data\?\.activo === true/, 'estoy_en_modo_operador devuelve { activo }, no un booleano')
+  assert.match(leer('services/operadorService.js'), /if \(error\) return null/, 'un error de red no saca a nadie del modo operador')
 })
