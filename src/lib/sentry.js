@@ -28,6 +28,10 @@ export function initSentry() {
     environment: import.meta.env.VITE_SENTRY_ENVIRONMENT || 'development',
     release: BUILD_COMMIT,
     tracesSampleRate: 0.1,
+    // Scripts que inyecta el navegador interno de Instagram/Facebook
+    // (`iabjs://navigation_performance_logger_android`…): no son nuestros ni se
+    // pueden arreglar, y el vigía los avisaba como errores (2026-11-21).
+    denyUrls: [/^iabjs:\/\//],
     ...OPCIONES_PRIVADAS,
   })
 }

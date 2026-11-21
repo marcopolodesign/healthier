@@ -345,3 +345,19 @@ test('SDK real: los repro de las rondas salen SIN datos personales y con id, tip
   assert.deepEqual(eventos.find((e) => e.tags)?.tags, { canal: 'staging' }, 'sólo los tags nuestros')
   console.log(`  ${eventos.length} eventos revisados en el transporte; values: ${[...new Set(valores)].join(', ')}`)
 })
+
+// Vigía 2026-11-21: ruido del navegador de Instagram/Facebook y la ✕ de la foto de perfil.
+test('la web no reporta errores de scripts del navegador de Instagram/Facebook (iabjs://)', () => {
+  const src = readFileSync(join(raiz, 'src/lib/sentry.js'), 'utf8')
+  assert.match(src, /denyUrls:\s*\[[^\]]*iabjs/, 'sentry.js descarta iabjs:// con denyUrls')
+})
+
+test('sacar la foto de perfil (✕) no llama a createObjectURL con null', () => {
+  for (const [archivo, fn] of [['src/pages/professional/Onboarding.jsx', 'handleAvatar'], ['src/pages/professional/Profile.jsx', 'handleAvatarFile']]) {
+    const src = readFileSync(join(raiz, archivo), 'utf8')
+    const i = src.indexOf(`const ${fn} = async file => {`)
+    assert.ok(i >= 0, `${archivo}: está ${fn}`)
+    const cuerpo = src.slice(i, src.indexOf('setAvatarPreview(URL.createObjectURL', i))
+    assert.match(cuerpo, /if \(!file\)[^\n]*return/, `${archivo}: ${fn} corta antes de createObjectURL cuando la foto se saca`)
+  }
+})

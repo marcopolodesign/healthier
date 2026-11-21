@@ -74,6 +74,10 @@ export default function ProfessionalProfile({ profile, onProfileUpdate }) {
 
   const handleAvatarFile = async file => {
     setAvatarFile(file)
+    // Tocar la ✕ de la foto llama con `null`: sin este corte,
+    // createObjectURL(null) tiraba un TypeError (Sentry, 2026-11) y la vista
+    // previa se quedaba con la foto que la persona acababa de sacar.
+    if (!file) { setAvatarPreview(null); return }
     setAvatarPreview(URL.createObjectURL(file))
     // Aviso blando, no bloqueante: no detectamos caras, sólo avisamos si la
     // imagen es chica. El profesional decide si la cambia.
