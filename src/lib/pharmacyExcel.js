@@ -7,9 +7,24 @@
  * route table, and the library is large but only ever needed by a
  * pharmacy_admin opening Catálogo, not by every visitor's initial bundle.
  */
-import { PRESCRIPTION_TYPE_LABELS } from './pharmacyProducts'
+import { PRESCRIPTION_TYPE_LABELS, NECESIDAD_LABELS } from './pharmacyProducts'
 
-const HEADERS = ['SKU', 'Nombre', 'Presentación', 'Precio', 'Stock', 'Categoría receta', 'Disponible']
+const HEADERS = ['SKU', 'Nombre', 'Presentación', 'Precio', 'Stock', 'Categoría receta', 'Disponible', 'Necesidad']
+
+const LABEL_TO_NECESIDAD = Object.fromEntries(
+  Object.entries(NECESIDAD_LABELS).map(([id, label]) => [label.toUpperCase(), id])
+)
+
+/**
+ * Columna opcional "Necesidad" (migración 246). `undefined` = el archivo no
+ * trae la columna (no se toca); vacío = sin necesidad; `false` = no se reconoce.
+ */
+function toNecesidad(row) {
+  if (!('Necesidad' in row)) return undefined
+  const s = String(row['Necesidad'] ?? '').trim().toUpperCase()
+  if (!s) return null
+  return LABEL_TO_NECESIDAD[s] ?? false
+}
 
 const LABEL_TO_PRESCRIPTION_TYPE = Object.fromEntries(
   Object.entries(PRESCRIPTION_TYPE_LABELS).map(([type, label]) => [label.toUpperCase(), type])
@@ -46,6 +61,7 @@ export async function parseCatalogFile(file) {
     stock: row['Stock'],
     prescriptionType: toPrescriptionType(row['Categoría receta']),
     disponible: toBool(row['Disponible']),
+    necesidad: toNecesidad(row),
   }))
 }
 
@@ -67,6 +83,9 @@ export function validateRows(rows) {
     if (row.stock == null || Number.isNaN(stock) || stock < 0 || !Number.isInteger(stock)) rowErrors.push('Stock inválido')
     if (!row.prescriptionType) {
       rowErrors.push(`Categoría receta inválida — usar: ${Object.values(PRESCRIPTION_TYPE_LABELS).join(' / ')}`)
+    }
+    if (row.necesidad === false) {
+      rowErrors.push(`Necesidad inválida — usar: ${Object.values(NECESIDAD_LABELS).join(' / ')}, o dejarla vacía`)
     }
 
     if (rowErrors.length) {

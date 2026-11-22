@@ -4,6 +4,7 @@ import { pharmacyAdminService, PRODUCT_IMAGE_MAX_BYTES } from '../../services/ph
 import { parseCatalogFile, validateRows, buildCatalogWorkbook, PRESCRIPTION_TYPE_LABELS } from '../../lib/pharmacyExcel'
 import { toast } from '../../components/Toast'
 import { formatARS } from '../../lib/format'
+import { NECESIDADES } from '../../lib/pharmacyProducts'
 
 // Que haya `image_url` no quiere decir que la foto se vea: parte del catálogo
 // apunta a links de un banco de imágenes que hoy dan 404. Por eso el estado de
@@ -118,6 +119,19 @@ export default function PharmacyCatalog({ profile }) {
   const elegirFoto = (productId) => {
     fotoDestino.current = productId
     fotoInputRef.current?.click()
+  }
+
+  // La necesidad define en qué foto del mosaico del paciente aparece el
+  // producto (además de su categoría). Vacía = sólo en su categoría.
+  const cambiarNecesidad = async (product, necesidad) => {
+    const antes = product.necesidad ?? null
+    setProducts(prev => prev.map(p => (p.id === product.id ? { ...p, necesidad: necesidad || null } : p)))
+    try {
+      await pharmacyAdminService.setNecesidad(product.id, necesidad)
+    } catch (err) {
+      setProducts(prev => prev.map(p => (p.id === product.id ? { ...p, necesidad: antes } : p)))
+      toast.error(err?.message || String(err))
+    }
   }
 
   const handleFoto = async (e) => {
@@ -272,6 +286,7 @@ export default function PharmacyCatalog({ profile }) {
                 <th className="table-header">Precio</th>
                 <th className="table-header">Stock</th>
                 <th className="table-header hidden sm:table-cell">Categoría receta</th>
+                <th className="table-header hidden lg:table-cell">Necesidad</th>
               </tr>
             </thead>
             <tbody>
@@ -294,6 +309,17 @@ export default function PharmacyCatalog({ profile }) {
                   <td className="table-cell">{formatARS(p.price)}</td>
                   <td className="table-cell">{p.stockQuantity}</td>
                   <td className="table-cell max-sm:hidden">{PRESCRIPTION_TYPE_LABELS[p.prescriptionType] ?? PRESCRIPTION_TYPE_LABELS.venta_libre}</td>
+                  <td className="table-cell max-lg:hidden">
+                    <select
+                      value={p.necesidad ?? ''}
+                      onChange={e => cambiarNecesidad(p, e.target.value)}
+                      aria-label={`Necesidad de ${p.name}`}
+                      className="form-select text-sm py-1.5 min-w-[10rem]"
+                    >
+                      <option value="">—</option>
+                      {NECESIDADES.map(n => <option key={n.id} value={n.id}>{n.label}</option>)}
+                    </select>
+                  </td>
                 </tr>
               ))}
             </tbody>

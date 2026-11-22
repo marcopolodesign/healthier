@@ -136,7 +136,7 @@ export const TOMAS = [
       await clic(p, p.getByRole('button', { name: /Amigo Peludo/ }), 1200) },
     marcas: [[1, txt('Mora', '*').last().locator('xpath=ancestor::div[2]')], [2, txt('Agregar mascota', 'button')]] },
   { id: 'pac-farmacia', quien: PAC, movil: true, url: '/paciente/farmacia', espera: 2500, marcas: [
-      [1, css('input[placeholder="Buscar productos..."]')], [2, txt('Recetados por tu médico', 'section,div,h2')], [3, css('button[aria-label^="Agregar"]').or(txt('Agregar', 'button'))], [4, txt('Mis pedidos', 'button,a')]] },
+      [1, css('input[placeholder="Buscar un medicamento"]')], [2, txt('Recetado por tu médico', 'p')], [3, txt('Agregar al pedido', 'button').or(css('button[aria-label^="Agregar"]'))], [4, txt('Mis pedidos', 'button,a')]] },
   { id: 'pac-pedido', quien: PAC, movil: true, url: '/paciente/farmacia/pedidos', pasos: async (p) => {
       await clic(p, p.locator('a,button', { hasText: /En camino|Enviado/ }), 1500) },
     marcas: [[1, txt('En camino', 'div,section,p')], [2, txt('Código de entrega', 'div,section,p')]] },

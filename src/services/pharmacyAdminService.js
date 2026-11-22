@@ -8,6 +8,7 @@ import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
 import { medicationOrdersService } from './medicationOrdersService'
 import { callEdgeFunction } from '../lib/edgeFunction'
 import { PRESCRIPTION_TYPE_LABELS } from '../lib/pharmacyExcel'
+import { NECESIDAD_LABELS } from '../lib/pharmacyProducts'
 
 const PHARMACY_ID = medicationOrdersService.PHARMACY_ID
 const PRODUCT_IMAGES_BUCKET = 'pharmacy-products'
@@ -35,6 +36,21 @@ export const pharmacyAdminService = {
       .single()
     if (error) throw error
     return toCamelCase(data)
+  },
+
+  /**
+   * La necesidad del producto en el mosaico del paciente (migración 246).
+   * `null` = sin necesidad: el producto sólo aparece en su categoría.
+   */
+  async setNecesidad(productId, necesidad) {
+    const { data, error } = await supabase
+      .from('pharmacy_products')
+      .update({ necesidad: necesidad || null })
+      .eq('id', productId)
+      .select()
+    if (error) throw new Error(`No se pudo guardar la necesidad: ${error.message}`)
+    if (!data?.length) throw new Error('El producto no se actualizó (sin permiso o no existe).')
+    return toCamelCase(data[0])
   },
 
   /**
@@ -90,6 +106,9 @@ export const pharmacyAdminService = {
       price: r.precio,
       stockQuantity: r.stock,
       prescriptionType: r.prescriptionType,
+      // Sólo si el Excel trae la columna "Necesidad": un archivo sin ella (el
+      // que sale del sistema de la farmacia) no borra lo que ya estaba.
+      ...(r.necesidad !== undefined && { necesidad: r.necesidad }),
     })
 
     const skus = rows.map(r => r.sku).filter(Boolean)
@@ -144,6 +163,7 @@ export const pharmacyAdminService = {
       Stock: p.stockQuantity,
       'Categoría receta': PRESCRIPTION_TYPE_LABELS[p.prescriptionType] ?? PRESCRIPTION_TYPE_LABELS.venta_libre,
       Disponible: p.inStock ? 'SI' : 'NO',
+      Necesidad: NECESIDAD_LABELS[p.necesidad] ?? '',
     }))
   },
 

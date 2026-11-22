@@ -1,28 +1,24 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, MagnifyingGlass, Star, ShoppingBag, Plus, Minus, FunnelSimple, Stethoscope, Package,
-  CheckCircle, LockSimple, ArrowsClockwise, Info, Prescription, VideoCamera, ArrowDown,
+  ArrowLeft, MagnifyingGlass, ShoppingBag, Plus, Minus, FunnelSimple, Stethoscope, Package,
+  Check, LockSimple, ArrowsClockwise, Info, Prescription, VideoCamera,
 } from '@phosphor-icons/react'
 import { pharmacyService } from '../../services/pharmacyService'
 import { toast } from '../../components/Toast'
 import { formatARS as fmtPrice } from '../../lib/format'
-import { PRESCRIPTION_TYPES, PRESCRIPTION_TYPE_PATIENT_LABELS, necesitaReceta } from '../../lib/pharmacyProducts'
+import {
+  PRESCRIPTION_TYPES, PRESCRIPTION_TYPE_PATIENT_LABELS, necesitaReceta, CATEGORIAS, gruposDelMosaico,
+} from '../../lib/pharmacyProducts'
 import { usePharmacyCart } from '../../context/PharmacyCartContext'
 
-const CATEGORY_LABELS = {
-  clinica:   'Clínica',
-  pediatria: 'Pediatría',
-  nutricion: 'Nutrición',
-  bienestar: 'Bienestar',
-}
-
-const CATEGORIES = [
-  { id: 'clinica', label: 'Clínica' },
-  { id: 'pediatria', label: 'Pediatría' },
-  { id: 'nutricion', label: 'Nutrición' },
-  { id: 'bienestar', label: 'Bienestar' },
-]
+// Farmacia del paciente — rediseño 2026-11-22 (propuesta de Felipe, versión
+// "A + C con la tipografía de hoy" que eligió Mateo):
+//   · arriba, lo recetado por el médico en una tarjeta grande con su botón;
+//   · abajo, un mosaico de fotos: las necesidades (Dolor y fiebre…) y las
+//     cuatro categorías de siempre. Tocar una abre su página (`?grupo=<id>`):
+//     la foto arriba y los productos abajo, sobre relleno, con el + adentro.
+// Buscar o filtrar sigue dando una sola grilla mezclada.
 
 const ddmm = (fecha) => {
   if (!fecha) return null
@@ -44,97 +40,176 @@ function Chapa({ tono, icon: Icon, children }) {
   )
 }
 
-/** "Pedir receta": relleno y con texto para que no se lea como deshabilitado (Felipe, 2026-10-22). */
-function BotonPedirReceta({ onClick, className = '' }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`py-2 rounded-full bg-brand-tertiary-hover hover:bg-brand-tertiary-hover/90 text-white text-[14px] font-semibold flex items-center justify-center gap-1.5 ${className}`}
-    >
-      <Stethoscope className="w-4 h-4" /> Pedir receta
-    </button>
-  )
-}
-
+/** Cantidad dentro de la foto del producto: verde lleno, como el +. */
 function Stepper({ quantity, onAdd, onRemove }) {
   return (
-    <div className="flex items-center justify-between bg-brand/10 rounded-full px-2 py-1 min-w-[96px]">
-      <button onClick={onRemove} aria-label="Quitar uno" className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-brand"><Minus className="w-3.5 h-3.5" /></button>
-      <span className="font-semibold text-[14px] text-brand px-2">{quantity}</span>
-      <button onClick={onAdd} aria-label="Agregar uno" className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-brand"><Plus className="w-3.5 h-3.5" /></button>
+    <div className="flex items-center gap-1 bg-brand rounded-full p-1 text-white">
+      <button onClick={onRemove} aria-label="Quitar uno" className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/15"><Minus className="w-4 h-4" /></button>
+      <span className="font-semibold text-[15px] min-w-[1.25rem] text-center">{quantity}</span>
+      <button onClick={onAdd} aria-label="Agregar uno" className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/15"><Plus className="w-4 h-4" /></button>
     </div>
   )
 }
 
 /**
- * Tarjeta del catálogo.
+ * Producto: la foto sobre relleno con la acción adentro, y el nombre y el
+ * precio debajo.
  *
  * Un producto con receta que el paciente no tiene cubierto no se agrega: en
- * lugar del "+" muestra "Pedir receta", que abre la hoja de la videoconsulta.
+ * lugar del + muestra "Pedir receta", que abre la hoja de la videoconsulta.
  * Si igual llegara a agregarse (otra pestaña, receta que venció en el medio),
  * el servidor lo rechaza y se abre la misma hoja.
  */
-function ProductCard({ product, quantity, cubierto, enNivelReceta, onAdd, onRemove, onPedirReceta }) {
-  // Que haya URL no quiere decir que la foto cargue. El catálogo sembrado
-  // apuntaba a un banco de imágenes de internet que dejó de servirlas, y las 20
-  // fotos se veían como el ícono de imagen rota del navegador (2026-09-17).
-  // Con el fallo tomado se cae al ícono, que es el mismo que ya se usa cuando
-  // el producto no tiene foto.
+function ProductTile({ product, quantity, cubierto, onAdd, onRemove, onPedirReceta }) {
+  // Que haya URL no quiere decir que la foto cargue (2026-09-17): con el fallo
+  // tomado se cae al ícono, el mismo que cuando el producto no tiene foto.
   const [fotoFallo, setFotoFallo] = useState(false)
   const hasImage = product.imageUrl && !fotoFallo
   const conReceta = necesitaReceta(product)
-  // En el nivel "Con receta" la chapa "Con receta" sobra: ahí sólo se marca el
-  // controlado. En la grilla mezclada (búsqueda, filtros) van las dos.
-  const chapa = conReceta && (!enNivelReceta || product.prescriptionType === 'receta_archivada')
-    ? PRESCRIPTION_TYPE_PATIENT_LABELS[product.prescriptionType]
-    : null
   return (
-    <div className="rounded-2xl border border-border-default bg-bg-secondary p-3 flex flex-col gap-2 h-full">
-      <div className="w-full aspect-square rounded-xl bg-bg-primary flex items-center justify-center overflow-hidden relative">
+    <div className="flex flex-col">
+      <div className="relative aspect-square rounded-[20px] bg-bg-surface-hover overflow-hidden flex items-center justify-center">
         {hasImage ? (
           <img
             src={product.imageUrl}
             alt={product.name}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain p-4 mix-blend-multiply"
             loading="lazy"
             onError={() => setFotoFallo(true)}
           />
         ) : (
           <ShoppingBag className="w-8 h-8 text-text-tertiary" />
         )}
-        {chapa && (
-          <span className="absolute top-2 left-2 inline-flex items-center gap-1 bg-white/95 text-brand-tertiary-hover text-[12px] font-semibold px-2 py-0.5 rounded-full">
-            {product.prescriptionType === 'receta_archivada' && <LockSimple className="w-3 h-3" />}{chapa}
+        {conReceta && (
+          <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 bg-bg-surface text-brand-tertiary-hover text-[12px] font-semibold px-2 py-0.5 rounded-full">
+            {product.prescriptionType === 'receta_archivada' && <LockSimple className="w-3 h-3" />}
+            {PRESCRIPTION_TYPE_PATIENT_LABELS[product.prescriptionType]}
           </span>
         )}
-        {product.featured && product.inStock && !conReceta && (
-          <div className="absolute top-2 right-2 bg-brand text-white text-xs font-semibold px-2 py-1 rounded-full">Destacado</div>
-        )}
-        {!product.inStock && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+        {!product.inStock && quantity === 0 && (
+          <div className="absolute inset-0 bg-black/45 flex items-center justify-center">
             <span className="text-white text-sm font-semibold">Agotado</span>
           </div>
         )}
+        {/* Si ya está en el carrito se muestra la cantidad aunque se haya
+            quedado sin stock — si no, no habría cómo sacarlo desde acá. */}
+        <div className="absolute bottom-2.5 right-2.5">
+          {quantity > 0 ? (
+            <Stepper quantity={quantity} onAdd={() => onAdd(product)} onRemove={() => onRemove(product)} />
+          ) : product.inStock && (
+            conReceta && !cubierto ? (
+              <button
+                onClick={() => onPedirReceta(product)}
+                className="h-10 px-3.5 rounded-full bg-brand-tertiary-hover hover:bg-brand-tertiary-hover/90 text-white text-[14px] font-semibold flex items-center gap-1.5"
+              >
+                <Stethoscope className="w-4 h-4" /> Pedir receta
+              </button>
+            ) : (
+              <button
+                onClick={() => onAdd(product)}
+                aria-label={`Agregar ${product.name}`}
+                className="w-10 h-10 rounded-full bg-brand hover:bg-brand-hover text-white flex items-center justify-center"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            )
+          )}
+        </div>
       </div>
-      <div className="flex-1 flex flex-col">
-        <p className="text-xs font-medium text-brand uppercase tracking-wide">{CATEGORY_LABELS[product.category] || product.category}</p>
-        <p className="font-semibold text-[14px] text-text-primary leading-tight mt-1">{product.name}</p>
-        {product.description && (
-          <p className="text-[13px] text-text-secondary mt-0.5 leading-snug line-clamp-2">{product.description}</p>
-        )}
-        <p className="font-bold text-[15px] text-text-primary mt-auto pt-2">{fmtPrice(product.price)}</p>
-      </div>
-      {/* Si ya está en el carrito se muestra el stepper aunque el producto se
-          haya quedado sin stock — si no, queda adentro del pedido sin ninguna
-          forma de sacarlo desde el catálogo. */}
-      {quantity > 0 ? (
-        <Stepper quantity={quantity} onAdd={() => onAdd(product)} onRemove={() => onRemove(product)} />
-      ) : product.inStock && (
-        conReceta && !cubierto ? (
-          <BotonPedirReceta onClick={() => onPedirReceta(product)} className="w-full" />
+      <p className="text-[15px] leading-snug text-text-primary mt-2.5 line-clamp-2">{product.name}</p>
+      <p className="text-[15px] text-text-secondary mt-0.5">{fmtPrice(product.price)}</p>
+    </div>
+  )
+}
+
+/** Una foto del mosaico: el nombre en Everett sobre la foto, la cantidad al lado. */
+function GrupoTile({ grupo, onAbrir }) {
+  return (
+    <button
+      onClick={() => onAbrir(grupo.id)}
+      className="relative aspect-[4/5] rounded-[24px] overflow-hidden text-left bg-bg-surface-hover group"
+    >
+      <img
+        src={grupo.fotoChica}
+        alt=""
+        loading="lazy"
+        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/5 to-transparent" />
+      {/* La cantidad va arriba: abajo no entra al lado de "Antibióticos" a 390 px. */}
+      <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/30 to-transparent" />
+      <span className="absolute top-3.5 right-4 text-[13px] text-white">{grupo.productos.length}</span>
+      <span className="absolute inset-x-4 bottom-3.5 font-serif font-light text-white text-[26px] leading-[28px] sm:text-[28px] sm:leading-[30px]">{grupo.label}</span>
+    </button>
+  )
+}
+
+/**
+ * Lo recetado por el médico (C): lo que dice la receta arriba, el producto
+ * exacto que la cubre, y el botón al pie. Se muestran las dos cosas porque los
+ * nombres del catálogo no son los de la receta — nunca se presenta el producto
+ * como si fuera la receta.
+ */
+function RecetadoCard({ receta, productos, cart, siguientes = [] }) {
+  const [principal, ...otros] = productos
+  const q = principal ? cart.quantityOf(principal.id) : 0
+  const vale = receta.maxEnvases > 1 ? `Hasta ${receta.maxEnvases} envases` : 'Vale para una compra'
+  return (
+    <div className="rounded-[24px] bg-receta-nivel overflow-hidden">
+      <div className="p-5 flex flex-col gap-4">
+        <p className="text-[14px] text-brand-tertiary-hover leading-snug">
+          Recetado por tu médico · <span className="font-medium">{receta.medicationName}</span>
+        </p>
+        {principal ? (
+          <div className="flex items-center gap-4">
+            <div className="w-24 h-24 rounded-[18px] bg-bg-surface flex items-center justify-center overflow-hidden shrink-0">
+              {principal.imageUrl
+                ? <img src={principal.imageUrl} alt="" className="w-full h-full object-contain p-2" />
+                : <ShoppingBag className="w-6 h-6 text-text-tertiary" />}
+            </div>
+            <div className="min-w-0">
+              <p className="font-serif text-[22px] leading-[26px] text-text-primary">{principal.name}</p>
+              <p className="text-[15px] text-text-secondary mt-1">{fmtPrice(principal.price)}</p>
+              <p className="text-[13px] text-text-secondary mt-1">
+                {[vale, receta.venceAt && `hasta el ${ddmm(receta.venceAt)}`].filter(Boolean).join(' · ')}
+              </p>
+            </div>
+          </div>
         ) : (
-          <button onClick={() => onAdd(product)} className="w-full py-2 rounded-full bg-brand text-white text-[14px] font-semibold flex items-center justify-center gap-1">
-            <Plus className="w-4 h-4" /> Agregar
+          <p className="text-[15px] text-text-secondary">La farmacia no lo tiene disponible por ahora.</p>
+        )}
+        {otros.map(p => {
+          const qo = cart.quantityOf(p.id)
+          return (
+            <div key={p.id} className="flex items-center gap-3">
+              <p className="flex-1 min-w-0 text-[14px] text-text-primary leading-snug">{p.name} · {fmtPrice(p.price)}</p>
+              {qo > 0
+                ? <Stepper quantity={qo} onAdd={() => cart.add(p)} onRemove={() => cart.subtract(p)} />
+                : <button onClick={() => cart.add(p)} aria-label={`Agregar ${p.name}`} className="w-9 h-9 rounded-full bg-brand-tertiary-hover text-white flex items-center justify-center"><Plus className="w-4 h-4" /></button>}
+            </div>
+          )
+        })}
+        {siguientes.length > 0 && (
+          <p className="flex items-center gap-1.5 text-[13px] text-text-secondary">
+            <ArrowsClockwise className="w-4 h-4 shrink-0" />
+            Siguientes: desde el {siguientes.map(r => ddmm(r.emitidaAt)).join(' y el ')}
+          </p>
+        )}
+      </div>
+      {principal && (
+        q > 0 ? (
+          <button
+            onClick={cart.openSheet}
+            className="w-full py-4 bg-brand-tertiary-hover text-white text-[16px] font-medium flex items-center justify-center gap-2"
+          >
+            <Check className="w-5 h-5" /> En tu pedido
+          </button>
+        ) : (
+          <button
+            onClick={() => cart.add(principal)}
+            className="w-full py-4 bg-brand-tertiary-hover hover:bg-brand-tertiary-hover/90 text-white text-[16px] font-medium flex items-center justify-center gap-2"
+          >
+            <Plus className="w-5 h-5" /> Agregar al pedido
           </button>
         )
       )}
@@ -142,135 +217,58 @@ function ProductCard({ product, quantity, cubierto, enNivelReceta, onAdd, onRemo
   )
 }
 
-function PharmacyHeader({ onBack, subtitle, onVerPedidos }) {
-  return (
-    <div className="flex items-center gap-3 px-4 patient-column pt-6 pb-4 border-b border-border-default bg-bg-surface sticky top-0 z-30">
-      <button onClick={onBack} className="p-2 -ml-2 rounded-lg hover:bg-bg-muted">
-        <ArrowLeft size={20} className="text-text-secondary" />
-      </button>
-      <div className="flex-1">
-        <h1 className="font-bold text-text-primary">Farmacia</h1>
-        {subtitle && <p className="text-xs text-text-secondary">{subtitle}</p>}
-      </div>
-      {onVerPedidos && (
-        <button onClick={onVerPedidos} className="shrink-0 flex items-center gap-1 text-[12px] font-semibold text-brand px-2 py-1.5 rounded-lg hover:bg-brand/10">
-          <Package className="w-4 h-4" /> Mis pedidos
-        </button>
-      )}
-    </div>
-  )
-}
-
-/** Título de nivel: Everett Light 40/44 y el subtítulo a 560 px (Felipe). */
-function TituloNivel({ titulo, subtitulo }) {
-  return (
-    <div className="px-4">
-      <h2 className="font-serif font-light text-[40px] leading-[44px] text-text-primary">{titulo}</h2>
-      <p className="text-[16px] leading-[24px] text-text-secondary mt-2 max-w-[560px]">{subtitulo}</p>
-    </div>
-  )
-}
-
-function TituloSeccion({ icon: Icon, children, id }) {
-  return (
-    <div id={id} className="flex items-center gap-1.5 px-4 mb-3 scroll-mt-24">
-      {Icon}
-      <h3 className="text-[20px] font-medium text-text-primary">{children}</h3>
-    </div>
-  )
-}
-
 /**
- * Una receta vigente: lo recetado tal cual, y debajo el producto exacto que la
- * cubre. Se muestran las dos cosas porque los nombres del catálogo no son los
- * de la receta — y nunca se presenta el producto como si fuera la receta.
+ * Receta que todavía no se puede comprar: pendiente de autorización de la
+ * obra social (migración 223) o posdatada que no empezó (migración 214). Se
+ * ve, pero sin botón — la base tampoco la deja agregar.
  */
-function RecetaVigente({ receta, productos, cart, siguientes = [] }) {
-  // Posdatada que todavía no empezó: se ve, pero no se compra (Felipe).
-  const proxima = receta.estado === 'proxima'
-  // Emitida pero sin autorizar por la obra social (migración 223): se ve, pero
-  // no se compra hasta que la autoricen. La base tampoco la deja agregar.
+function RecetaEnEspera({ receta, productos }) {
   const pendiente = receta.estado === 'pendiente'
-  const sinCompra = proxima || pendiente
   return (
     <div className="rounded-[24px] bg-bg-surface p-5 flex flex-col gap-3">
       <div className="flex flex-wrap gap-1.5">
         {pendiente
           ? <Chapa tono="apagado">Pendiente de autorización</Chapa>
-          : proxima
-          ? <Chapa tono="apagado">Desde el {ddmm(receta.emitidaAt)}</Chapa>
-          : <Chapa tono="vigente" icon={CheckCircle}>Vigente</Chapa>}
+          : <Chapa tono="apagado">Desde el {ddmm(receta.emitidaAt)}</Chapa>}
         {receta.controlada && <Chapa tono="receta" icon={LockSimple}>Controlado</Chapa>}
         {receta.isChronic && <Chapa tono="vigente" icon={ArrowsClockwise}>Tratamiento prolongado</Chapa>}
       </div>
       <div>
         <p className="text-[18px] font-medium text-text-primary leading-snug">{receta.medicationName}</p>
         <p className="text-[14px] text-text-secondary">
-          {[receta.profesional, !sinCompra && receta.venceAt && `hasta el ${ddmm(receta.venceAt)}`].filter(Boolean).join(' · ')}
+          {[receta.profesional, productos[0]?.name].filter(Boolean).join(' · ')}
         </p>
       </div>
-      <div className="border-t border-border-default pt-3 flex flex-col gap-3">
-        {productos.length === 0 ? (
-          <p className="text-[14px] text-text-secondary">La farmacia no lo tiene disponible por ahora.</p>
-        ) : productos.map(p => {
-          const q = cart.quantityOf(p.id)
-          return (
-            <div key={p.id} className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-bg-primary flex items-center justify-center overflow-hidden shrink-0">
-                {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <ShoppingBag className="w-5 h-5 text-text-tertiary" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-semibold tracking-wide uppercase text-text-tertiary">En la farmacia</p>
-                <p className="text-[14px] text-text-primary leading-snug">{p.name}</p>
-                <p className="text-[14px] font-semibold text-text-primary">{fmtPrice(p.price)}</p>
-              </div>
-              {sinCompra ? null : q > 0 ? (
-                <Stepper quantity={q} onAdd={() => cart.add(p)} onRemove={() => cart.subtract(p)} />
-              ) : (
-                <button onClick={() => cart.add(p)} className="shrink-0 px-4 py-2 rounded-full bg-brand text-white text-[14px] font-semibold flex items-center gap-1">
-                  <Plus className="w-4 h-4" /> Agregar
-                </button>
-              )}
-            </div>
-          )
-        })}
-      </div>
-      {siguientes.length > 0 && (
-        <p className="flex items-center gap-1.5 text-[13px] text-text-secondary">
-          <ArrowsClockwise className="w-4 h-4 shrink-0" />
-          Siguientes: desde el {siguientes.map(r => ddmm(r.emitidaAt)).join(' y el ')}
-        </p>
-      )}
       <p className="flex items-center gap-1.5 text-[13px] text-text-secondary">
         <Info className="w-4 h-4 shrink-0" />
-        {pendiente ? 'Tu obra social todavía no la autorizó. Vas a poder comprarla cuando la autorice.'
-          : proxima ? `La podés usar desde el ${ddmm(receta.emitidaAt)}.` : receta.maxEnvases > 1
-          ? `Esta receta vale para una sola compra, de hasta ${receta.maxEnvases} envases.`
-          : 'Esta receta vale para una sola compra.'}
+        {pendiente
+          ? 'Tu obra social todavía no la autorizó. Vas a poder comprarla cuando la autorice.'
+          : `La podés usar desde el ${ddmm(receta.emitidaAt)}.`}
       </p>
     </div>
   )
 }
 
+function TituloSeccion({ children }) {
+  return <h2 className="font-serif font-light text-[28px] leading-[32px] text-text-primary mb-4">{children}</h2>
+}
+
 export default function Pharmacy({ profile }) {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const grupoId = searchParams.get('grupo')
   const [allProducts, setAllProducts] = useState([])
-  const [featured, setFeatured] = useState([])
-  const [suggested, setSuggested] = useState([])
   const [recetas, setRecetas] = useState([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
   const cart = usePharmacyCart()
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [showStockOnly, setShowStockOnly] = useState(true)
-  // 🔴 Arrancaba en `true`: el catálogo escondía todo producto sin foto.
-  // Mientras las fotos existían —aunque estuvieran rotas— no se notaba; al
-  // sacar las URLs muertas el catálogo quedó en CERO productos (2026-09-17).
-  // Una farmacia no puede esconderle un medicamento a un paciente porque le
-  // falta la foto: el filtro queda, pero hay que prenderlo a propósito.
+  // 🔴 El filtro "Con foto" ya no existe (2026-11-21): una farmacia no puede
+  // esconderle un medicamento a un paciente porque le falta la foto.
   const [prescriptionType, setPrescriptionType] = useState(null) // null = todas
   const [showFilters, setShowFilters] = useState(false)
-  const misRecetasRef = useRef(null)
+  const scrollRef = useRef(null)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -279,14 +277,10 @@ export default function Pharmacy({ profile }) {
     // todos y lo que necesita receta lo frena la base producto por producto.
     Promise.all([
       pharmacyService.getAll(),
-      pharmacyService.getFeatured(),
-      pharmacyService.getSuggested(profile.id),
       pharmacyService.getMisRecetas(),
     ])
-      .then(([all, feat, sugg, rec]) => {
+      .then(([all, rec]) => {
         setAllProducts(all)
-        setFeatured(feat)
-        setSuggested(sugg)
         setRecetas(rec)
       })
       .catch(err => toast.error(err?.message || 'Error al cargar la farmacia'))
@@ -294,27 +288,28 @@ export default function Pharmacy({ profile }) {
   }, [profile?.id])
 
   // Al volver a la pantalla después de comprar, una receta vigente puede
-  // haber pasado a "usada": se recarga cuando cambia el carrito (pagarlo lo
-  // vacía), no en cada "+".
+  // haber pasado a "usada": se recarga cuando un carrito que existía
+  // desaparece (pagarlo lo vacía), no en cada "+".
   const carritoPrevio = useRef(cart.orderId)
   useEffect(() => {
     const antes = carritoPrevio.current
     carritoPrevio.current = cart.orderId
-    // Sólo cuando un carrito que existía desaparece (se pagó): la carga
-    // inicial ya trae las recetas.
     if (!profile?.id || !antes || cart.orderId) return
     pharmacyService.getMisRecetas().then(setRecetas).catch(() => {})
   }, [profile?.id, cart.orderId])
 
+  // Cambiar de página (mosaico ↔ grupo) arranca arriba, como un push.
+  useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }) }, [grupoId])
+
   const productById = useMemo(() => new Map(allProducts.map(p => [p.id, p])), [allProducts])
   const vigentes = useMemo(() => recetas.filter(r => r.estado === 'vigente'), [recetas])
   const pendientesDeAutorizacion = useMemo(() => recetas.filter(r => r.estado === 'pendiente'), [recetas])
-  // Posdatadas que todavía no empezaron: no cuentan como listas para usar ni
-  // cubren nada. Si la de hoy del mismo medicamento sigue vigente van como una
-  // línea dentro de su tarjeta; si no, en una tarjeta propia "Desde el…".
+  // Posdatadas que todavía no empezaron: no cubren nada. Si la de hoy del
+  // mismo medicamento sigue vigente van como una línea dentro de su tarjeta;
+  // si no, en una tarjeta propia "Desde el…".
   const proximas = useMemo(() => recetas.filter(r => r.estado === 'proxima')
     .sort((a, b) => String(a.emitidaAt).localeCompare(String(b.emitidaAt))), [recetas])
-  const siguientesDe = (r) => proximas.filter(p => p.medicationName === r.medicationName)
+  const siguientesDe = (r) => proximas.filter(p => p.medicationName === r.medicationName && p.clinicalMedicationId !== r.clinicalMedicationId)
   const proximasSueltas = useMemo(() => {
     const vistas = new Set()
     return proximas.filter(p => {
@@ -327,311 +322,295 @@ export default function Pharmacy({ profile }) {
   // Lo que una receta vigente cubre. Sólo para decidir qué botón mostrar: la
   // regla de verdad la aplica la base al agregar.
   const cubiertos = useMemo(() => new Set(vigentes.flatMap(r => r.productoIds ?? [])), [vigentes])
+  const productosDe = (r) => (r.productoIds ?? []).map(id => productById.get(id)).filter(p => p?.inStock)
 
-  const addToCart = (product) => cart.add(product)
-  const removeFromCart = (product) => cart.subtract(product)
-
-  const tarjeta = (p, enNivelReceta = false) => (
-    <ProductCard
+  const tile = (p) => (
+    <ProductTile
       key={p.id}
       product={p}
       quantity={cart.quantityOf(p.id)}
       cubierto={cubiertos.has(p.id)}
-      enNivelReceta={enNivelReceta}
-      onAdd={addToCart}
-      onRemove={removeFromCart}
+      onAdd={cart.add}
+      onRemove={cart.subtract}
       onPedirReceta={cart.pedirReceta}
     />
   )
 
   const hayFiltros = !!query || !!selectedCategory || !!prescriptionType || !showStockOnly
 
-  // Filter products
   const filteredProducts = useMemo(() => {
     let result = allProducts
-
     if (query) {
-      const searchLower = query.toLowerCase()
-      result = result.filter(p =>
-        p.name.toLowerCase().includes(searchLower) ||
-        (p.description && p.description.toLowerCase().includes(searchLower))
-      )
+      const q = query.toLowerCase()
+      result = result.filter(p => p.name.toLowerCase().includes(q) || (p.description && p.description.toLowerCase().includes(q)))
     }
     if (selectedCategory) result = result.filter(p => p.category === selectedCategory)
     if (showStockOnly) result = result.filter(p => p.inStock)
-    // Categoría de venta (migración 129). Los productos viejos pueden no
-    // tenerla cargada: cuentan como venta libre, que es el default de la
-    // columna — si no, filtrar por "Sin receta" los escondería.
-    if (prescriptionType) {
-      result = result.filter(p => (p.prescriptionType ?? 'venta_libre') === prescriptionType)
-    }
+    // Los productos viejos pueden no tener la categoría de venta cargada:
+    // cuentan como venta libre, el default de la columna (migración 129).
+    if (prescriptionType) result = result.filter(p => (p.prescriptionType ?? 'venta_libre') === prescriptionType)
     return result
   }, [allProducts, query, selectedCategory, showStockOnly, prescriptionType])
 
-  const ventaLibre = useMemo(() => filteredProducts.filter(p => !necesitaReceta(p)), [filteredProducts])
-  const conReceta = useMemo(() => filteredProducts.filter(necesitaReceta), [filteredProducts])
+  // El mosaico cuenta sólo lo que está en stock: un grupo con todo agotado no
+  // se muestra, igual que uno vacío.
+  const enStock = useMemo(() => allProducts.filter(p => p.inStock), [allProducts])
+  const grupos = useMemo(() => gruposDelMosaico(enStock), [enStock])
+  const grupo = grupoId ? grupos.find(g => g.id === grupoId) : null
 
-  const nivelReceta = vigentes.length > 0 || proximas.length > 0 || conReceta.length > 0 || anteriores.length > 0
+  const abrirGrupo = (id) => setSearchParams({ grupo: id })
+
+  const barraCarrito = cart.count > 0 && (
+    // Barra del carrito — abre la hoja con los productos, no salta al
+    // checkout: el paciente quiere revisar qué lleva antes de pagar.
+    <div className="fixed bottom-24 left-0 right-0 px-4 z-40 sm:static lg:px-0 sm:pb-4">
+      <div className="patient-column">
+        <button
+          onClick={cart.openSheet}
+          className="w-full py-4 rounded-full bg-brand-hover text-white font-medium text-[16px] flex items-center justify-between px-6"
+        >
+          <span>{cart.count} producto{cart.count !== 1 ? 's' : ''}</span>
+          <span>Ver carrito · {fmtPrice(cart.total)}</span>
+        </button>
+      </div>
+    </div>
+  )
+
+  const espacioCarrito = cart.count > 0 ? 'pb-36 sm:pb-10' : 'pb-10'
+
+  // ── Página de un grupo (push desde el mosaico) ──────────────────────────
+  if (grupoId) {
+    const productos = grupo?.productos ?? []
+    return (
+      <div className="absolute inset-0 flex flex-col bg-bg-primary">
+        <div ref={scrollRef} className={`flex-1 overflow-y-auto ${espacioCarrito}`}>
+          <div className="patient-column sm:pt-6">
+            <div className="sm:px-4 lg:px-0">
+            <div className="relative h-[340px] sm:h-[360px] sm:rounded-[28px] overflow-hidden bg-bg-surface-hover">
+              {/* En pantallas anchas va el recorte apaisado: el vertical, estirado
+                  a 960×360, mostraba sólo un pedazo de la foto. */}
+              {grupo && (
+                <picture>
+                  <source media="(min-width: 640px)" srcSet={grupo.fotoAncha} />
+                  <img src={grupo.foto} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                </picture>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+              <button
+                onClick={() => navigate(-1)}
+                aria-label="Volver"
+                className="absolute top-5 left-4 w-11 h-11 rounded-full bg-white/80 backdrop-blur-[12px] flex items-center justify-center"
+              >
+                <ArrowLeft className="w-5 h-5 text-text-primary" />
+              </button>
+              <div className="absolute left-5 right-5 bottom-5 text-white">
+                <h1 className="font-serif font-light text-[44px] leading-[46px]">{grupo?.label ?? 'Farmacia'}</h1>
+                <p className="text-[15px] text-white/85 mt-1">{productos.length} producto{productos.length !== 1 ? 's' : ''}</p>
+              </div>
+            </div>
+            </div>
+            <div className="px-4 lg:px-0 pt-6">
+              {loading ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {[1, 2, 3, 4].map(i => <div key={i} className="aspect-square rounded-[20px] bg-bg-surface-hover animate-pulse" />)}
+                </div>
+              ) : productos.length === 0 ? (
+                <p className="text-text-secondary py-8">Por ahora no hay productos acá.</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-6">
+                  {productos.map(tile)}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        {barraCarrito}
+      </div>
+    )
+  }
+
+  // ── Inicio de la farmacia ───────────────────────────────────────────────
+  const enEspera = [...pendientesDeAutorizacion, ...proximasSueltas]
 
   return (
     <div className="absolute inset-0 flex flex-col bg-bg-primary">
-      <PharmacyHeader
-        onBack={() => navigate(-1)}
-        subtitle={`${filteredProducts.length} producto${filteredProducts.length !== 1 ? 's' : ''}`}
-        onVerPedidos={() => navigate('/paciente/farmacia/pedidos')}
-      />
-
-      <div className={`flex-1 overflow-y-auto ${cart.count > 0 ? 'pb-32 sm:pb-8' : 'pb-8'}`}>
+      <div ref={scrollRef} className={`flex-1 overflow-y-auto ${espacioCarrito}`}>
         <div className="patient-column">
-          {/* Search & Filters */}
-          <div className="px-4 pt-4 space-y-3">
-            <div className="relative">
-              <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary pointer-events-none" />
+        <div className="px-4 lg:px-0 pt-6">
+          <div className="flex items-center justify-between">
+            <button onClick={() => navigate(-1)} aria-label="Volver" className="w-11 h-11 rounded-full bg-bg-surface-hover flex items-center justify-center">
+              <ArrowLeft className="w-5 h-5 text-text-primary" />
+            </button>
+            <button onClick={() => navigate('/paciente/farmacia/pedidos')} className="flex items-center gap-1.5 text-[16px] text-brand-hover px-2 py-2 rounded-full hover:bg-brand-muted">
+              <Package className="w-5 h-5" /> Mis pedidos
+            </button>
+          </div>
+
+          <h1 className="font-serif font-light text-[48px] leading-[52px] text-text-primary mt-5">Farmacia</h1>
+
+          <div className="mt-5 flex items-center gap-2">
+            <div className="relative flex-1">
+              <MagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary pointer-events-none" />
               <input
                 type="text"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Buscar productos…"
-                className="form-input pl-9 text-sm"
+                placeholder="Buscar un medicamento"
+                className="w-full h-13 pl-12 pr-4 rounded-full bg-bg-surface-hover text-[16px] text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-brand/40"
               />
             </div>
-
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2 text-sm font-medium text-text-secondary hover:text-text-primary"
-              >
-                <FunnelSimple className="h-4 w-4" />
-                Filtros
-              </button>
-              {/* Salto a las recetas: el nivel 2 queda abajo de todo el catálogo. */}
-              {!hayFiltros && vigentes.length > 0 && (
-                <button
-                  onClick={() => misRecetasRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                  className="flex items-center gap-1.5 text-[14px] font-semibold text-brand-tertiary-hover px-3 py-1.5 rounded-full bg-brand-tertiary-muted"
-                >
-                  <Prescription className="w-4 h-4" />
-                  {vigentes.length === 1 ? 'Tenés 1 receta lista para usar' : `Tenés ${vigentes.length} recetas listas para usar`}
-                  <ArrowDown className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {showFilters && (
-              <div className="rounded-2xl border border-border-default bg-bg-surface p-4 space-y-4">
-                <div>
-                  <p className="text-sm font-semibold text-text-primary mb-2">Categoría</p>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setSelectedCategory(null)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                        selectedCategory === null ? 'bg-brand text-white' : 'bg-bg-primary border border-border-default text-text-secondary'
-                      }`}
-                    >
-                      Todas
-                    </button>
-                    {CATEGORIES.map(cat => (
-                      <button
-                        key={cat.id}
-                        onClick={() => setSelectedCategory(selectedCategory === cat.id ? null : cat.id)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                          selectedCategory === cat.id ? 'bg-brand text-white' : 'bg-bg-primary border border-border-default text-text-secondary'
-                        }`}
-                      >
-                        {cat.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-text-primary mb-2">Receta</p>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setPrescriptionType(null)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                        prescriptionType === null ? 'bg-brand text-white' : 'bg-bg-primary border border-border-default text-text-secondary'
-                      }`}
-                    >
-                      Todas
-                    </button>
-                    {PRESCRIPTION_TYPES.map(type => (
-                      <button
-                        key={type}
-                        onClick={() => setPrescriptionType(prescriptionType === type ? null : type)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                          prescriptionType === type ? 'bg-brand text-white' : 'bg-bg-primary border border-border-default text-text-secondary'
-                        }`}
-                      >
-                        {PRESCRIPTION_TYPE_PATIENT_LABELS[type]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm font-medium text-text-primary cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={showStockOnly}
-                      onChange={(e) => setShowStockOnly(e.target.checked)}
-                      className="w-4 h-4 rounded border-border-default"
-                    />
-                    Solo en stock
-                  </label>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="patient-column px-4 pt-6">
-            <div className="h-32 rounded-2xl bg-bg-secondary animate-pulse" />
-          </div>
-        ) : hayFiltros ? (
-          // Buscando o filtrando: una sola grilla, mezclada. Lo que necesita
-          // receta y no está cubierto igual muestra "Pedir receta".
-          <div className="patient-column px-4 pt-6">
-            {filteredProducts.length === 0 ? (
-              <div className="text-center py-12">
-                <ShoppingBag className="h-10 w-10 text-text-muted mx-auto mb-3" />
-                <p className="text-text-secondary">{query ? 'No encontramos productos' : 'Sin productos disponibles'}</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {filteredProducts.map(p => tarjeta(p))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <>
-            {/* ── NIVEL 1 · Sin receta ─────────────────────────────────── */}
-            <section className="patient-column pt-8 pb-12">
-              <TituloNivel titulo="Sin receta" subtitulo="Los comprás directo." />
-
-              {featured.filter(p => !necesitaReceta(p)).length > 0 && (
-                <div className="pt-8">
-                  <TituloSeccion icon={<Star className="w-4 h-4 fill-amber-400 text-amber-400" weight="fill" />}>Destacados</TituloSeccion>
-                  <div className="px-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {featured.filter(p => !necesitaReceta(p)).slice(0, 6).map(p => tarjeta(p))}
-                  </div>
-                </div>
-              )}
-
-              {suggested.filter(p => !necesitaReceta(p)).length > 0 && (
-                <div className="pt-8">
-                  <TituloSeccion>Sugeridos para vos</TituloSeccion>
-                  <div className="px-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {suggested.filter(p => !necesitaReceta(p)).slice(0, 6).map(p => tarjeta(p))}
-                  </div>
-                </div>
-              )}
-
-              <div className="pt-8">
-                <TituloSeccion>Todos los productos</TituloSeccion>
-                {ventaLibre.length === 0 ? (
-                  <p className="px-4 text-text-secondary">Sin productos disponibles.</p>
-                ) : (
-                  <div className="px-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {ventaLibre.map(p => tarjeta(p))}
-                  </div>
-                )}
-              </div>
-            </section>
-
-            {/* ── NIVEL 2 · Con receta ─────────────────────────────────── */}
-            {nivelReceta && (
-              <section className="bg-receta-nivel rounded-t-[40px] pt-12 pb-16">
-                <div className="patient-column">
-                  <TituloNivel
-                    titulo="Con receta"
-                    subtitulo="Necesitan una receta vigente. Si no la tenés, la pedís en una videoconsulta con un clínico."
-                  />
-
-                  {(vigentes.length > 0 || proximasSueltas.length > 0 || pendientesDeAutorizacion.length > 0) && (
-                    <div className="pt-8" ref={misRecetasRef}>
-                      <TituloSeccion id="tus-recetas">Tus recetas vigentes</TituloSeccion>
-                      <div className="px-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
-                        {[...vigentes, ...pendientesDeAutorizacion, ...proximasSueltas].map(r => (
-                          <RecetaVigente
-                            key={r.clinicalMedicationId}
-                            receta={r}
-                            productos={(r.productoIds ?? []).map(id => productById.get(id)).filter(p => p?.inStock)}
-                            cart={cart}
-                            siguientes={siguientesDe(r).filter(p => p.clinicalMedicationId !== r.clinicalMedicationId)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {conReceta.length > 0 && (
-                    <div className="pt-8">
-                      <TituloSeccion>Productos con receta</TituloSeccion>
-                      <div className="px-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                        {conReceta.map(p => tarjeta(p, true))}
-                      </div>
-                    </div>
-                  )}
-
-                  {anteriores.length > 0 && (
-                    <div className="pt-8">
-                      <TituloSeccion>Recetas anteriores</TituloSeccion>
-                      <div className="px-4">
-                        <div className="rounded-[24px] bg-bg-surface divide-y divide-border-default max-w-[640px]">
-                          {anteriores.map(r => (
-                            <div key={r.clinicalMedicationId} className="flex items-center gap-3 p-4">
-                              <button
-                                onClick={() => r.rctaPrescriptionId && navigate(`/paciente/receta/${r.rctaPrescriptionId}`)}
-                                className="flex items-center gap-3 flex-1 min-w-0 text-left"
-                              >
-                                <div className="w-11 h-11 rounded-xl bg-bg-primary flex items-center justify-center shrink-0">
-                                  <Prescription className="w-5 h-5 text-text-secondary" />
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-[15px] font-medium text-text-primary truncate">{r.medicationName}</p>
-                                  <div className="flex items-center gap-2 mt-0.5">
-                                    <Chapa tono="apagado">{r.estado === 'usada' ? 'Usada' : 'Vencida'}</Chapa>
-                                    <span className="text-[13px] text-text-secondary">Emitida el {ddmm(r.emitidaAt)}</span>
-                                  </div>
-                                </div>
-                              </button>
-                              <button
-                                onClick={() => navigate('/paciente/ondemand/clinica')}
-                                className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full bg-brand-tertiary-muted text-brand-tertiary-hover text-[14px] font-semibold"
-                              >
-                                <VideoCamera className="w-4 h-4" /> Renovar
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Barra del carrito — abre la hoja con los productos, no salta al
-          checkout: el paciente quiere revisar qué lleva antes de pagar. */}
-      {cart.count > 0 && (
-        <div className="fixed bottom-24 left-0 right-0 p-4 bg-bg-primary border-t border-border-default z-40 sm:static sm:border-t-0 sm:bg-transparent sm:p-0">
-          <div className="patient-column">
             <button
-              onClick={cart.openSheet}
-              className="w-full py-4 rounded-full bg-brand text-white font-bold text-[15px] flex items-center justify-between px-6 shadow-lg"
+              onClick={() => setShowFilters(!showFilters)}
+              aria-label="Filtros"
+              aria-expanded={showFilters}
+              className={`relative w-13 h-13 shrink-0 rounded-full flex items-center justify-center ${showFilters ? 'bg-brand-hover text-white' : 'bg-bg-surface-hover text-text-secondary'}`}
             >
-              <span className="flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4" weight="fill" />
-                {cart.count} producto{cart.count !== 1 ? 's' : ''}
-              </span>
-              <span>Ver carrito — {fmtPrice(cart.total)}</span>
+              <FunnelSimple className="w-5 h-5" />
+              {(!!selectedCategory || !!prescriptionType || !showStockOnly) && !showFilters && (
+                <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-brand" />
+              )}
             </button>
           </div>
+
+          {showFilters && (
+            <div className="mt-3 rounded-[24px] bg-bg-surface p-5 space-y-4">
+              <div>
+                <p className="text-sm font-semibold text-text-primary mb-2">Categoría</p>
+                <div className="flex flex-wrap gap-2">
+                  {[{ id: null, label: 'Todas' }, ...CATEGORIAS].map(cat => (
+                    <button
+                      key={cat.id ?? 'todas'}
+                      onClick={() => setSelectedCategory(cat.id === selectedCategory ? null : cat.id)}
+                      className={`px-3 py-1.5 rounded-full text-[13px] font-medium ${
+                        selectedCategory === cat.id ? 'bg-brand-hover text-white' : 'bg-bg-surface-hover text-text-secondary'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-text-primary mb-2">Receta</p>
+                <div className="flex flex-wrap gap-2">
+                  {[null, ...PRESCRIPTION_TYPES].map(type => (
+                    <button
+                      key={type ?? 'todas'}
+                      onClick={() => setPrescriptionType(type === prescriptionType ? null : type)}
+                      className={`px-3 py-1.5 rounded-full text-[13px] font-medium ${
+                        prescriptionType === type ? 'bg-brand-hover text-white' : 'bg-bg-surface-hover text-text-secondary'
+                      }`}
+                    >
+                      {type ? PRESCRIPTION_TYPE_PATIENT_LABELS[type] : 'Todas'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm font-medium text-text-primary cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showStockOnly}
+                  onChange={(e) => setShowStockOnly(e.target.checked)}
+                  className="w-4 h-4 rounded accent-brand"
+                />
+                Solo en stock
+              </label>
+            </div>
+          )}
+
+          {loading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-6">
+              {[1, 2, 3, 4].map(i => <div key={i} className="aspect-[4/5] rounded-[24px] bg-bg-surface-hover animate-pulse" />)}
+            </div>
+          ) : hayFiltros ? (
+            // Buscando o filtrando: una sola grilla, mezclada. Lo que necesita
+            // receta y no está cubierto igual muestra "Pedir receta".
+            <div className="pt-6">
+              {filteredProducts.length === 0 ? (
+                <div className="text-center py-12">
+                  <ShoppingBag className="h-10 w-10 text-text-tertiary mx-auto mb-3" />
+                  <p className="text-text-secondary">{query ? 'No encontramos productos' : 'Sin productos con estos filtros'}</p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-[14px] text-text-secondary mb-4">{filteredProducts.length} producto{filteredProducts.length !== 1 ? 's' : ''}</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-6">
+                    {filteredProducts.map(tile)}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* ── Lo recetado por el médico (C) ───────────────────────── */}
+              {vigentes.length > 0 && (
+                <div className={`mt-5 grid grid-cols-1 gap-3 ${vigentes.length > 1 ? 'lg:grid-cols-2' : ''}`}>
+                  {vigentes.map(r => (
+                    <RecetadoCard
+                      key={r.clinicalMedicationId}
+                      receta={r}
+                      productos={productosDe(r)}
+                      cart={cart}
+                      siguientes={siguientesDe(r)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* ── El mosaico (A) ───────────────────────────────────────── */}
+              <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {grupos.map(g => <GrupoTile key={g.id} grupo={g} onAbrir={abrirGrupo} />)}
+              </div>
+              {grupos.length === 0 && (
+                <p className="text-text-secondary py-8">Sin productos disponibles.</p>
+              )}
+
+              {/* ── Tus recetas: las que todavía no se compran y las viejas ── */}
+              {(enEspera.length > 0 || anteriores.length > 0) && (
+                <section className="mt-12">
+                  <TituloSeccion>Tus recetas</TituloSeccion>
+                  {enEspera.length > 0 && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+                      {enEspera.map(r => <RecetaEnEspera key={r.clinicalMedicationId} receta={r} productos={productosDe(r)} />)}
+                    </div>
+                  )}
+                  {anteriores.length > 0 && (
+                    <div className="rounded-[24px] bg-bg-surface divide-y divide-bg-primary">
+                      {anteriores.map(r => (
+                        <div key={r.clinicalMedicationId} className="flex items-center gap-3 p-4">
+                          <button
+                            onClick={() => r.rctaPrescriptionId && navigate(`/paciente/receta/${r.rctaPrescriptionId}`)}
+                            className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                          >
+                            <div className="w-11 h-11 rounded-xl bg-bg-primary flex items-center justify-center shrink-0">
+                              <Prescription className="w-5 h-5 text-text-secondary" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[15px] font-medium text-text-primary truncate">{r.medicationName}</p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <Chapa tono="apagado">{r.estado === 'usada' ? 'Usada' : 'Vencida'}</Chapa>
+                                <span className="text-[13px] text-text-secondary">Emitida el {ddmm(r.emitidaAt)}</span>
+                              </div>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => navigate('/paciente/ondemand/clinica')}
+                            className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full bg-brand-tertiary-muted text-brand-tertiary-hover text-[14px] font-semibold"
+                          >
+                            <VideoCamera className="w-4 h-4" /> Renovar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
+            </>
+          )}
         </div>
-      )}
+        </div>
+      </div>
+      {barraCarrito}
     </div>
   )
 }
