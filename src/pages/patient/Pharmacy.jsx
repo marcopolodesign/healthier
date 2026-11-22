@@ -268,7 +268,6 @@ export default function Pharmacy({ profile }) {
   // sacar las URLs muertas el catálogo quedó en CERO productos (2026-09-17).
   // Una farmacia no puede esconderle un medicamento a un paciente porque le
   // falta la foto: el filtro queda, pero hay que prenderlo a propósito.
-  const [showWithPhotoOnly, setShowWithPhotoOnly] = useState(false)
   const [prescriptionType, setPrescriptionType] = useState(null) // null = todas
   const [showFilters, setShowFilters] = useState(false)
   const misRecetasRef = useRef(null)
@@ -345,7 +344,7 @@ export default function Pharmacy({ profile }) {
     />
   )
 
-  const hayFiltros = !!query || !!selectedCategory || !!prescriptionType || showWithPhotoOnly || !showStockOnly
+  const hayFiltros = !!query || !!selectedCategory || !!prescriptionType || !showStockOnly
 
   // Filter products
   const filteredProducts = useMemo(() => {
@@ -366,11 +365,8 @@ export default function Pharmacy({ profile }) {
     if (prescriptionType) {
       result = result.filter(p => (p.prescriptionType ?? 'venta_libre') === prescriptionType)
     }
-    // Con foto: no se aplica cuando el paciente está buscando algo puntual —
-    // ahí quiere encontrarlo aunque no tenga imagen.
-    if (showWithPhotoOnly && !query) result = result.filter(p => p.imageUrl)
     return result
-  }, [allProducts, query, selectedCategory, showStockOnly, showWithPhotoOnly, prescriptionType])
+  }, [allProducts, query, selectedCategory, showStockOnly, prescriptionType])
 
   const ventaLibre = useMemo(() => filteredProducts.filter(p => !necesitaReceta(p)), [filteredProducts])
   const conReceta = useMemo(() => filteredProducts.filter(necesitaReceta), [filteredProducts])
@@ -481,15 +477,6 @@ export default function Pharmacy({ profile }) {
                     />
                     Solo en stock
                   </label>
-                  <label className="flex items-center gap-2 text-sm font-medium text-text-primary cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={showWithPhotoOnly}
-                      onChange={(e) => setShowWithPhotoOnly(e.target.checked)}
-                      className="w-4 h-4 rounded border-border-default"
-                    />
-                    Solo con foto
-                  </label>
                 </div>
               </div>
             )}
@@ -508,7 +495,6 @@ export default function Pharmacy({ profile }) {
               <div className="text-center py-12">
                 <ShoppingBag className="h-10 w-10 text-text-muted mx-auto mb-3" />
                 <p className="text-text-secondary">{query ? 'No encontramos productos' : 'Sin productos disponibles'}</p>
-                {!query && showWithPhotoOnly && <p className="text-xs text-text-tertiary mt-1">Probá desactivar "Solo con foto" en Filtros</p>}
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
