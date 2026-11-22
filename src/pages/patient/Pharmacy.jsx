@@ -1,14 +1,14 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, MagnifyingGlass, ShoppingBag, Plus, Minus, FunnelSimple, Stethoscope, Package,
+  ArrowLeft, MagnifyingGlass, ShoppingBag, Pill, Plus, Minus, FunnelSimple, Stethoscope, Package,
   Check, LockSimple, ArrowsClockwise, Info, Prescription, VideoCamera,
 } from '@phosphor-icons/react'
 import { pharmacyService } from '../../services/pharmacyService'
 import { toast } from '../../components/Toast'
 import { formatARS as fmtPrice } from '../../lib/format'
 import {
-  PRESCRIPTION_TYPES, PRESCRIPTION_TYPE_PATIENT_LABELS, necesitaReceta, CATEGORIAS, gruposDelMosaico,
+  PRESCRIPTION_TYPES, PRESCRIPTION_TYPE_PATIENT_LABELS, necesitaReceta, CATEGORIAS, gruposDelMosaico, nombreLegible,
 } from '../../lib/pharmacyProducts'
 import { usePharmacyCart } from '../../context/PharmacyCartContext'
 
@@ -78,7 +78,7 @@ function ProductTile({ product, quantity, cubierto, onAdd, onRemove, onPedirRece
             onError={() => setFotoFallo(true)}
           />
         ) : (
-          <ShoppingBag className="w-8 h-8 text-text-tertiary" />
+          <Pill className="w-10 h-10 text-text-primary opacity-30" />
         )}
         {conReceta && (
           <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 bg-bg-surface text-brand-tertiary-hover text-[12px] font-semibold px-2 py-0.5 rounded-full">
@@ -116,7 +116,7 @@ function ProductTile({ product, quantity, cubierto, onAdd, onRemove, onPedirRece
           )}
         </div>
       </div>
-      <p className="text-[15px] leading-snug text-text-primary mt-2.5 line-clamp-2">{product.name}</p>
+      <p className="text-[15px] leading-snug text-text-primary mt-2.5 line-clamp-2" title={product.name}>{nombreLegible(product.name)}</p>
       <p className="text-[15px] text-text-secondary mt-0.5">{fmtPrice(product.price)}</p>
     </div>
   )
@@ -135,11 +135,12 @@ function GrupoTile({ grupo, onAbrir }) {
         loading="lazy"
         className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/5 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/45 to-transparent" />
       {/* La cantidad va arriba: abajo no entra al lado de "Antibióticos" a 390 px. */}
       <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/30 to-transparent" />
       <span className="absolute top-3.5 right-4 text-[13px] text-white">{grupo.productos.length}</span>
-      <span className="absolute inset-x-4 bottom-3.5 font-serif font-light text-white text-[26px] leading-[28px] sm:text-[28px] sm:leading-[30px]">{grupo.label}</span>
+      {/* 24 px a 390: "Antibióticos" a 26 no entra en media pantalla. */}
+      <span className="absolute inset-x-4 bottom-4 sm:inset-x-5 font-serif font-light text-white text-[24px] sm:text-[26px] leading-[1.1]">{grupo.label}</span>
     </button>
   )
 }
@@ -153,12 +154,15 @@ function GrupoTile({ grupo, onAbrir }) {
 function RecetadoCard({ receta, productos, cart, siguientes = [] }) {
   const [principal, ...otros] = productos
   const q = principal ? cart.quantityOf(principal.id) : 0
-  const vale = receta.maxEnvases > 1 ? `Hasta ${receta.maxEnvases} envases` : 'Vale para una compra'
+  const vale = receta.maxEnvases > 1 ? `${receta.maxEnvases} envases` : 'Una compra'
+  // Si lo recetado ya es la marca del producto, no se repite (Felipe).
+  const primera = (t) => String(t ?? '').trim().split(/\s+/)[0]?.toLowerCase()
+  const repite = principal && primera(receta.medicationName) === primera(principal.name)
   return (
     <div className="rounded-[24px] bg-receta-nivel overflow-hidden">
       <div className="p-5 flex flex-col gap-4">
         <p className="text-[14px] text-brand-tertiary-hover leading-snug">
-          Recetado por tu médico · <span className="font-medium">{receta.medicationName}</span>
+          {repite ? 'Recetado por tu médico' : `Recetado por tu médico · ${receta.medicationName}`}
         </p>
         {principal ? (
           <div className="flex items-center gap-4">
@@ -168,9 +172,9 @@ function RecetadoCard({ receta, productos, cart, siguientes = [] }) {
                 : <ShoppingBag className="w-6 h-6 text-text-tertiary" />}
             </div>
             <div className="min-w-0">
-              <p className="font-serif text-[22px] leading-[26px] text-text-primary">{principal.name}</p>
+              <p className="font-serif text-[22px] leading-[26px] text-text-primary">{nombreLegible(principal.name)}</p>
               <p className="text-[15px] text-text-secondary mt-1">{fmtPrice(principal.price)}</p>
-              <p className="text-[13px] text-text-secondary mt-1">
+              <p className="text-[13px] text-text-secondary mt-1 whitespace-nowrap">
                 {[vale, receta.venceAt && `hasta el ${ddmm(receta.venceAt)}`].filter(Boolean).join(' · ')}
               </p>
             </div>
@@ -182,7 +186,7 @@ function RecetadoCard({ receta, productos, cart, siguientes = [] }) {
           const qo = cart.quantityOf(p.id)
           return (
             <div key={p.id} className="flex items-center gap-3">
-              <p className="flex-1 min-w-0 text-[14px] text-text-primary leading-snug">{p.name} · {fmtPrice(p.price)}</p>
+              <p className="flex-1 min-w-0 text-[14px] text-text-primary leading-snug">{nombreLegible(p.name)} · {fmtPrice(p.price)}</p>
               {qo > 0
                 ? <Stepper quantity={qo} onAdd={() => cart.add(p)} onRemove={() => cart.subtract(p)} />
                 : <button onClick={() => cart.add(p)} aria-label={`Agregar ${p.name}`} className="w-9 h-9 rounded-full bg-brand-tertiary-hover text-white flex items-center justify-center"><Plus className="w-4 h-4" /></button>}
@@ -236,7 +240,7 @@ function RecetaEnEspera({ receta, productos }) {
       <div>
         <p className="text-[18px] font-medium text-text-primary leading-snug">{receta.medicationName}</p>
         <p className="text-[14px] text-text-secondary">
-          {[receta.profesional, productos[0]?.name].filter(Boolean).join(' · ')}
+          {[receta.profesional, productos[0] && nombreLegible(productos[0].name)].filter(Boolean).join(' · ')}
         </p>
       </div>
       <p className="flex items-center gap-1.5 text-[13px] text-text-secondary">
@@ -376,7 +380,7 @@ export default function Pharmacy({ profile }) {
     </div>
   )
 
-  const espacioCarrito = cart.count > 0 ? 'pb-36 sm:pb-10' : 'pb-10'
+  const espacioCarrito = cart.count > 0 ? 'pb-44 sm:pb-10' : 'pb-28 sm:pb-10'
 
   // ── Página de un grupo (push desde el mosaico) ──────────────────────────
   if (grupoId) {
@@ -544,7 +548,7 @@ export default function Pharmacy({ profile }) {
             <>
               {/* ── Lo recetado por el médico (C) ───────────────────────── */}
               {vigentes.length > 0 && (
-                <div className={`mt-5 grid grid-cols-1 gap-3 ${vigentes.length > 1 ? 'lg:grid-cols-2' : ''}`}>
+                <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-3">
                   {vigentes.map(r => (
                     <RecetadoCard
                       key={r.clinicalMedicationId}
