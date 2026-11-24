@@ -256,6 +256,22 @@ function RecetaEnEspera({ receta, productos }) {
   )
 }
 
+/** Cuántos productos muestra "Destacados" en el inicio de la farmacia. */
+const DESTACADOS_MAX = 8
+
+/** Mismo criterio que `elegirDestacados` de la app (src/lib/farmaciaGrupos.ts). */
+function elegirDestacados(productos) {
+  const puntaje = p => (p.featured ? 0 : 2) + (p.imageUrl ? 0 : 1)
+  const vistos = new Set()
+  return productos
+    .filter(p => p.inStock)
+    .map((p, i) => [p, i])
+    .sort(([a, i], [b, j]) => puntaje(a) - puntaje(b) || i - j)
+    .map(([p]) => p)
+    .filter(p => { const k = nombreLegible(p.name).toLowerCase(); return !vistos.has(k) && vistos.add(k) })
+    .slice(0, DESTACADOS_MAX)
+}
+
 function TituloSeccion({ children }) {
   return <h2 className="font-serif font-light text-[28px] leading-[32px] text-text-primary mb-4">{children}</h2>
 }
@@ -330,6 +346,10 @@ export default function Pharmacy({ profile }) {
   // regla de verdad la aplica la base al agregar.
   const cubiertos = useMemo(() => new Set(vigentes.flatMap(r => r.productoIds ?? [])), [vigentes])
   const productosDe = (r) => (r.productoIds ?? []).map(id => productById.get(id)).filter(p => p?.inStock)
+  // Debajo del mosaico (2026-11-24): primero los que la farmacia marcó como
+  // destacados y después el resto, en stock, los que tienen foto antes, sin
+  // repetir nombre. Producción no tiene ninguno marcado: sale del resto.
+  const destacados = useMemo(() => elegirDestacados(allProducts), [allProducts])
 
   const tile = (p) => (
     <ProductTile
@@ -612,6 +632,16 @@ export default function Pharmacy({ profile }) {
                       ))}
                     </div>
                   )}
+                </section>
+              )}
+
+              {/* ── Destacados ─────────────────────────────────────────── */}
+              {destacados.length > 0 && (
+                <section className="mt-12">
+                  <TituloSeccion>Destacados</TituloSeccion>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-6">
+                    {destacados.map(tile)}
+                  </div>
                 </section>
               )}
             </>
