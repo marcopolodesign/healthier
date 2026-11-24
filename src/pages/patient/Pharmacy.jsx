@@ -1,14 +1,14 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, MagnifyingGlass, ShoppingBag, Pill, Plus, Minus, FunnelSimple, Stethoscope, Package,
+  ArrowLeft, MagnifyingGlass, ShoppingBag, Pill, Plus, Minus, Stethoscope, Package,
   Check, LockSimple, ArrowsClockwise, Info, Prescription, VideoCamera,
 } from '@phosphor-icons/react'
 import { pharmacyService } from '../../services/pharmacyService'
 import { toast } from '../../components/Toast'
 import { formatARS as fmtPrice } from '../../lib/format'
 import {
-  PRESCRIPTION_TYPES, PRESCRIPTION_TYPE_PATIENT_LABELS, necesitaReceta, CATEGORIAS, gruposDelMosaico, nombreLegible,
+  PRESCRIPTION_TYPES, PRESCRIPTION_TYPE_PATIENT_LABELS, necesitaReceta, gruposDelMosaico, nombreLegible,
 } from '../../lib/pharmacyProducts'
 import { usePharmacyCart } from '../../context/PharmacyCartContext'
 
@@ -261,15 +261,32 @@ const DESTACADOS_MAX = 8
 
 /** Mismo criterio que `elegirDestacados` de la app (src/lib/farmaciaGrupos.ts). */
 function elegirDestacados(productos) {
-  const puntaje = p => (p.featured ? 0 : 2) + (p.imageUrl ? 0 : 1)
-  const vistos = new Set()
+  // Orden: marcado como destacado > venta libre (se compra sin receta) > con
+  // foto. Una sola presentación por marca, para que no salgan seis Alprazolam.
+  const puntaje = p => (p.featured ? 0 : 4) + ((p.prescriptionType ?? 'venta_libre') === 'venta_libre' ? 0 : 2) + (p.imageUrl ? 0 : 1)
+  const marcas = new Set()
   return productos
     .filter(p => p.inStock)
     .map((p, i) => [p, i])
     .sort(([a, i], [b, j]) => puntaje(a) - puntaje(b) || i - j)
     .map(([p]) => p)
-    .filter(p => { const k = nombreLegible(p.name).toLowerCase(); return !vistos.has(k) && vistos.add(k) })
+    .filter(p => { const k = nombreLegible(p.name).split(/\s+/)[0].toLowerCase(); return !marcas.has(k) && marcas.add(k) })
     .slice(0, DESTACADOS_MAX)
+}
+
+/** Chip de filtro de la fila de arriba: relleno, activo en verde, sin bordes. */
+function ChipFiltro({ activo, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={activo}
+      className={`shrink-0 whitespace-nowrap px-4 py-2 rounded-full text-[14px] font-medium ${
+        activo ? 'bg-brand-hover text-white' : 'bg-bg-surface-hover text-text-secondary'
+      }`}
+    >
+      {children}
+    </button>
+  )
 }
 
 function TituloSeccion({ children }) {
@@ -285,13 +302,11 @@ export default function Pharmacy({ profile }) {
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
   const cart = usePharmacyCart()
-  const [selectedCategory, setSelectedCategory] = useState(null)
   const [showStockOnly, setShowStockOnly] = useState(true)
   // 🔴 El filtro "Con foto" ya no existe (2026-11-21): una farmacia no puede
   // esconderle un medicamento a un paciente porque le falta la foto.
   const [prescriptionType, setPrescriptionType] = useState(null) // null = todas
-  const [showFilters, setShowFilters] = useState(false)
-  const scrollRef = useRef(null)
+    const scrollRef = useRef(null)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -346,9 +361,8 @@ export default function Pharmacy({ profile }) {
   // regla de verdad la aplica la base al agregar.
   const cubiertos = useMemo(() => new Set(vigentes.flatMap(r => r.productoIds ?? [])), [vigentes])
   const productosDe = (r) => (r.productoIds ?? []).map(id => productById.get(id)).filter(p => p?.inStock)
-  // Debajo del mosaico (2026-11-24): primero los que la farmacia marcó como
-  // destacados y después el resto, en stock, los que tienen foto antes, sin
-  // repetir nombre. Producción no tiene ninguno marcado: sale del resto.
+  // Debajo del mosaico (2026-11-24). Producción no tiene ninguno marcado como
+  // destacado: sale del resto con el criterio de `elegirDestacados`.
   const destacados = useMemo(() => elegirDestacados(allProducts), [allProducts])
 
   const tile = (p) => (
@@ -363,7 +377,7 @@ export default function Pharmacy({ profile }) {
     />
   )
 
-  const hayFiltros = !!query || !!selectedCategory || !!prescriptionType || !showStockOnly
+  const hayFiltros = !!query || !!prescriptionType || !showStockOnly
 
   const filteredProducts = useMemo(() => {
     let result = allProducts
@@ -371,13 +385,12 @@ export default function Pharmacy({ profile }) {
       const q = query.toLowerCase()
       result = result.filter(p => p.name.toLowerCase().includes(q) || (p.description && p.description.toLowerCase().includes(q)))
     }
-    if (selectedCategory) result = result.filter(p => p.category === selectedCategory)
     if (showStockOnly) result = result.filter(p => p.inStock)
     // Los productos viejos pueden no tener la categoría de venta cargada:
     // cuentan como venta libre, el default de la columna (migración 129).
     if (prescriptionType) result = result.filter(p => (p.prescriptionType ?? 'venta_libre') === prescriptionType)
     return result
-  }, [allProducts, query, selectedCategory, showStockOnly, prescriptionType])
+  }, [allProducts, query, showStockOnly, prescriptionType])
 
   // El mosaico cuenta sólo lo que está en stock: un grupo con todo agotado no
   // se muestra, igual que uno vacío.
@@ -486,64 +499,23 @@ export default function Pharmacy({ profile }) {
                 className="w-full h-13 pl-12 pr-4 rounded-full bg-bg-surface-hover text-[16px] text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-brand/40"
               />
             </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              aria-label="Filtros"
-              aria-expanded={showFilters}
-              className={`relative w-13 h-13 shrink-0 rounded-full flex items-center justify-center ${showFilters ? 'bg-brand-hover text-white' : 'bg-bg-surface-hover text-text-secondary'}`}
-            >
-              <FunnelSimple className="w-5 h-5" />
-              {(!!selectedCategory || !!prescriptionType || !showStockOnly) && !showFilters && (
-                <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-brand" />
-              )}
-            </button>
           </div>
 
-          {showFilters && (
-            <div className="mt-3 rounded-[24px] bg-bg-surface p-5 space-y-4">
-              <div>
-                <p className="text-sm font-semibold text-text-primary mb-2">Categoría</p>
-                <div className="flex flex-wrap gap-2">
-                  {[{ id: null, label: 'Todas' }, ...CATEGORIAS].map(cat => (
-                    <button
-                      key={cat.id ?? 'todas'}
-                      onClick={() => setSelectedCategory(cat.id === selectedCategory ? null : cat.id)}
-                      className={`px-3 py-1.5 rounded-full text-[13px] font-medium ${
-                        selectedCategory === cat.id ? 'bg-brand-hover text-white' : 'bg-bg-surface-hover text-text-secondary'
-                      }`}
-                    >
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-text-primary mb-2">Receta</p>
-                <div className="flex flex-wrap gap-2">
-                  {[null, ...PRESCRIPTION_TYPES].map(type => (
-                    <button
-                      key={type ?? 'todas'}
-                      onClick={() => setPrescriptionType(type === prescriptionType ? null : type)}
-                      className={`px-3 py-1.5 rounded-full text-[13px] font-medium ${
-                        prescriptionType === type ? 'bg-brand-hover text-white' : 'bg-bg-surface-hover text-text-secondary'
-                      }`}
-                    >
-                      {type ? PRESCRIPTION_TYPE_PATIENT_LABELS[type] : 'Todas'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <label className="flex items-center gap-2 text-sm font-medium text-text-primary cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showStockOnly}
-                  onChange={(e) => setShowStockOnly(e.target.checked)}
-                  className="w-4 h-4 rounded accent-brand"
-                />
-                Solo en stock
-              </label>
-            </div>
-          )}
+          {/* Filtros siempre a la vista (Mateo, 2026-11-24: "¿por qué perdimos los
+              filtros principales arriba?"). La categoría ya está en el carrusel, así
+              que acá van el tipo de receta y "En stock". Un toque filtra al instante. */}
+          <div className="mt-3 -mx-4 px-4 flex gap-2 overflow-x-auto scrollbar-hide sm:mx-0 sm:px-0 sm:flex-wrap" role="group" aria-label="Filtros">
+            {[null, ...PRESCRIPTION_TYPES].map(type => (
+              <ChipFiltro
+                key={type ?? 'todos'}
+                activo={prescriptionType === type}
+                onClick={() => setPrescriptionType(type === prescriptionType ? null : type)}
+              >
+                {type ? PRESCRIPTION_TYPE_PATIENT_LABELS[type] : 'Todos'}
+              </ChipFiltro>
+            ))}
+            <ChipFiltro activo={showStockOnly} onClick={() => setShowStockOnly(v => !v)}>En stock</ChipFiltro>
+          </div>
 
           {loading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-6">
