@@ -15,7 +15,7 @@ import { usePharmacyCart } from '../../context/PharmacyCartContext'
 // Farmacia del paciente — rediseño 2026-11-22 (propuesta de Felipe, versión
 // "A + C con la tipografía de hoy" que eligió Mateo):
 //   · arriba, lo recetado por el médico en una tarjeta grande con su botón;
-//   · abajo, un mosaico de fotos: las necesidades (Dolor y fiebre…) y las
+//   · abajo, un mosaico de fotos (carrusel horizontal en el teléfono): las necesidades (Dolor y fiebre…) y las
 //     cuatro categorías de siempre. Tocar una abre su página (`?grupo=<id>`):
 //     la foto arriba y los productos abajo, sobre relleno, con el + adentro.
 // Buscar o filtrar sigue dando una sola grilla mezclada.
@@ -122,12 +122,16 @@ function ProductTile({ product, quantity, cubierto, onAdd, onRemove, onPedirRece
   )
 }
 
-/** Una foto del mosaico: el nombre en Everett sobre la foto, la cantidad al lado. */
+/**
+ * Una foto del mosaico: el nombre en Everett sobre la foto, la cantidad al lado.
+ * En el teléfono (<640) es una tarjeta chica de un carrusel horizontal (150 px,
+ * 3:4: se ven dos y un pedazo de la tercera); desde sm vuelve a la grilla.
+ */
 function GrupoTile({ grupo, onAbrir }) {
   return (
     <button
       onClick={() => onAbrir(grupo.id)}
-      className="relative aspect-[4/5] rounded-[24px] overflow-hidden text-left bg-bg-surface-hover group"
+      className="relative w-[150px] shrink-0 snap-start aspect-[3/4] rounded-[16px] sm:w-auto sm:aspect-[4/5] sm:rounded-[24px] overflow-hidden text-left bg-bg-surface-hover group"
     >
       <img
         src={grupo.fotoChica}
@@ -135,12 +139,11 @@ function GrupoTile({ grupo, onAbrir }) {
         loading="lazy"
         className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
       />
-      <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/45 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-[45%] sm:h-2/5 bg-gradient-to-t from-black/45 to-transparent" />
       {/* La cantidad va arriba: abajo no entra al lado de "Antibióticos" a 390 px. */}
-      <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/30 to-transparent" />
-      <span className="absolute top-3.5 right-4 text-[13px] text-white">{grupo.productos.length}</span>
-      {/* 24 px a 390: "Antibióticos" a 26 no entra en media pantalla. */}
-      <span className="absolute inset-x-4 bottom-4 sm:inset-x-5 font-serif font-light text-white text-[24px] sm:text-[26px] leading-[1.1]">{grupo.label}</span>
+      <div className="absolute inset-x-0 top-0 h-12 sm:h-16 bg-gradient-to-b from-black/30 to-transparent" />
+      <span className="absolute top-2.5 right-3 text-[12px] sm:top-3.5 sm:right-4 sm:text-[13px] text-white">{grupo.productos.length}</span>
+      <span className="absolute inset-x-3 bottom-3 sm:inset-x-5 sm:bottom-4 font-serif font-light text-white text-[17px] sm:text-[26px] leading-[1.15] sm:leading-[1.1]">{grupo.label}</span>
     </button>
   )
 }
@@ -562,7 +565,9 @@ export default function Pharmacy({ profile }) {
               )}
 
               {/* ── El mosaico (A) ───────────────────────────────────────── */}
-              <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {/* En el teléfono es un carrusel horizontal que sangra hasta los
+                  bordes (-mx-4 px-4) y engancha en cada tarjeta; desde sm, grilla. */}
+              <div className="mt-5 -mx-4 px-4 scroll-px-4 flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 lg:grid-cols-4 sm:overflow-visible">
                 {grupos.map(g => <GrupoTile key={g.id} grupo={g} onAbrir={abrirGrupo} />)}
               </div>
               {grupos.length === 0 && (
