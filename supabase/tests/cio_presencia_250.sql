@@ -14,15 +14,26 @@ select 'sin offline ni online repetidos seguidos' as chequeo,
          ) x where x.event_name = x.previo
        ) as ok
 union all
-select 'busy y available se alternan (sin dos seguidos)',
+select 'busy y available se alternan dentro de cada conexión',
        not exists (
          select 1 from (
-           select person_id, event_name,
-                  lag(event_name) over (partition by person_id order by occurred_at, ref_id) as previo
+           select person_id, event_name, occurred_at,
+                  lag(event_name)  over w as previo,
+                  lag(occurred_at) over w as previo_at
              from public.cio_ondemand_pro_eventos_todos
             where event_name in ('ondemand_pro_busy', 'ondemand_pro_available')
-         ) x where x.event_name = x.previo
+           window w as (partition by person_id order by occurred_at, event_name desc)
+         ) x
+          where x.event_name = x.previo
+            -- Dos iguales seguidos sólo si en el medio hubo un offline.
+            and not exists (select 1 from public.cio_ondemand_pro_eventos_todos o
+                             where o.person_id = x.person_id and o.event_name = 'ondemand_pro_offline'
+                               and o.occurred_at between x.previo_at and x.occurred_at)
        )
+union all
+select 'todas las filas ya visibles (visible_desde <= ahora)',
+       not exists (select 1 from public.cio_ondemand_pro_eventos_todos where visible_desde > now())
+   and not exists (select 1 from public.cio_ondemand_no_pro_found_todos where visible_desde > now())
 union all
 select 'cancelaciones de menos de 5 s no cuentan',
        not exists (select 1 from public.cio_ondemand_no_pro_found_todos

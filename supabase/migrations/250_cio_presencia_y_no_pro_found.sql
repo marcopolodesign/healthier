@@ -37,9 +37,11 @@
 --      Por eso no hay motivo 'logout'.
 --      "En consulta" = consulta en `in_progress`, hasta que sale de ese estado
 --      o el profesional la cierra (`professional_ended_at`), lo que pase
---      primero. Se cuentan las consultas abiertas a la vez: dos superpuestas dan
---      un solo busy y un solo available. Busy/available sólo salen mientras está
---      en línea; un offline cierra cualquier busy (no se manda available aparte).
+--      primero, con un tope de 3 h (como la chapa "Ocupado", 168). Se cuentan
+--      las consultas abiertas a la vez: dos superpuestas dan un solo busy y un
+--      solo available. Busy/available sólo salen mientras está en línea: cada
+--      conexión arranca libre (o busy, si se conecta con una consulta ya en
+--      curso) y un offline cierra cualquier busy sin mandar available aparte.
 --      Propiedades: vertical y especialidad (dato profesional, como los traits
 --      de cioIdentifyProfessional), motivo en offline. Nada personal.
 --      Sin duplicados: online/offline salen sólo cuando el estado cambia, así
@@ -94,10 +96,9 @@ comment on column public.presencia_profesional_eventos.registrado_at is
   'Cuándo se escribió la fila. Cursor del sync de Customer.io (un vencio se fecha en el pasado). Migración 250.';
 
 -- ── 2. Trigger: motivo del apagado + el vencimiento que el barrido no vio ────
--- Si el latido vuelve entre "último latido + 1 h" y la siguiente pasada del
--- barrido (cada 5 min), el barrido nunca anota el vencio y el profesional
--- quedaba "en línea" de corrido. Al revivir, el trigger lo anota él (mismo
--- momento que usaría el barrido; el índice único evita duplicarlo).
+-- Si el latido vuelve, o el profesional apaga, entre "último latido + 1 h" y la
+-- siguiente pasada del barrido (cada 5 min), el barrido nunca anotaba el vencio:
+-- quedaba "en línea" de más y el offline salía como manual en vez de timeout.
 create or replace function public.presencia_anotar_cambio()
 returns trigger
 language plpgsql
@@ -105,21 +106,26 @@ security definer
 set search_path = public
 as $$
 begin
+  -- La vigencia ya había vencido y el barrido todavía no lo anotó (corre cada
+  -- 5 min): se anota acá, con el mismo momento que usaría el barrido. Vale al
+  -- revivir y al apagar; el índice único evita duplicarlo.
+  if old.on_demand_since is not null
+     and old.on_demand_last_seen_at is not null
+     and old.on_demand_last_seen_at + interval '1 hour' <= now() then
+    insert into presencia_profesional_eventos (professional_id, specialty, evento, momento, es_prueba)
+    values (new.user_id, old.specialty, 'vencio', old.on_demand_last_seen_at + interval '1 hour', coalesce(old.solo_pruebas, false))
+    on conflict (professional_id, momento) where evento = 'vencio' do nothing;
+  end if;
+
   if new.on_demand_since is null then
     -- Se apagó (switch o `professional_offline`). Sólo si antes estaba.
+    -- Si ya había vencido, este desconecto no genera un segundo offline.
     if old.on_demand_since is not null then
       insert into presencia_profesional_eventos (professional_id, specialty, evento, momento, es_prueba, motivo)
       values (new.user_id, new.specialty, 'desconecto', now(), coalesce(new.solo_pruebas, false),
               case when auth.uid() = new.user_id then 'manual' else 'otro' end);
     end if;
   else
-    if old.on_demand_since is not null
-       and old.on_demand_last_seen_at is not null
-       and old.on_demand_last_seen_at + interval '1 hour' <= now() then
-      insert into presencia_profesional_eventos (professional_id, specialty, evento, momento, es_prueba)
-      values (new.user_id, old.specialty, 'vencio', old.on_demand_last_seen_at + interval '1 hour', coalesce(old.solo_pruebas, false))
-      on conflict (professional_id, momento) where evento = 'vencio' do nothing;
-    end if;
     -- Prendió por primera vez, o volvió a latir con la vigencia ya vencida.
     insert into presencia_profesional_eventos (professional_id, specialty, evento, momento, es_prueba)
     values (new.user_id, new.specialty, 'conecto', now(), coalesce(new.solo_pruebas, false));
@@ -161,10 +167,15 @@ transiciones as (
 ),
 consultas as (
   -- Cada tramo en curso: desde que entra a in_progress hasta que sale, o hasta
-  -- que el profesional la cierra, lo que pase primero.
+  -- que el profesional la cierra, lo que pase primero; nunca más de 3 h (el
+  -- mismo corte que la chapa "Ocupado", 168: una consulta colgada no deja a
+  -- nadie ocupado para siempre). Los participantes pueden escribir filas en
+  -- consultation_events, pero también pueden pasar la consulta a in_progress
+  -- de verdad: el tope de 3 h acota cualquiera de los dos casos.
   select c.professional_id, ini.created_at as desde,
          least(fin.created_at,
-               case when c.professional_ended_at >= ini.created_at then c.professional_ended_at end) as hasta
+               case when c.professional_ended_at >= ini.created_at then c.professional_ended_at end,
+               ini.created_at + interval '3 hours') as hasta
     from public.consultation_events ini
     join public.consultations c on c.id = ini.consultation_id
     left join lateral (
@@ -184,21 +195,46 @@ consultas as (
 pasos as (
   select professional_id, desde as t, 1 as delta from consultas
   union all
-  select professional_id, hasta, -1 from consultas where hasta is not null
+  select professional_id, hasta, -1 from consultas where hasta <= now()
 ),
 abiertas as (
-  -- Cuántas consultas en curso tiene después de cada paso. A igual hora,
-  -- primero cierra y después abre (no inventa un busy de 0 segundos).
+  -- Cuántas consultas en curso tiene después de cada instante (los pasos de un
+  -- mismo instante se suman juntos: cerrar una y abrir otra a la vez no da un
+  -- available + busy de 0 segundos).
   select professional_id, t,
-         sum(delta) over (partition by professional_id order by t, delta rows unbounded preceding) as n,
-         row_number() over (partition by professional_id order by t, delta) as orden
+         sum(sum(delta)) over (partition by professional_id order by t rows unbounded preceding) as n
     from pasos
+   group by professional_id, t
+),
+candidatos as (
+  -- Cambios de ocupación, y además: al conectarse con una consulta ya en curso
+  -- arranca ocupado.
+  select a.professional_id, a.t, case when a.n > 0 then 'busy' else 'available' end as tipo
+    from abiertas a
+  union all
+  select t.professional_id, t.efectivo, 'busy'
+    from transiciones t
+   where t.estado = 'online'
+     and (select a.n from abiertas a
+           where a.professional_id = t.professional_id and a.t <= t.efectivo
+           order by a.t desc limit 1) > 0
+),
+en_linea as (
+  -- Sólo lo que pasa mientras está en línea. `tramo` = el online que lo abre:
+  -- cada conexión arranca libre, y un offline cierra cualquier busy.
+  select c.*, ahora.id as tramo, ahora.es_prueba, ahora.specialty
+    from candidatos c
+    join lateral (
+      select t.estado, t.id, t.es_prueba, t.specialty from transiciones t
+       where t.professional_id = c.professional_id and t.efectivo <= c.t
+       order by t.efectivo desc, t.id desc
+       limit 1
+    ) ahora on ahora.estado = 'online'
 ),
 ocupacion as (
-  select a.professional_id, a.t,
-         case when a.n > 0 then 'busy' else 'available' end as tipo,
-         lag(a.n) over (partition by a.professional_id order by a.orden) as n_previo, a.n
-    from abiertas a
+  select e.*,
+         lag(e.tipo) over (partition by e.professional_id, e.tramo order by e.t, e.tipo desc) as tipo_previo
+    from en_linea e
 )
 select 'presencia:' || t.id::text                          as ref_id,
        case when t.estado = 'online' then 'ondemand_pro_online' else 'ondemand_pro_offline' end
@@ -215,27 +251,25 @@ select 'presencia:' || t.id::text                          as ref_id,
   from transiciones t
   left join public.specialties esp on esp.slug = t.specialty
 union all
-select 'ocupacion:' || o.professional_id::text || ':' || extract(epoch from o.t)::text,
+select 'ocupacion:' || o.professional_id::text || ':' || o.tipo || ':' || extract(epoch from o.t)::text,
        case when o.tipo = 'busy' then 'ondemand_pro_busy' else 'ondemand_pro_available' end,
        o.professional_id,
        o.t,
        o.t,
        null,
        esp.vertical_id,
-       pp.specialty,
-       (coalesce(pp.solo_pruebas, false) or coalesce(pr.es_prueba, false))
+       o.specialty,
+       o.es_prueba
   from ocupacion o
-  -- En línea en ese momento: el último cambio de presencia antes es "online".
-  join lateral (
-    select t.estado from transiciones t
-     where t.professional_id = o.professional_id and t.efectivo <= o.t
-     order by t.efectivo desc, t.id desc
-     limit 1
-  ) ahora on ahora.estado = 'online'
-  left join public.professional_profiles pp on pp.user_id = o.professional_id
-  left join public.profiles pr on pr.id = o.professional_id
-  left join public.specialties esp on esp.slug = pp.specialty
- where (o.n > 0) is distinct from (coalesce(o.n_previo, 0) > 0);
+  left join public.specialties esp on esp.slug = o.specialty
+ where o.tipo is distinct from coalesce(o.tipo_previo, 'available');
+
+-- Límites conocidos (aceptados para este estadio):
+--  · Un vencio se fecha en el último latido y aparece más tarde: un busy de esa
+--    hora que ya se sincronizó puede dejar de figurar en la vista. Customer.io
+--    se queda con el que tiene, después de un offline.
+--  · Recalcula toda la historia en cada lectura. Con el volumen de hoy son
+--    milisegundos; si crece, pasar a una tabla mantenida por el barrido.
 
 comment on view public.cio_ondemand_pro_eventos_todos is
   'Eventos de presencia on-demand del profesional, CON cuentas de prueba (columna es_prueba). Base de cio.ondemand_pro_eventos. Migración 250.';
@@ -255,11 +289,13 @@ with cerrados as (
          end as desenlace,
          case when r.status = 'expired' or r.cancelled_at > r.expires_at then r.expires_at
               else r.cancelled_at end as fin,
-         case when r.status = 'expired' then greatest(r.created_at + interval '20 minutes', r.expires_at)
+         -- + 2 min: el cron que marca 'expired' corre cada minuto; la fila nunca
+         -- aparece después de su visible_desde.
+         case when r.status = 'expired' then greatest(r.created_at + interval '20 minutes', r.expires_at) + interval '2 minutes'
               else r.cancelled_at end as visible_desde
     from public.ondemand_requests r
    where r.accepted_by is null
-     and ((r.status = 'expired' and greatest(r.created_at + interval '20 minutes', r.expires_at) <= now())
+     and ((r.status = 'expired' and greatest(r.created_at + interval '20 minutes', r.expires_at) + interval '2 minutes' <= now())
           or (r.status = 'cancelled' and r.cancelled_at is not null))
 )
 select c.id                                                as ref_id,
