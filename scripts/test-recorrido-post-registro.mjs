@@ -149,10 +149,30 @@ test('staging: anotar_recorrido guarda, no duplica, recorta y sólo para pacient
     const b = await pac.cli.rpc('anotar_recorrido', { p_entradas: [{ url: 'x', name: 'x', at: 'no-es-fecha', via: 'tv' }, { url: 'y', name: 'y', via: 'app', hito: 'DROP TABLE' }] })
     assert.equal(b.data, 0, 'via inválida o hito raro se descartan')
 
+    // La RPC vuelve a limpiar: sin hash, query sólo utm_*, nada con @.
+    const q = await pac.cli.rpc('anotar_recorrido', { p_entradas: [
+      e('Restablecer', { url: `${ORIGEN}/restablecer-contrasena?code=SECRETO&token_hash=zz&utm_source=meta#access_token=yy` }),
+      e('Con mail', { url: `${ORIGEN}/x/juan@mail.com` }),
+      e('Con mail codificado', { url: `${ORIGEN}/x/juan%40mail.com` }),
+    ] })
+    assert.equal(q.data, 1, 'las URLs con mail se descartan')
+    const { data: limpia } = await admin.from('recorrido_paciente').select('url').eq('user_id', pac.id).eq('name', 'Restablecer').single()
+    assert.equal(limpia.url, `${ORIGEN}/restablecer-contrasena?utm_source=meta`)
+    const { data: todas } = await admin.from('recorrido_paciente').select('url, name').eq('user_id', pac.id)
+    assert.ok(!JSON.stringify(todas).match(/SECRETO|token_hash|access_token|@|%40/), 'nada sensible quedó guardado')
+
+    // No hay forma de escribir en el recorrido de otro: la RPC no recibe user_id.
+    const intruso = await pac.cli.rpc('anotar_recorrido', { p_entradas: [e('otro', { user_id: pro.id })] })
+    assert.equal(intruso.data, 1)
+    const { data: delOtro } = await admin.from('recorrido_paciente').select('id').eq('user_id', pro.id)
+    assert.equal(delOtro.length, 0, 'un user_id en la entrada se ignora')
+    const directo = await pac.cli.from('recorrido_paciente').insert({ user_id: pro.id, at: new Date().toISOString(), url: 'x', name: 'x', via: 'web' })
+    assert.ok(directo.error, 'no se puede insertar directo en la tabla')
+
     const { data: propias } = await pac.cli.from('recorrido_paciente').select('id')
     assert.equal(propias.length, 0, 'el paciente no lee la tabla (sólo super admin)')
 
-    // Tope: 110 pantallas distintas → quedan 100 + el hito.
+    // Tope: 110 pantallas distintas más → quedan 100 + el hito.
     for (let lote = 0; lote < 5; lote++) {
       const entradas = Array.from({ length: 22 }, (_, i) => e(`p${lote * 22 + i}`))
       await pac.cli.rpc('anotar_recorrido', { p_entradas: entradas })

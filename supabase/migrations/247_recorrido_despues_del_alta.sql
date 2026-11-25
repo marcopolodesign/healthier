@@ -23,8 +23,12 @@
 -- hitos (los hitos se recortan aparte para que mucha navegación no borre que
 -- llegó al pago). Una pantalla igual a la anterior no se anota.
 --
--- Escritura: sólo por la RPC `anotar_recorrido` (security definer), sólo el
--- propio paciente. Lectura: super admin.
+-- Escritura: sólo por la RPC `anotar_recorrido` (security definer, search_path
+-- fijo), siempre sobre auth.uid() — no recibe user_id, así que no hay forma de
+-- escribir en el recorrido de otro. Lectura: super admin.
+-- Privacidad: el cliente ya manda origin+ruta (ids → :id, /r/<código> →
+-- /r/:codigo) y sólo utm_*; la RPC lo vuelve a filtrar (sin hash, query sólo
+-- utm_*, nada con @).
 -- ============================================================
 
 create table if not exists public.recorrido_paciente (
@@ -88,11 +92,24 @@ begin
 
   for v_e in select value from jsonb_array_elements(p_entradas) loop
     if jsonb_typeof(v_e) <> 'object' then continue; end if;
-    v_url  := left(coalesce(v_e->>'url', ''), 300);
+    -- Defensa en el servidor (el cliente ya limpia): sin hash y, de la query,
+    -- sólo utm_*. Así un token de magic link, un `code=` o un mail en la query
+    -- nunca llegan a la tabla aunque un cliente viejo o modificado los mande.
+    v_url  := split_part(coalesce(v_e->>'url', ''), '#', 1);
+    if position('?' in v_url) > 0 then
+      select split_part(v_url, '?', 1)
+             || coalesce('?' || string_agg(q, '&'), '')
+        into v_url
+        from regexp_split_to_table(split_part(v_url, '?', 2), '&') q
+       where q ~ '^utm_(source|medium|campaign|content|term|id)=[^&]{1,120}$';
+    end if;
+    v_url  := left(v_url, 300);
     v_name := left(coalesce(nullif(v_e->>'name', ''), v_url), 100);
     v_via  := v_e->>'via';
     v_hito := nullif(v_e->>'hito', '');
     if v_url = '' or v_via is null or v_via not in ('web', 'app') then continue; end if;
+    -- Un mail en la ruta o en el nombre es un dato personal: no se guarda.
+    if v_url ~ '@|%40' or v_name ~ '@' then continue; end if;
     if v_hito is not null and v_hito !~ '^[a-z_]{2,40}$' then continue; end if;
 
     begin
