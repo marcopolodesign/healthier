@@ -5,7 +5,10 @@ select 'sin offline ni online repetidos seguidos' as chequeo,
        not exists (
          select 1 from (
            select person_id, event_name,
-                  lag(event_name) over (partition by person_id order by occurred_at, ref_id) as previo
+                  -- Desempate por el id numérico: un online y su timeout pueden
+                  -- caer en el mismo instante (se conectó y no volvió a latir).
+                  lag(event_name) over (partition by person_id
+                                        order by occurred_at, split_part(ref_id, ':', 2)::bigint) as previo
              from public.cio_ondemand_pro_eventos_todos
             where event_name in ('ondemand_pro_online', 'ondemand_pro_offline')
          ) x where x.event_name = x.previo
