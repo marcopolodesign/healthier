@@ -89,7 +89,7 @@ test('embudo: pasos, última pantalla y abandono del pago', () => {
       { name: 'Perfil del profesional', via: 'app' },
       { name: 'Vio horarios', hito: 'vio_horarios', via: 'app' },
       { name: 'Pago de la consulta', via: 'app' },
-      { name: 'Llegó al pago', hito: 'llego_al_pago', via: 'app' },
+      { name: 'Llegó al pago', hito: 'llego_al_pago', via: 'app', at: '2026-11-24T10:00:00Z' },
       { name: 'Farmacia', via: 'web' },
     ],
   }
@@ -103,6 +103,8 @@ test('embudo: pasos, última pantalla y abandono del pago', () => {
   assert.equal(ultimaPantalla(p), 'Farmacia')
   assert.equal(abandonoElPago(p), true)
   assert.equal(abandonoElPago({ ...p, despues: [...p.despues, { name: 'Pagó', hito: 'pago' }] }), false)
+  assert.equal(abandonoElPago({ ...p, reservo: true, ultimaConsulta: '2026-11-01T00:00:00Z' }), true, 'una consulta vieja no tapa el abandono')
+  assert.equal(abandonoElPago({ ...p, reservo: true, ultimaConsulta: '2026-11-24T10:05:00Z' }), false)
   assert.equal(ultimaPantalla({ antes: [{ name: 'Completar registro' }], despues: [] }), 'Completar registro (antes del alta)')
 })
 
