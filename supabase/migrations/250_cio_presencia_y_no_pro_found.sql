@@ -16,7 +16,8 @@
 -- del hecho; `visible_desde` es desde cuándo la fila existe en la vista y es la
 -- columna que tiene que usar el sync como cursor incremental (un timeout se
 -- fecha en el último latido pero recién aparece cuando el barrido lo detecta,
--- más de una hora después: un cursor sobre occurred_at se lo saltearía).
+-- más de una hora después: un cursor sobre occurred_at se lo saltearía). El
+-- sync relee los últimos 10 min en cada pasada; `ref_id` deduplica.
 --
 --   1. `cio.ondemand_pro_eventos` — perfil del PROFESIONAL (person_id = su
 --      profiles.id, el mismo de professional_submitted):
@@ -191,6 +192,31 @@ consultas as (
      and ini.detail ->> 'to' = 'in_progress'
      and coalesce(ini.detail ->> 'from', '') <> 'in_progress'
      and c.professional_id is not null
+  union all
+  -- Las que nacen ya en curso (emergencias, la fila de espera presencial): el
+  -- trigger de la 070 sólo anota cambios, así que no tienen fila de entrada.
+  -- Arrancan al crearse.
+  select c.professional_id, c.created_at,
+         least(fin.created_at,
+               case when c.professional_ended_at >= c.created_at then c.professional_ended_at end,
+               c.created_at + interval '3 hours')
+    from public.consultations c
+    left join lateral (
+      select f.created_at from public.consultation_events f
+       where f.consultation_id = c.id
+         and f.event = 'status_changed'
+         and f.detail ->> 'from' = 'in_progress'
+       order by f.created_at
+       limit 1
+    ) fin on true
+   where c.professional_id is not null
+     and (c.status = 'in_progress' or fin.created_at is not null)
+     and not exists (
+       select 1 from public.consultation_events e
+        where e.consultation_id = c.id
+          and e.event = 'status_changed'
+          and e.detail ->> 'to' = 'in_progress'
+          and e.created_at <= coalesce(fin.created_at, 'infinity'))
 ),
 pasos as (
   select professional_id, desde as t, 1 as delta from consultas
@@ -268,6 +294,8 @@ select 'ocupacion:' || o.professional_id::text || ':' || o.tipo || ':' || extrac
 --  · Un vencio se fecha en el último latido y aparece más tarde: un busy de esa
 --    hora que ya se sincronizó puede dejar de figurar en la vista. Customer.io
 --    se queda con el que tiene, después de un offline.
+--  · visible_desde es la hora de la transacción, no la de su commit: el sync
+--    tiene que releer con un margen (los últimos 10 min; ref_id deduplica).
 --  · Recalcula toda la historia en cada lectura. Con el volumen de hoy son
 --    milisegundos; si crece, pasar a una tabla mantenida por el barrido.
 
