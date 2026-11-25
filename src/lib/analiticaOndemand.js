@@ -14,10 +14,14 @@
  *   server_error      — red, timeout, 5xx o falla de Mercado Pago.
  *   card_error        — todo lo demás: rechazo del banco, datos mal cargados.
  */
-export function tipoDeErrorDePago({ mensaje = '', paymentMethodId = null } = {}) {
+// `aceptaDebito`: en un turno agendado el débito y el dinero en cuenta son
+// válidos (no hay pre-autorización), así que un error con débito es un error
+// de tarjeta o del servidor, no "debit_not_allowed" — esa regla es sólo de la
+// consulta inmediata.
+export function tipoDeErrorDePago({ mensaje = '', paymentMethodId = null, aceptaDebito = false } = {}) {
   const texto = String(mensaje ?? '')
   const metodo = String(paymentMethodId ?? '').toLowerCase()
-  if (/tarjeta de cr[eé]dito/i.test(texto) || metodo.startsWith('deb') || metodo === 'account_money') {
+  if (!aceptaDebito && (/tarjeta de cr[eé]dito/i.test(texto) || metodo.startsWith('deb') || metodo === 'account_money')) {
     return 'debit_not_allowed'
   }
   if (/internal_error|timeout|failed to fetch|network|\b5\d\d\b|no respondi/i.test(texto)) return 'server_error'
