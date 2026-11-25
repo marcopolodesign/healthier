@@ -22,9 +22,8 @@
  *   (pharmacy_admin o super_admin) Marks pharmacy_mp_accounts.active = false
  *   and pharmacies.mp_connected = false, sobre la farmacia que resuelve el server.
  *
- * ⚠️ Requires a dedicated MP_REDIRECT_URI registered in the MercadoPago
- * developer app's allowed redirect URLs (manual step, not doable via API) —
- * see PHARMACY_MP_REDIRECT_URI below.
+ * La vuelta de MP llega a mp-connect (la única URL registrada en la app de
+ * MP), que reconoce el state de farmacia y redirige acá con code+state.
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -46,7 +45,11 @@ const MP_CLIENT_ID = IS_PROD
 const MP_CLIENT_SECRET = IS_PROD
   ? Deno.env.get("MP_CLIENT_SECRET_PROD")!
   : Deno.env.get("MP_CLIENT_SECRET_SANDBOX")!;
-const REDIRECT_URI = Deno.env.get("PHARMACY_MP_REDIRECT_URI")!; // e.g. https://aixjejdoofervrkggbkd.supabase.co/functions/v1/pharmacy-mp-connect
+// Misma URL de vuelta que los profesionales (MP_REDIRECT_URI → mp-connect),
+// porque es la única registrada en la app de MP. mp-connect reconoce el state
+// de farmacia y redirige el code acá. El redirect_uri del canje tiene que ser
+// el mismo que el de la autorización. (2026-11-25)
+const REDIRECT_URI = Deno.env.get("MP_REDIRECT_URI")!;
 const APP_URL = Deno.env.get("APP_URL") ?? "https://healthier.com.ar";
 const MP_WEBHOOK_SECRET = Deno.env.get("MP_WEBHOOK_SECRET")!; // reused as the state-signing secret, same as mp-connect
 

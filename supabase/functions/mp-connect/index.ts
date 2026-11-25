@@ -141,6 +141,20 @@ serve(async (req: Request) => {
         return json({ error: "Missing code or state" }, 400);
       }
 
+      // La farmacia usa esta misma URL de vuelta: la app de MP sólo tiene
+      // registrada la de mp-connect (2026-11-25, Santiago no podía conectar:
+      // MP rechazaba la de pharmacy-mp-connect). Si el state es de farmacia,
+      // se le pasa el code a pharmacy-mp-connect, que vuelve a verificarlo.
+      const pharmacyCheck = await verifyOAuthState("pharmacy-mp-connect", state, MP_WEBHOOK_SECRET);
+      // "expired" sólo cuenta si es v2 (firma válida): el formato v1 sale
+      // "expired" para cualquier propósito y es de un profesional.
+      if (pharmacyCheck.ok || (pharmacyCheck.reason === "expired" && state.startsWith("v2."))) {
+        const fwd = new URL(`${Deno.env.get("SUPABASE_URL")}/functions/v1/pharmacy-mp-connect`);
+        fwd.searchParams.set("code", code);
+        fwd.searchParams.set("state", state);
+        return Response.redirect(fwd.toString(), 302);
+      }
+
       const check = await verifyOAuthState("mp-connect", state, MP_WEBHOOK_SECRET);
       if (!check.ok) {
         console.warn(`mp-connect callback: state ${check.reason}`);
