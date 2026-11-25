@@ -18,17 +18,23 @@ test('la pantalla de pago no muestra el botón de demo', () => {
   assert.ok(!/Avanzar \(demo\)/.test(src), 'volvió el botón "Avanzar (demo)"')
 })
 
-test('todo catch del cobro avisa payment_error', () => {
+test('todo catch del cobro avisa payment_error, sólo si el cobro arrancó', () => {
   const catches = [...src.matchAll(/catch \(err\) \{([\s\S]*?)\n {4}\}/g)]
     .map((m) => m[1])
     .filter((cuerpo) => cuerpo.includes('Error al procesar el pago'))
   assert.ok(catches.length >= 2, `se esperaban los 2 catch del cobro, hay ${catches.length}`)
   for (const cuerpo of catches) {
-    assert.ok(cuerpo.includes('avisarErrorDePago('), 'un catch del cobro no avisa payment_error')
+    assert.ok(cuerpo.includes('if (cobrando) avisarErrorDePago('), 'un catch del cobro no avisa payment_error (o lo avisa también antes de cobrar)')
   }
 })
 
 test('el rechazo de MP también avisa payment_error', () => {
   assert.match(src, /avisarErrorDePago\(\{ errorType: 'declined'/)
   assert.match(src, /track\(\s*'payment_error'/)
+})
+
+test('cobrando se prende justo antes de cada createPayment', () => {
+  const llamadas = src.split('mpService.createPayment(').length - 1
+  const prendidos = (src.match(/cobrando = true/g) || []).length
+  assert.equal(prendidos, llamadas, `createPayment: ${llamadas}, cobrando = true: ${prendidos}`)
 })
