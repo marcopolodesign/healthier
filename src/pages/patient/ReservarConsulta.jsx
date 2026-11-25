@@ -990,8 +990,8 @@ export default function ReservarConsulta({ profile }) {
                           {pro.reviews > 0 ? (
                             <>
                               <Star className="w-3 h-3 text-amber-400" weight="fill" />
-                              <span className="text-[12px] font-semibold text-amber-600">{pro.rating.toFixed(1)}</span>
-                              <span className="text-[11px] text-text-tertiary">({pro.reviews} reseñas)</span>
+                              <span className="text-[12px] font-semibold text-amber-600">{pro.rating.toFixed(1).replace('.', ',')}</span>
+                              <span className="text-[11px] text-text-tertiary">· {pro.reviews} {pro.reviews === 1 ? 'reseña' : 'reseñas'}</span>
                             </>
                           ) : (
                             <span className="text-[11px] text-text-tertiary">Sin reseñas</span>

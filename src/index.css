@@ -58,6 +58,10 @@
   --color-brand-secondary: #E8927C;
   --color-brand-secondary-hover: #d4745c;
   --color-brand-secondary-muted: rgba(232, 146, 124, 0.1);
+  /* Terracota — el coral oscurecido para texto sobre ivory (el coral da ~2,3:1).
+     Especialidad e inicial del perfil del profesional (Felipe, 2026-11-25). */
+  --color-terracota: #B8634E;
+  --color-terracota-muted: #F6E3DC;
 
   /* Brand tertiary — Lavender */
   --color-brand-tertiary: #9B8EC4;
