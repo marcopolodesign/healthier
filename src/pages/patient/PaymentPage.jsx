@@ -8,6 +8,7 @@ import { toast } from '../../components/Toast'
 import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
 import { inicialesDe } from '../../lib/format'
 import { modalidadParaBase, MODALIDADES } from '../../lib/modalidad'
+import { tipoDeErrorDePago } from '../../lib/analiticaOndemand'
 
 export default function PaymentPage({ profile }) {
   const navigate  = useNavigate()
@@ -119,6 +120,18 @@ export default function PaymentPage({ profile }) {
     return created.id
   }
 
+  // `payment_error` sale en TODO pago que no se concreta: el rechazo de MP
+  // (vuelve sin excepción) y el error (la función o la red fallan). Antes sólo
+  // salía en el rechazo, y en Customer.io un error se veía igual que alguien
+  // que abandonó. El motivo crudo va sólo a Customer.io (`cioOnlyParams`).
+  const avisarErrorDePago = ({ errorType, paymentMethodId = null, motivo = null }) => {
+    track(
+      'payment_error',
+      { error_type: errorType, payment_type: paymentMethodId || 'saved_card', value: chargeAmount, currency: 'ARS', flow: 'paciente' },
+      motivo ? { error_message: String(motivo).slice(0, 200) } : {},
+    )
+  }
+
   const handlePaymentResult = (data, id, paymentMethod = 'saved_card') => {
     const status = data?.status
     if (data?.approved || status === 'paid' || status === 'approved') {
@@ -136,7 +149,7 @@ export default function PaymentPage({ profile }) {
       // Rechazo de MP: no tira excepción, así que sin esto el CTA se quedaba
       // en "Confirmar y Pagar" después de que el pago fuera rechazado.
       setIntentoFallido(true)
-      track('payment_error', { error_type: 'declined', value: chargeAmount, currency: 'ARS', flow: 'paciente' })
+      avisarErrorDePago({ errorType: 'declined', paymentMethodId: paymentMethod, motivo: data?.status_detail ?? data?.statusDetail ?? status })
       toast.error('El pago no pudo procesarse. Intentá con otra tarjeta.')
     }
   }
@@ -203,6 +216,7 @@ export default function PaymentPage({ profile }) {
     if (chargeAmount > 0 && !selectedCardId) return
     setPaying(true)
     setIntentoFallido(false)
+    let chargeInfo = null
     try {
       const id = await ensureConsultation()
 
@@ -213,7 +227,7 @@ export default function PaymentPage({ profile }) {
         return
       }
 
-      const chargeInfo = await cardSelectorRef.current?.getSavedCardCharge()
+      chargeInfo = await cardSelectorRef.current?.getSavedCardCharge()
       const paymentType = getPaymentMethod(chargeInfo)
       track('add_payment_info', { payment_type: paymentType, value: chargeAmount, currency: 'ARS', flow: 'paciente' })
       const { data, error } = await mpService.createPayment({ consultationId: id, ...chargeInfo, useCredits, description })
@@ -221,6 +235,7 @@ export default function PaymentPage({ profile }) {
       handlePaymentResult(data, id, paymentType)
     } catch (err) {
       setIntentoFallido(true)
+      avisarErrorDePago({ errorType: tipoDeErrorDePago({ mensaje: err?.message, paymentMethodId: chargeInfo?.paymentMethodId }), paymentMethodId: chargeInfo?.paymentMethodId, motivo: err?.message })
       toast.error(err?.message || 'Error al procesar el pago')
     } finally {
       setPaying(false)
@@ -241,6 +256,7 @@ export default function PaymentPage({ profile }) {
       handlePaymentResult(data, id, paymentType)
     } catch (err) {
       setIntentoFallido(true)
+      avisarErrorDePago({ errorType: tipoDeErrorDePago({ mensaje: err?.message, paymentMethodId: chargeInfo?.paymentMethodId }), paymentMethodId: chargeInfo?.paymentMethodId, motivo: err?.message })
       toast.error(err?.message || 'Error al procesar el pago')
     } finally {
       setPaying(false)
@@ -441,16 +457,6 @@ export default function PaymentPage({ profile }) {
                 : intentoFallido ? 'Reintentar el pago' : 'Confirmar y Pagar'}
           </button>
         )}
-
-        {/* Demo bypass */}
-        <button
-          onClick={handleDemoAdvance}
-          disabled={advancingDemo || paid}
-          className="w-full py-3 rounded-full font-semibold text-[13px] text-text-tertiary border border-border-default bg-transparent hover:bg-bg-secondary transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {advancingDemo && <CircleNotch className="w-4 h-4 animate-spin" />}
-          Avanzar (demo)
-        </button>
 
       </div>
     </div>
