@@ -1,24 +1,26 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, MagnifyingGlass, ShoppingBag, Pill, Plus, Minus, Stethoscope, Package,
+  ArrowLeft, ArrowRight, MagnifyingGlass, ShoppingBag, Pill, Plus, Minus, Stethoscope, Package,
   Check, LockSimple, ArrowsClockwise, Info, Prescription, VideoCamera,
 } from '@phosphor-icons/react'
 import { pharmacyService } from '../../services/pharmacyService'
 import { toast } from '../../components/Toast'
 import { formatARS as fmtPrice } from '../../lib/format'
 import {
-  PRESCRIPTION_TYPES, PRESCRIPTION_TYPE_PATIENT_LABELS, necesitaReceta, gruposDelMosaico, nombreLegible,
+  necesitaReceta, gruposDelMosaico, nombreLegible,
 } from '../../lib/pharmacyProducts'
 import { usePharmacyCart } from '../../context/PharmacyCartContext'
 
-// Farmacia del paciente — rediseño 2026-11-22 (propuesta de Felipe, versión
-// "A + C con la tipografía de hoy" que eligió Mateo):
-//   · arriba, lo recetado por el médico en una tarjeta grande con su botón;
-//   · abajo, un mosaico de fotos (carrusel horizontal en el teléfono): las necesidades (Dolor y fiebre…) y las
-//     cuatro categorías de siempre. Tocar una abre su página (`?grupo=<id>`):
-//     la foto arriba y los productos abajo, sobre relleno, con el + adentro.
-// Buscar o filtrar sigue dando una sola grilla mezclada.
+// Farmacia del paciente — rediseño 2026-11-22 (Felipe, "A + C") ajustado el
+// 2026-11-24 con la comparación con Airbnb que aprobó Mateo:
+//   · arriba: volver + buscador + caja (Mis pedidos), sin título; abajo los
+//     chips Todos · Sin receta · Con receta;
+//   · lo recetado vigente primero, en su tarjeta grande;
+//   · filas horizontales con título y flecha: "Por necesidad", "Categorías"
+//     (nombre DEBAJO de la foto) y "Destacados"; la flecha abre `?ver=<fila>`;
+//   · "Tus recetas" (en espera, usadas, vencidas) abajo de todo.
+// Buscar o filtrar da una sola grilla mezclada. Los agotados van al final.
 
 const ddmm = (fecha) => {
   if (!fecha) return null
@@ -66,8 +68,10 @@ function ProductTile({ product, quantity, cubierto, onAdd, onRemove, onPedirRece
   const [fotoFallo, setFotoFallo] = useState(false)
   const hasImage = product.imageUrl && !fotoFallo
   const conReceta = necesitaReceta(product)
+  const [nombre, ...resto] = nombreLegible(product.name).split(' · ')
+  const presentacion = resto.join(' · ')
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col min-w-0">
       <div className="relative aspect-square rounded-[20px] bg-bg-surface-hover overflow-hidden flex items-center justify-center">
         {hasImage ? (
           <img
@@ -80,12 +84,12 @@ function ProductTile({ product, quantity, cubierto, onAdd, onRemove, onPedirRece
         ) : (
           <Pill className="w-10 h-10 text-text-primary opacity-30" />
         )}
-        {conReceta && (
-          <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 bg-bg-surface text-brand-tertiary-hover text-[12px] font-semibold px-2 py-0.5 rounded-full">
-            {product.prescriptionType === 'receta_archivada' && <LockSimple className="w-3 h-3" />}
-            {PRESCRIPTION_TYPE_PATIENT_LABELS[product.prescriptionType]}
-          </span>
-        )}
+        {/* Siempre se dice si lleva receta (Airbnb, "Guest favorite"). Los
+            controlados son "Con receta" con candado. */}
+        <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 h-[26px] px-2.5 rounded-full bg-white/90 text-text-primary text-[13px] font-medium">
+          {product.prescriptionType === 'receta_archivada' && <LockSimple className="w-3 h-3" />}
+          {conReceta ? 'Con receta' : 'Sin receta'}
+        </span>
         {!product.inStock && quantity === 0 && (
           <div className="absolute inset-0 bg-black/45 flex items-center justify-center">
             <span className="text-white text-sm font-semibold">Agotado</span>
@@ -100,7 +104,7 @@ function ProductTile({ product, quantity, cubierto, onAdd, onRemove, onPedirRece
             conReceta && !cubierto ? (
               <button
                 onClick={() => onPedirReceta(product)}
-                className="h-10 px-3.5 rounded-full bg-brand-tertiary-hover hover:bg-brand-tertiary-hover/90 text-white text-[14px] font-semibold flex items-center gap-1.5"
+                className="h-9 px-3 rounded-full bg-brand-tertiary-hover hover:bg-brand-tertiary-hover/90 text-white text-[13px] font-semibold flex items-center gap-1.5"
               >
                 <Stethoscope className="w-4 h-4" /> Pedir receta
               </button>
@@ -108,45 +112,68 @@ function ProductTile({ product, quantity, cubierto, onAdd, onRemove, onPedirRece
               <button
                 onClick={() => onAdd(product)}
                 aria-label={`Agregar ${product.name}`}
-                className="w-10 h-10 rounded-full bg-brand hover:bg-brand-hover text-white flex items-center justify-center"
+                className="w-9 h-9 rounded-full bg-brand hover:bg-brand-hover text-white flex items-center justify-center"
               >
-                <Plus className="w-5 h-5" />
+                <Plus className="w-4 h-4" />
               </button>
             )
           )}
         </div>
       </div>
-      <p className="text-[15px] leading-snug text-text-primary mt-2.5 line-clamp-2" title={product.name}>{nombreLegible(product.name)}</p>
-      <p className="text-[15px] text-text-secondary mt-0.5">{fmtPrice(product.price)}</p>
+      {/* Nombre en una línea y abajo, en gris, presentación y precio. */}
+      <p className="text-[15px] leading-[19px] font-medium text-text-primary mt-2.5 truncate" title={product.name}>{nombre}</p>
+      <p className="text-[14px] leading-[18px] text-text-secondary mt-0.5 truncate">{[presentacion, fmtPrice(product.price)].filter(Boolean).join(' · ')}</p>
     </div>
   )
 }
 
 /**
- * Una foto del mosaico: el nombre en Everett sobre la foto, la cantidad al lado.
- * En el teléfono (<640) es una tarjeta chica de un carrusel horizontal (150 px,
- * 3:4: se ven dos y un pedazo de la tercera); desde sm vuelve a la grilla.
+ * Un grupo (necesidad o categoría): la foto y, DEBAJO, el nombre y cuántos
+ * productos tiene (Airbnb, 2026-11-24). En el teléfono es una tarjeta de
+ * 118×148 dentro de una fila horizontal (se ven tres); desde sm, grilla.
  */
-function GrupoTile({ grupo, onAbrir }) {
+function GrupoTile({ grupo, onAbrir, enFila = true }) {
   return (
     <button
       onClick={() => onAbrir(grupo.id)}
-      className="relative w-[150px] shrink-0 snap-start aspect-[3/4] rounded-[16px] sm:w-auto sm:aspect-[4/5] sm:rounded-[24px] overflow-hidden text-left bg-bg-surface-hover group"
+      className={`${enFila ? 'w-[118px] shrink-0 snap-start sm:w-auto' : ''} text-left group`}
     >
-      <img
-        src={grupo.fotoChica}
-        alt=""
-        loading="lazy"
-        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-      />
-      <div className="absolute inset-x-0 bottom-0 h-[45%] sm:h-2/5 bg-gradient-to-t from-black/45 to-transparent" />
-      {/* La cantidad va arriba: abajo no entra al lado de "Antibióticos" a 390 px. */}
-      <div className="absolute inset-x-0 top-0 h-12 sm:h-16 bg-gradient-to-b from-black/30 to-transparent" />
-      <span className="absolute top-2.5 right-3 text-[12px] sm:top-3.5 sm:right-4 sm:text-[13px] text-white">{grupo.productos.length}</span>
-      <span className="absolute inset-x-3 bottom-3 sm:inset-x-5 sm:bottom-4 font-serif font-light text-white text-[17px] sm:text-[26px] leading-[1.15] sm:leading-[1.1]">{grupo.label}</span>
+      <div className="aspect-[118/148] rounded-[18px] overflow-hidden bg-bg-surface-hover">
+        <img
+          src={grupo.fotoChica}
+          alt=""
+          loading="lazy"
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+        />
+      </div>
+      <p className="text-[15px] leading-[19px] font-medium text-text-primary mt-2 line-clamp-2">{grupo.label}</p>
+      <p className="text-[14px] leading-[18px] text-text-secondary">{grupo.productos.length} producto{grupo.productos.length !== 1 ? 's' : ''}</p>
     </button>
   )
 }
+
+/** Título de una fila con la flecha que abre la lista completa. */
+function SeccionFila({ titulo, onVer, children }) {
+  return (
+    <section className="mt-8">
+      <div className="flex items-center justify-between mb-3.5">
+        <h2 className="font-serif font-normal text-[22px] leading-[26px] text-text-primary">{titulo}</h2>
+        {onVer && (
+          <button onClick={onVer} aria-label={`Ver ${titulo.toLowerCase()}`} className="w-8 h-8 rounded-full bg-bg-surface-hover flex items-center justify-center">
+            <ArrowRight className="w-3.5 h-3.5 text-text-primary" />
+          </button>
+        )}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+/** Fila horizontal en el teléfono (sangra hasta los bordes, engancha); grilla desde sm. */
+const FILA = '-mx-4 px-4 scroll-px-4 flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide sm:mx-0 sm:px-0 sm:grid sm:overflow-visible'
+
+/** Los agotados al final, sin cambiar el orden del resto. */
+const agotadosAlFinal = (lista) => [...lista.filter(p => p.inStock), ...lista.filter(p => !p.inStock)]
 
 /**
  * Lo recetado por el médico (C): lo que dice la receta arriba, el producto
@@ -280,7 +307,7 @@ function ChipFiltro({ activo, onClick, children }) {
     <button
       onClick={onClick}
       aria-pressed={activo}
-      className={`shrink-0 whitespace-nowrap px-4 py-2 rounded-full text-[14px] font-medium ${
+      className={`shrink-0 whitespace-nowrap h-9 px-4 rounded-full text-[15px] font-medium ${
         activo ? 'bg-brand-hover text-white' : 'bg-bg-surface-hover text-text-secondary'
       }`}
     >
@@ -290,23 +317,24 @@ function ChipFiltro({ activo, onClick, children }) {
 }
 
 function TituloSeccion({ children }) {
-  return <h2 className="font-serif font-light text-[28px] leading-[32px] text-text-primary mb-4">{children}</h2>
+  return <h2 className="font-serif font-normal text-[22px] leading-[26px] text-text-primary mb-3.5">{children}</h2>
 }
 
 export default function Pharmacy({ profile }) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const grupoId = searchParams.get('grupo')
+  const ver = searchParams.get('ver') // necesidad · categorias · destacados
   const [allProducts, setAllProducts] = useState([])
   const [recetas, setRecetas] = useState([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
   const cart = usePharmacyCart()
-  const [showStockOnly, setShowStockOnly] = useState(true)
   // 🔴 El filtro "Con foto" ya no existe (2026-11-21): una farmacia no puede
   // esconderle un medicamento a un paciente porque le falta la foto.
-  const [prescriptionType, setPrescriptionType] = useState(null) // null = todas
-    const scrollRef = useRef(null)
+  // null = todos · 'sin' · 'con' (los controlados entran en "Con receta").
+  const [receta, setReceta] = useState(null)
+  const scrollRef = useRef(null)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -337,7 +365,7 @@ export default function Pharmacy({ profile }) {
   }, [profile?.id, cart.orderId])
 
   // Cambiar de página (mosaico ↔ grupo) arranca arriba, como un push.
-  useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }) }, [grupoId])
+  useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }) }, [grupoId, ver])
 
   const productById = useMemo(() => new Map(allProducts.map(p => [p.id, p])), [allProducts])
   const vigentes = useMemo(() => recetas.filter(r => r.estado === 'vigente'), [recetas])
@@ -377,7 +405,7 @@ export default function Pharmacy({ profile }) {
     />
   )
 
-  const hayFiltros = !!query || !!prescriptionType || !showStockOnly
+  const hayFiltros = !!query || !!receta
 
   const filteredProducts = useMemo(() => {
     let result = allProducts
@@ -385,20 +413,25 @@ export default function Pharmacy({ profile }) {
       const q = query.toLowerCase()
       result = result.filter(p => p.name.toLowerCase().includes(q) || (p.description && p.description.toLowerCase().includes(q)))
     }
-    if (showStockOnly) result = result.filter(p => p.inStock)
     // Los productos viejos pueden no tener la categoría de venta cargada:
     // cuentan como venta libre, el default de la columna (migración 129).
-    if (prescriptionType) result = result.filter(p => (p.prescriptionType ?? 'venta_libre') === prescriptionType)
-    return result
-  }, [allProducts, query, showStockOnly, prescriptionType])
+    if (receta) result = result.filter(p => necesitaReceta(p) === (receta === 'con'))
+    return agotadosAlFinal(result)
+  }, [allProducts, query, receta])
 
-  // El mosaico cuenta sólo lo que está en stock: un grupo con todo agotado no
-  // se muestra, igual que uno vacío.
-  const enStock = useMemo(() => allProducts.filter(p => p.inStock), [allProducts])
-  const grupos = useMemo(() => gruposDelMosaico(enStock), [enStock])
+  // Los grupos traen todo, con los agotados al final (2026-11-24).
+  const grupos = useMemo(() => gruposDelMosaico(agotadosAlFinal(allProducts)), [allProducts])
+  const necesidades = grupos.filter(g => g.campo === 'necesidad')
+  const categorias = grupos.filter(g => g.campo === 'category')
   const grupo = grupoId ? grupos.find(g => g.id === grupoId) : null
+  // "Destacados →" abre todo el catálogo, con los destacados primero.
+  const todosOrdenados = useMemo(() => {
+    const primeros = new Set(destacados.map(p => p.id))
+    return agotadosAlFinal([...destacados, ...allProducts.filter(p => !primeros.has(p.id))])
+  }, [destacados, allProducts])
 
   const abrirGrupo = (id) => setSearchParams({ grupo: id })
+  const verFila = (fila) => setSearchParams({ ver: fila })
 
   const barraCarrito = cart.count > 0 && (
     // Barra del carrito — abre la hoja con los productos, no salta al
@@ -469,6 +502,47 @@ export default function Pharmacy({ profile }) {
     )
   }
 
+  // ── "Ver todo" de una fila (la flecha →) ────────────────────────────────
+  if (ver) {
+    const titulo = { necesidad: 'Por necesidad', categorias: 'Categorías', destacados: 'Todos los productos' }[ver] ?? 'Farmacia'
+    const lista = ver === 'necesidad' ? necesidades : ver === 'categorias' ? categorias : null
+    return (
+      <div className="absolute inset-0 flex flex-col bg-bg-primary">
+        <div ref={scrollRef} className={`flex-1 overflow-y-auto ${espacioCarrito}`}>
+          <div className="patient-column">
+            <div className="px-4 lg:px-0 pt-6">
+              <div className="flex items-center gap-3">
+                <button onClick={() => navigate(-1)} aria-label="Volver" className="w-11 h-11 shrink-0 rounded-full bg-bg-surface-hover flex items-center justify-center">
+                  <ArrowLeft className="w-5 h-5 text-text-primary" />
+                </button>
+                <h1 className="font-serif font-normal text-[22px] leading-[26px] text-text-primary">{titulo}</h1>
+              </div>
+              <div className="pt-6">
+                {loading ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {[1, 2, 3, 4].map(i => <div key={i} className="aspect-square rounded-[20px] bg-bg-surface-hover animate-pulse" />)}
+                  </div>
+                ) : lista ? (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-x-3 gap-y-5">
+                    {lista.map(g => <GrupoTile key={g.id} grupo={g} onAbrir={abrirGrupo} enFila={false} />)}
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-[14px] text-text-secondary mb-4">{todosOrdenados.length} productos</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-6">
+                      {todosOrdenados.map(tile)}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+        {barraCarrito}
+      </div>
+    )
+  }
+
   // ── Inicio de la farmacia ───────────────────────────────────────────────
   const enEspera = [...pendientesDeAutorizacion, ...proximasSueltas]
 
@@ -477,44 +551,33 @@ export default function Pharmacy({ profile }) {
       <div ref={scrollRef} className={`flex-1 overflow-y-auto ${espacioCarrito}`}>
         <div className="patient-column">
         <div className="px-4 lg:px-0 pt-6">
-          <div className="flex items-center justify-between">
-            <button onClick={() => navigate(-1)} aria-label="Volver" className="w-11 h-11 rounded-full bg-bg-surface-hover flex items-center justify-center">
+          {/* Arriba de todo: volver, buscador y Mis pedidos (Airbnb, 2026-11-24). */}
+          <div className="flex items-center gap-2.5">
+            <button onClick={() => navigate(-1)} aria-label="Volver" className="w-11 h-11 shrink-0 rounded-full bg-bg-surface-hover flex items-center justify-center">
               <ArrowLeft className="w-5 h-5 text-text-primary" />
             </button>
-            <button onClick={() => navigate('/paciente/farmacia/pedidos')} className="flex items-center gap-1.5 text-[16px] text-brand-hover px-2 py-2 rounded-full hover:bg-brand-muted">
-              <Package className="w-5 h-5" /> Mis pedidos
-            </button>
-          </div>
-
-          <h1 className="font-serif font-light text-[48px] leading-[52px] text-text-primary mt-5">Farmacia</h1>
-
-          <div className="mt-5 flex items-center gap-2">
-            <div className="relative flex-1">
-              <MagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary pointer-events-none" />
+            <div className="relative flex-1 min-w-0">
+              <MagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-text-secondary pointer-events-none" />
               <input
                 type="text"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Buscar un medicamento"
-                className="w-full h-13 pl-12 pr-4 rounded-full bg-bg-surface-hover text-[16px] text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-brand/40"
+                placeholder="Buscar en la farmacia"
+                aria-label="Buscar en la farmacia"
+                className="w-full h-12 pl-11 pr-4 rounded-full bg-bg-surface-hover text-[16px] text-text-primary placeholder:text-text-secondary outline-none focus:ring-2 focus:ring-brand/40"
               />
             </div>
+            <button onClick={() => navigate('/paciente/farmacia/pedidos')} aria-label="Mis pedidos" title="Mis pedidos" className="w-11 h-11 shrink-0 rounded-full bg-bg-surface-hover flex items-center justify-center">
+              <Package className="w-5 h-5 text-text-primary" />
+            </button>
           </div>
 
-          {/* Filtros siempre a la vista (Mateo, 2026-11-24: "¿por qué perdimos los
-              filtros principales arriba?"). La categoría ya está en el carrusel, así
-              que acá van el tipo de receta y "En stock". Un toque filtra al instante. */}
-          <div className="mt-3 -mx-4 px-4 flex gap-2 overflow-x-auto scrollbar-hide sm:mx-0 sm:px-0 sm:flex-wrap" role="group" aria-label="Filtros">
-            {[null, ...PRESCRIPTION_TYPES].map(type => (
-              <ChipFiltro
-                key={type ?? 'todos'}
-                activo={prescriptionType === type}
-                onClick={() => setPrescriptionType(type === prescriptionType ? null : type)}
-              >
-                {type ? PRESCRIPTION_TYPE_PATIENT_LABELS[type] : 'Todos'}
-              </ChipFiltro>
+          {/* Filtros a la vista. "Controlado" entra en "Con receta"; los
+              agotados no se esconden, van al final de cada lista. */}
+          <div className="mt-4 flex gap-2" role="group" aria-label="Filtros">
+            {[[null, 'Todos'], ['sin', 'Sin receta'], ['con', 'Con receta']].map(([valor, label]) => (
+              <ChipFiltro key={label} activo={receta === valor} onClick={() => setReceta(valor === receta ? null : valor)}>{label}</ChipFiltro>
             ))}
-            <ChipFiltro activo={showStockOnly} onClick={() => setShowStockOnly(v => !v)}>En stock</ChipFiltro>
           </div>
 
           {loading ? (
@@ -556,19 +619,37 @@ export default function Pharmacy({ profile }) {
                 </div>
               )}
 
-              {/* ── El mosaico (A) ───────────────────────────────────────── */}
-              {/* En el teléfono es un carrusel horizontal que sangra hasta los
-                  bordes (-mx-4 px-4) y engancha en cada tarjeta; desde sm, grilla. */}
-              <div className="mt-5 -mx-4 px-4 scroll-px-4 flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 lg:grid-cols-4 sm:overflow-visible">
-                {grupos.map(g => <GrupoTile key={g.id} grupo={g} onAbrir={abrirGrupo} />)}
-              </div>
+              {/* ── Por necesidad y Categorías: dos filas, nombre debajo ── */}
+              {necesidades.length > 0 && (
+                <SeccionFila titulo="Por necesidad" onVer={() => verFila('necesidad')}>
+                  <div className={`${FILA} sm:grid-cols-6`}>
+                    {necesidades.map(g => <GrupoTile key={g.id} grupo={g} onAbrir={abrirGrupo} />)}
+                  </div>
+                </SeccionFila>
+              )}
+              {categorias.length > 0 && (
+                <SeccionFila titulo="Categorías" onVer={() => verFila('categorias')}>
+                  <div className={`${FILA} sm:grid-cols-6`}>
+                    {categorias.map(g => <GrupoTile key={g.id} grupo={g} onAbrir={abrirGrupo} />)}
+                  </div>
+                </SeccionFila>
+              )}
               {grupos.length === 0 && (
                 <p className="text-text-secondary py-8">Sin productos disponibles.</p>
               )}
 
+              {/* ── Destacados: fila horizontal, la flecha abre todo ── */}
+              {destacados.length > 0 && (
+                <SeccionFila titulo="Destacados" onVer={() => verFila('destacados')}>
+                  <div className={`${FILA} sm:grid-cols-3 lg:grid-cols-4 sm:gap-y-6`}>
+                    {destacados.map(p => <div key={p.id} className="w-[164px] shrink-0 snap-start sm:w-auto">{tile(p)}</div>)}
+                  </div>
+                </SeccionFila>
+              )}
+
               {/* ── Tus recetas: las que todavía no se compran y las viejas ── */}
               {(enEspera.length > 0 || anteriores.length > 0) && (
-                <section className="mt-12">
+                <section className="mt-10">
                   <TituloSeccion>Tus recetas</TituloSeccion>
                   {enEspera.length > 0 && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
@@ -578,25 +659,23 @@ export default function Pharmacy({ profile }) {
                   {anteriores.length > 0 && (
                     <div className="rounded-[24px] bg-bg-surface divide-y divide-bg-primary">
                       {anteriores.map(r => (
-                        <div key={r.clinicalMedicationId} className="flex items-center gap-3 p-4">
+                        <div key={r.clinicalMedicationId} className="flex items-center gap-3 p-3.5">
                           <button
                             onClick={() => r.rctaPrescriptionId && navigate(`/paciente/receta/${r.rctaPrescriptionId}`)}
                             className="flex items-center gap-3 flex-1 min-w-0 text-left"
                           >
-                            <div className="w-11 h-11 rounded-xl bg-bg-primary flex items-center justify-center shrink-0">
+                            <div className="w-11 h-11 rounded-[14px] bg-bg-primary flex items-center justify-center shrink-0">
                               <Prescription className="w-5 h-5 text-text-secondary" />
                             </div>
+                            {/* Fila compacta: el estado y la fecha en una sola línea gris. */}
                             <div className="min-w-0">
-                              <p className="text-[15px] font-medium text-text-primary truncate">{r.medicationName}</p>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <Chapa tono="apagado">{r.estado === 'usada' ? 'Usada' : 'Vencida'}</Chapa>
-                                <span className="text-[13px] text-text-secondary">Emitida el {ddmm(r.emitidaAt)}</span>
-                              </div>
+                              <p className="text-[15px] leading-[19px] font-medium text-text-primary truncate">{r.medicationName}</p>
+                              <p className="text-[14px] leading-[18px] text-text-secondary truncate">{r.estado === 'usada' ? 'Usada' : 'Vencida'} · {ddmm(r.emitidaAt)}</p>
                             </div>
                           </button>
                           <button
                             onClick={() => navigate('/paciente/ondemand/clinica')}
-                            className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full bg-brand-tertiary-muted text-brand-tertiary-hover text-[14px] font-semibold"
+                            className="shrink-0 flex items-center gap-1.5 h-9 px-3.5 rounded-full bg-brand-tertiary-muted text-brand-tertiary-hover text-[15px] font-medium"
                           >
                             <VideoCamera className="w-4 h-4" /> Renovar
                           </button>
@@ -607,15 +686,6 @@ export default function Pharmacy({ profile }) {
                 </section>
               )}
 
-              {/* ── Destacados ─────────────────────────────────────────── */}
-              {destacados.length > 0 && (
-                <section className="mt-12">
-                  <TituloSeccion>Destacados</TituloSeccion>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-3 gap-y-6">
-                    {destacados.map(tile)}
-                  </div>
-                </section>
-              )}
             </>
           )}
         </div>
