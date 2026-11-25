@@ -33,7 +33,7 @@ export default function PagosSinConcretar({ incluirPrueba }) {
     <div className="card">
       <div className="flex items-center justify-between mb-1">
         <h2 className="font-semibold text-text-primary">Llegaron al pago y no pagaron</h2>
-        {Array.isArray(filas) && <span className="text-xs text-text-secondary">{filas.length} pacientes</span>}
+        {Array.isArray(filas) && <span className="text-xs text-text-secondary">{filas.length} paciente{filas.length === 1 ? '' : 's'}</span>}
       </div>
       <p className="text-xs text-text-tertiary mb-4">Últimos 30 días, sólo la web. Se registra desde el 25/11/2026.</p>
 
