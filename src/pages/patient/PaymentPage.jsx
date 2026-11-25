@@ -120,14 +120,16 @@ export default function PaymentPage({ profile }) {
     return created.id
   }
 
-  // `payment_error` sale en TODO pago que no se concreta: el rechazo de MP
+  // `payment_error` sale en todo COBRO que no se concreta: el rechazo de MP
   // (vuelve sin excepción) y el error (la función o la red fallan). Antes sólo
   // salía en el rechazo, y en Customer.io un error se veía igual que alguien
-  // que abandonó. El motivo crudo va sólo a Customer.io (`cioOnlyParams`).
+  // que abandonó. Lo que falla ANTES de cobrar (el horario ya se ocupó, falta
+  // el CVV) no es un error de pago y no se avisa. El motivo crudo va sólo a
+  // Customer.io (`cioOnlyParams`).
   const avisarErrorDePago = ({ errorType, paymentMethodId = null, motivo = null }) => {
     track(
       'payment_error',
-      { error_type: errorType, payment_type: paymentMethodId || 'saved_card', value: chargeAmount, currency: 'ARS', flow: 'paciente' },
+      { error_type: errorType, checkout_type: 'turno', payment_type: paymentMethodId || 'saved_card', value: chargeAmount, currency: 'ARS', flow: 'paciente' },
       motivo ? { error_message: String(motivo).slice(0, 200) } : {},
     )
   }
@@ -217,10 +219,13 @@ export default function PaymentPage({ profile }) {
     setPaying(true)
     setIntentoFallido(false)
     let chargeInfo = null
+    let cobrando = false
     try {
       const id = await ensureConsultation()
 
       if (chargeAmount === 0) {
+        chargeInfo = { paymentMethodId: 'credits' }
+        cobrando = true
         const { data, error } = await mpService.createPayment({ consultationId: id, useCredits: true, description })
         if (error) throw new Error(error)
         handlePaymentResult(data, id, 'credits')
@@ -230,12 +235,13 @@ export default function PaymentPage({ profile }) {
       chargeInfo = await cardSelectorRef.current?.getSavedCardCharge()
       const paymentType = getPaymentMethod(chargeInfo)
       track('add_payment_info', { payment_type: paymentType, value: chargeAmount, currency: 'ARS', flow: 'paciente' })
+      cobrando = true
       const { data, error } = await mpService.createPayment({ consultationId: id, ...chargeInfo, useCredits, description })
       if (error) throw new Error(error)
       handlePaymentResult(data, id, paymentType)
     } catch (err) {
       setIntentoFallido(true)
-      avisarErrorDePago({ errorType: tipoDeErrorDePago({ mensaje: err?.message, paymentMethodId: chargeInfo?.paymentMethodId }), paymentMethodId: chargeInfo?.paymentMethodId, motivo: err?.message })
+      if (cobrando) avisarErrorDePago({ errorType: tipoDeErrorDePago({ mensaje: err?.message, paymentMethodId: chargeInfo?.paymentMethodId }), paymentMethodId: chargeInfo?.paymentMethodId, motivo: err?.message })
       toast.error(err?.message || 'Error al procesar el pago')
     } finally {
       setPaying(false)
@@ -249,14 +255,16 @@ export default function PaymentPage({ profile }) {
     track('add_payment_info', { payment_type: paymentType, value: chargeAmount, currency: 'ARS', flow: 'paciente' })
     setPaying(true)
     setIntentoFallido(false)
+    let cobrando = false
     try {
       const id = await ensureConsultation()
+      cobrando = true
       const { data, error } = await mpService.createPayment({ consultationId: id, ...chargeInfo, useCredits, description })
       if (error) throw new Error(error)
       handlePaymentResult(data, id, paymentType)
     } catch (err) {
       setIntentoFallido(true)
-      avisarErrorDePago({ errorType: tipoDeErrorDePago({ mensaje: err?.message, paymentMethodId: chargeInfo?.paymentMethodId }), paymentMethodId: chargeInfo?.paymentMethodId, motivo: err?.message })
+      if (cobrando) avisarErrorDePago({ errorType: tipoDeErrorDePago({ mensaje: err?.message, paymentMethodId: chargeInfo?.paymentMethodId }), paymentMethodId: chargeInfo?.paymentMethodId, motivo: err?.message })
       toast.error(err?.message || 'Error al procesar el pago')
     } finally {
       setPaying(false)
