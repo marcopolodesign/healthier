@@ -217,7 +217,7 @@ export function horaCorta(hhmmss) {
  * cada pantalla calculara por su lado, el perfil podría ofrecer un horario que
  * el wizard después no reconoce.
  *
- * Devuelve `[{ value: 'YYYY-MM-DD', titulo: 'Hoy' | 'Mañana' | 'Lunes', sub: 'mié 25' | '30 nov', slots }]`.
+ * Devuelve `[{ value: 'YYYY-MM-DD', titulo: 'Hoy' | 'Mañana' | 'Lunes', sub: 'mié 25', slots }]`.
  */
 export function proximosDiasConTurnos({ schedule = [], consultations = [], slotMinutes = DEFAULT_SLOT_DURATION_MINUTES, dias = 14, cuantos = 3 } = {}) {
   if (!schedule.length) return []
@@ -241,7 +241,7 @@ export function proximosDiasConTurnos({ schedule = [], consultations = [], slotM
     out.push({
       value: dia.value,
       titulo: i === 0 ? 'Hoy' : i === 1 ? 'Mañana' : DIAS_LARGOS[dia.dayOfWeek],
-      sub: i <= 1 ? `${DIAS_CORTOS[dia.dayOfWeek]} ${dd}` : `${dd} ${dia.mesCorto}`,
+      sub: `${DIAS_CORTOS[dia.dayOfWeek]} ${dd}`,
       slots,
     })
   }
