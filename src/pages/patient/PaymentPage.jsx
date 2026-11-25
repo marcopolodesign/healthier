@@ -9,6 +9,7 @@ import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytic
 import { inicialesDe } from '../../lib/format'
 import { modalidadParaBase, MODALIDADES } from '../../lib/modalidad'
 import { tipoDeErrorDePago } from '../../lib/analiticaOndemand'
+import { anotarHito } from '../../lib/flowUrl'
 
 export default function PaymentPage({ profile }) {
   const navigate  = useNavigate()
@@ -126,11 +127,14 @@ export default function PaymentPage({ profile }) {
   // que abandonó. Lo que falla ANTES de cobrar (el horario ya se ocupó, falta
   // el CVV) no es un error de pago y no se avisa. El motivo crudo va sólo a
   // Customer.io (`cioOnlyParams`).
-  const avisarErrorDePago = ({ errorType, paymentMethodId = null, motivo = null }) => {
+  // Nunca el texto libre del error (puede traer datos de la tarjeta o del
+  // banco): sólo el código de estado de MP en el rechazo (`status_detail`).
+  const avisarErrorDePago = ({ errorType, paymentMethodId = null, codigoMp = null }) => {
+    const codigo = typeof codigoMp === 'string' && /^[a-z_]{1,60}$/.test(codigoMp) ? codigoMp : null
     track(
       'payment_error',
       { error_type: errorType, checkout_type: 'turno', payment_type: paymentMethodId || 'saved_card', value: chargeAmount, currency: 'ARS', flow: 'paciente' },
-      motivo ? { error_message: String(motivo).slice(0, 200) } : {},
+      codigo ? { mp_status_detail: codigo } : {},
     )
   }
 
@@ -145,13 +149,16 @@ export default function PaymentPage({ profile }) {
       setPaid(true)
       setTimeout(() => navigate(`/paciente/turno-confirmado/${id}`), 600)
     } else if (status === 'in_process' || status === 'pending') {
+      // No es un `purchase` todavía, pero tampoco un abandono: el hito queda en
+      // el recorrido de quien paga (también si el turno es para un familiar).
+      anotarHito('pago')
       toast.info('Tu pago está siendo procesado. Te avisaremos cuando se confirme.')
       navigate(`/paciente/turno-confirmado/${id}`)
     } else {
       // Rechazo de MP: no tira excepción, así que sin esto el CTA se quedaba
       // en "Confirmar y Pagar" después de que el pago fuera rechazado.
       setIntentoFallido(true)
-      avisarErrorDePago({ errorType: 'declined', paymentMethodId: paymentMethod, motivo: data?.status_detail ?? data?.statusDetail ?? status })
+      avisarErrorDePago({ errorType: 'declined', paymentMethodId: paymentMethod, codigoMp: data?.status_detail ?? data?.statusDetail ?? status })
       toast.error('El pago no pudo procesarse. Intentá con otra tarjeta.')
     }
   }
@@ -200,6 +207,7 @@ export default function PaymentPage({ profile }) {
       setPaying(true)
       try {
         const id = await ensureConsultation()
+        anotarHito('pago') // bonificado: no pasa por `purchase`
         setPaid(true)
         setTimeout(() => navigate(`/paciente/turno-confirmado/${id}`), 600)
       } catch (err) {
@@ -241,7 +249,7 @@ export default function PaymentPage({ profile }) {
       handlePaymentResult(data, id, paymentType)
     } catch (err) {
       setIntentoFallido(true)
-      if (cobrando) avisarErrorDePago({ errorType: tipoDeErrorDePago({ mensaje: err?.message, paymentMethodId: chargeInfo?.paymentMethodId }), paymentMethodId: chargeInfo?.paymentMethodId, motivo: err?.message })
+      if (cobrando) avisarErrorDePago({ errorType: tipoDeErrorDePago({ mensaje: err?.message, paymentMethodId: chargeInfo?.paymentMethodId, aceptaDebito: true }), paymentMethodId: chargeInfo?.paymentMethodId })
       toast.error(err?.message || 'Error al procesar el pago')
     } finally {
       setPaying(false)
@@ -264,7 +272,7 @@ export default function PaymentPage({ profile }) {
       handlePaymentResult(data, id, paymentType)
     } catch (err) {
       setIntentoFallido(true)
-      if (cobrando) avisarErrorDePago({ errorType: tipoDeErrorDePago({ mensaje: err?.message, paymentMethodId: chargeInfo?.paymentMethodId }), paymentMethodId: chargeInfo?.paymentMethodId, motivo: err?.message })
+      if (cobrando) avisarErrorDePago({ errorType: tipoDeErrorDePago({ mensaje: err?.message, paymentMethodId: chargeInfo?.paymentMethodId, aceptaDebito: true }), paymentMethodId: chargeInfo?.paymentMethodId })
       toast.error(err?.message || 'Error al procesar el pago')
     } finally {
       setPaying(false)

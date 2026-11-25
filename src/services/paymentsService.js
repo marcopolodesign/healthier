@@ -11,7 +11,7 @@
  */
 
 import { supabase, toCamelCase, toSnakeCase } from '../lib/supabase'
-import { sinPrueba } from '../lib/cuentasDePrueba'
+import { sinPrueba, filtrarPrueba } from '../lib/cuentasDePrueba'
 
 export const paymentsService = {
   /**
@@ -32,19 +32,28 @@ export const paymentsService = {
   async getPagosSinConcretar({ dias = 30, incluirPrueba = false } = {}) {
     const desde = new Date(Date.now() - dias * 86400000).toISOString()
     const HITOS = ['llego_al_pago', 'cargo_medio_de_pago', 'error_de_pago', 'sin_disponibilidad', 'pago']
-    const { data: hitos, error } = await supabase
-      .from('recorrido_paciente')
-      .select('user_id, created_at, hito')
-      .in('hito', HITOS)
-      .gte('created_at', desde)
-      .order('created_at', { ascending: false })
-      .limit(5000)
-    if (error) throw error
+    // PostgREST devuelve como mucho 1000 filas por pedido: se pagina hasta
+    // que una página vuelve corta, si no los más viejos se caían en silencio.
+    const PAGINA = 1000
+    const hitos = []
+    for (let desdeFila = 0; ; desdeFila += PAGINA) {
+      const { data, error } = await supabase
+        .from('recorrido_paciente')
+        .select('user_id, created_at, hito')
+        .in('hito', HITOS)
+        .gte('created_at', desde)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(desdeFila, desdeFila + PAGINA - 1)
+      if (error) throw error
+      hitos.push(...(data ?? []))
+      if (!data || data.length < PAGINA) break
+    }
 
     // Recorrido de más nuevo a más viejo: se corta en el último llego_al_pago
     // y se juntan sólo los hitos posteriores a él.
     const porPaciente = new Map()
-    for (const h of hitos ?? []) {
+    for (const h of hitos) {
       const p = porPaciente.get(h.user_id) ?? { pacienteId: h.user_id, llegoAt: null, veces: 0, despues: new Set() }
       if (h.hito === 'llego_al_pago') {
         p.veces += 1
@@ -74,7 +83,7 @@ export const paymentsService = {
     }
 
     const perfilDe = new Map(perfiles.map((r) => [r.id, r]))
-    return candidatos
+    const filas = candidatos
       .filter((p) => !pagadas.some((c) => c.patient_id === p.pacienteId && c.created_at >= p.llegoAt))
       .map((p) => {
         const perfil = perfilDe.get(p.pacienteId) ?? {}
@@ -93,7 +102,7 @@ export const paymentsService = {
           esPrueba: !!perfil.es_prueba,
         }
       })
-      .filter((p) => incluirPrueba || !p.esPrueba)
+    return filtrarPrueba(filas, incluirPrueba)
   },
 
   /**
