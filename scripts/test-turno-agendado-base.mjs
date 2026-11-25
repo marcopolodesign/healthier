@@ -74,7 +74,9 @@ test('la base valida el turno agendado por el paciente (migración 249)', { skip
         ${ins('desalineado', { cols: 'price_at_booking, scheduled_at', vals: `'video', 'pending', 'pending_payment', 18000, '${dia}T10:07:00-03:00'` })}
         ${ins('pasado', { cols: 'price_at_booking, scheduled_at', vals: `'video', 'pending', 'pending_payment', 18000, now() - interval '1 day'` })}
         ${ins('presencial_precio', { cols: 'price_at_booking, scheduled_at', vals: `'presencial', 'pending', 'pending_payment', 5, '${dia}T11:00:00-03:00'` })}
-        ${ins('on_demand_ahora', { cols: 'price_at_booking, scheduled_at, is_on_demand', vals: `'video', 'pending', 'pending_payment', 1000, now(), true` })}
+        ${ins('on_demand_ahora', { cols: 'price_at_booking, scheduled_at, is_on_demand, vertical', vals: `'video', 'pending', 'pending_payment', 1, now(), true, 'clinica'` })}
+        ${ins('on_demand_a_futuro', { cols: 'price_at_booking, scheduled_at, is_on_demand, vertical', vals: `'video', 'pending', 'pending_payment', 1, '${dia}T11:30:00-03:00', true, 'clinica'` })}
+        ${ins('sin_horario', { cols: 'price_at_booking', vals: `'video', 'pending', 'pending_payment', 1` })}
         execute 'reset role';
         select jsonb_object_agg(caso, resultado) into v from r;
         raise exception 'RESULTADOS%RESULTADOS', v::text;
@@ -94,5 +96,8 @@ test('la base valida el turno agendado por el paciente (migración 249)', { skip
   assert.match(res.desalineado, /no está en la agenda/)
   assert.match(res.pasado, /ya pasó/)
   assert.equal(res.presencial_precio, 'ok 22000.00', 'presencial cobra el precio presencial')
-  assert.match(res.on_demand_ahora, /^ok/, 'la consulta inmediata no pasa por esta guardia')
+  const [{ ondemand_price: precioInmediata }] = await sql("select ondemand_price from vertical_settings where id = 'clinica'")
+  assert.equal(Number(res.on_demand_ahora.replace('ok ', '')), Number(precioInmediata), 'la inmediata cobra el precio de la vertical, no el del cliente')
+  assert.match(res.on_demand_a_futuro, /es para ahora/, 'marcar is_on_demand no sirve para saltearse la agenda')
+  assert.match(res.sin_horario, /Elegí un día y un horario/)
 })

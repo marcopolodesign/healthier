@@ -26,10 +26,14 @@
 --   3. No puede haber otra consulta activa (pending / confirmed / in_progress)
 --      de ese profesional a esa misma hora — la misma regla que la grilla.
 --
+-- Una consulta inmediata (`is_on_demand`) insertada por el paciente (apps
+-- viejas) tiene que ser para ahora (±15 min) y toma el precio de la vertical
+-- (`vertical_settings.ondemand_price`): si no, marcarla era la forma de
+-- saltearse esta guardia.
+--
 -- Qué NO toca (sigue igual que antes):
---   · consultas inmediatas (`is_on_demand`), la atención de emergencias
---     (`emergency_id`) y lo que inserta el servidor con service role
---     (`auth.uid()` nulo: despacho on-demand, Edge Functions);
+--   · la atención de emergencias (`emergency_id`) y lo que inserta el servidor
+--     con service role (`auth.uid()` nulo: despacho on-demand, Edge Functions);
 --   · lo que agenda el propio profesional (`auth.uid() = professional_id`) o un
 --     admin / super admin, que pueden poner un turno fuera de su grilla;
 --   · los UPDATE (reprogramar no pasa por acá).
@@ -54,10 +58,9 @@ declare
   v_hora      time;
   v_dow       int;
   v_en_agenda boolean;
+  v_od        numeric;
 begin
   if new.emergency_id is not null
-     or coalesce(new.is_on_demand, false)
-     or new.scheduled_at is null
      or new.professional_id is null
      or v_uid is null
      or v_uid = new.professional_id then
@@ -67,6 +70,30 @@ begin
   v_rol := public.get_my_role();
   if v_rol in ('admin', 'super_admin') then
     return new;
+  end if;
+
+  -- Consulta inmediata insertada por el paciente (las apps viejas lo hacen;
+  -- el despacho actual entra por service role y no llega acá). Sin esto,
+  -- marcar `is_on_demand` era la forma de saltearse la guardia de abajo: un
+  -- "turno" a futuro al precio que uno quisiera. La inmediata es para ahora
+  -- y cuesta lo que dice la vertical.
+  if coalesce(new.is_on_demand, false) then
+    if new.scheduled_at is null then
+      new.scheduled_at := now();
+    elsif abs(extract(epoch from (new.scheduled_at - now()))) > 900 then
+      raise exception 'La consulta inmediata es para ahora. Para otro horario, sacá un turno.'
+        using errcode = 'check_violation', hint = 'inmediata_no_es_ahora';
+    end if;
+    select ondemand_price into v_od from vertical_settings where id = new.vertical;
+    if v_od is not null and v_od > 0 then
+      new.price_at_booking := v_od;
+    end if;
+    return new;
+  end if;
+
+  if new.scheduled_at is null then
+    raise exception 'Elegí un día y un horario para el turno.'
+      using errcode = 'check_violation', hint = 'turno_sin_horario';
   end if;
 
   select * into v_pro from professional_profiles where user_id = new.professional_id;
@@ -138,7 +165,7 @@ end;
 $$;
 
 comment on function public.validar_turno_agendado() is
-  'Migración 249. INSERT de un turno agendado por el paciente: precio según la modalidad (pisa price_at_booking), horario futuro, dentro de la agenda y alineado al slot, y sin otra consulta activa a esa hora. Exime on-demand, emergencias, service role, el propio profesional y admins.';
+  'Migración 249. INSERT de un turno agendado por el paciente: precio según la modalidad (pisa price_at_booking), horario futuro, dentro de la agenda y alineado al slot, y sin otra consulta activa a esa hora. Una inmediata del paciente: para ahora y al precio de la vertical. Exime emergencias, service role, el propio profesional y admins.';
 
 drop trigger if exists consultations_turno_agendado on public.consultations;
 create trigger consultations_turno_agendado
