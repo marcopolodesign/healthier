@@ -198,3 +198,58 @@ export function resumenDeAgenda({ schedule = [], consultations = [], slotMinutes
     hoursUntilFirstSlot: primero ? horasHasta(primero.fecha, primero.startTime, ahoraMs) : null,
   }
 }
+
+const DIAS_LARGOS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+const DIAS_CORTOS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
+
+/** "9:00" — la hora sin el cero adelante ni los segundos. */
+export function horaCorta(hhmmss) {
+  return hhmmss ? hhmmss.slice(0, 5).replace(/^0/, '') : ''
+}
+
+/**
+ * Los primeros `cuantos` días con turnos libres, para la grilla del perfil del
+ * profesional (Mateo, 2026-11-25: "que toques videollamada o presencial y ya
+ * veas los horarios para agendar").
+ *
+ * Misma cuenta que el paso de fecha del wizard (`buildTimeSlots` sobre la
+ * agenda semanal, menos las consultas activas, menos lo que ya pasó hoy): si
+ * cada pantalla calculara por su lado, el perfil podría ofrecer un horario que
+ * el wizard después no reconoce.
+ *
+ * Devuelve `[{ value: 'YYYY-MM-DD', titulo: 'Hoy' | 'Mañana' | 'Lunes', sub: 'mié 25' | '30 nov', slots }]`.
+ */
+export function proximosDiasConTurnos({ schedule = [], consultations = [], slotMinutes = DEFAULT_SLOT_DURATION_MINUTES, dias = 14, cuantos = 3 } = {}) {
+  if (!schedule.length) return []
+  const tomados = consultations
+    .filter(c => ACTIVE_CONSULTATION_STATUSES.includes(c.status) && c.scheduledAt)
+    .map(c => {
+      const d = relojBuenosAires(new Date(c.scheduledAt).getTime())
+      return `${fechaISOBuenosAires(d)} ${horaHHMMBuenosAires(d)}`
+    })
+  const out = []
+  for (const [i, dia] of buildDateOptions(dias).entries()) {
+    if (out.length >= cuantos) break
+    const franjas = schedule
+      .filter(e => e.dayOfWeek === dia.dayOfWeek)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime))
+    if (!franjas.length) continue
+    const ocupados = new Set(tomados.filter(t => t.startsWith(dia.value)).map(t => t.slice(11)))
+    const slots = buildTimeSlots(franjas, ocupados, slotMinutes, horaMinimaParaHoy(dia.value))
+    if (!slots.length) continue
+    const dd = String(Number(dia.diaDelMes))
+    out.push({
+      value: dia.value,
+      titulo: i === 0 ? 'Hoy' : i === 1 ? 'Mañana' : DIAS_LARGOS[dia.dayOfWeek],
+      sub: i <= 1 ? `${DIAS_CORTOS[dia.dayOfWeek]} ${dd}` : `${dd} ${dia.mesCorto}`,
+      slots,
+    })
+  }
+  return out
+}
+
+/** "hoy 15:30" / "mañana 9:00" / "lunes 9:00" — lo que dice el botón de agendar. */
+export function etiquetaTurno(dia, slot) {
+  if (!dia || !slot) return ''
+  return `${dia.titulo.toLowerCase()} ${horaCorta(slot.startTime)}`
+}
