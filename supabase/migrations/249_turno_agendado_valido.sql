@@ -129,14 +129,20 @@ begin
   v_hora  := v_local::time;
   v_dow   := extract(dow from v_local)::int;
 
+  -- Se acepta la grilla de la duración configurada Y la de 15 minutos: la app
+  -- arma su grilla con 15 fijos (`SLOT_DURATION_MINUTES`), así que si el super
+  -- admin cambia la duración, sus turnos no pueden empezar a rebotar acá. Lo
+  -- que esta guardia frena es lo que no está en ninguna grilla (otra hora,
+  -- otro día, fuera de la franja), no una diferencia de duración entre clientes.
   select exists (
     select 1
     from professional_schedules s
+    cross join (select distinct d from unnest(array[v_slot, 15]) as d) dur
     where s.professional_id = new.professional_id
       and s.day_of_week = v_dow
       and v_hora >= s.start_time
-      and v_hora + make_interval(mins => v_slot) <= s.end_time
-      and (extract(epoch from (v_hora - s.start_time))::int / 60) % v_slot = 0
+      and v_hora + make_interval(mins => dur.d) <= s.end_time
+      and (extract(epoch from (v_hora - s.start_time))::int / 60) % dur.d = 0
       and extract(second from v_hora) = 0
   ) into v_en_agenda;
 
@@ -148,7 +154,9 @@ begin
   -- 3 · Nadie más lo tomó. El lock (hasta el fin de la transacción) ordena dos
   -- reservas simultáneas del mismo horario: la segunda espera, y como la
   -- función es volátil su consulta ve la fila de la primera ya confirmada.
-  perform pg_advisory_xact_lock(hashtextextended(new.professional_id::text || '|' || new.scheduled_at::text, 249));
+  -- La clave va con el epoch (no con el texto del timestamptz, que depende del
+  -- TimeZone de la sesión): el mismo instante da siempre el mismo lock.
+  perform pg_advisory_xact_lock(hashtextextended(new.professional_id::text || '|' || extract(epoch from new.scheduled_at)::bigint::text, 249));
   if exists (
     select 1 from consultations c
     where c.professional_id = new.professional_id

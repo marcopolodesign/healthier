@@ -351,7 +351,9 @@ export default function ReservarConsulta({ profile }) {
       consultationsService.getByProfessional(selectedPro.id).catch(() => []),
     ])
       .then(([sched, cons]) => { setSchedule(sched); setExistingConsultations(cons); setScheduleFor(selectedPro.id) })
-      .catch(() => { setSchedule([]); setScheduleFor(null) })
+      // Si la agenda no carga, queda "cargada" vacía: así la precarga del perfil
+      // resuelve (en 'fallo') en vez de dejar el resumen girando para siempre.
+      .catch(() => { setSchedule([]); setExistingConsultations([]); setScheduleFor(selectedPro.id) })
       .finally(() => setLoadingSchedule(false))
   }, [selectedPro?.id])
 
@@ -378,8 +380,11 @@ export default function ReservarConsulta({ profile }) {
         .map(d => horaHHMMBuenosAires(d)),
     )
     const libres = buildTimeSlots(schedule.filter(e => e.dayOfWeek === dow), tomados, slotDurationMinutes, horaMinimaParaHoy(paramFecha))
-    const slot = libres.find(s => s.startTime.slice(0, 5) === paramHora)
-    if (fechasDelWizard.some(d => d.value === paramFecha)) setSelectedDate(paramFecha)
+    // Una fecha fuera de las dos semanas del wizard (pasada, o recargada al día
+    // siguiente) no vale aunque la hora calce en la grilla de ese día.
+    const fechaValida = fechasDelWizard.some(d => d.value === paramFecha)
+    const slot = fechaValida ? libres.find(s => s.startTime.slice(0, 5) === paramHora) : null
+    if (fechaValida) setSelectedDate(paramFecha)
     if (slot) {
       setSelectedFranja(slot)
       setPrecarga('ok')
@@ -399,8 +404,9 @@ export default function ReservarConsulta({ profile }) {
   const paraPreguntado = useRef(false)
   useEffect(() => {
     if (step === 'para') { paraPreguntado.current = true; return }
-    if (step === 'confirm' && conTurnoPrecargado && conPara && !paraPreguntado.current) setStep('para')
-  }, [step, conTurnoPrecargado, conPara])
+    // Veterinaria no pregunta para quién (es la mascota).
+    if (step === 'confirm' && conTurnoPrecargado && conPara && paramVerticalId !== 'veterinaria' && !paraPreguntado.current) setStep('para')
+  }, [step, conTurnoPrecargado, conPara, paramVerticalId])
 
   // ── Analítica del embudo de reserva (Hyppo, 2026-11-11) ──────────────────
   // Sin especialidad ni vertical (el filtro de salud de Customer.io las tira y
