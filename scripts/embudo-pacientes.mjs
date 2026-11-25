@@ -95,11 +95,12 @@ export function ultimaPantalla(p) {
   return '(sin recorrido)'
 }
 
-/** Llegó al pago y no pagó después. */
+/** Llegó al pago (la última vez) y después no pagó ni creó una consulta. */
 export function abandonoElPago(p) {
   const i = p.despues.findLastIndex(e => e.hito === 'llego_al_pago' || (!e.hito && e.name === 'Pago de la consulta'))
   if (i < 0) return false
-  if (p.reservo) return false
+  // Una consulta creada después de llegar al pago cuenta como que siguió.
+  if (p.ultimaConsulta && Date.parse(p.ultimaConsulta) >= Date.parse(p.despues[i].at)) return false
   return !p.despues.slice(i + 1).some(e => e.hito === 'pago' || e.name === 'Turno confirmado')
 }
 
@@ -111,7 +112,8 @@ async function main() {
     select p.id, p.created_at, p.flow_url,
            (p.onboarding_completado_at is not null
              or not coalesce(p.requiere_onboarding, true)) as completo_alta,
-           exists (select 1 from consultations c where c.patient_id = p.id) as reservo
+           exists (select 1 from consultations c where c.patient_id = p.id) as reservo,
+           (select max(c.created_at) from consultations c where c.patient_id = p.id) as ultima_consulta
       from profiles p
      where p.role = 'patient'
        and (${conPrueba} or not coalesce(p.es_prueba, false))
@@ -139,6 +141,7 @@ async function main() {
     antes: p.flow_url,
     completoAlta: p.completo_alta,
     reservo: p.reservo,
+    ultimaConsulta: p.ultima_consulta,
     despues: despuesPorPaciente.get(p.id) ?? [],
   }))
 
