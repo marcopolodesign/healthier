@@ -6,8 +6,15 @@ import { formatDate } from '../../lib/format'
 /**
  * Pacientes que llegaron a la pantalla de pago y no pagaron. Sale del
  * recorrido del paciente (migración 247), que existe desde el 2026-11-25:
- * lo anterior a esa fecha no aparece acá.
+ * lo anterior a esa fecha no aparece acá. Sólo web: la app no anota hitos.
  */
+const QUE_PASO = {
+  fallo: 'Le falló el pago',
+  sin_profesional: 'Nadie lo atendió',
+  cargo_tarjeta: 'Cargó la tarjeta y no siguió',
+  no_intento: 'No intentó pagar',
+}
+
 export default function PagosSinConcretar({ incluirPrueba }) {
   const [filas, setFilas] = useState(undefined) // undefined = cargando
   const [error, setError] = useState(null)
@@ -28,7 +35,7 @@ export default function PagosSinConcretar({ incluirPrueba }) {
         <h2 className="font-semibold text-text-primary">Llegaron al pago y no pagaron</h2>
         {Array.isArray(filas) && <span className="text-xs text-text-secondary">{filas.length} pacientes</span>}
       </div>
-      <p className="text-xs text-text-tertiary mb-4">Últimos 30 días. Se registra desde el 25/11/2026.</p>
+      <p className="text-xs text-text-tertiary mb-4">Últimos 30 días, sólo la web. Se registra desde el 25/11/2026.</p>
 
       {error ? (
         <p className="text-sm text-danger">{error}</p>
@@ -65,9 +72,9 @@ export default function PagosSinConcretar({ incluirPrueba }) {
                   </td>
                   <td className="table-cell text-right">{f.veces}</td>
                   <td className="table-cell">
-                    {f.errores > 0
-                      ? <span className="text-xs font-medium text-danger">Le falló el pago{f.errores > 1 ? ` (${f.errores})` : ''}</span>
-                      : <span className="text-xs text-text-tertiary">No intentó pagar</span>}
+                    <span className={f.quePaso === 'fallo' ? 'text-xs font-medium text-danger' : 'text-xs text-text-tertiary'}>
+                      {QUE_PASO[f.quePaso]}
+                    </span>
                   </td>
                 </tr>
               ))}
