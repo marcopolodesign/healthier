@@ -15,6 +15,59 @@ import { sinPrueba } from '../lib/cuentasDePrueba'
 
 export const paymentsService = {
   /**
+   * Pacientes que llegaron a la pantalla de pago y no pagaron (después de
+   * ese momento no tienen ninguna consulta pagada, en proceso o bonificada).
+   * Sale del hito `llego_al_pago` de `recorrido_paciente` (migración 247,
+   * existe desde el 2026-11-25) y de `error_de_pago`, que dice si además le
+   * falló un intento. Sólo lo puede leer el super admin (RLS de la 247).
+   */
+  async getPagosSinConcretar({ dias = 30, incluirPrueba = false } = {}) {
+    const desde = new Date(Date.now() - dias * 86400000).toISOString()
+    const { data: hitos, error } = await supabase
+      .from('recorrido_paciente')
+      .select('user_id, at, hito')
+      .in('hito', ['llego_al_pago', 'error_de_pago'])
+      .gte('at', desde)
+      .order('at', { ascending: true })
+      .limit(5000)
+    if (error) throw error
+
+    const porPaciente = new Map()
+    for (const h of hitos ?? []) {
+      const p = porPaciente.get(h.user_id) ?? { pacienteId: h.user_id, llegoAt: null, veces: 0, errores: 0 }
+      if (h.hito === 'llego_al_pago') { p.llegoAt = h.at; p.veces += 1 } else { p.errores += 1 }
+      porPaciente.set(h.user_id, p)
+    }
+    const ids = [...porPaciente.values()].filter((p) => p.llegoAt).map((p) => p.pacienteId)
+    if (!ids.length) return []
+
+    const [{ data: perfiles, error: e1 }, { data: consultas, error: e2 }] = await Promise.all([
+      supabase.from('profiles').select('id, full_name, email, phone, es_prueba').in('id', ids),
+      supabase.from('consultations').select('patient_id, created_at')
+        .in('patient_id', ids).in('payment_status', ['paid', 'in_process', 'exempt']).gte('created_at', desde),
+    ])
+    if (e1) throw e1
+    if (e2) throw e2
+
+    const perfilDe = new Map((perfiles ?? []).map((r) => [r.id, r]))
+    return ids
+      .map((id) => porPaciente.get(id))
+      .filter((p) => !(consultas ?? []).some((c) => c.patient_id === p.pacienteId && c.created_at >= p.llegoAt))
+      .map((p) => {
+        const perfil = perfilDe.get(p.pacienteId) ?? {}
+        return {
+          ...p,
+          nombre: perfil.full_name ?? null,
+          email: perfil.email ?? null,
+          telefono: perfil.phone ?? null,
+          esPrueba: !!perfil.es_prueba,
+        }
+      })
+      .filter((p) => incluirPrueba || !p.esPrueba)
+      .sort((x, y) => (x.llegoAt < y.llegoAt ? 1 : -1))
+  },
+
+  /**
    * Cobros de UNA consulta, para la línea de tiempo del super admin.
    * Trae los sellos de tiempo del ciclo de pre-autorización (autorizado,
    * capturado, cancelado) porque son justo lo que hace falta para entender qué

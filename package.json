@@ -44,7 +44,8 @@
     "test:operador-web": "node --test scripts/test-operador-web.mjs",
     "test:perfil-horarios": "node --test scripts/test-perfil-horarios.mjs",
     "test:perfil-horarios:front": "node scripts/verificar-perfil-profesional-front.mjs",
-    "test:turno-agendado": "node --test scripts/test-turno-agendado-base.mjs"
+    "test:turno-agendado": "node --test scripts/test-turno-agendado-base.mjs",
+    "test:pantalla-de-pago": "node --test scripts/test-pantalla-de-pago.mjs"
   },
   "dependencies": {
     "@daily-co/daily-js": "^0.87.0",

@@ -15,6 +15,7 @@ import SignedDocLink from '../../components/SignedDocLink'
 import { formatTasa } from '../../services/comisionService'
 import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
 import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
+import PagosSinConcretar from '../../components/super-admin/PagosSinConcretar'
 
 const ORIGEN_COMISION = { general: 'general', profesional: 'tasa propia', referido: 'referido' }
 
@@ -619,6 +620,8 @@ export default function SuperAdminPayments() {
           </div>
         )}
       </div>
+
+      <PagosSinConcretar incluirPrueba={incluirPrueba} />
 
       {/* Table */}
       <div className="card">
