@@ -115,6 +115,13 @@ export default function ReservarConsulta({ profile }) {
     : (paramModalityRaw === 'virtual' || paramModalityRaw === 'presencial') ? paramModalityRaw : null
   // `?para=<familiarId>` — viene de la tarjeta del familiar en el perfil.
   const paramPara       = searchParams.get('para')
+  // `?fecha=YYYY-MM-DD&hora=HH:MM` — el horario que el paciente ya tocó en el
+  // perfil del profesional (2026-11-25). Con eso (y `proId` + `modality`) el
+  // wizard va derecho al resumen. Viajan en la URL a propósito: si recarga,
+  // el turno elegido sigue ahí.
+  const paramFecha      = searchParams.get('fecha')
+  const paramHora       = searchParams.get('hora')
+  const conTurnoPrecargado = !!(paramProId && paramModality && paramFecha && paramHora)
   // `?derivacion=<id>` (+ `&especialidad=<slug>`) — viene de la pantalla de la
   // derivación. El turno se crea con `derivacion_id` y la base valida que el
   // profesional sea el destino (o de esa vertical / especialidad).
@@ -137,6 +144,7 @@ export default function ReservarConsulta({ profile }) {
   const [step, setStep] = useState(() => {
     const hasVert = paramVerticalId && !VERTICALS.find(v => v.id === paramVerticalId)?.comingSoon
     if (!hasVert) return 'vertical'
+    if (conTurnoPrecargado) return paramVerticalId === 'veterinaria' ? 'pet' : 'confirm'
     if (paramModality && paramProId) return 'datetime'
     if (paramModality) return 'professional'
     return 'modality'
@@ -347,6 +355,53 @@ export default function ReservarConsulta({ profile }) {
       .finally(() => setLoadingSchedule(false))
   }, [selectedPro?.id])
 
+  // ── Horario precargado desde el perfil (`?fecha=&hora=`) ──────────────────
+  // Se aplica una sola vez, cuando ya llegó la agenda de ESE profesional, y se
+  // valida contra la misma grilla del paso de fecha: si en el medio alguien
+  // tomó ese turno, se avisa y se vuelve a elegir — nunca se reserva a ciegas.
+  // 'pendiente' → 'ok' | 'fallo'. Sin horario precargado queda en null.
+  const [precarga, setPrecarga] = useState(conTurnoPrecargado ? 'pendiente' : null)
+  useEffect(() => {
+    if (precarga !== 'pendiente') return
+    if (!paramProLoading && !selectedPro) {
+      setPrecarga('fallo')
+      setStep(s => (s === 'confirm' ? 'datetime' : s))
+      return
+    }
+    if (!selectedPro || loadingSchedule || scheduleFor !== selectedPro.id) return
+    const dow = new Date(paramFecha + 'T12:00:00Z').getUTCDay()
+    const tomados = new Set(
+      existingConsultations
+        .filter(c => ACTIVE_CONSULTATION_STATUSES.includes(c.status) && c.scheduledAt)
+        .map(c => relojBuenosAires(new Date(c.scheduledAt).getTime()))
+        .filter(d => fechaISOBuenosAires(d) === paramFecha)
+        .map(d => horaHHMMBuenosAires(d)),
+    )
+    const libres = buildTimeSlots(schedule.filter(e => e.dayOfWeek === dow), tomados, slotDurationMinutes, horaMinimaParaHoy(paramFecha))
+    const slot = libres.find(s => s.startTime.slice(0, 5) === paramHora)
+    if (fechasDelWizard.some(d => d.value === paramFecha)) setSelectedDate(paramFecha)
+    if (slot) {
+      setSelectedFranja(slot)
+      setPrecarga('ok')
+    } else {
+      setPrecarga('fallo')
+      toast.info('Ese horario ya no está libre. Elegí otro.')
+      setStep(s => (s === 'confirm' ? 'datetime' : s))
+    }
+  }, [precarga, paramProLoading, selectedPro, loadingSchedule, scheduleFor, schedule, existingConsultations, slotDurationMinutes, paramFecha, paramHora, fechasDelWizard])
+
+  // Paso siguiente una vez que el profesional ya está elegido: con un horario
+  // precargado que sigue libre, el resumen; si no, la fecha.
+  const pasoConPro = () => (conTurnoPrecargado && precarga !== 'fallo' ? 'confirm' : 'datetime')
+
+  // Con grupo familiar, "¿para quién?" se pregunta igual aunque se haya entrado
+  // directo al resumen desde el perfil (los familiares llegan después del primer render).
+  const paraPreguntado = useRef(false)
+  useEffect(() => {
+    if (step === 'para') { paraPreguntado.current = true; return }
+    if (step === 'confirm' && conTurnoPrecargado && conPara && !paraPreguntado.current) setStep('para')
+  }, [step, conTurnoPrecargado, conPara])
+
   // ── Analítica del embudo de reserva (Hyppo, 2026-11-11) ──────────────────
   // Sin especialidad ni vertical (el filtro de salud de Customer.io las tira y
   // el de GTM también): sólo ids, precios, modalidad y conteos.
@@ -367,6 +422,17 @@ export default function ReservarConsulta({ profile }) {
         flow: 'paciente',
       })
     }
+  }
+
+  // Al perfil con la modalidad ya elegida (así abre mostrando los horarios) y
+  // con lo que el turno tiene que seguir llevando: familiar y derivación.
+  const verPerfil = (pro) => {
+    const q = new URLSearchParams({ ...(modality ? { modalidad: modality } : {}) })
+    if (paraId && paraId !== profile?.id) q.set('para', paraId)
+    if (paramDerivacionId) q.set('derivacion', paramDerivacionId)
+    if (paramEspecialidad) q.set('especialidad', paramEspecialidad)
+    const qs = q.toString()
+    navigate(`/paciente/profesional/${pro.id}${qs ? `?${qs}` : ''}`)
   }
 
   const elegirPro = (pro) => {
@@ -467,7 +533,7 @@ export default function ReservarConsulta({ profile }) {
       return
     }
     if (paramProId) {
-      setStep(vertical.id === 'veterinaria' ? 'pet' : 'datetime')
+      setStep(vertical.id === 'veterinaria' ? 'pet' : pasoConPro())
       return
     }
     /*
@@ -834,7 +900,7 @@ export default function ReservarConsulta({ profile }) {
             )}
 
             <button
-              onClick={() => setStep(paramProId && selectedPro ? 'datetime' : 'professional')}
+              onClick={() => setStep(paramProId && (selectedPro || conTurnoPrecargado) ? pasoConPro() : 'professional')}
               disabled={!selectedPet}
               className="w-full py-4 rounded-full font-semibold text-[15px] text-white transition-all mt-2 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ backgroundColor: '#7CB38B' }}
@@ -860,7 +926,7 @@ export default function ReservarConsulta({ profile }) {
               onChange={(id, nombre) => { setParaId(id); setParaNombre(nombre) }}
             />
             <button
-              onClick={() => setStep(paramProId && selectedPro ? 'datetime' : 'professional')}
+              onClick={() => setStep(paramProId && (selectedPro || conTurnoPrecargado) ? pasoConPro() : 'professional')}
               className="w-full py-4 rounded-full font-semibold text-[15px] text-white bg-brand transition-all mt-2"
             >
               Continuar
@@ -932,6 +998,18 @@ export default function ReservarConsulta({ profile }) {
                           )}
                         </div>
                       )}
+                      {/* El perfil completo, con sus horarios para esta modalidad
+                          (2026-11-25). Tocar la tarjeta sigue eligiéndolo acá. */}
+                      <span
+                        role="link"
+                        tabIndex={0}
+                        data-testid="reserva-ver-perfil"
+                        onClick={(e) => { e.stopPropagation(); verPerfil(pro) }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); verPerfil(pro) } }}
+                        className="inline-flex items-center gap-0.5 mt-1.5 text-[12px] font-medium text-brand-hover"
+                      >
+                        Ver perfil y horarios <CaretRight className="w-3 h-3" />
+                      </span>
                     </div>
 
                     {/* Price + check */}
@@ -1071,7 +1149,14 @@ export default function ReservarConsulta({ profile }) {
         )}
 
         {/* ── STEP: Confirm ── */}
-        {step === 'confirm' && selectedVertical && selectedPro && (
+        {/* Mientras se valida el horario que vino del perfil, no se muestra un
+            resumen a medio llenar (con "—" en fecha y hora). */}
+        {step === 'confirm' && precarga === 'pendiente' && (
+          <div className="flex justify-center py-12">
+            <CircleNotch className="w-8 h-8 animate-spin text-brand" />
+          </div>
+        )}
+        {step === 'confirm' && precarga !== 'pendiente' && selectedVertical && selectedPro && (
           <>
             <h1 className="font-serif font-bold text-3xl text-text-primary">
               Resumen del turno

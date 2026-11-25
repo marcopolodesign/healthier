@@ -1,28 +1,56 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { UserCircle, Lightning, ArrowLeft, IdentificationCard, VideoCamera, MapPin, SealCheck } from '@phosphor-icons/react'
+import { Lightning, ArrowLeft, VideoCamera, MapPin, SealCheck, Star, CheckCircle, CircleNotch, CaretRight } from '@phosphor-icons/react'
 import { professionalService, disponibleAhora } from '../../services/professionalService'
 import { reviewsService } from '../../services/reviewsService'
+import { availabilityService } from '../../services/availabilityService'
+import { consultationsService } from '../../services/consultationsService'
+import { paymentsService } from '../../services/paymentsService'
 import { consultorioHabilitado } from '../../services/ministerioService'
-import StarRating from '../../components/StarRating'
 import { toast } from '../../components/Toast'
 import { verticalForSpecialty } from '../../lib/verticals'
-import { nombreDePila } from '../../lib/format'
+import { nombreDePila, inicialesDe } from '../../lib/format'
+import { ofreceModalidad } from '../../lib/modalidad'
+import {
+  DEFAULT_SLOT_DURATION_MINUTES, proximosDiasConTurnos, horaCorta, etiquetaTurno,
+} from '../../lib/agendaTurnos'
 import { useEspecialidades } from '../../hooks/useEspecialidades'
 import { useVerticales } from '../../hooks/useVerticales'
 
+const MODALIDADES = [
+  { id: 'virtual',    label: 'Videoconsulta', Icon: VideoCamera },
+  { id: 'presencial', label: 'Presencial',    Icon: MapPin },
+]
+
+// Los parámetros del wizard que el perfil deja pasar de largo: si se llegó acá
+// desde una derivación o eligiendo un familiar, el turno los sigue llevando.
+const PARAMS_QUE_SIGUEN = ['para', 'derivacion', 'especialidad']
+
+const peso = (n) => `$${Number(n).toLocaleString('es-AR')}`
+const nota = (n) => Number(n).toFixed(1).replace('.', ',')
+
 /**
- * Perfil completo del profesional, visto por el paciente (Mateo, 2026-10-07).
+ * Perfil del profesional, visto por el paciente.
  *
- * Una sola pantalla para todos lados: la búsqueda, el médico de cabecera, y la
- * Teleclínica una vez que hay médico asignado (`?desde=teleclinica`, sin los
- * botones de agendar/consulta inmediata porque ya está en una).
+ * Versión del 2026-11-25 (Mateo, sobre las tres propuestas de Felipe): el
+ * encabezado de la A (foto o inicial a la izquierda, nombre, especialidad,
+ * nota), la franja de tres datos de la B (nota · reseñas · matrícula) y el
+ * cuerpo de la C (bio, "Atiende", "Horarios"). Lo nuevo: tocar Videoconsulta o
+ * Presencial muestra YA los horarios libres; tocar uno arma el botón
+ * "Agendar · hoy 15:30", que sigue al wizard de siempre con todo precargado.
  *
- * 🔴 Sin teléfono, WhatsApp ni mail: el contacto pasa por Healthier (mismo
- * criterio que 8052e0d). Por eso el perfil ya ni siquiera se lee con el mail.
+ * La grilla sale de `proximosDiasConTurnos` (misma cuenta que el paso de fecha
+ * del wizard). La agenda es una sola para las dos modalidades
+ * (`professional_schedules` no distingue), así que lo que cambia al tocar una u
+ * otra es el precio y si el profesional la ofrece.
  *
- * `:id` acepta el id de la ficha (`professional_profiles.id`, lo que usan la
- * búsqueda y los links viejos) o el id de usuario (lo que tiene la Teleclínica).
+ * Una sola pantalla para todos lados: la búsqueda, el médico de cabecera, el
+ * link de referido y la Teleclínica una vez que hay médico asignado
+ * (`?desde=teleclinica`, sin agendar porque ya está en una consulta).
+ *
+ * 🔴 Sin teléfono, WhatsApp ni mail: el contacto pasa por Healthier.
+ *
+ * `:id` acepta el id de la ficha (`professional_profiles.id`) o el de usuario.
  */
 export default function ProfessionalProfile() {
   const { id } = useParams()
@@ -35,14 +63,18 @@ export default function ProfessionalProfile() {
   const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
 
+  const [modalidad, setModalidad] = useState(null)
+  const [agenda, setAgenda] = useState(null) // { schedule, consultations } — null mientras carga
+  const [slotMinutes, setSlotMinutes] = useState(DEFAULT_SLOT_DURATION_MINUTES)
+  const [elegido, setElegido] = useState(null) // { dia, slot }
+
   useEffect(() => {
     let cancelado = false
     professionalService.getPublicProfile(id)
       .then(async (prof) => {
         if (cancelado) return
         setProfessional(prof)
-        // Las reseñas cuelgan del id de USUARIO del profesional, no del de la
-        // ficha: con el de la ficha la lista salía siempre vacía.
+        // Las reseñas cuelgan del id de USUARIO del profesional, no del de la ficha.
         if (prof?.userId) setReviews(await reviewsService.getByProfessional(prof.userId).catch(() => []))
       })
       .catch(() => toast.error('Error al cargar el perfil'))
@@ -50,12 +82,51 @@ export default function ProfessionalProfile() {
     return () => { cancelado = true }
   }, [id])
 
+  const ofertas = useMemo(() => (
+    professional
+      ? MODALIDADES.map(m => ({ ...m, ...ofreceModalidad(professional, m.id) })).filter(m => m.ok)
+      : []
+  ), [professional])
+
+  // Se abre directo con horarios cuando no hay nada que elegir: una sola
+  // modalidad, o la que ya se eligió en el wizard (`?modalidad=`).
+  const modalidadPedida = searchParams.get('modalidad')
+  useEffect(() => {
+    if (sinAcciones || modalidad) return
+    const pedida = ofertas.find(o => o.id === modalidadPedida)
+    if (pedida) setModalidad(pedida.id)
+    else if (ofertas.length === 1) setModalidad(ofertas[0].id)
+  }, [ofertas, modalidad, sinAcciones, modalidadPedida])
+
+  // La agenda se pide recién cuando hace falta (al tocar una modalidad), y una sola vez.
+  useEffect(() => {
+    if (!modalidad || agenda || !professional?.userId) return
+    let cancelado = false
+    Promise.all([
+      availabilityService.getSchedule(professional.userId),
+      consultationsService.getByProfessional(professional.userId).catch(() => []),
+      paymentsService.getPlatformSettings().catch(() => null),
+    ])
+      .then(([schedule, consultations, settings]) => {
+        if (cancelado) return
+        if (settings?.slotDurationMinutes) setSlotMinutes(settings.slotDurationMinutes)
+        setAgenda({ schedule, consultations })
+      })
+      .catch(() => { if (!cancelado) setAgenda({ schedule: [], consultations: [] }) })
+    return () => { cancelado = true }
+  }, [modalidad, agenda, professional?.userId])
+
+  const dias = useMemo(() => (
+    agenda ? proximosDiasConTurnos({ ...agenda, slotMinutes, cuantos: 3 }) : []
+  ), [agenda, slotMinutes])
+
   const volver = () => (window.history.length > 1 ? navigate(-1) : navigate('/paciente/buscar'))
 
   if (loading) return (
     <div className="absolute inset-0 overflow-y-auto p-6 space-y-4 animate-pulse">
-      <div className="h-72 bg-bg-surface rounded-[28px]" />
-      <div className="h-32 bg-bg-surface rounded-[28px]" />
+      <div className="h-24 bg-bg-surface-hover rounded-[28px]" />
+      <div className="h-20 bg-bg-surface-hover rounded-[20px]" />
+      <div className="h-40 bg-bg-surface-hover rounded-[20px]" />
     </div>
   )
 
@@ -70,135 +141,246 @@ export default function ProfessionalProfile() {
   const avatar = professional.profiles?.avatarUrl
   const especialidad = porSlug[professional.specialty] || professional.specialty
   const vertical = verticalForSpecialty(professional.specialty, especialidades)
-  const verticalParam = vertical ? `&vertical=${vertical}` : ''
   const matricula = professional.licenseNumber
     ? `${professional.licenseType ? `${professional.licenseType.toUpperCase()} ` : ''}${professional.licenseNumber}`
     : professional.sisaMatricula
-  const precioVideo = professional.priceVideo ?? professional.sessionPrice
-  const precioPresencial = professional.pricePresencial
   const conInmediata = disponibleAhora(professional) && vertical && verticalesById[vertical]?.onDemandPrice
-  const puedeReservar = professional.mpConnected !== false
-  const peso = (n) => `$${Number(n).toLocaleString('es-AR')}`
+  const puedeReservar = professional.mpConnected !== false && ofertas.length > 0
+  const conNota = professional.totalReviews > 0 && professional.averageRating
+  const cantResenas = professional.totalReviews || 0
+
+  const elegirModalidad = (m) => {
+    if (m === modalidad) return
+    setModalidad(m)
+    setElegido(null)
+  }
+
+  const urlDelWizard = (extra) => {
+    const q = new URLSearchParams({ proId: professional.userId, ...(vertical ? { vertical } : {}), ...extra })
+    PARAMS_QUE_SIGUEN.forEach(k => { if (searchParams.get(k)) q.set(k, searchParams.get(k)) })
+    return `/paciente/reservar?${q.toString()}`
+  }
+
+  const agendar = () => {
+    if (!modalidad || !elegido) return
+    navigate(urlDelWizard({ modality: modalidad, fecha: elegido.dia.value, hora: elegido.slot.startTime.slice(0, 5) }))
+  }
+
+  const ctaLabel = !modalidad ? 'Elegí cómo atenderte'
+    : !elegido ? 'Elegí un horario'
+      : `Agendar · ${etiquetaTurno(elegido.dia, elegido.slot)}`
 
   return (
-    <div className="absolute inset-0 overflow-y-auto bg-bg-primary animate-fade-in">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8 pb-56">
-        <button onClick={volver} className="w-11 h-11 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-50 mb-4">
-          <ArrowLeft className="h-5 w-5 text-gray-900" />
+    <div className="absolute inset-0 overflow-y-auto bg-bg-primary animate-fade-in" data-testid="perfil-profesional">
+      <div className="max-w-xl mx-auto px-5 sm:px-6 pt-6 sm:pt-8 pb-64">
+        <button onClick={volver} aria-label="Volver" className="w-10 h-10 bg-bg-surface-hover rounded-full flex items-center justify-center hover:bg-border-subtle">
+          <ArrowLeft className="h-5 w-5 text-text-primary" />
         </button>
 
-        {/* Foto grande + identidad */}
-        <div className="card overflow-hidden p-0">
-          {/* Sin foto, un bloque bajo: una placa gigante vacía parecía rota. */}
+        {/* Encabezado (A): foto o inicial a la izquierda, nombre, especialidad, nota */}
+        <header className="flex items-center gap-4 mt-6">
           {avatar ? (
-            <div className="aspect-[4/3] sm:aspect-[16/9] bg-brand-muted">
-              <img src={avatar} alt={name} className="w-full h-full object-cover" />
-            </div>
+            <img src={avatar} alt={name} className="w-[72px] h-[72px] rounded-full object-cover shrink-0" />
           ) : (
-            <div className="h-36 bg-brand-muted flex items-center justify-center">
-              <UserCircle className="h-20 w-20 text-brand" />
-            </div>
+            <span className="w-[72px] h-[72px] rounded-full bg-brand-secondary-muted text-brand-secondary flex items-center justify-center font-serif font-light text-[32px] shrink-0">
+              {inicialesDe(name)}
+            </span>
           )}
-          <div className="p-5 sm:p-6">
-            <h1 className="text-[28px] sm:text-[32px] font-light text-text-primary leading-tight" data-testid="perfil-nombre">{name}</h1>
-            <p className="text-brand font-medium mt-1">{especialidad}</p>
-            {professional.subSpecialty && <p className="text-sm text-text-secondary">{professional.subSpecialty}</p>}
-            <div className="flex flex-wrap items-center gap-2 mt-3">
-              <StarRating value={Math.round(professional.averageRating || 0)} readOnly size="sm" />
-              <span className="text-sm text-text-secondary">
-                {professional.averageRating ? Number(professional.averageRating).toFixed(1) : 'Sin calificaciones'}
-                {professional.totalReviews > 0 && ` · ${professional.totalReviews} reseñas`}
-              </span>
-              {/* El consultorio figura en el Registro Federal de Establecimientos
-                  (REFES), automático o aprobado por el super admin. Migración 196. */}
-              {consultorioHabilitado(professional) && (
-                <span className="inline-flex items-center gap-1 text-xs bg-brand-muted text-brand px-3 py-1 rounded-full" data-testid="perfil-consultorio-habilitado">
-                  <SealCheck className="h-3.5 w-3.5" weight="fill" /> Consultorio habilitado
-                </span>
-              )}
-              {disponibleAhora(professional) && !sinAcciones && (
-                <span className="inline-flex items-center gap-1 text-xs bg-accent-muted text-accent px-3 py-1 rounded-full">
-                  <Lightning className="h-3.5 w-3.5" /> Disponible ahora
-                </span>
-              )}
-            </div>
+          <div className="min-w-0">
+            <h1 className="text-[30px] sm:text-[34px] font-light text-text-primary leading-[1.08] tracking-[-0.02em]" data-testid="perfil-nombre">{name}</h1>
+            <p className="text-brand-secondary text-[16px] mt-1">
+              {especialidad}{professional.subSpecialty ? ` · ${professional.subSpecialty}` : ''}
+            </p>
+            <p className="text-[15px] text-text-secondary mt-0.5 flex items-center gap-1">
+              {conNota ? (
+                <>
+                  <Star className="h-4 w-4 text-warning" weight="fill" />
+                  <span className="text-text-primary">{nota(professional.averageRating)}</span>
+                  <span>· {cantResenas} {cantResenas === 1 ? 'reseña' : 'reseñas'}</span>
+                </>
+              ) : 'Sin reseñas todavía'}
+            </p>
           </div>
-        </div>
+        </header>
 
+        {(consultorioHabilitado(professional) || (disponibleAhora(professional) && !sinAcciones)) && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            {consultorioHabilitado(professional) && (
+              <span className="inline-flex items-center gap-1 text-xs bg-brand-muted text-brand-hover px-3 py-1 rounded-full" data-testid="perfil-consultorio-habilitado">
+                <SealCheck className="h-3.5 w-3.5" weight="fill" /> Consultorio habilitado
+              </span>
+            )}
+            {disponibleAhora(professional) && !sinAcciones && (
+              <span className="inline-flex items-center gap-1 text-xs bg-accent-muted text-accent-hover px-3 py-1 rounded-full">
+                <Lightning className="h-3.5 w-3.5" weight="fill" /> Disponible ahora
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Franja de tres datos (B): nota · reseñas · matrícula */}
+        {(conNota || matricula) && (
+          <div className="flex mt-6 py-4 bg-bg-secondary rounded-[20px]" data-testid="perfil-datos">
+            {conNota && (
+              <div className="flex-1 flex flex-col items-center gap-1">
+                <span className="font-serif text-[24px] leading-none text-text-primary">{nota(professional.averageRating)}</span>
+                <span className="flex gap-px text-warning" aria-label={`${nota(professional.averageRating)} de 5`}>
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <Star key={i} className="h-3 w-3" weight={i <= Math.round(professional.averageRating) ? 'fill' : 'regular'} />
+                  ))}
+                </span>
+              </div>
+            )}
+            {conNota && (
+              <div className="flex-1 flex flex-col items-center gap-1">
+                <span className="font-serif text-[24px] leading-none text-text-primary">{cantResenas}</span>
+                <span className="text-[13px] text-text-secondary">{cantResenas === 1 ? 'reseña' : 'reseñas'}</span>
+              </div>
+            )}
+            {matricula && (
+              <div className="flex-[1.2] flex flex-col items-center gap-1">
+                <span className="text-[17px] leading-6 font-medium text-text-primary tabular-nums" data-testid="perfil-matricula">{matricula}</span>
+                <span className="text-[13px] text-text-secondary">matrícula</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Cuerpo (C): bio, Atiende, Horarios */}
         {professional.bio && (
-          <section className="card mt-4">
-            <h2 className="text-[13px] font-semibold uppercase tracking-widest text-text-tertiary mb-2">Sobre {nombreDePila(name)}</h2>
-            <p className="text-text-secondary whitespace-pre-line leading-relaxed">{professional.bio}</p>
+          <p className="text-[17px] leading-relaxed text-text-primary whitespace-pre-line mt-7">{professional.bio}</p>
+        )}
+
+        {ofertas.length > 0 && (
+          <section className="mt-8">
+            <h2 className="text-[20px] font-normal text-text-primary mb-3">Atiende</h2>
+            <div className="space-y-2" role={sinAcciones ? undefined : 'radiogroup'} aria-label="Modalidad">
+              {ofertas.map(({ id: mId, label, Icon, precio }) => {
+                const on = modalidad === mId
+                if (sinAcciones) return (
+                  <div key={mId} className="flex items-center gap-3 px-4 py-4 rounded-[20px] bg-bg-secondary">
+                    <Icon className="h-5 w-5 text-brand-hover shrink-0" />
+                    <span className="flex-1 text-[15px] text-text-secondary">{label}</span>
+                    <span className="text-[15px] font-medium text-text-primary tabular-nums">{peso(precio)}</span>
+                  </div>
+                )
+                return (
+                  <button
+                    key={mId}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => elegirModalidad(mId)}
+                    data-testid={`perfil-modalidad-${mId}`}
+                    className={`w-full flex items-center gap-3 px-4 py-4 rounded-[20px] text-left transition-colors ${on ? 'bg-brand-light' : 'bg-bg-secondary hover:bg-bg-surface-hover'}`}
+                  >
+                    <Icon className="h-5 w-5 text-brand-hover shrink-0" weight={on ? 'fill' : 'regular'} />
+                    <span className={`flex-1 text-[15px] ${on ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>{label}</span>
+                    <span className="text-[15px] font-medium text-text-primary tabular-nums">{peso(precio)}</span>
+                    {on
+                      ? <CheckCircle className="h-5 w-5 text-brand-hover shrink-0" weight="fill" />
+                      : <CaretRight className="h-4 w-4 text-text-tertiary shrink-0" />}
+                  </button>
+                )
+              })}
+            </div>
           </section>
         )}
 
-        <section className="card mt-4 divide-y divide-border-default">
-          {matricula && (
-            <div className="flex items-center gap-3 py-3 first:pt-0">
-              <IdentificationCard className="h-5 w-5 text-brand shrink-0" />
-              <span className="text-text-secondary text-sm flex-1">Matrícula</span>
-              <span className="text-text-primary text-sm font-medium" data-testid="perfil-matricula">{matricula}</span>
-            </div>
-          )}
-          {precioVideo != null && (
-            <div className="flex items-center gap-3 py-3 first:pt-0">
-              <VideoCamera className="h-5 w-5 text-brand shrink-0" />
-              <span className="text-text-secondary text-sm flex-1">Consulta por video</span>
-              <span className="text-text-primary font-medium">{peso(precioVideo)}</span>
-            </div>
-          )}
-          {precioPresencial != null && (
-            <div className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-              <MapPin className="h-5 w-5 text-brand shrink-0" />
-              <span className="text-text-secondary text-sm flex-1">Consulta presencial</span>
-              <span className="text-text-primary font-medium">{peso(precioPresencial)}</span>
-            </div>
-          )}
-        </section>
+        {!sinAcciones && puedeReservar && (
+          <section className="mt-8" data-testid="perfil-horarios">
+            <h2 className="text-[20px] font-normal text-text-primary mb-3">Horarios</h2>
+            {!modalidad ? (
+              <p className="text-[15px] text-text-secondary">Tocá una modalidad para ver los horarios.</p>
+            ) : !agenda ? (
+              <div className="flex justify-center py-8"><CircleNotch className="h-6 w-6 text-brand animate-spin" /></div>
+            ) : dias.length === 0 ? (
+              <p className="text-[15px] text-text-secondary" data-testid="perfil-sin-horarios">
+                No tiene horarios libres en las próximas dos semanas.
+              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-2" data-testid="perfil-grilla">
+                  {dias.map(dia => (
+                    <div key={dia.value} className="flex flex-col gap-2">
+                      <div className="flex flex-col items-center mb-0.5">
+                        <span className="text-[14px] font-medium text-text-primary">{dia.titulo}</span>
+                        <span className="text-[13px] text-text-secondary">{dia.sub}</span>
+                      </div>
+                      {dia.slots.slice(0, 4).map(slot => {
+                        const on = elegido?.dia.value === dia.value && elegido?.slot.id === slot.id
+                        return (
+                          <button
+                            key={slot.id}
+                            type="button"
+                            onClick={() => setElegido({ dia, slot })}
+                            aria-pressed={on}
+                            data-testid="perfil-slot"
+                            className={`h-10 rounded-full text-[14px] font-medium tabular-nums transition-colors ${on ? 'bg-brand-hover text-white' : 'bg-bg-surface-hover text-text-primary hover:bg-border-subtle'}`}
+                          >
+                            {horaCorta(slot.startTime)}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate(urlDelWizard({ modality: modalidad }))}
+                  className="mt-4 text-[15px] font-medium text-brand-hover inline-flex items-center gap-1"
+                >
+                  Ver más horarios <CaretRight className="h-4 w-4" />
+                </button>
+              </>
+            )}
+          </section>
+        )}
 
-        <section className="card mt-4">
-          <h2 className="text-[13px] font-semibold uppercase tracking-widest text-text-tertiary mb-4">Reseñas ({reviews.length})</h2>
-          {reviews.length === 0 ? (
-            <p className="text-text-secondary text-sm text-center py-6">Aún no hay reseñas</p>
-          ) : (
-            <div className="space-y-4">
+        {reviews.length > 0 && (
+          <section className="mt-10">
+            <h2 className="text-[20px] font-normal text-text-primary mb-3">Reseñas</h2>
+            <div className="space-y-2">
               {reviews.map(r => (
-                <div key={r.id} className="pb-4 border-b border-border-default last:border-0 last:pb-0">
-                  <div className="flex items-center gap-2 mb-1">
+                <div key={r.id} className="bg-bg-secondary rounded-[20px] px-4 py-3.5">
+                  <div className="flex items-center gap-2">
                     {/* Sólo el nombre de pila: la reseña es pública. */}
-                    <span className="font-medium text-sm text-text-primary">{nombreDePila(r.profiles?.fullName, 'Paciente')}</span>
-                    <StarRating value={r.rating} readOnly size="sm" />
+                    <span className="font-medium text-[15px] text-text-primary">{nombreDePila(r.profiles?.fullName, 'Paciente')}</span>
+                    <span className="flex gap-px text-warning">
+                      {[1, 2, 3, 4, 5].map(i => <Star key={i} className="h-3 w-3" weight={i <= r.rating ? 'fill' : 'regular'} />)}
+                    </span>
+                    <span className="ml-auto text-[13px] text-text-tertiary">{new Date(r.createdAt).toLocaleDateString('es-AR')}</span>
                   </div>
-                  {r.comment && <p className="text-sm text-text-secondary">{r.comment}</p>}
-                  <p className="text-xs text-text-tertiary mt-1">{new Date(r.createdAt).toLocaleDateString('es-AR')}</p>
+                  {r.comment && <p className="text-[15px] text-text-secondary mt-1">{r.comment}</p>}
                 </div>
               ))}
             </div>
-          )}
-        </section>
+          </section>
+        )}
       </div>
 
-      {/* CTAs abajo, fijos. En la Teleclínica no van: ya está en una consulta. */}
+      {/* Botón fijo abajo. En la Teleclínica no va: ya está en una consulta. */}
       {!sinAcciones && (
-        <div className="fixed bottom-28 sm:bottom-32 inset-x-0 px-4 sm:px-6 z-40 pointer-events-none">
-          <div className="max-w-3xl mx-auto bg-white/90 backdrop-blur-[20px] border border-white/80 rounded-[28px] shadow-[0_8px_30px_rgba(0,0,0,0.1)] p-3 flex flex-col sm:flex-row gap-2 pointer-events-auto">
+        <div className="fixed bottom-0 inset-x-0 px-5 sm:px-6 pt-8 pb-28 sm:pb-32 z-40 bg-linear-to-b from-transparent via-bg-primary via-20% to-bg-primary pointer-events-none">
+          <div className="max-w-xl mx-auto sm:px-6 flex flex-col gap-2 pointer-events-auto">
             {puedeReservar ? (
               <button
-                onClick={() => navigate(`/paciente/reservar?proId=${professional.userId}${verticalParam}`)}
-                className="btn-primary flex-1 py-4 rounded-[20px] text-[16px]"
+                onClick={agendar}
+                disabled={!elegido}
+                className="w-full h-14 rounded-full text-[16px] font-medium text-white bg-brand-hover disabled:bg-border-default disabled:text-text-secondary transition-colors"
                 data-testid="perfil-agendar"
               >
-                Agendar turno
+                {ctaLabel}
               </button>
             ) : (
-              <p className="flex-1 text-sm text-text-secondary px-3 py-2">{name} todavía no recibe turnos online.</p>
+              <p className="text-[15px] text-text-secondary text-center py-2">{nombreDePila(name)} todavía no recibe turnos online.</p>
             )}
             {conInmediata && (
               <button
                 onClick={() => navigate(`/paciente/ondemand/${vertical}`)}
-                className="btn-accent flex-1 py-4 rounded-[20px] text-[16px] flex items-center justify-center gap-2"
+                className="w-full h-12 rounded-full text-[15px] font-medium text-brand-hover bg-brand-light flex items-center justify-center gap-2"
               >
-                <Lightning className="h-5 w-5" weight="fill" /> Consulta inmediata
+                <Lightning className="h-4 w-4" weight="fill" /> Consulta inmediata
               </button>
             )}
           </div>
@@ -207,4 +389,3 @@ export default function ProfessionalProfile() {
     </div>
   )
 }
-
