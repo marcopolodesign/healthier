@@ -11,6 +11,29 @@ select 'sin offline ni online repetidos seguidos' as chequeo,
          ) x where x.event_name = x.previo
        ) as ok
 union all
+select 'busy y available se alternan (sin dos seguidos)',
+       not exists (
+         select 1 from (
+           select person_id, event_name,
+                  lag(event_name) over (partition by person_id order by occurred_at, ref_id) as previo
+             from public.cio_ondemand_pro_eventos_todos
+            where event_name in ('ondemand_pro_busy', 'ondemand_pro_available')
+         ) x where x.event_name = x.previo
+       )
+union all
+select 'cancelaciones de menos de 5 s no cuentan',
+       not exists (select 1 from public.cio_ondemand_no_pro_found_todos
+                    where desenlace = 'cancelo' and segundos_espera < 5)
+union all
+select 'vencidos sólo cuando ya no se pueden revivir (20 min)',
+       not exists (select 1 from public.cio_ondemand_no_pro_found_todos v
+                     join public.ondemand_requests r on r.id = v.ref_id
+                    where r.status = 'expired' and r.created_at + interval '20 minutes' > now())
+union all
+select 'visible_desde nunca antes que occurred_at',
+       not exists (select 1 from public.cio_ondemand_pro_eventos_todos where visible_desde < occurred_at)
+   and not exists (select 1 from public.cio_ondemand_no_pro_found_todos where visible_desde < occurred_at)
+union all
 select 'timeout = último latido (antes que el vencimiento guardado)',
        not exists (
          select 1 from public.cio_ondemand_pro_eventos_todos v
