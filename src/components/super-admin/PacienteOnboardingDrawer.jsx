@@ -123,6 +123,9 @@ export default function PacienteOnboardingDrawer({ paciente, onClose }) {
 
           {/* Por dónde pasó hasta registrarse (migración 232) */}
           <RecorridoNavegacion tabla="profiles" id={p.id} titulo="Recorrido hasta el alta" />
+
+          {/* Qué hizo después: pantallas e hitos del embudo, web y app (migración 247) */}
+          <RecorridoNavegacion tabla="recorrido_paciente" id={p.id} titulo="Recorrido después del alta" />
         </div>
       </div>
     </div>

@@ -7,7 +7,7 @@ import AuthLayout from './layouts/AuthLayout'
 import PatientMobileLayout from './layouts/PatientMobileLayout'
 import { authService } from './services/authService'
 import { supabase } from './lib/supabase'
-import { registrarPantalla } from './lib/flowUrl'
+import { registrarPantalla, seguirRecorridoDelPaciente } from './lib/flowUrl'
 import { Sentry } from './lib/sentry'
 import { professionalService } from './services/professionalService'
 import { track, setAnalyticsUser, clearAnalyticsUser } from './utils/analytics'
@@ -413,6 +413,12 @@ export default function App() {
   useEffect(() => {
     if (profile) setAnalyticsUser(profile)
     else clearAnalyticsUser()
+  }, [profile?.id, profile?.role])
+
+  // Recorrido después del alta (migración 247): con un paciente logueado cada
+  // pantalla y cada hito del embudo también van a la base.
+  useEffect(() => {
+    seguirRecorridoDelPaciente(profile?.role === 'patient')
   }, [profile?.id, profile?.role])
 
   // Customer.io identify — ÚNICO punto de identidad para toda la app.
