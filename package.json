@@ -41,7 +41,8 @@
     "test:analitica": "node --test scripts/test-analitica-vercel.mjs",
     "test:horarios": "node --test scripts/test-horarios-celular.mjs",
     "test:perfil-horarios": "node --test scripts/test-perfil-horarios.mjs",
-    "test:perfil-horarios:front": "node scripts/verificar-perfil-profesional-front.mjs"
+    "test:perfil-horarios:front": "node scripts/verificar-perfil-profesional-front.mjs",
+    "test:turno-agendado": "node --test scripts/test-turno-agendado-base.mjs"
   },
   "dependencies": {
     "@daily-co/daily-js": "^0.87.0",
