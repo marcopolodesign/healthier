@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Lightning, ArrowLeft, VideoCamera, MapPin, SealCheck, Star, CheckCircle, CircleNotch, CaretRight } from '@phosphor-icons/react'
 import { professionalService, disponibleAhora } from '../../services/professionalService'
@@ -67,6 +67,10 @@ export default function ProfessionalProfile() {
   const [agenda, setAgenda] = useState(null) // { schedule, consultations } — null mientras carga
   const [slotMinutes, setSlotMinutes] = useState(DEFAULT_SLOT_DURATION_MINUTES)
   const [elegido, setElegido] = useState(null) // { dia, slot }
+  // Al tocar una modalidad se baja hasta los horarios: si quedan debajo del
+  // botón fijo, la persona no ve que aparecieron (Felipe, 2026-11-25).
+  const horariosRef = useRef(null)
+  const bajarAHorarios = useRef(false)
 
   useEffect(() => {
     let cancelado = false
@@ -120,6 +124,12 @@ export default function ProfessionalProfile() {
     agenda ? proximosDiasConTurnos({ ...agenda, slotMinutes, cuantos: 3 }) : []
   ), [agenda, slotMinutes])
 
+  useEffect(() => {
+    if (!bajarAHorarios.current || !agenda) return
+    bajarAHorarios.current = false
+    horariosRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [agenda, modalidad])
+
   const volver = () => (window.history.length > 1 ? navigate(-1) : navigate('/paciente/buscar'))
 
   if (loading) return (
@@ -150,7 +160,11 @@ export default function ProfessionalProfile() {
   const cantResenas = professional.totalReviews || 0
 
   const elegirModalidad = (m) => {
-    if (m === modalidad) return
+    bajarAHorarios.current = true
+    if (m === modalidad) {
+      if (agenda) horariosRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
     setModalidad(m)
     setElegido(null)
   }
@@ -172,7 +186,7 @@ export default function ProfessionalProfile() {
 
   return (
     <div className="absolute inset-0 overflow-y-auto bg-bg-primary animate-fade-in" data-testid="perfil-profesional">
-      <div className="max-w-xl mx-auto px-5 sm:px-6 pt-6 sm:pt-8 pb-64">
+      <div className="max-w-xl mx-auto px-5 sm:px-6 pt-6 sm:pt-8 pb-72">
         <button onClick={volver} aria-label="Volver" className="w-10 h-10 bg-bg-surface-hover rounded-full flex items-center justify-center hover:bg-border-subtle">
           <ArrowLeft className="h-5 w-5 text-text-primary" />
         </button>
@@ -182,24 +196,22 @@ export default function ProfessionalProfile() {
           {avatar ? (
             <img src={avatar} alt={name} className="w-[72px] h-[72px] rounded-full object-cover shrink-0" />
           ) : (
-            <span className="w-[72px] h-[72px] rounded-full bg-brand-secondary-muted text-brand-secondary flex items-center justify-center font-serif font-light text-[32px] shrink-0">
+            <span className="w-[72px] h-[72px] rounded-full bg-terracota-muted text-terracota flex items-center justify-center font-serif font-normal text-[32px] shrink-0">
               {inicialesDe(name)}
             </span>
           )}
           <div className="min-w-0">
             <h1 className="text-[30px] sm:text-[34px] font-light text-text-primary leading-[1.08] tracking-[-0.02em]" data-testid="perfil-nombre">{name}</h1>
-            <p className="text-brand-secondary text-[16px] mt-1">
+            <p className="text-terracota text-[16px] mt-1">
               {especialidad}{professional.subSpecialty ? ` · ${professional.subSpecialty}` : ''}
             </p>
-            <p className="text-[15px] text-text-secondary mt-0.5 flex items-center gap-1">
-              {conNota ? (
-                <>
-                  <Star className="h-4 w-4 text-warning" weight="fill" />
-                  <span className="text-text-primary">{nota(professional.averageRating)}</span>
-                  <span>· {cantResenas} {cantResenas === 1 ? 'reseña' : 'reseñas'}</span>
-                </>
-              ) : 'Sin reseñas todavía'}
-            </p>
+            {/* La nota y las reseñas van en la franja de abajo (B), no dos veces.
+                Sin reseñas no hay franja: la matrícula queda acá, en gris (como C). */}
+            {!conNota && (
+              <p className="text-[15px] text-text-secondary mt-0.5 tabular-nums" data-testid={matricula ? 'perfil-matricula' : undefined}>
+                {matricula || 'Sin reseñas todavía'}
+              </p>
+            )}
           </div>
         </header>
 
@@ -219,24 +231,20 @@ export default function ProfessionalProfile() {
         )}
 
         {/* Franja de tres datos (B): nota · reseñas · matrícula */}
-        {(conNota || matricula) && (
+        {conNota && (
           <div className="flex mt-6 py-4 bg-bg-secondary rounded-[20px]" data-testid="perfil-datos">
-            {conNota && (
-              <div className="flex-1 flex flex-col items-center gap-1">
-                <span className="font-serif text-[24px] leading-none text-text-primary">{nota(professional.averageRating)}</span>
-                <span className="flex gap-px text-warning" aria-label={`${nota(professional.averageRating)} de 5`}>
-                  {[1, 2, 3, 4, 5].map(i => (
-                    <Star key={i} className="h-3 w-3" weight={i <= Math.round(professional.averageRating) ? 'fill' : 'regular'} />
-                  ))}
-                </span>
-              </div>
-            )}
-            {conNota && (
-              <div className="flex-1 flex flex-col items-center gap-1">
-                <span className="font-serif text-[24px] leading-none text-text-primary">{cantResenas}</span>
-                <span className="text-[13px] text-text-secondary">{cantResenas === 1 ? 'reseña' : 'reseñas'}</span>
-              </div>
-            )}
+            <div className="flex-1 flex flex-col items-center gap-1">
+              <span className="font-serif text-[24px] leading-none text-text-primary">{nota(professional.averageRating)}</span>
+              <span className="flex gap-px text-warning" aria-label={`${nota(professional.averageRating)} de 5`}>
+                {[1, 2, 3, 4, 5].map(i => (
+                  <Star key={i} className="h-3 w-3" weight={i <= Math.round(professional.averageRating) ? 'fill' : 'regular'} />
+                ))}
+              </span>
+            </div>
+            <div className="flex-1 flex flex-col items-center gap-1">
+              <span className="font-serif text-[24px] leading-none text-text-primary">{cantResenas}</span>
+              <span className="text-[13px] text-text-secondary">{cantResenas === 1 ? 'reseña' : 'reseñas'}</span>
+            </div>
             {matricula && (
               <div className="flex-[1.2] flex flex-col items-center gap-1">
                 <span className="text-[17px] leading-6 font-medium text-text-primary tabular-nums" data-testid="perfil-matricula">{matricula}</span>
@@ -277,9 +285,7 @@ export default function ProfessionalProfile() {
                     <Icon className="h-5 w-5 text-brand-hover shrink-0" weight={on ? 'fill' : 'regular'} />
                     <span className={`flex-1 text-[15px] ${on ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>{label}</span>
                     <span className="text-[15px] font-medium text-text-primary tabular-nums">{peso(precio)}</span>
-                    {on
-                      ? <CheckCircle className="h-5 w-5 text-brand-hover shrink-0" weight="fill" />
-                      : <CaretRight className="h-4 w-4 text-text-tertiary shrink-0" />}
+                    {on && <CheckCircle className="h-5 w-5 text-brand-hover shrink-0" weight="fill" />}
                   </button>
                 )
               })}
@@ -288,7 +294,7 @@ export default function ProfessionalProfile() {
         )}
 
         {!sinAcciones && puedeReservar && (
-          <section className="mt-8" data-testid="perfil-horarios">
+          <section ref={horariosRef} className="mt-8 scroll-mt-6" data-testid="perfil-horarios">
             <h2 className="text-[20px] font-normal text-text-primary mb-3">Horarios</h2>
             {!modalidad ? (
               <p className="text-[15px] text-text-secondary">Tocá una modalidad para ver los horarios.</p>
@@ -361,7 +367,10 @@ export default function ProfessionalProfile() {
 
       {/* Botón fijo abajo. En la Teleclínica no va: ya está en una consulta. */}
       {!sinAcciones && (
-        <div className="fixed bottom-0 inset-x-0 px-5 sm:px-6 pt-8 pb-28 sm:pb-32 z-40 bg-linear-to-b from-transparent via-bg-primary via-20% to-bg-primary pointer-events-none">
+        <div className="fixed bottom-0 inset-x-0 z-40 pointer-events-none">
+          {/* Degradé de 32 px: el contenido se desvanece en vez de cortarse en seco. */}
+          <div className="h-8 bg-linear-to-b from-transparent to-bg-primary" />
+          <div className="bg-bg-primary px-5 sm:px-6 pb-28 sm:pb-32">
           <div className="max-w-xl mx-auto sm:px-6 flex flex-col gap-2 pointer-events-auto">
             {puedeReservar ? (
               <button
@@ -383,6 +392,7 @@ export default function ProfessionalProfile() {
                 <Lightning className="h-4 w-4" weight="fill" /> Consulta inmediata
               </button>
             )}
+          </div>
           </div>
         </div>
       )}

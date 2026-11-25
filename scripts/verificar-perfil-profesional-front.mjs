@@ -79,16 +79,23 @@ async function recorrido(browser, ancho, alto, modalidad) {
 
   // Inicio → "Sacá un turno" (la tarjeta del carrusel de consulta inmediata o
   // el atajo de turnos, el que esté a la vista).
-  // La tarjeta de Clínica del carrusel (cuando no hay nadie en línea dice "Sacá un turno").
-  const sacar = page.locator('button').filter({ hasText: 'Clínica' }).filter({ hasText: 'Sacá un turno' }).first()
-  await sacar.waitFor({ timeout: 20000 })
+  await page.getByText('Hola,').first().waitFor({ timeout: 20000 })
   // El recorrido de bienvenida (primera vez) tapa el inicio: se cierra como lo cerraría la persona.
   const tour = page.getByText('Bienvenido a Healthier')
   if (await tour.isVisible().catch(() => false)) {
     await page.getByRole('button', { name: '×' }).first().click().catch(() => {})
     await page.keyboard.press('Escape').catch(() => {})
   }
-  await sacar.click()
+  // Inicio: la tarjeta de Clínica dice "Sacá un turno" cuando no hay nadie en
+  // línea. Si hay alguien, se entra por Turnos → "Agendá tu consulta" → Clínica.
+  const sacar = page.locator('button').filter({ hasText: 'Clínica' }).filter({ hasText: 'Sacá un turno' }).first()
+  if (await sacar.isVisible().catch(() => false)) {
+    await sacar.click()
+  } else {
+    await page.getByRole('link', { name: /Turnos/ }).or(page.getByRole('button', { name: /^Turnos$/ })).first().click()
+    await page.waitForURL(/\/paciente\/consultas/, { timeout: 15000 })
+    await page.locator('button').filter({ hasText: /^Clínica/ }).first().click()
+  }
   await page.waitForURL(/\/paciente\/reservar/, { timeout: 15000 })
 
   // Si el wizard arranca en la vertical, elegir Clínica.
