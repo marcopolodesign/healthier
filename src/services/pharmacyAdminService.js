@@ -43,14 +43,43 @@ export const pharmacyAdminService = {
    * `null` = sin necesidad: el producto sólo aparece en su categoría.
    */
   async setNecesidad(productId, necesidad) {
+    // Elegida a mano: queda de la farmacia y la regla automática no la pisa
+    // más (migración 248).
     const { data, error } = await supabase
       .from('pharmacy_products')
-      .update({ necesidad: necesidad || null })
+      .update({ necesidad: necesidad || null, necesidad_origen: 'farmacia' })
       .eq('id', productId)
       .select()
     if (error) throw new Error(`No se pudo guardar la necesidad: ${error.message}`)
     if (!data?.length) throw new Error('El producto no se actualizó (sin permiso o no existe).')
     return toCamelCase(data[0])
+  },
+
+  /**
+   * La farmacia confirma la necesidad que puso la regla automática
+   * (`necesidad_origen` 'auto' → 'farmacia', migración 248). No cambia la
+   * necesidad: sólo deja de figurar "para revisar".
+   */
+  async confirmarNecesidad(productId) {
+    const { data, error } = await supabase
+      .from('pharmacy_products')
+      .update({ necesidad_origen: 'farmacia' })
+      .eq('id', productId)
+      .select()
+    if (error) throw new Error(`No se pudo confirmar la necesidad: ${error.message}`)
+    if (!data?.length) throw new Error('El producto no se actualizó (sin permiso o no existe).')
+    return toCamelCase(data[0])
+  },
+
+  /** Cuántos productos tienen la necesidad puesta por la regla y sin revisar (super admin). */
+  async contarNecesidadesARevisar() {
+    const { count, error } = await supabase
+      .from('pharmacy_products')
+      .select('id', { count: 'exact', head: true })
+      .eq('pharmacy_id', PHARMACY_ID)
+      .eq('necesidad_origen', 'auto')
+    if (error) throw new Error(`No se pudo contar las necesidades a revisar: ${error.message}`)
+    return count ?? 0
   },
 
   /**

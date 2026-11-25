@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { UploadSimple, DownloadSimple, ShoppingBag, Lock, ImageBroken, X, Camera, CircleNotch } from '@phosphor-icons/react'
+import { UploadSimple, DownloadSimple, ShoppingBag, Lock, ImageBroken, X, Camera, CircleNotch, Sparkle, Check } from '@phosphor-icons/react'
 import { pharmacyAdminService, PRODUCT_IMAGE_MAX_BYTES } from '../../services/pharmacyAdminService'
 import { parseCatalogFile, validateRows, buildCatalogWorkbook, PRESCRIPTION_TYPE_LABELS } from '../../lib/pharmacyExcel'
 import { toast } from '../../components/Toast'
@@ -77,6 +77,8 @@ function Miniatura({ product, estado, onFalla, onSubir, subiendo }) {
 export default function PharmacyCatalog({ profile }) {
   const [products, setProducts] = useState([])
   const [soloSinFoto, setSoloSinFoto] = useState(false)
+  // Necesidades que puso la regla automática y la farmacia todavía no revisó (migración 248).
+  const [soloRevisar, setSoloRevisar] = useState(false)
   const [loading, setLoading] = useState(true)
   const [preview, setPreview] = useState(null) // { validRows, errors }
   const [importing, setImporting] = useState(false)
@@ -102,7 +104,10 @@ export default function PharmacyCatalog({ profile }) {
     () => products.filter(p => estadoFotos[p.id] === 'falta' || estadoFotos[p.id] === 'rota'),
     [products, estadoFotos],
   )
-  const visibles = soloSinFoto && sinFoto.length > 0 ? sinFoto : products
+  const aRevisar = useMemo(() => products.filter(p => p.necesidadOrigen === 'auto'), [products])
+  const visibles = soloRevisar && aRevisar.length > 0 ? aRevisar
+    : soloSinFoto && sinFoto.length > 0 ? sinFoto
+    : products
 
   if (!isAdmin) {
     return (
@@ -123,13 +128,25 @@ export default function PharmacyCatalog({ profile }) {
 
   // La necesidad define en qué foto del mosaico del paciente aparece el
   // producto (además de su categoría). Vacía = sólo en su categoría.
+  // Cambiarla a mano la deja revisada: la regla automática no la pisa más.
   const cambiarNecesidad = async (product, necesidad) => {
-    const antes = product.necesidad ?? null
-    setProducts(prev => prev.map(p => (p.id === product.id ? { ...p, necesidad: necesidad || null } : p)))
+    const antes = { necesidad: product.necesidad ?? null, necesidadOrigen: product.necesidadOrigen ?? null }
+    setProducts(prev => prev.map(p => (p.id === product.id ? { ...p, necesidad: necesidad || null, necesidadOrigen: 'farmacia' } : p)))
     try {
       await pharmacyAdminService.setNecesidad(product.id, necesidad)
     } catch (err) {
-      setProducts(prev => prev.map(p => (p.id === product.id ? { ...p, necesidad: antes } : p)))
+      setProducts(prev => prev.map(p => (p.id === product.id ? { ...p, ...antes } : p)))
+      toast.error(err?.message || String(err))
+    }
+  }
+
+  // La necesidad que puso la regla está bien: queda revisada sin cambiarla.
+  const confirmarNecesidad = async (product) => {
+    setProducts(prev => prev.map(p => (p.id === product.id ? { ...p, necesidadOrigen: 'farmacia' } : p)))
+    try {
+      await pharmacyAdminService.confirmarNecesidad(product.id)
+    } catch (err) {
+      setProducts(prev => prev.map(p => (p.id === product.id ? { ...p, necesidadOrigen: 'auto' } : p)))
       toast.error(err?.message || String(err))
     }
   }
@@ -247,7 +264,7 @@ export default function PharmacyCatalog({ profile }) {
           ) : (
             <button
               type="button"
-              onClick={() => setSoloSinFoto(v => !v)}
+              onClick={() => { setSoloSinFoto(v => !v); setSoloRevisar(false) }}
               aria-pressed={soloSinFoto}
               className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
                 soloSinFoto
@@ -261,8 +278,28 @@ export default function PharmacyCatalog({ profile }) {
               {soloSinFoto && <X className="h-3.5 w-3.5" />}
             </button>
           )}
-          {soloSinFoto && (
+          {aRevisar.length > 0 && (
+            <button
+              type="button"
+              onClick={() => { setSoloRevisar(v => !v); setSoloSinFoto(false) }}
+              aria-pressed={soloRevisar}
+              title="Healthier les asignó la necesidad (Dolor y fiebre, Resfrío y alergia…) según el nombre. Confirmala o cambiala."
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                soloRevisar
+                  ? 'bg-brand text-white border-brand'
+                  : 'bg-bg-secondary text-text-primary border-border-default hover:bg-bg-surface'
+              }`}
+            >
+              <Sparkle className="h-4 w-4" />
+              {aRevisar.length} producto{aRevisar.length !== 1 ? 's' : ''} para revisar su necesidad
+              {soloRevisar && <X className="h-3.5 w-3.5" />}
+            </button>
+          )}
+          {soloSinFoto && !soloRevisar && (
             <span className="text-sm text-text-tertiary">Mostrando sólo los productos sin foto</span>
+          )}
+          {soloRevisar && (
+            <span className="text-sm text-text-tertiary">Mostrando sólo las necesidades puestas automáticamente</span>
           )}
         </div>
       )}
@@ -310,15 +347,30 @@ export default function PharmacyCatalog({ profile }) {
                   <td className="table-cell">{p.stockQuantity}</td>
                   <td className="table-cell max-sm:hidden">{PRESCRIPTION_TYPE_LABELS[p.prescriptionType] ?? PRESCRIPTION_TYPE_LABELS.venta_libre}</td>
                   <td className="table-cell max-lg:hidden">
-                    <select
-                      value={p.necesidad ?? ''}
-                      onChange={e => cambiarNecesidad(p, e.target.value)}
-                      aria-label={`Necesidad de ${p.name}`}
-                      className="form-select text-sm py-1.5 min-w-[10rem]"
-                    >
-                      <option value="">—</option>
-                      {NECESIDADES.map(n => <option key={n.id} value={n.id}>{n.label}</option>)}
-                    </select>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={p.necesidad ?? ''}
+                        onChange={e => cambiarNecesidad(p, e.target.value)}
+                        aria-label={`Necesidad de ${p.name}`}
+                        className="form-select text-sm py-1.5 min-w-[10rem]"
+                      >
+                        <option value="">—</option>
+                        {NECESIDADES.map(n => <option key={n.id} value={n.id}>{n.label}</option>)}
+                      </select>
+                      {/* Puesta por la regla automática y sin revisar: se confirma
+                          con un toque o se cambia en el selector. */}
+                      {p.necesidadOrigen === 'auto' && (
+                        <button
+                          type="button"
+                          onClick={() => confirmarNecesidad(p)}
+                          aria-label={`Confirmar la necesidad de ${p.name}`}
+                          title="La puso Healthier según el nombre. Confirmala si está bien."
+                          className="inline-flex items-center gap-1 shrink-0 rounded-full bg-brand-muted text-brand-hover px-2.5 py-1 text-xs font-semibold hover:bg-brand hover:text-white transition-colors"
+                        >
+                          <Check className="h-3.5 w-3.5" weight="bold" /> Confirmar
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

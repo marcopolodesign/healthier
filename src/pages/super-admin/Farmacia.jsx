@@ -20,6 +20,8 @@ export default function SuperAdminFarmacia() {
   const [vigenciaDias, setVigenciaDias] = useState(30)
   const [guardandoVigencia, setGuardandoVigencia] = useState(false)
   const [drogas, setDrogas] = useState([])
+  // Productos con la necesidad puesta por la regla y sin revisar por la farmacia (migración 248).
+  const [necesidadARevisar, setNecesidadARevisar] = useState(null)
   const [nuevaDroga, setNuevaDroga] = useState({ droga: '', tipo: 'receta_archivada', motivo: '' })
 
   const [incluirPrueba] = useIncluirPrueba()
@@ -31,11 +33,13 @@ export default function SuperAdminFarmacia() {
       pharmacyAdminService.getConnectionStatus(),
       paymentsService.getPlatformSettings(),
       pharmacyService.getDrogasBajoReceta(),
+      pharmacyAdminService.contarNecesidadesARevisar().catch(() => null),
     ])
-      .then(([ords, { data }, settings, drg]) => {
+      .then(([ords, { data }, settings, drg, aRevisar]) => {
         setOrders(ords); setMpStatus(data)
         setVigenciaDias(settings?.recetaVigenciaDias ?? 30)
         setDrogas(drg)
+        setNecesidadARevisar(aRevisar)
       })
       .catch(() => toast.error('Error al cargar la vista de farmacia'))
       .finally(() => setLoading(false))
@@ -90,7 +94,7 @@ export default function SuperAdminFarmacia() {
         <IncluirPruebaToggle className="mt-3" />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="card">
           <p className="text-xs text-text-muted uppercase font-semibold">Pedidos</p>
           <p className="text-2xl font-bold text-text-primary mt-1">{orders.length}</p>
@@ -108,6 +112,11 @@ export default function SuperAdminFarmacia() {
           <p className={`text-sm font-semibold mt-2 flex items-center gap-1.5 ${mpStatus?.connected ? 'text-emerald-600' : 'text-text-secondary'}`}>
             {mpStatus?.connected ? <><CheckCircle className="h-4 w-4" /> Conectado</> : 'No conectado'}
           </p>
+        </div>
+        <div className="card" title="Productos a los que Healthier les puso la necesidad (Dolor y fiebre, Resfrío…) y la farmacia todavía no confirmó ni cambió desde su Catálogo.">
+          <p className="text-xs text-text-muted uppercase font-semibold">Necesidad a revisar</p>
+          <p className="text-2xl font-bold text-text-primary mt-1">{necesidadARevisar ?? '—'}</p>
+          <p className="text-xs text-text-tertiary mt-0.5">la revisa la farmacia</p>
         </div>
       </div>
 

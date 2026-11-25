@@ -909,6 +909,7 @@ const farmacia = {
       tips: [
         { tipo: 'tip', texto: 'Si un producto ya existe (mismo SKU), se actualiza. Con stock en cero queda agotado.' },
         { tipo: 'tip', texto: 'La vista previa te marca las filas con error antes de importar nada.' },
+        { tipo: 'tip', texto: 'La columna "Necesidad" es opcional: si no la traés, Healthier se la pone a los productos nuevos y te quedan para revisar.' },
       ],
     },
     {
@@ -919,6 +920,23 @@ const farmacia = {
         6: 'Tocá la miniatura para subir o cambiar la foto.',
       },
       tips: [{ tipo: 'tip', texto: 'JPG, PNG o WEBP, de hasta 5 MB.' }],
+    },
+    {
+      id: 'necesidad', titulo: 'La necesidad de cada producto', captura: 'far-catalogo', grupo: 'Catálogo',
+      bajada: 'El paciente encuentra los productos por necesidad: Dolor y fiebre, Resfrío y alergia, Piel y sol… A los productos nuevos Healthier se las pone solo, según el nombre. Vos las revisás.',
+      marcas: {
+        7: 'Los productos con la necesidad puesta por Healthier, para revisar.',
+        8: 'Confirmar la necesidad si está bien.',
+      },
+      pasos: [
+        'Tocá "para revisar su necesidad" para ver sólo esos productos.',
+        'Si la necesidad está bien, tocá "Confirmar".',
+        'Si no, elegí otra en el selector, o "—" para dejarlo sólo en su categoría.',
+      ],
+      tips: [
+        { tipo: 'tip', texto: 'Lo que elegís o confirmás vos no se vuelve a cambiar solo.' },
+        { tipo: 'tip', texto: 'Si el producto no tiene una necesidad clara, queda sólo en su categoría.' },
+      ],
     },
     {
       id: 'configuracion', titulo: 'Mercado Pago y tus datos', captura: 'far-configuracion', grupo: 'Tu farmacia',

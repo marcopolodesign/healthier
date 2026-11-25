@@ -237,7 +237,7 @@ export const TOMAS = [
       await subir(p, p.locator('input[placeholder="----"]'), 320) },
     marcas: [[1, css('input[placeholder="----"]').locator('xpath=ancestor::*[contains(@class,"card")][1]')]] },
   { id: 'far-catalogo', quien: FARMACIA, url: '/farmacia/catalogo', espera: 3000, marcas: [
-      [1, css('h1:has-text("Catálogo")')], [2, txt('Exportar Excel', 'button')], [3, txt('Importar Excel', 'button')], [4, css('table')], [5, css('button[aria-pressed]')], [6, css('button[aria-label^="Subir foto de"], button[aria-label^="Cambiar foto de"]')]] },
+      [1, css('h1:has-text("Catálogo")')], [2, txt('Exportar Excel', 'button')], [3, txt('Importar Excel', 'button')], [4, css('table')], [5, css('button[aria-pressed]')], [6, css('button[aria-label^="Subir foto de"], button[aria-label^="Cambiar foto de"]')], [7, txt('para revisar su necesidad', 'button')], [8, css('button[aria-label^="Confirmar la necesidad de"]')]] },
   { id: 'far-configuracion', quien: FARMACIA, url: '/farmacia/configuracion', espera: 2000, marcas: [
       [1, txt('Mercado Pago', 'h2').locator('xpath=ancestor::*[contains(@class,"card")][1]')], [2, txt('Datos de la farmacia', 'h2').locator('xpath=ancestor::*[contains(@class,"card")][1]')], [3, txt('Guardar', 'button')]] },
 

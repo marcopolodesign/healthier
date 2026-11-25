@@ -7,93 +7,32 @@
 //   node scripts/farmacia-necesidades.mjs produccion
 //   node scripts/farmacia-necesidades.mjs produccion --verificar   (no escribe)
 //
-// 🔴 PASO DEL PASE A PRODUCCIÓN, después de la migración 246 y ANTES de
+// 🔴 PASO DEL PASE A PRODUCCIÓN, después de las migraciones 246 y 248 y ANTES de
 // publicar el front: sin esto el mosaico de prod queda sin fotos y sin
 // necesidades (sólo se verían las categorías).
 //
 // Criterio (Mateo, 2026-11-22): necesidad SÓLO si es obvia por el nombre o la
-// droga. La droga de cada marca se sacó del vademécum del servicio de recetas
-// (homologación, 2026-11-22) — anotada al lado de cada marca. Lo dudoso queda
-// afuera a propósito: estatinas (colesterol), salbutamol, Procto-Metadyne,
-// gotas oftálmicas, anticonceptivos, oncológicos, urológicos, ansiolíticos…
-// siguen sólo en su categoría.
+// droga. Desde la migración 248 la regla vive en la BASE, en un solo lugar:
+// la tabla `farmacia_necesidad_reglas` (prefijo de marca → necesidad, con la
+// droga anotada) y `farmacia_asignar_necesidades()`. El mismo trigger la
+// aplica sola cuando entra un producto nuevo. Este script sólo dispara la
+// asignación en bloque para el catálogo que ya existe.
 //
-// Idempotente: sólo completa productos SIN necesidad, así no pisa lo que la
-// farmacia haya editado desde su panel. `--forzar` reescribe igual.
+// Lo que asigna queda `necesidad_origen = 'auto'`: la farmacia lo ve "a
+// revisar" en su Catálogo. Nunca toca lo que la farmacia eligió ('farmacia').
+// `--forzar` además corrige lo 'auto' que la regla hoy diría distinto.
 //
 // Control (lo arreglado no vuelve): `--verificar` falla (exit 1) si una foto
 // no responde 200, si una necesidad quedó sin productos, o si un producto que
-// la regla asigna quedó sin necesidad.
+// la regla asigna quedó sin necesidad sin que la farmacia lo haya decidido.
 // ─────────────────────────────────────────────────────────────────────────────
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 
-// Prefijo del nombre (en minúsculas) → necesidad. Comentario = droga.
-export const REGLAS = {
-  dolor: [
-    'diastone',            // diclofenac (+pridinol / +B12)
-    'sindol',              // ibuprofeno (Sindol, Sindolito)
-    'kemanat',             // ketorolac
-    'mell ',               // meloxicam
-    'cracox',              // etoricoxib
-    'solacil',             // ergotamina + cafeína (migraña)
-    'ibuprofeno', 'paracetamol', // genéricos del catálogo demo de staging
-  ],
-  resfrio: [
-    'coris grip',          // paracetamol + pseudoefedrina
-    'alergiano',           // loratadina
-    'teralmina',           // desloratadina
-    'rhinal',              // nafazolina (gotas nasales)
-    'funciobron',          // bromhexina / hedera helix (jarabes)
-    'loratadina', 'suero fisiológico nasal',
-  ],
-  piel: [
-    'perlivit',            // línea dermocosmética: protector, micelar, sérum, cápsulas
-    'medifungol',          // clotrimazol / terbinafina crema
-    'dioxis',              // aciclovir crema
-    'triplex',             // betametasona + gentamicina + miconazol crema
-    'mosqut',              // repelente
-    'protector solar',
-  ],
-  presion: [
-    'atenolol',
-    'sulocten',            // enalapril (+HCTZ)
-    'enromic',             // losartán (+HCTZ)
-    'entarsol',            // carvedilol
-    'semanar',             // valsartán
-    'anexa',               // amlodipina
-    'redugluc',            // metformina
-    'lomet',               // glimepirida
-  ],
-  digestion: [
-    'oblisec',             // omeprazol
-    'pampar',              // pantoprazol
-    'relasules',           // esomeprazol
-    'custey',              // loperamida
-    'rilaquin',            // metoclopramida
-    'relopat',             // trimebutina
-    'omeprazol',
-  ],
-  antibioticos: [
-    'nobactam',            // amoxicilina (+clavulánico)
-    'microsulf',           // ciprofloxacina
-    'sinurit',             // cefalexina
-    'tanezox',             // azitromicina
-    'finasept',            // claritromicina
-    'ely diar',            // levofloxacina (no es un antidiarreico)
-    'amoxicilina',
-  ],
-}
-
-export const necesidadDe = (nombre) => {
-  const n = String(nombre ?? '').toLowerCase().trim()
-  for (const [necesidad, prefijos] of Object.entries(REGLAS)) {
-    if (prefijos.some(p => n.startsWith(p))) return necesidad
-  }
-  return null
-}
+/** Las seis necesidades (la lista cerrada de la migración 246). */
+const NECESIDADES = ['dolor', 'resfrio', 'piel', 'presion', 'digestion', 'antibioticos']
 
 // Fotos (Unsplash, licencia libre — sin Unsplash+). Las seis de necesidad las
 // eligió Felipe (docs/reports/farmacia-2026-11-22/fotos/elegidas.json); las
@@ -167,20 +106,26 @@ async function main() {
   }
 
   // ── Necesidades ────────────────────────────────────────────────────────────
-  const { data: productos, error } = await sb.from('pharmacy_products').select('id, name, necesidad')
-  if (error) { console.error(`🔴 ${error.message} (¿falta la migración 246?)`); process.exit(1) }
-  const conteo = Object.fromEntries(Object.keys(REGLAS).map(k => [k, 0]))
-  for (const p of productos) {
-    const regla = necesidadDe(p.name)
-    let actual = p.necesidad
-    if (regla && (forzar || !actual) && actual !== regla && !verificar) {
-      const { error: e } = await sb.from('pharmacy_products').update({ necesidad: regla }).eq('id', p.id)
-      if (e) { console.error(`🔴 ${p.name}: ${e.message}`); fallas++; continue }
-      actual = regla
-    }
-    if (regla && !actual) { console.log(`🔴 sin necesidad: ${p.name} (debería ser ${regla})`); fallas++ }
-    if (actual) conteo[actual]++
+  // La regla la aplica la base (migración 248): un solo lugar para el alta y
+  // para este script.
+  if (!verificar) {
+    const { data: asignados, error: e } = await sb.rpc('farmacia_asignar_necesidades', { p_forzar: forzar })
+    if (e) { console.error(`🔴 ${e.message} (¿falta la migración 248?)`); process.exit(1) }
+    console.log(`🟢 ${asignados} producto(s) con necesidad asignada (quedan "a revisar" para la farmacia)`)
   }
+  const { data: productos, error } = await sb.from('pharmacy_products').select('id, name, necesidad, necesidad_origen')
+  if (error) { console.error(`🔴 ${error.message} (¿falta la migración 246/248?)`); process.exit(1) }
+  const conteo = Object.fromEntries(NECESIDADES.map(k => [k, 0]))
+  let aRevisar = 0
+  for (const p of productos) {
+    if (p.necesidad) conteo[p.necesidad]++
+    if (p.necesidad_origen === 'auto') aRevisar++
+    if (!p.necesidad && p.necesidad_origen !== 'farmacia') {
+      const { data: regla } = await sb.rpc('farmacia_necesidad_sugerida', { p_nombre: p.name })
+      if (regla) { console.log(`🔴 sin necesidad: ${p.name} (debería ser ${regla})`); fallas++ }
+    }
+  }
+  console.log(`${aRevisar} para revisar por la farmacia`)
   const total = Object.values(conteo).reduce((a, b) => a + b, 0)
   for (const [k, n] of Object.entries(conteo)) {
     console.log(`${n ? '🟢' : '🔴'} ${k}: ${n}`)
