@@ -28,6 +28,7 @@
     "test:resumen-auditoria": "node --test scripts/test-admin-audit-resumen.mjs",
     "test:latido": "node --test scripts/test-ficha-profesional.mjs",
     "test:flow-url": "node --test scripts/test-flow-url.mjs",
+    "test:recorrido-post-registro": "node --test scripts/test-recorrido-post-registro.mjs",
     "test:referidos": "node --test scripts/test-referidos-dominio.mjs",
     "test:cio": "node --test scripts/test-cio-solo-prod.mjs",
     "test:certificados": "deno test --allow-read=supabase/functions/rcta-certificado supabase/functions/rcta-certificado/ && node --import tsx --test scripts/test-certificado-atencion.mjs",

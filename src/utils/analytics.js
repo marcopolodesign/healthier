@@ -6,6 +6,7 @@
 // hashed user_id, categories/types, booleans, and generic payment methods.
 
 import { cioTrack } from './customerio'
+import { anotarHito, HITO_DE_EVENTO } from '../lib/flowUrl'
 
 export const ROLE_TO_USER_TYPE = {
   patient: 'paciente',
@@ -99,6 +100,10 @@ export function track(eventName, params = {}, cioOnlyParams = {}) {
   // —el nombre del profesional, por ejemplo—: se manda acá y nunca llega al
   // dataLayer, en vez de mandarlo a los dos y depender del filtro de PII.
   cioTrack(eventName, { ...params, ...cioOnlyParams })
+
+  // Hito del embudo en el recorrido del paciente (migración 247). Sólo el
+  // nombre del hito: nada de los params.
+  if (HITO_DE_EVENTO[eventName]) anotarHito(HITO_DE_EVENTO[eventName])
 
   window.dataLayer = window.dataLayer || []
   const { user_id: _ignoredRawId, user_type: _ignoredRawType, ...rest } = sanitize(params)

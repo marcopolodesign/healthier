@@ -50,6 +50,7 @@ const PANTALLAS = [
   ['/paciente/consultas', 'Mis consultas'],
   ['/paciente/documentos', 'Mis documentos'],
   ['/paciente/perfil', 'Perfil del paciente'],
+  ['/paciente/invitar', 'Invitar'],
   ['/paciente/familiar/:id', 'Ficha de familiar'],
   ['/paciente/ondemand/:x', 'Consulta inmediata'],
   ['/paciente/sos', 'Emergencias'],
@@ -203,6 +204,8 @@ export function registrarPantalla(loc = (typeof window !== 'undefined' ? window.
   try {
     if (!loc) return
     const url = urlLimpia({ origin: loc.origin, pathname: loc.pathname, search: loc.search })
+    ultimaPantalla = { url, name: nombreDePantalla(normalizarRuta(loc.pathname)) }
+    anotarPantallaEnBase(ultimaPantalla, ahora)
     const flujo = leerRecorrido()
     const ultima = flujo[flujo.length - 1]
     if (ultima && ultima.url === url) return
@@ -217,6 +220,8 @@ export function registrarPantalla(loc = (typeof window !== 'undefined' ? window.
 
 /** Olvida todo (cierre de sesión): el recorrido es de la persona, no del navegador. */
 export function reiniciarRecorrido() {
+  seguir = false
+  ultimaUrlEnviada = null
   enMemoria = []
   marcaEnMemoria = null
   borrarStorage(FLOW_KEY)
@@ -234,6 +239,93 @@ export function recorridoDesdeUltimaReserva() {
   if (!marca) return flujo
   const nuevo = flujo.filter(e => e.at > marca)
   return nuevo.length ? nuevo : flujo.slice(-1)
+}
+
+// ── Después del alta: cada pantalla del paciente logueado va a la base ─────
+// (migración 247, tabla `recorrido_paciente`). `profiles.flow_url` se escribe
+// una sola vez al terminar el alta; sin esto no se sabe qué hace el paciente
+// después. Tope y duplicados los resuelve la RPC (últimas 100 pantallas + 50
+// hitos; misma pantalla que la anterior no cuenta); acá sólo se evita mandar
+// dos veces seguidas lo mismo.
+
+/** Hitos del embudo: código (el que se guarda) → nombre legible. Mismos que la app. */
+export const HITOS = {
+  vio_lista_profesionales: 'Vio la lista de profesionales',
+  eligio_profesional: 'Eligió profesional',
+  vio_horarios: 'Vio horarios',
+  eligio_horario: 'Eligió horario',
+  sin_disponibilidad: 'Sin disponibilidad',
+  llego_al_pago: 'Llegó al pago',
+  cargo_medio_de_pago: 'Cargó medio de pago',
+  error_de_pago: 'Error de pago',
+  pago: 'Pagó',
+  pidio_inmediata: 'Pidió consulta inmediata',
+}
+
+/**
+ * Evento de analítica (`track`, src/utils/analytics.js) → hito. Así los hitos
+ * salen de los mismos lugares que ya miden el embudo para GTM/Customer.io, sin
+ * sumar llamadas en cada pantalla.
+ */
+export const HITO_DE_EVENTO = {
+  booking_pros_view: 'vio_lista_profesionales',
+  booking_pro_select: 'eligio_profesional',
+  doctor_selected: 'eligio_profesional',
+  map_pro_click: 'eligio_profesional',
+  booking_slots_view: 'vio_horarios',
+  booking_slot_select: 'eligio_horario',
+  booking_no_availability: 'sin_disponibilidad',
+  ondemand_no_match: 'sin_disponibilidad',
+  begin_checkout: 'llego_al_pago',
+  add_payment_info: 'cargo_medio_de_pago',
+  payment_error: 'error_de_pago',
+  purchase: 'pago',
+  ondemand_requested: 'pidio_inmediata',
+}
+
+let seguir = false           // ¿hay un paciente logueado?
+let ultimaUrlEnviada = null  // para no mandar dos veces seguidas la misma pantalla
+let ultimaPantalla = null    // { url, name } — dónde ocurre un hito
+let envio = Promise.resolve()
+let clienteRecorrido = null  // inyectable (tests); si no, el de la app
+
+function enviarABase(entrada) {
+  // En fila: el orden de llegada es el orden del recorrido.
+  envio = envio.then(async () => {
+    try {
+      const client = clienteRecorrido ?? (await import('./supabase')).supabase
+      await client.rpc('anotar_recorrido', { p_entradas: [entrada] })
+    } catch { /* best-effort */ }
+  })
+  return envio
+}
+
+function anotarPantallaEnBase(pantalla, ahora) {
+  if (!seguir || !pantalla || pantalla.url === ultimaUrlEnviada) return null
+  ultimaUrlEnviada = pantalla.url
+  return enviarABase({ ...pantalla, at: ahoraISO(ahora), via: 'web' })
+}
+
+/**
+ * Prende o apaga el envío a la base (App.jsx, cuando cambia el perfil). Al
+ * prenderse manda la pantalla actual: en la primera carga la ruta se anota
+ * antes de que el perfil termine de cargar.
+ */
+export function seguirRecorridoDelPaciente(activo, client) {
+  if (client) clienteRecorrido = client
+  const antes = seguir
+  seguir = Boolean(activo)
+  if (!seguir) { ultimaUrlEnviada = null; return null }
+  if (!antes && ultimaPantalla) return anotarPantallaEnBase(ultimaPantalla, Date.now())
+  return null
+}
+
+/** Hito del embudo en la pantalla actual. Sólo con un paciente logueado. */
+export function anotarHito(hito, ahora = Date.now()) {
+  if (!seguir || !HITOS[hito]) return null
+  const url = ultimaPantalla?.url ?? (typeof window !== 'undefined' ? urlLimpia(window.location) : '')
+  if (!url) return null
+  return enviarABase({ url, name: HITOS[hito], at: ahoraISO(ahora), via: 'web', hito })
 }
 
 // ── Guardado en la base (siempre best-effort: nunca rompe el alta ni la reserva) ──
@@ -294,6 +386,8 @@ export function filasDelRecorrido(flow) {
       pantalla: e?.name || ruta,
       ruta,
       espera: i > 0 && Number.isFinite(t) && Number.isFinite(anterior) ? formatearEspera(t - anterior) : '',
+      via: e?.via || '',
+      hito: e?.hito || '',
     }
   })
 }
