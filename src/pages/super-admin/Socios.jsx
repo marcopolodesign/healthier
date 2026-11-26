@@ -3,7 +3,7 @@ import QRCode from 'qrcode'
 import { Copy, Check, DownloadSimple, Handshake } from '@phosphor-icons/react'
 import { referralService, SITIO_PUBLICO } from '../../services/referralService'
 import { toast } from '../../components/Toast'
-import { formatARS, formatDate } from '../../lib/format'
+import { formatARS } from '../../lib/format'
 import MetricCard from '../../components/super-admin/MetricCard'
 import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
 import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
@@ -12,6 +12,16 @@ const ESTADO_DESCUENTO = {
   aplicado: 'Usado',
   reservado: 'En curso',
   liberado: 'Disponible',
+}
+
+/** "25/11 · 21:17" en hora de Buenos Aires. */
+function fechaCorta(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  const tz = { timeZone: 'America/Argentina/Buenos_Aires' }
+  const dia = d.toLocaleDateString('es-AR', { ...tz, day: '2-digit', month: '2-digit' })
+  const hora = d.toLocaleTimeString('es-AR', { ...tz, hour: '2-digit', minute: '2-digit', hour12: false })
+  return `${dia} · ${hora}`
 }
 
 /** 'YYYY-MM-01' del mes actual en hora local. */
@@ -103,7 +113,7 @@ export default function SuperAdminSocios() {
       <div>
         <h1 className="page-title-lg">Socios comerciales</h1>
         <p className="text-text-secondary mt-1">
-          Gimnasios y empresas aliadas: quién entró por su link, el descuento de primera consulta y lo que se les liquida cada mes
+          Quién entró por su link, el descuento usado y lo que se le liquida cada mes.
         </p>
         <IncluirPruebaToggle className="mt-3" />
       </div>
@@ -114,7 +124,7 @@ export default function SuperAdminSocios() {
             <button
               key={s.socioId}
               onClick={() => setSocioId(s.socioId)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium ${s.socioId === socioId ? 'bg-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium ${s.socioId === socioId ? 'bg-brand text-white' : 'bg-bg-surface text-text-secondary hover:bg-brand-muted'}`}
             >
               {s.nombre}
             </button>
@@ -133,7 +143,7 @@ export default function SuperAdminSocios() {
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricCard label="Se sumaron" value={socio.atribuidos} hint={`por el link o el código de ${socio.nombre}`} />
-            <MetricCard label="Con consulta terminada" value={socio.conConsulta} />
+            <MetricCard label="Con consulta terminada" value={socio.conConsulta} hint="de los que se sumaron" />
             <MetricCard
               label="Descuentos usados"
               value={socio.descuentosAplicados}
@@ -209,7 +219,7 @@ export default function SuperAdminSocios() {
                     <tbody>
                       {liquidacion.map(f => (
                         <tr key={f.consultationId} className="table-row">
-                          <td className="table-cell whitespace-nowrap">{formatDate(f.completedAt)}</td>
+                          <td className="table-cell whitespace-nowrap">{fechaCorta(f.completedAt)}</td>
                           <td className="table-cell">{f.paciente || '—'}</td>
                           <td className="table-cell">{f.profesional || '—'}</td>
                           <td className="table-cell text-right">{formatARS(Number(f.precioLista))}</td>
@@ -251,7 +261,7 @@ export default function SuperAdminSocios() {
                           <p className="text-xs text-text-tertiary truncate max-w-[220px]">{a.email}</p>
                         </td>
                         <td className="table-cell">{a.origen === 'link' ? 'Link / QR' : a.origen === 'codigo' ? 'Código' : 'Administración'}</td>
-                        <td className="table-cell whitespace-nowrap">{formatDate(a.atribuidoAt)}</td>
+                        <td className="table-cell whitespace-nowrap">{fechaCorta(a.atribuidoAt)}</td>
                         <td className="table-cell">
                           {a.descuentoEstado
                             ? `${ESTADO_DESCUENTO[a.descuentoEstado]}${a.descuentoEstado !== 'liberado' ? ` · ${formatARS(Number(a.descuentoMonto))}` : ''}`

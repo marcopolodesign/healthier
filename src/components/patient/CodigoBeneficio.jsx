@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CircleNotch } from '@phosphor-icons/react'
+import { CircleNotch, CaretRight } from '@phosphor-icons/react'
 import { referralService } from '../../services/referralService'
 import { toast } from '../Toast'
 import { track } from '../../utils/analytics'
@@ -28,14 +28,15 @@ export default function CodigoBeneficio() {
 
   if (beneficio === undefined) return null
 
+  // Ya usado: no hay nada que ofrecerle acá.
+  if (beneficio && !beneficio.disponible) return null
+
   if (beneficio) {
     const pct = Math.round(Number(beneficio.porcentaje) * 100)
     return (
       <div className="w-full bg-bg-secondary rounded-2xl p-5" data-testid="beneficio-socio">
         <p className="font-semibold text-text-primary text-[15px]">Beneficio {beneficio.socioNombre}</p>
-        <p className="text-xs text-text-secondary mt-0.5">
-          {beneficio.disponible ? `${pct}% off en tu primera consulta` : 'Ya lo usaste en tu primera consulta'}
-        </p>
+        <p className="text-xs text-text-secondary mt-0.5">{pct}% de descuento en tu primera consulta</p>
       </div>
     )
   }
@@ -62,18 +63,27 @@ export default function CodigoBeneficio() {
       <button
         type="button"
         onClick={() => setAbierto(true)}
-        className="w-full bg-bg-secondary rounded-2xl p-5 text-left hover:bg-brand-muted transition-colors"
+        className="w-full bg-bg-secondary rounded-2xl p-5 flex items-center gap-4 text-left hover:bg-brand-muted transition-colors"
         data-testid="cargar-codigo"
       >
-        <p className="font-semibold text-text-primary text-[15px]">¿Tenés un código de beneficio?</p>
-        <p className="text-xs text-text-secondary mt-0.5">Si sos socio de un gimnasio o empresa aliada</p>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-text-primary text-[15px]">¿Tenés un código de beneficio?</p>
+          <p className="text-xs text-text-secondary mt-0.5">Si sos socio de un gimnasio o empresa aliada</p>
+        </div>
+        <CaretRight className="w-5 h-5 text-text-tertiary flex-shrink-0" />
       </button>
     )
   }
 
   return (
     <form onSubmit={cargar} className="w-full bg-bg-secondary rounded-2xl p-5 space-y-3">
-      <label className="form-label" htmlFor="codigo-beneficio">Código</label>
+      <div className="flex items-center justify-between">
+        <p className="font-semibold text-text-primary text-[15px]">¿Tenés un código de beneficio?</p>
+        <button type="button" onClick={() => { setAbierto(false); setCodigo('') }} className="text-text-tertiary text-sm">
+          Cancelar
+        </button>
+      </div>
+      <label className="sr-only" htmlFor="codigo-beneficio">Código</label>
       <div className="flex gap-2">
         <input
           id="codigo-beneficio"

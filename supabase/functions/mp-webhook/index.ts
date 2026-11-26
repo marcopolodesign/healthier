@@ -35,6 +35,7 @@
  * first wins.
  */
 
+import { cerrarDescuentoPorConsulta } from "../_shared/descuentoSocio.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ensureFreshMpToken, PAYMENT_REFRESH_MARGIN_MS } from "../_shared/mpRefresh.ts";
@@ -481,6 +482,16 @@ serve(async (req: Request) => {
         JSON.stringify({ error: "DB update failed", detail: paymentUpdateErr.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // ── Descuento de socio comercial (LIFT, migración 252) ──────────────────
+    // Un pago que había quedado pendiente se resolvió: cerrar la reserva.
+    // Sin la 252 la tabla no existe: se avisa en el log y el webhook sigue.
+    if (!isOrderPayment && entityId) {
+      const { error: descErr } = await cerrarDescuentoPorConsulta(
+        supabase, entityId, paymentsStatus, existingPaymentRow?.id ?? null,
+      );
+      if (descErr) console.warn("mp-webhook: no se pudo cerrar el descuento de socio:", descErr);
     }
 
     // `net_to_professional` no se sobreescribe: es el 78% contractual del bruto.

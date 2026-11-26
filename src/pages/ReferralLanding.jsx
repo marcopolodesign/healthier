@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { SealCheck, ArrowRight, HeartStraight } from '@phosphor-icons/react'
 import { referralService } from '../services/referralService'
@@ -30,6 +30,9 @@ export default function ReferralLanding({ profile }) {
   const [paciente, setPaciente] = useState(null) // { firstName } si el código es de un paciente
   const [socio, setSocio] = useState(null) // { nombre, descuento } si es de un socio comercial (LIFT)
   const [estado, setEstado] = useState('cargando') // cargando | ok | invalido
+  // El canje con sesión corre UNA vez aunque el efecto se dispare de nuevo
+  // (cambia `profile`, StrictMode): si no, salen dos toasts y dos RPC.
+  const canjeLanzado = useRef(false)
 
   useEffect(() => {
     let cancelado = false
@@ -46,7 +49,7 @@ export default function ReferralLanding({ profile }) {
           const soc = await referralService.resolveSocio(codigo).catch(() => null)
           if (cancelado) return
           if (soc) {
-            storeReferral({ codigo, tipo: 'socio', nombre: soc.nombre })
+            storeReferral({ codigo, tipo: 'socio', nombre: soc.nombre, descuento: soc.descuento })
             setSocio(soc)
             setEstado('ok')
             track('referral_link_open', { codigo, tipo: 'socio' })
@@ -90,7 +93,8 @@ export default function ReferralLanding({ profile }) {
     // Paciente con sesión que abre el link de un socio: se canjea acá mismo.
     // El servidor decide si todavía vale (antes de su primera consulta, sin
     // otro referente).
-    if (estado === 'ok' && profile?.role === 'patient' && socio) {
+    if (estado === 'ok' && profile?.role === 'patient' && socio && !canjeLanzado.current) {
+      canjeLanzado.current = true
       referralService.canjearSeguro(codigo, 'link').then(r => {
         clearReferral()
         if (r?.ok) toast.success(`Listo: tenés el beneficio ${socio.nombre} en tu primera consulta.`)
@@ -126,20 +130,20 @@ export default function ReferralLanding({ profile }) {
     const pct = Math.round(Number(socio.descuento) * 100)
     return (
       <div className="min-h-screen bg-bg-primary flex flex-col">
-        <header className="px-6 py-5">
+        <header className="px-6 py-5 flex items-center gap-2">
           <CompanyLogo size="sm" />
+          <span className="text-text-tertiary" data-testid="socio-header">× {socio.nombre}</span>
         </header>
-        <main className="flex-1 flex flex-col items-center justify-center px-6 pb-16">
+        <main className="flex-1 flex flex-col items-center justify-start pt-12 sm:justify-center px-6 pb-16">
           <div className="w-full max-w-md">
             <div className="card text-center">
               <p className="text-xs font-semibold tracking-widest text-text-tertiary uppercase mb-2">
                 Beneficio para socios de {socio.nombre}
               </p>
-              <h1 className="text-3xl font-light tracking-tight text-text-primary mb-2">
-                {pct}% off en tu primera consulta
-              </h1>
+              <p className="text-7xl font-light tracking-tighter tabular-nums text-text-primary leading-none">{pct}%</p>
+              <h1 className="text-xl font-light text-text-primary mt-2 mb-3">de descuento en tu primera consulta</h1>
               <p className="text-text-secondary text-sm mb-6">
-                Creá tu cuenta con este link y el descuento se aplica solo cuando pagues.
+                Creá tu cuenta y se descuenta automáticamente al pagar.
               </p>
               <Link
                 to="/registro"

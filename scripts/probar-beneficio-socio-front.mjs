@@ -7,8 +7,9 @@
 // Paciente: /r/lift → crear cuenta (dice "Beneficio LIFT") → Perfil muestra el
 // beneficio → reservar un turno → la pantalla de pago muestra −20% → paga con
 // la tarjeta de prueba APRO → reservar otro → la pantalla de pago ya no muestra
-// el descuento. Super admin: /super-admin/socios muestra al paciente, el
-// descuento usado y el QR.
+// el descuento. Paciente que YA tenía cuenta: /r/lift → "Iniciá sesión" → queda
+// atribuido. Perfil de alguien sin beneficio: "¿Tenés un código?" → lo carga.
+// Super admin: /super-admin/socios muestra al paciente, el descuento usado y el QR.
 //
 // Sólo staging: siembra durante la corrida un vendedor simulado de MP para el
 // profesional (igual que verificar-despacho-ondemand.mjs) y lo borra al final.
@@ -97,9 +98,11 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
   const email = `qa-lift-front-${stamp}@staging.healthier.app`
   await page.goto(`${BASE}/r/lift`)
-  await page.getByText(/20% off en tu primera consulta/).waitFor({ timeout: 15000 }).catch(() => {})
+  await page.getByText(/de descuento en tu primera consulta/).waitFor({ timeout: 15000 }).catch(() => {})
   await page.screenshot({ path: `${OUT}/1-landing-lift.png` })
-  ok(await page.getByText(/20% off en tu primera consulta/).isVisible(), '/r/lift muestra "20% off en tu primera consulta"')
+  ok(await page.getByText('20%', { exact: true }).isVisible() && await page.getByText(/de descuento en tu primera consulta/).isVisible(),
+    '/r/lift muestra "20%" + "de descuento en tu primera consulta"')
+  ok(/× LIFT/.test(await page.getByTestId('socio-header').textContent().catch(() => '')), 'header "Healthier × LIFT"')
   await page.getByRole('link', { name: /Crear mi cuenta/ }).click()
   await page.getByRole('button', { name: /Continuar con email/i }).click()
   await page.getByLabel('Nombre', { exact: true }).fill('Socia QA')
@@ -107,7 +110,7 @@ try {
   await page.locator('input[type="email"]').fill(email)
   await page.locator('input[type="tel"]').fill('11 5555 0199')
   await page.locator('input[type="password"]').fill(password)
-  ok(await page.getByText(/Beneficio\s+LIFT\s+en tu primera consulta/).isVisible(), 'el alta dice "Beneficio LIFT en tu primera consulta"')
+  ok(await page.getByText(/20% de descuento con LIFT/).isVisible(), 'el alta dice "20% de descuento con LIFT en tu primera consulta"')
   await page.screenshot({ path: `${OUT}/2-registro.png` })
   await page.getByRole('button', { name: /Crear cuenta/i }).click()
   await page.waitForURL(/onboarding|dashboard/, { timeout: 25000 }).catch(() => {})
@@ -128,7 +131,9 @@ try {
   await page.goto(`${BASE}/paciente/perfil`)
   await page.getByTestId('beneficio-socio').waitFor({ timeout: 15000 }).catch(() => {})
   await page.screenshot({ path: `${OUT}/3-perfil.png`, fullPage: true })
-  ok(/20% off en tu primera consulta/.test(await page.getByTestId('beneficio-socio').textContent().catch(() => '')), 'Perfil: "Beneficio LIFT · 20% off en tu primera consulta"')
+  await page.getByTestId('beneficio-socio').scrollIntoViewIfNeeded().catch(() => {})
+  await page.getByTestId('beneficio-socio').screenshot({ path: `${OUT}/perfil-c-con-beneficio.png` }).catch(() => {})
+  ok(/20% de descuento en tu primera consulta/.test(await page.getByTestId('beneficio-socio').textContent().catch(() => '')), 'Perfil: "Beneficio LIFT · 20% de descuento en tu primera consulta"')
 
   // ── 3. Primer turno: −20% ─────────────────────────────────────────────
   const fecha1 = proximoHabil(2)
@@ -136,6 +141,8 @@ try {
   const texto1 = await page.locator('body').innerText()
   const conDesc = (PRECIO * 0.8).toLocaleString('es-AR')
   ok(/Beneficio LIFT \(20%\)/.test(texto1) && texto1.includes(`$${conDesc}`), `pantalla de pago: "Beneficio LIFT (20%)" y a pagar $${conDesc} (url ${page.url()})`)
+  ok(texto1.includes(`\u2212$${(PRECIO * 0.2).toLocaleString('es-AR')}`), 'el descuento va con el signo menos tipográfico (−)')
+  ok(!/medicina_general/.test(texto1), 'muestra la especialidad con su nombre, no el slug')
 
   // Pagar con tarjeta nueva de prueba (Brick de MP).
   let pagado = false
@@ -188,10 +195,59 @@ try {
   ok(!/Beneficio LIFT/.test(texto2) && texto2.includes(`$${PRECIO.toLocaleString('es-AR')}`), `segundo turno sin descuento: a pagar $${PRECIO.toLocaleString('es-AR')}`)
   await page.goto(`${BASE}/paciente/perfil`)
   await page.getByTestId('beneficio-socio').waitFor({ timeout: 15000 }).catch(() => {})
-  ok(/Ya lo usaste/.test(await page.getByTestId('beneficio-socio').textContent().catch(() => '')), 'Perfil: "Ya lo usaste en tu primera consulta"')
+  await page.waitForTimeout(1500)
+  ok(!(await page.getByTestId('beneficio-socio').isVisible().catch(() => false)) && !(await page.getByTestId('cargar-codigo').isVisible().catch(() => false)),
+    'Perfil: con el beneficio usado, la fila desaparece')
   await page.close()
 
-  // ── 5. Super admin ────────────────────────────────────────────────────
+  // ── 5. Socio que YA tenía cuenta: link → "Iniciá sesión" ─────────────
+  const emailViejo = `qa-lift-login-${stamp}@staging.healthier.app`
+  const { data: uv } = await admin.auth.admin.createUser({ email: emailViejo, password, email_confirm: true, user_metadata: { role: 'patient', full_name: 'Socio Viejo QA' } })
+  await admin.from('profiles').update({
+    es_prueba: true, first_name: 'Socio', last_name: 'Viejo QA', phone: '+54 9 11 5555-0198',
+    dni: String(31000000 + (stamp % 999999)), coverage_type: 'particular',
+    consentimiento_at: new Date().toISOString(), consentimiento_version: '3.0', onboarding_completado_at: new Date().toISOString(),
+  }).eq('id', uv.user.id)
+  const pv = await browser.newPage({ viewport: { width: 390, height: 844 } })
+  await pv.goto(`${BASE}/r/lift`)
+  await pv.getByRole('link', { name: /Iniciá sesión/ }).click()
+  await pv.locator('input[type="email"]').fill(emailViejo)
+  await pv.locator('input[type="password"]').fill(password)
+  await pv.getByRole('button', { name: /^Iniciar sesión/ }).click()
+  await pv.waitForURL(/paciente/, { timeout: 25000 }).catch(() => {})
+  await pv.getByText(/tenés el beneficio LIFT/).waitFor({ timeout: 15000 }).catch(() => {})
+  await pv.screenshot({ path: `${OUT}/8-login-con-link.png` })
+  const { data: atrV } = await admin.from('socio_atribuciones').select('origen').eq('paciente_id', uv.user.id).maybeSingle()
+  ok(atrV?.origen === 'link', `socio con cuenta: tras "Iniciá sesión" queda atribuido por el link (${atrV?.origen})`)
+  ok(await pv.getByText(/tenés el beneficio LIFT/).isVisible().catch(() => false), 'y ve el aviso "Listo: tenés el beneficio LIFT…"')
+  await pv.close()
+
+  // ── 6. Perfil de alguien sin beneficio: cargar el código a mano ───────
+  const emailSin = `qa-lift-codigo-${stamp}@staging.healthier.app`
+  const { data: us } = await admin.auth.admin.createUser({ email: emailSin, email_confirm: true, user_metadata: { role: 'patient', full_name: 'Codigo QA' } })
+  await admin.from('profiles').update({
+    es_prueba: true, first_name: 'Código', last_name: 'QA', phone: '+54 9 11 5555-0197',
+    dni: String(32000000 + (stamp % 999999)), coverage_type: 'particular',
+    consentimiento_at: new Date().toISOString(), consentimiento_version: '3.0', onboarding_completado_at: new Date().toISOString(),
+  }).eq('id', us.user.id)
+  const pc = await browser.newPage({ viewport: { width: 390, height: 844 } })
+  await entrarCon(pc, emailSin)
+  await pc.goto(`${BASE}/paciente/perfil`)
+  const filaCodigo = pc.getByTestId('cargar-codigo')
+  await filaCodigo.waitFor({ timeout: 15000 })
+  await filaCodigo.scrollIntoViewIfNeeded()
+  await filaCodigo.screenshot({ path: `${OUT}/perfil-a-cerrado.png` })
+  await filaCodigo.click()
+  await pc.locator('#codigo-beneficio').fill('lift')
+  await pc.locator('form', { has: pc.locator('#codigo-beneficio') }).screenshot({ path: `${OUT}/perfil-b-formulario.png` })
+  await pc.getByRole('button', { name: 'Cargar' }).click()
+  await pc.getByTestId('beneficio-socio').waitFor({ timeout: 15000 }).catch(() => {})
+  const { data: atrC } = await admin.from('socio_atribuciones').select('origen').eq('paciente_id', us.user.id).maybeSingle()
+  ok(atrC?.origen === 'codigo', `Perfil: cargó "LIFT" a mano y quedó atribuido por código (${atrC?.origen})`)
+  ok(await pc.getByTestId('beneficio-socio').isVisible().catch(() => false), 'y la fila pasa a mostrar el beneficio')
+  await pc.close()
+
+  // ── 7. Super admin ────────────────────────────────────────────────────
   const sa = await browser.newPage({ viewport: { width: 1280, height: 900 } })
   await entrarCon(sa, 'superadmin@healthier.app')
   await sa.waitForTimeout(1500)
@@ -206,6 +262,7 @@ try {
   await sa.screenshot({ path: `${OUT}/7-super-admin-socios.png`, fullPage: true })
   const textoSa = await sa.locator('body').innerText()
   ok(/super-admin\/socios/.test(sa.url()), `se llega desde el menú (${sa.url()})`)
+  ok(/\d{2}\/\d{2} · \d{2}:\d{2}/.test(textoSa), 'fechas en formato "25/11 · 21:17"')
   ok(textoSa.includes(email), 'el super admin ve a la socia nueva')
   const fila = await sa.locator('tr', { hasText: email }).innerText().catch(() => '')
   ok(/Usado/.test(fila), `y su descuento como "Usado" (${fila.replace(/\s+/g, ' ')})`)

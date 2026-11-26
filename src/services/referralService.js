@@ -1,5 +1,5 @@
 import { supabase, toCamelCase } from '../lib/supabase'
-import { canjearConReintento, guardarCanjePendiente, leerCanjePendiente, borrarCanjePendiente } from '../lib/referral'
+import { canjearConReintento, guardarCanjePendiente, leerCanjePendiente, borrarCanjePendiente, getStoredReferral, clearReferral } from '../lib/referral'
 
 export const SITIO_PUBLICO = 'https://www.healthier.com.ar'
 
@@ -116,6 +116,20 @@ export const referralService = {
     const r = await this.canjear(p.codigo, p.via)
     if (r?.motivo !== 'error') borrarCanjePendiente()
     return r
+  },
+
+  /**
+   * Link de un socio comercial (ej. /r/lift) guardado en este navegador por
+   * alguien que YA tenía cuenta y entró por "Iniciá sesión": se canjea al tener
+   * sesión de paciente. Sin esto el link no hacía nada para un socio con cuenta.
+   * Devuelve el resultado del canje (o null si no había link de socio).
+   */
+  async canjearSocioGuardado() {
+    const r = getStoredReferral()
+    if (r?.tipo !== 'socio' || !r.codigo) return null
+    const res = await this.canjear(r.codigo, 'link')
+    if (res?.motivo !== 'error') clearReferral()
+    return { ...res, socioNombre: r.nombre }
   },
 
   /** Mi código y cuántos se sumaron (paciente o profesional). */
