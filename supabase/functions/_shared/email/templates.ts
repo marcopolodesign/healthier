@@ -457,6 +457,58 @@ export function consultaCancelada(c: ConsultaBase & { paraQuien: 'paciente' | 'p
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 8bis · Turno reprogramado — a los dos
+// ═══════════════════════════════════════════════════════════════════════════
+// Sale cuando el equipo de Healthier (admin / super admin) le cambia la fecha a
+// un turno. Lo dispara el trigger de la migración 253, nunca el front. La fecha
+// nueva es la que manda; la anterior va tachada al lado para que se entienda de
+// un vistazo qué cambió.
+export function turnoReprogramado(c: ConsultaBase & { paraQuien: 'paciente' | 'profesional'; anterior: string | null }): Sent {
+  const esPaciente = c.paraQuien === 'paciente'
+  const accent = esPaciente ? (ACCENT_POR_VERTICAL[c.vertical ?? ''] ?? 'sage') : 'sage'
+  const presencial = c.modality === 'presencial'
+  const cuando = c.scheduledAt ? fechaYHora(c.scheduledAt) : 'A confirmar'
+  const antes = c.anterior ? [{ label: 'Antes', value: `<s>${esc(fechaYHora(c.anterior))}</s>` }] : []
+
+  const rows = esPaciente
+    ? [{ label: 'Nuevo horario', value: esc(cuando) }, ...antes, ...filasDeConsulta(c).slice(1)]
+    : [
+        { label: 'Nuevo horario', value: esc(cuando) },
+        ...antes,
+        { label: 'Paciente', value: esc(c.patientFullName) },
+        { label: 'Modalidad', value: presencial ? 'Consulta presencial' : 'Videoconsulta' },
+      ]
+
+  const body = [
+    p(esPaciente
+      ? `Hola <strong style="color:${C.ink}">${esc(c.patientName)}</strong>, tu turno con <strong style="color:${C.ink}">${esc(c.professionalName)}</strong> cambió de horario.`
+      : `Hola <strong style="color:${C.ink}">${esc(c.professionalName)}</strong>, cambió el horario de tu turno con <strong style="color:${C.ink}">${esc(c.patientFullName)}</strong>.`),
+    panel(rows, accent),
+    esPaciente
+      ? note(presencial
+          ? 'El resto queda igual. Si el horario nuevo no te sirve, podés cancelarlo desde la app.'
+          : 'El resto queda igual. Entrá a la sala <strong>5 minutos antes</strong> desde la app.', accent)
+      : note('Ya figura así en tu agenda.', accent),
+    esPaciente
+      ? button(`${APP_URL}/paciente/turno-confirmado/${c.id}`, 'Ver mi turno', accent)
+      : button(`${APP_URL}/profesional/agenda`, 'Ver mi agenda', accent),
+  ].join('')
+
+  const corto = c.scheduledAt ? ` — ${fechaCortaConHora(c.scheduledAt)}` : ''
+  return {
+    subject: esPaciente
+      ? `Tu turno cambió de horario · ${c.professionalName}${corto}`
+      : `Cambió el horario de un turno · ${c.patientFullName}${corto}`,
+    html: renderEmail({
+      preheader: `Nuevo horario: ${cuando}`,
+      eyebrow: 'Turno reprogramado', accent,
+      title: esPaciente ? 'Tu turno cambió de horario' : 'Cambió el horario de un turno',
+      body,
+    }),
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 9 · Bienvenida — al paciente recién registrado
 // ═══════════════════════════════════════════════════════════════════════════
 /**

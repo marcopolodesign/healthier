@@ -33,6 +33,7 @@ const TIPOS = {
   'post-consulta':     'Resumen post-consulta',
   'recordatorio':      'Recordatorio de turno',
   'cancelada':         'Turno cancelado',
+  'reprogramada':      'Turno reprogramado',
   'pedido-confirmado': 'Pedido de farmacia',
   'pedido-estado':     'Estado del pedido',
   'receta':            'Receta emitida',
