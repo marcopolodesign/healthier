@@ -36,6 +36,9 @@ export default function PharmacyPayment({ profile }) {
   // reserva el pago en vez de cobrarlo y lo cobra cuando la receta queda
   // resuelta. Acá sólo se avisa; la decisión la toma mp-payment con la base.
   const conReceta = (order?.items ?? []).some(it => it.recetaVia)
+  // Un pedido con receta por resolver siempre va con tarjeta, aun bonificado:
+  // la base no deja marcarlo 'exento' (254) y se cobra recién con la receta.
+  const bonificado = paymentExempt && !conReceta
 
   useEffect(() => {
     mpService.getPaymentPlatformConfig().then(({ data }) => {
@@ -92,7 +95,7 @@ export default function PharmacyPayment({ profile }) {
 
   const handlePay = async () => {
     if (paying || paid || addCardMode) return
-    if (paymentExempt) {
+    if (bonificado) {
       // Bonificado: el pedido pasa a 'exento' y no se toca Mercado Pago. El
       // trigger de la base sólo lo deja si el perfil está realmente exento
       // (migración 165), así que esto no es una puerta de atrás.
@@ -148,7 +151,7 @@ export default function PharmacyPayment({ profile }) {
             <span className="text-[20px] font-black text-text-primary">{fmtPrice(amount)}</span>
           </div>
 
-          {!isDemoMode && !paymentExempt && (
+          {!isDemoMode && !bonificado && (
             <SavedCardSelector
               ref={cardSelectorRef}
               selectedCardId={selectedCardId}
@@ -172,7 +175,7 @@ export default function PharmacyPayment({ profile }) {
         {!addCardMode && (
           <button
             onClick={handlePay}
-            disabled={paying || paid || (!isDemoMode && !paymentExempt && !selectedCardId)}
+            disabled={paying || paid || (!isDemoMode && !bonificado && !selectedCardId)}
             className={[
               'w-full py-5 rounded-full font-bold text-[16px] flex items-center justify-center gap-3 transition-all',
               paid
