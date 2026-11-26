@@ -2,7 +2,7 @@
 //   deno test scripts/test-firma-mp.ts
 // Con un secreto de prueba: el real de MP vive sólo en los secrets de Supabase.
 import { assertEquals } from 'jsr:@std/assert@1'
-import { firmarAvisoMp, validarAvisoMp, MAX_EDAD_MS } from '../supabase/functions/_shared/firmaMp.ts'
+import { firmarAvisoMp, validarAvisoMp } from '../supabase/functions/_shared/firmaMp.ts'
 
 const SECRET = 'secreto-de-prueba'
 const ahora = Date.parse('2026-11-25T22:00:00Z')
@@ -27,11 +27,11 @@ Deno.test('body.data.id distinto del firmado → rechazado', async () => {
   assertEquals(r, { ok: false, motivo: 'data_id_distinto' })
 })
 
-Deno.test('ts de más de 10 minutos → rechazado', async () => {
-  const viejo = String(ahora - MAX_EDAD_MS - 1000)
+Deno.test('un reintento de MP con ts viejo se acepta (no se rechazan pagos reales)', async () => {
+  const viejo = String(ahora - 60 * 60 * 1000) // un reintento de MP una hora después
   const sig = await firmarAvisoMp(SECRET, '123456', 'req-1', viejo)
   const r = await validarAvisoMp({ secret: SECRET, xSignature: sig, xRequestId: 'req-1', queryDataId: '123456', bodyDataId: '123456', ahoraMs: ahora })
-  assertEquals(r, { ok: false, motivo: 'ts_viejo' })
+  assertEquals(r, { ok: true, dataId: '123456' })
 })
 
 Deno.test('firma de otro data.id → rechazado', async () => {

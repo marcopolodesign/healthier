@@ -8,9 +8,13 @@
  *   · que el `data.id` del cuerpo (el pago que después se procesa) sea el mismo
  *     que el firmado de la query — si no, alguien podría reenviar una firma
  *     válida con otro pago en el cuerpo;
- *   · que `ts` no tenga más de MAX_EDAD_MS: un aviso viejo reenviado no vale.
+ *
+ * La antigüedad de `ts` NO se exige a propósito (Mateo/sesión principal,
+ * 2026-11-25): no está probado cómo reintenta MP, y si reenvía con el `ts`
+ * original un límite rechazaría pagos reales en silencio. El estado del pago
+ * siempre se vuelve a leer de la API de MP, así que reenviar un aviso viejo no
+ * cambia nada que MP no confirme.
  */
-export const MAX_EDAD_MS = 10 * 60 * 1000
 
 export type ResultadoAviso = { ok: true; dataId: string } | { ok: false; motivo: string }
 
@@ -47,13 +51,6 @@ export async function validarAvisoMp(p: {
   if (!dataId) return { ok: false, motivo: 'sin_data_id' }
   if (p.queryDataId && p.bodyDataId && String(p.bodyDataId).toLowerCase() !== String(p.queryDataId).toLowerCase()) {
     return { ok: false, motivo: 'data_id_distinto' }
-  }
-
-  // MP documenta `ts` en milisegundos; si llega en segundos también se acepta.
-  const tsNum = Number(ts)
-  const tsMs = tsNum > 1e12 ? tsNum : tsNum * 1000
-  if (!Number.isFinite(tsMs) || Math.abs((p.ahoraMs ?? Date.now()) - tsMs) > MAX_EDAD_MS) {
-    return { ok: false, motivo: 'ts_viejo' }
   }
 
   const esperado = await hmacHex(p.secret, `id:${dataId};request-id:${p.xRequestId ?? ''};ts:${ts};`)
