@@ -113,6 +113,8 @@ const CASOS: Caso[] = [
   caso('recordatorio-manana', 'Recordatorio · mañana', 'Turnos', T.recordatorioTurno({ ...base, cuando: 'manana' })),
   caso('recordatorio-pronto', 'Recordatorio · en 30 minutos', 'Turnos', T.recordatorioTurno({ ...base, scheduledAt: enHoras(0.5), cuando: 'pronto' })),
   caso('cancelada-paciente', 'Turno cancelado (al paciente)', 'Turnos', T.consultaCancelada({ ...base, paraQuien: 'paciente', motivo: 'El profesional tuvo una urgencia', canceladaPorMi: false })),
+  caso('reprogramada-paciente', 'Turno reprogramado (al paciente)', 'Turnos', T.turnoReprogramado({ ...base, paraQuien: 'paciente', anterior: enHoras(24) })),
+  caso('reprogramada-profesional', 'Turno reprogramado (al profesional)', 'Turnos', T.turnoReprogramado({ ...base, paraQuien: 'profesional', anterior: enHoras(24) })),
   caso('cancelada-profesional', 'Turno cancelado (al profesional)', 'Turnos', T.consultaCancelada({ ...base, paraQuien: 'profesional', motivo: null, canceladaPorMi: false })),
 
   caso('post-video', 'Post consulta · videoconsulta', 'Post consulta', T.postConsultaPaciente(post)),
