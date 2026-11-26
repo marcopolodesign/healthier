@@ -62,6 +62,28 @@ function proximoHabil(offset = 2) {
   return d.toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
 }
 
+/**
+ * Un turno libre del profesional (lun–vie, 15:00–18:45, entre 3 y 10 días: lo que muestra el asistente):
+ * cada corrida reserva uno, así que no se puede repetir siempre el mismo
+ * horario — la base (249) rechaza un turno encima de otro.
+ */
+async function turnoLibre(proId, saltear = []) {
+  const { data: tomadas } = await admin.from('consultations').select('scheduled_at')
+    .eq('professional_id', proId).in('status', ['pending', 'confirmed', 'in_progress'])
+    .gte('scheduled_at', new Date().toISOString())
+  const ocupado = new Set((tomadas ?? []).map(c => new Date(c.scheduled_at).toISOString()).concat(saltear))
+  for (let n = 0; n < 400; n++) {
+    const dias = 3 + Math.floor(Math.random() * 7)
+    const fecha = proximoHabil(dias)
+    const h = 15 + Math.floor(Math.random() * 4)
+    const m = [0, 15, 30, 45][Math.floor(Math.random() * 4)]
+    const hora = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+    const iso = new Date(`${fecha}T${hora}:00-03:00`).toISOString()
+    if (!ocupado.has(iso)) return { fecha, hora, iso }
+  }
+  throw new Error('sin turnos libres')
+}
+
 /** Del wizard con el turno precargado hasta /paciente/pago. */
 async function irAPagar(page, proUserId, fecha, hora, captura) {
   await page.goto(`${BASE}/paciente/reservar?vertical=clinica&proId=${proUserId}&modality=virtual&fecha=${fecha}&hora=${hora}`)
@@ -96,6 +118,8 @@ try {
 
   // ── 1. Paciente: link de LIFT → alta ──────────────────────────────────
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
+  // Para diagnosticar el Brick: errores de MP y de nuestras funciones.
+  page.on('response', r => { if (r.status() >= 400 && /mercadopago|mercadolibre|functions\/v1/.test(r.url())) console.log(`   [${r.status()}] ${r.url().slice(0, 140)}`) })
   const email = `qa-lift-front-${stamp}@staging.healthier.app`
   await page.goto(`${BASE}/r/lift`)
   await page.getByText(/de descuento en tu primera consulta/).waitFor({ timeout: 15000 }).catch(() => {})
@@ -136,8 +160,8 @@ try {
   ok(/20% de descuento en tu primera consulta/.test(await page.getByTestId('beneficio-socio').textContent().catch(() => '')), 'Perfil: "Beneficio LIFT · 20% de descuento en tu primera consulta"')
 
   // ── 3. Primer turno: −20% ─────────────────────────────────────────────
-  const fecha1 = proximoHabil(2)
-  await irAPagar(page, pro.id, fecha1, '10:00', '4-pago-primera')
+  const t1 = await turnoLibre(pro.id)
+  await irAPagar(page, pro.id, t1.fecha, t1.hora, '4-pago-primera')
   const texto1 = await page.locator('body').innerText()
   const conDesc = (PRECIO * 0.8).toLocaleString('es-AR')
   ok(/Beneficio LIFT \(20%\)/.test(texto1) && texto1.includes(`$${conDesc}`), `pantalla de pago: "Beneficio LIFT (20%)" y a pagar $${conDesc} (url ${page.url()})`)
@@ -190,7 +214,8 @@ try {
     `cobro: ${JSON.stringify(pago1)}`)
 
   // ── 4. Segundo turno: sin descuento ───────────────────────────────────
-  await irAPagar(page, pro.id, proximoHabil(3), '11:00', '6-pago-segunda')
+  const t2 = await turnoLibre(pro.id, [t1.iso])
+  await irAPagar(page, pro.id, t2.fecha, t2.hora, '6-pago-segunda')
   const texto2 = await page.locator('body').innerText()
   ok(!/Beneficio LIFT/.test(texto2) && texto2.includes(`$${PRECIO.toLocaleString('es-AR')}`), `segundo turno sin descuento: a pagar $${PRECIO.toLocaleString('es-AR')}`)
   await page.goto(`${BASE}/paciente/perfil`)
