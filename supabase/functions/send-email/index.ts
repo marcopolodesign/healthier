@@ -285,6 +285,8 @@ type Body = {
   /** pedido-estado */
   estado?: 'en_preparacion' | 'enviado' | 'entregado' | 'cancelado'
   motivo?: string | null
+  /** pedido-estado: cancelado de un pedido retenido (migración 256) */
+  liberado?: boolean
   /** receta */
   prescriptionId?: string
   certificadoId?: string
@@ -429,7 +431,7 @@ Deno.serve(async (req) => {
         if (!body.orderId || !body.estado) return json({ error: 'Falta orderId o estado' }, 400)
         const o = await leerPedido(sb, body.orderId)
         if (!o) return json({ error: 'Pedido no encontrado' }, 404)
-        const mail = T.pedidoFarmaciaEstado({ ...o.pedido, estado: body.estado, motivo: body.motivo ?? null })
+        const mail = T.pedidoFarmaciaEstado({ ...o.pedido, estado: body.estado, motivo: body.motivo ?? null, liberado: body.liberado === true })
         return await salida({ orderId: o.pedido.id }, [{ to: o.email, ...mail }])
       }
 

@@ -63,12 +63,21 @@ async function datosDelAviso(
     datos.orderId = p.orderId as string
     const { data } = await supabase
       .from('medication_orders')
-      .select('cancellation_reason, pharmacy:pharmacies!pharmacy_id(name)')
+      .select(`cancellation_reason, receta_motivo_rechazo, total, patient_id,
+        pharmacy:pharmacies!pharmacy_id(name),
+        medico:profiles!receta_medico_id(full_name)`)
       .eq('id', p.orderId)
       .maybeSingle()
     if (data) {
       datos.pharmacyName = (data.pharmacy as { name?: string } | null)?.name ?? null
-      datos.motivo = datos.motivo ?? data.cancellation_reason ?? null
+      datos.motivo = datos.motivo ?? data.receta_motivo_rechazo ?? data.cancellation_reason ?? null
+      // Pedidos de receta (migración 256)
+      datos.professionalName = datos.professionalName ?? (data.medico as { full_name?: string } | null)?.full_name ?? null
+      datos.monto = datos.monto ?? (data.total != null ? Number(data.total) : null)
+      if (p.tipo === 'pedido-receta-nuevo' && data.patient_id) {
+        const { data: pac } = await supabase.from('profiles').select('full_name').eq('id', data.patient_id).maybeSingle()
+        datos.patientName = (pac?.full_name as string | undefined) ?? null
+      }
     }
   }
 

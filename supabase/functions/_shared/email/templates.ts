@@ -352,13 +352,17 @@ export function pedidoFarmaciaConfirmado(o: PedidoFarmacia): Sent {
 // ═══════════════════════════════════════════════════════════════════════════
 // 6 · Cambios de estado del pedido de farmacia
 // ═══════════════════════════════════════════════════════════════════════════
-export function pedidoFarmaciaEstado(o: PedidoFarmacia & { estado: 'en_preparacion' | 'enviado' | 'entregado' | 'cancelado'; motivo?: string | null }): Sent {
+export function pedidoFarmaciaEstado(o: PedidoFarmacia & { estado: 'en_preparacion' | 'enviado' | 'entregado' | 'cancelado'; motivo?: string | null; liberado?: boolean }): Sent {
   const M = {
     en_preparacion: { eyebrow: 'En preparación', title: 'La farmacia está preparando tu pedido', line: 'ya lo tienen y lo están armando.', accent: 'lavender' as Accent },
     enviado:        { eyebrow: 'En camino',      title: 'Tu pedido está en camino', line: 'está en viaje a tu domicilio. Abrí el pedido en la app: adentro está el código de 4 dígitos que tenés que darle a quien te lo entregue.', accent: 'lavender' as Accent },
     entregado:      { eyebrow: 'Entregado',      title: 'Tu pedido fue entregado',           line: 'listo. Cualquier cosa, escribinos desde la app.', accent: 'sage' as Accent },
     cancelado:      { eyebrow: 'Pedido cancelado', title: 'Tu pedido se canceló',            line: 'si ya lo habías pagado, la devolución sale automáticamente por Mercado Pago.', accent: 'coral' as Accent },
   }[o.estado]
+  // Pedido de receta (migración 256): el pago estaba reservado, nunca se cobró.
+  if (o.estado === 'cancelado' && o.liberado) {
+    Object.assign(M, { title: 'No se te cobró nada', line: 'cancelamos tu pedido y liberamos la reserva de tu tarjeta: no se te cobró nada.' })
+  }
 
   const body = [
     p(`Hola <strong style="color:${C.ink}">${esc(o.patientName)}</strong>, ${M.line}`),

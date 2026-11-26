@@ -309,6 +309,41 @@ export const AVISOS = {
     }),
   },
 
+  // ── Pedidos de receta (migraciones 254/256) ──────────────────────────────
+  // El pago se RETIENE hasta que la receta queda resuelta: nada de "pagaste" ni
+  // de "devolución" mientras no se cobró.
+  'pedido-receta-tomado': {
+    para: 'paciente' as Destinatario,
+    cuando: 'Un médico de Healthier toma el pedido de receta del paciente.',
+    build: (d: Datos): Aviso => ({
+      title: 'Un médico tomó tu pedido',
+      body: `${d.professionalName ?? 'Un médico de Healthier'} te va a llamar para hacerte la receta. Hasta que esté lista, no se te cobra.`,
+      url: `/paciente/farmacia/pedido/${d.orderId}`,
+    }),
+  },
+
+  'pedido-receta-lista': {
+    para: 'paciente' as Destinatario,
+    cuando: 'La receta del pedido quedó resuelta (la hizo el médico o la farmacia aprobó la que subió) y se cobró la reserva.',
+    build: (d: Datos): Aviso => ({
+      title: 'Receta lista: tu pedido está en preparación',
+      body: `Cobramos ${pesos(d.monto) ?? 'el pedido'} y ${d.pharmacyName ?? 'la farmacia'} ya lo está preparando.`,
+      url: `/paciente/farmacia/pedido/${d.orderId}`,
+    }),
+  },
+
+  'pedido-receta-liberado': {
+    para: 'paciente' as Destinatario,
+    cuando: 'El pedido retenido se cancela (el médico no recetó, la farmacia rechazó la receta subida o venció la reserva). Se libera la reserva de la tarjeta.',
+    build: (d: Datos): Aviso => ({
+      title: 'No se te cobró nada',
+      body: d.motivo
+        ? `${d.motivo.replace(/\.$/, '')}. Liberamos la reserva de tu tarjeta.`
+        : 'Cancelamos el pedido y liberamos la reserva de tu tarjeta.',
+      url: `/paciente/farmacia/pedido/${d.orderId}`,
+    }),
+  },
+
   // ── Pagos ─────────────────────────────────────────────────────────────────
   // El pago aprobado no tiene aviso propio: el turno confirmado y el pedido
   // confirmado ya lo dicen. Lo que faltaba es enterarse de la devolución.
@@ -357,6 +392,17 @@ export const AVISOS = {
   },
 
   // ── Al profesional ────────────────────────────────────────────────────────
+  'pedido-receta-nuevo': {
+    para: 'profesional' as Destinatario,
+    cuando: 'Entra un pedido de farmacia que necesita receta (sólo a los médicos de Healthier). Se manda a todos: el primero que lo toma se lo queda.',
+    build: (d: Datos): Aviso => ({
+      title: 'Nuevo pedido de receta',
+      // Sin el nombre del medicamento: el aviso se lee en la pantalla bloqueada.
+      body: `${d.patientName ?? 'Un paciente'} necesita una receta para su pedido de farmacia. El primero que lo toma, lo atiende.`,
+      url: '/profesional/pedidos-receta',
+    }),
+  },
+
   'pro-consulta-nueva': {
     para: 'profesional' as Destinatario,
     cuando: 'Un paciente le reserva un turno o le pide una consulta inmediata.',
