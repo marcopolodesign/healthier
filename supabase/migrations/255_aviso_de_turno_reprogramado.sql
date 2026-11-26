@@ -15,6 +15,7 @@
 --     devolvía la vencida. La consulta reprogramada quedaba sin videollamada.
 --     Se arregla de los dos lados: acá se limpia la sala al reprogramar, y
 --     `daily-token` ahora reclama contra el nombre que tenía (ver la función).
+--     No toca emergencias (su sala la maneja la atención de emergencia).
 --     Vale para cualquiera que reprograme, no sólo el admin: una sala armada
 --     para otro horario nunca sirve para el nuevo (vencen a las 24 h).
 --
@@ -40,6 +41,7 @@ as $$
 begin
   if date_trunc('minute', new.scheduled_at) is distinct from date_trunc('minute', old.scheduled_at)
      and not coalesce(new.is_on_demand, false)
+     and new.emergency_id is null
      and new.status in ('pending', 'confirmed') then
     new.daily_room_url  := null;
     new.daily_room_name := null;
@@ -49,7 +51,7 @@ end;
 $$;
 
 comment on function public.reprogramacion_suelta_la_sala() is
-  'Migración 255. Al cambiar scheduled_at de un turno vivo (pending/confirmed, no inmediato) limpia daily_room_url/daily_room_name: la sala vieja es de otro horario y daily-token arma una nueva al entrar.';
+  'Migración 255. Al cambiar scheduled_at de un turno vivo (pending/confirmed, no inmediato ni emergencia) limpia daily_room_url/daily_room_name: la sala vieja es de otro horario y daily-token arma una nueva al entrar.';
 
 drop trigger if exists consultations_reprogramada_sala on public.consultations;
 create trigger consultations_reprogramada_sala
@@ -69,7 +71,7 @@ begin
      or new.scheduled_at <= now()
      or coalesce(new.is_on_demand, false)
      or new.emergency_id is not null
-     or new.status not in ('pending', 'confirmed') then
+     or coalesce(new.status, '') not in ('pending', 'confirmed') then
     return new;
   end if;
 
