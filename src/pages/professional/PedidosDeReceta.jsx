@@ -28,6 +28,8 @@ const productos = items => (items ?? [])
   .map(it => `${it.nombre}${it.cantidad > 1 ? ` × ${it.cantidad}` : ''}`)
   .join(' · ')
 
+const BOTON = 'w-full py-3.5 rounded-full bg-brand hover:bg-brand-hover text-white text-[15px] font-medium'
+
 const SEGMENTOS = [
   { id: 'nuevos', label: 'Nuevos' },
   { id: 'tuyos', label: 'Tuyos' },
@@ -136,7 +138,7 @@ export default function PedidosDeReceta() {
 
         {tipo === 'nuevos' && (
           <button onClick={() => tomar(p)} disabled={ocupado === p.orderId}
-            className="w-full py-3.5 rounded-full bg-brand hover:bg-brand-hover text-white text-[15px] font-medium flex items-center justify-center gap-2 disabled:opacity-60">
+            className={`${BOTON} flex items-center justify-center gap-2 disabled:opacity-60`}>
             {ocupado === p.orderId && <CircleNotch className="w-4 h-4 animate-spin" />} Tomar
           </button>
         )}
@@ -145,12 +147,12 @@ export default function PedidosDeReceta() {
           <>
             {p.listaParaCobrar ? (
               <button onClick={() => cobrar(p)} disabled={ocupado === p.orderId}
-                className="w-full py-3.5 rounded-full bg-brand hover:bg-brand-hover text-white text-[15px] font-medium flex items-center justify-center gap-2 disabled:opacity-60">
+                className={`${BOTON} flex items-center justify-center gap-2 disabled:opacity-60`}>
                 {ocupado === p.orderId && <CircleNotch className="w-4 h-4 animate-spin" />} Receta lista: cobrar y enviar
               </button>
             ) : (
               <button onClick={() => navigate(`/profesional/consulta/${p.consultaId}`)}
-                className="w-full py-3.5 rounded-full bg-brand hover:bg-brand-hover text-white text-[15px] font-medium">
+                className={BOTON}>
                 Abrir la consulta y hacer la receta
               </button>
             )}

@@ -203,7 +203,7 @@ export default function SuperAdminFarmacia() {
             <tbody>
               {/* Los reservados van arriba aunque sean viejos: son plata sin cobrar
                   que vence a los 5 días (barrido de mp-capture). */}
-              {[...retenidos, ...orders.filter(o => o.paymentStatus !== 'autorizado').slice(0, 20)].map(o => (
+              {[...retenidos, ...orders.filter(o => o.paymentStatus !== 'autorizado').slice(0, 20)].map(o => ({ ...o, fase: faseDeReceta(o) })).map(o => (
                 <tr key={o.id} className="table-row">
                   <td className="table-cell font-mono text-xs text-text-secondary">#{o.id.slice(0, 8)}</td>
                   <td className="table-cell text-text-primary">{o.patient?.fullName || '—'}</td>
@@ -214,10 +214,10 @@ export default function SuperAdminFarmacia() {
                     </span>
                   </td>
                   <td className="table-cell">
-                    {faseDeReceta(o) ? (
+                    {o.fase ? (
                       <>
-                        <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${FASE_RECETA_CLASS[faseDeReceta(o)]}`}>
-                          {FASE_RECETA_LABEL[faseDeReceta(o)]}
+                        <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${FASE_RECETA_CLASS[o.fase]}`}>
+                          {FASE_RECETA_LABEL[o.fase]}
                         </span>
                         {o.medico?.fullName && <p className="text-xs text-text-secondary mt-1">{o.medico.fullName}</p>}
                         {o.recetaMotivoRechazo && <p className="text-xs text-text-secondary mt-1">{o.recetaMotivoRechazo}</p>}

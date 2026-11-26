@@ -113,6 +113,15 @@ async function pagarConTarjetaDePrueba(page, prefijo) {
   await page.waitForURL(/\/paciente\/farmacia\/pago/)
   await page.getByText(/Reservamos el pago en tu tarjeta de crédito/).waitFor({ timeout: 15000 })
   await foto(page, `${prefijo}-pago-aviso-reserva`)
+  if (process.env.TARJETA === 'guardada') {
+    // La tarjeta guardada (camino de "tarjeta guardada + CVV"): sólo el código.
+    await page.waitForTimeout(4000)
+    await page.locator('#cvv-tarjeta-guardada').fill('123')
+    await page.waitForTimeout(800)
+    await page.getByRole('button', { name: /Reservar y pedir receta/ }).click()
+    await page.waitForURL(/\/paciente\/farmacia\/pedido\//, { timeout: 40000 })
+    return
+  }
   await page.getByRole('button', { name: /Agregar nueva tarjeta/i }).click()
   await page.getByLabel(/Guardar esta tarjeta/).uncheck().catch(() => {})
   await page.waitForTimeout(4000)
@@ -324,7 +333,7 @@ try {
       await far.waitForURL(/\/farmacia\/pedidos/)
       if (n === 1) await foto(far, 'web-farmacia-lista')
       await far.getByRole('button', { name: 'Revisar receta' }).first().click()
-      await far.getByText('Receta subida por el paciente').waitFor({ timeout: 15000 })
+      await far.getByText('Receta subida por el paciente', { exact: true }).waitFor({ timeout: 15000 })
       await far.waitForTimeout(1500)
       if (n === 1) await foto(far, 'web-farmacia-revisar-receta')
       if (aprobar) {

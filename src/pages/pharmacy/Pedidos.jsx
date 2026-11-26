@@ -100,7 +100,7 @@ export default function PharmacyOrders({ profile }) {
               </tr>
             </thead>
             <tbody>
-              {orders.map(o => (
+              {orders.map(o => { const fase = faseDeReceta(o); return (
                 <tr key={o.id} className="table-row cursor-pointer" onClick={() => navigate(`/farmacia/pedidos/${o.id}`)}>
                   <td className="table-cell font-mono text-xs text-text-secondary">#{o.id.slice(0, 8)}</td>
                   <td className="table-cell">
@@ -111,9 +111,9 @@ export default function PharmacyOrders({ profile }) {
                     <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5 shrink-0" />{o.deliveryAddress || '—'}</span>
                   </td>
                   <td className="table-cell">
-                    {faseDeReceta(o) && faseDeReceta(o) !== 'cobrado' ? (
-                      <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${FASE_RECETA_CLASS[faseDeReceta(o)]}`}>
-                        {FASE_RECETA_LABEL[faseDeReceta(o)]}
+                    {fase && fase !== 'cobrado' ? (
+                      <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${FASE_RECETA_CLASS[fase]}`}>
+                        {FASE_RECETA_LABEL[fase]}
                       </span>
                     ) : (
                       <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${STATUS_BADGE[o.status]}`}>
@@ -137,7 +137,7 @@ export default function PharmacyOrders({ profile }) {
                           esté resuelta y cobrada. La subida la revisa la
                           farmacia en el detalle; la del médico, se espera. */}
                       {o.paymentStatus === 'autorizado' ? (
-                        faseDeReceta(o) === 'farmacia_revisando' ? (
+                        fase === 'farmacia_revisando' ? (
                           <button
                             className="btn-secondary text-xs px-2.5 py-1.5"
                             onClick={e => { e.stopPropagation(); navigate(`/farmacia/pedidos/${o.id}`) }}
@@ -164,7 +164,7 @@ export default function PharmacyOrders({ profile }) {
                     </td>
                   )}
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
           </div>
