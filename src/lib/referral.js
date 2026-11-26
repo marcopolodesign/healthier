@@ -14,12 +14,14 @@ function isExpired() {
  * Se llama al resolver el link, con el dueño del código ya confirmado por la base.
  * `tipo` = 'profesional' | 'paciente' | 'socio' (socio comercial, ej. LIFT). `professionalId` queda sólo para el link del profesional.
  */
-export function storeReferral({ codigo, tipo = 'profesional', professionalId = null, professionalName = null, nombre = null, descuento = null }) {
+export function storeReferral({ codigo, tipo = 'profesional', professionalId = null, professionalName = null, nombre = null, descuento = null }, { conservarTs = false } = {}) {
   if (!codigo) return
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     codigo, tipo, professionalId, professionalName, nombre: nombre ?? professionalName, descuento,
   }))
-  localStorage.setItem(TS_KEY, String(Date.now()))
+  // `conservarTs`: completar datos del mismo link (ej. el % del socio) no
+  // tiene que estirarle la vigencia.
+  if (!conservarTs || !localStorage.getItem(TS_KEY)) localStorage.setItem(TS_KEY, String(Date.now()))
 }
 
 export function getStoredReferral() {
@@ -31,6 +33,35 @@ export function getStoredReferral() {
 export function clearReferral() {
   localStorage.removeItem(STORAGE_KEY)
   localStorage.removeItem(TS_KEY)
+  try { sessionStorage.removeItem(SOCIO_SESION_KEY) } catch { /* sin storage */ }
+}
+
+// ── Link de socio comercial abierto en ESTA sesión del navegador ────────────
+// El canje automático después del login (App.jsx) sólo corre si la persona
+// pasó por /r/<codigo> en esta misma pestaña/sesión: un link viejo guardado en
+// localStorage no atribuye a nadie que entre otro día.
+const SOCIO_SESION_KEY = 'healthier_socio_link_sesion'
+const ALTA_KEY = 'healthier_alta_en_curso'
+
+export function marcarLinkDeSocioEnSesion(codigo) {
+  try { sessionStorage.setItem(SOCIO_SESION_KEY, codigo) } catch { /* sin storage */ }
+}
+
+export function linkDeSocioEnSesion() {
+  try { return sessionStorage.getItem(SOCIO_SESION_KEY) } catch { return null }
+}
+
+// Mientras el alta (Register / CompleteProfile) hace su propio canje, el
+// automático no corre: manda el código que la persona eligió o cambió ahí.
+export function marcarAltaEnCurso(enCurso) {
+  try {
+    if (enCurso) sessionStorage.setItem(ALTA_KEY, '1')
+    else sessionStorage.removeItem(ALTA_KEY)
+  } catch { /* sin storage */ }
+}
+
+export function altaEnCurso() {
+  try { return sessionStorage.getItem(ALTA_KEY) === '1' } catch { return false }
 }
 
 /**

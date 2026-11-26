@@ -36,6 +36,7 @@
  */
 
 import { cerrarDescuentoPorConsulta } from "../_shared/descuentoSocio.ts";
+import { validarAvisoMp } from "../_shared/firmaMp.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ensureFreshMpToken, PAYMENT_REFRESH_MARGIN_MS } from "../_shared/mpRefresh.ts";
@@ -56,49 +57,7 @@ const MP_PLATFORM_ACCESS_TOKEN = IS_PROD
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/**
- * Verify MercadoPago's X-Signature header.
- * Format: "ts=<timestamp>,v1=<hex-hmac>"
- * Signed string: "id:<data.id de la query>;request-id:<x-request-id>;ts:<timestamp>;"
- *
- * Docs: https://www.mercadopago.com.ar/developers/en/docs/your-integrations/notifications/webhooks
- */
-async function verifySignature(
-  req: Request,
-  xSignature: string,
-  notificationId: string
-): Promise<boolean> {
-  const parts = Object.fromEntries(
-    xSignature.split(",").map((p) => p.trim().split("=") as [string, string])
-  );
-  const ts = parts["ts"];
-  const receivedHmac = parts["v1"];
-
-  if (!ts || !receivedHmac) return false;
-
-  const xRequestId = req.headers.get("x-request-id") ?? "";
-  const signedString = `id:${notificationId};request-id:${xRequestId};ts:${ts};`;
-
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(MP_WEBHOOK_SECRET),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-
-  const signatureBuffer = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(signedString)
-  );
-
-  const computedHmac = Array.from(new Uint8Array(signatureBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-
-  return computedHmac === receivedHmac;
-}
+// La firma del aviso se valida en `_shared/firmaMp.ts` (validarAvisoMp).
 
 interface MpStatusMapping {
   consultationStatus: "paid" | "rejected" | "refunded" | "in_process" | "pending_payment" | null;
@@ -213,23 +172,25 @@ serve(async (req: Request) => {
     ).toLowerCase();
 
     // ── Signature verification ───────────────────────────────────────────────
-    const xSignature = req.headers.get("x-signature");
-
-    if (MP_WEBHOOK_SECRET && xSignature) {
-      const valid = await verifySignature(req, xSignature, signedDataId);
-      if (!valid) {
-        console.warn("mp-webhook: invalid signature");
-        return new Response(JSON.stringify({ error: "Invalid signature" }), {
+    // `validarAvisoMp` (_shared/firmaMp.ts) además de la firma exige que el
+    // `data.id` del cuerpo sea el firmado de la query y que el `ts` no tenga
+    // más de 10 minutos (un aviso viejo reenviado no vale).
+    const queryDataId = new URL(req.url).searchParams.get("data.id");
+    if (MP_WEBHOOK_SECRET) {
+      const aviso = await validarAvisoMp({
+        secret: MP_WEBHOOK_SECRET,
+        xSignature: req.headers.get("x-signature"),
+        xRequestId: req.headers.get("x-request-id"),
+        queryDataId,
+        bodyDataId: body.data?.id != null ? String(body.data.id) : null,
+      });
+      if (!aviso.ok) {
+        console.warn(`mp-webhook: aviso rechazado (${aviso.motivo}) data.id=${signedDataId}`);
+        return new Response(JSON.stringify({ error: "Invalid signature", motivo: aviso.motivo }), {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-    } else if (MP_WEBHOOK_SECRET && !xSignature) {
-      console.warn("mp-webhook: missing X-Signature header");
-      return new Response(JSON.stringify({ error: "Missing signature" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
     }
     // If MP_WEBHOOK_SECRET is not set (dev/test), skip verification
 
@@ -245,7 +206,8 @@ serve(async (req: Request) => {
       });
     }
 
-    const paymentId = String(body.data?.id ?? notificationId);
+    // El pago que se procesa es el firmado (ya se verificó que coincide con el cuerpo).
+    const paymentId = String(queryDataId ?? body.data?.id ?? notificationId);
     if (!paymentId) {
       return new Response(JSON.stringify({ error: "Missing payment id" }), {
         status: 400,
@@ -498,7 +460,7 @@ serve(async (req: Request) => {
     // Sin la 252 la tabla no existe: se avisa en el log y el webhook sigue.
     if (!isOrderPayment && entityId) {
       const { error: descErr } = await cerrarDescuentoPorConsulta(
-        supabase, entityId, paymentsStatus, existingPaymentRow?.id ?? null,
+        supabase, entityId, paymentsStatus, String(payment.id), existingPaymentRow?.id ?? null,
       );
       if (descErr) console.warn("mp-webhook: no se pudo cerrar el descuento de socio:", descErr);
     }

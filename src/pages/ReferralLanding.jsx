@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { SealCheck, ArrowRight, HeartStraight } from '@phosphor-icons/react'
 import { referralService } from '../services/referralService'
-import { storeReferral, clearReferral } from '../lib/referral'
+import { storeReferral, clearReferral, marcarLinkDeSocioEnSesion } from '../lib/referral'
 import { toast } from '../components/Toast'
 import { track } from '../utils/analytics'
 import { CompanyLogo } from '../components/common/CompanyLogo'
@@ -49,7 +49,12 @@ export default function ReferralLanding({ profile }) {
           const soc = await referralService.resolveSocio(codigo).catch(() => null)
           if (cancelado) return
           if (soc) {
-            storeReferral({ codigo, tipo: 'socio', nombre: soc.nombre, descuento: soc.descuento })
+            // Un profesional (o admin) con sesión que abre el link no lo guarda:
+            // no tiene que quedarle "pendiente" a quien entre después.
+            if (!profile?.role || profile.role === 'patient') {
+              storeReferral({ codigo, tipo: 'socio', nombre: soc.nombre, descuento: soc.descuento })
+              marcarLinkDeSocioEnSesion(codigo)
+            }
             setSocio(soc)
             setEstado('ok')
             track('referral_link_open', { codigo, tipo: 'socio' })

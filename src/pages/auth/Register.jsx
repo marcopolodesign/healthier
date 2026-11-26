@@ -5,7 +5,7 @@ import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { marcarDestinoPostRegistro } from '../../lib/postSignupRedirect'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
-import { getStoredReferral, clearReferral, referralUtms, storeReferral } from '../../lib/referral'
+import { getStoredReferral, clearReferral, referralUtms, storeReferral, marcarAltaEnCurso } from '../../lib/referral'
 import { referralService } from '../../services/referralService'
 import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
 import PhoneInput from '../../components/common/PhoneInput'
@@ -33,7 +33,7 @@ export default function Register({ onLogin }) {
     referralService.resolveSocio(referral.codigo).then(soc => {
       if (!soc) return
       const r = { ...referral, nombre: soc.nombre, descuento: soc.descuento }
-      storeReferral(r)
+      storeReferral(r, { conservarTs: true })
       setReferral(r)
     }).catch(() => {})
   }, [referral])
@@ -72,6 +72,7 @@ export default function Register({ onLogin }) {
         ? { codigo: referral.codigo, via: 'link' }
         : escrito ? { codigo: escrito, via: 'codigo' } : null
       const utms = { ...(usaElDelLink ? referralUtms(referral) : {}), ...getStoredUtms() }
+      marcarAltaEnCurso(true)
       const { canje } = await authService.register(form.email, form.password, 'patient', { nombre: form.nombre, apellido: form.apellido }, utms, form.phone.trim() || null, referido, { ignorarBaja })
       if (canje && !canje.ok && canje.motivo === 'codigo_invalido') {
         toast.info('No encontramos ese código. Tu cuenta se creó igual.')
@@ -89,6 +90,7 @@ export default function Register({ onLogin }) {
       if (err.code) setAviso(err.code)
       else toast.error(err.message)
     } finally {
+      marcarAltaEnCurso(false)
       setLoading(false)
     }
   }
