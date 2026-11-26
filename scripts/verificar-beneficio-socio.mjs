@@ -20,6 +20,13 @@
  *      y la diferencia queda como liquidación manual al profesional.
  *   7. Liquidación: 5% de lo cobrado por cada consulta terminada, visible para
  *      el super admin y negada al paciente.
+ *   8. Un turno sin pagar (pendiente o vencido) no le quita el beneficio.
+ *   9. Dos canjes en paralelo (LIFT y el código de otro paciente): uno solo gana.
+ *  10. Webhook: un pago pendiente que MP aprueba deja el descuento aplicado; uno
+ *      que rechaza lo libera; un descuento aplicado no cambia por un evento
+ *      viejo. Cancelar una consulta pagada NO libera el descuento.
+ *  (El login con el link guardado se prueba desde el front:
+ *   probar-beneficio-socio-front.mjs.)
  *
  * Mercado Pago: igual que verificar-despacho-ondemand.mjs, se siembra SÓLO
  * durante la corrida un vendedor simulado (token TEST de la plataforma) y se
@@ -30,6 +37,7 @@ import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
+import { spawnSync } from 'node:child_process'
 
 const leerEnv = (ruta) => {
   try {
@@ -171,6 +179,8 @@ try {
   const c1 = await consulta(p1, pro)
   const r1 = await pagar(p1, c1, { amount: 1, transaction_amount: 1, descuento: 0.99 })
   ok(r1.data?.approved, `cobro aprobado (${r1.data?.status ?? r1.error})`)
+  ok(Number(r1.data?.montoConsulta) === PRECIO * 0.8 && Number(r1.data?.descuentoSocio) === PRECIO * 0.2,
+    `mp-payment devuelve lo que cobró: monto ${r1.data?.montoConsulta}, descuento ${r1.data?.descuentoSocio}`)
   const pay1 = await pagoDe(c1)
   ok(Number(pay1?.charged_amount) === PRECIO * 0.8, `cobrado ${pay1?.charged_amount} = 80% de ${PRECIO} (lo que mandó el cliente no cuenta)`)
   ok(Number(pay1?.precio_lista) === PRECIO && Number(pay1?.descuento_socio) === PRECIO * 0.2 && Number(pay1?.gross_amount) === PRECIO * 0.8,
@@ -230,6 +240,9 @@ try {
   ok(Number(pay6?.manual_settlement_amount) === PRECIO * 0.1 && Number(pay6?.net_to_professional) === PRECIO * 0.9,
     `Healthier le debe ${pay6?.manual_settlement_amount} al profesional (neto ${pay6?.net_to_professional})`)
   await admin.from('professional_commission_changes').delete().eq('id', cambio.id)
+  await admin.from('consultations').update({ status: 'cancelled' }).eq('id', c3b)
+  const { data: d6 } = await admin.from('socio_descuentos').select('estado').eq('consultation_id', c3b).single()
+  ok(d6?.estado === 'aplicado', `cancelar una consulta pagada no libera el descuento (${d6?.estado})`)
 
   // ── 7 ──
   bloque('7 · Liquidación del socio')
@@ -246,6 +259,60 @@ try {
   ok(!!liqPac, 'el paciente no puede ver la liquidación')
   const { data: sinPrueba } = await superadmin.c.rpc('liquidacion_de_socio', { p_socio: lift.id, p_mes: mes, p_incluir_prueba: false })
   ok(!(sinPrueba ?? []).some(f => f.consultation_id === c1), 'sin "incluir prueba" no aparecen cuentas de prueba')
+
+  // ── 8 ──
+  bloque('8 · Turno sin pagar no bloquea el canje')
+  const p4 = await pacienteNuevo(4)
+  await consulta(p4, pro)
+  const cVencida = await consulta(p4, pro)
+  await admin.from('consultations').update({ status: 'expired' }).eq('id', cVencida)
+  const c8 = (await p4.c.rpc('canjear_codigo', { p_codigo: 'lift', p_via: 'codigo' })).data
+  ok(c8?.ok === true, `con un turno pendiente de pago y otro vencido, el canje vale (${JSON.stringify(c8)})`)
+  const p4b = await pacienteNuevo('4b')
+  const cPagada = await consulta(p4b, pro)
+  await admin.from('consultations').update({ payment_status: 'paid' }).eq('id', cPagada)
+  const c8b = (await p4b.c.rpc('canjear_codigo', { p_codigo: 'lift', p_via: 'codigo' })).data
+  ok(c8b?.motivo === 'ya_consulto', `con una consulta pagada, no (${c8b?.motivo})`)
+
+  // ── 9 ──
+  bloque('9 · Dos canjes en paralelo')
+  const { data: codP1 } = await admin.from('referral_codes').select('code').eq('user_id', p1.id).single()
+  const p5 = await pacienteNuevo(5)
+  const [ra, rb] = await Promise.all([
+    p5.c.rpc('canjear_codigo', { p_codigo: 'lift', p_via: 'codigo' }),
+    p5.c.rpc('canjear_codigo', { p_codigo: codP1.code, p_via: 'codigo' }),
+  ])
+  const ganadores = [ra.data, rb.data].filter(x => x?.ok).length
+  const { count: enSocio } = await admin.from('socio_atribuciones').select('*', { count: 'exact', head: true }).eq('paciente_id', p5.id)
+  const { count: enRef } = await admin.from('referral_attributions').select('*', { count: 'exact', head: true }).eq('referred_id', p5.id)
+  ok(ganadores === 1 && (enSocio ?? 0) + (enRef ?? 0) === 1, `gana uno solo: ${JSON.stringify([ra.data, rb.data])} · socio ${enSocio} · referido ${enRef}`)
+
+  // ── 10 ──
+  bloque('10 · Webhook de un pago pendiente')
+  const cerrar = (consultationId, status) => {
+    const r = spawnSync('deno', ['run', '-A', join(import.meta.dirname, 'cerrar-descuento-cli.ts'), consultationId, status], {
+      env: { ...process.env, HEALTHIER_STAGING_SUPABASE_URL: URL, HEALTHIER_STAGING_SUPABASE_SERVICE_ROLE_KEY: SERVICE }, encoding: 'utf8',
+    })
+    if (r.status !== 0) throw new Error(`cerrar-descuento-cli: ${r.stderr}`)
+    return JSON.parse(r.stdout.trim().split('\n').pop())
+  }
+  const estadoDe = async (cid) => (await admin.from('socio_descuentos').select('estado').eq('consultation_id', cid).single()).data?.estado
+  const p6 = await pacienteNuevo(6)
+  await p6.c.rpc('canjear_codigo', { p_codigo: 'lift', p_via: 'codigo' })
+  const c10a = await consulta(p6, pro)
+  await admin.rpc('reservar_descuento_de_socio', { p_paciente: p6.id, p_consulta: c10a, p_precio_lista: PRECIO })
+  ok(await estadoDe(c10a) === 'reservado', 'pago pendiente → descuento reservado')
+  cerrar(c10a, 'pending')
+  ok(await estadoDe(c10a) === 'reservado', 'otro aviso de "pendiente" no lo mueve')
+  cerrar(c10a, 'rejected')
+  ok(await estadoDe(c10a) === 'liberado', 'MP rechaza → liberado')
+  const c10b = await consulta(p6, pro)
+  await admin.rpc('reservar_descuento_de_socio', { p_paciente: p6.id, p_consulta: c10b, p_precio_lista: PRECIO })
+  ok(await estadoDe(c10b) === 'reservado', 'liberado → se puede reservar en otra consulta')
+  cerrar(c10b, 'approved')
+  ok(await estadoDe(c10b) === 'aplicado', 'MP aprueba → aplicado')
+  cerrar(c10b, 'rejected')
+  ok(await estadoDe(c10b) === 'aplicado', 'un evento viejo de rechazo no desaplica un descuento aplicado')
 } catch (err) {
   fallos++
   console.error(`\n❌ ${err.message}`)

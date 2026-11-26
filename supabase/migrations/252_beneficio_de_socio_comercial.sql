@@ -169,7 +169,10 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'motivo', 'sin_sesion');
   END IF;
 
-  SELECT * INTO v_yo FROM public.profiles WHERE id = v_me;
+  -- FOR UPDATE: dos canjes en paralelo de la misma persona se ordenan acá, así
+  -- que el segundo ve la atribución del primero (no hay doble atribución
+  -- entre referral_attributions y socio_atribuciones, que son tablas distintas).
+  SELECT * INTO v_yo FROM public.profiles WHERE id = v_me FOR UPDATE;
   IF NOT FOUND OR v_yo.role NOT IN ('patient', 'professional') OR v_yo.titular_id IS NOT NULL THEN
     RETURN jsonb_build_object('ok', false, 'motivo', 'no_aplica');
   END IF;
@@ -185,11 +188,13 @@ BEGIN
        OR v_yo.referred_by_professional_id IS NOT NULL THEN
       RETURN jsonb_build_object('ok', false, 'motivo', 'ya_tiene_referente');
     END IF;
-    -- Misma ventana que el canje de un paciente: antes de su primera consulta.
+    -- Antes de su primera consulta, con la MISMA regla que la reserva del
+    -- descuento: cuenta una consulta terminada o pagada (o con el pago en
+    -- curso). Un turno sin pagar, vencido o cancelado no le quita el beneficio.
     IF EXISTS (SELECT 1 FROM public.consultations c
                 JOIN public.profiles cp ON cp.id = c.patient_id
                 WHERE (c.patient_id = v_me OR cp.titular_id = v_me)
-                  AND c.status <> 'cancelled') THEN
+                  AND (c.status = 'completed' OR c.payment_status IN ('paid', 'in_process'))) THEN
       RETURN jsonb_build_object('ok', false, 'motivo', 'ya_consulto');
     END IF;
 
@@ -416,11 +421,12 @@ BEGIN
   IF p_estado NOT IN ('aplicado', 'liberado') THEN
     RAISE EXCEPTION 'estado inválido: %', p_estado;
   END IF;
+  -- Sólo desde `reservado`: un descuento aplicado o liberado no cambia por acá.
   UPDATE public.socio_descuentos
      SET estado = p_estado,
          payment_id = coalesce(p_payment, payment_id),
          updated_at = now()
-   WHERE id = p_descuento;
+   WHERE id = p_descuento AND estado = 'reservado';
 END;
 $$;
 
@@ -438,9 +444,17 @@ SET search_path TO 'public'
 AS $$
 BEGIN
   IF NEW.status IN ('cancelled', 'expired') AND OLD.status IS DISTINCT FROM NEW.status THEN
-    UPDATE public.socio_descuentos
+    -- Un descuento ya aplicado a un pago que sigue cobrado (aprobado o
+    -- autorizado, sin reembolso) NO vuelve: el paciente lo usó.
+    UPDATE public.socio_descuentos d
        SET estado = 'liberado', updated_at = now()
-     WHERE consultation_id = NEW.id AND estado <> 'liberado';
+     WHERE d.consultation_id = NEW.id
+       AND (d.estado = 'reservado'
+            OR (d.estado = 'aplicado'
+                AND NOT EXISTS (SELECT 1 FROM public.payments p
+                                 WHERE p.consultation_id = NEW.id
+                                   AND p.status IN ('approved', 'authorized')
+                                   AND p.refunded_at IS NULL)));
   END IF;
   RETURN NEW;
 END;

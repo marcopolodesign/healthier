@@ -147,7 +147,6 @@ export default function PatientConsultations({ profile }) {
   // Healthy Credits balance + refund eligibility window (D7 / D3)
   useEffect(() => {
     mpService.getCreditBalance().then(({ data }) => setCreditBalance(data || 0)).catch(() => {})
-    referralService.miBeneficio().then(setBeneficio)
     paymentsService.getPlatformSettings()
       .then(s => setRefundWindowHours(s?.refundWindowBusinessHours ?? 48))
       .catch(() => {})
@@ -297,6 +296,9 @@ export default function PatientConsultations({ profile }) {
     else setModalOpen(false)
   }
 
+  useEffect(() => {
+    referralService.miBeneficio(pendingConsultationId ?? null).then(setBeneficio)
+  }, [pendingConsultationId])
   const descuento      = descuentoSocio(beneficio, paymentAmount ?? 0)
   const precioFinal    = Math.max(0, (paymentAmount ?? 0) - descuento)
   const creditsApplied = useCredits ? Math.min(creditBalance, precioFinal) : 0
@@ -1020,12 +1022,12 @@ export default function PatientConsultations({ profile }) {
                     )}
                     {descuento > 0 && (
                       <div className="flex justify-between items-center text-[13px] text-brand font-semibold">
-                        <span>{etiquetaBeneficio(beneficio)}</span><span>-${descuento.toLocaleString('es-AR')}</span>
+                        <span>{etiquetaBeneficio(beneficio)}</span><span>−${descuento.toLocaleString('es-AR')}</span>
                       </div>
                     )}
                     {creditsApplied > 0 && (
                       <div className="flex justify-between items-center text-[13px] text-brand font-semibold">
-                        <span>Créditos aplicados</span><span>-${creditsApplied.toLocaleString('es-AR')}</span>
+                        <span>Créditos aplicados</span><span>−${creditsApplied.toLocaleString('es-AR')}</span>
                       </div>
                     )}
                     <div className="flex justify-between items-center">

@@ -418,6 +418,13 @@ export default function App() {
   // rechaza solo lo que ya no corresponde (ya consultó, ya tiene referente).
   useEffect(() => {
     if (profile?.role === 'patient') referralService.reintentarCanjePendiente().catch(() => {})
+    // Socio comercial con cuenta que abrió /r/<codigo> y entró por "Iniciá sesión".
+    if (profile?.role === 'patient') {
+      referralService.canjearSocioGuardado().then(r => {
+        if (r?.ok) toast.success(`Listo: tenés el beneficio ${r.referenteNombre ?? r.socioNombre} en tu primera consulta.`)
+        else if (r?.motivo === 'ya_consulto') toast.info(`El beneficio ${r.socioNombre} es para la primera consulta, y vos ya tuviste una.`)
+      }).catch(() => {})
+    }
   }, [profile?.id, profile?.role])
 
   // Auto-capture de clicks sitewide. Se instala una sola vez.

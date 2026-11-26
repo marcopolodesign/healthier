@@ -929,7 +929,12 @@ Deno.serve(async (req) => {
           p_precio_lista: precioLista,
         })
         .maybeSingle()
-      if (reservaErr) {
+      // Función inexistente (la 252 todavía no está aplicada en esta base):
+      // se cobra sin descuento en vez de cortar todos los pagos.
+      const sinFuncion = !!reservaErr && (reservaErr.code === 'PGRST202' || reservaErr.code === '42883')
+      if (sinFuncion) {
+        console.warn('mp-payment: reservar_descuento_de_socio no existe todavía — se cobra sin descuento')
+      } else if (reservaErr) {
         // Sin poder leer el beneficio no se cobra: cobrar de más a quien tenía
         // descuento es peor que pedirle que reintente.
         console.error('mp-payment: reservar_descuento_de_socio falló:', reservaErr.message)
@@ -938,7 +943,7 @@ Deno.serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
-      const r = reserva as { descuento_id: string; socio_id: string; monto: number } | null
+      const r = (sinFuncion ? null : reserva) as { descuento_id: string; socio_id: string; monto: number } | null
       if (r?.descuento_id) {
         descuentoSocio = Math.min(round2(Number(r.monto)), precioLista)
         socioId = r.socio_id
@@ -1049,7 +1054,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({
-          data: { paymentId, status: 'approved', approved: true, creditsUsed, chargedAmount: 0 },
+          data: { paymentId, status: 'approved', approved: true, creditsUsed, chargedAmount: 0, precioLista, descuentoSocio, montoConsulta: amount },
           error: null,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -1375,6 +1380,10 @@ Deno.serve(async (req) => {
           statusDetail: mpData.status_detail ?? null,
           creditsUsed,
           chargedAmount,
+          // Lo que decidió el servidor: el front lo puede mostrar tal cual.
+          precioLista,
+          descuentoSocio,
+          montoConsulta: amount,
         },
         error: null,
       }),

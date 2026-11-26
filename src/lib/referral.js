@@ -14,10 +14,10 @@ function isExpired() {
  * Se llama al resolver el link, con el dueño del código ya confirmado por la base.
  * `tipo` = 'profesional' | 'paciente' | 'socio' (socio comercial, ej. LIFT). `professionalId` queda sólo para el link del profesional.
  */
-export function storeReferral({ codigo, tipo = 'profesional', professionalId = null, professionalName = null, nombre = null }) {
+export function storeReferral({ codigo, tipo = 'profesional', professionalId = null, professionalName = null, nombre = null, descuento = null }) {
   if (!codigo) return
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    codigo, tipo, professionalId, professionalName, nombre: nombre ?? professionalName,
+    codigo, tipo, professionalId, professionalName, nombre: nombre ?? professionalName, descuento,
   }))
   localStorage.setItem(TS_KEY, String(Date.now()))
 }

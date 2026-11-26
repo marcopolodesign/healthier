@@ -5,7 +5,8 @@ import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { marcarDestinoPostRegistro } from '../../lib/postSignupRedirect'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
-import { getStoredReferral, clearReferral, referralUtms } from '../../lib/referral'
+import { getStoredReferral, clearReferral, referralUtms, storeReferral } from '../../lib/referral'
+import { referralService } from '../../services/referralService'
 import { GoogleAuthButton } from '../../components/auth/GoogleAuthButton'
 import PhoneInput from '../../components/common/PhoneInput'
 import NombreApellidoInputs from '../../components/common/NombreApellidoInputs'
@@ -19,11 +20,23 @@ export default function Register({ onLogin }) {
   const [loading, setLoading] = useState(false)
   const [aviso, setAviso] = useState(null)
   // "¿Tenés un código?": cerrado por defecto; si vino por /r/<codigo> ya trae el suyo.
-  const [referral] = useState(() => getStoredReferral())
+  const [referral, setReferral] = useState(() => getStoredReferral())
   const [codigoAbierto, setCodigoAbierto] = useState(false)
   const [codigo, setCodigo] = useState('')
   const [cambiandoCodigo, setCambiandoCodigo] = useState(false)
   const navigate = useNavigate()
+
+  // Link de socio guardado antes de que existiera el % en el storage: se lo pide
+  // al servidor (resolver_codigo_de_socio) para no mostrar un número inventado.
+  useEffect(() => {
+    if (referral?.tipo !== 'socio' || referral.descuento != null) return
+    referralService.resolveSocio(referral.codigo).then(soc => {
+      if (!soc) return
+      const r = { ...referral, nombre: soc.nombre, descuento: soc.descuento }
+      storeReferral(r)
+      setReferral(r)
+    }).catch(() => {})
+  }, [referral])
 
   useEffect(() => {
     track('sign_up_start', { step: 1, step_name: 'cuenta', flow: 'paciente', app_path: '/registro' })
@@ -188,7 +201,7 @@ export default function Register({ onLogin }) {
         {referral && !cambiandoCodigo ? (
           <p className="text-sm text-text-secondary">
             {referral.tipo === 'socio'
-              ? <>Beneficio <span className="font-medium text-text-primary">{referral.nombre}</span> en tu primera consulta</>
+              ? <><span className="font-medium text-text-primary">{referral.descuento != null ? `${Math.round(Number(referral.descuento) * 100)}% de descuento` : 'Descuento'} con {referral.nombre}</span> en tu primera consulta</>
               : <>Te invitó <span className="font-medium text-text-primary">{referral.nombre ?? 'un amigo'}</span></>}{' '}
             <button type="button" onClick={() => { setCambiandoCodigo(true); setCodigoAbierto(true) }} className="text-brand hover:underline">Cambiar</button>
           </p>

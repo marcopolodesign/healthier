@@ -12,6 +12,7 @@ import { tipoDeErrorDePago } from '../../lib/analiticaOndemand'
 import { anotarHito } from '../../lib/flowUrl'
 import { referralService } from '../../services/referralService'
 import { descuentoSocio, etiquetaBeneficio } from '../../lib/beneficioSocio'
+import { useEspecialidades } from '../../hooks/useEspecialidades'
 
 export default function PaymentPage({ profile }) {
   const navigate  = useNavigate()
@@ -42,6 +43,8 @@ export default function PaymentPage({ profile }) {
     patientName: paraFamiliarNombre,
   } = state
   const pacienteId = paraFamiliarId || profile?.id
+  const { porSlug } = useEspecialidades()
+  const especialidadLabel = specialty ? (porSlug[specialty] ?? specialty) : null
 
   const [selectedCardId, setSelectedCardId] = useState(null)
   const [paying, setPaying]                 = useState(false)
@@ -75,8 +78,13 @@ export default function PaymentPage({ profile }) {
       setConfigLoading(false)
     })
     mpService.getCreditBalance().then(({ data }) => setCreditBalance(data || 0))
-    referralService.miBeneficio().then(setBeneficio)
   }, [])
+
+  // Con la consulta ya creada se pregunta por ESA: una reserva suya (pago en
+  // revisión, reintento) no tiene que esconderle el descuento.
+  useEffect(() => {
+    referralService.miBeneficio(consultationId).then(setBeneficio)
+  }, [consultationId])
 
   useEffect(() => {
     if (isDemoMode) setSelectedCardId('__demo__')
@@ -328,7 +336,7 @@ export default function PaymentPage({ profile }) {
             </div>
             <div>
               <p className="font-bold text-[15px] text-text-primary">{professionalName}</p>
-              {specialty && <p className="text-[13px] text-text-secondary">{specialty}</p>}
+              {especialidadLabel && <p className="text-[13px] text-text-secondary">{especialidadLabel}</p>}
             </div>
           </div>
           <div className="space-y-2">
@@ -443,13 +451,13 @@ export default function PaymentPage({ profile }) {
               {descuento > 0 && (
                 <div className="flex items-center justify-between text-[13px] text-brand font-semibold">
                   <span>{etiquetaBeneficio(beneficio)}</span>
-                  <span>-${descuento.toLocaleString('es-AR')}</span>
+                  <span>−${descuento.toLocaleString('es-AR')}</span>
                 </div>
               )}
               {creditsApplied > 0 && (
                 <div className="flex items-center justify-between text-[13px] text-brand font-semibold">
                   <span>Créditos aplicados</span>
-                  <span>-${creditsApplied.toLocaleString('es-AR')}</span>
+                  <span>−${creditsApplied.toLocaleString('es-AR')}</span>
                 </div>
               )}
               <div className="flex items-center justify-between">
