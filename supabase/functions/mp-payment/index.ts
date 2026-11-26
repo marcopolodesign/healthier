@@ -512,7 +512,7 @@ Deno.serve(async (req) => {
         //     checks ownership, not price). ---
         serviceSupabase
           .from('medication_order_items')
-          .select('id, pharmacy_product_id, medication_name, quantity, unit_price')
+          .select('id, pharmacy_product_id, medication_name, quantity, unit_price, receta_via')
           .eq('order_id', orderId),
       ])
 
@@ -561,6 +561,21 @@ Deno.serve(async (req) => {
           JSON.stringify({ data: null, code: 'RECETA_REQUERIDA', error: `Necesitás una receta vigente para: ${nombres}. Sacalo del carrito o pedí la receta en una videoconsulta.` }),
           { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
+      }
+
+      // Solicitar receta / Ya tengo receta (migración 254): si algún item no
+      // tiene receta todavía, el pago se RETIENE (pre-autorización, capture:false)
+      // y mp-capture lo cobra cuando la receta queda resuelta. La decisión sale
+      // de la base (receta_via lo valida el trigger de items), nunca del cliente.
+      const conReceta = items.some((it) => (it as { receta_via?: string | null }).receta_via != null)
+      if (conReceta) {
+        const metodo = (paymentMethodId ?? '').toLowerCase()
+        if (metodo.startsWith('deb') || metodo === 'account_money') {
+          return new Response(
+            JSON.stringify({ data: null, error: 'Para pedir una receta, el pago se retiene en una tarjeta de crédito hasta que la receta esté lista.' }),
+            { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
       }
 
       const catalogIds = items.map((it) => it.pharmacy_product_id).filter(Boolean) as string[]
@@ -688,8 +703,11 @@ Deno.serve(async (req) => {
           })),
         },
         external_reference: orderId,
-        binary_mode: true,
       }
+      // Pre-autorización: reserva en la tarjeta, sin capturar. binary_mode es
+      // incompatible con capture:false (mismo criterio que consultas inmediatas).
+      if (conReceta) mpPayload.capture = false
+      else mpPayload.binary_mode = true
       if (applicationFee > 0) mpPayload.application_fee = applicationFee
 
       const { data: existingPayment } = await serviceSupabase
@@ -775,7 +793,21 @@ Deno.serve(async (req) => {
         collector_id: pharmacyMpAccount.mp_user_id,
       })
 
-      if (paymentsStatus === 'approved') {
+      if (conReceta && (paymentsStatus === 'authorized' || paymentsStatus === 'approved')) {
+        // Retenido: el pedido espera la receta. (Si MP capturó igual, el pago
+        // queda 'approved' y mp-capture lo trata como ya capturado.)
+        const { error: orderUpdateErr } = await serviceSupabase
+          .from('medication_orders')
+          .update({
+            payment_status: 'autorizado',
+            autorizado_at: new Date().toISOString(),
+            receta_estado: 'pendiente',
+            subtotal: amount,
+            total: amount,
+          })
+          .eq('id', orderId)
+        if (orderUpdateErr) console.error('mp-payment (order): medication_orders update (autorizado) error:', orderUpdateErr.message)
+      } else if (paymentsStatus === 'approved') {
         const { error: orderUpdateErr } = await serviceSupabase
           .from('medication_orders')
           .update({ payment_status: 'pagado', subtotal: amount, total: amount })
@@ -788,7 +820,10 @@ Deno.serve(async (req) => {
           data: {
             paymentId,
             status: paymentsStatus,
-            approved: paymentsStatus === 'approved',
+            approved: paymentsStatus === 'approved' && !conReceta,
+            // Retenido a la espera de la receta (Solicitar receta / Ya tengo receta).
+            authorized: conReceta && (paymentsStatus === 'authorized' || paymentsStatus === 'approved'),
+            recetaPendiente: conReceta,
             statusDetail: mpData.status_detail ?? null,
             chargedAmount: amount,
           },

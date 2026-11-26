@@ -325,11 +325,39 @@ serve(async (req: Request) => {
     if (isOrderPayment) {
       // ── Medication order: only payment_status matters, no order/consultation
       //    workflow-state confirmation to do here.
-      const orderPaymentStatus = paymentsStatus === "approved" ? "pagado" : "no_pagado";
-      const { error: orderUpdateErr } = await supabase
+      // Solicitar receta / Ya tengo receta (migración 254): el pedido puede estar
+      // 'autorizado' (retenido a la espera de la receta). Un aviso de MP no lo
+      // baja a 'no_pagado' ni lo pisa: `authorized` lo deja retenido, y el
+      // `cancelled` de una retención lo cancela entero (mp-capture hace lo mismo
+      // cuando la libera él; acá se concilia si la liberó MP o alguien desde MP).
+      const { data: pedidoActual } = await supabase
         .from("medication_orders")
-        .update({ payment_status: orderPaymentStatus })
-        .eq("id", entityId);
+        .select("payment_status, status")
+        .eq("id", entityId)
+        .maybeSingle();
+      const pedidoRetenido = pedidoActual?.payment_status === "autorizado";
+
+      let orderUpdate: Record<string, unknown> | null;
+      if (pedidoRetenido && paymentsStatus === "authorized") {
+        orderUpdate = null; // ya está retenido: nada que escribir
+      } else if (pedidoRetenido && paymentsStatus === "cancelled") {
+        orderUpdate = {
+          payment_status: "no_pagado",
+          status: "cancelado",
+          cancellation_reason: "Se liberó la retención del pago. No se te cobró nada.",
+          receta_estado: "rechazada",
+        };
+      } else if (pedidoRetenido && paymentsStatus === "approved") {
+        // La captura (la hizo mp-capture) llegó por aviso antes de que se anotara.
+        orderUpdate = { payment_status: "pagado", receta_estado: "resuelta", receta_resuelta_at: new Date().toISOString() };
+      } else if (pedidoRetenido) {
+        orderUpdate = null; // pending / in_process sobre una retención: no se toca
+      } else {
+        orderUpdate = { payment_status: paymentsStatus === "approved" ? "pagado" : "no_pagado" };
+      }
+      const { error: orderUpdateErr } = orderUpdate
+        ? await supabase.from("medication_orders").update(orderUpdate).eq("id", entityId)
+        : { error: null };
       if (orderUpdateErr) {
         console.error("mp-webhook: medication_orders update error:", orderUpdateErr);
         return new Response(
