@@ -280,6 +280,8 @@ type Body = {
   userId?: string
   /** recordatorio */
   cuando?: 'manana' | 'pronto'
+  /** reprogramada — el `scheduled_at` que tenía antes del cambio */
+  anterior?: string | null
   /** pedido-estado */
   estado?: 'en_preparacion' | 'enviado' | 'entregado' | 'cancelado'
   motivo?: string | null
@@ -384,6 +386,16 @@ Deno.serve(async (req) => {
         if (!c) return json({ error: 'Consulta no encontrada' }, 404)
         const mail = T.recordatorioTurno({ ...c.base, cuando: body.cuando ?? 'manana' })
         return await salida({ consultationId: c.base.id, usuarioId: c.row.patient_id }, [{ to: c.patientEmail, ...mail }])
+      }
+
+      case 'reprogramada': {
+        const c = await requiereConsulta(sb, body.consultationId)
+        if (!c) return json({ error: 'Consulta no encontrada' }, 404)
+        const anterior = body.anterior ?? null
+        return await salida({ consultationId: c.base.id }, [
+          { to: c.patientEmail, ...T.turnoReprogramado({ ...c.base, paraQuien: 'paciente', anterior }) },
+          { to: c.professionalEmail, ...T.turnoReprogramado({ ...c.base, paraQuien: 'profesional', anterior }) },
+        ])
       }
 
       case 'cancelada': {
