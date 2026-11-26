@@ -10,6 +10,8 @@ import { inicialesDe } from '../../lib/format'
 import { modalidadParaBase, MODALIDADES } from '../../lib/modalidad'
 import { tipoDeErrorDePago } from '../../lib/analiticaOndemand'
 import { anotarHito } from '../../lib/flowUrl'
+import { referralService } from '../../services/referralService'
+import { descuentoSocio, etiquetaBeneficio } from '../../lib/beneficioSocio'
 
 export default function PaymentPage({ profile }) {
   const navigate  = useNavigate()
@@ -58,6 +60,8 @@ export default function PaymentPage({ profile }) {
   // Healthy Credits (spec Sección D7)
   const [creditBalance, setCreditBalance] = useState(0)
   const [useCredits, setUseCredits]       = useState(true)
+  // Beneficio de socio comercial (LIFT): sólo para mostrar; lo cobra el servidor.
+  const [beneficio, setBeneficio]         = useState(null)
 
   const isDemoMode = !configLoading && !publicKey
   // El paciente tiene el turno bonificado (profiles.payment_exempt, migración
@@ -71,14 +75,17 @@ export default function PaymentPage({ profile }) {
       setConfigLoading(false)
     })
     mpService.getCreditBalance().then(({ data }) => setCreditBalance(data || 0))
+    referralService.miBeneficio().then(setBeneficio)
   }, [])
 
   useEffect(() => {
     if (isDemoMode) setSelectedCardId('__demo__')
   }, [isDemoMode])
 
-  const creditsApplied = (!isDemoMode && useCredits) ? Math.min(creditBalance, price ?? 0) : 0
-  const chargeAmount   = Math.max(0, (price ?? 0) - creditsApplied)
+  const descuento      = (!isDemoMode && !paymentExempt) ? descuentoSocio(beneficio, price ?? 0) : 0
+  const precioFinal    = Math.max(0, (price ?? 0) - descuento)
+  const creditsApplied = (!isDemoMode && useCredits) ? Math.min(creditBalance, precioFinal) : 0
+  const chargeAmount   = Math.max(0, precioFinal - creditsApplied)
 
   const description = `Consulta ${specialty ?? verticalId ?? ''} — Healthier`.trim()
   const consultaItemId = `consulta_${verticalId ?? specialty ?? 'general'}`
@@ -427,17 +434,23 @@ export default function PaymentPage({ profile }) {
           )}
           {price != null && (
             <div className="mt-4 pt-4 border-t border-border-subtle space-y-1.5">
+              {(creditsApplied > 0 || descuento > 0) && (
+                <div className="flex items-center justify-between text-[13px] text-text-secondary">
+                  <span>Precio</span>
+                  <span>${price.toLocaleString('es-AR')}</span>
+                </div>
+              )}
+              {descuento > 0 && (
+                <div className="flex items-center justify-between text-[13px] text-brand font-semibold">
+                  <span>{etiquetaBeneficio(beneficio)}</span>
+                  <span>-${descuento.toLocaleString('es-AR')}</span>
+                </div>
+              )}
               {creditsApplied > 0 && (
-                <>
-                  <div className="flex items-center justify-between text-[13px] text-text-secondary">
-                    <span>Precio</span>
-                    <span>${price.toLocaleString('es-AR')}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[13px] text-brand font-semibold">
-                    <span>Créditos aplicados</span>
-                    <span>-${creditsApplied.toLocaleString('es-AR')}</span>
-                  </div>
-                </>
+                <div className="flex items-center justify-between text-[13px] text-brand font-semibold">
+                  <span>Créditos aplicados</span>
+                  <span>-${creditsApplied.toLocaleString('es-AR')}</span>
+                </div>
               )}
               <div className="flex items-center justify-between">
                 <span className="text-[13px] font-semibold text-text-secondary">A pagar hoy</span>

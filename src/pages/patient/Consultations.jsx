@@ -19,6 +19,8 @@ import PatientSheet from '../../components/patient/PatientSheet'
 import SavedCardSelector from '../../components/payment/SavedCardSelector'
 import { track } from '../../utils/analytics'
 import { ofreceModalidad, modalidadParaBase } from '../../lib/modalidad'
+import { referralService } from '../../services/referralService'
+import { descuentoSocio, etiquetaBeneficio } from '../../lib/beneficioSocio'
 
 const ESPECIALIDADES = {
   clinica:     ['Médico Generalista', 'Cardiología', 'Dermatología', 'Pediatría', 'Traumatología'],
@@ -109,6 +111,8 @@ export default function PatientConsultations({ profile }) {
 
   // Healthy Credits (spec Sección D3/D7)
   const [creditBalance, setCreditBalance] = useState(0)
+  // Beneficio de socio comercial (LIFT): sólo para mostrar; lo cobra el servidor.
+  const [beneficio, setBeneficio] = useState(null)
   const [useCredits, setUseCredits] = useState(true)
   const [refundWindowHours, setRefundWindowHours] = useState(48)
   const [convertingId, setConvertingId] = useState(null)
@@ -143,6 +147,7 @@ export default function PatientConsultations({ profile }) {
   // Healthy Credits balance + refund eligibility window (D7 / D3)
   useEffect(() => {
     mpService.getCreditBalance().then(({ data }) => setCreditBalance(data || 0)).catch(() => {})
+    referralService.miBeneficio().then(setBeneficio)
     paymentsService.getPlatformSettings()
       .then(s => setRefundWindowHours(s?.refundWindowBusinessHours ?? 48))
       .catch(() => {})
@@ -292,8 +297,10 @@ export default function PatientConsultations({ profile }) {
     else setModalOpen(false)
   }
 
-  const creditsApplied = useCredits ? Math.min(creditBalance, paymentAmount ?? 0) : 0
-  const chargeAmount   = Math.max(0, (paymentAmount ?? 0) - creditsApplied)
+  const descuento      = descuentoSocio(beneficio, paymentAmount ?? 0)
+  const precioFinal    = Math.max(0, (paymentAmount ?? 0) - descuento)
+  const creditsApplied = useCredits ? Math.min(creditBalance, precioFinal) : 0
+  const chargeAmount   = Math.max(0, precioFinal - creditsApplied)
 
   // Creates the consultation + books the slot exactly once, no matter which
   // payment sub-flow (credits-only, saved card, new card) ends up charging it.
@@ -1006,15 +1013,20 @@ export default function PatientConsultations({ profile }) {
                 )}
                 {paymentAmount != null && (
                   <div className="mt-5 pt-5 border-t border-gray-100 space-y-1.5">
+                    {(creditsApplied > 0 || descuento > 0) && (
+                      <div className="flex justify-between items-center text-[13px] text-gray-500">
+                        <span>Precio</span><span>${paymentAmount.toLocaleString('es-AR')}</span>
+                      </div>
+                    )}
+                    {descuento > 0 && (
+                      <div className="flex justify-between items-center text-[13px] text-brand font-semibold">
+                        <span>{etiquetaBeneficio(beneficio)}</span><span>-${descuento.toLocaleString('es-AR')}</span>
+                      </div>
+                    )}
                     {creditsApplied > 0 && (
-                      <>
-                        <div className="flex justify-between items-center text-[13px] text-gray-500">
-                          <span>Precio</span><span>${paymentAmount.toLocaleString('es-AR')}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[13px] text-brand font-semibold">
-                          <span>Créditos aplicados</span><span>-${creditsApplied.toLocaleString('es-AR')}</span>
-                        </div>
-                      </>
+                      <div className="flex justify-between items-center text-[13px] text-brand font-semibold">
+                        <span>Créditos aplicados</span><span>-${creditsApplied.toLocaleString('es-AR')}</span>
+                      </div>
                     )}
                     <div className="flex justify-between items-center">
                       <span className="font-semibold text-gray-500">A pagar hoy</span>

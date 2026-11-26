@@ -12,7 +12,7 @@ function isExpired() {
 
 /**
  * Se llama al resolver el link, con el dueño del código ya confirmado por la base.
- * `tipo` = 'profesional' | 'paciente'. `professionalId` queda sólo para el link del profesional.
+ * `tipo` = 'profesional' | 'paciente' | 'socio' (socio comercial, ej. LIFT). `professionalId` queda sólo para el link del profesional.
  */
 export function storeReferral({ codigo, tipo = 'profesional', professionalId = null, professionalName = null, nombre = null }) {
   if (!codigo) return
@@ -43,6 +43,9 @@ export function clearReferral() {
  */
 export function referralUtms(referral) {
   if (!referral) return {}
+  if (referral.tipo === 'socio') {
+    return { utm_source: 'socio', utm_medium: 'link_del_socio', utm_campaign: referral.codigo }
+  }
   const paciente = referral.tipo === 'paciente'
   return {
     utm_source: paciente ? 'referido_paciente' : 'referido_profesional',

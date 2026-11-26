@@ -29,6 +29,8 @@ import { puedeBonificarTeleclinica } from '../../lib/featureFlags'
 import { bonificarPorDefecto, teleclinicaBonificada, camposBonificar } from '../../lib/bonificar'
 import { track, getPaymentMethod, buildConsultaItem } from '../../utils/analytics'
 import { tipoDeErrorDePago, marcarPurchase } from '../../lib/analiticaOndemand'
+import { referralService } from '../../services/referralService'
+import { descuentoSocio, etiquetaBeneficio } from '../../lib/beneficioSocio'
 
 /*
  * Teleclínica — consulta inmediata por DESPACHO (Mateo, 2026-10-07; migración 191).
@@ -126,6 +128,11 @@ export default function OnDemand({ profile }) {
   const missingCard = !paymentExempt && !selectedCardId
   const IconComp = vertical?.icon
   const price = vertical?.onDemandPrice ?? null
+  // Beneficio de socio comercial (LIFT): sólo para mostrar; lo cobra el servidor.
+  const [beneficio, setBeneficio] = useState(null)
+  useEffect(() => { referralService.miBeneficio().then(setBeneficio) }, [])
+  const descuento = paymentExempt ? 0 : descuentoSocio(beneficio, price ?? 0)
+  const precioFinal = price != null ? Math.max(0, price - descuento) : null
   const proName = pro?.profiles?.fullName || 'Tu profesional'
   const proAvatar = pro?.profiles?.avatarUrl || null
   const proSpecialty = pro ? (porSlug[pro.specialty] || vertical?.nombre) : vertical?.nombre
@@ -653,9 +660,16 @@ export default function OnDemand({ profile }) {
                 <p className="font-semibold text-[16px] leading-tight text-gray-900">Consulta inmediata por video</p>
                 <p className="text-[14px] text-gray-500 leading-snug">El primer profesional disponible</p>
               </div>
-              <p className="text-[22px] leading-tight text-gray-900 shrink-0" data-testid="ondemand-precio">
-                {mostrarExento ? 'Bonificada' : `$${price.toLocaleString('es-AR')}`}
-              </p>
+              <div className="text-right shrink-0">
+                <p className="text-[22px] leading-tight text-gray-900" data-testid="ondemand-precio">
+                  {mostrarExento ? 'Bonificada' : `$${precioFinal.toLocaleString('es-AR')}`}
+                </p>
+                {!mostrarExento && descuento > 0 && (
+                  <p className="text-[12px] text-brand font-semibold mt-0.5" data-testid="ondemand-beneficio">
+                    {etiquetaBeneficio(beneficio)} · <span className="line-through text-gray-400 font-normal">${price.toLocaleString('es-AR')}</span>
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
@@ -681,7 +695,7 @@ export default function OnDemand({ profile }) {
                 onCardSelected={id => { setErrorPago(null); setSelectedCardId(id) }}
                 publicKey={publicKey}
                 payerEmail={profile?.email ?? ''}
-                amount={price ?? undefined}
+                amount={precioFinal ?? undefined}
                 disabled={paying}
                 compacto
                 etiquetaPagar={rechazado ? 'Pagar con esta tarjeta' : ETIQUETA_PAGAR}

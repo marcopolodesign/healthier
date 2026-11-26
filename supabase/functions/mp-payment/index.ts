@@ -131,6 +131,13 @@ function mapMpStatus(mpStatus: string): { paymentsStatus: 'pending' | 'authorize
 }
 
 Deno.serve(async (req) => {
+  // Descuento de socio comercial (migración 252) reservado para este cobro y
+  // todavía sin cerrar. Si el handler sale por cualquier camino sin cerrarlo
+  // (validación, MP caído, excepción), el `finally` lo libera: una reserva
+  // colgada le bloquearía el beneficio al paciente.
+  let reservaSinCerrar: string | null = null
+  let liberarReserva: (() => Promise<void>) | null = null
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -852,8 +859,10 @@ Deno.serve(async (req) => {
     }
 
     // --- 2. Amount comes ONLY from the DB ---
-    const amount = consultation.price_at_booking
-    if (!amount || amount <= 0) {
+    // Precio de lista. Lo que paga el paciente (`amount`, el bruto del pago)
+    // puede ser menor si tiene el beneficio de un socio comercial (3c).
+    const precioLista = Number(consultation.price_at_booking)
+    if (!precioLista || precioLista <= 0) {
       return new Response(
         JSON.stringify({ data: null, error: 'Consultation has no valid price_at_booking' }),
         { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -898,6 +907,63 @@ Deno.serve(async (req) => {
     const commissionSource = (comision as { origen: string }).origen
     const comisionAplicada = { commission_rate_applied: commissionRate, commission_source: commissionSource }
 
+    // --- 3c. Beneficio de socio comercial (LIFT, migración 252) ---
+    // 20% en la primera consulta del paciente que vino por el socio. Lo decide
+    // la base (`reservar_descuento_de_socio`), nunca el cliente, y queda
+    // RESERVADO antes de cobrar: el índice único por paciente impide que dos
+    // cobros en paralelo se lleven el descuento los dos. El paciente que paga
+    // es el titular (`user.id`), aunque la consulta sea de un familiar.
+    //
+    // Lo pone Healthier de su comisión: el profesional cobra lo mismo
+    // (`netToProfessional` sale del precio de lista). Si la comisión de este
+    // profesional es MENOR que el descuento, la diferencia queda a cargo de
+    // Healthier como liquidación manual al profesional (`manual_settlement_amount`),
+    // igual que los Healthy Credits — 🟡 PENDIENTE de confirmar con Mateo.
+    let descuentoSocio = 0
+    let socioId: string | null = null
+    {
+      const { data: reserva, error: reservaErr } = await serviceSupabase
+        .rpc('reservar_descuento_de_socio', {
+          p_paciente: user.id,
+          p_consulta: consultationId,
+          p_precio_lista: precioLista,
+        })
+        .maybeSingle()
+      if (reservaErr) {
+        // Sin poder leer el beneficio no se cobra: cobrar de más a quien tenía
+        // descuento es peor que pedirle que reintente.
+        console.error('mp-payment: reservar_descuento_de_socio falló:', reservaErr.message)
+        return new Response(
+          JSON.stringify({ data: null, error: 'No pudimos calcular el precio. Probá de nuevo en un momento.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      const r = reserva as { descuento_id: string; socio_id: string; monto: number } | null
+      if (r?.descuento_id) {
+        descuentoSocio = Math.min(round2(Number(r.monto)), precioLista)
+        socioId = r.socio_id
+        reservaSinCerrar = r.descuento_id
+        liberarReserva = async () => {
+          const { error } = await serviceSupabase.rpc('cerrar_descuento_de_socio', { p_descuento: r.descuento_id, p_estado: 'liberado' })
+          if (error) console.error('mp-payment: no se pudo liberar el descuento de socio:', error.message)
+        }
+      }
+    }
+    // Lo que paga el paciente por la consulta (bruto del pago).
+    const amount = round2(precioLista - descuentoSocio)
+    const descuentoAplicado = { precio_lista: precioLista, descuento_socio: descuentoSocio, socio_id: socioId }
+    // Lo que Healthier se queda de comisión después de poner el descuento.
+    // Negativo = Healthier le debe la diferencia al profesional.
+    const comisionHealthier = round2(precioLista * commissionRate - descuentoSocio)
+    const faltanteAlProfesional = Math.max(0, -comisionHealthier)
+    async function cerrarReserva(estado: 'aplicado' | 'liberado', paymentId?: string) {
+      if (!reservaSinCerrar) return
+      const id = reservaSinCerrar
+      reservaSinCerrar = null
+      const { error } = await serviceSupabase.rpc('cerrar_descuento_de_socio', { p_descuento: id, p_estado: estado, p_payment: paymentId ?? null })
+      if (error) console.error('mp-payment: cerrar_descuento_de_socio falló:', error.message)
+    }
+
     // --- 4. Credits ---
     let creditsUsed = 0
     if (useCredits) {
@@ -936,7 +1002,7 @@ Deno.serve(async (req) => {
 
     // --- 5. Fully covered by credits — no MP call ---
     if (chargedAmount === 0) {
-      const netToProfessional = round2(amount * (1 - commissionRate))
+      const netToProfessional = round2(precioLista * (1 - commissionRate))
 
       const paymentId = await upsertPayment({
         consultation_id: consultationId,
@@ -952,9 +1018,11 @@ Deno.serve(async (req) => {
         manual_settlement_amount: netToProfessional,
         currency: 'ARS',
         ...comisionAplicada,
+        ...descuentoAplicado,
         status: 'approved',
         status_detail: 'credits_full_cover',
       })
+      await cerrarReserva('aplicado', paymentId)
 
       if (creditsUsed > 0) {
         const { error: ledgerErr } = await serviceSupabase.from('patient_credits').insert({
@@ -1041,7 +1109,8 @@ Deno.serve(async (req) => {
     // cuenta. Por eso lo que se le muestra es `mp_net_received_amount`, que
     // reconcilia mp-capture con el valor real.
     const applicationFee = Math.min(
-      round2(amount * commissionRate),
+      // Con descuento de socio, Healthier lo pone de su parte (3c).
+      Math.max(0, comisionHealthier),
       // Nunca más que lo efectivamente cobrado: con créditos parciales el bruto
       // puede superar lo que pasa por la tarjeta.
       Math.max(0, chargedAmount),
@@ -1049,11 +1118,11 @@ Deno.serve(async (req) => {
 
     // La PARTE del profesional sobre el bruto, no lo que MP le deposita: de acá
     // MP todavía descuenta su fee.
-    const netToProfessional = round2(amount * (1 - commissionRate))
+    const netToProfessional = round2(precioLista * (1 - commissionRate))
     // Sólo para estimar el depósito mientras la captura no trajo el fee real.
     // Ya no interviene en el split.
     const mpFeeEstimated = round2(chargedAmount * mpFeeEstimateRate)
-    const manualSettlementAmount = round2(creditsUsed * (1 - commissionRate))
+    const manualSettlementAmount = round2(creditsUsed * (1 - commissionRate) + faltanteAlProfesional)
 
     const idempotencyKey = await sha256Hex(`${consultationId}:${cardToken}`)
 
@@ -1204,6 +1273,7 @@ Deno.serve(async (req) => {
         manual_settlement_amount: manualSettlementAmount,
         currency: 'ARS',
         ...comisionAplicada,
+        ...descuentoAplicado,
         status: 'rejected',
         status_detail: mpData.status_detail ?? mpData.message ?? mpData.error ?? 'mp_request_failed',
         collector_id: account.mp_user_id,
@@ -1243,11 +1313,23 @@ Deno.serve(async (req) => {
       manual_settlement_amount: manualSettlementAmount,
       currency: 'ARS',
       ...comisionAplicada,
+      ...descuentoAplicado,
       status: paymentsStatus,
       status_detail: mpData.status_detail ?? '',
       collector_id: account.mp_user_id,
       ...(paymentsStatus === 'authorized' ? { authorized_at: new Date().toISOString() } : {}),
     })
+
+    // El descuento queda usado si MP aprobó o reservó; si rechazó, vuelve a
+    // estar disponible. Pendiente de revisión: queda reservado para esta
+    // consulta (el reintento la reutiliza; si se cancela, el trigger lo libera).
+    if (paymentsStatus === 'approved' || paymentsStatus === 'authorized') {
+      await cerrarReserva('aplicado', paymentId)
+    } else if (paymentsStatus === 'rejected') {
+      await cerrarReserva('liberado', paymentId)
+    } else {
+      reservaSinCerrar = null
+    }
 
     if (creditsUsed > 0) {
       const { error: ledgerErr } = await serviceSupabase.from('patient_credits').insert({
@@ -1307,5 +1389,7 @@ Deno.serve(async (req) => {
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+  } finally {
+    if (reservaSinCerrar && liberarReserva) await liberarReserva()
   }
 })
