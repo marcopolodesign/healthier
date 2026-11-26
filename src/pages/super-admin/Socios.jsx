@@ -165,7 +165,7 @@ export default function SuperAdminSocios() {
                 </p>
               </div>
               <p className="text-sm text-text-secondary">
-                {Math.round(Number(socio.descuento) * 100)}% off en la primera consulta · {Math.round(Number(socio.comisionSocio) * 100)}% para {socio.nombre} de cada consulta terminada de sus socios
+                {Math.round(Number(socio.descuento) * 100)}% de descuento en la primera consulta · {Math.round(Number(socio.comisionSocio) * 100)}% para {socio.nombre} de cada consulta terminada de sus socios
                 {!socio.activo && ' · inactivo'}
               </p>
               {qr && (
