@@ -4,9 +4,8 @@ import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { usePharmacyCart } from '../../context/PharmacyCartContext'
 import { toast } from '../Toast'
 import { formatARS } from '../../lib/format'
-
-const TIPOS = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf']
-const MAX_BYTES = 10 * 1024 * 1024 // el bucket `recetas-subidas` topea en 10 MB (migración 254)
+import { tipoDe, TIPOS_RECETA } from '../../lib/archivoSubible'
+import { LIMITE_BUCKET_BYTES } from '../../lib/subidaConProgreso'
 
 /**
  * "Ya tengo receta" — Versión 3 de Felipe (2026-11-26): pantalla de cámara,
@@ -31,10 +30,11 @@ export default function RecetaSubidaScreen({ producto, onCerrar, onListo }) {
     const f = e.target.files?.[0]
     e.target.value = ''
     if (!f) return
-    if (f.type && !TIPOS.includes(f.type)) { toast.error('Subí una foto (JPG, PNG o HEIC) o un PDF.'); return }
-    if (f.size > MAX_BYTES) { toast.error('El archivo pesa más de 10 MB. Probá con una foto más liviana.'); return }
+    let tipo
+    try { tipo = tipoDe(f, TIPOS_RECETA) } catch (err) { toast.error(err.message); return }
+    if (f.size > LIMITE_BUCKET_BYTES) { toast.error('El archivo pesa más de 10 MB. Probá con una foto más liviana.'); return }
     setArchivo(f)
-    setVista(f.type === 'application/pdf' ? null : URL.createObjectURL(f))
+    setVista(tipo === 'application/pdf' ? null : URL.createObjectURL(f))
   }
 
   const usarEsta = async () => {
@@ -51,7 +51,7 @@ export default function RecetaSubidaScreen({ producto, onCerrar, onListo }) {
     }
   }
 
-  const esPdf = archivo?.type === 'application/pdf'
+  const esPdf = !vista && !!archivo
 
   return (
     <div className="fixed inset-0 z-[80] bg-midnight flex flex-col sm:items-center sm:justify-center">

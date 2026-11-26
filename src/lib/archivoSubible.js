@@ -127,3 +127,5 @@ export async function aBlobSubible(file, permitidos = null) {
 export const TIPOS_DOCUMENTO = ['application/pdf', 'image/jpeg', 'image/png']
 /** Lo que acepta el bucket `avatars`. */
 export const TIPOS_AVATAR = ['image/jpeg', 'image/png', 'image/webp']
+/** Bucket `recetas-subidas` (migración 254): foto o PDF de la receta. */
+export const TIPOS_RECETA = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic']

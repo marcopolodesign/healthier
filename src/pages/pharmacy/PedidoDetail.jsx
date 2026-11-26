@@ -150,12 +150,12 @@ export default function PharmacyOrderDetail({ profile }) {
         </div>
       )}
 
-      <RecetaSubidaRevision
+      {(order.items ?? []).some(it => it.recetaVia === 'subida') && <RecetaSubidaRevision
         orderId={order.id}
         puedeResolver={canEdit && reservado}
         esperandoMedico={(order.items ?? []).some(it => it.recetaVia === 'solicitar')}
         onResuelto={() => setTimeout(cargar, 2500)}
-      />
+      />}
 
       <div className="card space-y-1">
         <p className="text-xs uppercase text-text-muted font-semibold">Paciente</p>

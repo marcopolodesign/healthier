@@ -21,6 +21,7 @@
  */
 import { supabase, toCamelCase } from '../lib/supabase'
 import { sinPrueba } from '../lib/cuentasDePrueba'
+import { aBlobSubible, extensionDe, TIPOS_RECETA } from '../lib/archivoSubible'
 
 const PHARMACY_ID = '10000000-0000-0000-0000-000000000001' // single MVP tenant
 
@@ -343,12 +344,12 @@ export const medicationOrdersService = {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('Tu sesión venció. Volvé a entrar.')
     const patientId = user.id
-    const ext = (file.name?.split('.').pop() || (file.type === 'application/pdf' ? 'pdf' : 'jpg')).toLowerCase()
+    // Lee el archivo entero y resuelve el tipo por extensión si el teléfono no
+    // lo declaró (ver archivoSubible: 0 KB de Android, handles de iCloud).
+    const { blob, contentType } = await aBlobSubible(file, TIPOS_RECETA)
+    const ext = extensionDe(file) || (contentType === 'application/pdf' ? 'pdf' : 'jpg')
     const path = `${patientId}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`
-    const { error } = await supabase.storage.from(BUCKET_RECETAS).upload(path, file, {
-      contentType: file.type || undefined,
-      upsert: false,
-    })
+    const { error } = await supabase.storage.from(BUCKET_RECETAS).upload(path, blob, { contentType, upsert: false })
     if (error) throw error
     return path
   },
