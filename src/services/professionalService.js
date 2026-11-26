@@ -100,6 +100,15 @@ export const professionalService = {
    * leída al abrirse y pisarían el switch y el latido con valores rancios.
    * Ver `lib/fichaProfesional.js`.
    */
+  /** Super admin: marca/desmarca "médico de Healthier" (migración 254; el trigger rechaza a cualquier otro). */
+  async setMedicoHealthier(professionalProfileId, valor) {
+    const { error } = await supabase
+      .from('professional_profiles')
+      .update({ medico_healthier: valor })
+      .eq('id', professionalProfileId)
+    if (error) throw error
+  },
+
   async upsert(userId, profileData, { presencia = false } = {}) {
     // Además de la presencia, saca `profiles` (join de sólo lectura de
     // getByUserId: mandarlo da 400) y lo que escribe el servidor.

@@ -23,6 +23,7 @@ import PatientWaitingBadge from '../../components/professional/PatientWaitingBad
 import LlegadaBadge, { useLlegadas } from '../../components/professional/LlegadaPaciente'
 import OnDemandSwitch from '../../components/professional/OnDemandSwitch'
 import PedidosOndemand from '../../components/professional/PedidosOndemand'
+import PedidosDeRecetaAviso from '../../components/professional/PedidosDeRecetaAviso'
 import MercadoPagoMark from '../../components/icons/MercadoPagoMark'
 import Modal from '../../components/Modal'
 import { useWaitingPresence } from '../../hooks/useWaitingPresence'
@@ -721,6 +722,8 @@ export default function ProfessionalDashboard({ profile }) {
         activo={onDemandOn === true}
         onTomada={() => consultationsService.getByProfessional(profile.id).then(setConsultations).catch(() => {})}
       />
+
+      <PedidosDeRecetaAviso profile={profile} />
 
       {/* Emergency banner */}
       {activeEmergency && (

@@ -75,6 +75,7 @@ import HistoriaClinica from './pages/professional/HistoriaClinica'
 import ProfessionalHistorial from './pages/professional/Historial'
 import ProfessionalPatientProfile from './pages/professional/PatientProfile'
 import ProfessionalPacientes from './pages/professional/Pacientes'
+import ProfessionalPedidosDeReceta from './pages/professional/PedidosDeReceta'
 import ProfessionalDerivaciones from './pages/professional/Derivaciones'
 import ProfessionalDerivacionDetalle from './pages/professional/DerivacionDetalle'
 import ProfessionalGanancias from './pages/professional/Ganancias'
@@ -554,7 +555,7 @@ export default function App() {
           <Route path="/paciente/farmacia/checkout" element={<PatientPharmacyCheckout profile={profile} />} />
           <Route path="/paciente/farmacia/pago"     element={<PatientPharmacyPayment  profile={profile} />} />
           <Route path="/paciente/farmacia/pedidos"     element={<PatientPharmacyOrders profile={profile} />} />
-          <Route path="/paciente/farmacia/pedido/:id"  element={<PatientPharmacyOrder />} />
+          <Route path="/paciente/farmacia/pedido/:id"  element={<PatientPharmacyOrder profile={profile} />} />
           <Route path="/paciente/comprobantes"     element={<PatientComprobantes profile={profile} />} />
           <Route path="/paciente/videollamada/:id" element={<PatientVideoCall    profile={profile} />} />
           <Route path="/paciente/reservar"            element={<ReservarConsulta   profile={profile} />} />
@@ -655,6 +656,7 @@ export default function App() {
           <Route path="/profesional/paciente/:patientId" element={<ProfessionalPatientProfile profile={profile} />} />
           <Route path="/profesional/pacientes" element={<ProfessionalPacientes profile={profile} />} />
           <Route path="/profesional/derivaciones" element={<ProfessionalDerivaciones profile={profile} />} />
+          <Route path="/profesional/pedidos-receta" element={<ProfessionalPedidosDeReceta />} />
           <Route path="/profesional/derivaciones/:id" element={<ProfessionalDerivacionDetalle profile={profile} />} />
           <Route path="/profesional/ganancias" element={<FueraDeModoOperador><ProfessionalGanancias profile={profile} /></FueraDeModoOperador>} />
           <Route path="/profesional/configuracion" element={<FueraDeModoOperador><ProfessionalConfiguracion profile={profile} /></FueraDeModoOperador>} />

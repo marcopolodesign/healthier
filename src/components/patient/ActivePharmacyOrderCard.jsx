@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Package, CaretRight } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { farmaciaVisible } from '../../lib/featureFlags'
-import { STATUS_FLOW, STATUS_PATIENT_LABEL, STATUS_PATIENT_HINT } from '../../lib/pharmacyOrders'
+import { STATUS_FLOW, estadoParaPaciente } from '../../lib/pharmacyOrders'
 import { usePolling } from '../../hooks/usePolling'
 
 // El estado lo cambia la farmacia desde su panel, así que la única forma de
@@ -34,7 +34,9 @@ export default function ActivePharmacyOrderCard({ profile }) {
 
   if (!order) return null
 
-  const paso = STATUS_FLOW.indexOf(order.status)
+  const { label, hint } = estadoParaPaciente(order)
+  // Reservado esperando la receta: todavía no llegó al primer paso.
+  const paso = order.paymentStatus === 'autorizado' ? -1 : STATUS_FLOW.indexOf(order.status)
   const cantidad = (order.items ?? []).reduce((s, it) => s + it.quantity, 0)
 
   return (
@@ -46,9 +48,9 @@ export default function ActivePharmacyOrderCard({ profile }) {
         <Package className="w-5 h-5 text-brand" weight="fill" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-semibold text-text-primary">{STATUS_PATIENT_LABEL[order.status]}</p>
+        <p className="text-[13px] font-semibold text-text-primary">{label}</p>
         <p className="text-[11px] text-text-secondary truncate">
-          {cantidad} medicamento{cantidad !== 1 ? 's' : ''} · {STATUS_PATIENT_HINT[order.status]}
+          {cantidad} medicamento{cantidad !== 1 ? 's' : ''} · {hint}
         </p>
         <div className="flex gap-1 mt-2">
           {STATUS_FLOW.map((step, i) => (

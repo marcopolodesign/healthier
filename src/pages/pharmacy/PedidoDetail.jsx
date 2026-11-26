@@ -4,7 +4,9 @@ import { ArrowLeft, MapPin, Pill, XCircle, FileText } from '@phosphor-icons/reac
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
 import { formatARS, formatDate } from '../../lib/format'
-import { STATUS_LABEL, NEXT_STATUS, etiquetaDePago, claseDePago } from '../../lib/pharmacyOrders'
+import { STATUS_LABEL, NEXT_STATUS, etiquetaDePago, claseDePago, faseDeReceta, FASE_RECETA_LABEL, FASE_RECETA_CLASS } from '../../lib/pharmacyOrders'
+import { mpService } from '../../services/mpService'
+import RecetaSubidaRevision from '../../components/pharmacy/RecetaSubidaRevision'
 
 export default function PharmacyOrderDetail({ profile }) {
   const { id } = useParams()
@@ -20,8 +22,7 @@ export default function PharmacyOrderDetail({ profile }) {
 
   const canEdit = profile?.role === 'pharmacy_admin' || profile?.role === 'pharmacy_operator'
 
-  useEffect(() => {
-    setLoading(true)
+  const cargar = () => {
     Promise.all([
       medicationOrdersService.getById(id),
       medicationOrdersService.getPaymentForOrder(id),
@@ -31,7 +32,14 @@ export default function PharmacyOrderDetail({ profile }) {
       .finally(() => setLoading(false))
     // Aparte: si falla, el pedido se ve igual (sólo falta el dato de la receta).
     medicationOrdersService.getRecetasDelPedido(id).then(setRecetas).catch(() => setRecetas({}))
-  }, [id])
+  }
+
+  useEffect(() => { setLoading(true); cargar() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reservado esperando la receta (254): no se prepara ni se cancela a mano —
+  // cancelar libera la reserva por mp-capture.
+  const reservado = order?.paymentStatus === 'autorizado'
+  const fase = faseDeReceta(order)
 
   /**
    * Entregar no es un cambio de estado más: hace falta el código de 4 dígitos
@@ -86,8 +94,14 @@ export default function PharmacyOrderDetail({ profile }) {
     if (!motivo.trim()) { toast.error('Escribí el motivo de la cancelación'); return }
     setUpdating(true)
     try {
-      const updated = await medicationOrdersService.cancelOrder(order.id, motivo)
-      setOrder(o => ({ ...o, status: updated.status, cancellationReason: updated.cancellationReason }))
+      if (reservado) {
+        const { error } = await mpService.liberarPedidoFarmacia(order.id, motivo.trim())
+        if (error) throw new Error(error)
+        cargar()
+      } else {
+        const updated = await medicationOrdersService.cancelOrder(order.id, motivo)
+        setOrder(o => ({ ...o, status: updated.status, cancellationReason: updated.cancellationReason }))
+      }
       setCancelando(false)
       setMotivo('')
       toast.success('Pedido cancelado')
@@ -119,8 +133,29 @@ export default function PharmacyOrderDetail({ profile }) {
           <span className={`text-[10px] font-semibold uppercase px-2 py-1 rounded-full ${claseDePago(order.paymentStatus)}`}>
             {etiquetaDePago(order.paymentStatus)}
           </span>
+          {fase && (
+            <span className={`text-[10px] font-semibold uppercase px-2 py-1 rounded-full ${FASE_RECETA_CLASS[fase]}`}>
+              {FASE_RECETA_LABEL[fase]}
+            </span>
+          )}
         </div>
       </div>
+
+      {reservado && fase === 'esperando_medico' && (
+        <div className="card">
+          <p className="text-sm text-text-primary">Esperando la receta de un médico de Healthier.</p>
+          <p className="text-xs text-text-secondary mt-1">
+            El pago está reservado, no cobrado. No lo prepares todavía: cuando el médico emita la receta se cobra y el pedido pasa a pendiente.
+          </p>
+        </div>
+      )}
+
+      <RecetaSubidaRevision
+        orderId={order.id}
+        puedeResolver={canEdit && reservado}
+        esperandoMedico={(order.items ?? []).some(it => it.recetaVia === 'solicitar')}
+        onResuelto={() => setTimeout(cargar, 2500)}
+      />
 
       <div className="card space-y-1">
         <p className="text-xs uppercase text-text-muted font-semibold">Paciente</p>
@@ -139,7 +174,12 @@ export default function PharmacyOrderDetail({ profile }) {
               <Pill className="h-4 w-4 text-brand shrink-0" />
               <div>
                 <p className="text-sm font-medium text-text-primary">{it.medicationName}{it.presentation ? ` — ${it.presentation}` : ''}</p>
-                <p className="text-xs text-text-secondary">x{it.quantity}{it.requiresPrescription ? ' · requiere receta' : ''}</p>
+                <p className="text-xs text-text-secondary">
+                  x{it.quantity}
+                  {it.recetaVia === 'solicitar' ? ' · receta de un médico de Healthier'
+                    : it.recetaVia === 'subida' ? ' · receta subida por el paciente'
+                    : it.requiresPrescription ? ' · requiere receta' : ''}
+                </p>
                 {recetas[it.id] && (
                   <p className="text-xs text-text-secondary mt-0.5 flex items-center gap-1 flex-wrap">
                     <FileText className="h-3.5 w-3.5 shrink-0" />
@@ -197,14 +237,14 @@ export default function PharmacyOrderDetail({ profile }) {
 
       {canEdit && order.status !== 'entregado' && order.status !== 'cancelado' && (
         <div className="flex flex-wrap items-center gap-3">
-          {NEXT_STATUS[order.status] && order.status !== 'enviado' && (
+          {NEXT_STATUS[order.status] && order.status !== 'enviado' && !reservado && (
             <button className="btn-primary" disabled={updating} onClick={advance}>
               {updating ? 'Actualizando...' : `Marcar ${STATUS_LABEL[NEXT_STATUS[order.status]].toLowerCase()}`}
             </button>
           )}
           {!cancelando && (
             <button className="btn-secondary flex items-center gap-1.5" disabled={updating} onClick={() => setCancelando(true)}>
-              <XCircle className="h-4 w-4" /> Cancelar pedido
+              <XCircle className="h-4 w-4" /> {reservado ? 'Cancelar y liberar la reserva' : 'Cancelar pedido'}
             </button>
           )}
         </div>

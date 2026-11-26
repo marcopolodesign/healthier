@@ -337,9 +337,10 @@ export const AVISOS = {
     cuando: 'El pedido retenido se cancela (el médico no recetó, la farmacia rechazó la receta subida o venció la reserva). Se libera la reserva de la tarjeta.',
     build: (d: Datos): Aviso => ({
       title: 'No se te cobró nada',
-      body: d.motivo
-        ? `${d.motivo.replace(/\.$/, '')}. Liberamos la reserva de tu tarjeta.`
-        : 'Cancelamos el pedido y liberamos la reserva de tu tarjeta.',
+      // Algunos motivos (el del barrido) ya dicen que no se cobró.
+      body: !d.motivo ? 'Cancelamos el pedido y liberamos la reserva de tu tarjeta.'
+        : /cobr|liber/i.test(d.motivo) ? d.motivo
+        : `${d.motivo.replace(/\.$/, '')}. Liberamos la reserva de tu tarjeta.`,
       url: `/paciente/farmacia/pedido/${d.orderId}`,
     }),
   },

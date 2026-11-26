@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   House, Calendar, Users, Plus, X,
-  ClockCounterClockwise, TrendUp, ForkKnife, User, SignOut, Question, Gear, Barbell, BookOpenText, ShareFat } from '@phosphor-icons/react'
+  ClockCounterClockwise, TrendUp, ForkKnife, User, SignOut, Question, Gear, Barbell, BookOpenText, ShareFat, Prescription } from '@phosphor-icons/react'
 import { authService } from '../../services/authService'
 import { toast } from '../Toast'
+import { useMedicoHealthier } from '../../hooks/useMedicoHealthier'
 
 const MAIN_TABS = [
   { id: 'dashboard', path: '/profesional/dashboard', icon: House,     label: 'Inicio' },
@@ -17,6 +18,7 @@ export default function ProfessionalBottomNav({ profile, profSpecialty, classNam
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
+  const medicoHealthier = useMedicoHealthier(profile)
 
   const activeId = MAIN_TABS.find(t => pathname.startsWith(t.path))?.id
 
@@ -33,6 +35,9 @@ export default function ProfessionalBottomNav({ profile, profSpecialty, classNam
   }
 
   const modalLinks = [
+    ...(medicoHealthier ? [
+      { path: '/profesional/pedidos-receta', icon: Prescription, label: 'Pedidos de receta', sub: 'Pacientes que esperan su receta' },
+    ] : []),
     { path: '/profesional/derivaciones', icon: ShareFat,            label: 'Derivaciones', sub: 'Las que hiciste y las que recibiste' },
     { path: '/profesional/historial',  icon: ClockCounterClockwise, label: 'Historial',   sub: 'Consultas anteriores' },
     { path: '/profesional/ganancias',  icon: TrendUp,               label: 'Ganancias',   sub: 'Resumen de ingresos' },

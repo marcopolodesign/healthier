@@ -125,7 +125,9 @@ export default function PharmacyCheckout({ profile }) {
                       <p className="text-[13px] font-medium text-text-primary truncate leading-tight">{it.name}</p>
                       <p className="text-[10px] text-text-tertiary leading-tight">
                         {it.quantity} × {fmtPrice(it.unitPrice)}
-                        {it.requiresPrescription ? ' · con receta' : ''}
+                        {it.recetaVia === 'solicitar' ? ' · te hacemos la receta'
+                          : it.recetaVia === 'subida' ? ' · receta subida'
+                          : it.requiresPrescription ? ' · con receta' : ''}
                       </p>
                     </div>
                     <div className="flex items-center gap-0.5 shrink-0">

@@ -25,6 +25,7 @@ import Recetario from '../../components/professional/Recetario'
 import ScribeSession from '../../components/professional/ScribeSession'
 import DerivarModal from '../../components/professional/DerivarModal'
 import DerivadoPorCard from '../../components/professional/DerivadoPorCard'
+import PedidoDeRecetaEnConsulta from '../../components/professional/PedidoDeRecetaEnConsulta'
 import { toast } from '../../components/Toast'
 import OrdenDeTrasladoCard from '../../components/emergencias/OrdenDeTrasladoCard'
 
@@ -350,6 +351,9 @@ export default function ConsultationDetail({ profile }) {
           </div>
         )}
       </div>
+
+      {/* Consulta abierta desde un pedido de receta de farmacia (migración 254). */}
+      {consultation.medicationOrderId && <PedidoDeRecetaEnConsulta consultationId={consultation.id} />}
 
       {/* Cobertura médica */}
       <div className="card">

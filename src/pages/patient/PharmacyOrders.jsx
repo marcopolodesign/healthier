@@ -4,7 +4,7 @@ import { ArrowLeft, Package, CaretRight } from '@phosphor-icons/react'
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
 import { formatARS as fmtPrice, formatDate } from '../../lib/format'
-import { STATUS_PATIENT_LABEL } from '../../lib/pharmacyOrders'
+import { estadoParaPaciente } from '../../lib/pharmacyOrders'
 
 /** Los pedidos de farmacia del paciente, del más nuevo al más viejo. */
 export default function PharmacyOrders({ profile }) {
@@ -48,7 +48,7 @@ export default function PharmacyOrders({ profile }) {
             className="w-full text-left rounded-2xl border border-border-default bg-bg-surface p-4 flex items-center gap-3 hover:bg-bg-secondary transition-colors"
           >
             <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-semibold text-text-primary">{STATUS_PATIENT_LABEL[o.status]}</p>
+              <p className="text-[13px] font-semibold text-text-primary">{estadoParaPaciente(o).label}</p>
               <p className="text-[11px] text-text-secondary">
                 {formatDate(o.createdAt)} · {(o.items ?? []).length} medicamento{(o.items ?? []).length !== 1 ? 's' : ''} · {fmtPrice(o.total)}
               </p>

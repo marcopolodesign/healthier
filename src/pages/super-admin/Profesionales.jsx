@@ -28,6 +28,7 @@ import BulkActionBar from '../../components/super-admin/BulkActionBar'
 import ConfirmDeleteDialog from '../../components/super-admin/ConfirmDeleteDialog'
 import WhatsAppButton from '../../components/super-admin/WhatsAppButton'
 import ComisionProfesional, { ComisionBadge } from '../../components/super-admin/ComisionProfesional'
+import MedicoHealthierToggle from '../../components/super-admin/MedicoHealthierToggle'
 import { comisionService } from '../../services/comisionService'
 import { avisosDniService, ETIQUETA_SISA } from '../../services/avisosDniService'
 import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
@@ -738,6 +739,17 @@ function ProfessionalDrawer({ pro, duplicados = [], generalRate, onClose, onUpda
                 </div>
               </div>
 
+              {/* Atiende los pedidos de receta de la farmacia (migración 254). */}
+              {d?.id && (
+                <MedicoHealthierToggle
+                  key={d.id}
+                  professionalProfileId={d.id}
+                  valor={d.medico_healthier}
+                  verificado={d.is_verified}
+                  onChanged={onUpdated}
+                />
+              )}
+
               {/* Comisión propia (migración 184): tasa, vencimiento y motivo, con historial. */}
               {d?.profile?.id && (
                 <ComisionProfesional professionalId={d.profile.id} generalRate={generalRate} onChanged={onUpdated} />
@@ -1217,7 +1229,7 @@ export default function SuperAdminProfesionales() {
       const [profResult, consultResult] = await Promise.all([
         sinPrueba(supabase
           .from('professional_profiles')
-          .select('id, specialty, is_verified, is_active, verification_source, sisa_status, mp_connected, mp_account_label, has_signature, is_on_demand, on_demand_last_seen_at, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, price_video, price_presencial, session_price, license_number, license_type, license_province, address, latitude, longitude, profiles!user_id(id, full_name, email, phone, dni, es_extranjero, gender, created_at, utm_source, avatar_url)')
+          .select('id, specialty, is_verified, is_active, verification_source, sisa_status, mp_connected, mp_account_label, has_signature, is_on_demand, on_demand_last_seen_at, medico_healthier, average_rating, total_reviews, created_at, rejected_at, rejection_type, reverification_pending, price_video, price_presencial, session_price, license_number, license_type, license_province, address, latitude, longitude, profiles!user_id(id, full_name, email, phone, dni, es_extranjero, gender, created_at, utm_source, avatar_url)')
           .eq('dado_de_baja', false) // bajas lógicas (188) fuera
           .order('created_at', { ascending: false }), incluirPrueba),
         sinPrueba(supabase.from('consultations').select('professional_id'), incluirPrueba),
@@ -1429,6 +1441,11 @@ export default function SuperAdminProfesionales() {
                                   cobrable, pero sólo lo ven y lo contratan cuentas de
                                   prueba. Sin esta chapa el panel lo muestra igual que a
                                   uno real y no hay forma de saber por qué nadie lo ve. */}
+                              {pro.medico_healthier && (
+                                <span className="shrink-0 rounded-full bg-receta-nivel px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-tertiary-hover">
+                                  Médico Healthier
+                                </span>
+                              )}
                               {pro.solo_pruebas && (
                                 <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
                                   Prueba

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, MapTrifold, Ambulance, UploadSimple, Barbell, UsersThree, BookOpenText, Lightning, IdentificationCard, IdentificationBadge, Buildings, ShareFat, Megaphone, Key, Handshake } from '@phosphor-icons/react';
+import { House, MagnifyingGlass, Calendar, FileText, User, Users, ClipboardText, ChartBar, ShieldCheck, Gear, MapPin, ForkKnife, UserCircle, ClockCounterClockwise, TrendUp, Sparkle, UserCirclePlus, Question, CurrencyDollar, Eye, Stethoscope, Siren, CalendarCheck, Funnel, CaretDown, ShieldWarning, Path, ShareNetwork, ShoppingBag, EnvelopeSimple, MapTrifold, Ambulance, UploadSimple, Barbell, UsersThree, BookOpenText, Lightning, IdentificationCard, IdentificationBadge, Buildings, ShareFat, Megaphone, Key, Handshake, Prescription } from '@phosphor-icons/react';
 import { authService } from '../services/authService'
 import { veSubidas, vePauta } from '../lib/permisos'
+import { useMedicoHealthier } from '../hooks/useMedicoHealthier'
 import { GUIA_DE_ROL, urlDeGuia } from '../guia/roles'
 import { toast } from './Toast'
 import { CompanyLogo } from './common/CompanyLogo'
@@ -25,6 +26,7 @@ const NAV_BY_ROLE = {
     { to: '/profesional/agenda',         icon: Calendar,             label: 'Mi agenda' },
     { to: '/profesional/pacientes',      icon: Users,                label: 'Pacientes' },
     { to: '/profesional/derivaciones',   icon: ShareFat,             label: 'Derivaciones' },
+    { to: '/profesional/pedidos-receta', icon: Prescription,         label: 'Pedidos de receta', medicoHealthier: true },
     { to: '/profesional/historial',      icon: ClockCounterClockwise, label: 'Historial' },
     { to: '/profesional/ganancias',      icon: TrendUp,              label: 'Ganancias' },
     { to: '/profesional/configuracion',  icon: Gear,                 label: 'Configuración' },
@@ -122,11 +124,13 @@ export default function Sidebar({ role, profile, profSpecialty, mobileOpen, onCl
   const navigate = useNavigate()
   const { pathname, search } = useLocation()
   const allItems = NAV_BY_ROLE[role] || []
+  const medicoHealthier = useMedicoHealthier(profile)
   // `specialty` filtra por vertical; `permiso` filtra por cuenta — "Subidas"
   // y "Pauta", que ve sólo la cuenta de Marco Polo. Ver `lib/permisos.js`.
   const PERMISOS = { subidas: veSubidas, pauta: vePauta }
   const items = allItems.filter(item =>
     (!item.specialty || item.specialty === profSpecialty) &&
+    (!item.medicoHealthier || medicoHealthier) &&
     (!item.permiso || PERMISOS[item.permiso]?.(profile)))
 
   // Grupos colapsables (Configuración, Consultas+Emergencias, Pacientes,
