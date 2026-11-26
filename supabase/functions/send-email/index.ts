@@ -393,6 +393,11 @@ Deno.serve(async (req) => {
       case 'reprogramada': {
         const c = await requiereConsulta(sb, body.consultationId)
         if (!c) return json({ error: 'Consulta no encontrada' }, 404)
+        // El aviso viaja por pg_net: si entre el cambio de fecha y este momento
+        // el turno se canceló o la fecha ya pasó, "cambió de horario" sería falso.
+        const vivo = ['pending', 'confirmed'].includes(c.row.status)
+          && !!c.row.scheduled_at && new Date(c.row.scheduled_at).getTime() > Date.now()
+        if (!vivo && !body.preview) return json({ skipped: true, reason: 'el turno ya no está vivo o la fecha pasó' })
         const anterior = body.anterior ?? null
         return await salida({ consultationId: c.base.id }, [
           { to: c.patientEmail, ...T.turnoReprogramado({ ...c.base, paraQuien: 'paciente', anterior }) },

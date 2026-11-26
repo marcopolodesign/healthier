@@ -464,7 +464,7 @@ export function consultaCancelada(c: ConsultaBase & { paraQuien: 'paciente' | 'p
 // 8bis · Turno reprogramado — a los dos
 // ═══════════════════════════════════════════════════════════════════════════
 // Sale cuando el equipo de Healthier (admin / super admin) le cambia la fecha a
-// un turno. Lo dispara el trigger de la migración 253, nunca el front. La fecha
+// un turno. Lo dispara el trigger de la migración 255, nunca el front. La fecha
 // nueva es la que manda; la anterior va tachada al lado para que se entienda de
 // un vistazo qué cambió.
 export function turnoReprogramado(c: ConsultaBase & { paraQuien: 'paciente' | 'profesional'; anterior: string | null }): Sent {

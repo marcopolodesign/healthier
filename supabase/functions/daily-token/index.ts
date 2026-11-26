@@ -115,15 +115,34 @@ Deno.serve(async (req) => {
     // 2026-11-26). La 255 además limpia la sala al reprogramar.
     const salaLeida: string | null = consultation.daily_room_name ?? null
 
-    // If a room URL is stored, verify it still exists in Daily.co (rooms expire)
+    // Si hay una sala guardada, se confirma que siga existiendo en Daily.
+    // SÓLO un 404 quiere decir "venció". Un 429, un 5xx o un timeout no dicen
+    // nada de la sala: tomarlos como vencida haría crear otra y pisar una que
+    // sigue viva, y los dos lados terminarían en salas distintas. Ante eso se
+    // reintenta una vez y, si sigue, se devuelve error sin tocar la fila.
     if (roomUrl && roomName) {
-      const checkRes = await fetch(`${DAILY_API_BASE}/rooms/${roomName}`, {
-        headers: { Authorization: `Bearer ${DAILY_API_KEY}` },
-      })
-      if (!checkRes.ok) {
-        // Room is gone — clear stored values and fall through to create a new one
+      let estado = 0
+      for (let intento = 0; intento < 2 && estado !== 200 && estado !== 404; intento++) {
+        if (intento) await new Promise(r => setTimeout(r, 800))
+        try {
+          const checkRes = await fetch(`${DAILY_API_BASE}/rooms/${roomName}`, {
+            headers: { Authorization: `Bearer ${DAILY_API_KEY}` },
+            signal: AbortSignal.timeout(8000),
+          })
+          estado = checkRes.status
+          await checkRes.body?.cancel()
+        } catch {
+          estado = 0
+        }
+      }
+      if (estado === 404) {
         roomUrl = null as unknown as string
         roomName = null as unknown as string
+      } else if (estado !== 200) {
+        return new Response(JSON.stringify({ error: 'No pudimos verificar la sala de la consulta. Probá de nuevo en unos segundos.' }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
       }
     }
 
@@ -188,34 +207,63 @@ Deno.serve(async (req) => {
       // leyó) hace que gane quien llegue primero. Si no afecta filas, otro ya
       // la reclamó: se borra la sala huérfana que
       // acabamos de crear y se usa la suya.
-      const reclamo = serviceSupabase
-        .from('consultations')
-        .update({
-          daily_room_url: roomUrl,
-          daily_room_name: roomName,
-          ...(['confirmed', 'pending'].includes(consultation.status) ? { status: 'in_progress' } : {}),
-        })
-        .eq('id', consultationId)
-      const { data: claimed } = await (salaLeida
-        ? reclamo.eq('daily_room_name', salaLeida)
-        : reclamo.is('daily_room_name', null))
-        .select('daily_room_url, daily_room_name')
-        .maybeSingle()
+      const nuevaUrl = roomUrl
+      const nuevaSala = roomName
+      const reclamar = (contra: string | null) => {
+        const q = serviceSupabase
+          .from('consultations')
+          .update({
+            daily_room_url: nuevaUrl,
+            daily_room_name: nuevaSala,
+            ...(['confirmed', 'pending'].includes(consultation.status) ? { status: 'in_progress' } : {}),
+          })
+          .eq('id', consultationId)
+        return (contra ? q.eq('daily_room_name', contra) : q.is('daily_room_name', null))
+          .select('daily_room_url, daily_room_name')
+          .maybeSingle()
+      }
 
-      if (!claimed) {
-        await fetch(`${DAILY_API_BASE}/rooms/${roomName}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${DAILY_API_KEY}` },
-        }).catch(() => {})
+      // Se reclama contra lo que se leyó. Si no afecta filas, se mira qué hay
+      // ahora en la fila:
+      //   · otra sala distinta de la vencida → la armó otro pedido en paralelo:
+      //     se borra la nuestra y se usa esa;
+      //   · nada (la reprogramación la limpió entre la lectura y el reclamo) →
+      //     se reintenta UNA vez contra NULL. Nunca se usan a ciegas los
+      //     valores del ganador: si son NULL el token saldría sin sala.
+      let contra = salaLeida
+      let resuelto = false
+      for (let intento = 0; intento < 2 && !resuelto; intento++) {
+        const { data: claimed } = await reclamar(contra)
+        if (claimed) { resuelto = true; break }
 
-        const { data: winner } = await serviceSupabase
+        const { data: actual } = await serviceSupabase
           .from('consultations')
           .select('daily_room_url, daily_room_name')
           .eq('id', consultationId)
           .single()
 
-        roomUrl = winner!.daily_room_url
-        roomName = winner!.daily_room_name
+        if (actual?.daily_room_url && actual.daily_room_name && actual.daily_room_name !== salaLeida) {
+          await fetch(`${DAILY_API_BASE}/rooms/${nuevaSala}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${DAILY_API_KEY}` },
+          }).catch(() => {})
+          roomUrl = actual.daily_room_url
+          roomName = actual.daily_room_name
+          resuelto = true
+          break
+        }
+        contra = actual?.daily_room_name ?? null
+      }
+
+      if (!resuelto) {
+        await fetch(`${DAILY_API_BASE}/rooms/${nuevaSala}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${DAILY_API_KEY}` },
+        }).catch(() => {})
+        return new Response(JSON.stringify({ error: 'No pudimos preparar la sala de la consulta. Probá de nuevo en unos segundos.' }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
       }
     } else if (['confirmed', 'pending'].includes(consultation.status)) {
       await serviceSupabase
