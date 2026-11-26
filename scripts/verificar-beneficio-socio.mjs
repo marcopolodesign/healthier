@@ -22,9 +22,11 @@
  *      el super admin y negada al paciente.
  *   8. Un turno sin pagar (pendiente o vencido) no le quita el beneficio.
  *   9. Dos canjes en paralelo (LIFT y el código de otro paciente): uno solo gana.
- *  10. Webhook: un pago pendiente que MP aprueba deja el descuento aplicado; uno
- *      que rechaza lo libera; un descuento aplicado no cambia por un evento
- *      viejo. Cancelar una consulta pagada NO libera el descuento.
+ *  10. Webhook por intento: un rechazo libera sólo si es del último intento
+ *      pendiente; un aviso tardío de un intento viejo no libera la reserva
+ *      vigente; un aplicado no cambia por un rechazo posterior.
+ *  11. Cancelar una consulta pagada NO libera; la devolución posterior sí.
+ *  12. Firma del aviso de MP: body.data.id distinto o ts viejo → rechazado.
  *  (El login con el link guardado se prueba desde el front:
  *   probar-beneficio-socio-front.mjs.)
  *
@@ -288,31 +290,59 @@ try {
   ok(ganadores === 1 && (enSocio ?? 0) + (enRef ?? 0) === 1, `gana uno solo: ${JSON.stringify([ra.data, rb.data])} · socio ${enSocio} · referido ${enRef}`)
 
   // ── 10 ──
-  bloque('10 · Webhook de un pago pendiente')
-  const cerrar = (consultationId, status) => {
-    const r = spawnSync('deno', ['run', '-A', join(import.meta.dirname, 'cerrar-descuento-cli.ts'), consultationId, status], {
+  bloque('10 · Webhook de un pago pendiente (por intento)')
+  const cerrar = (consultationId, status, mpId) => {
+    const r = spawnSync('deno', ['run', '-A', join(import.meta.dirname, 'cerrar-descuento-cli.ts'), consultationId, status, mpId], {
       env: { ...process.env, HEALTHIER_STAGING_SUPABASE_URL: URL, HEALTHIER_STAGING_SUPABASE_SERVICE_ROLE_KEY: SERVICE }, encoding: 'utf8',
     })
     if (r.status !== 0) throw new Error(`cerrar-descuento-cli: ${r.stderr}`)
     return JSON.parse(r.stdout.trim().split('\n').pop())
   }
   const estadoDe = async (cid) => (await admin.from('socio_descuentos').select('estado').eq('consultation_id', cid).single()).data?.estado
+  const reservar = (p, cid) => admin.rpc('reservar_descuento_de_socio', { p_paciente: p.id, p_consulta: cid, p_precio_lista: PRECIO })
   const p6 = await pacienteNuevo(6)
   await p6.c.rpc('canjear_codigo', { p_codigo: 'lift', p_via: 'codigo' })
   const c10a = await consulta(p6, pro)
-  await admin.rpc('reservar_descuento_de_socio', { p_paciente: p6.id, p_consulta: c10a, p_precio_lista: PRECIO })
-  ok(await estadoDe(c10a) === 'reservado', 'pago pendiente → descuento reservado')
-  cerrar(c10a, 'pending')
-  ok(await estadoDe(c10a) === 'reservado', 'otro aviso de "pendiente" no lo mueve')
-  cerrar(c10a, 'rejected')
-  ok(await estadoDe(c10a) === 'liberado', 'MP rechaza → liberado')
-  const c10b = await consulta(p6, pro)
-  await admin.rpc('reservar_descuento_de_socio', { p_paciente: p6.id, p_consulta: c10b, p_precio_lista: PRECIO })
-  ok(await estadoDe(c10b) === 'reservado', 'liberado → se puede reservar en otra consulta')
-  cerrar(c10b, 'approved')
-  ok(await estadoDe(c10b) === 'aplicado', 'MP aprueba → aplicado')
-  cerrar(c10b, 'rejected')
-  ok(await estadoDe(c10b) === 'aplicado', 'un evento viejo de rechazo no desaplica un descuento aplicado')
+  await reservar(p6, c10a)
+  cerrar(c10a, 'pending', 'mpA')
+  ok(await estadoDe(c10a) === 'reservado', 'intento A pendiente → reservado')
+  cerrar(c10a, 'pending', 'mpB')
+  cerrar(c10a, 'rejected', 'mpA')
+  ok(await estadoDe(c10a) === 'reservado', 'rechazo de A con B todavía pendiente → sigue reservado')
+  cerrar(c10a, 'rejected', 'mpZ')
+  ok(await estadoDe(c10a) === 'reservado', 'aviso de un intento que no está pendiente → no libera')
+  cerrar(c10a, 'rejected', 'mpB')
+  ok(await estadoDe(c10a) === 'liberado', 'rechazo del último intento pendiente → liberado')
+  // Intento viejo que llega tarde, después de re-reservar para un intento nuevo.
+  await reservar(p6, c10a)
+  cerrar(c10a, 'pending', 'mpC')
+  cerrar(c10a, 'rejected', 'mpA')
+  ok(await estadoDe(c10a) === 'reservado', 'aviso tardío de un intento viejo no libera la reserva vigente')
+  cerrar(c10a, 'approved', 'mpC')
+  ok(await estadoDe(c10a) === 'aplicado', 'MP aprueba el intento vigente → aplicado')
+  cerrar(c10a, 'rejected', 'mpC')
+  ok(await estadoDe(c10a) === 'aplicado', 'un rechazo posterior no desaplica')
+
+  // ── 11 ──
+  bloque('11 · Devolución después de cancelar libera')
+  const p7 = await pacienteNuevo(7)
+  await p7.c.rpc('canjear_codigo', { p_codigo: 'lift', p_via: 'codigo' })
+  const c11 = await consulta(p7, pro)
+  const r11 = await pagar(p7, c11)
+  ok(r11.data?.approved && Number(r11.data?.descuentoSocio) > 0, `cobrada con descuento (${r11.data?.status ?? r11.error})`)
+  await admin.from('consultations').update({ status: 'cancelled' }).eq('id', c11)
+  ok(await estadoDe(c11) === 'aplicado', 'cancelada con el pago todavía cobrado → sigue aplicado')
+  // Lo que escribe mp-refund al devolver (o mp-capture al soltar una pre-autorización).
+  await admin.from('payments').update({ status: 'refunded', refunded_at: new Date().toISOString() }).eq('consultation_id', c11)
+  await admin.from('consultations').update({ payment_status: 'refunded' }).eq('id', c11)
+  ok(await estadoDe(c11) === 'liberado', 'el pago pasa a refunded → el descuento vuelve a estar disponible')
+  const ben11 = (await p7.c.rpc('mi_beneficio_de_socio')).data?.[0]
+  ok(ben11?.disponible === true, 'y el paciente lo ve disponible')
+
+  // ── 12 ──
+  bloque('12 · Firma del aviso de MP (data.id distinto, ts viejo)')
+  const t = spawnSync('deno', ['test', '-q', join(import.meta.dirname, 'test-firma-mp.ts')], { encoding: 'utf8' })
+  ok(t.status === 0, `deno test scripts/test-firma-mp.ts ${t.status === 0 ? '(6 casos)' : t.stdout + t.stderr}`)
 } catch (err) {
   fallos++
   console.error(`\n❌ ${err.message}`)

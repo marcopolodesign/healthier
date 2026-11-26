@@ -931,9 +931,11 @@ Deno.serve(async (req) => {
         .maybeSingle()
       // Función inexistente (la 252 todavía no está aplicada en esta base):
       // se cobra sin descuento en vez de cortar todos los pagos.
-      const sinFuncion = !!reservaErr && (reservaErr.code === 'PGRST202' || reservaErr.code === '42883')
+      // Sólo el caso exacto de "la función no existe": cualquier otro error corta.
+      const sinFuncion = !!reservaErr && reservaErr.code === 'PGRST202'
+        && /Could not find the function/i.test(reservaErr.message ?? '')
       if (sinFuncion) {
-        console.warn('mp-payment: reservar_descuento_de_socio no existe todavía — se cobra sin descuento')
+        console.error('mp-payment: reservar_descuento_de_socio no existe (¿falta la migración 252?) — se cobra sin descuento')
       } else if (reservaErr) {
         // Sin poder leer el beneficio no se cobra: cobrar de más a quien tenía
         // descuento es peor que pedirle que reintente.
@@ -949,7 +951,8 @@ Deno.serve(async (req) => {
         socioId = r.socio_id
         reservaSinCerrar = r.descuento_id
         liberarReserva = async () => {
-          const { error } = await serviceSupabase.rpc('cerrar_descuento_de_socio', { p_descuento: r.descuento_id, p_estado: 'liberado' })
+          // Sin id de MP: libera sólo si no quedó ningún intento pendiente.
+          const { error } = await serviceSupabase.rpc('cerrar_descuento_de_socio', { p_descuento: r.descuento_id, p_estado: 'liberado', p_mp_payment_id: null })
           if (error) console.error('mp-payment: no se pudo liberar el descuento de socio:', error.message)
         }
       }
@@ -961,11 +964,15 @@ Deno.serve(async (req) => {
     // Negativo = Healthier le debe la diferencia al profesional.
     const comisionHealthier = round2(precioLista * commissionRate - descuentoSocio)
     const faltanteAlProfesional = Math.max(0, -comisionHealthier)
-    async function cerrarReserva(estado: 'aplicado' | 'liberado', paymentId?: string) {
+    // Cierra la reserva según el resultado de ESTE intento (su id de MP): un
+    // rechazo no libera si queda otro intento de la consulta pendiente.
+    async function cerrarReserva(estado: 'aplicado' | 'liberado' | 'pendiente', paymentId?: string, mpPaymentId?: string) {
       if (!reservaSinCerrar) return
       const id = reservaSinCerrar
       reservaSinCerrar = null
-      const { error } = await serviceSupabase.rpc('cerrar_descuento_de_socio', { p_descuento: id, p_estado: estado, p_payment: paymentId ?? null })
+      const { error } = await serviceSupabase.rpc('cerrar_descuento_de_socio', {
+        p_descuento: id, p_estado: estado, p_payment: paymentId ?? null, p_mp_payment_id: mpPaymentId ?? null,
+      })
       if (error) console.error('mp-payment: cerrar_descuento_de_socio falló:', error.message)
     }
 
@@ -1326,14 +1333,14 @@ Deno.serve(async (req) => {
     })
 
     // El descuento queda usado si MP aprobó o reservó; si rechazó, vuelve a
-    // estar disponible. Pendiente de revisión: queda reservado para esta
-    // consulta (el reintento la reutiliza; si se cancela, el trigger lo libera).
+    // estar disponible (salvo otro intento pendiente). Pendiente de revisión:
+    // se anota el intento y lo cierra mp-webhook cuando MP resuelva.
     if (paymentsStatus === 'approved' || paymentsStatus === 'authorized') {
-      await cerrarReserva('aplicado', paymentId)
+      await cerrarReserva('aplicado', paymentId, mpPaymentId)
     } else if (paymentsStatus === 'rejected') {
-      await cerrarReserva('liberado', paymentId)
+      await cerrarReserva('liberado', paymentId, mpPaymentId)
     } else {
-      reservaSinCerrar = null
+      await cerrarReserva('pendiente', paymentId, mpPaymentId)
     }
 
     if (creditsUsed > 0) {

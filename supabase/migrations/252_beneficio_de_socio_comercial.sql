@@ -312,6 +312,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS socio_descuentos_uno_por_paciente
 COMMENT ON TABLE public.socio_descuentos IS
   'Descuento de primera consulta de un socio comercial. Lo reserva mp-payment antes de cobrar; un solo descuento vivo por paciente (índice único). Migración 252.';
 
+-- Intentos de cobro de MP (mp_payment_id) que quedaron PENDIENTES con este
+-- descuento. Un intento resuelto sale de la lista. El descuento sólo se libera
+-- por un rechazo cuando no queda ningún intento pendiente: un aviso de un
+-- intento viejo no puede liberar la reserva del intento vigente.
+ALTER TABLE public.socio_descuentos
+  ADD COLUMN IF NOT EXISTS intentos_pendientes text[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS mp_payment_id text NULL;
+
+COMMENT ON COLUMN public.socio_descuentos.intentos_pendientes IS
+  'mp_payment_id de los cobros que MP dejó pendientes con este descuento. Se vacía al resolverse. Migración 252.';
+COMMENT ON COLUMN public.socio_descuentos.mp_payment_id IS
+  'El cobro de MP que aplicó (o el último que liberó) el descuento. Migración 252.';
+
 ALTER TABLE public.socio_descuentos ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "socio_descuentos_select_propio" ON public.socio_descuentos;
 DROP POLICY IF EXISTS "socio_descuentos_select_admin"  ON public.socio_descuentos;
@@ -389,7 +402,7 @@ BEGIN
     ON CONFLICT (consultation_id) DO UPDATE
       SET estado = 'reservado', precio_lista = EXCLUDED.precio_lista,
           porcentaje = EXCLUDED.porcentaje, monto = EXCLUDED.monto,
-          payment_id = NULL, updated_at = now()
+          payment_id = NULL, mp_payment_id = NULL, intentos_pendientes = '{}', updated_at = now()
       WHERE public.socio_descuentos.estado = 'liberado'
         AND public.socio_descuentos.paciente_id = p_paciente
     RETURNING * INTO v_row;
@@ -406,34 +419,151 @@ BEGIN
 END;
 $$;
 
--- Cierra la reserva según cómo salió el cobro. Sólo service role.
+-- Cierra la reserva según cómo salió UN intento de cobro. Sólo service role.
+-- La usan mp-payment (resultado inmediato) y mp-webhook (cuando MP resuelve un
+-- pendiente). p_estado:
+--   'pendiente' → MP dejó el intento p_mp_payment_id en revisión: se anota.
+--   'aplicado'  → MP aprobó/autorizó un intento de ESTA consulta (todos los
+--                 intentos de la consulta llevan el descuento, así que
+--                 cualquiera que se cobre lo usa). Sólo desde `reservado`.
+--   'liberado'  → MP rechazó/canceló el intento p_mp_payment_id (o el cobro
+--                 falló sin llegar a MP: NULL). Se saca de los pendientes y se
+--                 libera SÓLO si no queda otro intento pendiente ni un pago vivo
+--                 de la consulta con otro id. Sólo desde `reservado`.
+DROP FUNCTION IF EXISTS public.cerrar_descuento_de_socio(uuid, text, uuid);
 CREATE OR REPLACE FUNCTION public.cerrar_descuento_de_socio(
-  p_descuento uuid,
-  p_estado    text,
-  p_payment   uuid DEFAULT NULL
+  p_descuento     uuid,
+  p_estado        text,
+  p_payment       uuid DEFAULT NULL,
+  p_mp_payment_id text DEFAULT NULL
 )
-RETURNS void
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  v_row public.socio_descuentos%ROWTYPE;
+  v_resto text[];
+BEGIN
+  IF p_estado NOT IN ('pendiente', 'aplicado', 'liberado') THEN
+    RAISE EXCEPTION 'estado inválido: %', p_estado;
+  END IF;
+
+  SELECT * INTO v_row FROM public.socio_descuentos WHERE id = p_descuento FOR UPDATE;
+  IF NOT FOUND OR v_row.estado <> 'reservado' THEN
+    RETURN coalesce(v_row.estado, 'sin_descuento');
+  END IF;
+
+  v_resto := array_remove(v_row.intentos_pendientes, p_mp_payment_id);
+
+  IF p_estado = 'pendiente' THEN
+    UPDATE public.socio_descuentos
+       SET intentos_pendientes = CASE WHEN p_mp_payment_id IS NULL OR p_mp_payment_id = ANY (intentos_pendientes)
+                                      THEN intentos_pendientes
+                                      ELSE array_append(intentos_pendientes, p_mp_payment_id) END,
+           payment_id = coalesce(p_payment, payment_id),
+           updated_at = now()
+     WHERE id = p_descuento;
+    RETURN 'reservado';
+  END IF;
+
+  IF p_estado = 'aplicado' THEN
+    UPDATE public.socio_descuentos
+       SET estado = 'aplicado', intentos_pendientes = v_resto,
+           mp_payment_id = coalesce(p_mp_payment_id, mp_payment_id),
+           payment_id = coalesce(p_payment, payment_id), updated_at = now()
+     WHERE id = p_descuento;
+    RETURN 'aplicado';
+  END IF;
+
+  -- 'liberado'
+  IF cardinality(v_resto) > 0
+     OR EXISTS (SELECT 1 FROM public.payments p
+                 WHERE p.consultation_id = v_row.consultation_id
+                   AND p.status IN ('pending', 'authorized', 'approved')
+                   AND p.refunded_at IS NULL
+                   AND p.mp_payment_id IS NOT NULL
+                   AND p.mp_payment_id IS DISTINCT FROM p_mp_payment_id) THEN
+    -- Queda otro intento vivo: este rechazo no libera la reserva.
+    UPDATE public.socio_descuentos
+       SET intentos_pendientes = v_resto, updated_at = now()
+     WHERE id = p_descuento;
+    RETURN 'reservado';
+  END IF;
+
+  UPDATE public.socio_descuentos
+     SET estado = 'liberado', intentos_pendientes = '{}',
+         mp_payment_id = coalesce(p_mp_payment_id, mp_payment_id),
+         payment_id = coalesce(p_payment, payment_id), updated_at = now()
+   WHERE id = p_descuento;
+  RETURN 'liberado';
+END;
+$$;
+
+-- Lo mismo, buscando el descuento vivo de una consulta (para mp-webhook).
+CREATE OR REPLACE FUNCTION public.cerrar_descuento_de_consulta(
+  p_consulta      uuid,
+  p_estado        text,
+  p_mp_payment_id text,
+  p_payment       uuid DEFAULT NULL
+)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  v_id uuid;
+BEGIN
+  SELECT id INTO v_id FROM public.socio_descuentos
+   WHERE consultation_id = p_consulta AND estado = 'reservado';
+  IF v_id IS NULL THEN
+    RETURN 'sin_reserva';
+  END IF;
+  RETURN public.cerrar_descuento_de_socio(v_id, p_estado, p_payment, p_mp_payment_id);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.reservar_descuento_de_socio(uuid, uuid, numeric) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.cerrar_descuento_de_socio(uuid, text, uuid, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.cerrar_descuento_de_consulta(uuid, text, text, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reservar_descuento_de_socio(uuid, uuid, numeric) TO service_role;
+GRANT EXECUTE ON FUNCTION public.cerrar_descuento_de_socio(uuid, text, uuid, text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.cerrar_descuento_de_consulta(uuid, text, text, uuid) TO service_role;
+
+-- Devolución o pre-autorización soltada DESPUÉS de cobrar: el pago pasa a
+-- refunded / cancelled (mp-refund, mp-capture, el barrido, el webhook — todos
+-- escriben acá), y el descuento aplicado a esa consulta vuelve a estar
+-- disponible, salvo que quede otro pago cobrado de la misma consulta.
+CREATE OR REPLACE FUNCTION public.liberar_descuento_de_socio_al_devolver()
+RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 BEGIN
-  IF p_estado NOT IN ('aplicado', 'liberado') THEN
-    RAISE EXCEPTION 'estado inválido: %', p_estado;
+  IF NEW.consultation_id IS NOT NULL
+     AND NEW.status IN ('refunded', 'cancelled')
+     AND OLD.status IS DISTINCT FROM NEW.status THEN
+    UPDATE public.socio_descuentos d
+       SET estado = 'liberado', intentos_pendientes = '{}', updated_at = now()
+     WHERE d.consultation_id = NEW.consultation_id
+       AND d.estado = 'aplicado'
+       AND NOT EXISTS (SELECT 1 FROM public.payments p
+                        WHERE p.consultation_id = NEW.consultation_id
+                          AND p.id <> NEW.id
+                          AND p.status IN ('approved', 'authorized')
+                          AND p.refunded_at IS NULL);
   END IF;
-  -- Sólo desde `reservado`: un descuento aplicado o liberado no cambia por acá.
-  UPDATE public.socio_descuentos
-     SET estado = p_estado,
-         payment_id = coalesce(p_payment, payment_id),
-         updated_at = now()
-   WHERE id = p_descuento AND estado = 'reservado';
+  RETURN NEW;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.reservar_descuento_de_socio(uuid, uuid, numeric) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.cerrar_descuento_de_socio(uuid, text, uuid) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.reservar_descuento_de_socio(uuid, uuid, numeric) TO service_role;
-GRANT EXECUTE ON FUNCTION public.cerrar_descuento_de_socio(uuid, text, uuid) TO service_role;
+DROP TRIGGER IF EXISTS liberar_descuento_de_socio_al_devolver ON public.payments;
+CREATE TRIGGER liberar_descuento_de_socio_al_devolver
+  AFTER UPDATE OF status ON public.payments
+  FOR EACH ROW EXECUTE FUNCTION public.liberar_descuento_de_socio_al_devolver();
 
 -- Si la consulta se cancela o vence, el descuento vuelve a estar disponible.
 CREATE OR REPLACE FUNCTION public.liberar_descuento_de_socio_al_cancelar()

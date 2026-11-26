@@ -7,7 +7,7 @@ import { propuestaDeNombre, validarNombreApellido } from '../../lib/nombreApelli
 import { authService } from '../../services/authService'
 import { toast } from '../../components/Toast'
 import { getStoredUtms, clearUtms } from '../../lib/utms'
-import { getStoredReferral, clearReferral, referralUtms } from '../../lib/referral'
+import { getStoredReferral, clearReferral, referralUtms, marcarAltaEnCurso } from '../../lib/referral'
 
 export default function CompleteProfile({ authUser, onProfileComplete }) {
   const navigate = useNavigate()
@@ -51,6 +51,7 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
       // pestaña, etc.) y tira un error con mensaje claro — antes esto
       // explotaba con "Cannot read properties of null (reading 'id')" acá
       // mismo. El catch de abajo ya lo muestra vía toast.
+      marcarAltaEnCurso(true)
       const profile = await authService.completeGoogleProfile(authUser, role, nombres, utms, phone.trim() || null, referido)
       clearUtms()
       clearReferral()
@@ -65,6 +66,7 @@ export default function CompleteProfile({ authUser, onProfileComplete }) {
     } catch (err) {
       toast.error(err.message)
     } finally {
+      marcarAltaEnCurso(false)
       setLoading(false)
     }
   }

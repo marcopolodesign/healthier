@@ -247,6 +247,30 @@ try {
   ok(await pv.getByText(/tenés el beneficio LIFT/).isVisible().catch(() => false), 'y ve el aviso "Listo: tenés el beneficio LIFT…"')
   await pv.close()
 
+  // ── 5b. Link abierto en OTRA sesión del navegador: no se canjea solo ──
+  const emailOtra = `qa-lift-otra-sesion-${stamp}@staging.healthier.app`
+  const { data: uo } = await admin.auth.admin.createUser({ email: emailOtra, password, email_confirm: true, user_metadata: { role: 'patient', full_name: 'Otra Sesion QA' } })
+  await admin.from('profiles').update({
+    es_prueba: true, first_name: 'Otra', last_name: 'Sesión QA', phone: '+54 9 11 5555-0195',
+    dni: String(34000000 + (stamp % 999999)), coverage_type: 'particular',
+    consentimiento_at: new Date().toISOString(), consentimiento_version: '3.0', onboarding_completado_at: new Date().toISOString(),
+  }).eq('id', uo.user.id)
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } })
+  const pestana1 = await ctx.newPage()
+  await pestana1.goto(`${BASE}/r/lift`)
+  await pestana1.getByText(/de descuento en tu primera consulta/).waitFor({ timeout: 15000 }).catch(() => {})
+  await pestana1.close() // el link queda en localStorage, pero la sesión de esa pestaña se cierra
+  const pestana2 = await ctx.newPage()
+  await pestana2.goto(`${BASE}/login`)
+  await pestana2.locator('input[type="email"]').fill(emailOtra)
+  await pestana2.locator('input[type="password"]').fill(password)
+  await pestana2.getByRole('button', { name: /^Iniciar sesión/ }).click()
+  await pestana2.waitForURL(/paciente/, { timeout: 25000 }).catch(() => {})
+  await pestana2.waitForTimeout(4000)
+  const { data: atrO } = await admin.from('socio_atribuciones').select('origen').eq('paciente_id', uo.user.id).maybeSingle()
+  ok(!atrO, `link de otra sesión: al entrar NO queda atribuido (${atrO?.origen ?? 'sin atribución'})`)
+  await ctx.close()
+
   // ── 6. Perfil de alguien sin beneficio: cargar el código a mano ───────
   const emailSin = `qa-lift-codigo-${stamp}@staging.healthier.app`
   const { data: us } = await admin.auth.admin.createUser({ email: emailSin, email_confirm: true, user_metadata: { role: 'patient', full_name: 'Codigo QA' } })
