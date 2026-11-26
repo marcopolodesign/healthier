@@ -7,6 +7,7 @@ import {
 } from '@phosphor-icons/react'
 import { profilesService } from '../../services/profilesService'
 import { referralService } from '../../services/referralService'
+import CodigoBeneficio from '../../components/patient/CodigoBeneficio'
 import { authService } from '../../services/authService'
 import { mpService } from '../../services/mpService'
 import { familyService } from '../../services/familyService'
@@ -869,6 +870,8 @@ export default function PatientProfile({ profile, onProfileUpdate }) {
           <CaretRight className="w-5 h-5 text-text-tertiary flex-shrink-0" />
         </button>
       )}
+
+      {!editing && <CodigoBeneficio />}
 
       {/* Contacto de soporte. Mismo número que el resto de la plataforma
           (lib/support.js) — Perfil es la única superficie del paciente donde

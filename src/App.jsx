@@ -134,6 +134,7 @@ import SuperAdminProfesionalesProspects from './pages/super-admin/ProfesionalesP
 import SuperAdminProfesionales from './pages/super-admin/Profesionales'
 import SuperAdminProfesionalesRecorrido from './pages/super-admin/ProfesionalesRecorrido'
 import SuperAdminReferidos from './pages/super-admin/Referidos'
+import SuperAdminSocios from './pages/super-admin/Socios'
 import SuperAdminGruposFamiliares from './pages/super-admin/GruposFamiliares'
 import SuperAdminDerivaciones from './pages/super-admin/Derivaciones'
 import SuperAdminEmergencias from './pages/super-admin/Emergencias'
@@ -687,6 +688,7 @@ export default function App() {
           <Route path="/super-admin/profesionales/prospects" element={<SuperAdminProfesionalesProspects />} />
           <Route path="/super-admin/profesionales/recorrido" element={<SuperAdminProfesionalesRecorrido />} />
           <Route path="/super-admin/profesionales/referidos" element={<SuperAdminReferidos />} />
+          <Route path="/super-admin/socios" element={<SuperAdminSocios />} />
           <Route path="/super-admin/emergencias" element={<SuperAdminEmergencias />} />
           <Route path="/super-admin/derivaciones" element={<SuperAdminDerivaciones />} />
           <Route path="/super-admin/mails" element={<SuperAdminMails />} />

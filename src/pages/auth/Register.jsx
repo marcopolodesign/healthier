@@ -187,7 +187,9 @@ export default function Register({ onLogin }) {
 
         {referral && !cambiandoCodigo ? (
           <p className="text-sm text-text-secondary">
-            Te invitó <span className="font-medium text-text-primary">{referral.nombre ?? 'un amigo'}</span>{' '}
+            {referral.tipo === 'socio'
+              ? <>Beneficio <span className="font-medium text-text-primary">{referral.nombre}</span> en tu primera consulta</>
+              : <>Te invitó <span className="font-medium text-text-primary">{referral.nombre ?? 'un amigo'}</span></>}{' '}
             <button type="button" onClick={() => { setCambiandoCodigo(true); setCodigoAbierto(true) }} className="text-brand hover:underline">Cambiar</button>
           </p>
         ) : codigoAbierto ? (

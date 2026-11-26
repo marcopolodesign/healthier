@@ -36,6 +36,53 @@ export const referralService = {
   },
 
   /**
+   * `/r/<codigo>` de un SOCIO COMERCIAL (ej. LIFT, migración 252): nombre y
+   * descuento de la primera consulta. `null` si no existe o no está activo.
+   */
+  async resolveSocio(codigo) {
+    const { data, error } = await supabase.rpc('resolver_codigo_de_socio', { p_codigo: codigo })
+    if (error) throw new Error(error.message)
+    return data?.length ? toCamelCase(data[0]) : null
+  },
+
+  /**
+   * El beneficio de socio del paciente logueado, sólo para MOSTRAR el precio:
+   * `{ socioNombre, porcentaje, disponible }` o `null` si no vino por un socio.
+   * El descuento real lo decide el servidor al cobrar (mp-payment). Pasar la
+   * consulta que se está pagando para que una reserva previa suya no cuente.
+   */
+  async miBeneficio(consultationId = null) {
+    try {
+      const { data, error } = await supabase.rpc('mi_beneficio_de_socio', { p_consulta: consultationId })
+      if (error) return null
+      return data?.length ? toCamelCase(data[0]) : null
+    } catch {
+      return null
+    }
+  },
+
+  /** Socios comerciales con sus números. Sólo super_admin. */
+  async socios({ incluirPrueba = false } = {}) {
+    const { data, error } = await supabase.rpc('socios_resumen', { p_incluir_prueba: incluirPrueba })
+    if (error) throw new Error(error.message)
+    return toCamelCase(data ?? [])
+  },
+
+  /** Pacientes atribuidos a un socio, con el estado de su descuento. Sólo super_admin. */
+  async atribuidosDeSocio(socioId, { incluirPrueba = false } = {}) {
+    const { data, error } = await supabase.rpc('socio_atribuidos', { p_socio: socioId, p_incluir_prueba: incluirPrueba })
+    if (error) throw new Error(error.message)
+    return toCamelCase(data ?? [])
+  },
+
+  /** Consultas terminadas del mes que liquidan al socio (`mes` = 'YYYY-MM-01'). Sólo super_admin. */
+  async liquidacionDeSocio(socioId, mes, { incluirPrueba = false } = {}) {
+    const { data, error } = await supabase.rpc('liquidacion_de_socio', { p_socio: socioId, p_mes: mes, p_incluir_prueba: incluirPrueba })
+    if (error) throw new Error(error.message)
+    return toCamelCase(data ?? [])
+  },
+
+  /**
    * Canjea un código (de paciente o de profesional) para la sesión actual. Única
    * forma de quedar atribuido a alguien desde el cliente (migración 235): la
    * columna `referred_by_professional_id` ya no se escribe directo.
