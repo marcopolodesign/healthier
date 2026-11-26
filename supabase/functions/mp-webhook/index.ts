@@ -174,7 +174,7 @@ serve(async (req: Request) => {
     // ── Signature verification ───────────────────────────────────────────────
     // `validarAvisoMp` (_shared/firmaMp.ts) además de la firma exige que el
     // `data.id` del cuerpo sea el firmado de la query y que el `ts` no tenga
-    // más de 10 minutos (un aviso viejo reenviado no vale).
+    // (la antigüedad de ts no se exige: ver _shared/firmaMp.ts).
     const queryDataId = new URL(req.url).searchParams.get("data.id");
     if (MP_WEBHOOK_SECRET) {
       const aviso = await validarAvisoMp({
