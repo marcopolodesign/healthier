@@ -6,7 +6,7 @@ import { pharmacyService } from '../../services/pharmacyService'
 import { paymentsService } from '../../services/paymentsService'
 import { toast } from '../../components/Toast'
 import { formatARS, formatDate } from '../../lib/format'
-import { STATUS_LABEL } from '../../lib/pharmacyOrders'
+import { STATUS_LABEL, etiquetaDePago, claseDePago, faseDeReceta, FASE_RECETA_LABEL, FASE_RECETA_CLASS } from '../../lib/pharmacyOrders'
 import RecetasPorAutorizar from '../../components/pharmacy/RecetasPorAutorizar'
 import IncluirPruebaToggle from '../../components/super-admin/IncluirPruebaToggle'
 import { useIncluirPrueba } from '../../hooks/useIncluirPrueba'
@@ -78,6 +78,9 @@ export default function SuperAdminFarmacia() {
 
   const paid = orders.filter(o => o.paymentStatus === 'pagado')
   const gmv = paid.reduce((s, o) => s + Number(o.total || 0), 0)
+  // Pedidos de receta (254): la plata reservada que todavía no se cobró.
+  const retenidos = orders.filter(o => o.paymentStatus === 'autorizado')
+  const montoRetenido = retenidos.reduce((s, o) => s + Number(o.total || 0), 0)
   const byStatus = orders.reduce((acc, o) => { acc[o.status] = (acc[o.status] || 0) + 1; return acc }, {})
 
   if (loading) return <div className="p-6 space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-16 bg-bg-surface rounded-lg animate-pulse" />)}</div>
@@ -90,7 +93,7 @@ export default function SuperAdminFarmacia() {
         <IncluirPruebaToggle className="mt-3" />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="card">
           <p className="text-xs text-text-muted uppercase font-semibold">Pedidos</p>
           <p className="text-2xl font-bold text-text-primary mt-1">{orders.length}</p>
@@ -98,6 +101,11 @@ export default function SuperAdminFarmacia() {
         <div className="card">
           <p className="text-xs text-text-muted uppercase font-semibold">Pagados</p>
           <p className="text-2xl font-bold text-text-primary mt-1">{paid.length}</p>
+        </div>
+        <div className="card">
+          <p className="text-xs text-text-muted uppercase font-semibold">Reservado, esperando receta</p>
+          <p className="text-2xl font-bold text-text-primary mt-1">{retenidos.length}</p>
+          <p className="text-xs text-text-secondary">{formatARS(montoRetenido)} sin cobrar</p>
         </div>
         <div className="card">
           <p className="text-xs text-text-muted uppercase font-semibold">GMV</p>
@@ -187,20 +195,34 @@ export default function SuperAdminFarmacia() {
                 <th className="table-header">Paciente</th>
                 <th className="table-header">Estado</th>
                 <th className="table-header">Pago</th>
+                <th className="table-header">Receta</th>
                 <th className="table-header hidden sm:table-cell">Total</th>
                 <th className="table-header hidden md:table-cell">Fecha</th>
               </tr>
             </thead>
             <tbody>
-              {orders.slice(0, 20).map(o => (
+              {/* Los reservados van arriba aunque sean viejos: son plata sin cobrar
+                  que vence a los 5 días (barrido de mp-capture). */}
+              {[...retenidos, ...orders.filter(o => o.paymentStatus !== 'autorizado').slice(0, 20)].map(o => (
                 <tr key={o.id} className="table-row">
                   <td className="table-cell font-mono text-xs text-text-secondary">#{o.id.slice(0, 8)}</td>
                   <td className="table-cell text-text-primary">{o.patient?.fullName || '—'}</td>
                   <td className="table-cell text-text-secondary">{STATUS_LABEL[o.status]}</td>
                   <td className="table-cell">
-                    <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${o.paymentStatus === 'pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'}`}>
-                      {o.paymentStatus === 'pagado' ? 'Pagado' : 'No pagado'}
+                    <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${claseDePago(o.paymentStatus)}`}>
+                      {etiquetaDePago(o.paymentStatus)}
                     </span>
+                  </td>
+                  <td className="table-cell">
+                    {faseDeReceta(o) ? (
+                      <>
+                        <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${FASE_RECETA_CLASS[faseDeReceta(o)]}`}>
+                          {FASE_RECETA_LABEL[faseDeReceta(o)]}
+                        </span>
+                        {o.medico?.fullName && <p className="text-xs text-text-secondary mt-1">{o.medico.fullName}</p>}
+                        {o.recetaMotivoRechazo && <p className="text-xs text-text-secondary mt-1">{o.recetaMotivoRechazo}</p>}
+                      </>
+                    ) : <span className="text-text-tertiary">—</span>}
                   </td>
                   <td className="table-cell hidden sm:table-cell">{formatARS(o.total)}</td>
                   <td className="table-cell hidden md:table-cell text-text-secondary">{formatDate(o.createdAt)}</td>

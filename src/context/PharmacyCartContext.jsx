@@ -130,8 +130,14 @@ export function PharmacyCartProvider({ profile, children }) {
     })
   }, [])
 
-  /** delta positivo suma, negativo resta. Ver el bloque de arriba. */
-  const changeQuantity = useCallback((product, delta) => {
+  /**
+   * delta positivo suma, negativo resta. Ver el bloque de arriba.
+   * `receta` = { recetaVia, recetaArchivoPath } para comprar un producto con
+   * receta sin tenerla (migración 254). Devuelve una promesa que resuelve
+   * cuando el servidor contestó (true) o falló (false), para quien necesite
+   * esperar — la hoja de receta, que después abre el carrito.
+   */
+  const changeQuantity = useCallback((product, delta, receta = null) => {
     if (!product?.id || !delta) return
     // Merge, no reemplazo: la hoja y el checkout llaman con `{ id }` pelado
     // (es lo único que tienen a mano), y pisar la entrada borraría el nombre,
@@ -140,21 +146,30 @@ export function PharmacyCartProvider({ profile, children }) {
     setDeltas(prev => ({ ...prev, [product.id]: (prev[product.id] ?? 0) + delta }))
 
     colaRef.current = colaRef.current
-      .then(() => medicationOrdersService.addToCart(product.id, delta))
+      .then(() => medicationOrdersService.addToCart(product.id, delta, receta ?? undefined))
       .then(actualizado => {
         if (montadoRef.current) setOrder(actualizado)
         olvidarDelta(product.id, delta)
+        return true
       })
       .catch(err => {
         olvidarDelta(product.id, delta)
         // Sin receta vigente la base no lo deja entrar (migración 214): en
-        // vez de un error, la invitación a pedirla en una videoconsulta.
-        if (esRecetaRequerida(err)) setRecetaPara(prev => prev ?? { ...productsByIdRef.current[product.id], ...product })
+        // vez de un error, la hoja con los tres caminos (NecesitasRecetaSheet).
+        if (esRecetaRequerida(err) && !receta) setRecetaPara(prev => prev ?? { ...productsByIdRef.current[product.id], ...product })
         else toast.error(err?.message || 'No se pudo actualizar el carrito')
+        return false
       })
+    return colaRef.current
   }, [olvidarDelta])
 
   const add = useCallback(product => changeQuantity(product, 1), [changeQuantity])
+  /**
+   * "Comprar y pedir receta" / "Ya tengo receta": agrega uno marcado con el
+   * camino. Si ya estaba en el carrito, la base le cambia el camino y le suma 1.
+   */
+  const addConReceta = useCallback((product, recetaVia, recetaArchivoPath = null) =>
+    changeQuantity(product, 1, { recetaVia, recetaArchivoPath }), [changeQuantity])
   const subtract = useCallback(product => changeQuantity(product, -1), [changeQuantity])
 
   /** Saca el producto entero del carrito, sin importar la cantidad que tenga. */
@@ -182,6 +197,7 @@ export function PharmacyCartProvider({ profile, children }) {
         unitPrice: Number(it.unitPrice),
         quantity: it.quantity,
         requiresPrescription: it.requiresPrescription,
+        recetaVia: it.recetaVia ?? null,
         imageUrl: productsById[pid]?.imageUrl ?? null,
       })
     }
@@ -236,6 +252,7 @@ export function PharmacyCartProvider({ profile, children }) {
     loading,
     syncing,
     add,
+    addConReceta,
     subtract,
     remove,
     refresh,
@@ -246,7 +263,7 @@ export function PharmacyCartProvider({ profile, children }) {
     recetaPara,
     pedirReceta,
     cerrarReceta,
-  }), [order, items, quantities, count, total, loading, syncing, add, subtract, remove, refresh, clear, sheetOpen, openSheet, closeSheet, recetaPara, pedirReceta, cerrarReceta])
+  }), [order, items, quantities, count, total, loading, syncing, add, addConReceta, subtract, remove, refresh, clear, sheetOpen, openSheet, closeSheet, recetaPara, pedirReceta, cerrarReceta])
 
   return <PharmacyCartContext.Provider value={value}>{children}</PharmacyCartContext.Provider>
 }
@@ -259,7 +276,7 @@ export function PharmacyCartProvider({ profile, children }) {
 const CARRITO_VACIO = {
   orderId: null, order: null, items: [], quantities: {}, quantityOf: () => 0,
   count: 0, total: 0, loading: false, syncing: false,
-  add: () => {}, subtract: () => {}, remove: () => {},
+  add: () => {}, addConReceta: async () => false, subtract: () => {}, remove: () => {},
   refresh: async () => null, clear: () => {},
   sheetOpen: false, openSheet: () => {}, closeSheet: () => {},
   recetaPara: null, pedirReceta: () => {}, cerrarReceta: () => {},

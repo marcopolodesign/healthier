@@ -5,7 +5,7 @@ import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
 import RecetasPorAutorizar from '../../components/pharmacy/RecetasPorAutorizar'
 import { formatARS, formatDate } from '../../lib/format'
-import { STATUS_LABEL, NEXT_STATUS, etiquetaDePago, claseDePago } from '../../lib/pharmacyOrders'
+import { STATUS_LABEL, NEXT_STATUS, etiquetaDePago, claseDePago, faseDeReceta, FASE_RECETA_LABEL, FASE_RECETA_CLASS } from '../../lib/pharmacyOrders'
 
 const STATUS_BADGE = {
   pendiente:       'bg-amber-50 text-amber-600',
@@ -70,6 +70,7 @@ export default function PharmacyOrders({ profile }) {
         </select>
         <select className="form-select" value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}>
           <option value="">Todos los pagos</option>
+          <option value="autorizado">Reservado (esperando receta)</option>
           <option value="pagado">Pagado</option>
           <option value="no_pagado">No pagado</option>
           <option value="exento">Bonificado</option>
@@ -110,9 +111,15 @@ export default function PharmacyOrders({ profile }) {
                     <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5 shrink-0" />{o.deliveryAddress || '—'}</span>
                   </td>
                   <td className="table-cell">
-                    <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${STATUS_BADGE[o.status]}`}>
-                      {STATUS_LABEL[o.status]}
-                    </span>
+                    {faseDeReceta(o) && faseDeReceta(o) !== 'cobrado' ? (
+                      <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${FASE_RECETA_CLASS[faseDeReceta(o)]}`}>
+                        {FASE_RECETA_LABEL[faseDeReceta(o)]}
+                      </span>
+                    ) : (
+                      <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${STATUS_BADGE[o.status]}`}>
+                        {STATUS_LABEL[o.status]}
+                      </span>
+                    )}
                   </td>
                   <td className="table-cell">
                     <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full ${claseDePago(o.paymentStatus)}`}>
@@ -126,7 +133,19 @@ export default function PharmacyOrders({ profile }) {
                           155) y eso no entra en una celda: se hace en el
                           detalle. La base lo rechaza igual, así que sin esto el
                           botón sólo daría un error. */}
-                      {o.status === 'enviado' ? (
+                      {/* Reservado (254): no se prepara hasta que la receta
+                          esté resuelta y cobrada. La subida la revisa la
+                          farmacia en el detalle; la del médico, se espera. */}
+                      {o.paymentStatus === 'autorizado' ? (
+                        faseDeReceta(o) === 'farmacia_revisando' ? (
+                          <button
+                            className="btn-secondary text-xs px-2.5 py-1.5"
+                            onClick={e => { e.stopPropagation(); navigate(`/farmacia/pedidos/${o.id}`) }}
+                          >
+                            Revisar receta
+                          </button>
+                        ) : <span className="text-xs text-text-tertiary">Esperando receta</span>
+                      ) : o.status === 'enviado' ? (
                         <button
                           className="btn-secondary text-xs px-2.5 py-1.5"
                           onClick={e => { e.stopPropagation(); navigate(`/farmacia/pedidos/${o.id}`) }}

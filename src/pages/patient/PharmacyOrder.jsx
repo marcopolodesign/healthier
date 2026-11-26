@@ -4,8 +4,9 @@ import { ArrowLeft, MapPin, Pill, Check, Package, Truck, House, XCircle } from '
 import { medicationOrdersService } from '../../services/medicationOrdersService'
 import { toast } from '../../components/Toast'
 import { formatARS as fmtPrice, formatDate } from '../../lib/format'
-import { STATUS_FLOW, STATUS_PATIENT_LABEL, STATUS_PATIENT_HINT } from '../../lib/pharmacyOrders'
+import { STATUS_FLOW, STATUS_PATIENT_LABEL, STATUS_PATIENT_HINT, faseDeReceta } from '../../lib/pharmacyOrders'
 import { usePolling } from '../../hooks/usePolling'
+import PedidoDeRecetaPanel from '../../components/patient/PedidoDeRecetaPanel'
 
 const STEP_ICON = { pendiente: Check, en_preparacion: Package, enviado: Truck, entregado: House }
 
@@ -14,7 +15,7 @@ const STEP_ICON = { pendiente: Check, en_preparacion: Package, enviado: Truck, e
 // `usePolling` la frena mientras la pestaña esté en segundo plano.
 const REFRESCO_MS = 20_000
 
-export default function PharmacyOrder() {
+export default function PharmacyOrder({ profile }) {
   const { id } = useParams()
   const navigate = useNavigate()
   const [order, setOrder] = useState(null)
@@ -24,7 +25,7 @@ export default function PharmacyOrder() {
   const primeraRef = useRef(true)
   const cargar = useCallback(async () => {
     try {
-      const data = await medicationOrdersService.getById(id)
+      const data = await medicationOrdersService.getForPatient(id)
       setOrder(data)
       // El código vive en otra tabla justamente para que la farmacia no lo vea
       // (migración 155): sólo lo lee el paciente dueño del pedido.
@@ -64,6 +65,12 @@ export default function PharmacyOrder() {
 
   const cancelado = order.status === 'cancelado'
   const pasoActual = STATUS_FLOW.indexOf(order.status)
+
+  // "Solicitar receta" / "Ya tengo receta" (254): la Versión 3 de Felipe,
+  // "Panel de color", elegida por Mateo (2026-11-26).
+  if (faseDeReceta(order)) {
+    return <PedidoDeRecetaPanel order={order} codigo={codigo} telefono={profile?.phone} onVolver={() => navigate(-1)} />
+  }
 
   return (
     <div className="absolute inset-0 overflow-y-auto bg-bg-primary">

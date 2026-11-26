@@ -29,6 +29,11 @@ const ORDER_ITEMS_SELECT = `
   items:medication_order_items(*)
 `
 
+/** Pagados, bonificados, reservados esperando receta y retenciones liberadas. */
+const PEDIDOS_DEL_PACIENTE = 'payment_status.in.(pagado,exento,autorizado),receta_estado.not.is.null'
+
+const BUCKET_RECETAS = 'recetas-subidas'
+
 /**
  * Le pega el nombre del paciente a los pedidos, para el panel de la farmacia.
  *
@@ -77,10 +82,15 @@ export const medicationOrdersService = {
    *
    * @returns {Promise<Object|null>} el pedido, o `null` si quedó vacío.
    */
-  async addToCart(productId, delta = 1) {
+  async addToCart(productId, delta = 1, { recetaVia = null, recetaArchivoPath = null } = {}) {
+    // `recetaVia` (migración 254): 'solicitar' = un médico de Healthier le hace
+    // la receta; 'subida' = la farmacia aprueba la que subió (va con la ruta
+    // del archivo). La base valida todo: que el producto pida receta, que el
+    // archivo sea del paciente y exista.
     const { data: orderId, error } = await supabase.rpc('agregar_item_pedido_medicamentos', {
       p_product_id: productId,
       p_delta: delta,
+      ...(recetaVia ? { p_receta_via: recetaVia, p_receta_archivo_path: recetaArchivoPath } : {}),
     })
     if (error) throw error
     if (!orderId) return null
@@ -146,6 +156,9 @@ export const medicationOrdersService = {
       .select(ORDER_ITEMS_SELECT)
       .eq('patient_id', patientId)
       .eq('payment_status', 'no_pagado')
+      // Una retención liberada (254) vuelve a 'no_pagado' pero queda cancelada:
+      // eso no es el carrito.
+      .eq('status', 'pendiente')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -163,8 +176,10 @@ export const medicationOrdersService = {
       .select(ORDER_ITEMS_SELECT)
       .eq('patient_id', patientId)
       // 'exento' cuenta igual que 'pagado': el pedido existe y se despacha,
-      // sólo que no se cobró (migración 165).
-      .in('payment_status', ['pagado', 'exento'])
+      // sólo que no se cobró (migración 165). 'autorizado' = pago reservado
+      // esperando la receta, y los liberados (receta_estado) también son
+      // pedidos suyos (migración 254).
+      .or(PEDIDOS_DEL_PACIENTE)
       .order('created_at', { ascending: false })
     if (error) throw error
     return toCamelCase(data)
@@ -179,7 +194,7 @@ export const medicationOrdersService = {
       .from('medication_orders')
       .select(ORDER_ITEMS_SELECT)
       .eq('patient_id', patientId)
-      .in('payment_status', ['pagado', 'exento'])
+      .in('payment_status', ['pagado', 'exento', 'autorizado'])
       .in('status', ['pendiente', 'en_preparacion', 'enviado'])
       .order('created_at', { ascending: false })
     if (error) throw error
@@ -199,7 +214,8 @@ export const medicationOrdersService = {
       .from('medication_orders')
       .select(`
         *,
-        items:medication_order_items(*)
+        items:medication_order_items(*),
+        medico:profiles!receta_medico_id(full_name)
       `)
       .order('created_at', { ascending: false })
 
@@ -302,6 +318,66 @@ export const medicationOrdersService = {
       .maybeSingle()
     if (error) throw error
     return data ? { code: data.code, verifiedAt: data.verified_at } : null
+  },
+
+  /**
+   * El pedido para la pantalla del paciente, con el médico de Healthier que lo
+   * tomó (el paciente lee perfiles de profesionales por RLS).
+   */
+  async getForPatient(orderId) {
+    const { data, error } = await supabase
+      .from('medication_orders')
+      .select(`${ORDER_ITEMS_SELECT}, medico:profiles!receta_medico_id(full_name)`)
+      .eq('id', orderId)
+      .maybeSingle()
+    if (error) throw error
+    return toCamelCase(data)
+  },
+
+  /**
+   * "Ya tengo receta": sube la foto o el PDF a su carpeta del bucket privado
+   * `recetas-subidas` (sólo la leen el paciente, la farmacia y el super admin).
+   * Devuelve la ruta que va en el item.
+   */
+  async subirReceta(file) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Tu sesión venció. Volvé a entrar.')
+    const patientId = user.id
+    const ext = (file.name?.split('.').pop() || (file.type === 'application/pdf' ? 'pdf' : 'jpg')).toLowerCase()
+    const path = `${patientId}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`
+    const { error } = await supabase.storage.from(BUCKET_RECETAS).upload(path, file, {
+      contentType: file.type || undefined,
+      upsert: false,
+    })
+    if (error) throw error
+    return path
+  },
+
+  /** Link temporal para ver una receta subida (paciente dueño, farmacia, super admin). */
+  async urlDeRecetaSubida(path, segundos = 600) {
+    const { data, error } = await supabase.storage.from(BUCKET_RECETAS).createSignedUrl(path, segundos)
+    if (error) throw error
+    return data.signedUrl
+  },
+
+  /** Farmacia: las recetas subidas de un pedido (migración 254). */
+  async getRecetasSubidas(orderId) {
+    const { data, error } = await supabase.rpc('farmacia_recetas_subidas_del_pedido', { p_order: orderId })
+    if (error) throw error
+    return toCamelCase(data ?? [])
+  },
+
+  /**
+   * Farmacia: aprueba o rechaza la receta subida. Aprobar cobra solo (si no
+   * falta lo del médico); rechazar libera la retención. Lo decide la base.
+   * Devuelve `{ estado }`: 'rechazada' | 'aprobada_esperando_medico' | 'aprobada_cobrando'.
+   */
+  async resolverRecetaSubida(orderId, aprobar, motivo = null) {
+    const { data, error } = await supabase.rpc('farmacia_resolver_receta_subida', {
+      p_order: orderId, p_aprobar: aprobar, p_motivo: motivo,
+    })
+    if (error) throw error
+    return data
   },
 
   PHARMACY_ID,

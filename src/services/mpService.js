@@ -265,6 +265,30 @@ export const mpService = {
   },
 
   /**
+   * Farmacia — "Solicitar receta" / "Ya tengo receta" (migración 254). Cobra la
+   * reserva del pedido cuando la receta quedó resuelta. El servidor re-valida
+   * todo (receta emitida y vigente, permisos) y contesta 422 si falta algo.
+   */
+  async capturarPedidoFarmacia(orderId) {
+    try {
+      const result = await callEdgeFunction('mp-capture', { action: 'capture-pharmacy-order', orderId })
+      return { data: toCamelCase(result), error: null }
+    } catch (err) {
+      return { data: null, error: err.message }
+    }
+  },
+
+  /** Libera la reserva del pedido de farmacia y lo cancela (no se cobra). */
+  async liberarPedidoFarmacia(orderId, motivo) {
+    try {
+      const result = await callEdgeFunction('mp-capture', { action: 'cancel-pharmacy-order', orderId, motivo })
+      return { data: toCamelCase(result), error: null }
+    } catch (err) {
+      return { data: null, error: err.message }
+    }
+  },
+
+  /**
    * El paciente cancela su emergencia. Qué pasa con la plata lo decide el
    * servidor con el estado de la base: sin ambulancia asignada se libera la
    * reserva (`cobrado: false`); con ambulancia asignada se cobra igual

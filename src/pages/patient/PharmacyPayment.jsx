@@ -32,6 +32,10 @@ export default function PharmacyPayment({ profile }) {
   const paymentExempt = Boolean(profile?.paymentExempt)
   const amount = order?.total ?? 0
   const description = 'Pedido de medicamentos — Healthier'
+  // "Solicitar receta" / "Ya tengo receta" (migración 254): el servidor
+  // reserva el pago en vez de cobrarlo y lo cobra cuando la receta queda
+  // resuelta. Acá sólo se avisa; la decisión la toma mp-payment con la base.
+  const conReceta = (order?.items ?? []).some(it => it.recetaVia)
 
   useEffect(() => {
     mpService.getPaymentPlatformConfig().then(({ data }) => {
@@ -49,7 +53,12 @@ export default function PharmacyPayment({ profile }) {
 
   const handlePaymentResult = (data) => {
     const status = data?.status
-    if (data?.approved || status === 'paid' || status === 'approved') {
+    if (data?.authorized || data?.recetaPendiente) {
+      setPaid(true)
+      vaciarCarrito()
+      toast.success('Reservamos el pago. Se cobra cuando la receta esté lista.')
+      setTimeout(() => navigate(`/paciente/farmacia/pedido/${orderId}`, { replace: true }), 800)
+    } else if (data?.approved || status === 'paid' || status === 'approved') {
       setPaid(true)
       // El borrador dejó de ser carrito en el momento en que se pagó: si no se
       // vacía acá, la píldora sigue mostrando un pedido que ya se compró hasta
@@ -154,6 +163,12 @@ export default function PharmacyPayment({ profile }) {
           )}
         </div>
 
+        {conReceta && !addCardMode && (
+          <p className="rounded-2xl bg-receta-nivel px-4 py-3 text-[14px] leading-[20px] text-brand-tertiary-hover">
+            Reservamos el pago en tu tarjeta de crédito. Se cobra cuando la receta esté lista; si no corresponde, se libera y no pagás nada.
+          </p>
+        )}
+
         {!addCardMode && (
           <button
             onClick={handlePay}
@@ -170,7 +185,7 @@ export default function PharmacyPayment({ profile }) {
             {paying && <CircleNotch className="w-5 h-5 animate-spin" />}
             {paid && <Check className="w-5 h-5" weight="bold" />}
             {!paid && !paying && intentoFallido && <ArrowClockwise className="w-5 h-5" />}
-            {paid ? <><CheckCircle className="w-5 h-5" /> ¡Pedido confirmado!</> : paying ? 'Procesando...' : intentoFallido ? 'Reintentar el pago' : 'Confirmar y Pagar'}
+            {paid ? <><CheckCircle className="w-5 h-5" /> {conReceta ? '¡Pago reservado!' : '¡Pedido confirmado!'}</> : paying ? 'Procesando...' : intentoFallido ? 'Reintentar el pago' : conReceta ? 'Reservar y pedir receta' : 'Confirmar y Pagar'}
           </button>
         )}
       </div>
