@@ -70,7 +70,7 @@ function Stepper({ quantity, onAdd, onRemove }) {
  * Tarjeta del catálogo.
  *
  * Un producto con receta que el paciente no tiene cubierto no se agrega: en
- * lugar del "+" muestra "Pedir receta", que abre la hoja de la videoconsulta.
+ * lugar del "+" muestra "Pedir receta", que abre la hoja con los caminos (NecesitasRecetaSheet).
  * Si igual llegara a agregarse (otra pestaña, receta que venció en el medio),
  * el servidor lo rechaza y se abre la misma hoja.
  */

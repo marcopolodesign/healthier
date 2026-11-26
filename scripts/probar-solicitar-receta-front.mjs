@@ -69,7 +69,24 @@ const ultimoPedido = async pacienteId => (await admin.from('medication_orders')
   .select('id, payment_status, status, receta_estado, receta_medico_id, receta_consulta_id, total')
   .eq('patient_id', pacienteId).neq('payment_status', 'no_pagado').order('created_at', { ascending: false }).limit(1).maybeSingle()).data
 
+/** Suelta las reservas que dejó una corrida anterior (mp-capture, con la service key). */
+async function liberarPendientes(pacienteId) {
+  const { data } = await admin.from('medication_orders').select('id').eq('patient_id', pacienteId).eq('payment_status', 'autorizado')
+  for (const o of data ?? []) {
+    await fetch(`${SB_URL}/functions/v1/mp-capture`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.HEALTHIER_STAGING_SUPABASE_SERVICE_ROLE_KEY}` },
+      body: JSON.stringify({ action: 'cancel-pharmacy-order', orderId: o.id, motivo: 'Limpieza de la prueba.' }),
+    })
+  }
+}
+
+/** El "Tomar" de la tarjeta del paciente de la prueba (puede haber pedidos de otros). */
+const tomarDelPaciente = page => page.locator('div.rounded-\\[20px\\]', { hasText: 'Paciente Demo' })
+  .getByRole('button', { name: 'Tomar' }).last()
+
 async function vaciarCarrito(pacienteId) {
+  await liberarPendientes(pacienteId)
   const { data } = await admin.from('medication_orders').select('id').eq('patient_id', pacienteId).eq('payment_status', 'no_pagado').eq('status', 'pendiente')
   for (const o of data ?? []) await admin.from('medication_orders').delete().eq('id', o.id)
 }
@@ -200,9 +217,9 @@ try {
     await entrarCon(page, MEDICO)
     await page.getByRole('link', { name: /Pedidos de receta/ }).first().click()
     await page.waitForURL(/\/profesional\/pedidos-receta/)
-    await page.getByRole('button', { name: 'Tomar' }).first().waitFor({ timeout: 15000 })
+    await tomarDelPaciente(page).waitFor({ timeout: 15000 })
     await foto(page, 'web-medico-tablero')
-    await page.getByRole('button', { name: 'Tomar' }).first().click()
+    await tomarDelPaciente(page).click()
     await page.waitForURL(/\/profesional\/consulta\//, { timeout: 20000 })
     await page.getByText('Pedido de receta de farmacia').waitFor({ timeout: 20000 })
     await foto(page, 'web-medico-consulta-con-pedido')
@@ -255,10 +272,10 @@ try {
     const med = await nueva({ width: 1440, height: 900 })
     await entrarCon(med, MEDICO)
     await med.getByRole('link', { name: /Pedidos de receta/ }).first().click()
-    await med.getByRole('button', { name: 'Tomar' }).first().click()
+    await tomarDelPaciente(med).click()
     await med.waitForURL(/\/profesional\/consulta\//, { timeout: 20000 })
     await med.getByRole('button', { name: 'No corresponde recetar' }).click()
-    await med.locator('textarea').last().fill('Necesitás una consulta presencial antes de empezar este tratamiento.')
+    await med.getByPlaceholder(/Ej.: Necesitás una consulta/).fill('Necesitás una consulta presencial antes de empezar este tratamiento.')
     await foto(med, 'web-medico-no-corresponde')
     await med.getByRole('button', { name: /Cancelar el pedido sin cobrar/ }).click()
     await med.waitForURL(/\/profesional\/pedidos-receta/, { timeout: 20000 })
@@ -268,7 +285,8 @@ try {
     await page.reload()
     await page.getByText('No se te cobró nada').waitFor({ timeout: 30000 })
     await foto(page, 'web-paciente-pedido-liberado')
-    const lib = await ultimoPedido(pacienteId)
+    const libId = page.url().split('/pedido/')[1]
+    const lib = (await admin.from('medication_orders').select('id, payment_status, status, receta_estado').eq('id', libId).single()).data
     ok(lib?.status === 'cancelado' && lib?.receta_estado === 'rechazada', `liberado: ${JSON.stringify(lib)}`)
     await page.context().close()
   }
@@ -313,7 +331,7 @@ try {
         await far.getByRole('button', { name: 'Aprobar receta' }).click()
       } else {
         await far.getByRole('button', { name: 'Rechazar' }).click()
-        await far.locator('textarea').first().fill('No se lee la fecha de la receta.')
+        await far.getByPlaceholder(/No se lee la fecha/).fill('No se lee la fecha de la receta.')
         await far.getByRole('button', { name: 'Rechazar receta' }).click()
       }
       await far.waitForTimeout(8000)
@@ -337,8 +355,10 @@ try {
     await entrarCon(page, 'superadmin@healthier.app')
     await page.getByRole('link', { name: 'Farmacia' }).first().click()
     await page.waitForURL(/\/super-admin\/farmacia/)
+    await page.getByLabel(/Incluir cuentas de prueba/).check().catch(() => {})
+    await page.waitForTimeout(2000)
     await page.getByText('Reservado, esperando receta').waitFor({ timeout: 15000 })
-    await page.getByRole('columnheader', { name: 'Receta' }).scrollIntoViewIfNeeded()
+    await page.locator('th', { hasText: 'Receta' }).scrollIntoViewIfNeeded()
     await foto(page, 'web-superadmin-farmacia')
     ok(true, 'super admin: Farmacia muestra lo reservado y la columna Receta')
     await page.context().close()
