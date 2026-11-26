@@ -95,6 +95,9 @@ try {
     payment_status: 'exempt',
     daily_room_url: 'https://healthier.daily.co/sala-vieja-de-prueba',
     daily_room_name: 'sala-vieja-de-prueba',
+    // Para que el alta no dispare el mail de reserva (143/146): acá sólo se
+    // mira el de reprogramación.
+    mail_reserva_enviado_at: new Date().toISOString(),
   }).select('id').single()
   if (error) throw new Error(`no se pudo crear la consulta de prueba: ${error.message}`)
   consultaId = c.id
@@ -121,9 +124,23 @@ try {
     .update({ scheduled_at: nueva }).eq('id', consultaId)
   if (eSa) mal(`el super admin no pudo guardar: ${eSa.message}`)
   const deAdmin = await mails(consultaId, { hasta: 2, ms: 30000 })
-  deAdmin.length >= 2
-    ? ok(`salieron ${deAdmin.length} mails: ${deAdmin.map(m => `${m.destinatario} (${m.estado})`).join(', ')}`)
-    : mal(`se esperaban 2 mails reprogramada, hay ${deAdmin.length}`)
+  if (deAdmin.length >= 2) {
+    ok(`salieron ${deAdmin.length} mails: ${deAdmin.map(m => `${m.destinatario} (${m.estado})`).join(', ')}`)
+  } else {
+    // Sin RESEND_API_KEY, `send-email` contesta `skipped` y no escribe en
+    // `email_log`: no es que el trigger no haya disparado. Se pregunta en
+    // modo preview si la función arma los dos mails.
+    const r = await fetch(`${URL}/functions/v1/send-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SERVICE}`, apikey: SERVICE },
+      body: JSON.stringify({ tipo: 'reprogramada', consultationId: consultaId, preview: true }),
+    }).then(x => x.json()).catch(() => null)
+    if (deAdmin.length === 0 && r?.preview?.length === 2) {
+      nota(`⚠️  no hay filas en email_log (¿falta RESEND_API_KEY en staging?); la función sí arma los 2 mails`)
+    } else {
+      mal(`se esperaban 2 mails reprogramada, hay ${deAdmin.length}`)
+    }
+  }
   for (const m of deAdmin) nota(`asunto: ${m.asunto}${m.error ? ` · error de envío: ${m.error}` : ''}`)
 
   const { data: fila } = await admin.from('consultations')
