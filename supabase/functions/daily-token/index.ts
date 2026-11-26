@@ -107,6 +107,13 @@ Deno.serve(async (req) => {
 
     let roomUrl: string = consultation.daily_room_url
     let roomName: string = consultation.daily_room_name
+    // El nombre que estaba guardado cuando se leyó la fila. Si la sala venció,
+    // el reclamo de la nueva se hace contra ESTE valor (no contra NULL): antes
+    // el `.is('daily_room_name', null)` no afectaba filas con una sala vencida
+    // guardada, se borraba la sala recién creada y se devolvía la vencida —
+    // la consulta quedaba sin videollamada (pasó con un turno reprogramado,
+    // 2026-11-26). La 255 además limpia la sala al reprogramar.
+    const salaLeida: string | null = consultation.daily_room_name ?? null
 
     // If a room URL is stored, verify it still exists in Daily.co (rooms expire)
     if (roomUrl && roomName) {
@@ -177,10 +184,11 @@ Deno.serve(async (req) => {
       // Pasó de verdad el 2026-07-28: Daily quedó con dos salas creadas en el
       // mismo segundo (12:20:09) para la consulta fd6bcf5d, y solo una guardada.
       //
-      // El `.is('daily_room_name', null)` hace que gane quien llegue primero.
-      // Si no afecta filas, otro ya la reclamó: se borra la sala huérfana que
+      // El reclamo condicional (contra NULL, o contra la sala vencida que se
+      // leyó) hace que gane quien llegue primero. Si no afecta filas, otro ya
+      // la reclamó: se borra la sala huérfana que
       // acabamos de crear y se usa la suya.
-      const { data: claimed } = await serviceSupabase
+      const reclamo = serviceSupabase
         .from('consultations')
         .update({
           daily_room_url: roomUrl,
@@ -188,7 +196,9 @@ Deno.serve(async (req) => {
           ...(['confirmed', 'pending'].includes(consultation.status) ? { status: 'in_progress' } : {}),
         })
         .eq('id', consultationId)
-        .is('daily_room_name', null)
+      const { data: claimed } = await (salaLeida
+        ? reclamo.eq('daily_room_name', salaLeida)
+        : reclamo.is('daily_room_name', null))
         .select('daily_room_url, daily_room_name')
         .maybeSingle()
 
