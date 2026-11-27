@@ -279,6 +279,9 @@ try {
     chequear(r.error && (await leerPedido(pedidoA)).receta_estado === 'pendiente', 'un profesional sin la marca no toma el pedido', 'un profesional sin marca tomó el pedido')
     r = await paciente.c.rpc('medico_pedidos_de_receta')
     chequear(r.error, 'un paciente no ve la lista', 'un paciente ve la lista')
+    // 258: nadie de afuera pregunta quién es médico de Healthier.
+    r = await paciente.c.rpc('es_medico_healthier', { p_user: medA.id })
+    chequear(r.error, 'un usuario no puede preguntar quién es médico de Healthier (258)', `es_medico_healthier abierta: ${JSON.stringify(r.data)}`)
     const { error } = await medA.c.from('professional_profiles').update({ medico_healthier: false }).eq('user_id', medA.id)
     const { data: p } = await admin.from('professional_profiles').select('medico_healthier').eq('user_id', medA.id).single()
     chequear(error && p.medico_healthier === true, 'el propio profesional no se saca/pone la marca', 'el profesional cambió su propia marca')

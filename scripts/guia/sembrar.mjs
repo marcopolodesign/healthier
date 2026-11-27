@@ -193,6 +193,10 @@ async function limpiar() {
     delete from public.clinical_certificates where id::text like ${PREFIJO};
     delete from public.clinical_study_orders where id::text like ${PREFIJO};
   `)
+  // Un pedido con receta por resolver puede haber quedado atado a una receta
+  // sembrada (el cobro ata los items a la receta que los cubre, migración 254).
+  await sql(`update public.medication_order_items set clinical_medication_id = null
+               where clinical_medication_id::text like ${PREFIJO};`)
   await triggersRetencion('disable')
   try {
     await sql(`
@@ -211,6 +215,11 @@ async function limpiar() {
     delete from public.notificaciones     where id::text like ${PREFIJO};
     delete from public.medication_order_delivery_codes where order_id::text like ${PREFIJO};
     delete from public.medication_order_items where id::text like ${PREFIJO};
+    -- La consulta sin costo que abre "Tomar" sobre un pedido sembrado (la
+    -- captura del médico lo toma) no lleva el prefijo: se va por el pedido.
+    delete from public.consultation_events where consultation_id in
+      (select id from public.consultations where medication_order_id::text like ${PREFIJO});
+    delete from public.consultations      where medication_order_id::text like ${PREFIJO};
     delete from public.medication_orders  where id::text like ${PREFIJO};
     delete from public.email_log          where id::text like ${PREFIJO};
     delete from public.clinical_encounters where id::text like ${PREFIJO};
@@ -242,6 +251,7 @@ async function limpiar() {
       await sql(`delete from public.profiles where id = '${p.id}';`)
       await db.auth.admin.deleteUser(p.id)
     }
+    await db.storage.from('recetas-subidas').remove([RECETA_SUBIDA_PATH])
     await db.storage.from('prescriptions').remove(['a1d0/receta-A.pdf', 'a1d0/receta-B.pdf', 'a1d0/receta-C.pdf', 'a1d0/certificado.pdf', 'a1d0/orden.pdf'])
     await db.storage.from('professional-docs').remove(
       ['titulo', 'matricula', 'dni', 'seguro_mala_praxis', 'cuit'].map(n => `${PENDIENTE}/${n}.pdf`))
@@ -649,7 +659,9 @@ async function sembrarFamiliar() {
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. FARMACIA
 // ─────────────────────────────────────────────────────────────────────────────
-const ORD = { o1: uid('ord', 1), o2: uid('ord', 2), o3: uid('ord', 3), o4: uid('ord', 4), o5: uid('ord', 5), o6: uid('ord', 6) }
+const ORD = { o1: uid('ord', 1), o2: uid('ord', 2), o3: uid('ord', 3), o4: uid('ord', 4), o5: uid('ord', 5), o6: uid('ord', 6), o7: uid('ord', 7), o8: uid('ord', 8) }
+// Receta que "subió" el paciente para el pedido 8 (bucket privado de la 254).
+const RECETA_SUBIDA_PATH = `${'5eed1001-0000-4000-8000-000000000001'}/a1d0-receta-subida.pdf`
 const PROD = {
   atorva: uid('prod', 1), enalapril: uid('prod', 2), omeprazolAgotado: uid('prod', 3), vitD: uid('prod', 4),
 }
@@ -739,6 +751,45 @@ async function sembrarFarmacia() {
     { order_id: ORD.o4, code: '4827', attempts: 0, created_at: haceHoras(6) },
     { order_id: ORD.o5, code: '3915', attempts: 1, verified_at: en(-2, 14, 10), created_at: en(-2, 12, 0) },
   ])
+  // Solicitar receta / Ya tengo receta (migración 254): dos pedidos con el pago
+  // RESERVADO (no cobrado). El 7 espera al médico de Healthier; el 8 trae la
+  // receta que subió el paciente y espera que la farmacia la revise.
+  const conReceta = [
+    { n: 7, id: ORD.o7, via: 'solicitar', creado: haceMin(18), items: [[atorva, 1]] },
+    { n: 8, id: ORD.o8, via: 'subida', creado: haceMin(32), items: [[enal, 1]] },
+  ]
+  const filas7 = [], items7 = [], pagos7 = []
+  for (const p of conReceta) {
+    const subtotal = p.items.reduce((a, [prod, q]) => a + Number(prod.price) * q, 0)
+    filas7.push({
+      id: p.id, patient_id: PAC_C, pharmacy_id: PHARMACY_ID, status: 'pendiente', payment_status: 'autorizado',
+      receta_estado: 'pendiente', autorizado_at: p.creado, delivery_address: 'Av. Cabildo 2040, 5° B, CABA',
+      subtotal, total: subtotal, created_at: p.creado, updated_at: p.creado,
+    })
+    for (const [prod, q] of p.items) {
+      item += 1
+      items7.push({
+        id: uid('item', item), order_id: p.id, pharmacy_product_id: prod.id, medication_name: prod.name, quantity: q,
+        unit_price: Number(prod.price), requires_prescription: true, created_at: p.creado, receta_via: p.via,
+        receta_archivo_path: p.via === 'subida' ? RECETA_SUBIDA_PATH : null,
+      })
+    }
+    const comision = Math.round(subtotal * 0.1)
+    pagos7.push({
+      id: uid('pay', 100 + p.n), order_id: p.id, pharmacy_id: PHARMACY_ID, patient_id: PAC_C, method: 'card',
+      gross_amount: subtotal, credits_used: 0, charged_amount: subtotal, platform_fee: comision, mp_fee_estimated: Math.round(subtotal * MP_FEE),
+      net_to_professional: subtotal - comision - Math.round(subtotal * MP_FEE), currency: 'ARS', status: 'authorized',
+      mp_payment_id: `a1d0-mp-p${p.n}`, created_at: p.creado, authorized_at: p.creado,
+    })
+  }
+  ins('medication_orders', filas7)
+  ins('medication_order_items', items7)
+  ins('payments', pagos7)
+  await subir('recetas-subidas', RECETA_SUBIDA_PATH, pdfSimple(['Receta', 'Enalapril 10 mg x 30', 'Dr. Juan Perez - MN 99887', 'Dato ficticio para la guia de uso']))
+  // clinica@ atiende los pedidos de receta en las capturas del profesional.
+  upd('professional_profiles', { medico_healthier: true }, `user_id = '${CLINICA.id}'`)
+  cuenta('pedidos con receta por resolver (1 esperando médico, 1 con receta subida)', conReceta.length)
+
   cuenta('productos nuevos en el catálogo (1 agotado, todos sin foto)', productos.length)
   cuenta('pedidos de farmacia', pedidos.length)
   cuenta('pagos de pedidos', filasPago.length)
