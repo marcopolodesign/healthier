@@ -78,7 +78,7 @@ export function faseDeReceta(order) {
   const items = order.items ?? []
   const conVia = items.some(it => it.recetaVia)
   if (!conVia && !order.recetaEstado && order.paymentStatus !== 'autorizado') return null
-  if (order.status === 'cancelado' && order.recetaEstado === 'rechazada') return 'liberado'
+  if (order.status === 'cancelado') return order.recetaEstado === 'rechazada' ? 'liberado' : null
   if (order.paymentStatus === 'autorizado') {
     const faltaMedico = items.some(it => it.recetaVia === 'solicitar')
     return faltaMedico ? 'esperando_medico' : 'farmacia_revisando'

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { professionalService } from '../services/professionalService'
 
 // Una consulta por sesión (promesa compartida), para el menú, la barra de abajo
 // y el inicio. Un error no se guarda: el próximo montaje vuelve a preguntar.
@@ -7,12 +7,8 @@ const cache = new Map()
 
 function consultar(userId) {
   if (!cache.has(userId)) {
-    cache.set(userId, supabase.from('professional_profiles').select('medico_healthier')
-      .eq('user_id', userId).maybeSingle()
-      .then(({ data, error }) => {
-        if (error) { cache.delete(userId); return false }
-        return Boolean(data?.medico_healthier)
-      }))
+    cache.set(userId, professionalService.esMedicoHealthier(userId)
+      .catch(() => { cache.delete(userId); return false }))
   }
   return cache.get(userId)
 }

@@ -5,6 +5,7 @@ import { toast } from '../Toast'
 import { formatDate } from '../../lib/format'
 
 const esPdf = path => /\.pdf$/i.test(path ?? '')
+const esHeic = path => /\.hei[cf]$/i.test(path || '')
 
 /**
  * "Ya tengo receta" (migración 254), del lado de la farmacia: la foto o el PDF
@@ -61,9 +62,11 @@ export default function RecetaSubidaRevision({ orderId, puedeResolver, esperando
             {s.medicamento}
             {s.aprobadaAt && <span className="text-emerald-600"> · aprobada {formatDate(s.aprobadaAt)}</span>}
           </p>
-          {urls[s.itemId] && (esPdf(s.archivoPath) ? (
+          {urls[s.itemId] && (esPdf(s.archivoPath) || esHeic(s.archivoPath) ? (
+            // HEIC (la foto por defecto del iPhone) no se ve en Chrome ni Firefox:
+            // se abre como archivo, igual que el PDF.
             <a href={urls[s.itemId]} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm text-brand font-semibold">
-              <FileText className="h-4 w-4" /> Abrir el PDF
+              <FileText className="h-4 w-4" /> {esPdf(s.archivoPath) ? 'Abrir el PDF' : 'Abrir la foto'}
             </a>
           ) : (
             <a href={urls[s.itemId]} target="_blank" rel="noreferrer" className="block">

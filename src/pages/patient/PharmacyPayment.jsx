@@ -56,7 +56,7 @@ export default function PharmacyPayment({ profile }) {
 
   const handlePaymentResult = (data) => {
     const status = data?.status
-    if (data?.authorized || data?.recetaPendiente) {
+    if (data?.authorized) {
       setPaid(true)
       vaciarCarrito()
       toast.success('Reservamos el pago. Se cobra cuando la receta esté lista.')

@@ -837,9 +837,38 @@ Deno.serve(async (req) => {
         collector_id: pharmacyMpAccount.mp_user_id,
       })
 
-      if (conReceta && (paymentsStatus === 'authorized' || paymentsStatus === 'approved')) {
-        // Retenido: el pedido espera la receta. (Si MP capturó igual, el pago
-        // queda 'approved' y mp-capture lo trata como ya capturado.)
+      if (conReceta && paymentsStatus === 'approved') {
+        // MP cobró en el acto aunque pedimos sólo reservar (algunas tarjetas de
+        // débito o prepagas no admiten la pre-autorización). Un remedio con
+        // receta no se cobra sin receta: se devuelve entero en el acto y el
+        // pedido sigue siendo el carrito del paciente.
+        const refundRes = await fetch(`${MP_API_BASE}/payments/${mpPaymentId}/refunds`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${sellerAccessToken}`,
+            'Content-Type': 'application/json',
+            'X-Idempotency-Key': `${idempotencyKey}-devolucion-receta`,
+          },
+          body: JSON.stringify({}),
+        })
+        const devuelto = refundRes.ok
+        if (!devuelto) console.error('mp-payment (order): no se pudo devolver el cobro inmediato con receta pendiente', mpPaymentId, refundRes.status, await refundRes.text().catch(() => ''))
+        await serviceSupabase.from('payments').update({
+          status: devuelto ? 'refunded' : 'approved',
+          status_detail: devuelto ? 'receta_sin_preautorizacion_devuelto' : 'receta_sin_preautorizacion_devolucion_fallida',
+        }).eq('id', paymentId)
+        return new Response(
+          JSON.stringify({
+            data: { paymentId, status: devuelto ? 'refunded' : 'approved', approved: false, authorized: false, recetaPendiente: false, chargedAmount: amount },
+            error: 'Esta tarjeta no permite reservar el pago hasta tener la receta. No se te cobró: probá con una tarjeta de crédito.',
+            code: 'RECETA_SIN_PREAUTORIZACION',
+          }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (conReceta && paymentsStatus === 'authorized') {
+        // Retenido: el pedido espera la receta.
         const { error: orderUpdateErr } = await serviceSupabase
           .from('medication_orders')
           .update({
@@ -866,8 +895,8 @@ Deno.serve(async (req) => {
             status: paymentsStatus,
             approved: paymentsStatus === 'approved' && !conReceta,
             // Retenido a la espera de la receta (Solicitar receta / Ya tengo receta).
-            authorized: conReceta && (paymentsStatus === 'authorized' || paymentsStatus === 'approved'),
-            recetaPendiente: conReceta,
+            authorized: conReceta && paymentsStatus === 'authorized',
+            recetaPendiente: conReceta && paymentsStatus === 'authorized',
             statusDetail: mpData.status_detail ?? null,
             chargedAmount: amount,
           },

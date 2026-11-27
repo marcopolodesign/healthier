@@ -361,15 +361,58 @@ serve(async (req: Request) => {
           receta_estado: "rechazada",
         };
       } else if (pedidoRetenido && paymentsStatus === "approved") {
-        // La captura (la hizo mp-capture) llegó por aviso antes de que se anotara.
-        orderUpdate = { payment_status: "pagado", receta_estado: "resuelta", receta_resuelta_at: new Date().toISOString() };
+        // Una captura sobre un pedido retenido sólo lo pasa a pagado si la receta
+        // está resuelta, con la MISMA validación que mp-capture. Si MP lo capturó
+        // por otro lado (desde su panel) sin receta, el pedido sigue retenido y
+        // queda en el log para que lo revise el equipo: un remedio con receta no
+        // se manda a preparar sin receta.
+        const { data: faltan, error: e1 } = await supabase.rpc("farmacia_atar_items_solicitados", { p_order: entityId });
+        const { data: sinResolver, error: e2 } = await supabase.rpc("farmacia_items_receta_sin_resolver", { p_order: entityId });
+        const { data: sinReceta, error: e3 } = await supabase.rpc("farmacia_items_sin_receta", { p_order: entityId });
+        const resuelta = !e1 && !e2 && !e3 && !((faltan as number) > 0)
+          && (sinResolver ?? []).length === 0 && (sinReceta ?? []).length === 0;
+        if (resuelta) {
+          orderUpdate = { payment_status: "pagado", receta_estado: "resuelta", receta_resuelta_at: new Date().toISOString() };
+        } else {
+          console.error(`mp-webhook: pedido retenido ${entityId} capturado en MP sin receta resuelta — queda retenido para revisión`);
+          orderUpdate = null;
+        }
       } else if (pedidoRetenido) {
         orderUpdate = null; // pending / in_process sobre una retención: no se toca
+      } else if (paymentsStatus === "authorized") {
+        // Una pre-autorización que MP dejó en revisión y aprobó después: si el
+        // pedido lleva items con receta por resolver, pasa a retenido. Sólo desde
+        // 'no_pagado' (nunca pisa lo que ya escribió mp-payment) y nunca lo baja.
+        const { count } = await supabase
+          .from("medication_order_items")
+          .select("id", { count: "exact", head: true })
+          .eq("order_id", entityId)
+          .not("receta_via", "is", null);
+        orderUpdate = null;
+        if ((count ?? 0) > 0) {
+          const { error } = await supabase.from("medication_orders")
+            .update({ payment_status: "autorizado", autorizado_at: new Date().toISOString(), receta_estado: "pendiente" })
+            .eq("id", entityId)
+            .eq("payment_status", "no_pagado");
+          if (error) {
+            console.error("mp-webhook: medication_orders update (autorizado) error:", error);
+            return new Response(
+              JSON.stringify({ error: "DB update failed", detail: error.message }),
+              { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+      } else if (paymentsStatus === "approved") {
+        orderUpdate = { payment_status: "pagado" };
       } else {
-        orderUpdate = { payment_status: paymentsStatus === "approved" ? "pagado" : "no_pagado" };
+        orderUpdate = { payment_status: "no_pagado" };
       }
+      // 'no_pagado' nunca pisa un pedido retenido (carrera con mp-payment: el
+      // aviso leyó el pedido antes de que se escribiera 'autorizado').
       const { error: orderUpdateErr } = orderUpdate
-        ? await supabase.from("medication_orders").update(orderUpdate).eq("id", entityId)
+        ? (orderUpdate.payment_status === "no_pagado" && !orderUpdate.status
+          ? await supabase.from("medication_orders").update(orderUpdate).eq("id", entityId).neq("payment_status", "autorizado")
+          : await supabase.from("medication_orders").update(orderUpdate).eq("id", entityId))
         : { error: null };
       if (orderUpdateErr) {
         console.error("mp-webhook: medication_orders update error:", orderUpdateErr);
