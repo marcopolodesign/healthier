@@ -152,7 +152,7 @@ export const TOMAS = [
       await clic(p, p.getByRole('button', { name: /Pedir receta/ }), 1500) },
     marcas: [[1, rol('button', 'Comprar y pedir receta')], [2, rol('button', 'Ya tengo receta')], [3, txt('Videoconsulta', 'button')]] },
   { id: 'pac-pedido-receta', quien: PAC, movil: true, url: `/paciente/farmacia/pedido/${PEDIDO_ESPERA_MEDICO}`, espera: 2500, marcas: [
-      [1, css('h1').filter({ hasText: 'Esperando tu receta' })], [2, txt('Reservado, no cobrado', 'p,span,div').first()]] },
+      [1, css('h1').filter({ hasText: 'Esperando tu receta' })], [2, css('p').filter({ hasText: /^Reservado, no cobrado$/ }).locator('..')]] },
   { id: 'pac-pedido', quien: PAC, movil: true, url: '/paciente/farmacia/pedidos', pasos: async (p) => {
       await clic(p, p.locator('a,button', { hasText: /En camino|Enviado/ }), 1500) },
     marcas: [[1, txt('En camino', 'div,section,p')], [2, txt('Código de entrega', 'div,section,p')]] },
@@ -251,7 +251,7 @@ export const TOMAS = [
       [1, css('[data-testid="recetas-por-autorizar"] h2').locator('..')], [2, css('[data-testid="recetas-por-autorizar"] tbody tr').first()], [3, css('[data-testid="recetas-por-autorizar"] button').filter({ hasText: 'Autorizar' }).first()]] },
   { id: 'far-receta-subida', quien: FARMACIA, url: `/farmacia/pedidos/${PEDIDO_RECETA_SUBIDA}`, espera: 3000, pasos: async (p) => {
       await subir(p, p.getByText('Receta subida por el paciente'), 24) },
-    marcas: [[1, txt('Receta subida por el paciente', 'p').locator('..')], [2, txt('Aprobar receta', 'button')], [3, txt('Rechazar', 'button').last()]] },
+    marcas: [[1, css('p').filter({ hasText: /^Receta subida por el paciente$/ }).locator('..')], [2, txt('Aprobar receta', 'button')], [3, txt('Rechazar', 'button').last()]] },
   { id: 'far-pedido', quien: FARMACIA, url: '/farmacia/pedidos', pasos: async (p) => {
       await clic(p, p.locator('tbody tr', { hasText: 'Entregar con código' }), 1800) },
     marcas: [[1, css('h1.font-mono').locator('..')], [2, txt('Paciente', 'p').locator('xpath=ancestor::*[contains(@class,"card")][1]')], [3, txt('Medicamentos', 'p,h2').locator('xpath=ancestor::*[contains(@class,"card")][1]')], [4, txt('Neto farmacia', '*').locator('xpath=ancestor::*[contains(@class,"card")][1]')], [5, css('input[placeholder="----"]').locator('..')]] },
@@ -295,7 +295,7 @@ export const TOMAS = [
   { id: 'sa-medico-healthier', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/profesionales?filter=verificados', pasos: async (p) => {
       await clic(p, p.locator('tbody tr', { hasText: 'Valentina Ortega' }).first(), 1800)
       await subir(p, p.getByRole('switch', { name: 'Médico de Healthier' }), 200) },
-    marcas: [[1, rol('switch', 'Médico de Healthier').locator('xpath=ancestor::div[contains(@class,"flex")][2]')]] },
+    marcas: [[1, rol('switch', 'Médico de Healthier').locator('xpath=ancestor::div[contains(@class,"rounded")][1]')]] },
   { id: 'sa-recorrido', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/profesionales/recorrido', espera: 3000, marcas: [
       [1, txt('30 días', 'button').locator('..')], [2, txt('Enviaron para verificar', '*').locator('xpath=ancestor::div[contains(@class,"grid")][1]')], [3, css('svg').last()]] },
   { id: 'sa-pagos', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/pagos', espera: 3000, alto: 1500, marcas: [
