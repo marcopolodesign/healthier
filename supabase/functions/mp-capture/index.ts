@@ -869,41 +869,58 @@ async function liberarPedidoDeFarmacia(
  * pero cuya liberación no llegó a salir (la llamada del trigger se perdió).
  */
 /**
- * Reintento de la devolución que hace mp-payment cuando MP cobró en el acto un
- * pedido con receta por resolver (tarjeta que no admite la reserva) y el
- * refund falló. El paciente ya vio "te lo devolvemos solo": acá se cumple.
+ * Devolución de cobros de pedidos con receta que no deberían existir: MP cobró
+ * en el acto (tarjeta que no admite la reserva, o una reserva que quedó en
+ * revisión y MP aprobó directo) y el pedido NO quedó pagado ni retenido. La
+ * regla no depende de ninguna marca (el webhook pisa `status_detail`):
+ *   pago 'approved' de hace más de 10 min + pedido 'no_pagado' + items con
+ *   `receta_via` + es el último pago del pedido.
+ * Un pedido retenido o pagado (incluido el que cobra mp-capture) nunca entra.
+ * Antes de devolver se mira el pago en MP: si ya está devuelto, sólo se anota.
  */
-async function reintentarDevolucionesDeReceta(supabase: SupabaseClient) {
-  const out = { pendientes: 0, devueltos: 0, fallidos: 0 };
+async function devolverCobrosDeRecetaSinPedido(supabase: SupabaseClient) {
+  const out = { candidatos: 0, devueltos: 0, fallidos: 0 };
+  const hace10 = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const hace30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const { data: pagos, error } = await supabase
     .from("payments")
-    .select("id, order_id, pharmacy_id, mp_payment_id")
+    .select("id, order_id, pharmacy_id, mp_payment_id, created_at, pedido:medication_orders!inner(payment_status, items:medication_order_items(receta_via))")
     .eq("status", "approved")
-    .eq("status_detail", "receta_sin_preautorizacion_devolucion_fallida");
+    .not("order_id", "is", null)
+    .lt("created_at", hace10)
+    .gt("created_at", hace30d)
+    .eq("pedido.payment_status", "no_pagado");
   if (error) {
-    console.error("mp-capture: sweep no pudo leer devoluciones pendientes:", error.message);
+    console.error("mp-capture: sweep no pudo leer cobros de receta sin pedido:", error.message);
     return out;
   }
-  for (const pago of (pagos ?? []) as Array<{ id: string; order_id: string; pharmacy_id: string; mp_payment_id: string | null }>) {
-    out.pendientes++;
+  type Fila = { id: string; order_id: string; pharmacy_id: string; mp_payment_id: string | null;
+    pedido: { payment_status: string; items: Array<{ receta_via: string | null }> } | null };
+  for (const pago of (pagos ?? []) as unknown as Fila[]) {
+    if (!pago.pedido || !(pago.pedido.items ?? []).some((i) => i.receta_via)) continue;
+    const { data: ultimo } = await supabase.from("payments").select("id")
+      .eq("order_id", pago.order_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (ultimo?.id !== pago.id) continue;
+    out.candidatos++;
     try {
       if (!pago.mp_payment_id) { out.fallidos++; continue; }
       const t = await tokenDeLaFarmacia(supabase, pago.pharmacy_id);
       if (!t.accessToken) { out.fallidos++; console.error(`mp-capture: devolución ${pago.id}:`, t.error); continue; }
-      const res = await fetch(`${MP_API_BASE}/payments/${pago.mp_payment_id}/refunds`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${t.accessToken}`,
-          "Content-Type": "application/json",
-          "X-Idempotency-Key": await sha256Hex(`receta-devolucion:${pago.id}:${pago.mp_payment_id}`),
-        },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) {
-        out.fallidos++;
-        console.error(`mp-capture: devolución ${pago.id} MP ${res.status}:`, await res.text().catch(() => ""));
-        continue;
+      const auth = { Authorization: `Bearer ${t.accessToken}` };
+      const enMp = await fetch(`${MP_API_BASE}/payments/${pago.mp_payment_id}`, { headers: auth })
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null) as { status?: string } | null;
+      let devuelto = enMp?.status === "refunded";
+      if (!devuelto && enMp?.status === "approved") {
+        const res = await fetch(`${MP_API_BASE}/payments/${pago.mp_payment_id}/refunds`, {
+          method: "POST",
+          headers: { ...auth, "Content-Type": "application/json",
+            "X-Idempotency-Key": await sha256Hex(`receta-devolucion:${pago.id}:${pago.mp_payment_id}`) },
+          body: JSON.stringify({}),
+        });
+        devuelto = res.ok;
+        if (!res.ok) console.error(`mp-capture: devolución ${pago.id} MP ${res.status}:`, await res.text().catch(() => ""));
       }
+      if (!devuelto) { out.fallidos++; continue; }
       await supabase.from("payments")
         .update({ status: "refunded", status_detail: "receta_sin_preautorizacion_devuelto" })
         .eq("id", pago.id);
@@ -917,7 +934,7 @@ async function reintentarDevolucionesDeReceta(supabase: SupabaseClient) {
 }
 
 async function sweepFarmacia(supabase: SupabaseClient) {
-  const devoluciones = await reintentarDevolucionesDeReceta(supabase);
+  const devoluciones = await devolverCobrosDeRecetaSinPedido(supabase);
   const out = { scanned: 0, captured: 0, released: 0, failed: 0, devoluciones };
   const limite = new Date(Date.now() - RETENCION_FARMACIA_MAX_DIAS * 24 * 60 * 60 * 1000).toISOString();
   const { data: rows, error } = await supabase

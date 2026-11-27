@@ -406,7 +406,9 @@ serve(async (req: Request) => {
         // Un pedido con items de "Pedir receta" no pasa a pagado por un aviso de
         // cobro si la receta no está resuelta (MP cobró en el acto, una reserva
         // que quedó en revisión y MP aprobó directo, o el aviso llegó antes de la
-        // devolución): mp-payment o el barrido devuelven ese cobro.
+        // devolución): mp-payment lo devuelve en el acto y, si no pudo, el barrido de
+        // mp-capture devuelve todo cobro aprobado de un pedido con receta que no
+        // quedó pagado.
         const { count: conReceta } = await supabase
           .from("medication_order_items")
           .select("id", { count: "exact", head: true })
