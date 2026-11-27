@@ -256,6 +256,10 @@ export const medicationOrdersService = {
       .from('payments')
       .select('*')
       .eq('order_id', orderId)
+      // Un pedido puede tener más de un pago (uno devuelto y el que reservó
+      // después, Pedir receta): el que cuenta es el último.
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle()
     if (error) throw error
     return toCamelCase(data)

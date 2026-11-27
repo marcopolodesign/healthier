@@ -100,7 +100,6 @@ export const professionalService = {
    * leída al abrirse y pisarían el switch y el latido con valores rancios.
    * Ver `lib/fichaProfesional.js`.
    */
-  /** Super admin: marca/desmarca "médico de Healthier" (migración 254; el trigger rechaza a cualquier otro). */
   /** ¿Es "médico de Healthier" (atiende los pedidos de receta, migración 254)? */
   async esMedicoHealthier(userId) {
     const { data, error } = await supabase.from('professional_profiles').select('medico_healthier')
@@ -109,6 +108,7 @@ export const professionalService = {
     return Boolean(data?.medico_healthier)
   },
 
+  /** Super admin: marca/desmarca "médico de Healthier" (migración 254; el trigger rechaza a cualquier otro). */
   async setMedicoHealthier(professionalProfileId, valor) {
     const { error } = await supabase
       .from('professional_profiles')

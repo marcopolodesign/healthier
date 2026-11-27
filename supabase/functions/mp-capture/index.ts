@@ -868,8 +868,57 @@ async function liberarPedidoDeFarmacia(
  * (MP vence la pre-autorización sola a los ~7) y las que ya fueron rechazadas
  * pero cuya liberación no llegó a salir (la llamada del trigger se perdió).
  */
+/**
+ * Reintento de la devolución que hace mp-payment cuando MP cobró en el acto un
+ * pedido con receta por resolver (tarjeta que no admite la reserva) y el
+ * refund falló. El paciente ya vio "te lo devolvemos solo": acá se cumple.
+ */
+async function reintentarDevolucionesDeReceta(supabase: SupabaseClient) {
+  const out = { pendientes: 0, devueltos: 0, fallidos: 0 };
+  const { data: pagos, error } = await supabase
+    .from("payments")
+    .select("id, order_id, pharmacy_id, mp_payment_id")
+    .eq("status", "approved")
+    .eq("status_detail", "receta_sin_preautorizacion_devolucion_fallida");
+  if (error) {
+    console.error("mp-capture: sweep no pudo leer devoluciones pendientes:", error.message);
+    return out;
+  }
+  for (const pago of (pagos ?? []) as Array<{ id: string; order_id: string; pharmacy_id: string; mp_payment_id: string | null }>) {
+    out.pendientes++;
+    try {
+      if (!pago.mp_payment_id) { out.fallidos++; continue; }
+      const t = await tokenDeLaFarmacia(supabase, pago.pharmacy_id);
+      if (!t.accessToken) { out.fallidos++; console.error(`mp-capture: devolución ${pago.id}:`, t.error); continue; }
+      const res = await fetch(`${MP_API_BASE}/payments/${pago.mp_payment_id}/refunds`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${t.accessToken}`,
+          "Content-Type": "application/json",
+          "X-Idempotency-Key": await sha256Hex(`receta-devolucion:${pago.id}:${pago.mp_payment_id}`),
+        },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        out.fallidos++;
+        console.error(`mp-capture: devolución ${pago.id} MP ${res.status}:`, await res.text().catch(() => ""));
+        continue;
+      }
+      await supabase.from("payments")
+        .update({ status: "refunded", status_detail: "receta_sin_preautorizacion_devuelto" })
+        .eq("id", pago.id);
+      out.devueltos++;
+    } catch (err) {
+      out.fallidos++;
+      console.error(`mp-capture: devolución ${pago.id} lanzó:`, err);
+    }
+  }
+  return out;
+}
+
 async function sweepFarmacia(supabase: SupabaseClient) {
-  const out = { scanned: 0, captured: 0, released: 0, failed: 0 };
+  const devoluciones = await reintentarDevolucionesDeReceta(supabase);
+  const out = { scanned: 0, captured: 0, released: 0, failed: 0, devoluciones };
   const limite = new Date(Date.now() - RETENCION_FARMACIA_MAX_DIAS * 24 * 60 * 60 * 1000).toISOString();
   const { data: rows, error } = await supabase
     .from("medication_orders")

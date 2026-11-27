@@ -860,7 +860,9 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({
             data: { paymentId, status: devuelto ? 'refunded' : 'approved', approved: false, authorized: false, recetaPendiente: false, chargedAmount: amount },
-            error: 'Esta tarjeta no permite reservar el pago hasta tener la receta. No se te cobró: probá con una tarjeta de crédito.',
+            error: devuelto
+              ? 'Esta tarjeta no permite reservar el pago hasta tener la receta. No se te cobró: probá con una tarjeta de crédito.'
+              : 'Esta tarjeta no permite reservar el pago hasta tener la receta. Si ves el cobro en tu tarjeta, te lo devolvemos solo en unos minutos. Probá con una tarjeta de crédito.',
             code: 'RECETA_SIN_PREAUTORIZACION',
           }),
           { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
