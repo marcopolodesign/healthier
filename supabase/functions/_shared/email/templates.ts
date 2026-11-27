@@ -144,7 +144,7 @@ export function turnoConfirmadoPaciente(c: ConsultaBase): Sent {
       eyebrow: 'Turno confirmado', accent,
       title: 'Tu turno está reservado',
       body,
-      footnote: 'Podés reprogramarlo o cancelarlo desde la app hasta el horario del turno. Conviene hacerlo con al menos 30 minutos de anticipación, para que el horario le quede libre a otra persona.',
+      footnote: 'Podés cancelarlo desde la app hasta el horario del turno. Conviene hacerlo con al menos 30 minutos de anticipación, para que el horario le quede libre a otra persona.',
     }),
   }
 }
