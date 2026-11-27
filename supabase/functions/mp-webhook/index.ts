@@ -390,9 +390,43 @@ serve(async (req: Request) => {
           }
         }
       } else if (paymentsStatus === "approved") {
-        orderUpdate = { payment_status: "pagado" };
+        // Un pedido con items de "Pedir receta" no pasa a pagado por un aviso de
+        // cobro si la receta no está resuelta (MP cobró en el acto, una reserva
+        // que quedó en revisión y MP aprobó directo, o el aviso llegó antes de la
+        // devolución): mp-payment o el barrido devuelven ese cobro.
+        const { count: conReceta } = await supabase
+          .from("medication_order_items")
+          .select("id", { count: "exact", head: true })
+          .eq("order_id", entityId)
+          .not("receta_via", "is", null);
+        let resuelta = true;
+        if ((conReceta ?? 0) > 0) {
+          const { data: faltan, error: e1 } = await supabase.rpc("farmacia_atar_items_solicitados", { p_order: entityId });
+          const { data: sinResolver, error: e2 } = await supabase.rpc("farmacia_items_receta_sin_resolver", { p_order: entityId });
+          const { data: sinReceta, error: e3 } = await supabase.rpc("farmacia_items_sin_receta", { p_order: entityId });
+          resuelta = !e1 && !e2 && !e3 && !((faltan as number) > 0)
+            && (sinResolver ?? []).length === 0 && (sinReceta ?? []).length === 0;
+        }
+        if (resuelta) {
+          orderUpdate = { payment_status: "pagado" };
+        } else {
+          console.error(`mp-webhook: cobro aprobado de un pedido con receta sin resolver ${entityId} — no se marca pagado`);
+          orderUpdate = null;
+        }
       } else {
         orderUpdate = { payment_status: "no_pagado" };
+      }
+      // Un aviso de un pago VIEJO del pedido (uno devuelto, antes de reintentar
+      // con otra tarjeta) no mueve el pedido: el que manda es el último pago.
+      if (orderUpdate && existingPaymentRow?.id) {
+        const { data: ultimo } = await supabase
+          .from("payments")
+          .select("id")
+          .eq("order_id", entityId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (ultimo?.id && ultimo.id !== existingPaymentRow.id) orderUpdate = null;
       }
       // 'no_pagado' nunca pisa un pedido retenido (carrera con mp-payment: el
       // aviso leyó el pedido antes de que se escribiera 'autorizado').
