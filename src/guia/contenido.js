@@ -74,6 +74,8 @@ export const GLOSARIO = {
   Firma: 'La firma del profesional, cargada una sola vez. Sin ella no se emiten recetas, órdenes de estudios ni certificados.',
   Certificado: 'Una constancia de atención, un certificado de reposo o uno escolar, firmado por el profesional. Le llega al paciente en PDF.',
   'Orden de estudios': 'El pedido de análisis o imágenes que hace el profesional. Sale firmada y le llega al paciente por mail.',
+  'Pago reservado': 'El monto queda apartado en tu tarjeta pero no se cobra. Se cobra cuando la receta está lista; si no corresponde, se libera.',
+  'Médico de Healthier': 'Un profesional que atiende los pedidos de receta de la farmacia: llama al paciente, le hace la receta sin costo y libera el pedido.',
   'Pendiente de autorización': 'Una receta que la obra social todavía tiene que autorizar. Hasta que la farmacia la autoriza, no se puede comprar.',
   'Código de invitación': 'El código personal para invitar a alguien a Healthier. Va también en tu link.',
   'Cuenta de prueba': 'Una cuenta del equipo para probar la plataforma. No cuenta en las métricas ni en los listados del super admin, salvo que se incluya a propósito.',
@@ -347,6 +349,34 @@ const paciente = {
       ],
     },
     {
+      id: 'pedir-receta', titulo: 'Un remedio con receta, sin tener la receta', captura: 'pac-pedir-receta', grupo: 'Farmacia',
+      bajada: 'Si un remedio necesita receta y no la tenés, lo comprás igual: te reservamos el pago y un médico de Healthier te hace la receta, sin costo.',
+      marcas: {
+        1: 'Comprar y pedir receta: un médico te contacta y te la hace.',
+        2: 'Ya tengo receta: le sacás una foto o subís el PDF.',
+        3: 'Videoconsulta: si preferís que te vea un profesional.',
+      },
+      pasos: [
+        'En Farmacia, tocá "Pedir receta" en el remedio.',
+        'Elegí "Comprar y pedir receta" o "Ya tengo receta".',
+        'Pagá con tu tarjeta de crédito: el monto queda reservado, no cobrado.',
+        'Te avisamos cuando la receta está lista y el pedido pasa a la farmacia.',
+      ],
+      tips: [
+        { tipo: 'tip', texto: 'Se cobra recién cuando la receta está lista. Si el médico decide que no corresponde, o la farmacia no acepta tu receta, se cancela y no se te cobra nada.' },
+        { tipo: 'ojo', texto: 'La reserva necesita tarjeta de crédito: con débito no se puede reservar el pago.' },
+      ],
+    },
+    {
+      id: 'pedido-receta', titulo: 'Tu pedido con receta', captura: 'pac-pedido-receta', grupo: 'Farmacia',
+      bajada: 'Arriba de tu pedido ves en qué está la receta y cuánto tenés reservado.',
+      marcas: {
+        1: 'En qué está: esperando al médico, la farmacia revisando tu receta, o lista.',
+        2: 'El monto reservado: no se cobra hasta que la receta esté lista.',
+      },
+      tips: [{ tipo: 'tip', texto: 'El médico te llama o te escribe por WhatsApp al teléfono de tu perfil: tenelo al día.' }],
+    },
+    {
       id: 'pedido', titulo: 'Seguir tu pedido', captura: 'pac-pedido', grupo: 'Farmacia',
       bajada: 'Ves en qué está tu pedido. Cuando sale, aparece tu código de entrega.',
       marcas: {
@@ -449,12 +479,13 @@ const paciente = {
     { p: '¿Por qué mi receta dice "Pendiente de autorización"?', r: 'Tu obra social la tiene que autorizar antes de que la compres. Cuando la farmacia la autoriza te avisamos y ya la podés comprar.' },
     { p: '¿Cómo elimino mi cuenta?', r: 'En Perfil, al final, con "Eliminar mi cuenta". Te pide confirmar dos veces y no se puede deshacer.' },
     { p: '¿Cómo compro lo que me recetaron?', r: 'Desde la receta, con "Comprar todos", o desde Farmacia. Pagás con tu tarjeta y te lo envían.' },
+    { p: '¿Puedo comprar un remedio con receta si no tengo la receta?', r: 'Sí. Con "Comprar y pedir receta" te reservamos el pago y un médico de Healthier te hace la receta sin costo. Si no corresponde, se cancela y no se te cobra.' },
     { p: '¿Puedo atender a mi hijo con mi cuenta?', r: 'Sí. Lo cargás en tu grupo familiar y al reservar elegís "para alguien de tu grupo familiar". Su consulta queda en su propia historia clínica.' },
     { p: '¿Mi historia clínica la ve cualquiera?', r: 'No. La ven los profesionales que te atienden, y cada acceso queda registrado.' },
     { p: '¿La videollamada se graba?', r: 'No. Es una sala privada entre vos y el profesional.' },
     { p: '¿Para qué sirve el código de cierre?', r: 'Confirma que la consulta ocurrió. Se lo compartís al profesional al final, con un toque.' },
   ],
-  glosario: ['Consulta inmediata', 'Turno', 'Sala de espera', 'Pre-consulta', 'Código de cierre', 'Receta electrónica', 'Pendiente de autorización', 'Certificado', 'Orden de estudios', 'Historia clínica', 'Bóveda', 'BioVisor', 'NutriPlan', 'Grupo familiar', 'Código familiar', 'Healthy Credits', 'Horas hábiles', 'Código de entrega', 'S.O.S.', 'Código de invitación'],
+  glosario: ['Consulta inmediata', 'Turno', 'Sala de espera', 'Pre-consulta', 'Código de cierre', 'Receta electrónica', 'Pendiente de autorización', 'Pago reservado', 'Certificado', 'Orden de estudios', 'Historia clínica', 'Bóveda', 'BioVisor', 'NutriPlan', 'Grupo familiar', 'Código familiar', 'Healthy Credits', 'Horas hábiles', 'Código de entrega', 'S.O.S.', 'Código de invitación'],
   ayuda: '¿Dudas? Tocá "Contactá a soporte" en el inicio y te contestamos por WhatsApp.',
 }
 
@@ -615,6 +646,37 @@ const profesional = {
         { tipo: 'tip', texto: 'Guardar la medicación no se la entrega al paciente: recién al tocar "Emitir receta" le llega.' },
         { tipo: 'tip', texto: 'La receta necesita tu DNI, tu matrícula y la dirección de tu consultorio. Si falta algo, te lo pide ahí mismo y lo completás sin salir.' },
         { tipo: 'tip', texto: 'Si la obra social tiene que autorizarla, la receta figura "Pendiente de autorización". La autoriza la farmacia y al paciente le avisamos cuando ya la puede comprar.' },
+      ],
+    },
+    {
+      id: 'pedidos-receta', titulo: 'Pedidos de receta', captura: 'pro-pedidos-receta', grupo: 'La consulta',
+      bajada: 'Si sos médico de Healthier, acá están los pacientes que compraron un remedio con receta y esperan que los llames. Te llega un aviso con cada pedido nuevo.',
+      marcas: {
+        1: 'Nuevos, Tuyos y Hoy: lo que espera, lo que tomaste y lo que resolviste.',
+        2: 'El paciente, su teléfono y lo que compró. Llamalo o escribile por WhatsApp.',
+        3: 'Tomar: el pedido pasa a ser tuyo y se abre una consulta sin costo.',
+      },
+      pasos: [
+        'Tocá "Tomar" en el pedido.',
+        'Llamá al paciente y completá la historia clínica en la consulta.',
+        'Emití la receta desde el Recetario, como siempre.',
+      ],
+      tips: [
+        { tipo: 'tip', texto: 'La entrada "Pedidos de receta" aparece en tu menú y en tu inicio sólo si el equipo de Healthier te marcó como médico de Healthier.' },
+        { tipo: 'tip', texto: 'La consulta no tiene costo para el paciente: el paciente paga sólo el remedio.' },
+      ],
+    },
+    {
+      id: 'receta-lista', titulo: 'Cobrar y mandar a la farmacia', captura: 'pro-pedido-en-consulta', grupo: 'La consulta',
+      bajada: 'En la consulta de un pedido de receta, arriba, tenés el pedido. Cuando emitiste la receta, lo cobrás y pasa a la farmacia.',
+      marcas: {
+        1: 'El pedido del paciente: qué compró y cuánto tiene reservado.',
+        2: '"Receta lista: cobrar y enviar a la farmacia": se cobra y la farmacia lo prepara.',
+        3: '"No corresponde recetar": se cancela con tu motivo y no se le cobra nada.',
+      },
+      tips: [
+        { tipo: 'ojo', texto: 'Sin la receta emitida no se cobra: el botón te avisa qué falta.' },
+        { tipo: 'tip', texto: 'El motivo de "No corresponde recetar" lo lee el paciente.' },
       ],
     },
     {
@@ -801,7 +863,7 @@ const profesional = {
     { p: '¿Qué pasa si cambio mi especialidad o mi matrícula?', r: 'El perfil vuelve a revisión. Mientras tanto seguís atendiendo los turnos que ya tenías.' },
     { p: '¿Cómo practico antes de mi primera consulta?', r: 'Desde el inicio o el Centro de ayuda, con "Practicá una videoconsulta". Es la sala de verdad con una paciente de prueba.' },
   ],
-  glosario: ['Verificación', 'Disponible ahora', 'En sala', 'Ingresar paciente', 'Pre-consulta', 'Historia clínica', 'Receta electrónica', 'Pendiente de autorización', 'Orden de estudios', 'Certificado', 'Vademécum', 'Obra social', 'Firma', 'Código de cierre', 'Mercado Pago', 'Comisión', 'Referido', 'Código de invitación', 'NutriPlan'],
+  glosario: ['Verificación', 'Disponible ahora', 'En sala', 'Ingresar paciente', 'Pre-consulta', 'Historia clínica', 'Receta electrónica', 'Pendiente de autorización', 'Orden de estudios', 'Certificado', 'Vademécum', 'Obra social', 'Firma', 'Médico de Healthier', 'Pago reservado', 'Código de cierre', 'Mercado Pago', 'Comisión', 'Referido', 'Código de invitación', 'NutriPlan'],
   ayuda: '¿Dudas? Entrá al Centro de ayuda o escribinos por WhatsApp.',
 }
 
@@ -858,6 +920,21 @@ const farmacia = {
         'Tocá "Autorizar" y confirmá.',
         'Desaparece de la lista y el paciente ya la puede sumar al carrito.',
       ],
+    },
+    {
+      id: 'receta-subida', titulo: 'Recetas que suben los pacientes', captura: 'far-receta-subida', grupo: 'Pedidos',
+      bajada: 'Cuando un paciente compra con "Ya tengo receta", el pago queda reservado y vos revisás la foto o el PDF que subió. El pedido no se prepara hasta que la apruebes.',
+      marcas: {
+        1: 'La receta que subió el paciente. Tocala para verla grande.',
+        2: 'Aprobar receta: se cobra el pedido y lo preparás como siempre.',
+        3: 'Rechazar: con un motivo que ve el paciente. Se cancela y no se le cobra.',
+      },
+      pasos: [
+        'Abrí el pedido marcado "Receta subida: revisar".',
+        'Revisá que la receta sea legible, esté vigente y corresponda al medicamento.',
+        'Tocá "Aprobar receta" o "Rechazar receta" con el motivo.',
+      ],
+      tips: [{ tipo: 'tip', texto: 'Los pedidos "Esperando receta del médico" ya están reservados pero todavía no se preparan: los libera un médico de Healthier.' }],
     },
     {
       id: 'pedido', titulo: 'Adentro de un pedido', captura: 'far-pedido', grupo: 'Pedidos',
@@ -940,7 +1017,7 @@ const farmacia = {
     { p: '¿El paciente se entera de cada cambio?', r: 'Le avisamos cuando su pedido sale, cuando se entrega y si se cancela.' },
     { p: '¿Qué es una receta pendiente de autorización?', r: 'Una receta que la obra social tiene que autorizar. Figura arriba de tus pedidos; cuando la autorizás, el paciente ya la puede comprar.' },
   ],
-  glosario: ['Pedido', 'Código de entrega', 'Catálogo', 'Bonificado', 'Receta electrónica', 'Pendiente de autorización', 'Mercado Pago', 'Comisión'],
+  glosario: ['Pedido', 'Código de entrega', 'Catálogo', 'Bonificado', 'Receta electrónica', 'Pendiente de autorización', 'Pago reservado', 'Médico de Healthier', 'Mercado Pago', 'Comisión'],
   ayuda: '¿Dudas con un pedido? Escribinos y lo vemos juntos.',
 }
 
@@ -1135,6 +1212,15 @@ const superAdmin = {
       tips: [{ tipo: 'tip', texto: 'Si la matrícula es provincial, la provincia tiene que estar cargada para que pueda recetar. Se edita desde el legajo.' }],
     },
     {
+      id: 'medico-healthier', titulo: 'Médicos de Healthier', captura: 'sa-medico-healthier', grupo: 'Profesionales',
+      bajada: 'Quién atiende los pedidos de receta de la farmacia. Lo prendés en el legajo de un profesional verificado.',
+      marcas: { 1: 'El interruptor "Médico de Healthier".' },
+      tips: [
+        { tipo: 'tip', texto: 'Al prenderlo le aparece "Pedidos de receta" en su menú y le empiezan a llegar los avisos de pedidos nuevos.' },
+        { tipo: 'tip', texto: 'En Farmacia ves los pedidos con el pago reservado y en qué está cada receta.' },
+      ],
+    },
+    {
       id: 'recorrido', titulo: 'Recorrido y prospectos', captura: 'sa-recorrido', grupo: 'Profesionales',
       bajada: 'Cómo avanza cada profesional desde que crea la cuenta hasta que envía su perfil.',
       marcas: {
@@ -1290,7 +1376,7 @@ const superAdmin = {
     { p: '¿Cambiar el estado de una consulta mueve plata?', r: 'No: cambia el dato de la consulta. Las devoluciones se hacen desde Pagos.' },
     { p: '¿Por qué no veo una consulta que hice para probar?', r: 'Las cuentas de prueba no cuentan por defecto. Prendé "Incluir cuentas de prueba" y aparece.' },
   ],
-  glosario: ['Verificación', 'Comisión', 'Healthy Credits', 'Horas hábiles', 'Prospecto', 'Cuenta de prueba', 'Auditoría', 'Vertical', 'Zona', 'Coordinador', 'Triage'],
+  glosario: ['Verificación', 'Médico de Healthier', 'Pago reservado', 'Comisión', 'Healthy Credits', 'Horas hábiles', 'Prospecto', 'Cuenta de prueba', 'Auditoría', 'Vertical', 'Zona', 'Coordinador', 'Triage'],
   ayuda: 'Esta guía es interna: sólo se abre con una sesión de super admin.',
 }
 

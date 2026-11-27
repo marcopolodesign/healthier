@@ -24,6 +24,12 @@ const CONSULTA_CON_RECETARIO = 'a1d00002-0000-4000-8000-000000000012'
 // En el super admin de staging casi todo es de cuentas de prueba: el control
 // "Incluir cuentas de prueba" va prendido para que las pantallas no salgan vacías.
 const CON_PRUEBA = { 'superadmin.incluirPrueba': '1' }
+// Los pedidos con receta por resolver que deja sembrar.mjs (migración 254):
+// el 7 espera al médico de Healthier (clinica@), el 8 trae una receta subida.
+const PEDIDO_ESPERA_MEDICO = 'a1d00008-0000-4000-8000-000000000007'
+const PEDIDO_RECETA_SUBIDA = 'a1d00008-0000-4000-8000-000000000008'
+/** La tarjeta del pedido del paciente completo en el tablero del médico. */
+const tarjetaDelPedido = (p) => p.locator('div.rounded-\\[20px\\]', { hasText: 'Atorvastatina' }).first()
 
 /** Abre una opción del Recetario en el detalle de la consulta y la sube. */
 const recetario = async (p, opcion) => {
@@ -137,6 +143,16 @@ export const TOMAS = [
     marcas: [[1, txt('Mora', '*').last().locator('xpath=ancestor::div[2]')], [2, txt('Agregar mascota', 'button')]] },
   { id: 'pac-farmacia', quien: PAC, movil: true, url: '/paciente/farmacia', espera: 2500, marcas: [
       [1, css('input[placeholder="Buscar productos..."]')], [2, txt('Recetados por tu médico', 'section,div,h2')], [3, css('button[aria-label^="Agregar"]').or(txt('Agregar', 'button'))], [4, txt('Mis pedidos', 'button,a')]] },
+  // paciente@ no tiene receta de atorvastatina: el producto muestra "Pedir receta".
+  { id: 'pac-pedir-receta', quien: 'paciente@healthier.app', movil: true, url: '/paciente/farmacia', espera: 2500, pasos: async (p) => {
+      const buscar = p.locator('input[placeholder^="Buscar productos"]').first()
+      await buscar.click()
+      await buscar.pressSequentially('atorvastatina', { delay: 30 })
+      await esperar(p, 1500)
+      await clic(p, p.getByRole('button', { name: /Pedir receta/ }), 1500) },
+    marcas: [[1, rol('button', 'Comprar y pedir receta')], [2, rol('button', 'Ya tengo receta')], [3, txt('Videoconsulta', 'button')]] },
+  { id: 'pac-pedido-receta', quien: PAC, movil: true, url: `/paciente/farmacia/pedido/${PEDIDO_ESPERA_MEDICO}`, espera: 2500, marcas: [
+      [1, css('h1').filter({ hasText: 'Esperando tu receta' })], [2, txt('Reservado, no cobrado', 'p,span,div').first()]] },
   { id: 'pac-pedido', quien: PAC, movil: true, url: '/paciente/farmacia/pedidos', pasos: async (p) => {
       await clic(p, p.locator('a,button', { hasText: /En camino|Enviado/ }), 1500) },
     marcas: [[1, txt('En camino', 'div,section,p')], [2, txt('Código de entrega', 'div,section,p')]] },
@@ -183,6 +199,15 @@ export const TOMAS = [
   { id: 'pro-receta', quien: PRO, url: '/profesional/videollamada/simulacion', espera: 4000, pasos: async (p) => {
       await clic(p, p.locator('[data-tour="tab-receta"]'), 1500) },
     marcas: [[1, txt('cobertura', 'div,section').filter({ has: css('button') })], [2, css('button[aria-pressed]').filter({ hasText: 'Medicamentos' }).locator('..')]] },
+  { id: 'pro-pedidos-receta', quien: PRO, url: '/profesional/pedidos-receta', espera: 3000, marcas: [
+      [1, css('section').filter({ has: css('span').filter({ hasText: /^Nuevos$/ }) }).locator('xpath=..')],
+      [2, L(tarjetaDelPedido)], [3, L((p) => tarjetaDelPedido(p).getByRole('button', { name: 'Tomar' }))]] },
+  { id: 'pro-pedido-en-consulta', quien: PRO, url: '/profesional/pedidos-receta', espera: 3000, pasos: async (p) => {
+      // Tomar crea la consulta sin costo y la abre (deja el pedido "en curso").
+      await clic(p, tarjetaDelPedido(p).getByRole('button', { name: 'Tomar' }), 3500)
+      await subir(p, p.getByText('Pedido de receta de farmacia'), 24) },
+    marcas: [[1, css('div.bg-receta-nivel').filter({ hasText: 'Pedido de receta de farmacia' })],
+      [2, rol('button', /Receta lista: cobrar y enviar a la farmacia/)], [3, rol('button', 'No corresponde recetar')]] },
   { id: 'pro-estudios', quien: PRO, url: `/profesional/consulta/${CONSULTA_CON_RECETARIO}`, espera: 2500, pasos: async (p) => {
       await recetario(p, 'Estudios')
       await clic(p, p.locator('button', { hasText: 'Nueva orden de estudios' }), 900)
@@ -224,6 +249,9 @@ export const TOMAS = [
       [1, css('h1:has-text("Pedidos")')], [2, css('select.form-select').first().locator('..')], [3, css('table').last().locator('tbody tr').first()], [4, css('table').last().locator('tbody tr button').first()]] },
   { id: 'far-autorizar', quien: FARMACIA, url: '/farmacia/pedidos', espera: 2500, marcas: [
       [1, css('[data-testid="recetas-por-autorizar"] h2').locator('..')], [2, css('[data-testid="recetas-por-autorizar"] tbody tr').first()], [3, css('[data-testid="recetas-por-autorizar"] button').filter({ hasText: 'Autorizar' }).first()]] },
+  { id: 'far-receta-subida', quien: FARMACIA, url: `/farmacia/pedidos/${PEDIDO_RECETA_SUBIDA}`, espera: 3000, pasos: async (p) => {
+      await subir(p, p.getByText('Receta subida por el paciente'), 24) },
+    marcas: [[1, txt('Receta subida por el paciente', 'p').locator('..')], [2, txt('Aprobar receta', 'button')], [3, txt('Rechazar', 'button').last()]] },
   { id: 'far-pedido', quien: FARMACIA, url: '/farmacia/pedidos', pasos: async (p) => {
       await clic(p, p.locator('tbody tr', { hasText: 'Entregar con código' }), 1800) },
     marcas: [[1, css('h1.font-mono').locator('..')], [2, txt('Paciente', 'p').locator('xpath=ancestor::*[contains(@class,"card")][1]')], [3, txt('Medicamentos', 'p,h2').locator('xpath=ancestor::*[contains(@class,"card")][1]')], [4, txt('Neto farmacia', '*').locator('xpath=ancestor::*[contains(@class,"card")][1]')], [5, css('input[placeholder="----"]').locator('..')]] },
@@ -264,6 +292,10 @@ export const TOMAS = [
   { id: 'sa-profesional', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/profesionales?filter=pendientes', pasos: async (p) => {
       await clic(p, p.locator('tbody tr').first(), 1800) },
     marcas: [[1, txt('Credenciales y datos para recetar', '*').locator('..')], [2, txt('Verificar manualmente', 'button').locator('..')]] },
+  { id: 'sa-medico-healthier', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/profesionales?filter=verificados', pasos: async (p) => {
+      await clic(p, p.locator('tbody tr', { hasText: 'Valentina Ortega' }).first(), 1800)
+      await subir(p, p.getByRole('switch', { name: 'Médico de Healthier' }), 200) },
+    marcas: [[1, rol('switch', 'Médico de Healthier').locator('xpath=ancestor::div[contains(@class,"flex")][2]')]] },
   { id: 'sa-recorrido', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/profesionales/recorrido', espera: 3000, marcas: [
       [1, txt('30 días', 'button').locator('..')], [2, txt('Enviaron para verificar', '*').locator('xpath=ancestor::div[contains(@class,"grid")][1]')], [3, css('svg').last()]] },
   { id: 'sa-pagos', quien: SA, guardado: CON_PRUEBA, url: '/super-admin/pagos', espera: 3000, alto: 1500, marcas: [

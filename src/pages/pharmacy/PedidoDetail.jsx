@@ -202,7 +202,7 @@ export default function PharmacyOrderDetail({ profile }) {
       {payment && (
         <div className="card space-y-2">
           <p className="text-xs uppercase text-text-muted font-semibold">Pago</p>
-          <div className="flex justify-between text-sm"><span className="text-text-secondary">Cobrado</span><span className="text-text-primary">{formatARS(payment.grossAmount)}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-text-secondary">{payment.status === 'authorized' ? 'Reservado, sin cobrar' : 'Cobrado'}</span><span className="text-text-primary">{formatARS(payment.grossAmount)}</span></div>
           <div className="flex justify-between text-sm"><span className="text-text-secondary">Comisión Healthier</span><span className="text-text-primary">{formatARS(payment.platformFee)}</span></div>
           <div className="flex justify-between text-sm font-semibold"><span className="text-text-primary">Neto farmacia</span><span className="text-text-primary">{formatARS(payment.netToProfessional)}</span></div>
         </div>
