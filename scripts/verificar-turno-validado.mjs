@@ -9,11 +9,13 @@
  *   · mover el turno fuera de la agenda, a un minuto que no es slot, al pasado
  *     o encima de otro turno del mismo profesional;
  *   · cambiarle el precio, el profesional, la modalidad o marcarlo inmediata.
+ *   · correrlo unos segundos (el turno ocupado se busca por instante exacto).
  * Y comprueba que lo legítimo siga andando:
  *   · el paciente lo mueve a un horario libre de la agenda;
  *   · guardar el precio sin cambiarlo (un patch completo) no rompe;
  *   · el profesional lo mueve fuera de su grilla (es su agenda) pero no al
- *     pasado ni encima de otro turno;
+ *     pasado, ni encima (o a medias encima) de otro turno, ni le cambia la
+ *     modalidad;
  *   · el super admin lo mueve a donde quiera.
  *
  * Crea dos consultas de prueba entre las cuentas demo de staging
@@ -135,6 +137,7 @@ try {
   bloque('Paciente intenta saltearse la validación')
   await rechaza(paciente, 'paciente', 'fuera de la agenda (03:00)', { scheduled_at: ar(fecha, '03:00') })
   await rechaza(paciente, 'paciente', 'minuto que no es slot (10:07)', { scheduled_at: ar(fecha, '10:07') })
+  await rechaza(paciente, 'paciente', 'correrlo 30 segundos (libera el slot)', { scheduled_at: new Date(new Date(S1).getTime() + 30_000).toISOString() })
   await rechaza(paciente, 'paciente', 'en el pasado', { scheduled_at: ar(dia(-1), '10:00') })
   await rechaza(paciente, 'paciente', 'encima de otro turno', { scheduled_at: S2 })
   await rechaza(paciente, 'paciente', 'precio a $1', { price_at_booking: 1 })
@@ -150,12 +153,16 @@ try {
   const fueraDeGrilla = ar(fecha, '20:00')
   await acepta(profesional, 'profesional', 'mover fuera de su grilla', { scheduled_at: fueraDeGrilla }, fueraDeGrilla)
   await rechaza(profesional, 'profesional', 'encima de otro turno suyo', { scheduled_at: S2 })
+  await rechaza(profesional, 'profesional', 'pisando a medias otro turno (S2 + 5 min)', { scheduled_at: new Date(new Date(S2).getTime() + 5 * 60_000).toISOString() })
+  await rechaza(profesional, 'profesional', 'cambiar la modalidad (el precio no se recalcula)', { modality: 'presencial' })
   await rechaza(profesional, 'profesional', 'en el pasado', { scheduled_at: ar(dia(-1), '10:00') })
   await rechaza(profesional, 'profesional', 'precio a $1', { price_at_booking: 1 })
 
+  // Al pasado a propósito: así no dispara el mail de reprogramación (255),
+  // que sale sólo para fechas futuras y llegaría después de la limpieza.
   bloque('Super admin')
-  const madrugada = ar(fecha, '03:00')
-  await acepta(superadmin, 'super admin', 'mover a cualquier hora', { scheduled_at: madrugada }, madrugada)
+  const madrugada = ar(dia(-1), '03:00')
+  await acepta(superadmin, 'super admin', 'mover a cualquier hora (incluso fuera de agenda y al pasado)', { scheduled_at: madrugada }, madrugada)
 } catch (e) {
   mal(e.message)
 } finally {

@@ -16,13 +16,15 @@
 -- Qué hace, en un UPDATE que toque esas columnas:
 --   · Pasan sin revisar: service role / cron (`auth.uid()` nulo), admin y
 --     super admin, y la atención de emergencias (la maneja su módulo).
---   · Nadie más puede cambiar `price_at_booking`, `professional_id` ni
---     `is_on_demand`. La `modality` sólo la puede cambiar el profesional de la
---     consulta (la 220 ya valida que tenga precio presencial).
---   · Si cambia `scheduled_at` (al minuto):
+--   · Nadie más puede cambiar `price_at_booking`, `professional_id`,
+--     `is_on_demand` ni `modality`. La modalidad tampoco el profesional: el
+--     precio depende de ella y lo fija el servidor al reservar; cambiarla sin
+--     recalcular dejaría cobrando el precio de la otra. Ningún front la cambia.
+--   · Si cambia `scheduled_at` (cualquier diferencia, también de segundos —
+--     el turno ocupado se busca por instante exacto en la 249):
 --       - sólo un turno vivo (`pending` / `confirmed`);
 --       - inmediata: para ahora (±15 min), igual que la 249 en el alta;
---       - el horario nuevo tiene que ser futuro;
+--       - el horario nuevo tiene que ser futuro y en minuto redondo;
 --       - el paciente: dentro de una franja de `professional_schedules`,
 --         alineado al slot — la misma cuenta que la 249;
 --       - el profesional de la consulta es el dueño de la agenda y la 249 ya le
@@ -30,9 +32,12 @@
 --         grilla. Sí se le exige futuro y que el horario esté libre: mover un
 --         turno encima de otro de él mismo deja a dos pacientes con la misma
 --         hora, y eso no es una decisión de agenda sino un error;
---       - para todos: sin otra consulta viva del mismo profesional a esa hora
---         (con el mismo lock que la 249, así un alta y un movimiento al mismo
---         horario no se cruzan).
+--       - para todos: que no se superponga con otra consulta viva del mismo
+--         profesional (rango de un slot, no sólo el mismo instante), con el
+--         mismo lock que la 249 para que un alta y un movimiento no se crucen.
+--   · La cuenta "el slot entra entero en la franja" se hace en minutos del
+--     día (en `time` 23:50 + 15 min da 00:05 y pasaba). La 249 tiene la misma
+--     cuenta en `time`; queda anotado para cuando se toque.
 -- Mensajes en castellano y con `hint`, como la 249: los fronts muestran
 -- `error.message` tal cual.
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -61,19 +66,19 @@ begin
     return new;
   end if;
 
-  v_es_pro := v_uid = old.professional_id;
+  v_es_pro := coalesce(v_uid = old.professional_id, false);
 
   -- 1 · Lo que define cuánto se cobra y a quién, no lo cambia el cliente.
   if new.price_at_booking is distinct from old.price_at_booking
      or new.professional_id is distinct from old.professional_id
      or new.is_on_demand is distinct from old.is_on_demand
-     or (not v_es_pro and new.modality is distinct from old.modality) then
+     or new.modality is distinct from old.modality then
     raise exception 'Ese dato del turno no se puede cambiar. Si necesitás otro profesional o modalidad, cancelalo y sacá uno nuevo.'
       using errcode = 'check_violation', hint = 'turno_dato_protegido';
   end if;
 
   -- 2 · El horario.
-  if date_trunc('minute', new.scheduled_at) is not distinct from date_trunc('minute', old.scheduled_at) then
+  if new.scheduled_at is not distinct from old.scheduled_at then
     return new;
   end if;
 
@@ -100,9 +105,15 @@ begin
       using errcode = 'check_violation', hint = 'turno_en_el_pasado';
   end if;
 
+  if extract(second from new.scheduled_at) <> 0 then
+    raise exception 'Ese horario no está en la agenda del profesional. Elegí otro.'
+      using errcode = 'check_violation', hint = 'turno_fuera_de_agenda';
+  end if;
+
+  select coalesce(slot_duration_minutes, 15) into v_slot from platform_settings where id = 1;
+  v_slot := coalesce(v_slot, 15);
+
   if not v_es_pro then
-    select coalesce(slot_duration_minutes, 15) into v_slot from platform_settings where id = 1;
-    v_slot  := coalesce(v_slot, 15);
     v_local := new.scheduled_at at time zone 'America/Argentina/Buenos_Aires';
     v_hora  := v_local::time;
     v_dow   := extract(dow from v_local)::int;
@@ -113,7 +124,7 @@ begin
       where s.professional_id = new.professional_id
         and s.day_of_week = v_dow
         and v_hora >= s.start_time
-        and v_hora + make_interval(mins => dur.d) <= s.end_time
+        and extract(epoch from v_hora) / 60 + dur.d <= extract(epoch from s.end_time) / 60
         and (extract(epoch from (v_hora - s.start_time))::int / 60) % dur.d = 0
         and extract(second from v_hora) = 0
     ) into v_en_agenda;
@@ -129,7 +140,8 @@ begin
   if exists (
     select 1 from consultations c
     where c.professional_id = new.professional_id
-      and c.scheduled_at = new.scheduled_at
+      and c.scheduled_at < new.scheduled_at + make_interval(mins => v_slot)
+      and new.scheduled_at < c.scheduled_at + make_interval(mins => v_slot)
       and c.id <> new.id
       and c.status in ('pending', 'confirmed', 'in_progress')
       and c.emergency_id is null
@@ -143,7 +155,7 @@ end;
 $$;
 
 comment on function public.validar_cambio_de_turno() is
-  'Migración 257. UPDATE de una consulta hecho por el paciente o el profesional: precio, profesional e inmediata no se tocan (modalidad sólo el profesional); mover el horario exige turno vivo, futuro, libre y —para el paciente— dentro de la agenda y alineado al slot. Exime service role, admin/super admin y emergencias.';
+  'Migración 257. UPDATE de una consulta hecho por el paciente o el profesional: precio, profesional, modalidad e inmediata no se tocan; mover el horario exige turno vivo, futuro, en minuto redondo, sin superponerse con otro turno vivo del profesional y —para el paciente— dentro de la agenda y alineado al slot. Exime service role, admin/super admin y emergencias.';
 
 drop trigger if exists consultations_validar_cambio_de_turno on public.consultations;
 create trigger consultations_validar_cambio_de_turno
