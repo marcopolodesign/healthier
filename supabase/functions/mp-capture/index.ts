@@ -768,20 +768,30 @@ async function liberarPedidoDeFarmacia(
  * pero cuya liberación no llegó a salir (la llamada del trigger se perdió).
  */
 async function sweepFarmacia(supabase: SupabaseClient) {
-  const out = { scanned: 0, released: 0, failed: 0 };
+  const out = { scanned: 0, captured: 0, released: 0, failed: 0 };
   const limite = new Date(Date.now() - RETENCION_FARMACIA_MAX_DIAS * 24 * 60 * 60 * 1000).toISOString();
   const { data: rows, error } = await supabase
     .from("medication_orders")
     .select("id, receta_estado, receta_motivo_rechazo, autorizado_at")
-    .eq("payment_status", "autorizado")
-    .or(`receta_estado.eq.rechazada,autorizado_at.lt.${limite}`);
+    .eq("payment_status", "autorizado");
   if (error) {
     console.error("mp-capture: sweep de farmacia no pudo leer las retenciones:", error.message);
     return out;
   }
-  for (const row of (rows ?? []) as Array<{ id: string; receta_estado: string | null; receta_motivo_rechazo: string | null }>) {
+  for (const row of (rows ?? []) as Array<{ id: string; receta_estado: string | null; receta_motivo_rechazo: string | null; autorizado_at: string | null }>) {
     out.scanned++;
     try {
+      // 1. Lo que ya tiene la receta resuelta se cobra (reintento de un cobro que
+      //    se perdió: la aprobación de la farmacia o el botón del médico llaman a
+      //    mp-capture una sola vez). Sin receta resuelta contesta 422 sin tocar MP.
+      if (row.receta_estado !== "rechazada") {
+        const c = await cobrarPedidoDeFarmacia(supabase, row.id);
+        if (!c.error) { out.captured++; continue; }
+        if (c.status !== 422) console.error(`mp-capture: sweep farmacia cobro ${row.id} falló:`, c.error);
+      }
+      // 2. Rechazado, o vencido sin resolver → se libera.
+      const vencido = row.autorizado_at !== null && Date.parse(row.autorizado_at) < Date.parse(limite);
+      if (row.receta_estado !== "rechazada" && !vencido) continue;
       const r = await liberarPedidoDeFarmacia(
         supabase, row.id, row.receta_estado === "rechazada" ? row.receta_motivo_rechazo : MOTIVO_VENCIDA
       );
